@@ -1,4 +1,4 @@
-// src/rules/rules.rs
+// src/rules/mod.rs
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use rand::Rng;
 
@@ -13,23 +13,34 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
 
     // Update per-bacteria fields
     for &bacteria in BACTERIA_LIST.iter() {
-        if let Some(val) = individual.date_last_infected.get_mut(bacteria) {
-            *val += rng.gen_range(-1..=1);
+        if let Some(val_ref) = individual.date_last_infected.get_mut(bacteria) {
+            *val_ref += rng.gen_range(-1..=1);
         }
-        if let Some(val) = individual.infectious_syndrome.get_mut(bacteria) {
-            *val += rng.gen_range(-1.0..=1.0);
+
+        if let Some(val_ref) = individual.infectious_syndrome.get_mut(bacteria) {
+            let current_val = *val_ref;
+            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            *val_ref = (current_val + rng_val).max(0.0).min(10.0);
         }
-        if let Some(val) = individual.level.get_mut(bacteria) {
-            *val += rng.gen_range(-1.0..=1.0);
+
+        if let Some(val_ref) = individual.level.get_mut(bacteria) {
+            let current_val = *val_ref;
+            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            *val_ref = (current_val + rng_val).max(0.0);
         }
-        if let Some(val) = individual.immune_resp.get_mut(bacteria) {
-            *val += rng.gen_range(-1.0..=1.0);
+
+        if let Some(val_ref) = individual.immune_resp.get_mut(bacteria) {
+            let current_val = *val_ref;
+            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            *val_ref = (current_val + rng_val).max(0.0);
         }
-        if let Some(val) = individual.sepsis.get_mut(bacteria) {
+
+        if let Some(val_ref) = individual.sepsis.get_mut(bacteria) {
             if rng.gen::<f64>() < flip_probability {
-                *val = !*val;
+                *val_ref = !*val_ref;
             }
         }
+
         if let Some(val) = individual.level_microbiome.get_mut(bacteria) {
             *val += rng.gen_range(-1.0..=1.0);
         }
