@@ -1,5 +1,5 @@
 // src/simulation/population.rs
-use rand::prelude::*;
+use rand::Rng;
 use std::collections::HashMap;
 
 pub const BACTERIA_LIST: &[&str] = &[
@@ -20,8 +20,8 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "retapamulin", "fusidic_a", "metronidazole",
 ];
 
-#[derive(Clone, Copy, Debug)]
-pub struct DrugResistance {
+#[derive(Debug, Clone)]
+pub struct Resistance {
     pub microbiome_r: f64,
     pub test_r: f64,
     pub activity_r: f64,
@@ -29,29 +29,24 @@ pub struct DrugResistance {
     pub c_r: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct Individual {
     pub id: usize,
-    pub age: i32,  // age in days (negative = before reference date)
+    pub age: i32, // age in days (negative = before reference date)
     pub sex_at_birth: String,
-    pub resistances: Vec<Vec<DrugResistance>>, // [bacteria][drug]
-
-    // Explicitly named variables
     pub date_last_infected: HashMap<&'static str, i32>,
     pub infectious_syndrome: HashMap<&'static str, f64>,
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
     pub sepsis: HashMap<&'static str, bool>,
     pub level_microbiome: HashMap<&'static str, f64>,
-
     pub haem_infl_vaccination_status: bool,
     pub strep_pneu_vaccination_status: bool,
     pub salm_typhi_vaccination_status: bool,
     pub esch_coli_vaccination_status: bool,
-
+    // Note: You might have more vaccination statuses in your actual code
     pub cur_use_drug: Vec<bool>,
     pub cur_level_drug: Vec<f64>,
-
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,
     pub sexual_contact_level: f64,
@@ -63,51 +58,49 @@ pub struct Individual {
     pub infection_hospital_acquired: bool,
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64,
+    pub resistances: Vec<Vec<Resistance>>,
 }
 
 impl Individual {
     pub fn new(id: usize, age_days: i32, sex_at_birth: String) -> Self {
         let mut rng = rand::thread_rng();
-        // Uniform distribution of age in days [-36500,36500]
-        let age_days = rng.gen_range(-36500..=36500);
-
-        // Initialize resistances
-        let mut resistances = Vec::new();
-        for _ in BACTERIA_LIST.iter() {
-            let mut drug_resistances = Vec::new();
-            for _ in DRUG_SHORT_NAMES.iter() {
-                drug_resistances.push(DrugResistance {
-                    microbiome_r: rng.gen(),
-                    test_r: rng.gen(),
-                    activity_r: rng.gen(),
-                    e_r: rng.gen(),
-                    c_r: rng.gen(),
-                });
-            }
-            resistances.push(drug_resistances);
-        }
-
-        // Initialize maps
         let mut date_last_infected = HashMap::new();
         let mut infectious_syndrome = HashMap::new();
         let mut level = HashMap::new();
         let mut immune_resp = HashMap::new();
         let mut sepsis = HashMap::new();
         let mut level_microbiome = HashMap::new();
-        for &b in BACTERIA_LIST.iter() {
-            date_last_infected.insert(b, 0);
-            infectious_syndrome.insert(b, rng.gen());
-            level.insert(b, rng.gen());
-            immune_resp.insert(b, rng.gen());
-            sepsis.insert(b, rng.gen_bool(0.1));
-            level_microbiome.insert(b, rng.gen());
+
+        for &bacteria in BACTERIA_LIST.iter() {
+            date_last_infected.insert(bacteria, 0);
+            infectious_syndrome.insert(bacteria, 0.0);
+            level.insert(bacteria, 0.0);
+            immune_resp.insert(bacteria, 0.0);
+            sepsis.insert(bacteria, false);
+            level_microbiome.insert(bacteria, 0.0);
+        }
+
+        let num_drugs = DRUG_SHORT_NAMES.len();
+        let num_bacteria = BACTERIA_LIST.len();
+        let mut resistances = Vec::with_capacity(num_bacteria);
+        for _ in 0..num_bacteria {
+            let mut drug_resistances = Vec::with_capacity(num_drugs);
+            for _ in 0..num_drugs {
+                drug_resistances.push(Resistance {
+                    microbiome_r: rng.gen_range(0.0..1.0),
+                    test_r: rng.gen_range(0.0..1.0),
+                    activity_r: rng.gen_range(0.0..1.0),
+                    e_r: rng.gen_range(0.0..1.0),
+                    c_r: rng.gen_range(0.0..1.0),
+                });
+            }
+            resistances.push(drug_resistances);
         }
 
         Individual {
             id,
             age: age_days,
             sex_at_birth,
-            resistances,
             date_last_infected,
             infectious_syndrome,
             level,
@@ -118,37 +111,38 @@ impl Individual {
             strep_pneu_vaccination_status: rng.gen_bool(0.5),
             salm_typhi_vaccination_status: rng.gen_bool(0.5),
             esch_coli_vaccination_status: rng.gen_bool(0.5),
-            cur_use_drug: vec![false; DRUG_SHORT_NAMES.len()],
-            cur_level_drug: vec![0.0; DRUG_SHORT_NAMES.len()],
-            current_infection_related_death_risk: rng.gen(),
-            background_all_cause_mortality_rate: rng.gen(),
-            sexual_contact_level: rng.gen(),
-            airborne_contact_level_with_adults: rng.gen(),
-            airborne_contact_level_with_children: rng.gen(),
-            oral_exposure_level: rng.gen(),
-            mosquito_exposure_level: rng.gen(),
-            under_care: rng.gen_bool(0.5),
+            // Make sure to include all other vaccination statuses if they exist in your code
+            cur_use_drug: vec![false; num_drugs],
+            cur_level_drug: vec![0.0; num_drugs],
+            current_infection_related_death_risk: rng.gen_range(0.0..1.0),
+            background_all_cause_mortality_rate: rng.gen_range(0.0..0.1),
+            sexual_contact_level: rng.gen_range(0.0..1.0),
+            airborne_contact_level_with_adults: rng.gen_range(0.0..1.0),
+            airborne_contact_level_with_children: rng.gen_range(0.0..1.0),
+            oral_exposure_level: rng.gen_range(0.0..1.0),
+            mosquito_exposure_level: rng.gen_range(0.0..1.0),
+            under_care: rng.gen_bool(0.1),
             infection_hospital_acquired: rng.gen_bool(0.05),
-            current_toxicity: rng.gen(),
-            mortality_risk_current_toxicity: rng.gen(),
+            current_toxicity: rng.gen_range(0.0..1.0),
+            mortality_risk_current_toxicity: rng.gen_range(0.0..0.2),
+            resistances,
         }
     }
 }
 
-#[derive(Debug)]
 pub struct Population {
     pub individuals: Vec<Individual>,
 }
 
 impl Population {
-    pub fn new(num_individuals: usize) -> Self {
-        let individuals = (0..num_individuals)
-            .map(|i| Individual::new(i, 0, "".to_string()))
-            .collect();
+    pub fn new(size: usize) -> Self {
+        let mut individuals = Vec::with_capacity(size);
+        let mut rng = rand::thread_rng();
+        for i in 0..size {
+            let age = rng.gen_range(-36500..0); // Example age range
+            let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
+            individuals.push(Individual::new(i, age, sex));
+        }
         Population { individuals }
-    }
-
-    pub fn get_individual(&self, index: usize) -> Option<&Individual> {
-        self.individuals.get(index)
     }
 }
