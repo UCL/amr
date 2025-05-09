@@ -1,0 +1,13 @@
+[package]
+name = "amr_project"
+version = "0.1.0"
+edition = "2021"
+
+# Explicitly define the binary target
+[[bin]]
+name = "executable_amr" # You can choose a name for your executable
+path = "src/main.rs"
+
+[dependencies]
+rand = "0.8"
+
