@@ -65,7 +65,7 @@ impl Individual {
     pub fn new(id: usize, age_days: i32, sex_at_birth: String) -> Self {
         let mut rng = rand::thread_rng();
         let mut date_last_infected = HashMap::new();
-        let mut infectious_syndrome: HashMap<&'static str, i32> = HashMap::new(); // Explicit type
+        let mut infectious_syndrome: HashMap<&'static str, i32> = HashMap::new();
         let mut level = HashMap::new();
         let mut immune_resp = HashMap::new();
         let mut sepsis = HashMap::new();
@@ -73,7 +73,7 @@ impl Individual {
 
         for &bacteria in BACTERIA_LIST.iter() {
             date_last_infected.insert(bacteria, 0);
-            infectious_syndrome.insert(bacteria, 0); // Inserting integer 0
+            infectious_syndrome.insert(bacteria, 0);
             level.insert(bacteria, 0.0);
             immune_resp.insert(bacteria, 0.0);
             sepsis.insert(bacteria, false);
@@ -88,14 +88,20 @@ impl Individual {
             for _ in 0..num_drugs {
                 drug_resistances.push(Resistance {
                     microbiome_r: rng.gen_range(0.0..1.0),
-                    test_r: rng.gen_range(0.0..1.0),
-                    activity_r: rng.gen_range(0.0..1.0),
-                    e_r: rng.gen_range(0.0..1.0),
-                    c_r: rng.gen_range(0.0..1.0),
+                    test_r: rng.gen_range(0.0..=3.0),
+                    activity_r: rng.gen_range(0.0..=3.0),
+                    e_r: rng.gen_range(0.0..=1.0),
+                    c_r: rng.gen_range(0.0..=1.0),
                 });
             }
             resistances.push(drug_resistances);
         }
+
+        let background_all_cause_mortality_rate = if age_days < 0 {
+            0.0
+        } else {
+            0.000001
+        };
 
         Individual {
             id,
@@ -111,23 +117,23 @@ impl Individual {
             strep_pneu_vaccination_status: rng.gen_bool(0.5),
             salm_typhi_vaccination_status: rng.gen_bool(0.5),
             esch_coli_vaccination_status: rng.gen_bool(0.5),
-            // Make sure to include all other vaccination statuses if they exist in your code
             cur_use_drug: vec![false; num_drugs],
-            cur_level_drug: vec![0.0; num_drugs],
-            current_infection_related_death_risk: rng.gen_range(0.0..1.0),
-            background_all_cause_mortality_rate: rng.gen_range(0.0..0.1),
-            sexual_contact_level: rng.gen_range(0.0..1.0),
-            airborne_contact_level_with_adults: rng.gen_range(0.0..1.0),
-            airborne_contact_level_with_children: rng.gen_range(0.0..1.0),
-            oral_exposure_level: rng.gen_range(0.0..1.0),
-            mosquito_exposure_level: rng.gen_range(0.0..1.0),
+            cur_level_drug: (0..num_drugs).map(|_| rng.gen_range(0.0..=3.0)).collect(),
+            current_infection_related_death_risk: 0.0,
+            background_all_cause_mortality_rate,
+            sexual_contact_level: rng.gen_range(0.0..=10.0),
+            airborne_contact_level_with_adults: rng.gen_range(0.0..=10.0),
+            airborne_contact_level_with_children: rng.gen_range(0.0..=10.0),
+            oral_exposure_level: rng.gen_range(0.0..=10.0),
+            mosquito_exposure_level: rng.gen_range(0.0..=10.0),
             under_care: rng.gen_bool(0.1),
             infection_hospital_acquired: rng.gen_bool(0.05),
-            current_toxicity: rng.gen_range(0.0..1.0),
-            mortality_risk_current_toxicity: rng.gen_range(0.0..0.2),
+            current_toxicity: rng.gen_range(0.0..=3.0),
+            mortality_risk_current_toxicity: 0.0,
             resistances,
         }
     }
+
 }
 
 pub struct Population {
@@ -139,7 +145,7 @@ impl Population {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
         for i in 0..size {
-            let age = rng.gen_range(-36500..0); // Example age range
+            let age = rng.gen_range(-36500..=36500); // Age range from -100 to +100 years in days
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             individuals.push(Individual::new(i, age, sex));
         }

@@ -15,47 +15,34 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
 
     // Update per-bacteria fields
     for &bacteria in BACTERIA_LIST.iter() {
-        // Update date_last_infected
         if let Entry::Occupied(mut entry) = individual.date_last_infected.entry(bacteria) {
-            *entry.get_mut() += rng.gen_range(-1..=1);
+            *entry.get_mut() += rng.gen_range(0..=1); // Changed to 0..=1
         }
-
-        // Update infectious_syndrome
         if let Entry::Occupied(mut entry) = individual.infectious_syndrome.entry(bacteria) {
-            let val_ref: &mut i32 = entry.get_mut(); // Explicit type annotation
+            let val_ref: &mut i32 = entry.get_mut();
             if rng.gen::<f64>() > no_infection_probability {
-                // Small probability of transitioning to a specific syndrome (1-10)
-                *val_ref = rng.gen_range(1..=10); // Assign integer directly
+                *val_ref = rng.gen_range(1..=10);
             } else {
-                // High probability of being in the "None" state
-                *val_ref = 0; // Assign integer directly
+                *val_ref = 0;
             }
         }
-
-        // Update level
         if let Entry::Occupied(mut entry) = individual.level.entry(bacteria) {
             let current_val = *entry.get();
-            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            let rng_val: f64 = rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
             *entry.get_mut() = (current_val + rng_val).max(0.0);
         }
-
-        // Update immune_resp
         if let Entry::Occupied(mut entry) = individual.immune_resp.entry(bacteria) {
             let current_val = *entry.get();
-            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            let rng_val: f64 = rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
             *entry.get_mut() = (current_val + rng_val).max(0.0);
         }
-
-        // Update sepsis
         if let Entry::Occupied(mut entry) = individual.sepsis.entry(bacteria) {
             if rng.gen::<f64>() < flip_probability {
                 *entry.get_mut() = !*entry.get();
             }
         }
-
-        // Update level_microbiome
         if let Entry::Occupied(mut entry) = individual.level_microbiome.entry(bacteria) {
-            *entry.get_mut() += rng.gen_range(-1.0..=1.0);
+            *entry.get_mut() += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
         }
     }
 
@@ -78,34 +65,34 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
         individual.cur_use_drug[i] = rng.gen_bool(0.1);
     }
     for i in 0..individual.cur_level_drug.len() {
-        individual.cur_level_drug[i] += rng.gen_range(-1.0..=1.0);
+        individual.cur_level_drug[i] += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
     }
 
     // Update other scalar fields
-    individual.current_infection_related_death_risk += rng.gen_range(-1.0..=1.0);
-    individual.background_all_cause_mortality_rate += rng.gen_range(-1.0..=1.0);
-    individual.sexual_contact_level += rng.gen_range(-1.0..=1.0);
-    individual.airborne_contact_level_with_adults += rng.gen_range(-1.0..=1.0);
-    individual.airborne_contact_level_with_children += rng.gen_range(-1.0..=1.0);
-    individual.oral_exposure_level += rng.gen_range(-1.0..=1.0);
-    individual.mosquito_exposure_level += rng.gen_range(-1.0..=1.0);
+    individual.current_infection_related_death_risk += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.background_all_cause_mortality_rate += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.sexual_contact_level += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.airborne_contact_level_with_adults += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.airborne_contact_level_with_children += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.oral_exposure_level += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.mosquito_exposure_level += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
     if rng.gen::<f64>() < flip_probability {
         individual.under_care = !individual.under_care;
     }
     if rng.gen::<f64>() < flip_probability {
         individual.infection_hospital_acquired = !individual.infection_hospital_acquired;
     }
-    individual.current_toxicity += rng.gen_range(-1.0..=1.0);
-    individual.mortality_risk_current_toxicity += rng.gen_range(-1.0..=1.0);
+    individual.current_toxicity += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+    individual.mortality_risk_current_toxicity += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
 
     // Update resistances
     for i in 0..BACTERIA_LIST.len() {
         for j in 0..DRUG_SHORT_NAMES.len() {
-            individual.resistances[i][j].microbiome_r += rng.gen_range(-1.0..=1.0);
-            individual.resistances[i][j].test_r += rng.gen_range(-1.0..=1.0);
-            individual.resistances[i][j].activity_r += rng.gen_range(-1.0..=1.0);
-            individual.resistances[i][j].e_r += rng.gen_range(-1.0..=1.0);
-            individual.resistances[i][j].c_r += rng.gen_range(-1.0..=1.0);
+            individual.resistances[i][j].microbiome_r += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+            individual.resistances[i][j].test_r += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+            individual.resistances[i][j].activity_r += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+            individual.resistances[i][j].e_r += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
+            individual.resistances[i][j].c_r += rng.gen_range(0.0..=1.0); // Changed to 0.0..=1.0
         }
     }
 }
