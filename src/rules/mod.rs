@@ -1,48 +1,61 @@
 // src/rules/mod.rs
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use rand::Rng;
+use std::collections::hash_map::Entry;
 
 /// Applies model rules to an individual for one time step.
-/// Now increments age by 1 day each step.
+/// Now updates infectious_syndrome to be an integer 0-10 probabilistically.
 pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
     let mut rng = rand::thread_rng();
     let flip_probability = 0.1;
+    let no_infection_probability = 0.95; // Probability of infectious_syndrome being 0
 
     // Update age: increment by 1 day per time step
     individual.age += 1;
 
     // Update per-bacteria fields
     for &bacteria in BACTERIA_LIST.iter() {
-        if let Some(val_ref) = individual.date_last_infected.get_mut(bacteria) {
-            *val_ref += rng.gen_range(-1..=1);
+        // Update date_last_infected
+        if let Entry::Occupied(mut entry) = individual.date_last_infected.entry(bacteria) {
+            *entry.get_mut() += rng.gen_range(-1..=1);
         }
 
-        if let Some(val_ref) = individual.infectious_syndrome.get_mut(bacteria) {
-            let current_val = *val_ref;
-            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
-            *val_ref = (current_val + rng_val).max(0.0).min(10.0);
-        }
-
-        if let Some(val_ref) = individual.level.get_mut(bacteria) {
-            let current_val = *val_ref;
-            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
-            *val_ref = (current_val + rng_val).max(0.0);
-        }
-
-        if let Some(val_ref) = individual.immune_resp.get_mut(bacteria) {
-            let current_val = *val_ref;
-            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
-            *val_ref = (current_val + rng_val).max(0.0);
-        }
-
-        if let Some(val_ref) = individual.sepsis.get_mut(bacteria) {
-            if rng.gen::<f64>() < flip_probability {
-                *val_ref = !*val_ref;
+        // Update infectious_syndrome
+        if let Entry::Occupied(mut entry) = individual.infectious_syndrome.entry(bacteria) {
+            let val_ref: &mut i32 = entry.get_mut(); // Explicit type annotation
+            if rng.gen::<f64>() > no_infection_probability {
+                // Small probability of transitioning to a specific syndrome (1-10)
+                *val_ref = rng.gen_range(1..=10); // Assign integer directly
+            } else {
+                // High probability of being in the "None" state
+                *val_ref = 0; // Assign integer directly
             }
         }
 
-        if let Some(val) = individual.level_microbiome.get_mut(bacteria) {
-            *val += rng.gen_range(-1.0..=1.0);
+        // Update level
+        if let Entry::Occupied(mut entry) = individual.level.entry(bacteria) {
+            let current_val = *entry.get();
+            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            *entry.get_mut() = (current_val + rng_val).max(0.0);
+        }
+
+        // Update immune_resp
+        if let Entry::Occupied(mut entry) = individual.immune_resp.entry(bacteria) {
+            let current_val = *entry.get();
+            let rng_val: f64 = rng.gen_range(-1.0..=1.0);
+            *entry.get_mut() = (current_val + rng_val).max(0.0);
+        }
+
+        // Update sepsis
+        if let Entry::Occupied(mut entry) = individual.sepsis.entry(bacteria) {
+            if rng.gen::<f64>() < flip_probability {
+                *entry.get_mut() = !*entry.get();
+            }
+        }
+
+        // Update level_microbiome
+        if let Entry::Occupied(mut entry) = individual.level_microbiome.entry(bacteria) {
+            *entry.get_mut() += rng.gen_range(-1.0..=1.0);
         }
     }
 

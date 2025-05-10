@@ -17,7 +17,7 @@ fn main() {
     );
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 10;
+    let num_time_steps = 2;
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");

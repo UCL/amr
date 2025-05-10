@@ -35,7 +35,7 @@ pub struct Individual {
     pub age: i32, // age in days (negative = before reference date)
     pub sex_at_birth: String,
     pub date_last_infected: HashMap<&'static str, i32>,
-    pub infectious_syndrome: HashMap<&'static str, f64>,
+    pub infectious_syndrome: HashMap<&'static str, i32>, // Changed to i32
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
     pub sepsis: HashMap<&'static str, bool>,
@@ -65,7 +65,7 @@ impl Individual {
     pub fn new(id: usize, age_days: i32, sex_at_birth: String) -> Self {
         let mut rng = rand::thread_rng();
         let mut date_last_infected = HashMap::new();
-        let mut infectious_syndrome = HashMap::new();
+        let mut infectious_syndrome: HashMap<&'static str, i32> = HashMap::new(); // Explicit type
         let mut level = HashMap::new();
         let mut immune_resp = HashMap::new();
         let mut sepsis = HashMap::new();
@@ -73,7 +73,7 @@ impl Individual {
 
         for &bacteria in BACTERIA_LIST.iter() {
             date_last_infected.insert(bacteria, 0);
-            infectious_syndrome.insert(bacteria, 0.0);
+            infectious_syndrome.insert(bacteria, 0); // Inserting integer 0
             level.insert(bacteria, 0.0);
             immune_resp.insert(bacteria, 0.0);
             sepsis.insert(bacteria, false);
