@@ -8,7 +8,7 @@ use simulation::simulation::run; // Import the run function
 fn main() {
     println!("--- AMR SIMULATION ---");
 
-    let mut population = Population::new(30_000);
+    let mut population = Population::new(1_000_000);
     let bacteria_to_track = "acinetobac_bau";
 
     println!(
@@ -75,7 +75,7 @@ fn main() {
 
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 3;
+    let num_time_steps = 10;
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");
