@@ -36,7 +36,21 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
             if let Some(level) = ind.level.get(bacteria_to_track) {
                 println!("  {}: level = {:.2}", bacteria_to_track, level);
             }
-            // ... (rest of your printing code for individual 0) ...
+            if let Some(immune_resp) = ind.immune_resp.get(bacteria_to_track) {
+                println!("  {}: immune_resp = {:.2}", bacteria_to_track, immune_resp);
+            }
+            if let Some(env_level) = ind.environmental_level.get(bacteria_to_track) {
+                println!("  {}: environmental_level = {:.2}", bacteria_to_track, env_level);
+            }
+            if let Some(sepsis) = ind.sepsis.get(bacteria_to_track) {
+                println!("  {}: sepsis = {}", bacteria_to_track, sepsis);
+            }
+            if let Some(infectious_syndrome) = ind.infectious_syndrome.get(bacteria_to_track) {
+                println!("  {}: infectious_syndrome = {}", bacteria_to_track, infectious_syndrome);
+            }
+            if let Some(date_last_infected) = ind.date_last_infected.get(bacteria_to_track) {
+                println!("  {}: date_last_infected = {}", bacteria_to_track, date_last_infected);
+            }
             if acinetobac_present && gentamicin_present {
                 let resistance = &ind.resistances[acinetobac_idx][gentamicin_idx];
                 println!("  acinetobac_bau resistance to gentamicin:");

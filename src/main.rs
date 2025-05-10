@@ -8,7 +8,7 @@ use simulation::simulation::run; // Import the run function
 fn main() {
     println!("--- AMR SIMULATION ---");
 
-    let mut population = Population::new(1_000_000);
+    let mut population = Population::new(30_000);
     let bacteria_to_track = "acinetobac_bau";
 
     println!(
@@ -24,6 +24,9 @@ fn main() {
     }
     if let Some(immune_resp) = ind0.immune_resp.get(bacteria_to_track) {
         println!("  {}: immune_resp = {:.2}", bacteria_to_track, immune_resp);
+    }
+    if let Some(env_level) = ind0.environmental_level.get(bacteria_to_track) {
+        println!("  {}: environmental_level = {:.2}", bacteria_to_track, env_level);
     }
     if let Some(sepsis) = ind0.sepsis.get(bacteria_to_track) {
         println!("  {}: sepsis = {}", bacteria_to_track, sepsis);
@@ -75,7 +78,7 @@ fn main() {
 
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 10;
+    let num_time_steps = 3; // Increased for demonstration if acquisition happens
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");

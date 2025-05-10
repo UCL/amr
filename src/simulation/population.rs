@@ -36,8 +36,13 @@ pub struct Individual {
     pub sex_at_birth: String,
     pub date_last_infected: HashMap<&'static str, i32>,
     pub infectious_syndrome: HashMap<&'static str, i32>, // Changed to i32
+    /* 0.	None   1.	Bloodstream    2.	Meningitis    3.	Lower respiratory    4.	Endocarditis   
+       5.	Peritoneal and intra-abdominal    6.	Diarrhoea    7.	Urinary tract infection or pyelonephritis
+       8.	Infection of bones, joints, or related organs     9.	Infection of the skin or subcutaneous systems
+       10.	Typhoid, paratyphoid, or invasive non-typhoidal Salmonella */
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
+    pub environmental_level: HashMap<&'static str, f64>, // Added environmental level
     pub sepsis: HashMap<&'static str, bool>,
     pub level_microbiome: HashMap<&'static str, f64>,
     pub haem_infl_vaccination_status: bool,
@@ -68,6 +73,7 @@ impl Individual {
         let mut infectious_syndrome: HashMap<&'static str, i32> = HashMap::new();
         let mut level = HashMap::new();
         let mut immune_resp = HashMap::new();
+        let mut environmental_level = HashMap::new();
         let mut sepsis = HashMap::new();
         let mut level_microbiome = HashMap::new();
 
@@ -76,6 +82,7 @@ impl Individual {
             infectious_syndrome.insert(bacteria, 0);
             level.insert(bacteria, 0.0);
             immune_resp.insert(bacteria, 0.0);
+            environmental_level.insert(bacteria, 0.0);
             sepsis.insert(bacteria, false);
             level_microbiome.insert(bacteria, 0.0);
         }
@@ -111,6 +118,7 @@ impl Individual {
             infectious_syndrome,
             level,
             immune_resp,
+            environmental_level,
             sepsis,
             level_microbiome,
             haem_infl_vaccination_status: rng.gen_bool(0.5),
@@ -133,7 +141,6 @@ impl Individual {
             resistances,
         }
     }
-
 }
 
 pub struct Population {
