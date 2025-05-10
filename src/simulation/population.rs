@@ -42,7 +42,6 @@ pub struct Individual {
        10.	Typhoid, paratyphoid, or invasive non-typhoidal Salmonella */
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
-    pub environmental_level: HashMap<&'static str, f64>, // Added environmental level
     pub sepsis: HashMap<&'static str, bool>,
     pub level_microbiome: HashMap<&'static str, f64>,
     pub haem_infl_vaccination_status: bool,
@@ -73,7 +72,6 @@ impl Individual {
         let mut infectious_syndrome: HashMap<&'static str, i32> = HashMap::new();
         let mut level = HashMap::new();
         let mut immune_resp = HashMap::new();
-        let mut environmental_level = HashMap::new();
         let mut sepsis = HashMap::new();
         let mut level_microbiome = HashMap::new();
 
@@ -82,7 +80,6 @@ impl Individual {
             infectious_syndrome.insert(bacteria, 0);
             level.insert(bacteria, 0.0);
             immune_resp.insert(bacteria, 0.0);
-            environmental_level.insert(bacteria, 0.0);
             sepsis.insert(bacteria, false);
             level_microbiome.insert(bacteria, 0.0);
         }
@@ -118,7 +115,6 @@ impl Individual {
             infectious_syndrome,
             level,
             immune_resp,
-            environmental_level,
             sepsis,
             level_microbiome,
             haem_infl_vaccination_status: rng.gen_bool(0.5),

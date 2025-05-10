@@ -39,9 +39,6 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
             if let Some(immune_resp) = ind.immune_resp.get(bacteria_to_track) {
                 println!("  {}: immune_resp = {:.2}", bacteria_to_track, immune_resp);
             }
-            if let Some(env_level) = ind.environmental_level.get(bacteria_to_track) {
-                println!("  {}: environmental_level = {:.2}", bacteria_to_track, env_level);
-            }
             if let Some(sepsis) = ind.sepsis.get(bacteria_to_track) {
                 println!("  {}: sepsis = {}", bacteria_to_track, sepsis);
             }
