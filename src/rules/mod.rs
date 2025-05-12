@@ -38,7 +38,7 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
 
                     // Reduce acquisition probability if vaccinated
                     if individual.strep_pneu_vaccination_status {
-                        acquisition_probability *= (1.0 - *PARAMETERS.get("strep_pneu_vaccine_efficacy").unwrap_or(&0.0));
+                        acquisition_probability *= 1.0 - *PARAMETERS.get("strep_pneu_vaccine_efficacy").unwrap_or(&0.0); // Fixed parentheses
                     }
 
                     if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
@@ -57,10 +57,10 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                         let immunity_level = individual.immune_resp.get(bacteria).unwrap_or(&0.0);
                         let baseline_change = *PARAMETERS.get("strep_pneu_level_change_rate_baseline").unwrap_or(&0.0);
                         let immunity_reduction_per_unit = *PARAMETERS.get("strep_pneu_immunity_reduction_per_unit").unwrap_or(&0.0);
-                        let antibiotic_reduction_per_unit = *PARAMETERS.get("strep_pneu_antibiotic_reduction_per_unit").unwrap_or(&0.0);
                         let max_level = *PARAMETERS.get("strep_pneu_max_level").unwrap_or(&100.0);
 
                         // Calculate the change in level
+                        let antibiotic_reduction_per_unit = *PARAMETERS.get("strep_pneu_antibiotic_reduction_per_unit").unwrap_or(&0.0);
                         let change = baseline_change - (immunity_level * immunity_reduction_per_unit) - (current_antibiotic_activity_level * antibiotic_reduction_per_unit);
                         let new_level = (current_level + change).max(0.0).min(max_level);
                         *entry.get_mut() = new_level;
@@ -75,12 +75,12 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                     // We are not updating immunity here yet
                 }
             }
-            // Keep the existing random updates for other bacteria for now
             _ => {
+                // Keep the existing random updates for other bacteria for now
                 // Only attempt acquisition if the individual's level is 0 or not present
                 if individual.level.get(bacteria).map_or(true, |&level| level <= 0.0) {
                     if let Entry::Occupied(mut entry) = individual.date_last_infected.entry(bacteria) {
-                        *entry.get_mut() += rng.gen_range(0..=1);
+                        *entry.get_mut() += 0; // Changed from rng.gen_range and 0.0
                     }
                     if let Entry::Occupied(mut entry) = individual.infectious_syndrome.entry(bacteria) {
                         let val_ref: &mut i32 = entry.get_mut();
@@ -97,7 +97,7 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                     }
                     if let Entry::Occupied(mut entry) = individual.immune_resp.entry(bacteria) {
                         let current_val = *entry.get();
-                        let rng_val: f64 = rng.gen_range(0.0..=1.0);
+                        let rng_val: f64 = 0.0;
                         *entry.get_mut() = (current_val + rng_val).max(0.0);
                     }
                     if let Entry::Occupied(mut entry) = individual.sepsis.entry(bacteria) {
@@ -135,9 +135,9 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
         individual.cur_use_drug[i] = rng.gen_bool(0.1);
     }
     // Stop the random update of drug levels
-    // for i in 0..individual.cur_level_drug.len() {
-    //     individual.cur_level_drug[i] += rng.gen_range(0.0..=1.0);
-    // }
+    for i in 0..individual.cur_level_drug.len() {
+        individual.cur_level_drug[i] += 0.0; // Changed from rng.gen_range
+    }
 
     // Update other scalar fields
     individual.current_infection_related_death_risk += rng.gen_range(0.0..=1.0);
