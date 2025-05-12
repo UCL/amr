@@ -1,4 +1,5 @@
 // src/main.rs
+mod config;
 mod rules;
 mod simulation;
 
@@ -9,7 +10,7 @@ fn main() {
     println!("--- AMR SIMULATION ---");
 
     let mut population = Population::new(30_000);
-    let bacteria_to_track = "acinetobac_bau";
+    let bacteria_to_track = "strep_pneu";
 
     println!(
         "Initial age of individual 0 AFTER population creation: {} days",
@@ -58,24 +59,24 @@ fn main() {
     println!("  current_toxicity: {:.2}", ind0.current_toxicity);
     println!("  mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
 
-    if let (Some(acinetobac_index), Some(gentamicin_index)) = (
-        BACTERIA_LIST.iter().position(|&bacteria| bacteria == "acinetobac_bau"),
+    if let (Some(strep_pneu_index), Some(gentamicin_index)) = (
+        BACTERIA_LIST.iter().position(|&bacteria| bacteria == "strep_pneu"),
         DRUG_SHORT_NAMES.iter().position(|&drug| drug == "gentamicin"),
     ) {
-        let resistance = &ind0.resistances[acinetobac_index][gentamicin_index];
-        println!("  acinetobac_bau resistance to gentamicin:");
+        let resistance = &ind0.resistances[strep_pneu_index][gentamicin_index];
+        println!("  strep_pneu resistance to gentamicin:");
         println!("    microbiome_r: {:.2}", resistance.microbiome_r);
         println!("    test_r: {:.2}", resistance.test_r);
         println!("    activity_r: {:.2}", resistance.activity_r);
         println!("    e_r: {:.2}", resistance.e_r);
         println!("    c_r: {:.2}", resistance.c_r);
     } else {
-        println!("  Could not find acinetobac_bau or gentamicin in the lists.");
+        println!("  Could not find strep_pneu or gentamicin in the lists.");
     }
 
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 3; // Increased for demonstration if acquisition happens
+    let num_time_steps = 30; // Increased for demonstration if acquisition happens
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");

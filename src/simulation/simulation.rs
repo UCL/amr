@@ -18,10 +18,10 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
     let gentamicin_present = gentamicin_index.is_some();
     let gentamicin_idx = gentamicin_index.unwrap_or(0);
 
-    // Find the index of acinetobac_bau
-    let acinetobac_index = BACTERIA_LIST.iter().position(|&bacteria| bacteria == "acinetobac_bau");
-    let acinetobac_present = acinetobac_index.is_some();
-    let acinetobac_idx = acinetobac_index.unwrap_or(0);
+    // Find the index of strep_pneu
+    let strep_pneu_index = BACTERIA_LIST.iter().position(|&bacteria| bacteria == "strep_pneu");
+    let strep_pneu_present = strep_pneu_index.is_some();
+    let strep_pneu_idx = strep_pneu_index.unwrap_or(0);
 
     for step in 0..num_time_steps {
         // Apply rules to each individual in parallel
@@ -48,16 +48,16 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
             if let Some(date_last_infected) = ind.date_last_infected.get(bacteria_to_track) {
                 println!("  {}: date_last_infected = {}", bacteria_to_track, date_last_infected);
             }
-            if acinetobac_present && gentamicin_present {
-                let resistance = &ind.resistances[acinetobac_idx][gentamicin_idx];
-                println!("  acinetobac_bau resistance to gentamicin:");
+            if strep_pneu_present && gentamicin_present {
+                let resistance = &ind.resistances[strep_pneu_idx][gentamicin_idx];
+                println!("  strep_pneu resistance to gentamicin:");
                 println!("    microbiome_r: {:.2}", resistance.microbiome_r);
                 println!("    test_r: {:.2}", resistance.test_r);
                 println!("    activity_r: {:.2}", resistance.activity_r);
                 println!("    e_r: {:.2}", resistance.e_r);
                 println!("    c_r: {:.2}", resistance.c_r);
             } else {
-                println!("  Could not find acinetobac_bau or gentamicin in the lists.");
+                println!("  Could not find strep_pneu or gentamicin in the lists.");
             }
         }
     }
