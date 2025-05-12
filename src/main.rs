@@ -40,11 +40,11 @@ fn main() {
     println!("  salm_typhi_vaccination_status: {}", ind0.salm_typhi_vaccination_status);
     println!("  esch_coli_vaccination_status: {}", ind0.esch_coli_vaccination_status);
 
-    if let Some(gentamicin_index) = DRUG_SHORT_NAMES.iter().position(|&drug| drug == "gentamicin") {
-        println!("  cur_use_gentamicin: {}", ind0.cur_use_drug[gentamicin_index]);
-        println!("  cur_level_gentamicin: {:.2}", ind0.cur_level_drug[gentamicin_index]);
+    if let Some(amoxicillin_index) = DRUG_SHORT_NAMES.iter().position(|&drug| drug == "amoxicillin") {
+        println!("  cur_use_amoxicillin: {}", ind0.cur_use_drug[amoxicillin_index]);
+        println!("  cur_level_amoxicillin: {:.2}", ind0.cur_level_drug[amoxicillin_index]);
     } else {
-        println!("  gentamicin not found in DRUG_SHORT_NAMES");
+        println!("  amoxicillin not found in DRUG_SHORT_NAMES");
     }
 
     println!("  current_infection_related_death_risk: {:.2}", ind0.current_infection_related_death_risk);
@@ -59,19 +59,19 @@ fn main() {
     println!("  current_toxicity: {:.2}", ind0.current_toxicity);
     println!("  mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
 
-    if let (Some(strep_pneu_index), Some(gentamicin_index)) = (
+    if let (Some(strep_pneu_index), Some(amoxicillin_index)) = (
         BACTERIA_LIST.iter().position(|&bacteria| bacteria == "strep_pneu"),
-        DRUG_SHORT_NAMES.iter().position(|&drug| drug == "gentamicin"),
+        DRUG_SHORT_NAMES.iter().position(|&drug| drug == "amoxicillin"),
     ) {
-        let resistance = &ind0.resistances[strep_pneu_index][gentamicin_index];
-        println!("  strep_pneu resistance to gentamicin:");
+        let resistance = &ind0.resistances[strep_pneu_index][amoxicillin_index];
+        println!("  strep_pneu resistance to amoxicillin:");
         println!("    microbiome_r: {:.2}", resistance.microbiome_r);
         println!("    test_r: {:.2}", resistance.test_r);
         println!("    activity_r: {:.2}", resistance.activity_r);
         println!("    e_r: {:.2}", resistance.e_r);
         println!("    c_r: {:.2}", resistance.c_r);
     } else {
-        println!("  Could not find strep_pneu or gentamicin in the lists.");
+        println!("  Could not find strep_pneu or amoxicillin in the lists.");
     }
 
     println!("--- SIMULATION STARTING ---");

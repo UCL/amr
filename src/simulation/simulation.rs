@@ -13,10 +13,10 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
     }
     println!("--- SIMULATION STARTING (within run function) ---");
 
-    // Find the index of gentamicin
-    let gentamicin_index = DRUG_SHORT_NAMES.iter().position(|&drug| drug == "gentamicin");
-    let gentamicin_present = gentamicin_index.is_some();
-    let gentamicin_idx = gentamicin_index.unwrap_or(0);
+    // Find the index of amoxicillin
+    let amoxicillin_index = DRUG_SHORT_NAMES.iter().position(|&drug| drug == "amoxicillin");
+    let amoxicillin_present = amoxicillin_index.is_some();
+    let amoxicillin_idx = amoxicillin_index.unwrap_or(0);
 
     // Find the index of strep_pneu
     let strep_pneu_index = BACTERIA_LIST.iter().position(|&bacteria| bacteria == "strep_pneu");
@@ -48,16 +48,16 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
             if let Some(date_last_infected) = ind.date_last_infected.get(bacteria_to_track) {
                 println!("  {}: date_last_infected = {}", bacteria_to_track, date_last_infected);
             }
-            if strep_pneu_present && gentamicin_present {
-                let resistance = &ind.resistances[strep_pneu_idx][gentamicin_idx];
-                println!("  strep_pneu resistance to gentamicin:");
+            if strep_pneu_present && amoxicillin_present {
+                let resistance = &ind.resistances[strep_pneu_idx][amoxicillin_idx];
+                println!("  strep_pneu resistance to amoxicillin:");
                 println!("    microbiome_r: {:.2}", resistance.microbiome_r);
                 println!("    test_r: {:.2}", resistance.test_r);
                 println!("    activity_r: {:.2}", resistance.activity_r);
                 println!("    e_r: {:.2}", resistance.e_r);
                 println!("    c_r: {:.2}", resistance.c_r);
             } else {
-                println!("  Could not find strep_pneu or gentamicin in the lists.");
+                println!("  Could not find strep_pneu or amoxicillin in the lists.");
             }
         }
     }
