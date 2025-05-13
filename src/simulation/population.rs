@@ -1,4 +1,4 @@
-// src/simulation/population.rs
+//    src/simulation/population.rs
 use rand::Rng;
 use std::collections::HashMap;
 
