@@ -1,4 +1,14 @@
 //     src/main.rs
+
+// general thoughts
+// need to consider multiple concrrent infectious syndromes as for example stis can exist and be asymptomatic
+// add variable for whether msm ?
+// infection risk for a specific bacteria will depend on sexual_contact_level, airborne_contact_level_with_adults,
+// airborne_contact_level_with_children, oral_exposure_level, mosquito_exposure_level
+// maybe need to differentiate infection from another person (dependent on concurrent population) 
+// from infection from the environment - ? assume food water is mainly environment and sex, airborne from another person ? 
+
+
 mod config;
 mod rules;
 mod simulation;
@@ -9,7 +19,7 @@ use simulation::simulation::run; // Import the run function
 fn main() {
     println!("--- AMR SIMULATION ---");
 
-    let mut population = Population::new(30_000);
+    let mut population = Population::new(100_000);
     let bacteria_to_track = "strep_pneu";
 
     println!(

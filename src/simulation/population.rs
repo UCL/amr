@@ -7,7 +7,7 @@ pub const BACTERIA_LIST: &[&str] = &[
     "esch_coli", "kleb_pneu", "morg_spec", "prot_spec", "serrat_spec", "pseud_aerug", "staph_aureus",
     "strep_pneu", "salm_typhi", "salm_parat_a", "inv_nt_salm", "shig_spec", "n_gonorrhoeae",
     "group_a_strep", "group_b_strep", "haem_infl",
-];
+];  // lots to add
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[
     "penicilling", "ampicillin", "amoxicillin",
@@ -63,6 +63,8 @@ pub struct Individual {
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64,
     pub resistances: Vec<Vec<Resistance>>,
+    pub date_of_death: Option<usize>, // Use Option to indicate if the individual is alive (None) or the time step of death (Some)
+    pub cause_of_death: Option<String>, // Optional string to specify the cause of death
 }
 
 impl Individual {
@@ -79,7 +81,7 @@ impl Individual {
             date_last_infected.insert(bacteria, 0);
             infectious_syndrome.insert(bacteria, 0);
             level.insert(bacteria, 0.0);
-            immune_resp.insert(bacteria, 0.0);
+            immune_resp.insert(bacteria, 1.0);
             sepsis.insert(bacteria, false);
             level_microbiome.insert(bacteria, 0.0);
         }
@@ -91,11 +93,11 @@ impl Individual {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
                 drug_resistances.push(Resistance {
-                    microbiome_r: rng.gen_range(0.0..1.0),
-                    test_r: rng.gen_range(0.0..=3.0),
-                    activity_r: rng.gen_range(0.0..=3.0),
-                    e_r: rng.gen_range(0.0..=1.0),
-                    c_r: rng.gen_range(0.0..=1.0),
+                    microbiome_r: 0.0,
+                    test_r: 0.0,
+                    activity_r: 0.0,  // can range up to 3.0
+                    e_r: 0.0, // can range up to 1 - not yet certain if need this as well as c_r
+                    c_r: 0.0, // can range up to 1 
                 });
             }
             resistances.push(drug_resistances);
@@ -122,7 +124,7 @@ impl Individual {
             salm_typhi_vaccination_status: rng.gen_bool(0.5),
             esch_coli_vaccination_status: rng.gen_bool(0.5),
             cur_use_drug: vec![false; num_drugs],
-            cur_level_drug: (0..num_drugs).map(|_| rng.gen_range(0.0..=3.0)).collect(),
+            cur_level_drug: (0..num_drugs).map(|_| 0.0).collect(),
             current_infection_related_death_risk: 0.0,
             background_all_cause_mortality_rate,
             sexual_contact_level: rng.gen_range(0.0..=10.0),
@@ -135,6 +137,8 @@ impl Individual {
             current_toxicity: rng.gen_range(0.0..=3.0),
             mortality_risk_current_toxicity: 0.0,
             resistances,
+            date_of_death: None, // Initially, all individuals are alive
+            cause_of_death: None,
         }
     }
 }
