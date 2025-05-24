@@ -83,6 +83,15 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
                 println!("  {}: test_identified_infection = Not applicable (no active infection)", bacteria_to_track);
             }
 
+            // --- NEW: Drug Use Status (Individual 0) ---
+            println!("  --- Drug Use Status (Individual 0) ---");
+            for (i, &use_drug) in ind.cur_use_drug.iter().enumerate() {
+                let drug_name = DRUG_SHORT_NAMES[i];
+                let drug_level = ind.cur_level_drug[i];
+                println!("    {}: cur_use_drug = {}, cur_level_drug = {:.2}", drug_name, use_drug, drug_level);
+            }
+            println!("  -------------------------------------");
+
 
             if strep_pneu_present && amoxicillin_present {
                 let resistance = &ind.resistances[strep_pneu_idx][amoxicillin_idx];
