@@ -1,12 +1,12 @@
-//     src/main.rs
+// src/main.rs
 
 // general thoughts
 // need to consider multiple concrrent infectious syndromes as for example stis can exist and be asymptomatic
 // add variable for whether msm ?
 // infection risk for a specific bacteria will depend on sexual_contact_level, airborne_contact_level_with_adults,
 // airborne_contact_level_with_children, oral_exposure_level, mosquito_exposure_level
-// maybe need to differentiate infection from another person (dependent on concurrent population) 
-// from infection from the environment - ? assume food water is mainly environment and sex, airborne from another person ? 
+// maybe need to differentiate infection from another person (dependent on concurrent population)
+// from infection from the environment - ? assume food water is mainly environment and sex, airborne from another person ?
 
 
 mod config;
@@ -19,8 +19,11 @@ use simulation::simulation::run; // Import the run function
 fn main() {
     println!("--- AMR SIMULATION ---");
 
-    let mut population = Population::new(100_000);
-    let bacteria_to_track = "strep_pneu";
+    let num_individuals = 100_000;
+    let bacteria_to_track = "strep_pneu"; // Define the bacteria to track for initial printout
+
+    let mut population = Population::new(num_individuals);
+
 
     println!(
         "Initial age of individual 0 AFTER population creation: {} days",
@@ -65,7 +68,22 @@ fn main() {
     println!("  oral_exposure_level: {:.2}", ind0.oral_exposure_level);
     println!("  mosquito_exposure_level: {:.2}", ind0.mosquito_exposure_level);
     println!("  under_care: {}", ind0.under_care);
-    println!("  infection_hospital_acquired: {}", ind0.infection_hospital_acquired);
+
+    // --- CORRECTED LINES FOR HASHMAP PRINTING ---
+    // These lines replace the problematic ones.
+    if let Some(&hospital_acquired) = ind0.infection_hospital_acquired.get(bacteria_to_track) {
+        println!("  {}: infection_hospital_acquired = {}", bacteria_to_track, hospital_acquired);
+    } else {
+        println!("  {}: infection_hospital_acquired = Not applicable (no active infection)", bacteria_to_track);
+    }
+
+    if let Some(&from_env) = ind0.cur_infection_from_environment.get(bacteria_to_track) {
+        println!("  {}: cur_infection_from_environment = {}", bacteria_to_track, from_env);
+    } else {
+        println!("  {}: cur_infection_from_environment = Not applicable (no active infection)", bacteria_to_track);
+    }
+    // --- END OF CORRECTED HASHMAP PRINTING ---
+
     println!("  current_toxicity: {:.2}", ind0.current_toxicity);
     println!("  mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
 

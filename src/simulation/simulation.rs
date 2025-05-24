@@ -1,4 +1,4 @@
-//       src/simulation/simulation.rs
+// src/simulation/simulation.rs
 use crate::simulation::population::{
     BACTERIA_LIST, DRUG_SHORT_NAMES, Population,
 };
@@ -27,21 +27,13 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
     let mut strep_pneu_infection_counts: Vec<usize> = Vec::with_capacity(num_time_steps);
 
     for step in 0..num_time_steps {
-        let mut current_infected_count = 0;
-
         // Apply rules to each individual in parallel
         population.individuals.par_iter_mut().for_each(|ind| {
             apply_rules(ind, step);
-            // Check for strep_pneu infection after applying rules
-            if ind.level.get("strep_pneu").map_or(false, |&level| level > 0.0) {
-                // This count within the parallel loop won't give the total
-                // Instead, we count in the main loop after the parallel update.
-            }
-            // Any other per-individual updates for this time step can go here
         });
 
         // Count the number of individuals infected with strep_pneu after all rules are applied
-        current_infected_count = population.individuals.iter().filter(|ind| {
+        let current_infected_count = population.individuals.iter().filter(|ind| {
             ind.level.get("strep_pneu").map_or(false, |&level| level > 0.0)
         }).count();
 
@@ -55,7 +47,7 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
 
         // Print the values for the specified bacteria for individual 0 AFTER applying rules
         if let Some(ind) = population.individuals.get(0) {
-            println!(" Time step {}: Individual 0 age = {} days", step, ind.age);
+            println!("  Time step {}: Individual 0 age = {} days", step, ind.age);
             if let Some(level) = ind.level.get(bacteria_to_track) {
                 println!("  {}: level = {:.2}", bacteria_to_track, level);
             }
@@ -71,14 +63,35 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
             if let Some(date_last_infected) = ind.date_last_infected.get(bacteria_to_track) {
                 println!("  {}: date_last_infected = {}", bacteria_to_track, date_last_infected);
             }
+
+            if let Some(&from_env) = ind.cur_infection_from_environment.get(bacteria_to_track) {
+                println!("  {}: cur_infection_from_environment = {}", bacteria_to_track, from_env);
+            } else {
+                println!("  {}: cur_infection_from_environment = Not applicable (no active infection)", bacteria_to_track);
+            }
+
+            if let Some(&hospital_acquired) = ind.infection_hospital_acquired.get(bacteria_to_track) {
+                println!("  {}: infection_hospital_acquired = {}", bacteria_to_track, hospital_acquired);
+            } else {
+                println!("  {}: infection_hospital_acquired = Not applicable (no active infection)", bacteria_to_track);
+            }
+
+            // This is the line that prints test_identified_infection
+            if let Some(&test_identified) = ind.test_identified_infection.get(bacteria_to_track) {
+                println!("  {}: test_identified_infection = {}", bacteria_to_track, test_identified);
+            } else {
+                println!("  {}: test_identified_infection = Not applicable (no active infection)", bacteria_to_track);
+            }
+
+
             if strep_pneu_present && amoxicillin_present {
                 let resistance = &ind.resistances[strep_pneu_idx][amoxicillin_idx];
                 println!("  strep_pneu resistance to amoxicillin:");
-                println!("   microbiome_r: {:.2}", resistance.microbiome_r);
-                println!("   test_r: {:.2}", resistance.test_r);
-                println!("   activity_r: {:.2}", resistance.activity_r);
-                println!("   e_r: {:.2}", resistance.e_r);
-                println!("   c_r: {:.2}", resistance.c_r);
+                println!("    microbiome_r: {:.2}", resistance.microbiome_r);
+                println!("    test_r: {:.2}", resistance.test_r);
+                println!("    activity_r: {:.2}", resistance.activity_r);
+                println!("    e_r: {:.2}", resistance.e_r);
+                println!("    c_r: {:.2}", resistance.c_r);
             } else {
                 println!("  Could not find strep_pneu or amoxicillin in the lists.");
             }
@@ -88,8 +101,8 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
     println!("--- SIMULATION FINISHED (within run function) ---");
 
     // Optionally, print a summary of infection counts over time
- // println!("--- Strep Pneumonia Infection Counts Over Time ---");
- // for (time, count) in strep_pneu_infection_counts.iter().enumerate() {
- //     println!("Time Step {}: {} infected", time, count);
-    }
- 
+    // println!("--- Strep Pneumonia Infection Counts Over Time ---");
+    // for (time, count) in strep_pneu_infection_counts.iter().enumerate() {
+    //     println!("Time Step {}: {} infected", time, count);
+    // }
+}

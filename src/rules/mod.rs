@@ -7,10 +7,10 @@ use std::collections::hash_map::Entry;
 /// Applies model rules to an individual for one time step.
 pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
     let mut rng = rand::thread_rng();
-    let no_infection_probability = 0.95;
 
     // Update non-infection, bacteria or antibiotic-specific variables
     individual.age += 1;
+    // These random updates will likely be replaced by more complex rules later
     individual.current_infection_related_death_risk += rng.gen_range(0.0..=1.0);
     individual.background_all_cause_mortality_rate += rng.gen_range(0.0..=1.0);
     individual.sexual_contact_level += rng.gen_range(0.0..=1.0);
@@ -29,7 +29,9 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
     // Update per-bacteria fields
     for &bacteria in BACTERIA_LIST.iter() {
         // Calculate the current total antibiotic activity level for this individual
-        let current_antibiotic_activity_level: f64 = individual.cur_use_drug.iter().zip(individual.cur_level_drug.iter())
+        // This sum is across all drugs and is relevant for how *all* infections might be affected
+        let _current_antibiotic_activity_level_general: f64 = individual.cur_use_drug.iter()
+            .zip(individual.cur_level_drug.iter())
             .filter(|(&use_drug, _)| use_drug)
             .map(|(_, &level)| level)
             .sum();
@@ -42,35 +44,36 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                     continue; // Move to the next bacteria for this individual
                 }
 
-                // Only attempt acquisition if the individual's level is 0 or not present
+                // Only attempt acquisition if the individual is NOT currently infected with strep_pneu
                 if individual.level.get(bacteria).map_or(true, |&level| level <= 0.0) {
                     let mut acquisition_probability = *PARAMETERS.get("strep_pneu_acquisition_prob_baseline").unwrap_or(&0.0);
 
-                    // Increased acquisition probability based on contact levels (multiplicative)
                     acquisition_probability *= (*PARAMETERS.get("strep_pneu_adult_contact_acq_rate_ratio_per_unit").unwrap_or(&1.0)).powf(individual.airborne_contact_level_with_adults);
                     acquisition_probability *= (*PARAMETERS.get("strep_pneu_child_contact_acq_rate_ratio_per_unit").unwrap_or(&1.0)).powf(individual.airborne_contact_level_with_children);
 
-                    // Reduce acquisition probability if vaccinated
                     if individual.strep_pneu_vaccination_status {
-                        acquisition_probability *= 1.0 - *PARAMETERS.get("strep_pneu_vaccine_efficacy").unwrap_or(&0.0); // Fixed parentheses
+                        acquisition_probability *= 1.0 - *PARAMETERS.get("strep_pneu_vaccine_efficacy").unwrap_or(&0.0);
                     }
 
                     if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
                         let initial_level = *PARAMETERS.get("strep_pneu_initial_infection_level").unwrap_or(&0.01);
                         individual.level.insert(bacteria, initial_level);
                         individual.date_last_infected.insert(bacteria, _time_step as i32);
-                        individual.infectious_syndrome.insert(bacteria, 3);
+                        individual.infectious_syndrome.insert(bacteria, 3); // Example: Respiratory syndrome
 
-                        if rng.gen::<f64>() < 0.1 {
-                            individual.infection_hospital_acquired = true;
-                        }
+                        // Now, set these flags specific to "strep_pneu" in their HashMaps
+                        let env_acquisition_chance = *PARAMETERS.get("strep_pneu_environmental_acquisition_proportion").unwrap_or(&0.1);
+                        individual.cur_infection_from_environment.insert(bacteria, rng.gen::<f64>() < env_acquisition_chance);
+
+                        let hospital_acquired_chance = *PARAMETERS.get("strep_pneu_hospital_acquired_proportion").unwrap_or(&0.1);
+                        individual.infection_hospital_acquired.insert(bacteria, rng.gen::<f64>() < hospital_acquired_chance);
                     }
 
                     // Gradual decay of immune response towards baseline if above
                     if let Entry::Occupied(mut immune_entry) = individual.immune_resp.entry(bacteria) {
                         let current_immunity = *immune_entry.get();
-                        let baseline_immunity = *PARAMETERS.get("strep_pneu_baseline_immunity_level").unwrap_or(&0.1); // New parameter
-                        let decay_rate = *PARAMETERS.get("strep_pneu_immunity_decay_rate").unwrap_or(&0.001); // New parameter
+                        let baseline_immunity = *PARAMETERS.get("strep_pneu_baseline_immunity_level").unwrap_or(&0.1);
+                        let decay_rate = *PARAMETERS.get("strep_pneu_immunity_decay_rate").unwrap_or(&0.001);
 
                         if current_immunity > baseline_immunity {
                             *immune_entry.get_mut() = (current_immunity - decay_rate).max(baseline_immunity);
@@ -79,9 +82,9 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                         }
                     }
                 } else {
-                    // Rules for when strep_pneu is already present
+                    // Rules for when strep_pneu is already present (infection progression)
 
-                    // Update antibiotic activity_r based on current drug use and resistance
+                    // Update antibiotic activity_r based on current drug use and resistance for strep_pneu
                     if let Some(strep_pneu_index) = BACTERIA_LIST.iter().position(|&b| b == "strep_pneu") {
                         for (drug_index, &use_drug) in individual.cur_use_drug.iter().enumerate() {
                             if use_drug {
@@ -91,7 +94,6 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                                     }
                                 }
                             } else {
-                                // If drug is not in use, maybe set activity_r to 0?
                                 if let Some(resistance) = individual.resistances.get_mut(strep_pneu_index).and_then(|r| r.get_mut(drug_index)) {
                                     resistance.activity_r = 0.0;
                                 }
@@ -99,8 +101,8 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                         }
                     }
 
-                    // Now, the current total antibiotic activity level for strep_pneu
-                    let current_antibiotic_activity_level: f64 = if let Some(strep_pneu_index) = BACTERIA_LIST.iter().position(|&b| b == "strep_pneu") {
+                    // Sum up the activity_r for strep_pneu against all drugs
+                    let current_antibiotic_activity_level_for_strep_pneu: f64 = if let Some(strep_pneu_index) = BACTERIA_LIST.iter().position(|&b| b == "strep_pneu") {
                         individual.resistances.get(strep_pneu_index).map_or(0.0, |drug_resistances| {
                             drug_resistances.iter().map(|r| r.activity_r).sum()
                         })
@@ -113,20 +115,26 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                         let current_level = *level_entry.get();
                         let immunity_level = individual.immune_resp.get(bacteria).unwrap_or(&0.0);
                         let baseline_change = *PARAMETERS.get("strep_pneu_level_change_rate_baseline").unwrap_or(&0.0);
-                        let reduction_due_to_immune_resp = *PARAMETERS.get("strep_pneu_reduction_due_to_immune_resp").unwrap_or(&0.0);
+                        let reduction_due_to_immune_resp = *PARAMETERS.get("strep_pneu_immunity_effect_on_level_change").unwrap_or(&0.0);
                         let max_level = *PARAMETERS.get("strep_pneu_max_level").unwrap_or(&100.0);
 
-                        // Calculate the change in level
                         let antibiotic_reduction_per_unit = *PARAMETERS.get("strep_pneu_antibiotic_reduction_per_unit").unwrap_or(&0.0);
-                        let change = baseline_change - (immunity_level * reduction_due_to_immune_resp) - (current_antibiotic_activity_level * antibiotic_reduction_per_unit);
+                        let change = baseline_change - (immunity_level * reduction_due_to_immune_resp) - (current_antibiotic_activity_level_for_strep_pneu * antibiotic_reduction_per_unit);
                         let new_level = (current_level + change).max(0.0).min(max_level);
                         *level_entry.get_mut() = new_level;
 
                         // Clear infection if level drops below a threshold
                         if *level_entry.get() < 0.001 {
                             individual.level.remove(bacteria);
-                            individual.infectious_syndrome.insert(bacteria, 0);
-                            individual.infection_hospital_acquired = false;
+                            individual.infectious_syndrome.remove(bacteria);
+                            individual.date_last_infected.remove(bacteria);
+                            individual.immune_resp.remove(bacteria);
+                            individual.sepsis.remove(bacteria);
+                            individual.level_microbiome.remove(bacteria);
+
+                            // Remove the specific infection flags for this bacteria
+                            individual.infection_hospital_acquired.remove(bacteria);
+                            individual.cur_infection_from_environment.remove(bacteria);
                         }
                     }
 
@@ -137,16 +145,11 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                     ) {
                         let time_since_infection = (_time_step as i32) - infection_start_time;
                         let age = individual.age;
-                        // Calculate the increase in immune response based on time, level, and age
                         let mut immune_increase = *PARAMETERS.get("strep_pneu_immunity_increase_rate_baseline").unwrap_or(&0.0);
-                        // Influence of time since infection
                         immune_increase += time_since_infection as f64 * *PARAMETERS.get("strep_pneu_immunity_increase_rate_per_day").unwrap_or(&0.0);
-                        // Influence of infection level
                         immune_increase += current_level * *PARAMETERS.get("strep_pneu_immunity_increase_rate_per_level").unwrap_or(&0.0);
-                        // Influence of age (example: slower increase with older age)
                         let age_modifier = *PARAMETERS.get("strep_pneu_immunity_age_modifier").unwrap_or(&1.0);
                         immune_increase *= age_modifier.powf((-age as f64 / 365.0) / 50.0);
-                        // Update the immune_resp, ensuring it doesn't go below 0.0
                         if let Entry::Occupied(mut immune_entry) = individual.immune_resp.entry(bacteria) {
                             *immune_entry.get_mut() = (*immune_entry.get() + immune_increase).max(0.0);
                         }
@@ -154,53 +157,64 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
                 }
             }
             _ => {
-                // Keep the existing random updates for other bacteria for now
-                // Only attempt acquisition if the individual's level is 0 or not present
+                // Rules for other bacteria (generic behavior for now)
+                // Only attempt acquisition if the individual is NOT currently infected with *this specific* bacteria
                 if individual.level.get(bacteria).map_or(true, |&level| level <= 0.0) {
-                    if let Entry::Occupied(mut entry) = individual.date_last_infected.entry(bacteria) {
-                        *entry.get_mut() += 0; // Changed from rng.gen_range and 0.0
-                    }
-                    if let Entry::Occupied(mut entry) = individual.infectious_syndrome.entry(bacteria) {
-                        let val_ref: &mut i32 = entry.get_mut();
-                        if rng.gen::<f64>() > no_infection_probability {
-                            *val_ref = rng.gen_range(1..=10);
-                        } else {
-                            *val_ref = 0;
-                        }
-                    }
-                    if let Entry::Occupied(mut entry) = individual.level.entry(bacteria) {
-                        let current_val = *entry.get();
-                        let rng_val: f64 = rng.gen_range(0.0..=1.0);
-                        *entry.get_mut() = (current_val + rng_val).max(0.0);
-                    }
-                    if let Entry::Occupied(mut entry) = individual.immune_resp.entry(bacteria) {
-                        let current_val = *entry.get();
-                        let rng_val: f64 = 0.0;
-                        *entry.get_mut() = (current_val + rng_val).max(0.0);
-                    }
-                    if let Entry::Occupied(mut entry) = individual.sepsis.entry(bacteria) {
-                        if rng.gen::<f64>() < 0.1 {
-                            *entry.get_mut() = !*entry.get();
-                        }
-                    }
-                    if let Entry::Occupied(mut entry) = individual.level_microbiome.entry(bacteria) {
-                        *entry.get_mut() += rng.gen_range(0.0..=1.0);
+                    let generic_acquisition_probability = *PARAMETERS.get("generic_bacteria_acquisition_prob_baseline").unwrap_or(&0.01);
+
+                    if rng.gen_bool(generic_acquisition_probability.clamp(0.0, 1.0)) {
+                        let initial_level = *PARAMETERS.get("generic_bacteria_initial_infection_level").unwrap_or(&0.01);
+                        individual.level.insert(bacteria, initial_level);
+                        individual.date_last_infected.insert(bacteria, _time_step as i32);
+                        individual.infectious_syndrome.insert(bacteria, rng.gen_range(1..=10)); // Assign a random syndrome
+
+                        // Set cur_infection_from_environment for this specific generic bacteria
+                        let generic_env_acquisition_chance = *PARAMETERS.get("generic_environmental_acquisition_proportion").unwrap_or(&0.1);
+                        individual.cur_infection_from_environment.insert(bacteria, rng.gen::<f64>() < generic_env_acquisition_chance);
+
+                        // Set infection_hospital_acquired for this specific generic bacteria
+                        let generic_hospital_acquired_chance = *PARAMETERS.get("generic_hospital_acquired_proportion").unwrap_or(&0.05);
+                        individual.infection_hospital_acquired.insert(bacteria, rng.gen::<f64>() < generic_hospital_acquired_chance);
                     }
                 } else {
-                    // Rules for when other bacteria are already present
-                    // ... (You will add these later) ...
+                    // Rules for when *this specific generic bacteria* is already present (infection progression)
+
+                    // Example: simple decay for generic infections
+                    if let Entry::Occupied(mut level_entry) = individual.level.entry(bacteria) {
+                        let current_level = *level_entry.get();
+                        let decay_rate_generic = *PARAMETERS.get("generic_bacteria_decay_rate").unwrap_or(&0.02);
+                        let new_level = (current_level - decay_rate_generic).max(0.0);
+                        *level_entry.get_mut() = new_level;
+
+                        if *level_entry.get() < 0.001 {
+                            individual.level.remove(bacteria);
+                            individual.infectious_syndrome.remove(bacteria);
+                            individual.date_last_infected.remove(bacteria);
+                            individual.immune_resp.remove(bacteria);
+                            individual.sepsis.remove(bacteria);
+                            individual.level_microbiome.remove(bacteria);
+
+                            // Clear specific infection flags for this generic bacteria
+                            individual.infection_hospital_acquired.remove(bacteria);
+                            individual.cur_infection_from_environment.remove(bacteria);
+                        }
+                    }
                 }
             }
         }
     }
 
+/* want to update the current drug use variable - i want there to be a low base rate of initiation of each drug (which 
+holds even for those with no actual bacterial infection) and then the rate of starting is highly dependent on whether 
+a bacterial infection is present, what is the infectious syndrome and what is the value of test_r. - think best to create
+a new variable for each bacteria - has it been identified in a test (boolean)*/
+
     // The drug use update remains the same for now.
     for i in 0..individual.cur_use_drug.len() {
         individual.cur_use_drug[i] = false;
     }
-    // Stop the random update of drug levels
     for i in 0..individual.cur_level_drug.len() {
-        individual.cur_level_drug[i] += 0.0; // Changed from rng.gen_range
+        individual.cur_level_drug[i] += 0.0;
     }
 
     // Update resistances - STOPPED RANDOM UPDATES
@@ -216,25 +230,22 @@ pub fn apply_rules(individual: &mut Individual, _time_step: usize) {
 
     // Check for death, with separate checks for each cause
     if individual.date_of_death.is_none() {
-        // 1. Check for death due to background mortality
         if rng.gen::<f64>() < individual.background_all_cause_mortality_rate.clamp(0.0, 1.0) {
             individual.date_of_death = Some(_time_step);
             individual.cause_of_death = Some("background".to_string());
-            return; // Important: Stop processing other causes if death occurs
+            return;
         }
 
-        // 2. Check for death due to infection-related mortality
         if rng.gen::<f64>() < individual.current_infection_related_death_risk.clamp(0.0, 1.0) {
             individual.date_of_death = Some(_time_step);
-            individual.cause_of_death = Some("infection".to_string()); // More specific later
-            return; // Stop processing other causes if death occurs
+            individual.cause_of_death = Some("infection".to_string());
+            return;
         }
 
-        // 3. Check for death due to toxicity
         if rng.gen::<f64>() < individual.mortality_risk_current_toxicity.clamp(0.0, 1.0) {
             individual.date_of_death = Some(_time_step);
             individual.cause_of_death = Some("toxicity".to_string());
-            return; // Stop processing other causes if death occurs
+            return;
         }
     }
 }
