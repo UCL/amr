@@ -1,6 +1,7 @@
 // src/simulation/population.rs
 use rand::Rng;
 use std::collections::HashMap;
+use crate::config::PARAMETERS; // New import for PARAMETERS
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobac_bau", "citrobac_spec", "enterobac_spec", "enterococ_faeca", "enterococ_faeci",
@@ -25,8 +26,8 @@ pub struct Resistance {
     pub microbiome_r: f64,
     pub test_r: f64,
     pub activity_r: f64,
-    pub e_r: f64,
-    pub c_r: f64,
+    pub e_r: f64, // Effective Resistance (will store 0-10 integer levels)
+    pub c_r: f64, // Community/Carried Resistance (will store 0-10 integer levels)
 }
 
 #[derive(Debug, Clone)]
@@ -36,10 +37,6 @@ pub struct Individual {
     pub sex_at_birth: String,
     pub date_last_infected: HashMap<&'static str, i32>,
     pub infectious_syndrome: HashMap<&'static str, i32>,
-    /* 0.    None      1.    Bloodstream      2.    Meningitis      3.    Lower respiratory      4. Endocarditis
-     5.    Peritoneal and intra-abdominal      6.    Diarrhoea      7. Urinary tract infection or pyelonephritis
-     8.    Infection of bones, joints, or related organs      9.    Infection of the skin or subcutaneous systems
-     10.   Typhoid, paratyphoid, or invasive non-typhoidal Salmonella */
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
     pub sepsis: HashMap<&'static str, bool>,
@@ -49,7 +46,7 @@ pub struct Individual {
     pub salm_typhi_vaccination_status: bool,
     pub esch_coli_vaccination_status: bool,
     pub cur_infection_from_environment: HashMap<&'static str, bool>,
-    pub test_identified_infection: HashMap<&'static str, bool>, // This is correctly included
+    pub test_identified_infection: HashMap<&'static str, bool>,
     pub cur_use_drug: Vec<bool>,
     pub cur_level_drug: Vec<f64>,
     pub current_infection_related_death_risk: f64,
@@ -79,7 +76,7 @@ impl Individual {
         let mut level_microbiome = HashMap::new();
         let mut infection_hospital_acquired = HashMap::new();
         let mut cur_infection_from_environment = HashMap::new();
-        let mut test_identified_infection = HashMap::new(); // Correctly initialized here
+        let mut test_identified_infection = HashMap::new();
 
         for &bacteria in BACTERIA_LIST.iter() {
             date_last_infected.insert(bacteria, 0);
@@ -90,26 +87,38 @@ impl Individual {
             level_microbiome.insert(bacteria, 0.0);
             infection_hospital_acquired.insert(bacteria, false);
             cur_infection_from_environment.insert(bacteria, false);
-            test_identified_infection.insert(bacteria, false); // Initialized to false for each bacteria
+            test_identified_infection.insert(bacteria, false);
         }
 
         let num_drugs = DRUG_SHORT_NAMES.len();
         let num_bacteria = BACTERIA_LIST.len();
         let mut resistances = Vec::with_capacity(num_bacteria);
+
+        // Fetch resistance parameters from config.rs
+        let initial_pop_cr_chance = *PARAMETERS.get("initial_population_cr_chance").unwrap_or(&0.0);
+        let initial_pop_cr_min = *PARAMETERS.get("initial_population_cr_min_val").unwrap_or(&0.0);
+        let initial_pop_cr_max = *PARAMETERS.get("initial_population_cr_max_val").unwrap_or(&0.0);
+
         for _ in 0..num_bacteria {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
+                let initial_c_r = if rng.gen::<f64>() < initial_pop_cr_chance {
+                    // Generate an integer between min and max, then convert to f64
+                    rng.gen_range(initial_pop_cr_min as u32 ..= initial_pop_cr_max as u32) as f64
+                } else {
+                    0.0
+                };
                 drug_resistances.push(Resistance {
                     microbiome_r: 0.0,
                     test_r: 0.0,
                     activity_r: 0.0,
-                    e_r: 0.0,
-                    c_r: 0.0,
-                });
+                    e_r: 0.0, 
+                    c_r: 0.0,                 });
             }
             resistances.push(drug_resistances);
         }
 
+        // Placeholder for actual background mortality rate calculation
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
         } else {
@@ -142,7 +151,7 @@ impl Individual {
             under_care: rng.gen_bool(0.1),
             infection_hospital_acquired,
             cur_infection_from_environment,
-            test_identified_infection, // Assigned here from the initialized HashMap
+            test_identified_infection,
             current_toxicity: rng.gen_range(0.0..=3.0),
             mortality_risk_current_toxicity: 0.0,
             resistances,

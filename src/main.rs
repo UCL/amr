@@ -1,12 +1,24 @@
 // src/main.rs
 
 // general thoughts
-// need to consider multiple concrrent infectious syndromes as for example stis can exist and be asymptomatic
 // add variable for whether msm ?
-// infection risk for a specific bacteria will depend on sexual_contact_level, airborne_contact_level_with_adults,
+// infection risk for a specific bacteria / syndrone will depend on sexual_contact_level, airborne_contact_level_with_adults,
 // airborne_contact_level_with_children, oral_exposure_level, mosquito_exposure_level
-// maybe need to differentiate infection from another person (dependent on concurrent population)
-// from infection from the environment - ? assume food water is mainly environment and sex, airborne from another person ?
+// intend to differentiate infection from another person (dependent on concurrent population)
+// from infection from the environment - assume food, water are mainly environment and sex, airborne from another person ?
+
+/* the e_r value represents the level of resistance of resistance (ie the extent to which drug activity against a single 
+bacteria which has the resistance is reduced) c_r is the same but the difference is that e_r represents whether the person 
+has ANY resistant bacteria (which will then replicate better than other bacteria in presence of drug) while c_r indicates 
+that all or the majority of bacteria the person has has this resistance level.  so if c_r has a non-zero value then e_r 
+will always have the same value.  If e_r is zero then c_r has to be zero.  c_r can be zero while e_r is non-zero - in that 
+case c_r will have a certain probability of taking the value of e_r each day in which drug is present and hence resistant 
+virus has the advantage over non resistant  */
+
+// specific next steps - make e_r and c_r variables taking value 0 - 10
+// initiate the value of e_r at the time of infection 
+
+
 
 
 mod config;
@@ -104,7 +116,7 @@ fn main() {
 
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 30; // Increased for demonstration if acquisition happens
+    let num_time_steps = 10; // Increased for demonstration if acquisition happens
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");
