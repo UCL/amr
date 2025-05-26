@@ -31,7 +31,7 @@ use simulation::simulation::run; // Import the run function
 fn main() {
     println!("--- AMR SIMULATION ---");
 
-    let num_individuals = 100_000;
+    let num_individuals = 300_000;
     let bacteria_to_track = "strep_pneu"; // Define the bacteria to track for initial printout
 
     let mut population = Population::new(num_individuals);
@@ -116,7 +116,7 @@ fn main() {
 
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 10; // Increased for demonstration if acquisition happens
+    let num_time_steps = 37; // Increased for demonstration if acquisition happens
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");

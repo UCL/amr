@@ -1,82 +1,150 @@
+// src/config.rs
 use std::collections::HashMap;
 use lazy_static::lazy_static;
 
+// --- Global Simulation Parameters ---
 lazy_static! {
-    pub static ref PARAMETERS: HashMap<String, f64> = { // Key is String for consistency
-        let mut m = HashMap::new();
+    pub static ref PARAMETERS: HashMap<String, f64> = {
+        let mut map = HashMap::new();
 
-        // Strep Pneumonia Parameters (focused on level)
-        m.insert("strep_pneu_acquisition_prob_baseline".to_string(), 0.05);
-        m.insert("strep_pneu_adult_contact_acq_rate_ratio_per_unit".to_string(), 1.01);
-        m.insert("strep_pneu_child_contact_acq_rate_ratio_per_unit".to_string(), 1.02);
-        m.insert("strep_pneu_initial_infection_level".to_string(), 0.01);
-        m.insert("strep_pneu_vaccine_efficacy".to_string(), 0.8);
-        m.insert("strep_pneu_level_change_rate_baseline".to_string(), 0.05);
-        m.insert("strep_pneu_immunity_effect_on_level_change".to_string(), 0.01);
-        m.insert("strep_pneu_max_level".to_string(), 100.0);
-        m.insert("strep_pneu_immunity_reduction_per_unit".to_string(), 0.005);
-        m.insert("strep_pneu_antibiotic_reduction_per_unit".to_string(), 0.00); // set to zero for testing
-        m.insert("strep_pneu_immunity_increase_rate_baseline".to_string(), 0.01);
-        m.insert("strep_pneu_immunity_increase_rate_per_day".to_string(), 0.001);
-        m.insert("strep_pneu_immunity_increase_rate_per_level".to_string(), 0.0005);
-        m.insert("strep_pneu_immunity_age_modifier".to_string(), 1.0);
-        m.insert("strep_pneu_baseline_immunity_level".to_string(), 0.1);
-        m.insert("strep_pneu_immunity_decay_rate".to_string(), 0.001);
+        // General Drug Parameters
+        map.insert("drug_initial_level".to_string(), 10.0);
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001);
+        map.insert("drug_infection_present_multiplier".to_string(), 50.0);
+        map.insert("drug_test_identified_multiplier".to_string(), 20.0);
+        map.insert("drug_decay_rate_per_day".to_string(), 0.3);
 
-        // New parameters for Strep Pneumonia acquisition source
-        m.insert("strep_pneu_environmental_acquisition_proportion".to_string(), 0.1);
-        m.insert("strep_pneu_hospital_acquired_proportion".to_string(), 0.05);
+        // General Acquisition & Resistance Parameters
+        map.insert("environmental_c_r_level_for_new_acquisition".to_string(), 0.0);
+        map.insert("hospital_c_r_level_for_new_acquisition".to_string(), 0.0);
+        map.insert("max_resistance_level".to_string(), 10.0);
+        map.insert("cr_evolution_rate_per_day_when_drug_present".to_string(), 0.001); // Example value, adjust as needed
 
-        // Generic Bacteria Parameters (for the '_' match arm in rules/mod.rs)
-        m.insert("generic_bacteria_acquisition_prob_baseline".to_string(), 0.01);
-        m.insert("generic_bacteria_initial_infection_level".to_string(), 0.01);
-        m.insert("generic_environmental_acquisition_proportion".to_string(), 0.15);
-        m.insert("generic_hospital_acquired_proportion".to_string(), 0.08);
-        m.insert("generic_bacteria_decay_rate".to_string(), 0.02);
+        // Testing Parameters
+        map.insert("test_delay_days".to_string(), 3.0);
+        map.insert("test_rate_per_day".to_string(), 0.15);
 
-        // Drug Initiation Parameters
-        m.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // Very low chance for any drug
-        m.insert("drug_infection_present_multiplier".to_string(), 50.0); // Stronger chance if *any* infection exists
-        m.insert("drug_test_identified_multiplier".to_string(), 20.0); // Even stronger if identified by test
+        // Syndrome-specific multipliers (example)
+        // Format: "syndrome_{ID}_initiation_multiplier"
+        map.insert("syndrome_3_initiation_multiplier".to_string(), 10.0); // Example: Respiratory syndrome might increase drug initiation
 
-        // Syndrome-specific initiation multipliers (keyed by syndrome ID as String)
-        // These are multipliers on top of the base rate and infection/identified multipliers.
-        // Syndrome IDs are 1-10 as per population.rs comments.
-        m.insert("syndrome_1_initiation_multiplier".to_string(), 2.0); // Bloodstream
-        m.insert("syndrome_2_initiation_multiplier".to_string(), 3.0); // Meningitis
-        m.insert("syndrome_3_initiation_multiplier".to_string(), 1.5); // Lower Respiratory
-        m.insert("syndrome_4_initiation_multiplier".to_string(), 2.5); // Endocarditis
-        m.insert("syndrome_5_initiation_multiplier".to_string(), 1.8); // Peritoneal/Intra-abdominal
-        m.insert("syndrome_6_initiation_multiplier".to_string(), 0.5); // Diarrhoea (might not always lead to drug)
-        m.insert("syndrome_7_initiation_multiplier".to_string(), 1.2); // Urinary tract infection
-        m.insert("syndrome_8_initiation_multiplier".to_string(), 2.0); // Bones/Joints
-        m.insert("syndrome_9_initiation_multiplier".to_string(), 1.0); // Skin/Subcutaneous
-        m.insert("syndrome_10_initiation_multiplier".to_string(), 1.5); // Typhoid/Paratyphoid/NTS
+        // --- Bacteria-Specific Parameters ---
+        // These are accessed via get_bacteria_param.
+        // Naming convention: "{bacteria_name}_{param_suffix}"
+        // A "generic_bacteria_" prefix can be used for parameters that apply to all bacteria
+        // unless a specific bacteria override is provided.
 
-        // Drug Level Parameters
-        m.insert("drug_initial_level".to_string(), 10.0); // Initial concentration/level when a drug is started
-        m.insert("drug_decay_rate_per_day".to_string(), 0.3); // Daily decay rate for drug level
+        // Generic Bacteria Defaults (used if specific bacteria parameter is not found)
+        map.insert("generic_bacteria_acquisition_prob_baseline".to_string(), 0.01);
+        map.insert("generic_bacteria_initial_infection_level".to_string(), 0.01);
+        map.insert("generic_environmental_acquisition_proportion".to_string(), 0.1);
+        map.insert("generic_hospital_acquired_proportion".to_string(), 0.05);
+        map.insert("generic_bacteria_decay_rate".to_string(), 0.02);
+        // Add more generic defaults here as needed
 
-        // Testing and Diagnosis Parameters
-        m.insert("test_delay_days".to_string(), 3.0); // Days until a test can identify infection
-        m.insert("test_rate_per_day".to_string(), 0.15); // Daily probability a test identifies infection after delay
+        // Strep Pneumoniae Specific Parameters
+        map.insert("strep_pneu_acquisition_prob_baseline".to_string(), 0.005); // Example: different from generic
+        map.insert("strep_pneu_adult_contact_acq_rate_ratio_per_unit".to_string(), 1.2);
+        map.insert("strep_pneu_child_contact_acq_rate_ratio_per_unit".to_string(), 1.5);
+        map.insert("strep_pneu_vaccine_efficacy".to_string(), 0.8);
+        map.insert("strep_pneu_initial_infection_level".to_string(), 0.05); // Example: different from generic
+        map.insert("strep_pneu_environmental_acquisition_proportion".to_string(), 0.05); // Example: different from generic
+        map.insert("strep_pneu_hospital_acquired_proportion".to_string(), 0.1); // Example: different from generic
 
-        // NEW: Resistance Dynamics Parameters (using 0-10 integer scale for levels)
-        // Note: These values are f64 but represent integer levels (e.g., 3.0 means level 3)
-        m.insert("environmental_c_r_level_for_new_acquisition".to_string(), 3.0); // c_r for env acquired strains (level 3)
-        m.insert("hospital_c_r_level_for_new_acquisition".to_string(), 7.0);   // c_r for hospital acquired strains (level 7)
-        m.insert("cr_evolution_rate_per_day_when_drug_present".to_string(), 0.05); // Probability for c_r to become e_r
-        m.insert("initial_population_cr_chance".to_string(), 0.05); // 5% chance for initial non-zero c_r in population
-        m.insert("initial_population_cr_min_val".to_string(), 1.0); // min c_r if initially resistant (level 1)
-        m.insert("initial_population_cr_max_val".to_string(), 5.0); // max c_r if initially resistant (level 5)
-        m.insert("max_resistance_level".to_string(), 10.0); // The maximum resistance level (used for normalization)
+        map.insert("strep_pneu_baseline_immunity_level".to_string(), 0.1);
+        map.insert("strep_pneu_immunity_decay_rate".to_string(), 0.001);
+        map.insert("strep_pneu_level_change_rate_baseline".to_string(), 0.005); // Can be positive for growth
+        map.insert("strep_pneu_immunity_effect_on_level_change".to_string(), 0.01);
+        map.insert("strep_pneu_max_level".to_string(), 100.0);
+        map.insert("strep_pneu_immunity_increase_rate_baseline".to_string(), 0.005);
+        map.insert("strep_pneu_immunity_increase_rate_per_day".to_string(), 0.0001);
+        map.insert("strep_pneu_immunity_increase_rate_per_level".to_string(), 0.002);
+        map.insert("strep_pneu_immunity_age_modifier".to_string(), 1.0); // Multiplier applied to immunity increase based on age
 
-        // General Simulation Parameters (assuming these were intended to be added)
-        m.insert("population_size".to_string(), 100_000.0);
-        m.insert("num_time_steps".to_string(), 10.0);
-        m.insert("initial_infected_proportion_strep_pneu".to_string(), 0.00001);
-        m.insert("initial_infected_proportion_generic_bacteria".to_string(), 0.00001);
+        // Add parameters for other bacteria (haem_infl, salm_typhi, esch_coli) here following the same pattern
+        // Example for haem_infl (you would fill in actual values):
+        map.insert("haem_infl_acquisition_prob_baseline".to_string(), 0.012);
+        map.insert("haem_infl_initial_infection_level".to_string(), 0.015);
+        map.insert("haem_infl_environmental_acquisition_proportion".to_string(), 0.08);
+        map.insert("haem_infl_hospital_acquired_proportion".to_string(), 0.06);
+        map.insert("haem_infl_decay_rate".to_string(), 0.025);
 
-        m // Return the initialized HashMap
+
+        map
     };
+
+    // --- Bacteria-Drug Specific Parameters ---
+    // This HashMap is for parameters that depend on both a specific bacteria and a specific drug.
+    // The key is a tuple (bacteria_name, drug_name).
+    // The param_suffix in get_bacteria_drug_param is currently simplified to just "antibiotic_reduction_per_unit".
+    pub static ref BACTERIA_DRUG_PARAMETERS: HashMap<(String, String), f64> = {
+        let mut map = HashMap::new();
+
+        // Example: Strep Pneu and "generic_drug" (if you have a catch-all drug effect)
+        map.insert(("strep_pneu".to_string(), "generic_drug".to_string()), 0.005); // antibiotic_reduction_per_unit for strep_pneu
+
+        // Add specific bacteria-drug combinations if antibiotic_reduction_per_unit varies by drug
+        // map.insert(("strep_pneu".to_string(), "amoxicillin".to_string()), 0.007);
+        // map.insert(("strep_pneu".to_string(), "azithromycin".to_string()), 0.003);
+
+        map
+    };
+}
+
+/// Retrieves a global simulation parameter.
+/// Returns `Some(value)` if found, `None` otherwise.
+pub fn get_global_param(key: &str) -> Option<f64> {
+    PARAMETERS.get(key).copied()
+}
+
+/// Retrieves a bacteria-specific simulation parameter.
+/// It first tries to find "{bacteria_name}_{param_suffix}".
+/// If not found, it falls back to "generic_bacteria_{param_suffix}" or other generic forms.
+/// Returns `Some(value)` if found, `None` otherwise.
+pub fn get_bacteria_param(bacteria_name: &str, param_suffix: &str) -> Option<f64> {
+    // 1. Try bacteria-specific key (e.g., "strep_pneu_acquisition_prob_baseline")
+    let specific_key = format!("{}_{}", bacteria_name, param_suffix);
+    if let Some(&value) = PARAMETERS.get(&specific_key) {
+        return Some(value);
+    }
+
+    // 2. Fallback to generic_bacteria_ prefix for common parameters if not found specifically
+    let generic_key_prefix = "generic_bacteria_";
+    let generic_key = format!("{}{}", generic_key_prefix, param_suffix);
+    if let Some(&value) = PARAMETERS.get(&generic_key) {
+        return Some(value);
+    }
+
+    // 3. Special fallback for specific "generic_" parameters that don't follow the "generic_bacteria_" prefix
+    // (This handles cases like "generic_environmental_acquisition_proportion" as in your original code)
+    match param_suffix {
+        "acquisition_prob_baseline" => PARAMETERS.get("generic_bacteria_acquisition_prob_baseline").copied(),
+        "initial_infection_level" => PARAMETERS.get("generic_bacteria_initial_infection_level").copied(),
+        "environmental_acquisition_proportion" => PARAMETERS.get("generic_environmental_acquisition_proportion").copied(),
+        "hospital_acquired_proportion" => PARAMETERS.get("generic_hospital_acquired_proportion").copied(),
+        "decay_rate" => PARAMETERS.get("generic_bacteria_decay_rate").copied(),
+        _ => None, // No generic fallback for this suffix
+    }
+}
+
+
+/// Retrieves a bacteria-drug-specific simulation parameter.
+/// Currently focused on "antibiotic_reduction_per_unit".
+/// It first tries to find a specific (bacteria, drug) combination.
+/// If not found, it tries (bacteria, "generic_drug").
+/// Returns `Some(value)` if found, `None` otherwise.
+pub fn get_bacteria_drug_param(bacteria_name: &str, drug_name: &str, param_suffix: &str) -> Option<f64> {
+    // This function assumes a single parameter type (e.g., "antibiotic_reduction_per_unit")
+    // If you have multiple bacteria-drug specific parameters, you'll need to expand this.
+    if param_suffix == "antibiotic_reduction_per_unit" {
+        // Try specific (bacteria, drug) combination first
+        if let Some(&value) = BACTERIA_DRUG_PARAMETERS.get(&(bacteria_name.to_string(), drug_name.to_string())) {
+            return Some(value);
+        }
+        // Fallback to "generic_drug" for that bacteria if no specific drug is found
+        if let Some(&value) = BACTERIA_DRUG_PARAMETERS.get(&(bacteria_name.to_string(), "generic_drug".to_string())) {
+            return Some(value);
+        }
+    }
+    None
 }
