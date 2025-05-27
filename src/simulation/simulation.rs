@@ -38,9 +38,9 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
                         for (&drug_name, &d_idx) in drug_indices.iter() {
                             if let Some(resistance_row) = ind.resistances.get(b_idx) {
                                 if let Some(resistance_data) = resistance_row.get(d_idx) {
-                                    if resistance_data.c_r > 0.0 {
+                                    if resistance_data.majority_r > 0.0 {
                                         *cr_positive_infected_counts_by_combo.entry((b_idx, d_idx)).or_insert(0) += 1;
-                                        cr_positive_values_by_combo.entry((b_idx, d_idx)).or_insert_with(Vec::new).push(resistance_data.c_r);
+                                        cr_positive_values_by_combo.entry((b_idx, d_idx)).or_insert_with(Vec::new).push(resistance_data.majority_r);
                                     }
                                 }
                             }
@@ -104,7 +104,7 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
         }
 
         // Print some sample global proportions for inspection
-        println!("Time step {}: Global C_R Proportions (selected):", step);
+        println!("Time step {}: Global majority_r Proportions (selected):", step);
         if let Some(&b_idx_strep) = bacteria_indices.get("strep_pneu") {
             if let Some(&d_idx_amox) = drug_indices.get("amoxicillin") {
                 if let Some(&prop) = current_global_cr_proportions.get(&(b_idx_strep, d_idx_amox)) {
@@ -173,7 +173,7 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
     // Example: Print summary of global proportions for Strep Pneumonia to Amoxicillin
     if let (Some(&b_idx_strep), Some(&d_idx_amox)) = (bacteria_indices.get("strep_pneu"), drug_indices.get("amoxicillin")) {
         if let Some(history) = global_cr_proportion_history.get(&(b_idx_strep, d_idx_amox)) {
-            println!("\n--- Proportion of Strep Pneumonia Infected with c_r > 0 for Amoxicillin Over Time ---");
+            println!("\n--- Proportion of Strep Pneumonia Infected with majority_r > 0 for Amoxicillin Over Time ---");
             for (time, proportion) in history.iter().enumerate() {
                 println!("Time Step {}: {:.4}", time, proportion);
             }

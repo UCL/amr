@@ -15,8 +15,8 @@ lazy_static! {
         map.insert("drug_decay_rate_per_day".to_string(), 0.3);
 
         // General Acquisition & Resistance Parameters
-        map.insert("environmental_c_r_level_for_new_acquisition".to_string(), 0.0);
-        map.insert("hospital_c_r_level_for_new_acquisition".to_string(), 0.0);
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.0);
+        map.insert("hospital_majority_r_level_for_new_acquisition".to_string(), 0.0);
         map.insert("max_resistance_level".to_string(), 10.0);
         map.insert("cr_evolution_rate_per_day_when_drug_present".to_string(), 0.001); // Example value, adjust as needed
 

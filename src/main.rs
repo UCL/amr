@@ -7,16 +7,16 @@
 // intend to differentiate infection from another person (dependent on concurrent population)
 // from infection from the environment - assume food, water are mainly environment and sex, airborne from another person ?
 
-/* the e_r value represents the level of resistance of resistance (ie the extent to which drug activity against a single 
-bacteria which has the resistance is reduced) c_r is the same but the difference is that e_r represents whether the person 
-has ANY resistant bacteria (which will then replicate better than other bacteria in presence of drug) while c_r indicates 
-that all or the majority of bacteria the person has has this resistance level.  so if c_r has a non-zero value then e_r 
-will always have the same value.  If e_r is zero then c_r has to be zero.  c_r can be zero while e_r is non-zero - in that 
-case c_r will have a certain probability of taking the value of e_r each day in which drug is present and hence resistant 
+/* the any_r value represents the level of resistance of resistance (ie the extent to which drug activity against a single 
+bacteria which has the resistance is reduced) majority_r is the same but the difference is that any_r represents whether the person 
+has ANY resistant bacteria (which will then replicate better than other bacteria in presence of drug) while majority_r indicates 
+that all or the majority of bacteria the person has has this resistance level.  so if majority_r has a non-zero value then any_r 
+will always have the same value.  If any_r is zero then majority_r has to be zero.  majority_r can be zero while any_r is non-zero - in that 
+case majority_r will have a certain probability of taking the value of any_r each day in which drug is present and hence resistant 
 virus has the advantage over non resistant  */
 
-// specific next steps - make e_r and c_r variables taking value 0 - 10
-// initiate the value of e_r at the time of infection 
+// specific next steps - make any_r and majority_r variables taking value 0 - 10
+// initiate the value of any_r at the time of infection 
 
 
 
@@ -108,15 +108,15 @@ fn main() {
         println!("    microbiome_r: {:.2}", resistance.microbiome_r);
         println!("    test_r: {:.2}", resistance.test_r);
         println!("    activity_r: {:.2}", resistance.activity_r);
-        println!("    e_r: {:.2}", resistance.e_r);
-        println!("    c_r: {:.2}", resistance.c_r);
+        println!("    any_r: {:.2}", resistance.any_r);
+        println!("    majority_r: {:.2}", resistance.majority_r);
     } else {
         println!("  Could not find strep_pneu or amoxicillin in the lists.");
     }
 
     println!("--- SIMULATION STARTING ---");
 
-    let num_time_steps = 37; // Increased for demonstration if acquisition happens
+    let num_time_steps = 5 ; // Increased for demonstration if acquisition happens
     run(&mut population, num_time_steps, bacteria_to_track); // Call the run function
 
     println!("--- SIMULATION ENDED ---");

@@ -26,8 +26,8 @@ pub struct Resistance {
     pub microbiome_r: f64,
     pub test_r: f64,
     pub activity_r: f64,
-    pub e_r: f64, // Effective Resistance (will store 0-10 integer levels)
-    pub c_r: f64, // Community/Carried Resistance (will store 0-10 integer levels)
+    pub any_r: f64, // Effective Resistance (will store 0-10 integer levels)
+    pub majority_r: f64, // Community/Carried Resistance (will store 0-10 integer levels)
 }
 
 #[derive(Debug, Clone)]
@@ -102,7 +102,7 @@ impl Individual {
         for _ in 0..num_bacteria {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
-                let initial_c_r = if rng.gen::<f64>() < initial_pop_cr_chance {
+                let initial_majority_r = if rng.gen::<f64>() < initial_pop_cr_chance {
                     // Generate an integer between min and max, then convert to f64
                     rng.gen_range(initial_pop_cr_min as u32 ..= initial_pop_cr_max as u32) as f64
                 } else {
@@ -112,8 +112,8 @@ impl Individual {
                     microbiome_r: 0.0,
                     test_r: 0.0,
                     activity_r: 0.0,
-                    e_r: 0.0, 
-                    c_r: 0.0,                 });
+                    any_r: 0.0, 
+                    majority_r: 0.0,                 });
             }
             resistances.push(drug_resistances);
         }

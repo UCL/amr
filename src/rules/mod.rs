@@ -134,9 +134,9 @@ pub fn apply_rules(
                 let is_hospital_acquired = rng.gen::<f64>() < hospital_acquired_chance;
                 individual.infection_hospital_acquired.insert(bacteria, is_hospital_acquired);
 
-                // --- E_R AND C_R SETTING LOGIC ON NEW INFECTION ACQUISITION ---
-                let env_cr_level = get_global_param("environmental_c_r_level_for_new_acquisition").unwrap_or(0.0);
-                let hospital_cr_level = get_global_param("hospital_c_r_level_for_new_acquisition").unwrap_or(0.0);
+                // --- any_r AND majority_r SETTING LOGIC ON NEW INFECTION ACQUISITION ---
+                let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
+                let hospital_majority_r_level = get_global_param("hospital_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(10.0);
 
                 for drug_name_static in DRUG_SHORT_NAMES.iter() {
@@ -144,31 +144,31 @@ pub fn apply_rules(
                     let resistance_data = &mut individual.resistances[b_idx][d_idx];
 
                     if is_from_environment {
-                        // If from environment, both e_r and c_r are set to the environmental level
-                        resistance_data.c_r = env_cr_level;
-                        resistance_data.e_r = env_cr_level;
+                        // If from environment, both any_r and majority_r are set to the environmental level
+                        resistance_data.majority_r = env_majority_r_level;
+                        resistance_data.any_r = env_majority_r_level;
                     } else if is_hospital_acquired {
-                        // If hospital-acquired, both e_r and c_r are set to the hospital level
-                        resistance_data.c_r = hospital_cr_level;
-                        resistance_data.e_r = hospital_cr_level;
+                        // If hospital-acquired, both any_r and majority_r are set to the hospital level
+                        resistance_data.majority_r = hospital_majority_r_level;
+                        resistance_data.any_r = hospital_majority_r_level;
                     } else {
-                        // Community acquisition: e_r comes from global c_r, but individual's c_r starts at 0
+                        // Community acquisition: any_r comes from global majority_r, but individual's majority_r starts at 0
                         if let Some(cr_values) = cr_positive_values_by_combo.get(&(b_idx, d_idx)) {
                             if let Some(&chosen_cr_value) = cr_values.choose(&mut rng) {
-                                // Ensure sampled e_r is within 0 to max_resistance_level and is an integer.
+                                // Ensure sampled any_r is within 0 to max_resistance_level and is an integer.
                                 // Round to nearest integer if sampling a float that isn't already an int.
-                                resistance_data.e_r = chosen_cr_value.round().min(max_resistance_level).max(0.0);
+                                resistance_data.any_r = chosen_cr_value.round().min(max_resistance_level).max(0.0);
                             } else {
-                                resistance_data.e_r = 0.0; // Fallback
+                                resistance_data.any_r = 0.0; // Fallback
                             }
                         } else {
-                            // If there's no data in cr_positive_values_by_combo for this combo, e_r is 0
-                            resistance_data.e_r = 0.0;
+                            // If there's no data in cr_positive_values_by_combo for this combo, any_r is 0
+                            resistance_data.any_r = 0.0;
                         }
-                        resistance_data.c_r = 0.0; // Individual's c_r starts at 0 for community acquisition
+                        resistance_data.majority_r = 0.0; // Individual's majority_r starts at 0 for community acquisition
                     }
                 }
-                // --- END GENERALIZED E_R AND C_R SETTING LOGIC ---
+                // --- END GENERALIZED any_r AND majority_r SETTING LOGIC ---
 
                 individual.test_identified_infection.insert(bacteria, false);
             }
@@ -189,7 +189,7 @@ pub fn apply_rules(
                 }
             }
         } else { // Bacteria is already present (infection progression)
-            // --- C_R EVOLUTION LOGIC ---
+            // --- majority_r EVOLUTION LOGIC ---
             let cr_evolution_rate = get_global_param("cr_evolution_rate_per_day_when_drug_present").unwrap_or(0.0);
             let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(10.0);
 
@@ -197,35 +197,35 @@ pub fn apply_rules(
                 for (drug_index, &use_drug) in individual.cur_use_drug.iter().enumerate() {
                     let resistance_data = &mut individual.resistances[bacteria_full_idx][drug_index];
 
-                    // Rule: If c_r is 0, but e_r is non-zero, and drug is present, c_r can "catch up" to e_r
-                    if resistance_data.c_r == 0.0 && resistance_data.e_r > 0.0 && use_drug {
+                    // Rule: If majority_r is 0, but any_r is non-zero, and drug is present, majority_r can "catch up" to any_r
+                    if resistance_data.majority_r == 0.0 && resistance_data.any_r > 0.0 && use_drug {
                         if rng.gen_bool(cr_evolution_rate) {
-                            resistance_data.c_r = resistance_data.e_r;
+                            resistance_data.majority_r = resistance_data.any_r;
                         }
                     }
 
-                    // Rule: If c_r is non-zero, e_r must be equal to c_r
-                    // This handles cases where c_r just evolved, or if c_r was non-zero from acquisition.
-                    if resistance_data.c_r > 0.0 {
-                        resistance_data.e_r = resistance_data.c_r;
+                    // Rule: If majority_r is non-zero, any_r must be equal to majority_r
+                    // This handles cases where majority_r just evolved, or if majority_r was non-zero from acquisition.
+                    if resistance_data.majority_r > 0.0 {
+                        resistance_data.any_r = resistance_data.majority_r;
                     } else {
-                        // If c_r became 0, e_r also becomes 0 if no drug pressure
-                        // This prevents e_r > 0 while c_r == 0 after evolution if the drug is removed
-                        if resistance_data.e_r > 0.0 && !use_drug {
-                            resistance_data.e_r = 0.0;
+                        // If majority_r became 0, any_r also becomes 0 if no drug pressure
+                        // This prevents any_r > 0 while majority_r == 0 after evolution if the drug is removed
+                        if resistance_data.any_r > 0.0 && !use_drug {
+                            resistance_data.any_r = 0.0;
                         }
                     }
 
                     // Ensure resistance levels are always within 0 to max_resistance_level and are integers
-                    resistance_data.c_r = resistance_data.c_r.round().min(max_resistance_level).max(0.0);
-                    resistance_data.e_r = resistance_data.e_r.round().min(max_resistance_level).max(0.0);
+                    resistance_data.majority_r = resistance_data.majority_r.round().min(max_resistance_level).max(0.0);
+                    resistance_data.any_r = resistance_data.any_r.round().min(max_resistance_level).max(0.0);
 
-                    // Set activity_r based on current drug level and normalized resistance (e_r)
+                    // Set activity_r based on current drug level and normalized resistance (any_r)
                     if use_drug {
                         if let Some(&level) = individual.cur_level_drug.get(drug_index) {
-                            // Normalize e_r for the activity calculation (e.g., 0-10 becomes 0.0-1.0)
-                            let normalized_e_r = resistance_data.e_r / max_resistance_level;
-                            resistance_data.activity_r = level * (1.0 - normalized_e_r);
+                            // Normalize any_r for the activity calculation (e.g., 0-10 becomes 0.0-1.0)
+                            let normalized_any_r = resistance_data.any_r / max_resistance_level;
+                            resistance_data.activity_r = level * (1.0 - normalized_any_r);
                         }
                     } else {
                         resistance_data.activity_r = 0.0;
@@ -303,8 +303,8 @@ pub fn apply_rules(
                     // When infection clears, reset resistance for this bacteria to 0
                     if let Some(b_idx_clear) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
                         for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
-                            individual.resistances[b_idx_clear][drug_idx_clear].e_r = 0.0;
-                            individual.resistances[b_idx_clear][drug_idx_clear].c_r = 0.0;
+                            individual.resistances[b_idx_clear][drug_idx_clear].any_r = 0.0;
+                            individual.resistances[b_idx_clear][drug_idx_clear].majority_r = 0.0;
                         }
                     }
                 }
@@ -346,24 +346,24 @@ pub fn apply_rules(
         println!("-------------------------------------");
         println!("--- Resistance Status (Individual 0) ---");
         let has_relevant_resistance = individual.resistances.iter().any(|b_res| {
-            b_res.iter().any(|res| res.e_r > 0.0 || res.c_r > 0.0)
+            b_res.iter().any(|res| res.any_r > 0.0 || res.majority_r > 0.0)
         });
 
         if has_relevant_resistance {
             for (bacteria_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                 for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                     if let Some(resistance) = individual.resistances.get(bacteria_idx).and_then(|r_vec| r_vec.get(drug_idx)) {
-                        if resistance.e_r > 0.0 || resistance.c_r > 0.0 { // Only print if any resistance is present
+                        if resistance.any_r > 0.0 || resistance.majority_r > 0.0 { // Only print if any resistance is present
                             println!("    {} resistance to {}:", bacteria_name, drug_name);
-                            println!("      e_r: {:.0}", resistance.e_r); // Print as integer
-                            println!("      c_r: {:.0}", resistance.c_r); // Print as integer
+                            println!("      any_r: {:.0}", resistance.any_r); // Print as integer
+                            println!("      majority_r: {:.0}", resistance.majority_r); // Print as integer
                             println!("      activity_r: {:.4}", resistance.activity_r);
                         }
                     }
                 }
             }
         } else {
-            println!("    No active resistances (e_r > 0 or c_r > 0) for Individual 0.");
+            println!("    No active resistances (any_r > 0 or majority_r > 0) for Individual 0.");
         }
         println!("-------------------------------------");
     }
