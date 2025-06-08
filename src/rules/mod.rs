@@ -11,8 +11,8 @@ use std::collections::HashMap;
 pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
-    global_cr_proportions: &HashMap<(usize, usize), f64>,
-    cr_positive_values_by_combo: &HashMap<(usize, usize), Vec<f64>>,
+    global_majority_r_proportions: &HashMap<(usize, usize), f64>,
+    majority_r_positive_values_by_combo: &HashMap<(usize, usize), Vec<f64>>,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
 ) {
@@ -153,16 +153,16 @@ pub fn apply_rules(
                         resistance_data.any_r = hospital_majority_r_level;
                     } else {
                         // Community acquisition: any_r comes from global majority_r, but individual's majority_r starts at 0
-                        if let Some(cr_values) = cr_positive_values_by_combo.get(&(b_idx, d_idx)) {
-                            if let Some(&chosen_cr_value) = cr_values.choose(&mut rng) {
+                        if let Some(majority_r_values) = majority_r_positive_values_by_combo.get(&(b_idx, d_idx)) {
+                            if let Some(&chosen_majority_r_value) = majority_r_values.choose(&mut rng) {
                                 // Ensure sampled any_r is within 0 to max_resistance_level and is an integer.
                                 // Round to nearest integer if sampling a float that isn't already an int.
-                                resistance_data.any_r = chosen_cr_value.round().min(max_resistance_level).max(0.0);
+                                resistance_data.any_r = chosen_majority_r_value.round().min(max_resistance_level).max(0.0);
                             } else {
                                 resistance_data.any_r = 0.0; // Fallback
                             }
                         } else {
-                            // If there's no data in cr_positive_values_by_combo for this combo, any_r is 0
+                            // If there's no data in majority_r_positive_values_by_combo for this combo, any_r is 0
                             resistance_data.any_r = 0.0;
                         }
                         resistance_data.majority_r = 0.0; // Individual's majority_r starts at 0 for community acquisition
@@ -190,7 +190,7 @@ pub fn apply_rules(
             }
         } else { // Bacteria is already present (infection progression)
             // --- majority_r EVOLUTION LOGIC ---
-            let cr_evolution_rate = get_global_param("cr_evolution_rate_per_day_when_drug_present").unwrap_or(0.0);
+            let majority_r_evolution_rate = get_global_param("majority_r_evolution_rate_per_day_when_drug_present").unwrap_or(0.0);
             let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(10.0);
 
             if let Some(bacteria_full_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
@@ -199,7 +199,7 @@ pub fn apply_rules(
 
                     // Rule: If majority_r is 0, but any_r is non-zero, and drug is present, majority_r can "catch up" to any_r
                     if resistance_data.majority_r == 0.0 && resistance_data.any_r > 0.0 && use_drug {
-                        if rng.gen_bool(cr_evolution_rate) {
+                        if rng.gen_bool(majority_r_evolution_rate) {
                             resistance_data.majority_r = resistance_data.any_r;
                         }
                     }

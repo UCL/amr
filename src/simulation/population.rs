@@ -1,7 +1,7 @@
 // src/simulation/population.rs
 use rand::Rng;
 use std::collections::HashMap;
-use crate::config::PARAMETERS; // New import for PARAMETERS
+use crate::config::PARAMETERS; // Keep this import as PARAMETERS is used elsewhere in your original code
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobac_bau", "citrobac_spec", "enterobac_spec", "enterococ_faeca", "enterococ_faeci",
@@ -94,26 +94,24 @@ impl Individual {
         let num_bacteria = BACTERIA_LIST.len();
         let mut resistances = Vec::with_capacity(num_bacteria);
 
-        // Fetch resistance parameters from config.rs
-        let initial_pop_cr_chance = *PARAMETERS.get("initial_population_cr_chance").unwrap_or(&0.0);
-        let initial_pop_cr_min = *PARAMETERS.get("initial_population_cr_min_val").unwrap_or(&0.0);
-        let initial_pop_cr_max = *PARAMETERS.get("initial_population_cr_max_val").unwrap_or(&0.0);
 
         for _ in 0..num_bacteria {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
-                let initial_majority_r = if rng.gen::<f64>() < initial_pop_cr_chance {
-                    // Generate an integer between min and max, then convert to f64
-                    rng.gen_range(initial_pop_cr_min as u32 ..= initial_pop_cr_max as u32) as f64
-                } else {
-                    0.0
-                };
+                // The calculation for initial_majority_r is removed as we explicitly want 0.0
+                // let initial_majority_r = if rng.gen::<f64>() < initial_pop_majority_r_chance {
+                //     // Generate an integer between min and max, then convert to f64
+                //     rng.gen_range(initial_pop_majority_r_min as u32 ..= initial_pop_majority_r_max as u32) as f64
+                // } else {
+                //     0.0
+                // };
                 drug_resistances.push(Resistance {
                     microbiome_r: 0.0,
                     test_r: 0.0,
                     activity_r: 0.0,
-                    any_r: 0.0, 
-                    majority_r: 0.0,                 });
+                    any_r: 0.0,
+                    majority_r: 0.0,
+                });
             }
             resistances.push(drug_resistances);
         }

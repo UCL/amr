@@ -18,6 +18,10 @@ virus has the advantage over non resistant  */
 // specific next steps - make any_r and majority_r variables taking value 0 - 10
 // initiate the value of any_r at the time of infection 
 
+// initial any_r non zero dependent on current level of bacteria
+// also need to consider microbiome_r and how it is set and how it influences any_r
+// need a variable for world region (e.g. continent) living and perhaps one for world region currently (ie visiting)
+
 
 
 
@@ -31,7 +35,7 @@ use simulation::simulation::run; // Import the run function
 fn main() {
     println!("--- AMR SIMULATION ---");
 
-    let num_individuals = 300_000;
+    let num_individuals =   300_000;
     let bacteria_to_track = "strep_pneu"; // Define the bacteria to track for initial printout
 
     let mut population = Population::new(num_individuals);

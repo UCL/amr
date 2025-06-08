@@ -19,14 +19,14 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
 
     // History for plotting/analysis (optional, but good for tracking)
     let mut infection_counts_history: HashMap<&'static str, Vec<usize>> = HashMap::new();
-    let mut global_cr_proportion_history: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+    let mut global_majority_r_proportion_history: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
 
     for step in 0..num_time_steps {
         // --- GLOBAL RESISTANCE METRICS CALCULATION START ---
         // These HashMaps will hold the data for the current time step
         let mut total_infected_counts_by_bacteria: HashMap<usize, usize> = HashMap::new();
-        let mut cr_positive_infected_counts_by_combo: HashMap<(usize, usize), usize> = HashMap::new();
-        let mut cr_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+        let mut majority_r_positive_infected_counts_by_combo: HashMap<(usize, usize), usize> = HashMap::new();
+        let mut majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
 
         // Iterate through all individuals to collect global resistance data
         for ind in population.individuals.iter() {
@@ -39,8 +39,8 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
                             if let Some(resistance_row) = ind.resistances.get(b_idx) {
                                 if let Some(resistance_data) = resistance_row.get(d_idx) {
                                     if resistance_data.majority_r > 0.0 {
-                                        *cr_positive_infected_counts_by_combo.entry((b_idx, d_idx)).or_insert(0) += 1;
-                                        cr_positive_values_by_combo.entry((b_idx, d_idx)).or_insert_with(Vec::new).push(resistance_data.majority_r);
+                                        *majority_r_positive_infected_counts_by_combo.entry((b_idx, d_idx)).or_insert(0) += 1;
+                                        majority_r_positive_values_by_combo.entry((b_idx, d_idx)).or_insert_with(Vec::new).push(resistance_data.majority_r);
                                     }
                                 }
                             }
@@ -51,24 +51,24 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
         }
 
         // Calculate global proportions for the current time step
-        let mut current_global_cr_proportions: HashMap<(usize, usize), f64> = HashMap::new();
+        let mut current_global_majority_r_proportions: HashMap<(usize, usize), f64> = HashMap::new();
         for b_idx in 0..BACTERIA_LIST.len() {
             let total_infected_count = *total_infected_counts_by_bacteria.get(&b_idx).unwrap_or(&0);
             if total_infected_count > 0 {
                 for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                    let cr_positive_count = *cr_positive_infected_counts_by_combo.get(&(b_idx, d_idx)).unwrap_or(&0);
-                    let proportion = cr_positive_count as f64 / total_infected_count as f64;
-                    current_global_cr_proportions.insert((b_idx, d_idx), proportion);
+                    let majority_r_positive_count = *majority_r_positive_infected_counts_by_combo.get(&(b_idx, d_idx)).unwrap_or(&0);
+                    let proportion = majority_r_positive_count as f64 / total_infected_count as f64;
+                    current_global_majority_r_proportions.insert((b_idx, d_idx), proportion);
 
                     // Store history for analysis (optional)
-                    global_cr_proportion_history.entry((b_idx, d_idx))
+                    global_majority_r_proportion_history.entry((b_idx, d_idx))
                         .or_insert_with(Vec::new)
                         .push(proportion);
                 }
             } else {
                 for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                    current_global_cr_proportions.insert((b_idx, d_idx), 0.0);
-                    global_cr_proportion_history.entry((b_idx, d_idx))
+                    current_global_majority_r_proportions.insert((b_idx, d_idx), 0.0);
+                    global_majority_r_proportion_history.entry((b_idx, d_idx))
                         .or_insert_with(Vec::new)
                         .push(0.0);
                 }
@@ -81,8 +81,8 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
             apply_rules(
                 ind,
                 step,
-                &current_global_cr_proportions,
-                &cr_positive_values_by_combo,
+                &current_global_majority_r_proportions,
+                &majority_r_positive_values_by_combo,
                 &bacteria_indices,
                 &drug_indices,
             );
@@ -107,14 +107,14 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
         println!("Time step {}: Global majority_r Proportions (selected):", step);
         if let Some(&b_idx_strep) = bacteria_indices.get("strep_pneu") {
             if let Some(&d_idx_amox) = drug_indices.get("amoxicillin") {
-                if let Some(&prop) = current_global_cr_proportions.get(&(b_idx_strep, d_idx_amox)) {
+                if let Some(&prop) = current_global_majority_r_proportions.get(&(b_idx_strep, d_idx_amox)) {
                     println!("    Strep Pneumonia to Amoxicillin: {:.4}", prop);
                 }
             }
         }
         if let Some(&b_idx_generic) = bacteria_indices.get("generic_bacteria") {
             if let Some(&d_idx_amox) = drug_indices.get("amoxicillin") {
-                if let Some(&prop) = current_global_cr_proportions.get(&(b_idx_generic, d_idx_amox)) {
+                if let Some(&prop) = current_global_majority_r_proportions.get(&(b_idx_generic, d_idx_amox)) {
                     println!("    Generic Bacteria to Amoxicillin: {:.4}", prop);
                 }
             }
@@ -172,7 +172,7 @@ pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track
 
     // Example: Print summary of global proportions for Strep Pneumonia to Amoxicillin
     if let (Some(&b_idx_strep), Some(&d_idx_amox)) = (bacteria_indices.get("strep_pneu"), drug_indices.get("amoxicillin")) {
-        if let Some(history) = global_cr_proportion_history.get(&(b_idx_strep, d_idx_amox)) {
+        if let Some(history) = global_majority_r_proportion_history.get(&(b_idx_strep, d_idx_amox)) {
             println!("\n--- Proportion of Strep Pneumonia Infected with majority_r > 0 for Amoxicillin Over Time ---");
             for (time, proportion) in history.iter().enumerate() {
                 println!("Time Step {}: {:.4}", time, proportion);
