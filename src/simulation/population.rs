@@ -1,7 +1,37 @@
 // src/simulation/population.rs
 use rand::Rng;
 use std::collections::HashMap;
-use crate::config::PARAMETERS; // Keep this import as PARAMETERS is used elsewhere in your original code
+// MODIFIED: Removed unused import. PARAMETERS is not directly used in this file.
+// use crate::config::PARAMETERS; // Keep this import as PARAMETERS is used elsewhere in your original code
+use rand::distributions::{Distribution, Standard};
+
+// Define the regions as an enum
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum Region {
+    NorthAmerica,
+    SouthAmerica,
+    Africa,
+    Asia,
+    Europe,
+    Oceania,
+    Home, // NEW: Represents the individual is not currently visiting another region
+}
+
+// Implement From<rand::distributions::Standard> for Region to allow random generation for region_living
+impl Distribution<Region> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Region {
+        // We exclude 'Home' from random generation for 'region_living'
+        // 'Home' will be explicitly set for 'region_visiting' as a default
+        match rng.gen_range(0..6) { // Range is now 0..6 for the 6 distinct geographic regions
+            0 => Region::NorthAmerica,
+            1 => Region::SouthAmerica,
+            2 => Region::Africa,
+            3 => Region::Asia,
+            4 => Region::Europe,
+            _ => Region::Oceania,
+        }
+    }
+}
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobac_bau", "citrobac_spec", "enterobac_spec", "enterococ_faeca", "enterococ_faeci",
@@ -35,16 +65,16 @@ pub struct Individual {
     pub id: usize,
     pub age: i32, // age in days (negative = before reference date)
     pub sex_at_birth: String,
+    pub region_living: Region,
+    pub region_visiting: Region,
     pub date_last_infected: HashMap<&'static str, i32>,
     pub infectious_syndrome: HashMap<&'static str, i32>,
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
     pub sepsis: HashMap<&'static str, bool>,
     pub level_microbiome: HashMap<&'static str, f64>,
-    pub haem_infl_vaccination_status: bool,
-    pub strep_pneu_vaccination_status: bool,
-    pub salm_typhi_vaccination_status: bool,
-    pub esch_coli_vaccination_status: bool,
+    // MODIFIED: Replaced individual vaccination status fields with a single HashMap
+    pub vaccination_status: HashMap<&'static str, bool>,
     pub cur_infection_from_environment: HashMap<&'static str, bool>,
     pub test_identified_infection: HashMap<&'static str, bool>,
     pub cur_use_drug: Vec<bool>,
@@ -77,6 +107,9 @@ impl Individual {
         let mut infection_hospital_acquired = HashMap::new();
         let mut cur_infection_from_environment = HashMap::new();
         let mut test_identified_infection = HashMap::new();
+        // ADDED: Initialize the HashMap for vaccination status
+        let mut vaccination_status = HashMap::new();
+
 
         for &bacteria in BACTERIA_LIST.iter() {
             date_last_infected.insert(bacteria, 0);
@@ -88,6 +121,8 @@ impl Individual {
             infection_hospital_acquired.insert(bacteria, false);
             cur_infection_from_environment.insert(bacteria, false);
             test_identified_infection.insert(bacteria, false);
+            // ADDED: Populate vaccination status for each bacteria from BACTERIA_LIST
+            vaccination_status.insert(bacteria, rng.gen_bool(0.5)); // Random initial status for each
         }
 
         let num_drugs = DRUG_SHORT_NAMES.len();
@@ -98,13 +133,6 @@ impl Individual {
         for _ in 0..num_bacteria {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
-                // The calculation for initial_majority_r is removed as we explicitly want 0.0
-                // let initial_majority_r = if rng.gen::<f64>() < initial_pop_majority_r_chance {
-                //     // Generate an integer between min and max, then convert to f64
-                //     rng.gen_range(initial_pop_majority_r_min as u32 ..= initial_pop_majority_r_max as u32) as f64
-                // } else {
-                //     0.0
-                // };
                 drug_resistances.push(Resistance {
                     microbiome_r: 0.0,
                     test_r: 0.0,
@@ -126,6 +154,8 @@ impl Individual {
         Individual {
             id,
             age: age_days,
+            region_living: rng.gen(), // Initialize with a random region
+            region_visiting: Region::Home, // Changed to explicitly set to Home
             sex_at_birth,
             date_last_infected,
             infectious_syndrome,
@@ -133,10 +163,7 @@ impl Individual {
             immune_resp,
             sepsis,
             level_microbiome,
-            haem_infl_vaccination_status: rng.gen_bool(0.5),
-            strep_pneu_vaccination_status: rng.gen_bool(0.5),
-            salm_typhi_vaccination_status: rng.gen_bool(0.5),
-            esch_coli_vaccination_status: rng.gen_bool(0.5),
+            vaccination_status, // MODIFIED: Assign the HashMap
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: (0..num_drugs).map(|_| 0.0).collect(),
             current_infection_related_death_risk: 0.0,

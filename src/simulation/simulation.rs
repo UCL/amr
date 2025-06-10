@@ -1,182 +1,221 @@
 // src/simulation/simulation.rs
-use crate::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES, Population};
+use crate::simulation::population::{Individual, Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use crate::rules::apply_rules;
-use rayon::prelude::*;
 use std::collections::HashMap;
-use rand::seq::SliceRandom; // Still needed for individual rule application
+// REMOVED: use rand::seq::SliceRandom; // Not directly used in this file for sampling.
 
-/// Runs the simulation for a given population and number of time steps.
-pub fn run(population: &mut Population, num_time_steps: usize, bacteria_to_track: &str) {
-    println!("--- AMR SIMULATION (within run function) ---");
-    if let Some(ind) = population.individuals.get(0) {
-        println!("Initial age of individual 0 BEFORE simulation: {} days", ind.age);
+pub struct Simulation {
+    pub population: Population,
+    pub time_steps: usize,
+    pub global_majority_r_proportions: HashMap<(usize, usize), f64>,
+    pub majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>>,
+    pub bacteria_indices: HashMap<&'static str, usize>,
+    pub drug_indices: HashMap<&'static str, usize>,
+}
+
+impl Simulation {
+    pub fn new(population_size: usize, time_steps: usize) -> Self {
+        println!("--- AMR SIMULATION ---");
+        let population = Population::new(population_size);
+
+        // Initialize bacteria_indices and drug_indices
+        let mut bacteria_indices: HashMap<&'static str, usize> = HashMap::new();
+        for (i, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+            bacteria_indices.insert(bacteria, i);
+        }
+
+        let mut drug_indices: HashMap<&'static str, usize> = HashMap::new();
+        for (i, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
+            drug_indices.insert(drug, i);
+        }
+
+        // Placeholder initial values for global_majority_r_proportions and majority_r_positive_values_by_combo
+        // These would typically be derived from initial population state or external data
+        let global_majority_r_proportions = HashMap::new();
+        let majority_r_positive_values_by_combo = HashMap::new();
+
+        println!("Initial age of individual 0 AFTER population creation: {} days", population.individuals[0].age);
+        println!("--- INITIAL STATE OF INDIVIDUAL 0 (from main.rs) ---");
+        println!("  Region Living: {:?}", population.individuals[0].region_living);
+        println!("  Region Visiting: {:?}", population.individuals[0].region_visiting); // Should now be Home
+        if let Some(&level) = population.individuals[0].level.get("strep_pneu") {
+            println!("  strep_pneu: level = {:.2}", level);
+        }
+        if let Some(&immune_resp) = population.individuals[0].immune_resp.get("strep_pneu") {
+            println!("  strep_pneu: immune_resp = {:.2}", immune_resp);
+        }
+        if let Some(&sepsis) = population.individuals[0].sepsis.get("strep_pneu") {
+            println!("  strep_pneu: sepsis = {}", sepsis);
+        }
+        if let Some(&infectious_syndrome) = population.individuals[0].infectious_syndrome.get("strep_pneu") {
+            println!("  strep_pneu: infectious_syndrome = {}", infectious_syndrome);
+        }
+        if let Some(&date_last_infected) = population.individuals[0].date_last_infected.get("strep_pneu") {
+            println!("  strep_pneu: date_last_infected = {}", date_last_infected);
+        }
+        // MODIFIED: Loop to print all vaccination statuses from the HashMap
+        for &bacteria_name in BACTERIA_LIST.iter() {
+            if let Some(&status) = population.individuals[0].vaccination_status.get(bacteria_name) {
+                println!("  {}_vaccination_status: {}", bacteria_name, status);
+            }
+        }
+        println!("  cur_use_amoxicillin: {}", population.individuals[0].cur_use_drug[drug_indices["amoxicillin"]]);
+        println!("  cur_level_amoxicillin: {:.2}", population.individuals[0].cur_level_drug[drug_indices["amoxicillin"]]);
+        println!("  current_infection_related_death_risk: {:.2}", population.individuals[0].current_infection_related_death_risk);
+        println!("  background_all_cause_mortality_rate: {:.4}", population.individuals[0].background_all_cause_mortality_rate);
+        println!("  sexual_contact_level: {:.2}", population.individuals[0].sexual_contact_level);
+        println!("  airborne_contact_level_with_adults: {:.2}", population.individuals[0].airborne_contact_level_with_adults);
+        println!("  airborne_contact_level_with_children: {:.2}", population.individuals[0].airborne_contact_level_with_children);
+        println!("  oral_exposure_level: {:.2}", population.individuals[0].oral_exposure_level);
+        println!("  mosquito_exposure_level: {:.2}", population.individuals[0].mosquito_exposure_level);
+        println!("  under_care: {}", population.individuals[0].under_care);
+        if let Some(&hospital_acquired) = population.individuals[0].infection_hospital_acquired.get("strep_pneu") {
+            println!("  strep_pneu: infection_hospital_acquired = {}", hospital_acquired);
+        }
+        if let Some(&from_env) = population.individuals[0].cur_infection_from_environment.get("strep_pneu") {
+            println!("  strep_pneu: cur_infection_from_environment = {}", from_env);
+        }
+        println!("  current_toxicity: {:.2}", population.individuals[0].current_toxicity);
+        println!("  mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
+        let strep_pneu_idx = bacteria_indices["strep_pneu"];
+        let amoxicillin_idx = drug_indices["amoxicillin"];
+        let resistance_data = &population.individuals[0].resistances[strep_pneu_idx][amoxicillin_idx];
+        println!("  strep_pneu resistance to amoxicillin:");
+        println!("    microbiome_r: {:.2}", resistance_data.microbiome_r);
+        println!("    test_r: {:.2}", resistance_data.test_r);
+        println!("    activity_r: {:.2}", resistance_data.activity_r);
+        println!("    any_r: {:.2}", resistance_data.any_r);
+        println!("    majority_r: {:.2}", resistance_data.majority_r);
+
+
+        Simulation {
+            population,
+            time_steps,
+            global_majority_r_proportions,
+            majority_r_positive_values_by_combo,
+            bacteria_indices,
+            drug_indices,
+        }
     }
-    println!("--- SIMULATION STARTING (within run function) ---");
 
-    // Pre-calculate indices for efficiency
-    let bacteria_indices: HashMap<&str, usize> = BACTERIA_LIST.iter().enumerate().map(|(i, &b)| (b, i)).collect();
-    let drug_indices: HashMap<&str, usize> = DRUG_SHORT_NAMES.iter().enumerate().map(|(i, &d)| (d, i)).collect();
+    pub fn run(&mut self) {
+        println!("--- SIMULATION STARTING ---");
+        println!("--- AMR SIMULATION (within run function) ---");
+        println!("Initial age of individual 0 BEFORE simulation: {} days", self.population.individuals[0].age);
+        println!("--- SIMULATION STARTING (within run function) ---");
 
-    // History for plotting/analysis (optional, but good for tracking)
-    let mut infection_counts_history: HashMap<&'static str, Vec<usize>> = HashMap::new();
-    let mut global_majority_r_proportion_history: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+        // Temporary data collection for global majority_r proportions
+        let mut strep_pneu_amox_majority_r_history: Vec<f64> = Vec::new();
 
-    for step in 0..num_time_steps {
-        // --- GLOBAL RESISTANCE METRICS CALCULATION START ---
-        // These HashMaps will hold the data for the current time step
-        let mut total_infected_counts_by_bacteria: HashMap<usize, usize> = HashMap::new();
-        let mut majority_r_positive_infected_counts_by_combo: HashMap<(usize, usize), usize> = HashMap::new();
-        let mut majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+        for t in 0..self.time_steps {
+            // Recalculate global majority_r_proportions and positive values at each time step
+            // For now, this is a placeholder. In a full model, this would aggregate data
+            // from all individuals.
+            let mut current_majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+            let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
+            let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
 
-        // Iterate through all individuals to collect global resistance data
-        for ind in population.individuals.iter() {
-            for (&bacteria_name, &level) in ind.level.iter() {
-                if level > 0.0 {
-                    if let Some(&b_idx) = bacteria_indices.get(bacteria_name) {
-                        *total_infected_counts_by_bacteria.entry(b_idx).or_insert(0) += 1;
 
-                        for (&drug_name, &d_idx) in drug_indices.iter() {
-                            if let Some(resistance_row) = ind.resistances.get(b_idx) {
-                                if let Some(resistance_data) = resistance_row.get(d_idx) {
-                                    if resistance_data.majority_r > 0.0 {
-                                        *majority_r_positive_infected_counts_by_combo.entry((b_idx, d_idx)).or_insert(0) += 1;
-                                        majority_r_positive_values_by_combo.entry((b_idx, d_idx)).or_insert_with(Vec::new).push(resistance_data.majority_r);
-                                    }
-                                }
+            for individual in self.population.individuals.iter_mut() {
+                apply_rules(
+                    individual,
+                    t,
+                    &self.global_majority_r_proportions, // Pass the global map
+                    &self.majority_r_positive_values_by_combo, // Pass the global map
+                    &self.bacteria_indices,
+                    &self.drug_indices,
+                );
+
+                // Update global statistics for the *next* time step
+                for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                    // Only count if currently infected
+                    if individual.level.get(bacteria_name).map_or(false, |&level| level > 0.001) {
+                        *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
+
+                        for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() { // MODIFIED: Prefixed drug_name with _
+                            let resistance_data = &individual.resistances[b_idx][d_idx];
+                            if resistance_data.majority_r > 0.0 {
+                                current_majority_r_positive_values_by_combo
+                                    .entry((b_idx, d_idx))
+                                    .or_insert_with(Vec::new)
+                                    .push(resistance_data.majority_r);
+                                *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
                             }
                         }
                     }
                 }
             }
-        }
+            // Update global_majority_r_proportions based on the current step's data
+            // This is a simplified calculation for demonstration.
+            let strep_pneu_idx = self.bacteria_indices["strep_pneu"];
+            let amoxicillin_idx = self.drug_indices["amoxicillin"];
+            let infected_with_strep_pneu = *current_infected_counts_total.get(&strep_pneu_idx).unwrap_or(&0);
+            let strep_pneu_amox_majority_r_count = *current_infected_counts_with_majority_r.get(&(strep_pneu_idx, amoxicillin_idx)).unwrap_or(&0);
 
-        // Calculate global proportions for the current time step
-        let mut current_global_majority_r_proportions: HashMap<(usize, usize), f64> = HashMap::new();
-        for b_idx in 0..BACTERIA_LIST.len() {
-            let total_infected_count = *total_infected_counts_by_bacteria.get(&b_idx).unwrap_or(&0);
-            if total_infected_count > 0 {
-                for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                    let majority_r_positive_count = *majority_r_positive_infected_counts_by_combo.get(&(b_idx, d_idx)).unwrap_or(&0);
-                    let proportion = majority_r_positive_count as f64 / total_infected_count as f64;
-                    current_global_majority_r_proportions.insert((b_idx, d_idx), proportion);
-
-                    // Store history for analysis (optional)
-                    global_majority_r_proportion_history.entry((b_idx, d_idx))
-                        .or_insert_with(Vec::new)
-                        .push(proportion);
-                }
+            let proportion = if infected_with_strep_pneu > 0 {
+                strep_pneu_amox_majority_r_count as f64 / infected_with_strep_pneu as f64
             } else {
-                for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                    current_global_majority_r_proportions.insert((b_idx, d_idx), 0.0);
-                    global_majority_r_proportion_history.entry((b_idx, d_idx))
-                        .or_insert_with(Vec::new)
-                        .push(0.0);
-                }
-            }
-        }
-        // --- GLOBAL RESISTANCE METRICS CALCULATION END ---
+                0.0
+            };
+            self.global_majority_r_proportions.insert((strep_pneu_idx, amoxicillin_idx), proportion);
+            strep_pneu_amox_majority_r_history.push(proportion);
 
-        // Apply rules to each individual in parallel, passing the global data
-        population.individuals.par_iter_mut().for_each(|ind| {
-            apply_rules(
-                ind,
-                step,
-                &current_global_majority_r_proportions,
-                &majority_r_positive_values_by_combo,
-                &bacteria_indices,
-                &drug_indices,
-            );
-        });
-
-        // Store the count of infections *after* rules are applied for printing
-        for &bacteria_name in BACTERIA_LIST.iter() {
-            let current_infected_count = population.individuals.iter().filter(|ind| {
-                ind.level.get(bacteria_name).map_or(false, |&level| level > 0.0)
-            }).count();
-            infection_counts_history.entry(bacteria_name)
-                .or_insert_with(Vec::new)
-                .push(current_infected_count);
-
-            println!(
-                "Time step {}: Total individuals infected with {} = {}",
-                step, bacteria_name, current_infected_count
-            );
-        }
-
-        // Print some sample global proportions for inspection
-        println!("Time step {}: Global majority_r Proportions (selected):", step);
-        if let Some(&b_idx_strep) = bacteria_indices.get("strep_pneu") {
-            if let Some(&d_idx_amox) = drug_indices.get("amoxicillin") {
-                if let Some(&prop) = current_global_majority_r_proportions.get(&(b_idx_strep, d_idx_amox)) {
-                    println!("    Strep Pneumonia to Amoxicillin: {:.4}", prop);
-                }
-            }
-        }
-        if let Some(&b_idx_generic) = bacteria_indices.get("generic_bacteria") {
-            if let Some(&d_idx_amox) = drug_indices.get("amoxicillin") {
-                if let Some(&prop) = current_global_majority_r_proportions.get(&(b_idx_generic, d_idx_amox)) {
-                    println!("    Generic Bacteria to Amoxicillin: {:.4}", prop);
-                }
-            }
-        }
-
-
-        // Print the values for the specified bacteria for individual 0 AFTER applying rules
-        if let Some(ind) = population.individuals.get(0) {
-            println!("    Time step {}: Individual 0 age = {} days", step, ind.age);
-            if let Some(level) = ind.level.get(bacteria_to_track) {
-                println!("    {}: level = {:.2}", bacteria_to_track, level);
-            }
-            if let Some(immune_resp) = ind.immune_resp.get(bacteria_to_track) {
-                println!("    {}: immune_resp = {:.2}", bacteria_to_track, immune_resp);
-            }
-            if let Some(sepsis) = ind.sepsis.get(bacteria_to_track) {
-                println!("    {}: sepsis = {}", bacteria_to_track, sepsis);
-            }
-            if let Some(infectious_syndrome) = ind.infectious_syndrome.get(bacteria_to_track) {
-                println!("    {}: infectious_syndrome = {}", bacteria_to_track, infectious_syndrome);
-            }
-            if let Some(date_last_infected) = ind.date_last_infected.get(bacteria_to_track) {
-                println!("    {}: date_last_infected = {}", bacteria_to_track, date_last_infected);
+            // Log total infected individuals for each bacteria
+            for &bacteria_name in BACTERIA_LIST.iter() {
+                let b_idx = *self.bacteria_indices.get(bacteria_name).unwrap();
+                let infected_count = self.population.individuals.iter()
+                    .filter(|ind| ind.level.get(bacteria_name).map_or(false, |&level| level > 0.001))
+                    .count();
+                println!("Time step {}: Total individuals infected with {} = {}", t, bacteria_name, infected_count);
             }
 
-            if let Some(&from_env) = ind.cur_infection_from_environment.get(bacteria_to_track) {
-                println!("    {}: cur_infection_from_environment = {}", bacteria_to_track, from_env);
-            } else {
-                println!("    {}: cur_infection_from_environment = Not applicable (no active infection)", bacteria_to_track);
-            }
+            println!("Time step {}: Global majority_r Proportions (selected):", t);
+            println!("    Strep Pneumonia to Amoxicillin: {:.4}", self.global_majority_r_proportions.get(&(strep_pneu_idx, amoxicillin_idx)).unwrap_or(&0.0));
 
-            if let Some(&hospital_acquired) = ind.infection_hospital_acquired.get(bacteria_to_track) {
-                println!("    {}: infection_hospital_acquired = {}", bacteria_to_track, hospital_acquired);
-            } else {
-                println!("    {}: infection_hospital_acquired = Not applicable (no active infection)", bacteria_to_track);
+            // Log individual 0's status
+            let individual_0 = &self.population.individuals[0];
+            println!("    Time step {}: Individual 0 age = {} days", t, individual_0.age);
+            if let Some(&level) = individual_0.level.get("strep_pneu") {
+                println!("    strep_pneu: level = {:.2}", level);
             }
-
-            if let Some(&test_identified) = ind.test_identified_infection.get(bacteria_to_track) {
-                println!("    {}: test_identified_infection = {}", bacteria_to_track, test_identified);
-            } else {
-                println!("    {}: test_identified_infection = Not applicable (no active infection)", bacteria_to_track);
+            if let Some(&immune_resp) = individual_0.immune_resp.get("strep_pneu") {
+                println!("    strep_pneu: immune_resp = {:.2}", immune_resp);
+            }
+            if let Some(&sepsis) = individual_0.sepsis.get("strep_pneu") {
+                println!("    strep_pneu: sepsis = {}", sepsis);
+            }
+            if let Some(&infectious_syndrome) = individual_0.infectious_syndrome.get("strep_pneu") {
+                println!("    strep_pneu: infectious_syndrome = {}", infectious_syndrome);
+            }
+            if let Some(&date_last_infected) = individual_0.date_last_infected.get("strep_pneu") {
+                println!("    strep_pneu: date_last_infected = {}", date_last_infected);
+            }
+            if let Some(&from_env) = individual_0.cur_infection_from_environment.get("strep_pneu") {
+                println!("    strep_pneu: cur_infection_from_environment = {}", from_env);
+            }
+            if let Some(&hospital_acquired) = individual_0.infection_hospital_acquired.get("strep_pneu") {
+                println!("    strep_pneu: infection_hospital_acquired = {}", hospital_acquired);
+            }
+            if let Some(&test_identified) = individual_0.test_identified_infection.get("strep_pneu") {
+                println!("    strep_pneu: test_identified_infection = {}", test_identified);
             }
 
             println!("    --- Drug Use Status (Individual 0) ---");
-            for (i, &use_drug) in ind.cur_use_drug.iter().enumerate() {
-                let drug_name = DRUG_SHORT_NAMES[i];
-                let drug_level = ind.cur_level_drug[i];
-                println!("      {}: cur_use_drug = {}, cur_level_drug = {:.2}", drug_name, use_drug, drug_level);
+            for (drug_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() { // MODIFIED: Prefixed drug_name with _
+                println!("      {}: cur_use_drug = {}, cur_level_drug = {:.2}",
+                         DRUG_SHORT_NAMES[drug_idx], // MODIFIED: Use DRUG_SHORT_NAMES directly
+                         individual_0.cur_use_drug[drug_idx],
+                         individual_0.cur_level_drug[drug_idx]);
             }
             println!("    -------------------------------------");
         }
-    }
 
-    println!("--- SIMULATION FINISHED (within run function) ---");
+        println!("--- SIMULATION FINISHED (within run function) ---");
 
-    // Example: Print summary of global proportions for Strep Pneumonia to Amoxicillin
-    if let (Some(&b_idx_strep), Some(&d_idx_amox)) = (bacteria_indices.get("strep_pneu"), drug_indices.get("amoxicillin")) {
-        if let Some(history) = global_majority_r_proportion_history.get(&(b_idx_strep, d_idx_amox)) {
-            println!("\n--- Proportion of Strep Pneumonia Infected with majority_r > 0 for Amoxicillin Over Time ---");
-            for (time, proportion) in history.iter().enumerate() {
-                println!("Time Step {}: {:.4}", time, proportion);
-            }
+        println!("\n--- Proportion of Strep Pneumonia Infected with majority_r > 0 for Amoxicillin Over Time ---");
+        for (t, proportion) in strep_pneu_amox_majority_r_history.iter().enumerate() {
+            println!("Time Step {}: {:.4}", t, proportion);
         }
+        println!("--- SIMULATION ENDED ---");
     }
 }
