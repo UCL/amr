@@ -336,7 +336,8 @@ pub fn apply_rules(
     }
 
     // Print all resistances for Individual 0 (for debugging/observation)
-    if individual.id == 0 {
+    
+/*  if individual.id == 0 {
         println!("-------------------------------------");
         println!("--- Resistance Status (Individual 0) ---");
         let has_relevant_resistance = individual.resistances.iter().any(|b_res| {
@@ -361,8 +362,9 @@ pub fn apply_rules(
         }
         println!("-------------------------------------");
     }
+*/
 
-    // Print Drug Levels for Individual 0 (for debugging/observation)
+/*  // Print Drug Levels for Individual 0 (for debugging/observation)
     if individual.id == 0 {
         println!("--- Drug Levels (Individual 0) ---");
         let has_active_drugs = individual.cur_use_drug.iter().any(|&in_use| in_use) || individual.cur_level_drug.iter().any(|&level| level > 0.0);
@@ -378,6 +380,7 @@ pub fn apply_rules(
         }
         println!("-------------------------------------");
     }
+*/
 
     // Check for death, with separate checks for each cause
     if individual.date_of_death.is_none() {

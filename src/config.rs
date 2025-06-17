@@ -34,7 +34,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.01);
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.2); // 0.01
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01);
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1);
             map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05);

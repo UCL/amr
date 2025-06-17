@@ -12,8 +12,8 @@ fn main() {
     // Removed: init_params(); // No init_params function to call in your config.rs
 
     // Create and run the simulation
-    let population_size = 300_000;
-    let time_steps = 5;
+    let population_size = 10_000;
+    let time_steps = 20;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -27,12 +27,12 @@ fn main() {
     println!("  Region Visiting: {:?}", ind0.region_visiting);
 
     // Iterating through the HashMap for vaccination status
-    println!("  --- Vaccination Status ---");
-    for &bacteria in BACTERIA_LIST.iter() {
-        if let Some(&status) = ind0.vaccination_status.get(bacteria) {
-            println!("    {}_vaccination_status: {}", bacteria, status);
-        }
-    }
+//  println!("  --- Vaccination Status ---");
+//  for &bacteria in BACTERIA_LIST.iter() {
+//      if let Some(&status) = ind0.vaccination_status.get(bacteria) {
+//          println!("    {}_vaccination_status: {}", bacteria, status);
+//      }
+//  }
 
     if let Some(&level) = ind0.level.get("strep_pneu") {
         println!("  strep_pneu: level = {:.2}", level);
