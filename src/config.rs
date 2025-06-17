@@ -45,15 +45,15 @@ lazy_static! {
             map.insert(format!("{}_sexual_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_mosquito_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
-            map.insert(format!("{}_level_change_rate_baseline", bacteria), 0.0); // Default to no growth/decay
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.0);
+            map.insert(format!("{}_level_change_rate_baseline", bacteria), 0.2); // Default to no growth/decay
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.01);
             map.insert(format!("{}_max_level", bacteria), 100.0);
             map.insert(format!("{}_immunity_increase_rate_baseline", bacteria), 0.0);
-            map.insert(format!("{}_immunity_increase_rate_per_day", bacteria), 0.0);
-            map.insert(format!("{}_immunity_increase_rate_per_level", bacteria), 0.0);
+            map.insert(format!("{}_immunity_increase_rate_per_day", bacteria), 0.01);
+            map.insert(format!("{}_immunity_increase_rate_per_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
             map.insert(format!("{}_baseline_immunity_level", bacteria), 0.0);
-            map.insert(format!("{}_immunity_decay_rate", bacteria), 0.0);
+            map.insert(format!("{}_immunity_decay_rate", bacteria), 0.1);
         }
 
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
@@ -89,12 +89,12 @@ lazy_static! {
         map.insert("esch_coli_vaccine_efficacy".to_string(), 0.0);
         map.insert("esch_coli_baseline_immunity_level".to_string(), 0.0);
         map.insert("esch_coli_immunity_decay_rate".to_string(), 0.0);
-        map.insert("esch_coli_level_change_rate_baseline".to_string(), 0.002);
-        map.insert("esch_coli_immunity_effect_on_level_change".to_string(), 0.005);
+        map.insert("esch_coli_level_change_rate_baseline".to_string(), 0.05);
+        map.insert("esch_coli_immunity_effect_on_level_change".to_string(), 0.01);
         map.insert("esch_coli_max_level".to_string(), 90.0);
         map.insert("esch_coli_immunity_increase_rate_baseline".to_string(), 0.004);
-        map.insert("esch_coli_immunity_increase_rate_per_day".to_string(), 0.00008);
-        map.insert("esch_coli_immunity_increase_rate_per_level".to_string(), 0.0015);
+        map.insert("esch_coli_immunity_increase_rate_per_day".to_string(), 0.01);
+        map.insert("esch_coli_immunity_increase_rate_per_level".to_string(), 0.05);
         map.insert("esch_coli_immunity_age_modifier".to_string(), 1.0);
 
         // kleb_pneu Parameters
@@ -133,12 +133,12 @@ lazy_static! {
         map.insert("strep_pneu_hospital_acquired_proportion".to_string(), 0.1);
         map.insert("strep_pneu_baseline_immunity_level".to_string(), 0.1);
         map.insert("strep_pneu_immunity_decay_rate".to_string(), 0.001);
-        map.insert("strep_pneu_level_change_rate_baseline".to_string(), 0.005);
+        map.insert("strep_pneu_level_change_rate_baseline".to_string(), 0.05);
         map.insert("strep_pneu_immunity_effect_on_level_change".to_string(), 0.01);
         map.insert("strep_pneu_max_level".to_string(), 100.0);
-        map.insert("strep_pneu_immunity_increase_rate_baseline".to_string(), 0.005);
-        map.insert("strep_pneu_immunity_increase_rate_per_day".to_string(), 0.0001);
-        map.insert("strep_pneu_immunity_increase_rate_per_level".to_string(), 0.002);
+        map.insert("strep_pneu_immunity_increase_rate_baseline".to_string(), 0.001);
+        map.insert("strep_pneu_immunity_increase_rate_per_day".to_string(), 0.01);
+        map.insert("strep_pneu_immunity_increase_rate_per_level".to_string(), 0.05);
         map.insert("strep_pneu_immunity_age_modifier".to_string(), 1.0);
 
         // salm_typhi Parameters (already present, re-listing for completeness)
@@ -151,12 +151,12 @@ lazy_static! {
         map.insert("salm_typhi_vaccine_efficacy".to_string(), 0.6);
         map.insert("salm_typhi_baseline_immunity_level".to_string(), 0.05);
         map.insert("salm_typhi_immunity_decay_rate".to_string(), 0.002);
-        map.insert("salm_typhi_level_change_rate_baseline".to_string(), 0.001);
-        map.insert("salm_typhi_immunity_effect_on_level_change".to_string(), 0.008);
+        map.insert("salm_typhi_level_change_rate_baseline".to_string(), 0.05);
+        map.insert("salm_typhi_immunity_effect_on_level_change".to_string(), 0.01);
         map.insert("salm_typhi_max_level".to_string(), 120.0);
         map.insert("salm_typhi_immunity_increase_rate_baseline".to_string(), 0.003);
-        map.insert("salm_typhi_immunity_increase_rate_per_day".to_string(), 0.00005);
-        map.insert("salm_typhi_immunity_increase_rate_per_level".to_string(), 0.001);
+        map.insert("salm_typhi_immunity_increase_rate_per_day".to_string(), 0.01);
+        map.insert("salm_typhi_immunity_increase_rate_per_level".to_string(), 0.05);
         map.insert("salm_typhi_immunity_age_modifier".to_string(), 1.1);
 
         // salm_parat_a Parameters
@@ -196,12 +196,12 @@ lazy_static! {
         map.insert("haem_infl_vaccine_efficacy".to_string(), 0.7);
         map.insert("haem_infl_baseline_immunity_level".to_string(), 0.15);
         map.insert("haem_infl_immunity_decay_rate".to_string(), 0.0005);
-        map.insert("haem_infl_level_change_rate_baseline".to_string(), 0.003);
-        map.insert("haem_infl_immunity_effect_on_level_change".to_string(), 0.012);
+        map.insert("haem_infl_level_change_rate_baseline".to_string(), 0.05);
+        map.insert("haem_infl_immunity_effect_on_level_change".to_string(), 0.01);
         map.insert("haem_infl_max_level".to_string(), 80.0);
         map.insert("haem_infl_immunity_increase_rate_baseline".to_string(), 0.006);
-        map.insert("haem_infl_immunity_increase_rate_per_day".to_string(), 0.00015);
-        map.insert("haem_infl_immunity_increase_rate_per_level".to_string(), 0.0025);
+        map.insert("haem_infl_immunity_increase_rate_per_day".to_string(), 0.01);
+        map.insert("haem_infl_immunity_increase_rate_per_level".to_string(), 0.05);
         map.insert("haem_infl_immunity_age_modifier".to_string(), 0.9);
 
 

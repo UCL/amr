@@ -288,15 +288,15 @@ pub fn apply_rules(
                 *level_entry.get_mut() = new_level;
 
                 // If bacteria level drops below a threshold, clear the infection
-                if *level_entry.get() < 0.001 {
-                    individual.level.remove(bacteria);
-                    individual.infectious_syndrome.remove(bacteria);
+                if *level_entry.get() < 0.0001 {
+ //                 individual.level.remove(bacteria);
+ //                 individual.infectious_syndrome.remove(bacteria);
                     individual.date_last_infected.remove(bacteria);
                     individual.immune_resp.remove(bacteria);
-                    individual.sepsis.remove(bacteria);
-                    individual.level_microbiome.remove(bacteria);
-                    individual.infection_hospital_acquired.remove(bacteria);
-                    individual.cur_infection_from_environment.remove(bacteria);
+ //                 individual.sepsis.remove(bacteria);
+ //                 individual.level_microbiome.remove(bacteria);
+ //                 individual.infection_hospital_acquired.remove(bacteria);
+ //                 individual.cur_infection_from_environment.remove(bacteria);
                     individual.test_identified_infection.insert(bacteria, false);
                     if let Some(b_idx_clear) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
                         for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
