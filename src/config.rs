@@ -10,9 +10,9 @@ lazy_static! {
 
         // General Drug Parameters
         map.insert("drug_initial_level".to_string(), 10.0);
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0000); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
-        map.insert("drug_test_identified_multiplier".to_string(), 20.0);
+        map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_rate_per_day".to_string(), 0.3);
 
         // General Acquisition & Resistance Parameters
@@ -23,12 +23,14 @@ lazy_static! {
 
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
-        map.insert("test_rate_per_day".to_string(), 0.15);
+        map.insert("test_rate_per_day".to_string(), 0.20);  // 0.15
 
         // Syndrome-specific multipliers (example)
         map.insert("syndrome_3_initiation_multiplier".to_string(), 10.0); // Respiratory syndrome
         map.insert("syndrome_7_initiation_multiplier".to_string(), 8.0);  // Gastrointestinal syndrome
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)
+
+        map.insert("already_on_drug_initiation_multiplier".to_string(), 0.000); // 0.0001
 
 
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
@@ -48,11 +50,11 @@ lazy_static! {
             map.insert(format!("{}_level_change_rate_baseline", bacteria), 0.2); // Default to no growth/decay
             map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.01);
             map.insert(format!("{}_max_level", bacteria), 100.0);
-            map.insert(format!("{}_immunity_increase_rate_baseline", bacteria), 0.0);
-            map.insert(format!("{}_immunity_increase_rate_per_day", bacteria), 0.01);
+            map.insert(format!("{}_immunity_increase_rate_baseline", bacteria), 0.001);
+            map.insert(format!("{}_initial_immunity_on_infection", bacteria), 0.0001);
             map.insert(format!("{}_immunity_increase_rate_per_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
-            map.insert(format!("{}_baseline_immunity_level", bacteria), 0.0);
+            map.insert(format!("{}_baseline_immunity_level", bacteria), 0.00001);
             map.insert(format!("{}_immunity_decay_rate", bacteria), 0.1);
         }
 
@@ -62,9 +64,10 @@ lazy_static! {
         map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.2  );
         map.insert("acinetobac_bau_hospital_acquired_proportion".to_string(), 0.15); // Often hospital-acquired
 
-        map.insert("acinetobac_bau_immunity_increase_rate_per_day".to_string(), 2.0 );
-        map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 2.0);
-        map.insert("acinetobac_bau_immunity_increase_effect_on_level_change".to_string(), 2.0);
+        map.insert("acinetobac_bau_immunity_increase_rate_baseline".to_string(), 0.001 );
+        map.insert("acinetobac_bau_immunity_increase_rate_per_day".to_string(), 0.2 );
+        map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 0.2);
+        map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005);
 
 
 

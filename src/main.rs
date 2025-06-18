@@ -12,7 +12,7 @@ fn main() {
     // Removed: init_params(); // No init_params function to call in your config.rs
 
     // Create and run the simulation
-    let population_size = 10_000;
+    let population_size = 100_000;
     let time_steps = 20;
 
     let mut simulation = Simulation::new(population_size, time_steps);

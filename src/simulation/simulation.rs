@@ -306,6 +306,19 @@ if individual_0.level.is_empty() {
                 println!("              Level = {:.4}", level);
                 println!("              Immune Response = {:.4}", individual_0.immune_resp.get(bacteria_name).unwrap_or(&0.0));
 
+                println!("              Infection From Environment = {}",
+                    individual_0.cur_infection_from_environment.get(bacteria_name).unwrap_or(&false)
+                );
+                println!("              Hospital Acquired Infection = {}",
+                    individual_0.infection_hospital_acquired.get(bacteria_name).unwrap_or(&false)
+                );
+                println!("              Test Identified Infection = {}",
+                    individual_0.test_identified_infection.get(bacteria_name).unwrap_or(&false)
+                );
+
+
+
+
                 // Print all Antibiotics the person is currently taking
                 let mut drugs_being_taken_found = false;
                 println!("              Currently Taking Antibiotics (Current Level):");

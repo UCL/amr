@@ -30,7 +30,7 @@ pub fn apply_rules(
     individual.current_toxicity = (individual.current_toxicity + rng.gen_range(-0.5..=0.5)).max(0.0);
     individual.mortality_risk_current_toxicity = rng.gen_range(0.0..=0.0001);
 
-    // MODIFIED: Loop through all bacteria to update vaccination status dynamically
+    // Loop through all bacteria to update vaccination status dynamically
     // This is already using the HashMap as implemented in population.rs
     for &bacteria in BACTERIA_LIST.iter() {
         if let Entry::Occupied(mut status_entry) = individual.vaccination_status.entry(bacteria) {
@@ -44,10 +44,13 @@ pub fn apply_rules(
     let drug_initial_level = get_global_param("drug_initial_level").unwrap_or(10.0);
     let drug_base_initiation_rate = get_global_param("drug_base_initiation_rate_per_day").unwrap_or(0.0001);
     let drug_infection_present_multiplier = get_global_param("drug_infection_present_multiplier").unwrap_or(50.0);
+    let already_on_drug_initiation_multiplier = get_global_param("already_on_drug_initiation_multiplier").unwrap_or(0.0001);
     let drug_test_identified_multiplier = get_global_param("drug_test_identified_multiplier").unwrap_or(20.0);
     let drug_decay_rate = get_global_param("drug_decay_rate_per_day").unwrap_or(0.3);
 
     let has_any_infection = individual.level.values().any(|&level| level > 0.0);
+    // NEW: Capture if any antibiotic was in use BEFORE this time step's initiation logic
+    let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
     let has_any_identified_infection = individual.test_identified_infection.values().any(|&identified| identified);
 
     let mut syndrome_administration_multiplier: f64 = 1.0;
@@ -60,27 +63,39 @@ pub fn apply_rules(
         }
     }
 
-    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-        // Drug level decay
-        individual.cur_level_drug[drug_idx] *= 1.0 - drug_decay_rate;
-        if individual.cur_level_drug[drug_idx] < 0.0001 {
-            individual.cur_level_drug[drug_idx] = 0.0;
-        }
+// NEW/MODIFIED: Counter for drugs initiated in this time step
+let mut drugs_initiated_this_time_step: usize = 0;
 
-        // Drug initiation probability
-        let mut administration_prob = drug_base_initiation_rate;
-        if has_any_infection { administration_prob *= drug_infection_present_multiplier; }
-        if has_any_identified_infection { administration_prob *= drug_test_identified_multiplier; }
-        administration_prob *= syndrome_administration_multiplier;
-        administration_prob = administration_prob.clamp(0.0, 1.0);
+for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+    // ... (drug level decay) ...
 
+    let mut administration_prob = drug_base_initiation_rate;
+    if has_any_infection { administration_prob *= drug_infection_present_multiplier; }
+    if has_any_identified_infection { administration_prob *= drug_test_identified_multiplier; }
+    
+    // MODIFIED: Use the counter here, if you want the multiplier to apply after 0 drugs, 1 drug, etc.
+    // If the multiplier should only apply *after* they are already on 2 drugs, the logic will need adjustment.
+    // But for "apply if already on ANY drug (even if just started a second one this turn)", this is fine.
+    if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
+        administration_prob *= already_on_drug_initiation_multiplier;
+    }
+    
+    administration_prob *= syndrome_administration_multiplier;
+    administration_prob = administration_prob.clamp(0.0, 1.0);
+
+    // MODIFIED: Condition to allow up to 2 drugs
+    if drugs_initiated_this_time_step < 2 && !individual.cur_use_drug[drug_idx] {
         if rng.gen_bool(administration_prob) {
             individual.cur_use_drug[drug_idx] = true;
             individual.cur_level_drug[drug_idx] = drug_initial_level;
-        } else {
-            if individual.cur_level_drug[drug_idx] == 0.0 {
-                individual.cur_use_drug[drug_idx] = false;
-            }
+            drugs_initiated_this_time_step += 1; // MODIFIED: Increment the counter
+        }
+    }
+        
+        // This logic correctly handles turning off drug use when the level drops to zero,
+        // regardless of new drug initiation attempts.
+        if individual.cur_level_drug[drug_idx] == 0.0 {
+            individual.cur_use_drug[drug_idx] = false;
         }
     }
     // --- DRUG LOGIC END ---
@@ -92,7 +107,7 @@ pub fn apply_rules(
 
         if !is_infected { // Attempt acquisition if not currently infected
             // --- BACTERIA-SPECIFIC ACQUISITION PROBABILITY CALCULATION ---
-            // These parameters are now explicitly defined for each bacteria in config.rs
+            // These parameters are explicitly defined for each bacteria in config.rs
             let mut acquisition_probability = get_bacteria_param(bacteria, "acquisition_prob_baseline").unwrap_or(0.01);
 
             // Apply contact level modifiers dynamically
@@ -122,7 +137,6 @@ pub fn apply_rules(
                 individual.date_last_infected.insert(bacteria, time_step as i32);
 
                 // Determine syndrome ID
-                // ADDED: Explicit syndrome IDs for additional bacteria for more realistic modeling
                 let syndrome_id = match bacteria {
                     "strep_pneu" => 3, // Respiratory syndrome
                     "haem_infl" => 3, // Can cause respiratory issues
@@ -179,20 +193,26 @@ pub fn apply_rules(
                 // --- END GENERALIZED any_r AND majority_r SETTING LOGIC ---
 
                 individual.test_identified_infection.insert(bacteria, false);
+
+
+               // Get the initial immunity level from config, or default to a reasonable value
+                let initial_immunity = get_bacteria_param(bacteria, "initial_immunity_on_infection").unwrap_or(1.0); // Or 0.0001 if you prefer it starts low but non-zero
+                individual.immune_resp.insert(bacteria, initial_immunity.max(0.0001)); // Ensure it starts above the floor
+
+
+
             }
 
             // Immunity decay
             // Dynamically apply immunity decay for all bacteria using specific parameters
             if let Entry::Occupied(mut immune_entry) = individual.immune_resp.entry(bacteria) {
                 let current_immunity = *immune_entry.get();
-                let baseline_immunity = get_bacteria_param(bacteria, "baseline_immunity_level").unwrap_or(0.0);
+                let baseline_immunity = get_bacteria_param(bacteria, "baseline_immunity_level").unwrap_or(0.0001);
                 let decay_rate = get_bacteria_param(bacteria, "immunity_decay_rate").unwrap_or(0.0);
 
                 if current_immunity > baseline_immunity {
                     *immune_entry.get_mut() = (current_immunity - decay_rate).max(baseline_immunity);
-                } else if current_immunity < baseline_immunity {
-                    *immune_entry.get_mut() = (current_immunity + decay_rate).min(baseline_immunity);
-                }
+                } 
             }
         } else { // Bacteria is already present (infection progression)
             // --- majority_r EVOLUTION LOGIC ---
@@ -237,7 +257,6 @@ pub fn apply_rules(
                 }
             }
 
-            // MODIFIED: Prefixed with _ to silence warning
             let _current_antibiotic_activity_level_for_bacteria: f64 = if let Some(bacteria_full_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
                 individual.resistances.get(bacteria_full_idx).map_or(0.0, |drug_resistances| {
                     drug_resistances.iter().map(|r| r.activity_r).sum()
@@ -289,14 +308,14 @@ pub fn apply_rules(
 
                 // If bacteria level drops below a threshold, clear the infection
                 if *level_entry.get() < 0.0001 {
- //                 individual.level.remove(bacteria);
- //                 individual.infectious_syndrome.remove(bacteria);
+                    individual.level.remove(bacteria);
+                    individual.infectious_syndrome.remove(bacteria);
                     individual.date_last_infected.remove(bacteria);
                     individual.immune_resp.remove(bacteria);
- //                 individual.sepsis.remove(bacteria);
- //                 individual.level_microbiome.remove(bacteria);
- //                 individual.infection_hospital_acquired.remove(bacteria);
- //                 individual.cur_infection_from_environment.remove(bacteria);
+                    individual.sepsis.remove(bacteria);
+                    individual.level_microbiome.remove(bacteria);
+                    individual.infection_hospital_acquired.remove(bacteria);
+                    individual.cur_infection_from_environment.remove(bacteria);
                     individual.test_identified_infection.insert(bacteria, false);
                     if let Some(b_idx_clear) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
                         for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
@@ -321,7 +340,7 @@ pub fn apply_rules(
                 let age_modifier = get_bacteria_param(bacteria, "immunity_age_modifier").unwrap_or(1.0);
                 immune_increase *= age_modifier.powf((-age as f64 / 365.0) / 50.0); // Example age-related decay
                 if let Entry::Occupied(mut immune_entry) = individual.immune_resp.entry(bacteria) {
-                    *immune_entry.get_mut() = (*immune_entry.get() + immune_increase).max(0.0);
+                    *immune_entry.get_mut() = (*immune_entry.get() + immune_increase).max(0.0001);
                 }
             }
         }
