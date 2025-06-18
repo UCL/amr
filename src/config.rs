@@ -10,7 +10,7 @@ lazy_static! {
 
         // General Drug Parameters
         map.insert("drug_initial_level".to_string(), 10.0);
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001);
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0000); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 20.0);
         map.insert("drug_decay_rate_per_day".to_string(), 0.3);
@@ -34,7 +34,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.2); // 0.01
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.0); // 0.01
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01);
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1);
             map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05);
@@ -59,11 +59,18 @@ lazy_static! {
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
 
         // acinetobac_bau Parameters
-        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.007);
+        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.2  );
         map.insert("acinetobac_bau_hospital_acquired_proportion".to_string(), 0.15); // Often hospital-acquired
+
+        map.insert("acinetobac_bau_immunity_increase_rate_per_day".to_string(), 2.0 );
+        map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 2.0);
+        map.insert("acinetobac_bau_immunity_increase_effect_on_level_change".to_string(), 2.0);
+
+
+
         // Add more specific parameters for acinetobac_bau if needed
 
-        // citrobac_spec Parameters
+/*      // citrobac_spec Parameters
         map.insert("citrobac_spec_acquisition_prob_baseline".to_string(), 0.006);
         // Add more specific parameters for citrobac_spec if needed
 
@@ -203,7 +210,7 @@ lazy_static! {
         map.insert("haem_infl_immunity_increase_rate_per_day".to_string(), 0.01);
         map.insert("haem_infl_immunity_increase_rate_per_level".to_string(), 0.05);
         map.insert("haem_infl_immunity_age_modifier".to_string(), 0.9);
-
+*/
 
         map
     };

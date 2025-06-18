@@ -292,47 +292,58 @@ impl Simulation {
 
 
 
-            // Print Bacteria Infection Status, Level, Immunity, and Active Antibiotics for Individual 0
-            println!("        --- Bacteria Infection Details (Individual 0) ---");
-            if individual_0.level.is_empty() {
-                println!("            Individual 0 has no active bacterial infections.");
-            } else {
-                for &bacteria_name in BACTERIA_LIST.iter() {
-                    if let Some(&level) = individual_0.level.get(bacteria_name) {
-                        if level > 0.0001 { // Only print if infected (level > a small threshold)
-                            println!("            Bacteria: {}", bacteria_name);
-                            println!("              Infected = true");
-                            println!("              Level = {:.4}", level);
+// Print Bacteria Infection Status, Level, Immunity, and Active Antibiotics for Individual 0
+println!("        --- Bacteria Infection Details (Individual 0) ---");
+if individual_0.level.is_empty() {
+    println!("            Individual 0 has no active bacterial infections.");
+} else {
+    for &bacteria_name in BACTERIA_LIST.iter() {
+        if let Some(&level) = individual_0.level.get(bacteria_name) {
+            // Revert this to your desired threshold, e.g., level > 0.001 or level > 0.0001
+            if level > 0.0001 { // Only print if infected (level > a small threshold)
+                println!("            Bacteria: {}", bacteria_name);
+                println!("              Infected = true");
+                println!("              Level = {:.4}", level);
+                println!("              Immune Response = {:.4}", individual_0.immune_resp.get(bacteria_name).unwrap_or(&0.0));
 
-                            // Print Immune Response
-                            let immune_resp = individual_0.immune_resp.get(bacteria_name).copied().unwrap_or(0.0);
-                            println!("              Immune Response = {:.4}", immune_resp);
-
-                            // Print Antibiotics being used for this bacteria
-                            let b_idx_option = BACTERIA_LIST.iter().position(|&b| b == bacteria_name);
-                            if let Some(b_idx) = b_idx_option {
-                                let mut active_antibiotics_found = false;
-                                println!("              Active Antibiotics (Drug Activity):");
-                                for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                                    if individual_0.cur_use_drug[drug_idx] {
-                                        // Access activity_r for this specific bacteria-drug combination
-                                        let activity_r = individual_0.resistances[b_idx][drug_idx].activity_r;
-                                        if activity_r > 0.0 { // Only show if there's actual activity
-                                            println!("                - {}: Activity_R = {:.4}", drug_name_static, activity_r);
-                                            active_antibiotics_found = true;
-                                        }
-                                    }
-                                }
-                                if !active_antibiotics_found {
-                                    println!("                None (no effective drug activity against this bacteria).");
-                                }
-                            }
-                            println!(); // Add a blank line for separation between bacteria
-                        }
+                // Print all Antibiotics the person is currently taking
+                let mut drugs_being_taken_found = false;
+                println!("              Currently Taking Antibiotics (Current Level):");
+                for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
+                    if individual_0.cur_use_drug[drug_idx] {
+                        println!("                - {}: Level = {:.4}", drug_name_static, individual_0.cur_level_drug[drug_idx]);
+                        drugs_being_taken_found = true;
                     }
                 }
-            }
+                if !drugs_being_taken_found {
+                    println!("                None (not currently taking any antibiotics).");
+                }
 
+                // Print Antibiotics being used for this bacteria (Existing Logic)
+                let b_idx_option = BACTERIA_LIST.iter().position(|&b| b == bacteria_name);
+                if let Some(b_idx) = b_idx_option {
+                    let mut active_antibiotics_found = false;
+                    println!("              Active Antibiotics (Drug Activity against {}):", bacteria_name); // Added clarity here
+                    for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
+                        if individual_0.cur_use_drug[drug_idx] {
+                            // Access activity_r for this specific bacteria-drug combination
+                            let activity_r = individual_0.resistances[b_idx][drug_idx].activity_r;
+                            if activity_r > 0.0 { // Only show if there's actual activity
+                                println!("                - {}: Activity_R = {:.4}", drug_name_static, activity_r);
+                                active_antibiotics_found = true;
+                            }
+                        }
+                    }
+                    if !active_antibiotics_found {
+                        println!("                None (no effective drug activity against this bacteria).");
+                    }
+                }
+                println!(); // Add a blank line for separation between bacteria
+            }
+        }
+    }
+}
+println!("        --------------------------------------------");
 
 
 
