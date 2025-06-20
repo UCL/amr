@@ -1,37 +1,8 @@
 // src/simulation/population.rs
 use rand::Rng;
 use std::collections::HashMap;
-// MODIFIED: Removed unused import. PARAMETERS is not directly used in this file.
-// use crate::config::PARAMETERS; // Keep this import as PARAMETERS is used elsewhere in your original code
 use rand::distributions::{Distribution, Standard};
 
-// Define the regions as an enum
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum Region {
-    NorthAmerica,
-    SouthAmerica,
-    Africa,
-    Asia,
-    Europe,
-    Oceania,
-    Home, // NEW: Represents the individual is not currently visiting another region
-}
-
-// Implement From<rand::distributions::Standard> for Region to allow random generation for region_living
-impl Distribution<Region> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Region {
-        // We exclude 'Home' from random generation for 'region_living'
-        // 'Home' will be explicitly set for 'region_visiting' as a default
-        match rng.gen_range(0..6) { // Range is now 0..6 for the 6 distinct geographic regions
-            0 => Region::NorthAmerica,
-            1 => Region::SouthAmerica,
-            2 => Region::Africa,
-            3 => Region::Asia,
-            4 => Region::Europe,
-            _ => Region::Oceania,
-        }
-    }
-}
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobac_bau", "citrobac_spec", "enterobac_spec", "enterococ_faeca", "enterococ_faeci",
@@ -51,13 +22,44 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "retapamulin", "fusidic_a", "metronidazole",
 ];
 
+
+
+// Define the regions as an enum
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum Region {
+    NorthAmerica,
+    SouthAmerica,
+    Africa,
+    Asia,
+    Europe,
+    Oceania,
+    Home, // Represents the individual is not currently visiting another region
+}
+
+// Implement From<rand::distributions::Standard> for Region to allow random generation for region_living
+impl Distribution<Region> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Region {
+        // We exclude 'Home' from random generation for 'region_living'
+        // 'Home' will be explicitly set for 'region_cur_in' as a default
+        match rng.gen_range(0..6) { // Range is now 0..6 for the 6 distinct geographic regions
+            0 => Region::NorthAmerica,
+            1 => Region::SouthAmerica,
+            2 => Region::Africa,
+            3 => Region::Asia,
+            4 => Region::Europe,
+            _ => Region::Oceania,
+        }
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct Resistance {
     pub microbiome_r: f64,
     pub test_r: f64,
     pub activity_r: f64,
-    pub any_r: f64, // Effective Resistance (will store 0-10 integer levels)
-    pub majority_r: f64, // Community/Carried Resistance (will store 0-10 integer levels)
+    pub any_r: f64, // Effective Resistance in minority or majority (will store 0-1)
+    pub majority_r: f64, // Community/Carried Resistance in majority of bacteria infected with (will store 0-1)
 }
 
 #[derive(Debug, Clone)]
@@ -66,19 +68,18 @@ pub struct Individual {
     pub age: i32, // age in days (negative = before reference date)
     pub sex_at_birth: String,
     pub region_living: Region,
-    pub region_visiting: Region,
+    pub region_cur_in: Region,
     pub date_last_infected: HashMap<&'static str, i32>,
     pub infectious_syndrome: HashMap<&'static str, i32>,
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
     pub sepsis: HashMap<&'static str, bool>,
     pub level_microbiome: HashMap<&'static str, f64>,
-    // MODIFIED: Replaced individual vaccination status fields with a single HashMap
     pub vaccination_status: HashMap<&'static str, bool>,
     pub cur_infection_from_environment: HashMap<&'static str, bool>,
     pub test_identified_infection: HashMap<&'static str, bool>,
     pub cur_use_drug: Vec<bool>,
-    pub cur_level_drug: Vec<f64>,
+    pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered  
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,
     pub sexual_contact_level: f64,
@@ -107,7 +108,6 @@ impl Individual {
         let mut infection_hospital_acquired = HashMap::new();
         let mut cur_infection_from_environment = HashMap::new();
         let mut test_identified_infection = HashMap::new();
-        // ADDED: Initialize the HashMap for vaccination status
         let mut vaccination_status = HashMap::new();
 
 
@@ -121,7 +121,6 @@ impl Individual {
             infection_hospital_acquired.insert(bacteria, false);
             cur_infection_from_environment.insert(bacteria, false);
             test_identified_infection.insert(bacteria, false);
-            // ADDED: Populate vaccination status for each bacteria from BACTERIA_LIST
             vaccination_status.insert(bacteria, rng.gen_bool(0.5)); // Random initial status for each
         }
 
@@ -154,8 +153,8 @@ impl Individual {
         Individual {
             id,
             age: age_days,
-            region_living: rng.gen(), // Initialize with a random region
-            region_visiting: Region::Home, // Changed to explicitly set to Home
+            region_living: rng.gen(), 
+            region_cur_in: Region::Home, 
             sex_at_birth,
             date_last_infected,
             infectious_syndrome,
@@ -163,7 +162,7 @@ impl Individual {
             immune_resp,
             sepsis,
             level_microbiome,
-            vaccination_status, // MODIFIED: Assign the HashMap
+            vaccination_status, 
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: (0..num_drugs).map(|_| 0.0).collect(),
             current_infection_related_death_risk: 0.0,

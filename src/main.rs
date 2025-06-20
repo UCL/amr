@@ -1,7 +1,15 @@
 // src/main.rs
+
 mod simulation;
 mod rules;
 mod config;
+
+
+// not sure vaccination status should be a hashmap
+// todo: want standardized scale of 0 up to 10 for drug levels for any drug with single/regular dose 
+// make sure a drug can't be stopped on the same day as it is started
+//
+
 
 // Corrected import path for Simulation
 use crate::simulation::simulation::Simulation;
@@ -12,8 +20,8 @@ fn main() {
     // Removed: init_params(); // No init_params function to call in your config.rs
 
     // Create and run the simulation
-    let population_size = 100_000;
-    let time_steps = 20;
+    let population_size = 10_000;
+    let time_steps = 30;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -24,7 +32,7 @@ fn main() {
     println!("  Age: {} days", ind0.age);
     println!("  Sex: {}", ind0.sex_at_birth);
     println!("  Region Living: {:?}", ind0.region_living);
-    println!("  Region Visiting: {:?}", ind0.region_visiting);
+    println!("  Region Currently In: {:?}", ind0.region_cur_in);
 
     // Iterating through the HashMap for vaccination status
 //  println!("  --- Vaccination Status ---");
