@@ -34,7 +34,7 @@ impl Simulation {
         println!("Initial age of individual 0 AFTER population creation: {} days", population.individuals[0].age);
         println!("--- INITIAL STATE OF INDIVIDUAL 0 (from main.rs) ---");
         println!("  Region Living: {:?}", population.individuals[0].region_living);
-        println!("  Region Currently In: {:?}", population.individuals[0].region_cur_in); // Should now be Home
+        println!("  Region Currently In: {:?}", population.individuals[0].region_cur_in); 
         if let Some(&level) = population.individuals[0].level.get("strep_pneu") {
             println!("  strep_pneu: level = {:.2}", level);
         }
@@ -333,7 +333,7 @@ if individual_0.level.is_empty() {
                     println!("                    None (no antibiotics currently in system).");
                 }
 
-                // MODIFIED: Print all Antibiotics in system with activity against this bacteria
+                // Print all Antibiotics in system with activity against this bacteria
                 let b_idx_option = BACTERIA_LIST.iter().position(|&b| b == bacteria_name);
                 if let Some(b_idx) = b_idx_option {
                     let mut effective_antibiotics_found = false; // Changed flag name for clarity

@@ -9,16 +9,14 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        // REMOVED: map.insert("drug_initial_level".to_string(), 10.0); // This general param is now replaced by drug-specific ones below
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_rate_per_day".to_string(), 1.0);
-        // ADDED: New drug-related parameters
         map.insert("already_on_drug_initiation_multiplier".to_string(), 0.000); // 0.0001
-        map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // NEW: Probability for double dose
-
-        map.insert("random_drug_cessation_probability".to_string(), 0.001); // New: Probability an individual randomly stops a drug per day
+        map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
+      
+        map.insert("random_drug_cessation_probability".to_string(), 0.001); // Probability an individual randomly stops a drug per day
 
         // General Acquisition & Resistance Parameters
         // this two below will need to change over calendar time - for the hospital acquired may decide to sample from 
@@ -33,8 +31,7 @@ lazy_static! {
         map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.000001); // Baseline probability for de novo resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
-        map.insert("any_r_decay_rate_per_day".to_string(), 0.5); // Rate at which 'any_r' decays when 'majority_r' is 0
-
+ 
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
         map.insert("test_rate_per_day".to_string(), 0.20);  // 0.15
@@ -42,8 +39,17 @@ lazy_static! {
         // Syndrome-specific multipliers (example)
         map.insert("syndrome_3_initiation_multiplier".to_string(), 10.0); // Respiratory syndrome
         map.insert("syndrome_7_initiation_multiplier".to_string(), 8.0);  // Gastrointestinal syndrome
-        map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)
-        
+        map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)        
+
+        // Hospitalization Parameters
+        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00001); // Baseline daily probability of hospitalization
+        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.000001); // Increase in daily hospitalization probability per year of age
+        map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.1); // Daily probability of recovering from hospitalization
+        map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
+
+        // initiate travel
+        map.insert("travel_probability_per_day".to_string(), 0.0005);
+
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
@@ -69,7 +75,7 @@ lazy_static! {
             map.insert(format!("{}_immunity_decay_rate", bacteria), 0.1);
         }
 
-        // ADDED: Default Initial Drug Levels and Double Dose Multipliers for ALL Drugs
+        // Default Initial Drug Levels and Double Dose Multipliers for ALL Drugs
         for &drug in DRUG_SHORT_NAMES.iter() {
             map.insert(format!("drug_{}_initial_level", drug), 10.0); // Default initial level for each drug
             map.insert(format!("drug_{}_double_dose_multiplier", drug), 2.0); // Default double dose multiplier
@@ -89,7 +95,7 @@ lazy_static! {
 
         // Add more specific parameters for acinetobac_bau if needed
 
-        // ADDED: Overrides for Specific Drug Initial Levels & Double Dose Multipliers
+        // Overrides for Specific Drug Initial Levels & Double Dose Multipliers
         map.insert("drug_penicilling_double_dose_multiplier".to_string(), 2.5); // Example: higher multiplier for penicillin
 
         map.insert("drug_amoxicillin_double_dose_multiplier".to_string(), 2.0);
@@ -116,14 +122,14 @@ lazy_static! {
     };
 
     // --- Bacteria-Drug Specific Parameters ---
-    // MODIFIED: Key changed from (String, String) to (String, String, String) to include param_suffix
+    // Key changed from (String, String) to (String, String, String) to include param_suffix
     pub static ref BACTERIA_DRUG_PARAMETERS: HashMap<(String, String, String), f64> = {
         let mut map = HashMap::new();
 
         // Default antibiotic reduction for ALL bacteria-drug combinations
         for &bacteria in BACTERIA_LIST.iter() {
             for &drug in DRUG_SHORT_NAMES.iter() {
-                // MODIFIED: Key now includes the parameter suffix
+                // Key now includes the parameter suffix
                 map.insert((bacteria.to_string(), drug.to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.1); // 0.004 Generic reduction
             }
         }
@@ -182,8 +188,6 @@ pub fn get_bacteria_param(bacteria_name: &str, param_suffix: &str) -> Option<f64
     let specific_key = format!("{}_{}", bacteria_name, param_suffix);
     PARAMETERS.get(&specific_key).copied()
 }
-
-// ADDED: This function was missing from your config.rs
 /// Retrieves a drug-specific simulation parameter.
 /// It looks up "drug_{drug_name}_{param_suffix}".
 /// Returns `Some(value)` if found, `None` otherwise.

@@ -53,22 +53,54 @@ impl Distribution<Region> for Standard {
 }
 
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)] // Added Copy trait
+pub enum HospitalStatus {
+    NotInHospital,
+    InHospital,
+    InICU,
+}
+
+impl HospitalStatus {
+    // Helper method to check if the status indicates hospitalization
+    pub fn is_hospitalized(&self) -> bool {
+        match self {
+            HospitalStatus::InHospital | HospitalStatus::InICU => true,
+            HospitalStatus::NotInHospital => false,
+        }
+    }
+}
+
+impl Distribution<HospitalStatus> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HospitalStatus {
+        match rng.gen_range(0..3) {
+            0 => HospitalStatus::NotInHospital,
+            1 => HospitalStatus::InHospital,
+            _ => HospitalStatus::InICU,
+        }
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct Resistance {
     pub microbiome_r: f64,
     pub test_r: f64,
     pub activity_r: f64,
-    pub any_r: f64, // Effective Resistance in minority or majority (will store 0-1)
-    pub majority_r: f64, // Community/Carried Resistance in majority of bacteria infected with (will store 0-1)
+    pub any_r: f64, // Effective Resistance in minority or majority (0-1)
+    pub majority_r: f64, // Resistance in majority of bacteria infected with (0-1) - when majority_r is non zero 
+                         // it will always take the same value as any_r
 }
 
 #[derive(Debug, Clone)]
 pub struct Individual {
     pub id: usize,
-    pub age: i32, // age in days (negative = before reference date)
+    pub age: i32, // age in days (negative = not yet born date)
     pub sex_at_birth: String,
     pub region_living: Region,
     pub region_cur_in: Region,
+    pub days_visiting: u32, 
+    pub hospital_status: HospitalStatus,
+    pub days_hospitalized: u32, // <--- ADDITION HERE
     pub date_last_infected: HashMap<&'static str, i32>,
     pub infectious_syndrome: HashMap<&'static str, i32>,
     pub level: HashMap<&'static str, f64>,
@@ -79,7 +111,8 @@ pub struct Individual {
     pub cur_infection_from_environment: HashMap<&'static str, bool>,
     pub test_identified_infection: HashMap<&'static str, bool>,
     pub cur_use_drug: Vec<bool>,
-    pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered  
+    pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
+    pub date_drug_initiated: Vec<i32>, // ADDED: Stores the time_step when each drug was last initiated
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,
     pub sexual_contact_level: f64,
@@ -155,6 +188,9 @@ impl Individual {
             age: age_days,
             region_living: rng.gen(), 
             region_cur_in: Region::Home, 
+            days_visiting: 0, 
+            hospital_status: HospitalStatus::NotInHospital, 
+            days_hospitalized: 0, // <--- INITIALIZATION HERE
             sex_at_birth,
             date_last_infected,
             infectious_syndrome,
@@ -164,7 +200,8 @@ impl Individual {
             level_microbiome,
             vaccination_status, 
             cur_use_drug: vec![false; num_drugs],
-            cur_level_drug: (0..num_drugs).map(|_| 0.0).collect(),
+            cur_level_drug: vec![0.0; num_drugs],
+            date_drug_initiated: vec![i32::MIN; num_drugs], // ADDED: Initialize to MIN
             current_infection_related_death_risk: 0.0,
             background_all_cause_mortality_rate,
             sexual_contact_level: rng.gen_range(0.0..=10.0),
@@ -188,6 +225,7 @@ impl Individual {
 pub struct Population {
     pub individuals: Vec<Individual>,
 }
+
 
 impl Population {
     pub fn new(size: usize) -> Self {

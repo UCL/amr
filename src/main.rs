@@ -5,19 +5,55 @@ mod rules;
 mod config;
 
 
-// not sure vaccination status should be a hashmap
-// todo: want standardized scale of 0 up to 10 for drug levels for any drug with single/regular dose 
-// make sure a drug can't be stopped on the same day as it is started
+//
+// order: 
+// infection with no immune response, multiple concurrent infections
+// infection with immune response, leading to eradication of infection
+// infection with immune response and drug (but no drug resistance)
+// infection with immune response, drug and drug resistance
+//
+//
+// 
+// review how hospital acquired different - do we need to treat environment differently for people in hospital ? 
+// need update rules for hospital / icu status
+// still need to add code for whether visiting another region ? 
+// still need code for death rates 
+// still need code for drug toxicity
+// need a variable for vulnerability to serious toxicity ?  
+// still need code for sepsis 
+// still need code for level_microbiome
+// need immune response to be lower with age ?
+// need to have immune response varying randomly to capture immune deficiency more generally ?
+// how to update contact / exposure level variables ?
+// start getting out graphs
+//
+//
+// review calculation of activity_r (dependence on majority_r, drug level and underlying drug potency against bacteria)
+// review updating rule for any_r 
+// review updating rule for majority_r  
+// review how infection / resistance from environmnent is determined (and how this contributes to updating of any_r)
+// can we have just one _r_ variable ? (see below)
+// review calculation of test_r
+// work on how to initiate and update microbiome_r 
 //
 
 
-// Corrected import path for Simulation
+// thoughts / issues on any_r and majority_r 
+
+// just one _r_ variable ? 
+// 0 none -0.25 - 0.25 level resistance in minority (not majority), .... -1.0 high level resistance in minority
+// 0.25 - 0.25 level resistance in majority, .... 1.0 high level resistance in majority 
+
+// value for any_r or majority_r for any drug bacteria combination will
+// not decline in value so long as the bacterial infection is present - even after bacterial infection
+// has gone it may be in microbiome  
+
+
+
 use crate::simulation::simulation::Simulation;
-// Removed: use crate::config::{init_params}; // No init_params function in your config.rs
-use crate::simulation::population::BACTERIA_LIST; // Import BACTERIA_LIST
+use crate::simulation::population::BACTERIA_LIST; 
 
 fn main() {
-    // Removed: init_params(); // No init_params function to call in your config.rs
 
     // Create and run the simulation
     let population_size = 10_000;
