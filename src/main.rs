@@ -13,47 +13,22 @@ mod config;
 // infection with immune response, drug and drug resistance
 // start getting out graphs
 //
-// 
-// review how hospital acquired different - do we need to treat environment differently for people in hospital ? 
-// need update rules for icu status
-// we have the variable under_care - do we need this ? if so we need it to be a pre-requisite of being given drugs
-// code to update level_microbiome
-// infection risk should depend on whether the bacteria present in microbiome, at least for some bacteria.  Do we need to specify where in body bacteria is carried ?
-// need a variable for vulnerability to serious toxicity ?  
-// how to update contact / exposure level variables and how they affect infection risk 
-// variable indicating whether the person is currently severely immunosuppressed.
-//
-//
-// review calculation of activity_r (dependence on majority_r, drug level and underlying drug potency against bacteria)
-// review updating rule for any_r 
-// review updating rule for majority_r  
-// review how infection / resistance from environmnent is determined (and how this contributes to updating of any_r)
-// can we have just one _r_ variable ? (see below)
-// review calculation of test_r
-// work on how to initiate and update microbiome_r 
 //
 
 
-// thoughts / issues on any_r and majority_r 
 
-// just one _r_ variable ? 
-// 0 none -0.25 - 0.25 level resistance in minority (not majority), .... -1.0 high level resistance in minority
-// 0.25 - 0.25 level resistance in majority, .... 1.0 high level resistance in majority 
-
-// value for any_r or majority_r for any drug bacteria combination will
-// not decline in value so long as the bacterial infection is present - even after bacterial infection
-// has gone it may be in microbiome  
 
 
 
 use crate::simulation::simulation::Simulation;
-use crate::simulation::population::BACTERIA_LIST; 
+// use crate::simulation::population::BACTERIA_LIST; 
 
 fn main() {
 
     // Create and run the simulation
-    let population_size = 10_000;
-    let time_steps = 30;
+    let population_size = 300_000;
+    let time_steps = 5
+    ;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -114,7 +89,6 @@ fn main() {
     println!("  airborne_contact_level_with_children: {:.2}", ind0.airborne_contact_level_with_children);
     println!("  oral_exposure_level: {:.2}", ind0.oral_exposure_level);
     println!("  mosquito_exposure_level: {:.2}", ind0.mosquito_exposure_level);
-    println!("  under_care: {}", ind0.under_care);
     println!("  current_toxicity: {:.2}", ind0.current_toxicity);
     println!("  mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
 

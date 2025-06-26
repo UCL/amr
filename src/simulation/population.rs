@@ -9,7 +9,7 @@ pub const BACTERIA_LIST: &[&str] = &[
     "acinetobac_bau", "citrobac_spec", "enterobac_spec", "enterococ_faeca", "enterococ_faeci",
     "esch_coli", "kleb_pneu", "morg_spec", "prot_spec", "serrat_spec", "pseud_aerug", "staph_aureus",
     "strep_pneu", "salm_typhi", "salm_parat_a", "inv_nt_salm", "shig_spec", "n_gonorrhoeae",
-    "group_a_strep", "group_b_strep", "haem_infl",
+    "group_a_strep", "group_b_strep", "haem_infl", "chlam_trach", 
 ];
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[
@@ -109,7 +109,6 @@ pub struct Individual {
     pub airborne_contact_level_with_children: f64,
     pub oral_exposure_level: f64,
     pub mosquito_exposure_level: f64,
-    pub under_care: bool,
     pub infection_hospital_acquired: HashMap<&'static str, bool>,
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64, 
@@ -201,7 +200,6 @@ impl Individual {
             airborne_contact_level_with_children: rng.gen_range(0.0..=10.0),
             oral_exposure_level: rng.gen_range(0.0..=10.0),
             mosquito_exposure_level: rng.gen_range(0.0..=10.0),
-            under_care: rng.gen_bool(0.1),
             infection_hospital_acquired,
             cur_infection_from_environment,
             test_identified_infection,

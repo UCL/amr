@@ -31,7 +31,13 @@ lazy_static! {
         map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.000001); // Baseline probability for de novo resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
- 
+
+        
+        //  Microbiome Resistance Transfer Parameter
+        map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.05); // Probability per day for resistance transfer between infection and microbiome
+
+    
+
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
         map.insert("test_rate_per_day".to_string(), 0.20);  // 0.15
@@ -107,7 +113,7 @@ lazy_static! {
         map.insert("female_mortality_multiplier".to_string(), 0.9); // Example: Females have 10% lower mortality risk
 
 
-        // NEW: Immunosuppression Onset and Recovery Rates
+        //  Immunosuppression Onset and Recovery Rates
         map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0001);   // Probability of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
 
@@ -115,25 +121,25 @@ lazy_static! {
         // Sepsis Mortality Parameter (Absolute risk, independent of other factors)
         map.insert("sepsis_absolute_death_risk_per_day".to_string(), 0.1); // Example: 10% absolute chance of death per day if septic
 
-               // NEW: Default Toxicity Parameter
+               //  Default Toxicity Parameter
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
 
-              // NEW: Default Microbiome Acquisition Parameter
+              //  Default Microbiome Acquisition Parameter
         // A multiplier for the infection acquisition probability to get microbiome acquisition probability.
         // If > 1.0, microbiome acquisition is more likely than infection for the same factors.
         // If < 1.0, microbiome acquisition is less likely.
         map.insert("default_microbiome_acquisition_multiplier".to_string(), 2.0); // Example: Microbiome acquisition is twice as likely as infection given the same exposure.
 
-        // NEW: Default Microbiome Clearance Parameter (from previous suggestion, ensure it's there)
+        //  Default Microbiome Clearance Parameter (from previous suggestion, ensure it's there)
         map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
 
-               // NEW: Microbiome Presence Effect on Infection Acquisition
+               //  Microbiome Presence Effect on Infection Acquisition
         // A multiplier for infection acquisition probability if the bacteria is already present in the microbiome.
         // Value > 1.0 means microbiome presence increases infection risk.
         // Value < 1.0 means microbiome presence decreases infection risk (e.g., due to local immunity/competition).
         map.insert("default_microbiome_infection_acquisition_multiplier".to_string(), 0.1); // Example: Much harder to get infected if already colonized.
 
-       // NEW: Contact and Exposure Level Parameters
+       //  Contact and Exposure Level Parameters
         map.insert("contact_level_daily_fluctuation_range".to_string(), 0.5); // Amount of random daily fluctuation
         map.insert("min_contact_level".to_string(), 0.0); // Minimum possible contact/exposure level
         map.insert("max_contact_level".to_string(), 10.0); // Maximum possible contact/exposure level
@@ -217,26 +223,26 @@ lazy_static! {
         map.insert("acinetobac_bau_duration_multiplier".to_string(), 0.000002);
 
 
-        // NEW: Drug-Specific Toxicity Parameters (Examples)
+        //  Drug-Specific Toxicity Parameters (Examples)
         // Format: "drug_{drug_name}_toxicity_per_unit_level_per_day"
         map.insert("drug_penicilling_toxicity_per_unit_level_per_day".to_string(), 0.002); // Lower toxicity example
         map.insert("drug_cefepime_toxicity_per_unit_level_per_day".to_string(), 0.01);    // Higher toxicity example
         map.insert("drug_meropenem_toxicity_per_unit_level_per_day".to_string(), 0.008);
 
 
-        // NEW: Bacteria-Specific Microbiome Acquisition Multipliers (Optional Examples)
+        //  Bacteria-Specific Microbiome Acquisition Multipliers (Optional Examples)
         // Format: "{bacteria_name}_microbiome_acquisition_multiplier"
         map.insert("strep_pneu_microbiome_acquisition_multiplier".to_string(), 3.0); // Strep Pneu might colonize more easily
         map.insert("salm_typhi_microbiome_acquisition_multiplier".to_string(), 0.5);  // Salmonella might colonize less easily than cause infection
 
-        // NEW: Bacteria-Specific Microbiome Clearance Parameters (Optional Examples)
+        //  Bacteria-Specific Microbiome Clearance Parameters (Optional Examples)
         // Format: "{bacteria_name}_microbiome_clearance_probability_per_day"
         map.insert("strep_pneu_microbiome_clearance_probability_per_day".to_string(), 0.02);
         map.insert("esch_coli_microbiome_clearance_probability_per_day".to_string(), 0.005);
 
 
         
-        // NEW: Bacteria-Specific Microbiome Infection Acquisition Multipliers (Optional Examples)
+        //  Bacteria-Specific Microbiome Infection Acquisition Multipliers (Optional Examples)
         // Format: "{bacteria_name}_microbiome_infection_acquisition_multiplier"
         map.insert("strep_pneu_microbiome_infection_acquisition_multiplier".to_string(), 0.05); // Maybe Strep Pneu is very protective when colonized
         map.insert("salm_typhi_microbiome_infection_acquisition_multiplier".to_string(), 0.8);  // Salmonella might offer less protection, or even slightly increase risk if certain strains

@@ -1,7 +1,8 @@
 // src/simulation/simulation.rs
-use crate::simulation::population::{Individual, Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
+use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use crate::rules::apply_rules;
 use std::collections::HashMap;
+use rayon::prelude::*; // <--- ADD THIS LINE
 
 pub struct Simulation {
     pub population: Population,
@@ -31,6 +32,7 @@ impl Simulation {
         let global_majority_r_proportions = HashMap::new();
         let majority_r_positive_values_by_combo = HashMap::new();
 
+        // --- Initial State Logging for Individual 0 (No changes here) ---
         println!("Initial age of individual 0 AFTER population creation: {} days", population.individuals[0].age);
         println!("--- INITIAL STATE OF INDIVIDUAL 0 (from main.rs) ---");
         println!("  Region Living: {:?}", population.individuals[0].region_living);
@@ -65,7 +67,6 @@ impl Simulation {
         println!("  airborne_contact_level_with_children: {:.2}", population.individuals[0].airborne_contact_level_with_children);
         println!("  oral_exposure_level: {:.2}", population.individuals[0].oral_exposure_level);
         println!("  mosquito_exposure_level: {:.2}", population.individuals[0].mosquito_exposure_level);
-        println!("  under_care: {}", population.individuals[0].under_care);
         println!("  current_toxicity: {:.2}", population.individuals[0].current_toxicity);
         println!("  mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
 
@@ -124,25 +125,28 @@ impl Simulation {
         let mut kleb_pneu_ceftr_majority_r_history: Vec<f64> = Vec::new();
 
         for t in 0..self.time_steps {
-            // Initialize temporary HashMaps to aggregate population-wide
-            // resistance statistics (e.g., counts of infected individuals,
-            // positive majority_r values) for the current time step.
+            // --- PARALLEL APPLICATION OF RULES TO INDIVIDUALS ---
+            // Each individual's rules are applied independently.
+            self.population.individuals.par_iter_mut().for_each(|individual| {
+                apply_rules(
+                    individual,
+                    t,
+                    &self.global_majority_r_proportions, 
+                    &self.majority_r_positive_values_by_combo, 
+                    &self.bacteria_indices,
+                    &self.drug_indices,
+                );
+            });
+
+            // --- SEQUENTIAL AGGREGATION OF GLOBAL STATISTICS ---
+            // This part must be sequential because it collects data from all individuals
+            // into shared, mutable HashMaps, which would cause data races if done in parallel
+            // without complex synchronization.
             let mut current_majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
             let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
             let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
 
-
-            for individual in self.population.individuals.iter_mut() {
-                apply_rules(
-                    individual,
-                    t,
-                    &self.global_majority_r_proportions, // Pass the global map
-                    &self.majority_r_positive_values_by_combo, // Pass the global map
-                    &self.bacteria_indices,
-                    &self.drug_indices,
-                );
-
-                // Update global statistics for the *next* time step
+            for individual in self.population.individuals.iter() { // Iterate immutably for aggregation
                 for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                     // Only count if currently infected
                     if individual.level.get(bacteria_name).map_or(false, |&level| level > 0.001) {
@@ -161,8 +165,8 @@ impl Simulation {
                     }
                 }
             }
-            // Update global_majority_r_proportions based on the current step's data
-            // This is a simplified calculation for demonstration.
+
+            // --- Update global_majority_r_proportions based on the current step's data ---
             let strep_pneu_idx = self.bacteria_indices["strep_pneu"];
             let amoxicillin_idx = self.drug_indices["amoxicillin"];
             let infected_with_strep_pneu = *current_infected_counts_total.get(&strep_pneu_idx).unwrap_or(&0);
@@ -177,8 +181,6 @@ impl Simulation {
             strep_pneu_amox_majority_r_history.push(proportion);
 
 
-            // Update global_majority_r_proportions based on the current step's data
-            // This is a simplified calculation for demonstration.
             let kleb_pneu_idx = self.bacteria_indices["kleb_pneu"];
             let ceftriaxone_idx = self.drug_indices["ceftriaxone"];
             let infected_with_kleb_pneu = *current_infected_counts_total.get(&kleb_pneu_idx).unwrap_or(&0);
@@ -192,208 +194,82 @@ impl Simulation {
             self.global_majority_r_proportions.insert((kleb_pneu_idx, ceftriaxone_idx), proportion);
             kleb_pneu_ceftr_majority_r_history.push(proportion);
 
-
-            // Log total infected individuals for each bacteria
-//          for &bacteria_name in BACTERIA_LIST.iter() {
-//              let b_idx = *self.bacteria_indices.get(bacteria_name).unwrap();
-//              let infected_count = self.population.individuals.iter()
-//                  .filter(|ind| ind.level.get(bacteria_name).map_or(false, |&level| level > 0.001))
-//                  .count();
-//              println!("Time step {}: Total individuals infected with {} = {}", t, bacteria_name, infected_count);
-//          }
-
-//          println!("Time step {}: Global majority_r Proportions (selected):", t);
-//          println!("    Strep Pneumonia to Amoxicillin: {:.4}", self.global_majority_r_proportions.get(&(strep_pneu_idx, amoxicillin_idx)).unwrap_or(&0.0));
-
-            // Log individual 0's status
+            // --- Logging for Individual 0 (No changes here) ---
             let individual_0 = &self.population.individuals[0];
-            println!("    Time step {}: Individual 0 age = {} days", t, individual_0.age);
-/* if let Some(&level) = individual_0.level.get("strep_pneu") {
-                println!("    strep_pneu: level = {:.2}", level);
-            }
-            if let Some(&immune_resp) = individual_0.immune_resp.get("strep_pneu") {
-                println!("    strep_pneu: immune_resp = {:.2}", immune_resp);
-            }
-            if let Some(&sepsis) = individual_0.sepsis.get("strep_pneu") {
-                println!("    strep_pneu: sepsis = {}", sepsis);
-            }
-            if let Some(&infectious_syndrome) = individual_0.infectious_syndrome.get("strep_pneu") {
-                println!("    strep_pneu: infectious_syndrome = {}", infectious_syndrome);
-            }
-            if let Some(&date_last_infected) = individual_0.date_last_infected.get("strep_pneu") {
-                println!("    strep_pneu: date_last_infected = {}", date_last_infected);
-            }
-            if let Some(&from_env) = individual_0.cur_infection_from_environment.get("strep_pneu") {
-                println!("    strep_pneu: cur_infection_from_environment = {}", from_env);
-            }
-            if let Some(&hospital_acquired) = individual_0.infection_hospital_acquired.get("strep_pneu") {
-                println!("    strep_pneu: infection_hospital_acquired = {}", hospital_acquired);
-            }
-            if let Some(&test_identified) = individual_0.test_identified_infection.get("strep_pneu") {
-                println!("    strep_pneu: test_identified_infection = {}", test_identified);
-            }
-*/
+            println!("      Time step {}: Individual 0 age = {} days", t, individual_0.age);
 
-
-//          println!("    Kleb Pneumonia to ceftriaxone: {:.4}", self.global_majority_r_proportions.get(&(kleb_pneu_idx, ceftriaxone_idx)).unwrap_or(&0.0));
-
-            // Log individual 0's status
-            let individual_0 = &self.population.individuals[0];
-/* if let Some(&level) = individual_0.level.get("kleb_pneu") {
-                println!("    kleb_pneu: level = {:.2}", level);
-            }
-            if let Some(&immune_resp) = individual_0.immune_resp.get("kleb_pneu") {
-                println!("    kleb_pneu: immune_resp = {:.2}", immune_resp);
-            }
-            if let Some(&sepsis) = individual_0.sepsis.get("kleb_pneu") {
-                println!("    kleb_pneu: sepsis = {}", sepsis);
-            }
-            if let Some(&infectious_syndrome) = individual_0.infectious_syndrome.get("kleb_pneu") {
-                println!("    kleb_pneu: infectious_syndrome = {}", infectious_syndrome);
-            }
-            if let Some(&date_last_infected) = individual_0.date_last_infected.get("kleb_pneu") {
-                println!("    kleb_pneu: date_last_infected = {}", date_last_infected);
-            }
-            if let Some(&from_env) = individual_0.cur_infection_from_environment.get("kleb_pneu") {
-                println!("    kleb_pneu: cur_infection_from_environment = {}", from_env);
-            }
-            if let Some(&hospital_acquired) = individual_0.infection_hospital_acquired.get("kleb_pneu") {
-                println!("    kleb_pneu: infection_hospital_acquired = {}", hospital_acquired);
-            }
-            if let Some(&test_identified) = individual_0.test_identified_infection.get("kleb_pneu") {
-                println!("    kleb_pneu: test_identified_infection = {}", test_identified);
-            }
-*/
-
-
-/*
-             // Print Bacteria Infection Status and Level for Individual 0
-            println!("        --- Bacteria Infection Status (Individual 0) ---");
+            println!("          --- Bacteria Infection Details (Individual 0) ---");
             if individual_0.level.is_empty() {
-                println!("            Individual 0 has no active bacterial infections.");
+                println!("              Individual 0 has no active bacterial infections.");
             } else {
                 for &bacteria_name in BACTERIA_LIST.iter() {
                     if let Some(&level) = individual_0.level.get(bacteria_name) {
-                        if level > 0.001 { // Only print if infected (level > a small threshold)
-                            println!("            {}: Infected = true, Level = {:.4}", bacteria_name, level);
-                        }
-                    } else {
-                        // Optionally, print if not infected, but to keep output cleaner,
-                        // we only show active infections based on the 'if let Some' and 'if level > 0.001'
-                        // println!("            {}: Infected = false, Level = 0.0000", bacteria_name);
-                    }
-                }
-            }
-*/
+                        if level > 0.0001 { // Only print if infected (level > a small threshold)
+                            println!("              Bacteria: {}", bacteria_name);
+                            println!("                Infected = true");
+                            println!("                Level = {:.4}", level);
+                            println!("                Immune Response = {:.4}", individual_0.immune_resp.get(bacteria_name).unwrap_or(&0.0));
 
+                            println!("                Infection From Environment = {}",
+                                individual_0.cur_infection_from_environment.get(bacteria_name).unwrap_or(&false)
+                            );
+                            println!("                Hospital Acquired Infection = {}",
+                                individual_0.infection_hospital_acquired.get(bacteria_name).unwrap_or(&false)
+                            );
+                            println!("                Test Identified Infection = {}",
+                                individual_0.test_identified_infection.get(bacteria_name).unwrap_or(&false)
+                            );
 
-
-
-// Print Bacteria Infection Status, Level, Immunity, and Active Antibiotics for Individual 0
-println!("        --- Bacteria Infection Details (Individual 0) ---");
-if individual_0.level.is_empty() {
-    println!("            Individual 0 has no active bacterial infections.");
-} else {
-    for &bacteria_name in BACTERIA_LIST.iter() {
-        if let Some(&level) = individual_0.level.get(bacteria_name) {
-            // Revert this to your desired threshold, e.g., level > 0.001 or level > 0.0001
-            if level > 0.0001 { // Only print if infected (level > a small threshold)
-                println!("            Bacteria: {}", bacteria_name);
-                println!("              Infected = true");
-                println!("              Level = {:.4}", level);
-                println!("              Immune Response = {:.4}", individual_0.immune_resp.get(bacteria_name).unwrap_or(&0.0));
-
-                println!("              Infection From Environment = {}",
-                    individual_0.cur_infection_from_environment.get(bacteria_name).unwrap_or(&false)
-                );
-                println!("              Hospital Acquired Infection = {}",
-                    individual_0.infection_hospital_acquired.get(bacteria_name).unwrap_or(&false)
-                );
-                println!("              Test Identified Infection = {}",
-                    individual_0.test_identified_infection.get(bacteria_name).unwrap_or(&false)
-                );
-
-
-
-               // Print all Antibiotics the person has in their system (Current Level > 0)
-                let mut drugs_present_found = false;
-                println!("                Antibiotics Present in System (Current Level > 0):");
-                for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                    if individual_0.cur_level_drug[drug_idx] > 0.0 {
-                        let status = if individual_0.cur_use_drug[drug_idx] {
-                            " (Currently being taken)"
-                        } else {
-                            " (Decaying)"
-                        };
-                        println!("                  - {}: Level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
-                        drugs_present_found = true;
-                    }
-                }
-                if !drugs_present_found {
-                    println!("                    None (no antibiotics currently in system).");
-                }
-
-                // Print all Antibiotics in system with activity against this bacteria
-                let b_idx_option = BACTERIA_LIST.iter().position(|&b| b == bacteria_name);
-                if let Some(b_idx) = b_idx_option {
-                    let mut effective_antibiotics_found = false; // Changed flag name for clarity
-                    println!("                Effective Antibiotics in System against {}:", bacteria_name); // Changed message
-                    for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        // Check if the drug is present in the system (level > 0)
-                        if individual_0.cur_level_drug[drug_idx] > 0.0 {
-                            // Access activity_r for this specific bacteria-drug combination
-                            let resistance_data = &individual_0.resistances[b_idx][drug_idx];
-                            let activity_r = resistance_data.activity_r;
-                            if activity_r > 0.0 { // Only show if there's actual activity
-                                // Also print the drug level alongside activity_r for full context
-                                println!("                  - {}: Level = {:.4}, Activity_R = {:.4}, Any_R = {:.4}, Majority_R = {:.4}", 
-                                         drug_name_static, 
-                                         individual_0.cur_level_drug[drug_idx],
-                                         activity_r,
-                                         resistance_data.any_r, // Added any_r
-                                         resistance_data.majority_r); // Added majority_r
-                                effective_antibiotics_found = true;
+                            let mut drugs_present_found = false;
+                            println!("                  Antibiotics Present in System (Current Level > 0):");
+                            for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
+                                if individual_0.cur_level_drug[drug_idx] > 0.0 {
+                                    let status = if individual_0.cur_use_drug[drug_idx] {
+                                        " (Currently being taken)"
+                                    } else {
+                                        " (Decaying)"
+                                    };
+                                    println!("                    - {}: Level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
+                                    drugs_present_found = true;
+                                }
                             }
+                            if !drugs_present_found {
+                                println!("                      None (no antibiotics currently in system).");
+                            }
+
+                            let b_idx_option = BACTERIA_LIST.iter().position(|&b| b == bacteria_name);
+                            if let Some(b_idx) = b_idx_option {
+                                let mut effective_antibiotics_found = false;
+                                println!("                  Effective Antibiotics in System against {}:", bacteria_name);
+                                for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
+                                    if individual_0.cur_level_drug[drug_idx] > 0.0 {
+                                        let resistance_data = &individual_0.resistances[b_idx][drug_idx];
+                                        let activity_r = resistance_data.activity_r;
+                                        if activity_r > 0.0 {
+                                            println!("                    - {}: Level = {:.4}, Activity_R = {:.4}, Any_R = {:.4}, Majority_R = {:.4}", 
+                                                        drug_name_static, 
+                                                        individual_0.cur_level_drug[drug_idx],
+                                                        activity_r,
+                                                        resistance_data.any_r, 
+                                                        resistance_data.majority_r); 
+                                            effective_antibiotics_found = true;
+                                        }
+                                    }
+                                }
+                                if !effective_antibiotics_found {
+                                    println!("                      None (no effective antibiotics in system against this bacteria).");
+                                }
+                            }
+                            println!();
                         }
                     }
-                    if !effective_antibiotics_found {
-                        println!("                    None (no effective antibiotics in system against this bacteria).");
-                    }
                 }
-                println!(); // Add a blank line for separation between bacteria
             }
-        }
-    }
-}
-println!("        --------------------------------------------");
-
-
-
-
-
-
-/* println!("    --- Drug Use Status (Individual 0) ---");
-            for (drug_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() { // MODIFIED: Prefixed drug_name with _
-                println!("      {}: cur_use_drug = {}, cur_level_drug = {:.2}",
-                              DRUG_SHORT_NAMES[drug_idx], // MODIFIED: Use DRUG_SHORT_NAMES directly
-                              individual_0.cur_use_drug[drug_idx],
-                              individual_0.cur_level_drug[drug_idx]);
-            }
-*/
-            println!("    -------------------------------------");
+            println!("      --------------------------------------------");
+            println!("      -------------------------------------");
         }
 
         println!("--- SIMULATION FINISHED (within run function) ---");
-/* println!("\n--- Proportion of Strep Pneumonia Infected with majority_r > 0 for Amoxicillin Over Time ---");
-        for (t, proportion) in strep_pneu_amox_majority_r_history.iter().enumerate() {
-            println!("Time Step {}: {:.4}", t, proportion);
-        }
-        println!("\n--- Proportion of Kleb Pneumonia Infected with majority_r > 0 for ceftriaxone Over Time ---");
-        for (t, proportion) in kleb_pneu_ceftr_majority_r_history.iter().enumerate() {
-            println!("Time Step {}: {:.4}", t, proportion);
-        }
-*/
-
         println!("--- SIMULATION ENDED ---");
     }
 }

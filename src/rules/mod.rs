@@ -1,6 +1,6 @@
 // src/rules/mod.rs
 
-use crate::simulation::population::{Individual, Population, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
+use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
 use crate::config::{get_global_param, get_bacteria_param, get_bacteria_drug_param, get_drug_param};
 use rand::Rng;
 use std::collections::hash_map::Entry;
@@ -29,7 +29,7 @@ pub fn apply_rules(
 
 
 
-    // --- NEW: Update Contact and Exposure Levels ---
+    // ---  Update Contact and Exposure Levels ---
     // Get general parameters for fluctuations and bounds
     let daily_fluctuation = get_global_param("contact_level_daily_fluctuation_range").unwrap_or(0.5);
     let min_contact_level = get_global_param("min_contact_level").unwrap_or(0.0);
@@ -137,7 +137,7 @@ pub fn apply_rules(
 
 
 
-       // NEW: Update 'is_severely_immunosuppressed' status based on onset/recovery rates
+       //  Update 'is_severely_immunosuppressed' status based on onset/recovery rates
     let onset_rate = get_global_param("immunosuppression_onset_rate_per_day").unwrap_or(0.0001);
     let recovery_rate = get_global_param("immunosuppression_recovery_rate_per_day").unwrap_or(0.0005);
 
@@ -157,11 +157,9 @@ pub fn apply_rules(
 
 
 
-    if rng.gen::<f64>() < 0.01 { individual.under_care = !individual.under_care; }
     individual.current_toxicity = (individual.current_toxicity + rng.gen_range(-0.5..=0.5)).max(0.0);
 //  individual.mortality_risk_current_toxicity = rng.gen_range(0.0..=0.0001);
 
-    // todo: we have this variable under_care - do we need this ? if so we need it to be a pre-requisite of being given drugs  
 
 
 
@@ -205,7 +203,7 @@ pub fn apply_rules(
 
 
 
-       // --- NEW: Region Travel Rules ---
+       // ---  Region Travel Rules ---
     let travel_prob = get_global_param("travel_probability_per_day")
         .expect("Missing travel_probability_per_day in config");
     const VISIT_LENGTH_DAYS: u32 = 30; // Fixed visit length
@@ -249,7 +247,7 @@ pub fn apply_rules(
 
 
 
-        // --- NEW: Sepsis Risk Rules ---
+        // ---  Sepsis Risk Rules ---
     for &bacteria in BACTERIA_LIST.iter() {
         if let Some(&current_level) = individual.level.get(bacteria) {
             // Only consider sepsis if an infection is present (level > 0.0)
@@ -440,7 +438,7 @@ pub fn apply_rules(
     }
 
 
-        // NEW: Add drug-specific toxicity contributions
+        //  Add drug-specific toxicity contributions
     let mut daily_drug_toxicity_increase = 0.0;
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         let drug_name = DRUG_SHORT_NAMES[drug_idx];
@@ -523,7 +521,7 @@ pub fn apply_rules(
         }
         individual.mortality_risk_current_toxicity = drug_adverse_event_risk_for_individual; // Store for potential logging/debugging
         if drug_adverse_event_risk_for_individual > 0.0 {
-            prob_not_dying *= (1.0 - drug_adverse_event_risk_for_individual);
+            prob_not_dying *= 1.0 - drug_adverse_event_risk_for_individual;
             if cause.is_none() { cause = Some("drug_toxicity_related".to_string()); } // Prioritize drug toxicity if no sepsis
         }
 
@@ -582,7 +580,7 @@ for &bacteria in BACTERIA_LIST.iter() {
             acquisition_probability *= 1.0 - vaccine_efficacy;
         }
 
-        // NEW: Apply microbiome presence effect on infection acquisition risk
+        //  Apply microbiome presence effect on infection acquisition risk
         // If the bacteria is already in the individual's microbiome (carriage)
         if individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
             let microbiome_infection_multiplier = get_bacteria_param(bacteria, "microbiome_infection_acquisition_multiplier")
@@ -600,7 +598,7 @@ for &bacteria in BACTERIA_LIST.iter() {
 
 
 
- // --- NEW: Update Microbiome Presence (Carriage) ---
+ // ---  Update Microbiome Presence (Carriage) ---
 // This block should be placed for each 'bacteria' where 'acquisition_probability' is known.
 
 // If the individual does NOT currently have this bacteria in their microbiome
@@ -641,6 +639,44 @@ if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
 // --- END Microbiome Presence Rules ---
 
 
+
+        // --- NEW: Update microbiome_r based on presence_microbiome and transfer ---
+        let transfer_prob = get_global_param("microbiome_resistance_transfer_probability_per_day").unwrap_or(0.05);
+
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let d_idx = *drug_indices.get(drug).unwrap();
+
+            // todo: should resistance in the environment influence microbiome_r    
+
+            // Rule 1: microbiome_r is 0 if bacteria not in microbiome
+            if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
+                individual.resistances[b_idx][d_idx].microbiome_r = 0.0;
+            } else {
+                // Rule 2: If infection present AND bacteria in microbiome, consider transfer
+                let infection_present = individual.level.get(bacteria).copied().unwrap_or(0.0) > 0.0;
+                
+                if infection_present {
+                    let current_any_r = individual.resistances[b_idx][d_idx].any_r;
+                    let current_microbiome_r = individual.resistances[b_idx][d_idx].microbiome_r;
+
+                    // Only attempt transfer if there's resistance at one site but not the other
+                    let should_attempt_transfer = (current_any_r > 0.0 && current_microbiome_r == 0.0) ||
+                                                (current_microbiome_r > 0.0 && current_any_r == 0.0);
+
+                    if should_attempt_transfer && rng.gen_bool(transfer_prob) {
+                        // Transfer from infection to microbiome
+                        if current_any_r > 0.0 && current_microbiome_r == 0.0 {
+                            individual.resistances[b_idx][d_idx].microbiome_r = current_any_r;
+                        } 
+                        // Transfer from microbiome to infection (by setting any_r)
+                        else if current_microbiome_r > 0.0 && current_any_r == 0.0 {
+                            individual.resistances[b_idx][d_idx].any_r = current_microbiome_r;
+                        }
+                    }
+                }
+            }
+        }
+        // --- END microbiome_r update ---
 
 
         
@@ -726,7 +762,6 @@ if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
             }
             // --- END GENERALIZED any_r AND majority_r SETTING LOGIC ---
 
-            individual.test_identified_infection.insert(bacteria, false);
 
             // Get the initial immunity level from config, or default to a reasonable value
             let initial_immunity = get_bacteria_param(bacteria, "initial_immunity_on_infection").unwrap_or(1.0); 
@@ -863,6 +898,39 @@ if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
             }
         }
 
+
+
+
+            // --- NEW: Update test_r based on identified infection and actual resistance ---
+            // This happens after test_identified_infection is potentially updated for this time step
+            if individual.test_identified_infection.get(bacteria).copied().unwrap_or(false) {
+                // If the bacteria is identified by a test, test_r reflects its resistance
+                for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let resistance_data = &mut individual.resistances[b_idx][drug_idx];
+                    
+                    if resistance_data.majority_r > 0.0 {
+                        resistance_data.test_r = resistance_data.majority_r;
+                    } else if resistance_data.any_r > 0.0 {
+                        resistance_data.test_r = resistance_data.any_r;
+                    } else {
+                        // If no actual resistance (any_r and majority_r are 0), test_r is 0
+                        resistance_data.test_r = 0.0;
+                    }
+                }
+            } else {
+                // If infection is present but NOT identified by test, or test_identified_infection became false,
+                // test_r for this bacteria should be 0 for all drugs.
+                for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let resistance_data = &mut individual.resistances[b_idx][drug_idx];
+                    resistance_data.test_r = 0.0;
+                }
+            }
+            // --- END test_r update ---
+
+
+
+
+
         // Bacteria level change (growth/decay)
         if let Entry::Occupied(mut level_entry) = individual.level.entry(bacteria) {
 
@@ -873,6 +941,8 @@ if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
             let reduction_due_to_immune_resp = get_bacteria_param(bacteria, "immunity_effect_on_level_change").unwrap_or(0.0);
 
             let mut total_reduction_due_to_antibiotic = 0.0;
+
+            // todo: review calculation of activity_r (dependence on majority_r, drug level and underlying drug potency against bacteria)
 
             for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
             // We only need to check if individual.cur_level_drug[drug_idx] > 0.0
@@ -955,10 +1025,9 @@ if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
     }
 }
 
-// microbiome_r, test_r are currently kept at 0
+// test_r currently kept at 0
 for i in 0..BACTERIA_LIST.len() {
     for j in 0..DRUG_SHORT_NAMES.len() {
-        individual.resistances[i][j].microbiome_r = 0.0;
         individual.resistances[i][j].test_r = 0.0;
     }
 }
