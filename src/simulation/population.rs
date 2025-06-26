@@ -2,6 +2,7 @@
 use rand::Rng;
 use std::collections::HashMap;
 use rand::distributions::{Distribution, Standard};
+use std::fmt; 
 
 
 pub const BACTERIA_LIST: &[&str] = &[
@@ -23,9 +24,20 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
 ];
 
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HospitalStatus {
+    InHospital,  // consider in future whether to have a variable for whether in icu
+    NotInHospital,
+}
 
-// Define the regions as an enum
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+impl HospitalStatus {
+    pub fn is_hospitalized(&self) -> bool {
+        matches!(self, HospitalStatus::InHospital)
+    }
+}
+
+// Add Display to the derive attribute and implement it
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Region {
     NorthAmerica,
     SouthAmerica,
@@ -33,50 +45,27 @@ pub enum Region {
     Asia,
     Europe,
     Oceania,
-    Home, // Represents the individual is not currently visiting another region
+    Home, // This represents the individual's home region, which could be any of the above.
 }
 
-// Implement From<rand::distributions::Standard> for Region to allow random generation for region_living
 impl Distribution<Region> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Region {
-        // We exclude 'Home' from random generation for 'region_living'
-        // 'Home' will be explicitly set for 'region_cur_in' as a default
-        match rng.gen_range(0..6) { // Range is now 0..6 for the 6 distinct geographic regions
+        match rng.gen_range(0..6) { // 0 to 5 for the 6 geographic regions
             0 => Region::NorthAmerica,
             1 => Region::SouthAmerica,
             2 => Region::Africa,
             3 => Region::Asia,
             4 => Region::Europe,
-            _ => Region::Oceania,
+            _ => Region::Oceania, // Default for 5
         }
     }
 }
 
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)] // Added Copy trait
-pub enum HospitalStatus {
-    NotInHospital,
-    InHospital,
-    InICU,
-}
-
-impl HospitalStatus {
-    // Helper method to check if the status indicates hospitalization
-    pub fn is_hospitalized(&self) -> bool {
-        match self {
-            HospitalStatus::InHospital | HospitalStatus::InICU => true,
-            HospitalStatus::NotInHospital => false,
-        }
-    }
-}
-
-impl Distribution<HospitalStatus> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HospitalStatus {
-        match rng.gen_range(0..3) {
-            0 => HospitalStatus::NotInHospital,
-            1 => HospitalStatus::InHospital,
-            _ => HospitalStatus::InICU,
-        }
+// Implement the Display trait for Region
+impl fmt::Display for Region {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Use debug format and then convert to lowercase and replace spaces
+        write!(f, "{:?}", self) // This will give "NorthAmerica", "SouthAmerica", etc.
     }
 }
 
@@ -106,7 +95,7 @@ pub struct Individual {
     pub level: HashMap<&'static str, f64>,
     pub immune_resp: HashMap<&'static str, f64>,
     pub sepsis: HashMap<&'static str, bool>,
-    pub level_microbiome: HashMap<&'static str, f64>,
+    pub presence_microbiome: HashMap<&'static str, bool>,
     pub vaccination_status: HashMap<&'static str, bool>,
     pub cur_infection_from_environment: HashMap<&'static str, bool>,
     pub test_identified_infection: HashMap<&'static str, bool>,
@@ -114,7 +103,7 @@ pub struct Individual {
     pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
     pub date_drug_initiated: Vec<i32>, // ADDED: Stores the time_step when each drug was last initiated
     pub current_infection_related_death_risk: f64,
-    pub background_all_cause_mortality_rate: f64,
+    pub background_all_cause_mortality_rate: f64,  // should now be removed
     pub sexual_contact_level: f64,
     pub airborne_contact_level_with_adults: f64,
     pub airborne_contact_level_with_children: f64,
@@ -123,10 +112,12 @@ pub struct Individual {
     pub under_care: bool,
     pub infection_hospital_acquired: HashMap<&'static str, bool>,
     pub current_toxicity: f64,
-    pub mortality_risk_current_toxicity: f64,
+    pub mortality_risk_current_toxicity: f64, 
     pub resistances: Vec<Vec<Resistance>>,
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
+    pub is_severely_immunosuppressed: bool, // NEW: Indicator for severe immunosuppression
+
 }
 
 impl Individual {
@@ -137,7 +128,7 @@ impl Individual {
         let mut level = HashMap::new();
         let mut immune_resp = HashMap::new();
         let mut sepsis = HashMap::new();
-        let mut level_microbiome = HashMap::new();
+        let mut presence_microbiome = HashMap::new();
         let mut infection_hospital_acquired = HashMap::new();
         let mut cur_infection_from_environment = HashMap::new();
         let mut test_identified_infection = HashMap::new();
@@ -150,7 +141,7 @@ impl Individual {
             level.insert(bacteria, 0.0);
             immune_resp.insert(bacteria, 1.0);
             sepsis.insert(bacteria, false);
-            level_microbiome.insert(bacteria, 0.0);
+            presence_microbiome.insert(bacteria, false);
             infection_hospital_acquired.insert(bacteria, false);
             cur_infection_from_environment.insert(bacteria, false);
             test_identified_infection.insert(bacteria, false);
@@ -183,6 +174,7 @@ impl Individual {
             0.000001
         };
 
+
         Individual {
             id,
             age: age_days,
@@ -197,13 +189,13 @@ impl Individual {
             level,
             immune_resp,
             sepsis,
-            level_microbiome,
+            presence_microbiome,
             vaccination_status, 
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],
             date_drug_initiated: vec![i32::MIN; num_drugs], // ADDED: Initialize to MIN
             current_infection_related_death_risk: 0.0,
-            background_all_cause_mortality_rate,
+            background_all_cause_mortality_rate, // should now be removed 
             sexual_contact_level: rng.gen_range(0.0..=10.0),
             airborne_contact_level_with_adults: rng.gen_range(0.0..=10.0),
             airborne_contact_level_with_children: rng.gen_range(0.0..=10.0),
@@ -214,10 +206,11 @@ impl Individual {
             cur_infection_from_environment,
             test_identified_infection,
             current_toxicity: rng.gen_range(0.0..=3.0),
-            mortality_risk_current_toxicity: 0.0,
+            mortality_risk_current_toxicity: 0.0, // probably should be removed as this death risk is implemented with separate logic
             resistances,
             date_of_death: None,
             cause_of_death: None,
+            is_severely_immunosuppressed: false, // NEW: Randomly assign severe immunosuppression
         }
     }
 }

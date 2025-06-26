@@ -19,19 +19,152 @@ pub fn apply_rules(
     let mut rng = rand::thread_rng();
 
     // Update non-infection, bacteria or antibiotic-specific variables
+    // need a variable for vulnerability to serious toxicity ?
     individual.age += 1;
-    individual.current_infection_related_death_risk = rng.gen_range(0.0..=0.001);
-    individual.background_all_cause_mortality_rate = rng.gen_range(0.0..=0.00001);
-    individual.sexual_contact_level = rng.gen_range(0.0..=1.0);
-    individual.airborne_contact_level_with_adults = rng.gen_range(0.0..=1.0);
-    individual.airborne_contact_level_with_children = rng.gen_range(0.0..=1.0);
-    individual.oral_exposure_level = rng.gen_range(0.0..=1.0);
-    individual.mosquito_exposure_level = rng.gen_range(0.0..=1.0);
+//  individual.current_infection_related_death_risk = rng.gen_range(0.0..=0.001);
+//  individual.background_all_cause_mortality_rate = rng.gen_range(0.0..=0.00001);
+
+
+
+
+
+
+    // --- NEW: Update Contact and Exposure Levels ---
+    // Get general parameters for fluctuations and bounds
+    let daily_fluctuation = get_global_param("contact_level_daily_fluctuation_range").unwrap_or(0.5);
+    let min_contact_level = get_global_param("min_contact_level").unwrap_or(0.0);
+    let max_contact_level = get_global_param("max_contact_level").unwrap_or(10.0);
+
+    // Helper closure for applying fluctuation and clamping
+    // This calculates a 'target' or 'base' level, then adds noise and clamps it.
+    let mut update_contact_level = |current_level: &mut f64, base_level: f64| {
+        *current_level = base_level + rng.gen_range(-daily_fluctuation..=daily_fluctuation);
+        *current_level = current_level.clamp(min_contact_level, max_contact_level);
+    };
+
+    // 1. Sexual Contact Level
+    let sexual_contact_age_peak_days = get_global_param("sexual_contact_age_peak_days").unwrap_or(25.0 * 365.0);
+    let sexual_contact_age_decline_rate = get_global_param("sexual_contact_age_decline_rate").unwrap_or(0.00005);
+    let sexual_contact_hospital_multiplier = get_global_param("sexual_contact_hospital_multiplier").unwrap_or(0.0); // Typically very low in hospital
+
+    let mut base_sexual_level = get_global_param("sexual_contact_baseline").unwrap_or(5.0);
+    if (individual.age as f64) < sexual_contact_age_peak_days {
+        // Increase towards peak, but don't exceed baseline before peak
+        base_sexual_level *= ((individual.age as f64 / sexual_contact_age_peak_days).min(1.0)).powf(get_global_param("sexual_contact_age_rise_exponent").unwrap_or(2.0));
+    } else {
+        // Decline after peak
+        base_sexual_level *= (1.0 - (individual.age as f64 - sexual_contact_age_peak_days) * sexual_contact_age_decline_rate).max(0.0);
+    }
+
+    if individual.hospital_status.is_hospitalized() {
+        base_sexual_level *= sexual_contact_hospital_multiplier;
+    }
+    update_contact_level(&mut individual.sexual_contact_level, base_sexual_level);
+
+
+    // 2. Airborne Contact Level with Adults
+    let airborne_adult_baseline = get_global_param("airborne_contact_adult_baseline").unwrap_or(5.0);
+    let airborne_adult_age_breakpoint_days = get_global_param("airborne_contact_adult_age_breakpoint_days").unwrap_or(18.0 * 365.0); // 18 years old
+    let airborne_in_hospital_multiplier = get_global_param("airborne_contact_in_hospital_multiplier").unwrap_or(1.5); // Might increase in hospital (e.g., healthcare workers)
+    let airborne_adult_child_multiplier = get_global_param("airborne_contact_adult_child_multiplier").unwrap_or(0.2); // How much less children contact adults
+
+    let mut base_airborne_adult_level = airborne_adult_baseline;
+    if (individual.age as f64) < airborne_adult_age_breakpoint_days {
+        base_airborne_adult_level *= airborne_adult_child_multiplier; // Children have less adult contact
+    }
+    if individual.hospital_status.is_hospitalized() {
+        base_airborne_adult_level *= airborne_in_hospital_multiplier;
+    }
+    update_contact_level(&mut individual.airborne_contact_level_with_adults, base_airborne_adult_level);
+
+
+    // 3. Airborne Contact Level with Children
+    let airborne_child_baseline = get_global_param("airborne_contact_child_baseline").unwrap_or(3.0);
+    let airborne_child_age_breakpoint_days = get_global_param("airborne_contact_child_age_breakpoint_days").unwrap_or(12.0 * 365.0); // 12 years old
+    let airborne_child_adult_multiplier = get_global_param("airborne_contact_child_adult_multiplier").unwrap_or(0.5); // How much less adults contact children (than children contact children)
+
+    let mut base_airborne_child_level = airborne_child_baseline;
+    if (individual.age as f64) < airborne_child_age_breakpoint_days {
+        // Higher for children interacting with children
+        base_airborne_child_level *= get_global_param("airborne_contact_child_child_multiplier").unwrap_or(1.5);
+    } else {
+        // Lower for adults interacting with children (e.g., parents/teachers)
+        base_airborne_child_level *= airborne_child_adult_multiplier;
+    }
+    if individual.hospital_status.is_hospitalized() {
+        base_airborne_child_level *= airborne_in_hospital_multiplier; // Same multiplier for simplicity
+    }
+    update_contact_level(&mut individual.airborne_contact_level_with_children, base_airborne_child_level);
+
+
+    // 4. Oral Exposure Level
+    let oral_exposure_baseline = get_global_param("oral_exposure_baseline").unwrap_or(2.0);
+    let oral_exposure_child_age_breakpoint_days = get_global_param("oral_exposure_child_age_breakpoint_days").unwrap_or(5.0 * 365.0); // 5 years old
+    let oral_exposure_child_multiplier = get_global_param("oral_exposure_child_multiplier").unwrap_or(3.0);
+    let oral_exposure_in_hospital_multiplier = get_global_param("oral_exposure_in_hospital_multiplier").unwrap_or(0.8); // Might decrease in hospital due to hygiene
+
+    let mut base_oral_level = oral_exposure_baseline;
+    if (individual.age as f64) < oral_exposure_child_age_breakpoint_days {
+        base_oral_level *= oral_exposure_child_multiplier;
+    }
+    if individual.hospital_status.is_hospitalized() {
+        base_oral_level *= oral_exposure_in_hospital_multiplier;
+    }
+    update_contact_level(&mut individual.oral_exposure_level, base_oral_level);
+
+
+    // 5. Mosquito Exposure Level
+    let mosquito_exposure_baseline = get_global_param("mosquito_exposure_baseline").unwrap_or(1.0);
+    let mosquito_exposure_in_hospital_multiplier = get_global_param("mosquito_exposure_in_hospital_multiplier").unwrap_or(0.2); // Usually lower indoors/hospitals
+
+    let mut base_mosquito_level = mosquito_exposure_baseline;
+
+    // Apply region-specific multiplier
+    // Convert Region enum to a lowercase, snake_case string for parameter lookup
+    let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
+    let region_multiplier_key = format!("{}_mosquito_exposure_multiplier", region_name_for_param);
+    let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0); // Default to 1.0 if region not specified
+    base_mosquito_level *= region_multiplier;
+
+    if individual.hospital_status.is_hospitalized() {
+        base_mosquito_level *= mosquito_exposure_in_hospital_multiplier;
+    }
+    update_contact_level(&mut individual.mosquito_exposure_level, base_mosquito_level);
+
+    // --- END Update Contact and Exposure Levels ---
+
+
+
+
+
+       // NEW: Update 'is_severely_immunosuppressed' status based on onset/recovery rates
+    let onset_rate = get_global_param("immunosuppression_onset_rate_per_day").unwrap_or(0.0001);
+    let recovery_rate = get_global_param("immunosuppression_recovery_rate_per_day").unwrap_or(0.0005);
+
+    if individual.is_severely_immunosuppressed {
+        // If currently immunosuppressed, check for recovery
+        if rng.gen_bool(recovery_rate) {
+            individual.is_severely_immunosuppressed = false;
+        }
+    } else { 
+        // If not immunosuppressed, check for onset
+        if rng.gen_bool(onset_rate) {
+            individual.is_severely_immunosuppressed = true;
+        }
+    }
+
+
+
+
+
     if rng.gen::<f64>() < 0.01 { individual.under_care = !individual.under_care; }
     individual.current_toxicity = (individual.current_toxicity + rng.gen_range(-0.5..=0.5)).max(0.0);
-    individual.mortality_risk_current_toxicity = rng.gen_range(0.0..=0.0001);
+//  individual.mortality_risk_current_toxicity = rng.gen_range(0.0..=0.0001);
 
-    
+    // todo: we have this variable under_care - do we need this ? if so we need it to be a pre-requisite of being given drugs  
+
+
+
 
         // Get parameters from config.rs ONCE per individual for this time step
     let baseline_rate = get_global_param("hospitalization_baseline_rate_per_day")
@@ -80,7 +213,6 @@ pub fn apply_rules(
     // Check if the individual is currently in their home region
     if let Region::Home = individual.region_cur_in {
         // If not hospitalized, consider initiating travel
-        // (You might want to add a check here to ensure they aren't hospitalized before travel)
         if !individual.hospital_status.is_hospitalized() && rng.gen::<f64>() < travel_prob {
             // Initiate travel: select a random new region different from their living region
             let mut new_region: Region;
@@ -113,6 +245,55 @@ pub fn apply_rules(
         }
     }
     // --- END Region Travel Rules ---
+
+
+
+
+        // --- NEW: Sepsis Risk Rules ---
+    for &bacteria in BACTERIA_LIST.iter() {
+        if let Some(&current_level) = individual.level.get(bacteria) {
+            // Only consider sepsis if an infection is present (level > 0.0)
+            if current_level > 0.0 {
+                if let Some(&last_infected_day) = individual.date_last_infected.get(bacteria) {
+                    let duration_of_infection = (time_step as i32 - last_infected_day).max(0); // Ensure non-negative duration
+
+                    // Retrieve bacteria-specific parameters, falling back to global defaults
+                    let sepsis_baseline_risk = get_bacteria_param(bacteria, "sepsis_baseline_risk_per_day")
+                        .unwrap_or_else(|| get_global_param("default_sepsis_baseline_risk_per_day").expect("Missing default_sepsis_baseline_risk_per_day"));
+                    let sepsis_level_multiplier = get_bacteria_param(bacteria, "sepsis_level_multiplier")
+                        .unwrap_or_else(|| get_global_param("default_sepsis_level_multiplier").expect("Missing default_sepsis_level_multiplier"));
+                    let sepsis_duration_multiplier = get_bacteria_param(bacteria, "sepsis_duration_multiplier")
+                        .unwrap_or_else(|| get_global_param("default_sepsis_duration_multiplier").expect("Missing default_sepsis_duration_multiplier"));
+
+                    // Calculate daily probability of sepsis
+                    let prob_sepsis_today = sepsis_baseline_risk
+                                            + (current_level * sepsis_level_multiplier)
+                                            + (duration_of_infection as f64 * sepsis_duration_multiplier);
+
+                    // Cap the probability at 1.0
+                    let prob_sepsis_today = prob_sepsis_today.min(1.0);
+
+                    // Roll the dice for sepsis
+                    if rng.gen::<f64>() < prob_sepsis_today {
+                        // Set sepsis status to true for this bacteria
+                        individual.sepsis.insert(bacteria, true);
+                        // Optional: For debugging
+                        // println!("DEBUG (Day {}): Individual {} developed sepsis for {} (Level: {:.2}, Duration: {})",
+                        //     time_step, individual.id, bacteria, current_level, duration_of_infection);
+                    }
+                }
+            } else {
+                // If infection level is 0 or individual is hospitalized, assume sepsis resolves for this bacteria
+                // This assumes sepsis is directly tied to active infection and is managed in hospital.
+                // You might need a more complex resolution mechanism if sepsis can persist after infection or hospitalization.
+                if individual.sepsis.get(bacteria).copied().unwrap_or(false) {
+                    individual.sepsis.insert(bacteria, false);
+                }
+            }
+        }
+    }
+    // --- END Sepsis Risk Rules ---
+
 
 
 
@@ -257,7 +438,120 @@ pub fn apply_rules(
             }
         }
     }
+
+
+        // NEW: Add drug-specific toxicity contributions
+    let mut daily_drug_toxicity_increase = 0.0;
+    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+        let drug_name = DRUG_SHORT_NAMES[drug_idx];
+        // Only consider toxicity if the drug is currently present in the system
+        if individual.cur_level_drug[drug_idx] > 0.0 {
+            // Get the drug-specific toxicity parameter.
+            // Falls back to a global default if the drug-specific one isn't found.
+            let drug_toxicity_per_unit = get_drug_param(drug_name, "toxicity_per_unit_level_per_day")
+                .unwrap_or_else(|| {
+                    get_global_param("default_drug_toxicity_per_unit_level_per_day")
+                        .expect("Missing default_drug_toxicity_per_unit_level_per_day in config")
+                });
+            
+            daily_drug_toxicity_increase += individual.cur_level_drug[drug_idx] * drug_toxicity_per_unit;
+        }
+    }
+    // Add the calculated drug-induced toxicity to the individual's current_toxicity
+    individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase).max(0.0);
+
+
+
     // --- DRUG LOGIC END ---
+
+
+
+
+
+
+    // --- DEATH LOGIC START ---
+    // Only apply death logic if the individual is not already dead
+    if individual.date_of_death.is_none() {
+        let mut prob_of_death_today = 0.0;
+        let mut cause: Option<String> = None;
+
+        // 1. Background Mortality Risk (Age, Region, and Sex dependent)
+        let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
+            .expect("Missing base_background_mortality_rate_per_day in config");
+        let age_multiplier = get_global_param("age_mortality_multiplier_per_year")
+            .expect("Missing age_mortality_multiplier_per_year in config");
+
+        // needs some attention as want age_multiplier to be a rate ratio per additional day of age - and at some point to recognise non-linearity of age effect    
+        let mut background_risk = base_background_rate;
+        background_risk += (individual.age as f64 / 365.0) * age_multiplier; 
+
+        // Apply region-specific multiplier
+        let region_multiplier_key = format!("{}_mortality_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
+        let region_multiplier = get_global_param(&region_multiplier_key)
+            .unwrap_or(1.0); // Default to 1.0 if not found
+        background_risk *= region_multiplier;
+
+        // Apply sex-specific multiplier
+        let sex_multiplier_key = format!("{}_mortality_multiplier", individual.sex_at_birth.to_lowercase());
+        let sex_multiplier = get_global_param(&sex_multiplier_key)
+            .unwrap_or(1.0); // Default to 1.0 if not found
+        background_risk *= sex_multiplier;
+
+        individual.background_all_cause_mortality_rate = background_risk.min(1.0); // Store for potential logging/debugging
+
+        // Initialize total probability of NOT dying
+        let mut prob_not_dying = 1.0 - background_risk;
+
+        // 2. Absolute Risk of Death from Sepsis (Independent)
+        let has_sepsis = individual.sepsis.values().any(|&status| status);
+        if has_sepsis {
+            let sepsis_absolute_death_risk = get_global_param("sepsis_absolute_death_risk_per_day")
+                .expect("Missing sepsis_absolute_death_risk_per_day in config");
+            prob_not_dying *= 1.0 - sepsis_absolute_death_risk;
+            if cause.is_none() { cause = Some("sepsis_related".to_string()); } // Prioritize sepsis as a cause
+        }
+
+        // 3. Absolute Risk of Death from Drug Adverse Events (Independent and Drug-specific)
+        let mut drug_adverse_event_risk_for_individual = 0.0;
+        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+            let drug_name = DRUG_SHORT_NAMES[drug_idx];
+            if individual.cur_level_drug[drug_idx] > 0.0 { // If drug is present in system
+                let drug_adverse_event_risk = get_drug_param(drug_name, "adverse_event_death_risk")
+                    .unwrap_or(0.0); // Default to 0 if not specified for drug
+                drug_adverse_event_risk_for_individual = (drug_adverse_event_risk_for_individual + drug_adverse_event_risk).min(1.0);
+            }
+        }
+        individual.mortality_risk_current_toxicity = drug_adverse_event_risk_for_individual; // Store for potential logging/debugging
+        if drug_adverse_event_risk_for_individual > 0.0 {
+            prob_not_dying *= (1.0 - drug_adverse_event_risk_for_individual);
+            if cause.is_none() { cause = Some("drug_toxicity_related".to_string()); } // Prioritize drug toxicity if no sepsis
+        }
+
+        // REMOVED: 4. Existing Infection-Related Death Risk (No longer a direct cause, only through sepsis)
+        // If you still have a current_infection_related_death_risk field, its value won't be used here for death.
+        // if individual.current_infection_related_death_risk > 0.0 {
+        //     prob_not_dying *= (1.0 - individual.current_infection_related_death_risk.min(1.0));
+        //     if cause.is_none() { cause = Some("infection_related".to_string()); }
+        // }
+
+        // Calculate final probability of death
+        prob_of_death_today = 1.0 - prob_not_dying;
+        prob_of_death_today = prob_of_death_today.clamp(0.0, 1.0); // Ensure it's between 0 and 1
+
+        // Roll the dice for death
+        if rng.gen::<f64>() < prob_of_death_today {
+            individual.date_of_death = Some(time_step);
+            individual.cause_of_death = cause.or(Some("background_mortality".to_string())); // Default to background if no specific cause assigned
+            // println!("DEBUG: Individual {} died at time step {} due to: {:?}",
+            //     individual.id, time_step, individual.cause_of_death); // Optional: For debugging
+        }
+    }
+    // --- DEATH LOGIC END ---
+
+
+
+
+
 
     // Update per-bacteria fields
 for &bacteria in BACTERIA_LIST.iter() {
@@ -275,6 +569,7 @@ for &bacteria in BACTERIA_LIST.iter() {
         let oral_exposure_multiplier = get_bacteria_param(bacteria, "oral_exposure_acq_rate_ratio_per_unit").unwrap_or(1.0);
         let mosquito_exposure_multiplier = get_bacteria_param(bacteria, "mosquito_exposure_acq_rate_ratio_per_unit").unwrap_or(1.0);
 
+        // todo: these will depend on bacteria 
         acquisition_probability *= sexual_contact_multiplier.powf(individual.sexual_contact_level);
         acquisition_probability *= airborne_adult_contact_multiplier.powf(individual.airborne_contact_level_with_adults);
         acquisition_probability *= airborne_child_contact_multiplier.powf(individual.airborne_contact_level_with_children);
@@ -286,8 +581,69 @@ for &bacteria in BACTERIA_LIST.iter() {
             let vaccine_efficacy = get_bacteria_param(bacteria, "vaccine_efficacy").unwrap_or(0.0);
             acquisition_probability *= 1.0 - vaccine_efficacy;
         }
+
+        // NEW: Apply microbiome presence effect on infection acquisition risk
+        // If the bacteria is already in the individual's microbiome (carriage)
+        if individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
+            let microbiome_infection_multiplier = get_bacteria_param(bacteria, "microbiome_infection_acquisition_multiplier")
+                .unwrap_or_else(|| {
+                    get_global_param("default_microbiome_infection_acquisition_multiplier")
+                        .expect("Missing default_microbiome_infection_acquisition_multiplier in config")
+                });
+            acquisition_probability *= microbiome_infection_multiplier;
+            // Optional: for debugging
+            // println!("DEBUG (Day {}): Individual {} has {} in microbiome, infection acquisition_probability modified to {:.4}",
+            //     time_step, individual.id, bacteria, acquisition_probability);
+        }
         // --- END BACTERIA-SPECIFIC ACQUISITION PROBABILITY CALCULATION ---
 
+
+
+
+ // --- NEW: Update Microbiome Presence (Carriage) ---
+// This block should be placed for each 'bacteria' where 'acquisition_probability' is known.
+
+// If the individual does NOT currently have this bacteria in their microbiome
+if !individual.presence_microbiome.get(bacteria).copied().unwrap_or(false) {
+    // Get a specific multiplier for microbiome acquisition.
+    // This allows the absolute risk for microbiome acquisition to differ from infection.
+    let microbiome_acquisition_multiplier = get_bacteria_param(bacteria, "microbiome_acquisition_multiplier")
+        .unwrap_or_else(|| {
+            get_global_param("default_microbiome_acquisition_multiplier")
+                .expect("Missing default_microbiome_acquisition_multiplier in config")
+        });
+
+    // Calculate the microbiome-specific acquisition probability.
+    // It depends on the same underlying factors as infection (via acquisition_probability),
+    // but its absolute value is scaled by the new multiplier.
+    let microbiome_acquisition_probability = acquisition_probability * microbiome_acquisition_multiplier;
+
+    if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
+        individual.presence_microbiome.insert(bacteria, true);
+        // Optional: for debugging
+        // println!("DEBUG (Day {}): Individual {} acquired {} in microbiome (carriage).", time_step, individual.id, bacteria);
+    }
+} else {
+    // If the individual *does* have this bacteria in their microbiome,
+    // there should be a chance to lose it (clearance).
+    let microbiome_clearance_prob = get_bacteria_param(bacteria, "microbiome_clearance_probability_per_day")
+        .unwrap_or_else(|| {
+            get_global_param("default_microbiome_clearance_probability_per_day")
+                .expect("Missing default_microbiome_clearance_probability_per_day in config")
+        });
+
+    if rng.gen_bool(microbiome_clearance_prob) {
+        individual.presence_microbiome.insert(bacteria, false);
+        // Optional: for debugging
+        // println!("DEBUG (Day {}): Individual {} lost {} from microbiome (carriage).", time_step, individual.id, bacteria);
+    }
+}
+// --- END Microbiome Presence Rules ---
+
+
+
+
+        
 
         if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
             let initial_level = get_bacteria_param(bacteria, "initial_infection_level").unwrap_or(0.01);
@@ -311,13 +667,21 @@ for &bacteria in BACTERIA_LIST.iter() {
             };
             individual.infectious_syndrome.insert(bacteria, syndrome_id);
 
+
             let env_acquisition_chance = get_bacteria_param(bacteria, "environmental_acquisition_proportion").unwrap_or(0.1);
             let is_from_environment = rng.gen::<f64>() < env_acquisition_chance;
             individual.cur_infection_from_environment.insert(bacteria, is_from_environment);
 
+            // review how hospital acquired different - do we need to treat environment differently for people in hospital ? 
             let hospital_acquired_chance = get_bacteria_param(bacteria, "hospital_acquired_proportion").unwrap_or(0.05);
-            let is_hospital_acquired = rng.gen::<f64>() < hospital_acquired_chance;
+            let mut is_hospital_acquired = false; // Initialize to false
+
+            // NEW LOGIC: Only consider hospital-acquired if the individual is currently hospitalized
+            if individual.hospital_status.is_hospitalized() {
+                is_hospital_acquired = rng.gen::<f64>() < hospital_acquired_chance;
+            }
             individual.infection_hospital_acquired.insert(bacteria, is_hospital_acquired);
+
 
             // --- any_r AND majority_r SETTING LOGIC ON NEW INFECTION ACQUISITION ---
             // in a newly infected person we should sample majority_r / any_r from all people in the same region with that 
@@ -554,22 +918,11 @@ for &bacteria in BACTERIA_LIST.iter() {
                 individual.date_last_infected.remove(bacteria);
                 individual.immune_resp.remove(bacteria);
                 individual.sepsis.remove(bacteria);
-                individual.level_microbiome.remove(bacteria); // If you're not considering microbiome persistence for resistance
+                individual.presence_microbiome.remove(bacteria); // If you're not considering microbiome persistence for resistance
                 individual.infection_hospital_acquired.remove(bacteria);
                 individual.cur_infection_from_environment.remove(bacteria);
                 individual.test_identified_infection.insert(bacteria, false);
 
-                // This nested block is redundant and could be removed if the one above it serves the purpose.
-                // However, if you specifically want to ensure it's set to 0.0, it's harmless but duplicative.
-                // It was duplicated in your original code, so I've kept it as a commented-out reminder.
-                /*
-                if let Some(b_idx_clear) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
-                    for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
-                        individual.resistances[b_idx_clear][drug_idx_clear].any_r = 0.0;
-                        individual.resistances[b_idx_clear][drug_idx_clear].majority_r = 0.0;
-                    }
-                }
-                */
             }
         }
 

@@ -11,21 +11,17 @@ mod config;
 // infection with immune response, leading to eradication of infection
 // infection with immune response and drug (but no drug resistance)
 // infection with immune response, drug and drug resistance
-//
+// start getting out graphs
 //
 // 
 // review how hospital acquired different - do we need to treat environment differently for people in hospital ? 
-// need update rules for hospital / icu status
-// still need to add code for whether visiting another region ? 
-// still need code for death rates 
-// still need code for drug toxicity
+// need update rules for icu status
+// we have the variable under_care - do we need this ? if so we need it to be a pre-requisite of being given drugs
+// code to update level_microbiome
+// infection risk should depend on whether the bacteria present in microbiome, at least for some bacteria.  Do we need to specify where in body bacteria is carried ?
 // need a variable for vulnerability to serious toxicity ?  
-// still need code for sepsis 
-// still need code for level_microbiome
-// need immune response to be lower with age ?
-// need to have immune response varying randomly to capture immune deficiency more generally ?
-// how to update contact / exposure level variables ?
-// start getting out graphs
+// how to update contact / exposure level variables and how they affect infection risk 
+// variable indicating whether the person is currently severely immunosuppressed.
 //
 //
 // review calculation of activity_r (dependence on majority_r, drug level and underlying drug potency against bacteria)
@@ -135,4 +131,36 @@ fn main() {
 
 
     simulation.run();
+
+
+
+    println!("\n--- SIMULATION RESULTS ---");
+
+    // --- DEATH REPORTING START ---
+    let mut total_deaths = 0;
+    let mut death_causes_count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    for individual in &simulation.population.individuals {
+        if let Some(date_of_death) = individual.date_of_death {
+            total_deaths += 1;
+            if let Some(cause) = &individual.cause_of_death {
+                *death_causes_count.entry(cause.clone()).or_insert(0) += 1;
+            }
+            // Optional: Print details for each death
+            // println!("Individual {} died on Day {} due to {:?}", individual.id, date_of_death, individual.cause_of_death);
+        }
+    }
+
+    println!("\nTotal Deaths during simulation: {}", total_deaths);
+    println!("Breakdown by Cause of Death:");
+    for (cause, count) in death_causes_count {
+        println!("  {}: {}", cause, count);
+    }
+    // --- DEATH REPORTING END ---
+
+    println!("\n--- SIMULATION FINISHED ---");
 }
+
+
+
+

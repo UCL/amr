@@ -81,6 +81,126 @@ lazy_static! {
             map.insert(format!("drug_{}_double_dose_multiplier", drug), 2.0); // Default double dose multiplier
         }
 
+        // Global defaults, used if a bacteria-specific parameter is not found
+        map.insert("default_sepsis_baseline_risk_per_day".to_string(), 0.00001); // Very small baseline daily risk
+        map.insert("default_sepsis_level_multiplier".to_string(), 0.005); // Multiplier for bacterial level (e.g., higher level = higher risk)
+        map.insert("default_sepsis_duration_multiplier".to_string(), 0.000001); // Multiplier for duration of infection (e.g., longer duration = higher risk)
+
+
+
+        // --- NEW AND UPDATED DEATH RELATED PARAMETERS ---
+        // Background Mortality Parameters (Age, Region, and Sex dependent)
+        map.insert("base_background_mortality_rate_per_day".to_string(), 0.000005); // Example: 0.0005% chance of death per day, for a baseline individual
+        map.insert("age_mortality_multiplier_per_year".to_string(), 0.0000001); // Example: Small increase in daily death risk per year of age
+
+        // Region-specific mortality multipliers. Ensure these match your `Region` enum variants.
+        map.insert("northamerica_mortality_multiplier".to_string(), 1.0);
+        map.insert("southamerica_mortality_multiplier".to_string(), 1.0);
+        map.insert("africa_mortality_multiplier".to_string(), 1.2);    // Example: 20% higher mortality risk
+        map.insert("asia_mortality_multiplier".to_string(), 1.1);
+        map.insert("europe_mortality_multiplier".to_string(), 0.9);     // Example: 10% lower mortality risk
+        map.insert("oceania_mortality_multiplier".to_string(), 1.0);
+        map.insert("home_mortality_multiplier".to_string(), 1.0);       // If 'Home' is a specific region in your logic
+
+        // Sex-specific mortality multipliers. Ensure these match your `sex_at_birth` strings.
+        map.insert("male_mortality_multiplier".to_string(), 1.1);   // Example: Males have 10% higher mortality risk
+        map.insert("female_mortality_multiplier".to_string(), 0.9); // Example: Females have 10% lower mortality risk
+
+
+        // NEW: Immunosuppression Onset and Recovery Rates
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0001);   // Probability of becoming immunosuppressed daily
+        map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
+
+
+        // Sepsis Mortality Parameter (Absolute risk, independent of other factors)
+        map.insert("sepsis_absolute_death_risk_per_day".to_string(), 0.1); // Example: 10% absolute chance of death per day if septic
+
+               // NEW: Default Toxicity Parameter
+        map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
+
+              // NEW: Default Microbiome Acquisition Parameter
+        // A multiplier for the infection acquisition probability to get microbiome acquisition probability.
+        // If > 1.0, microbiome acquisition is more likely than infection for the same factors.
+        // If < 1.0, microbiome acquisition is less likely.
+        map.insert("default_microbiome_acquisition_multiplier".to_string(), 2.0); // Example: Microbiome acquisition is twice as likely as infection given the same exposure.
+
+        // NEW: Default Microbiome Clearance Parameter (from previous suggestion, ensure it's there)
+        map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
+
+               // NEW: Microbiome Presence Effect on Infection Acquisition
+        // A multiplier for infection acquisition probability if the bacteria is already present in the microbiome.
+        // Value > 1.0 means microbiome presence increases infection risk.
+        // Value < 1.0 means microbiome presence decreases infection risk (e.g., due to local immunity/competition).
+        map.insert("default_microbiome_infection_acquisition_multiplier".to_string(), 0.1); // Example: Much harder to get infected if already colonized.
+
+       // NEW: Contact and Exposure Level Parameters
+        map.insert("contact_level_daily_fluctuation_range".to_string(), 0.5); // Amount of random daily fluctuation
+        map.insert("min_contact_level".to_string(), 0.0); // Minimum possible contact/exposure level
+        map.insert("max_contact_level".to_string(), 10.0); // Maximum possible contact/exposure level
+
+        // Sexual Contact Parameters
+        map.insert("sexual_contact_baseline".to_string(), 5.0); // Baseline level for a young adult
+        map.insert("sexual_contact_age_peak_days".to_string(), 25.0 * 365.0); // Age in days (25 years)
+        map.insert("sexual_contact_age_rise_exponent".to_string(), 2.0); // Controls how fast contact rises with age before peak (higher = steeper)
+        map.insert("sexual_contact_age_decline_rate".to_string(), 0.00005); // Rate of decline per day after peak age (e.g., 0.00005 means ~1.8% drop per year)
+        map.insert("sexual_contact_hospital_multiplier".to_string(), 0.0); // Significantly reduced in hospital (0.0 means no contact)
+
+        // Airborne Contact (Adults) Parameters
+        map.insert("airborne_contact_adult_baseline".to_string(), 5.0);
+        map.insert("airborne_contact_adult_age_breakpoint_days".to_string(), 18.0 * 365.0); // Age in days (18 years)
+        map.insert("airborne_contact_adult_child_multiplier".to_string(), 0.2); // How much less children contact adults (vs. adult-adult baseline)
+        map.insert("airborne_contact_in_hospital_multiplier".to_string(), 1.5); // May increase due to healthcare staff contact
+
+        // Airborne Contact (Children) Parameters
+        map.insert("airborne_contact_child_baseline".to_string(), 3.0);
+        map.insert("airborne_contact_child_age_breakpoint_days".to_string(), 12.0 * 365.0); // Age in days (12 years)
+        map.insert("airborne_contact_child_child_multiplier".to_string(), 1.5); // How much more children contact children (vs. child baseline)
+        map.insert("airborne_contact_child_adult_multiplier".to_string(), 0.5); // How much less adults contact children (vs. child baseline)
+
+        // Oral Exposure Parameters
+        map.insert("oral_exposure_baseline".to_string(), 2.0);
+        map.insert("oral_exposure_child_age_breakpoint_days".to_string(), 5.0 * 365.0); // Age in days (5 years)
+        map.insert("oral_exposure_child_multiplier".to_string(), 3.0); // Higher for young children
+        map.insert("oral_exposure_in_hospital_multiplier".to_string(), 0.8); // Slightly reduced due to hospital hygiene
+
+        // Mosquito Exposure Parameters
+        map.insert("mosquito_exposure_baseline".to_string(), 1.0);
+        map.insert("mosquito_exposure_in_hospital_multiplier".to_string(), 0.2); // Significantly reduced indoors/hospital
+        // Region-specific multipliers (example values, adjust as needed based on actual epidemiology)
+        map.insert("north_america_mosquito_exposure_multiplier".to_string(), 0.5);
+        map.insert("south_america_mosquito_exposure_multiplier".to_string(), 5.0);
+        map.insert("africa_mosquito_exposure_multiplier".to_string(), 8.0);
+        map.insert("asia_mosquito_exposure_multiplier".to_string(), 6.0);
+        map.insert("europe_mosquito_exposure_multiplier".to_string(), 0.2);
+        map.insert("oceania_mosquito_exposure_multiplier".to_string(), 3.0);
+        // Ensure you have multipliers for all variants of your `Region` enum,
+        // or add a default handling in the `mod.rs` if a region param isn't found.
+        // If `Region::Home` refers to a generic home location not tied to a specific geographical region,
+        // you might need to reconsider its role or default it to 1.0 or an average.
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+        // Drug-specific Adverse Event Death Risk Parameters (Absolute risk, independent and drug-specific)
+        // Add an entry for each drug that can cause an adverse event leading to death.
+        // The key format is "drug_{drug_short_name}_adverse_event_death_risk"
+        map.insert("drug_amoxicillin_adverse_event_death_risk".to_string(), 0.0001); // Example: 0.01% daily absolute risk from amoxicillin
+        map.insert("drug_meropenem_adverse_event_death_risk".to_string(), 0.0005);   // Example: 0.05% daily absolute risk from meropenem
+        // Add similar lines for other drugs as needed:
+        // map.insert("drug_ciprofloxacin_adverse_event_death_risk".to_string(), 0.0002);
+        // map.insert("drug_vancomycin_adverse_event_death_risk".to_string(), 0.0003);
+
+
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
 
         // acinetobac_bau Parameters
@@ -91,7 +211,39 @@ lazy_static! {
         map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 0.0);  // 0.2
         map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005);  
         map.insert("acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.7); // Baseline probability for de novo resistance emergence
- 
+
+        map.insert("acinetobac_bau_baseline_risk_per_day".to_string(), 0.00002);
+        map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);
+        map.insert("acinetobac_bau_duration_multiplier".to_string(), 0.000002);
+
+
+        // NEW: Drug-Specific Toxicity Parameters (Examples)
+        // Format: "drug_{drug_name}_toxicity_per_unit_level_per_day"
+        map.insert("drug_penicilling_toxicity_per_unit_level_per_day".to_string(), 0.002); // Lower toxicity example
+        map.insert("drug_cefepime_toxicity_per_unit_level_per_day".to_string(), 0.01);    // Higher toxicity example
+        map.insert("drug_meropenem_toxicity_per_unit_level_per_day".to_string(), 0.008);
+
+
+        // NEW: Bacteria-Specific Microbiome Acquisition Multipliers (Optional Examples)
+        // Format: "{bacteria_name}_microbiome_acquisition_multiplier"
+        map.insert("strep_pneu_microbiome_acquisition_multiplier".to_string(), 3.0); // Strep Pneu might colonize more easily
+        map.insert("salm_typhi_microbiome_acquisition_multiplier".to_string(), 0.5);  // Salmonella might colonize less easily than cause infection
+
+        // NEW: Bacteria-Specific Microbiome Clearance Parameters (Optional Examples)
+        // Format: "{bacteria_name}_microbiome_clearance_probability_per_day"
+        map.insert("strep_pneu_microbiome_clearance_probability_per_day".to_string(), 0.02);
+        map.insert("esch_coli_microbiome_clearance_probability_per_day".to_string(), 0.005);
+
+
+        
+        // NEW: Bacteria-Specific Microbiome Infection Acquisition Multipliers (Optional Examples)
+        // Format: "{bacteria_name}_microbiome_infection_acquisition_multiplier"
+        map.insert("strep_pneu_microbiome_infection_acquisition_multiplier".to_string(), 0.05); // Maybe Strep Pneu is very protective when colonized
+        map.insert("salm_typhi_microbiome_infection_acquisition_multiplier".to_string(), 0.8);  // Salmonella might offer less protection, or even slightly increase risk if certain strains
+
+
+        // Add specific rates for your drugs (e.g., higher for more toxic drugs)
+        map.insert("gentamicin_toxicity_mortality_rate_per_day".to_string(), 0.00001); // Example for a specific drug
 
         // Add more specific parameters for acinetobac_bau if needed
 
