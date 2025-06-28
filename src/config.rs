@@ -9,14 +9,14 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0005); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_rate_per_day".to_string(), 1.0);
         map.insert("already_on_drug_initiation_multiplier".to_string(), 0.000); // 0.0001
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
       
-        map.insert("random_drug_cessation_probability".to_string(), 0.001); // Probability an individual randomly stops a drug per day
+        map.insert("random_drug_cessation_probability".to_string(), 0.03); // Probability an individual randomly stops a drug per day
 
         // General Acquisition & Resistance Parameters
         // this two below will need to change over calendar time - for the hospital acquired may decide to sample from 
@@ -28,7 +28,7 @@ lazy_static! {
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
 
         // Resistance Emergence and Decay Parameters
-        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.000001); // Baseline probability for de novo resistance emergence
+        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.0);  // 0.000001 Baseline probability for de novo resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
@@ -60,7 +60,7 @@ lazy_static! {
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.0); // 0.01
-            map.insert(format!("{}_initial_infection_level", bacteria), 0.01);
+            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1);
             map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05);
             map.insert(format!("{}_decay_rate", bacteria), 0.02);
@@ -70,14 +70,14 @@ lazy_static! {
             map.insert(format!("{}_sexual_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_mosquito_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
-            map.insert(format!("{}_level_change_rate_baseline", bacteria), 0.2); // Default to no growth/decay
+            map.insert(format!("{}_level_change_rate_baseline", bacteria), 0.2); // currently if this is non-zero it means that people can have level > 0 and ths appear infected
             map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.01);
-            map.insert(format!("{}_max_level", bacteria), 100.0);
-            map.insert(format!("{}_immunity_increase_rate_baseline", bacteria), 0.001);
-            map.insert(format!("{}_initial_immunity_on_infection", bacteria), 0.0001);
+            map.insert(format!("{}_max_level", bacteria), 5.0);
+            map.insert(format!("{}_immunity_increase_rate_baseline", bacteria), 0.1); // 0.001
+            map.insert(format!("{}_initial_immunity_on_infection", bacteria), 0.001); 
             map.insert(format!("{}_immunity_increase_rate_per_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
-            map.insert(format!("{}_baseline_immunity_level", bacteria), 0.00001);
+            map.insert(format!("{}_baseline_immunity_level", bacteria), 0.00001); // 0.00001
             map.insert(format!("{}_immunity_decay_rate", bacteria), 0.1);
         }
 
@@ -210,13 +210,13 @@ lazy_static! {
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
 
         // acinetobac_bau Parameters
-        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.2);
+        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.5);
         map.insert("acinetobac_bau_hospital_acquired_proportion".to_string(), 0.15); // Often hospital-acquired
-        map.insert("acinetobac_bau_immunity_increase_rate_baseline".to_string(), 0.0); // 0.001
-        map.insert("acinetobac_bau_immunity_increase_rate_per_day".to_string(), 0.0);  // 0.2
-        map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 0.0);  // 0.2
+        map.insert("acinetobac_bau_immunity_increase_rate_baseline".to_string(), 0.001); // 0.001
+        map.insert("acinetobac_bau_immunity_increase_rate_per_day".to_string(), 0.2);  // 0.2
+        map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 0.2);  // 0.2
         map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005);  
-        map.insert("acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.7); // Baseline probability for de novo resistance emergence
+        map.insert("acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); // 0.7 Baseline probability for de novo resistance emergence
 
         map.insert("acinetobac_bau_baseline_risk_per_day".to_string(), 0.00002);
         map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);

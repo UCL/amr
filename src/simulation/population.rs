@@ -90,15 +90,16 @@ pub struct Individual {
     pub days_visiting: u32, 
     pub hospital_status: HospitalStatus,
     pub days_hospitalized: u32, // <--- ADDITION HERE
-    pub date_last_infected: HashMap<&'static str, i32>,
-    pub infectious_syndrome: HashMap<&'static str, i32>,
-    pub level: HashMap<&'static str, f64>,
-    pub immune_resp: HashMap<&'static str, f64>,
-    pub sepsis: HashMap<&'static str, bool>,
-    pub presence_microbiome: HashMap<&'static str, bool>,
-    pub vaccination_status: HashMap<&'static str, bool>,
-    pub cur_infection_from_environment: HashMap<&'static str, bool>,
-    pub test_identified_infection: HashMap<&'static str, bool>,
+    pub date_last_infected: Vec<i32>,              // was HashMap
+    pub infectious_syndrome: Vec<i32>,             // was HashMap
+    pub level: Vec<f64>,
+
+    pub immune_resp: Vec<f64>,                     // was HashMap
+    pub sepsis: Vec<bool>,                         // was HashMap
+    pub presence_microbiome: Vec<bool>,            // was HashMap
+    pub vaccination_status: Vec<bool>,             // was HashMap
+    pub cur_infection_from_environment: Vec<bool>, // was HashMap
+    pub test_identified_infection: Vec<bool>,      // was HashMap
     pub cur_use_drug: Vec<bool>,
     pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
     pub date_drug_initiated: Vec<i32>, // ADDED: Stores the time_step when each drug was last initiated
@@ -109,7 +110,7 @@ pub struct Individual {
     pub airborne_contact_level_with_children: f64,
     pub oral_exposure_level: f64,
     pub mosquito_exposure_level: f64,
-    pub infection_hospital_acquired: HashMap<&'static str, bool>,
+    pub infection_hospital_acquired: Vec<bool>,    // was HashMap
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64, 
     pub resistances: Vec<Vec<Resistance>>,
@@ -122,36 +123,22 @@ pub struct Individual {
 impl Individual {
     pub fn new(id: usize, age_days: i32, sex_at_birth: String) -> Self {
         let mut rng = rand::thread_rng();
-        let mut date_last_infected = HashMap::new();
-        let mut infectious_syndrome: HashMap<&'static str, i32> = HashMap::new();
-        let mut level = HashMap::new();
-        let mut immune_resp = HashMap::new();
-        let mut sepsis = HashMap::new();
-        let mut presence_microbiome = HashMap::new();
-        let mut infection_hospital_acquired = HashMap::new();
-        let mut cur_infection_from_environment = HashMap::new();
-        let mut test_identified_infection = HashMap::new();
-        let mut vaccination_status = HashMap::new();
-
-
-        for &bacteria in BACTERIA_LIST.iter() {
-            date_last_infected.insert(bacteria, 0);
-            infectious_syndrome.insert(bacteria, 0);
-            level.insert(bacteria, 0.0);
-            immune_resp.insert(bacteria, 1.0);
-            sepsis.insert(bacteria, false);
-            presence_microbiome.insert(bacteria, false);
-            infection_hospital_acquired.insert(bacteria, false);
-            cur_infection_from_environment.insert(bacteria, false);
-            test_identified_infection.insert(bacteria, false);
-            vaccination_status.insert(bacteria, rng.gen_bool(0.5)); // Random initial status for each
-        }
-
-        let num_drugs = DRUG_SHORT_NAMES.len();
         let num_bacteria = BACTERIA_LIST.len();
+        let num_drugs = DRUG_SHORT_NAMES.len();
+
+        // Replace HashMap initializations with Vec initializations
+        let date_last_infected = vec![0; num_bacteria];
+        let infectious_syndrome = vec![0; num_bacteria];
+        let level = vec![0.0; num_bacteria];
+        let immune_resp = vec![0.1; num_bacteria];
+        let sepsis = vec![false; num_bacteria];
+        let presence_microbiome = vec![false; num_bacteria];
+        let infection_hospital_acquired = vec![false; num_bacteria];
+        let cur_infection_from_environment = vec![false; num_bacteria];
+        let test_identified_infection = vec![false; num_bacteria];
+        let vaccination_status = (0..num_bacteria).map(|_| rng.gen_bool(0.5)).collect();
+
         let mut resistances = Vec::with_capacity(num_bacteria);
-
-
         for _ in 0..num_bacteria {
             let mut drug_resistances = Vec::with_capacity(num_drugs);
             for _ in 0..num_drugs {
@@ -185,7 +172,7 @@ impl Individual {
             sex_at_birth,
             date_last_infected,
             infectious_syndrome,
-            level,
+            level: vec![0.0; num_bacteria],
             immune_resp,
             sepsis,
             presence_microbiome,
