@@ -367,29 +367,59 @@ pub fn apply_rules(
         }
     }
 
-    // --- New Drug Initiation Logic ---
+// --- MODIFIED DRUG INITIATION LOGIC ---
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         let drug_name = DRUG_SHORT_NAMES[drug_idx];
+
+        // Start with the base initiation rate for *any* drug
         let mut administration_prob = drug_base_initiation_rate;
+
+        // --- Apply bacteria-specific multipliers if the individual has active infections ---
+        let mut max_bacteria_specific_multiplier: f64 = 1.0; // Use max to represent the highest relevance
+        for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+            // Check if individual is infected with this specific bacteria and it's above threshold
+            if individual.level[b_idx] > 0.001 {
+                // Look up the specific multiplier for this drug-bacteria combination
+                let param_key = format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug_name, bacteria_name);
+                if let Some(specific_multiplier) = get_global_param(&param_key) {
+                    // We want the *highest* relevant multiplier to apply, or you could sum them.
+                    // Summing them would mean if a drug treats multiple active infections, it's even more likely.
+                    // Max: administration_prob *= specific_multiplier; (this applies the max one)
+                    // Sum: administration_prob += drug_base_initiation_rate * (specific_multiplier - 1.0); (this adds the 'extra' from the multiplier)
+                    // Let's go with summing the 'extra' influence of each relevant bacteria.
+                    // Or, simpler for now: find the max, then apply it with other multipliers.
+                    max_bacteria_specific_multiplier = max_bacteria_specific_multiplier.max(specific_multiplier);
+                }
+            }
+        }
+        // Apply the highest relevant bacteria-specific multiplier
+        administration_prob *= max_bacteria_specific_multiplier;
+
+
+        // Apply general multipliers AFTER the base rate and bacteria-specific multiplier
         if has_any_infection { administration_prob *= drug_infection_present_multiplier; }
         if has_any_identified_infection { administration_prob *= drug_test_identified_multiplier; }
         if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
             administration_prob *= already_on_drug_initiation_multiplier;
         }
         administration_prob *= syndrome_administration_multiplier;
-        administration_prob = administration_prob.clamp(0.0, 1.0);
+
+        administration_prob = administration_prob.clamp(0.0, 1.0); // Clamp final probability
+
         if drugs_initiated_this_time_step < 2 && !individual.cur_use_drug[drug_idx] {
             if rng.gen_bool(administration_prob) {
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
 
-  //        println!(
-  //            "DEBUG: Individual {} started {} on day {}. Initial level: {:.2}",
-  //            individual.id, // Assuming 'individual.id' exists
-  //            drug_name,
-  //            individual.date_drug_initiated[drug_idx],
-  //            get_drug_param(drug_name, "initial_level").unwrap_or(10.0) // Showing initial level too
-  //        );               
+                // Debug print
+                println!(
+                    "DEBUG: Individual {} started {} on day {}. Initiated due to (admin_prob: {:.4}). Current level: {:.2}",
+                    individual.id,
+                    drug_name,
+                    individual.date_drug_initiated[drug_idx],
+                    administration_prob,
+                    get_drug_param(drug_name, "initial_level").unwrap_or(10.0)
+                );
 
                 let mut chosen_initial_level = get_drug_param(drug_name, "initial_level").unwrap_or(10.0);
                 if has_any_identified_infection && rng.gen_bool(double_dose_probability) {
@@ -401,6 +431,8 @@ pub fn apply_rules(
             }
         }
     }
+
+
 
     // Drug-specific toxicity
     let mut daily_drug_toxicity_increase = 0.0;
@@ -724,9 +756,10 @@ pub fn apply_rules(
 
 
                     // Calculate activity_r (should always be updated)
+                    // todo: may need to specify the parameter 0.05 below in config.rs
                     if drug_current_level > 0.0 {
                         let normalized_any_r = resistance_data.any_r / max_resistance_level;
-                        resistance_data.activity_r = drug_current_level * (1.0 - normalized_any_r);
+                        resistance_data.activity_r = 0.05 * drug_current_level * (1.0 - normalized_any_r);
                     } else {
                         resistance_data.activity_r = 0.0;
                     }

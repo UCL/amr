@@ -115,6 +115,27 @@ impl Simulation {
                 );
             });
 
+            // --- Print activity_r for all infected bacteria/drug pairs for Individual 0 after update ---
+            let individual_0 = &self.population.individuals[0];
+            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                if individual_0.level[b_idx] > 0.0001 {
+                    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                        if individual_0.cur_level_drug[drug_idx] > 0.0 {
+                            let resistance_data = &individual_0.resistances[b_idx][drug_idx];
+                            println!(
+                                "After time step {}: {} (infected) + {} (present): activity_r = {:.4}, any_r = {:.4}, drug_level = {:.4}",
+                                t,
+                                bacteria_name,
+                                drug_name,
+                                resistance_data.activity_r,
+                                resistance_data.any_r,
+                                individual_0.cur_level_drug[drug_idx]
+                            );
+                        }
+                    }
+                }
+            }
+
             // --- SEQUENTIAL AGGREGATION OF GLOBAL STATISTICS ---
             // This part must be sequential because it collects data from all individuals
             // into shared, mutable HashMaps, which would cause data races if done in parallel

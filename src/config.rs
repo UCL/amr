@@ -9,13 +9,31 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0005); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0000001); // 0.0005
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_rate_per_day".to_string(), 1.0);
         map.insert("already_on_drug_initiation_multiplier".to_string(), 0.000); // 0.0001
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
       
+
+
+
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            for &bacteria in BACTERIA_LIST.iter() {
+                // Default to 1.0 (no multiplier effect) for all combinations
+                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
+            }
+        }
+
+
+
+
+
+
+        // todo: for each drug-bacteria combination will need a specific multiplier for initiation rate
+        // will need changes also in mod.rs 
+
         map.insert("random_drug_cessation_probability".to_string(), 0.03); // Probability an individual randomly stops a drug per day
 
         // General Acquisition & Resistance Parameters
@@ -221,6 +239,11 @@ lazy_static! {
         map.insert("acinetobac_bau_baseline_risk_per_day".to_string(), 0.00002);
         map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);
         map.insert("acinetobac_bau_duration_multiplier".to_string(), 0.000002);
+
+
+
+        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 10000.0); // High multiplier
+
 
 
         //  Drug-Specific Toxicity Parameters (Examples)
