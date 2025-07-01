@@ -17,18 +17,12 @@ lazy_static! {
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
       
 
-
-
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 // Default to 1.0 (no multiplier effect) for all combinations
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
             }
         }
-
-
-
-
 
 
         // todo: for each drug-bacteria combination will need a specific multiplier for initiation rate
@@ -53,7 +47,6 @@ lazy_static! {
         
         //  Microbiome Resistance Transfer Parameter
         map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.05); // Probability per day for resistance transfer between infection and microbiome
-
     
 
         // Testing Parameters
@@ -111,8 +104,6 @@ lazy_static! {
         map.insert("default_sepsis_duration_multiplier".to_string(), 0.000001); // Multiplier for duration of infection (e.g., longer duration = higher risk)
 
 
-
-        // --- NEW AND UPDATED DEATH RELATED PARAMETERS ---
         // Background Mortality Parameters (Age, Region, and Sex dependent)
         map.insert("base_background_mortality_rate_per_day".to_string(), 0.000005); // Example: 0.0005% chance of death per day, for a baseline individual
         map.insert("age_mortality_multiplier_per_year".to_string(), 0.0000001); // Example: Small increase in daily death risk per year of age
@@ -139,10 +130,10 @@ lazy_static! {
         // Sepsis Mortality Parameter (Absolute risk, independent of other factors)
         map.insert("sepsis_absolute_death_risk_per_day".to_string(), 0.1); // Example: 10% absolute chance of death per day if septic
 
-               //  Default Toxicity Parameter
+        //  Default Toxicity Parameter
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
 
-              //  Default Microbiome Acquisition Parameter
+        //  Default Microbiome Acquisition Parameter
         // A multiplier for the infection acquisition probability to get microbiome acquisition probability.
         // If > 1.0, microbiome acquisition is more likely than infection for the same factors.
         // If < 1.0, microbiome acquisition is less likely.
@@ -151,13 +142,13 @@ lazy_static! {
         //  Default Microbiome Clearance Parameter (from previous suggestion, ensure it's there)
         map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
 
-               //  Microbiome Presence Effect on Infection Acquisition
+        //  Microbiome Presence Effect on Infection Acquisition
         // A multiplier for infection acquisition probability if the bacteria is already present in the microbiome.
         // Value > 1.0 means microbiome presence increases infection risk.
         // Value < 1.0 means microbiome presence decreases infection risk (e.g., due to local immunity/competition).
         map.insert("default_microbiome_infection_acquisition_multiplier".to_string(), 0.1); // Example: Much harder to get infected if already colonized.
 
-       //  Contact and Exposure Level Parameters
+        //  Contact and Exposure Level Parameters
         map.insert("contact_level_daily_fluctuation_range".to_string(), 0.5); // Amount of random daily fluctuation
         map.insert("min_contact_level".to_string(), 0.0); // Minimum possible contact/exposure level
         map.insert("max_contact_level".to_string(), 10.0); // Maximum possible contact/exposure level
@@ -190,6 +181,7 @@ lazy_static! {
         // Mosquito Exposure Parameters
         map.insert("mosquito_exposure_baseline".to_string(), 1.0);
         map.insert("mosquito_exposure_in_hospital_multiplier".to_string(), 0.2); // Significantly reduced indoors/hospital
+        
         // Region-specific multipliers (example values, adjust as needed based on actual epidemiology)
         map.insert("north_america_mosquito_exposure_multiplier".to_string(), 0.5);
         map.insert("south_america_mosquito_exposure_multiplier".to_string(), 5.0);

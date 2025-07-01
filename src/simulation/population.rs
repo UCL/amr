@@ -1,6 +1,5 @@
 // src/simulation/population.rs
 use rand::Rng;
-use std::collections::HashMap;
 use rand::distributions::{Distribution, Standard};
 use std::fmt; 
 
@@ -170,7 +169,7 @@ impl Individual {
             sex_at_birth,
             date_last_infected,
             infectious_syndrome,
-            level: vec![0.0; num_bacteria],
+            level, 
             immune_resp,
             sepsis,
             presence_microbiome,
