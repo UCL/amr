@@ -46,7 +46,7 @@ lazy_static! {
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
 
         // Resistance Emergence and Decay Parameters
-        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.0);  // 0.000001 Baseline probability for de novo resistance emergence
+        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.01);  // 0.000001 Baseline probability for de novo resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
@@ -79,8 +79,8 @@ lazy_static! {
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.0); // 0.01
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
-            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1);
-            map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05);
+            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1
+            map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05); // 0.05
             map.insert(format!("{}_decay_rate", bacteria), 0.02);
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -381,7 +381,6 @@ pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
 /// It directly looks up the specific (bacteria_name, drug_name, param_suffix) tuple.
 /// Returns `Some(value)` if found, `None` otherwise.
 pub fn get_bacteria_drug_param(bacteria_name: &str, drug_name: &str, param_suffix: &str) -> Option<f64> {
-    // MODIFIED: Key now includes the param_suffix directly, no need for the if check
     let specific_key = (bacteria_name.to_string(), drug_name.to_string(), param_suffix.to_string());
     BACTERIA_DRUG_PARAMETERS.get(&specific_key).copied()
 }

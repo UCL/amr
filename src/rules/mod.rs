@@ -18,7 +18,7 @@ pub fn apply_rules(
 ) {
     let mut rng = rand::thread_rng();
 
-    // --- Move all these parameter lookups to the top so they're in scope everywhere ---
+    // --- all these parameter lookups at the top so they're in scope everywhere ---
     let transfer_prob = get_global_param("microbiome_resistance_transfer_probability_per_day").unwrap_or(0.05);
     let drug_base_initiation_rate = get_global_param("drug_base_initiation_rate_per_day").unwrap_or(0.0001);
     let drug_infection_present_multiplier = get_global_param("drug_infection_present_multiplier").unwrap_or(50.0);
@@ -31,12 +31,6 @@ pub fn apply_rules(
     // Update non-infection, bacteria or antibiotic-specific variables
     // need a variable for vulnerability to serious toxicity ?
     individual.age += 1;
-//  individual.current_infection_related_death_risk = rng.gen_range(0.0..=0.001);
-//  individual.background_all_cause_mortality_rate = rng.gen_range(0.0..=0.00001);
-
-
-
-
 
 
     // ---  Update Contact and Exposure Levels ---
@@ -52,17 +46,17 @@ pub fn apply_rules(
         *current_level = current_level.clamp(min_contact_level, max_contact_level);
     };
 
-    // 1. Sexual Contact Level
+    //  Sexual Contact Level
     let sexual_contact_age_peak_days = get_global_param("sexual_contact_age_peak_days").unwrap_or(25.0 * 365.0);
     let sexual_contact_age_decline_rate = get_global_param("sexual_contact_age_decline_rate").unwrap_or(0.00005);
     let sexual_contact_hospital_multiplier = get_global_param("sexual_contact_hospital_multiplier").unwrap_or(0.0); // Typically very low in hospital
 
     let mut base_sexual_level = get_global_param("sexual_contact_baseline").unwrap_or(5.0);
     if (individual.age as f64) < sexual_contact_age_peak_days {
-        // Increase towards peak, but don't exceed baseline before peak
+    // Increase towards peak, but don't exceed baseline before peak
         base_sexual_level *= ((individual.age as f64 / sexual_contact_age_peak_days).min(1.0)).powf(get_global_param("sexual_contact_age_rise_exponent").unwrap_or(2.0));
     } else {
-        // Decline after peak
+    // Decline after peak
         base_sexual_level *= (1.0 - (individual.age as f64 - sexual_contact_age_peak_days) * sexual_contact_age_decline_rate).max(0.0);
     }
 
@@ -72,7 +66,7 @@ pub fn apply_rules(
     update_contact_level(&mut individual.sexual_contact_level, base_sexual_level);
 
 
-    // 2. Airborne Contact Level with Adults
+    // Airborne Contact Level with Adults
     let airborne_adult_baseline = get_global_param("airborne_contact_adult_baseline").unwrap_or(5.0);
     let airborne_adult_age_breakpoint_days = get_global_param("airborne_contact_adult_age_breakpoint_days").unwrap_or(18.0 * 365.0); // 18 years old
     let airborne_in_hospital_multiplier = get_global_param("airborne_contact_in_hospital_multiplier").unwrap_or(1.5); // Might increase in hospital (e.g., healthcare workers)
@@ -88,7 +82,7 @@ pub fn apply_rules(
     update_contact_level(&mut individual.airborne_contact_level_with_adults, base_airborne_adult_level);
 
 
-    // 3. Airborne Contact Level with Children
+    // Airborne Contact Level with Children
     let airborne_child_baseline = get_global_param("airborne_contact_child_baseline").unwrap_or(3.0);
     let airborne_child_age_breakpoint_days = get_global_param("airborne_contact_child_age_breakpoint_days").unwrap_or(12.0 * 365.0); // 12 years old
     let airborne_child_adult_multiplier = get_global_param("airborne_contact_child_adult_multiplier").unwrap_or(0.5); // How much less adults contact children (than children contact children)
@@ -107,7 +101,7 @@ pub fn apply_rules(
     update_contact_level(&mut individual.airborne_contact_level_with_children, base_airborne_child_level);
 
 
-    // 4. Oral Exposure Level
+    // Oral Exposure Level
     let oral_exposure_baseline = get_global_param("oral_exposure_baseline").unwrap_or(2.0);
     let oral_exposure_child_age_breakpoint_days = get_global_param("oral_exposure_child_age_breakpoint_days").unwrap_or(5.0 * 365.0); // 5 years old
     let oral_exposure_child_multiplier = get_global_param("oral_exposure_child_multiplier").unwrap_or(3.0);
@@ -123,14 +117,13 @@ pub fn apply_rules(
     update_contact_level(&mut individual.oral_exposure_level, base_oral_level);
 
 
-    // 5. Mosquito Exposure Level
+    // Mosquito Exposure Level
     let mosquito_exposure_baseline = get_global_param("mosquito_exposure_baseline").unwrap_or(1.0);
     let mosquito_exposure_in_hospital_multiplier = get_global_param("mosquito_exposure_in_hospital_multiplier").unwrap_or(0.2); // Usually lower indoors/hospitals
 
     let mut base_mosquito_level = mosquito_exposure_baseline;
 
     // Apply region-specific multiplier
-    // Convert Region enum to a lowercase, snake_case string for parameter lookup
     let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
     let region_multiplier_key = format!("{}_mosquito_exposure_multiplier", region_name_for_param);
     let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0); // Default to 1.0 if region not specified
@@ -168,7 +161,7 @@ pub fn apply_rules(
 
 
     individual.current_toxicity = (individual.current_toxicity + rng.gen_range(-0.5..=0.5)).max(0.0);
-//  individual.mortality_risk_current_toxicity = rng.gen_range(0.0..=0.0001);
+
 
 
 
@@ -184,8 +177,8 @@ pub fn apply_rules(
     let max_days_in_hospital = get_global_param("hospitalization_max_days")
         .expect("Missing hospitalization_max_days in config");
 
-    // Rule 1: Potentially get hospitalized (if not currently hospitalized)
-    if !individual.hospital_status.is_hospitalized() { // Use the new helper method
+    // Potentially get hospitalized (if not currently hospitalized)
+    if !individual.hospital_status.is_hospitalized() { 
         let prob_hospitalization_today = baseline_rate + (individual.age as f64 * age_multiplier);
 
         if rng.gen::<f64>() < prob_hospitalization_today {
@@ -196,13 +189,13 @@ pub fn apply_rules(
     } else { // If already hospitalized, consider recovery or max days limit
         individual.days_hospitalized += 1; // Increment days hospitalized
 
-        // Rule 2: Potentially recover from hospitalization
+        // Potentially recover from hospitalization
         if rng.gen::<f64>() < recovery_rate {
             individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
             individual.days_hospitalized = 0;
             // println!("DEBUG: Individual {} recovered from hospitalization.", individual.id); // Optional: For debugging
         }
-        // Rule 3: Forced discharge after max_days_in_hospital
+        // Forced discharge after max_days_in_hospital
         else if individual.days_hospitalized >= max_days_in_hospital as u32 {
             individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
             individual.days_hospitalized = 0;
@@ -234,7 +227,6 @@ pub fn apply_rules(
             }
             individual.region_cur_in = new_region;
             individual.days_visiting = 1; // Start the visit counter at 1
-            // Optional: for debugging
             // println!("DEBUG (Day {}): Individual {} (Age: {}) traveled from {:?} to {:?}",
             //     time_step, individual.id, individual.age, individual.region_living, individual.region_cur_in);
         }
@@ -247,7 +239,6 @@ pub fn apply_rules(
             // End of visit, return to home region
             individual.region_cur_in = Region::Home; // Set current region back to Home
             individual.days_visiting = 0; // Reset visit counter
-            // Optional: for debugging
             // println!("DEBUG (Day {}): Individual {} (Age: {}) returned home from a trip.",
             //     time_step, individual.id, individual.age);
         }
@@ -367,7 +358,7 @@ pub fn apply_rules(
         }
     }
 
-// --- MODIFIED DRUG INITIATION LOGIC ---
+// --- drug initiation ---
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         let drug_name = DRUG_SHORT_NAMES[drug_idx];
 
@@ -396,8 +387,15 @@ pub fn apply_rules(
         administration_prob *= max_bacteria_specific_multiplier;
 
 
-        // Apply general multipliers AFTER the base rate and bacteria-specific multiplier
-        if has_any_infection { administration_prob *= drug_infection_present_multiplier; }
+        // Apply general multipliers after the base rate and bacteria-specific multiplier
+//      if has_any_infection { administration_prob *= drug_infection_present_multiplier; }
+        let infection_acquired_this_step = individual.date_last_infected.iter().any(|&d| d == time_step as i32);
+        if has_any_infection && !infection_acquired_this_step {
+        administration_prob *= drug_infection_present_multiplier;
+        }
+
+
+       
         if has_any_identified_infection { administration_prob *= drug_test_identified_multiplier; }
         if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
             administration_prob *= already_on_drug_initiation_multiplier;
@@ -411,15 +409,18 @@ pub fn apply_rules(
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
 
-                // Debug print
-                println!(
-                    "DEBUG: Individual {} started {} on day {}. Initiated due to (admin_prob: {:.4}). Current level: {:.2}",
-                    individual.id,
-                    drug_name,
-                    individual.date_drug_initiated[drug_idx],
-                    administration_prob,
-                    get_drug_param(drug_name, "initial_level").unwrap_or(10.0)
-                );
+                // debug print                         
+                if individual.id == 0  { 
+                    println!(
+                        "DEBUG: Individual {} started {} on day {}. Initiated due to (admin_prob: {:.4}). Current level: {:.2}",
+                        individual.id,
+                        drug_name,
+                        individual.date_drug_initiated[drug_idx],
+                        administration_prob,
+                        get_drug_param(drug_name, "initial_level").unwrap_or(10.0)
+                    );
+                }
+                // --- end debug print
 
                 let mut chosen_initial_level = get_drug_param(drug_name, "initial_level").unwrap_or(10.0);
                 if has_any_identified_infection && rng.gen_bool(double_dose_probability) {
@@ -447,7 +448,7 @@ pub fn apply_rules(
     }
     individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase).max(0.0);
 
-    // --- DEATH LOGIC START ---
+    // --- death                    
     if individual.date_of_death.is_none() {
         let mut prob_of_death_today = 0.0;
         let mut cause: Option<String> = None;
@@ -493,7 +494,7 @@ pub fn apply_rules(
             individual.cause_of_death = cause.or(Some("background_mortality".to_string()));
         }
     }
-    // --- DEATH LOGIC END ---
+    // --- death logic end   
 
     // --- Update per-bacteria fields ---
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
@@ -574,9 +575,6 @@ pub fn apply_rules(
                 individual.level[b_idx] = initial_level;
                 individual.date_last_infected[b_idx] = time_step as i32;
 
-                // FIX: Use 'bacteria' directly, as 'bacteria_name' is not defined here.
-    //          println!("                     acquisition_probability {}:", bacteria); // Changed bacteria_name to bacteria
-  
 
                 // Determine syndrome ID
                 let syndrome_id = match bacteria {
@@ -609,7 +607,7 @@ pub fn apply_rules(
                 individual.infection_hospital_acquired[b_idx] = is_hospital_acquired;
 
 
-                // --- any_r AND majority_r SETTING LOGIC ON NEW INFECTION ACQUISITION ---
+                // --- any_r AND majority_r setting logic on new infection acquisition ---
                 // in a newly infected person we should sample majority_r / any_r from all people in the same region with that 
                 // bacteria and assign the newly infected person that level 
                 let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
@@ -654,7 +652,7 @@ pub fn apply_rules(
                         }
                     }
                 }
-                // --- END GENERALIZED any_r AND majority_r SETTING LOGIC ---
+                // --- end generalized any_r AND majority_r setting logic ---
 
 
                 // Get the initial immunity level from config, or default to a reasonable value
@@ -685,16 +683,10 @@ pub fn apply_rules(
                         }
                     }
 
-                    // this code needs correcting - value for any_r or majority_r for any drug bacteria combination will
+                    // todo: this code needs correcting - value for any_r or majority_r for any drug bacteria combination will
                     // not decline so long as the bacterial infection is present - even after bacterial infection
                     // has gone it may be in microbiome      
 
-                    if resistance_data.majority_r > 0.0 {
-                    // If majority_r exists, any_r is at least that level.
-                    // The decay logic has been moved to the infection clearance block.
-                    // So, nothing to do here in terms of decay.
-                    // It can only increase via the 'any_r increase towards max_resistance_level' block below.
-                    }
                     // any_r increase towards max_resistance_level
                     // when drug is present and majority_r is still 0
                     if resistance_data.majority_r == 0.0 && // No majority resistance yet
@@ -724,12 +716,12 @@ pub fn apply_rules(
                             let bacteria_level_effect_multiplier = get_global_param("resistance_emergence_bacteria_level_multiplier").unwrap_or(0.05); // How much does bacteria level boost it
                             let any_r_emergence_level_on_first_emergence = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5); // User changed to 0.5 (was 1.0)
 
-                            // 1. Bacteria Level Dependency: Higher at higher levels
+                            // bacteria level dependency: Higher at higher levels
                             let max_bacteria_level = get_bacteria_param(bacteria, "max_level").unwrap_or(100.0);
                             // Normalize bacteria level to [0,1] and apply multiplier
                             let bacteria_level_factor = (current_bacteria_level / max_bacteria_level).clamp(0.0, 1.0) * bacteria_level_effect_multiplier;
                             
-                            // 2. Activity_r Dependency: Bell-shaped curve
+                            // activity_r Dependency: Bell-shaped curve
                             // Use the drug's initial level for normalization to get a comparable 'activity' scale (0-10)
                             let drug_initial_level_for_normalization = get_drug_param(DRUG_SHORT_NAMES[drug_index], "initial_level").unwrap_or(10.0);
                             
@@ -752,7 +744,7 @@ pub fn apply_rules(
                             }
                         }
                     }
-                    // --- END NEW RESISTANCE EMERGENCE LOGIC ---
+                    // --- end new resistance emergence logic ---
 
 
                     // Calculate activity_r (should always be updated)
@@ -787,14 +779,14 @@ pub fn apply_rules(
             let mut total_reduction_due_to_antibiotic = 0.0;
 
 
-                        // --- DEBUGGING START ---
+
             if individual.id == 0 {
                 println!("--- DEBUG (Day {}), Individual {}: Bacteria {} ---", time_step, individual.id, bacteria);
                 println!("  Immunity Level: {:.4}", immunity_level);
                 println!("  Baseline Change: {:.4}", baseline_change);
                 println!("  Reduction due to Immune Response: {:.4}", immunity_level * reduction_due_to_immune_resp);
             }
-            // --- DEBUGGING END ---
+   
 
 
 
@@ -805,22 +797,22 @@ pub fn apply_rules(
 
 
 
-                                            // --- DEBUGGING START ---
+
+                if individual.id == 0 {
                         println!(
                             "  Drug {}: Current Level = {:.4}, Activity_r = {:.4}",
                             DRUG_SHORT_NAMES[drug_idx],
                             individual.cur_level_drug[drug_idx],
                             resistance_data.activity_r
                         );
-                        // --- DEBUGGING END ---    
-
+                    }
 
 
                         
-                        
-             // --- DEBUGGING START ---
+
+             if individual.id == 0 {
                 println!("  Total Reduction Due To Antibiotic: {:.4}", total_reduction_due_to_antibiotic);
-                // --- DEBUGGING END ---
+             }   
 
 
 
@@ -833,12 +825,16 @@ pub fn apply_rules(
 
 
 
-                // --- DEBUGGING START ---
+   
+                if individual.id == 0 {
+
                 println!("  Calculated Decay Rate: {:.4}", decay_rate);
                 println!("  Old Bacteria Level: {:.4}", individual.level[b_idx]);
                 println!("  New Bacteria Level: {:.4}", new_level);
                 println!("--------------------------------------------------");
-                // --- DEBUGGING END ---
+                
+                }
+
 
 
 

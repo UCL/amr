@@ -24,8 +24,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size = 1 ;
-    let time_steps = 40;
+    let population_size =   100_000 ;
+    let time_steps = 10;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -75,9 +75,14 @@ fn main() {
     println!("    majority_r: {:.2}", resistance_data.majority_r);
     println!("-------------------------------------------");
 
+    use std::time::Instant;
+    let start = Instant::now();
+
     simulation.run();
 
+    let duration = start.elapsed();
     println!("\n--- SIMULATION RESULTS ---");
+    println!("Total simulation time: {:.3?} seconds", duration);
 
     // --- DEATH REPORTING START ---
     let mut total_deaths = 0;

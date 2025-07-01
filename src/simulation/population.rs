@@ -89,34 +89,34 @@ pub struct Individual {
     pub region_cur_in: Region,
     pub days_visiting: u32, 
     pub hospital_status: HospitalStatus,
-    pub days_hospitalized: u32, // <--- ADDITION HERE
-    pub date_last_infected: Vec<i32>,              // was HashMap
-    pub infectious_syndrome: Vec<i32>,             // was HashMap
+    pub days_hospitalized: u32, 
+    pub date_last_infected: Vec<i32>,              
+    pub infectious_syndrome: Vec<i32>,             
     pub level: Vec<f64>,
 
-    pub immune_resp: Vec<f64>,                     // was HashMap
-    pub sepsis: Vec<bool>,                         // was HashMap
-    pub presence_microbiome: Vec<bool>,            // was HashMap
-    pub vaccination_status: Vec<bool>,             // was HashMap
-    pub cur_infection_from_environment: Vec<bool>, // was HashMap
-    pub test_identified_infection: Vec<bool>,      // was HashMap
+    pub immune_resp: Vec<f64>,                     
+    pub sepsis: Vec<bool>,                         
+    pub presence_microbiome: Vec<bool>,            
+    pub vaccination_status: Vec<bool>,             
+    pub cur_infection_from_environment: Vec<bool>, 
+    pub test_identified_infection: Vec<bool>,      
     pub cur_use_drug: Vec<bool>,
     pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
-    pub date_drug_initiated: Vec<i32>, // ADDED: Stores the time_step when each drug was last initiated
+    pub date_drug_initiated: Vec<i32>, // the time_step when each drug was last initiated
     pub current_infection_related_death_risk: f64,
-    pub background_all_cause_mortality_rate: f64,  // should now be removed
+    pub background_all_cause_mortality_rate: f64,  
     pub sexual_contact_level: f64,
     pub airborne_contact_level_with_adults: f64,
     pub airborne_contact_level_with_children: f64,
     pub oral_exposure_level: f64,
     pub mosquito_exposure_level: f64,
-    pub infection_hospital_acquired: Vec<bool>,    // was HashMap
+    pub infection_hospital_acquired: Vec<bool>,    
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64, 
     pub resistances: Vec<Vec<Resistance>>,
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
-    pub is_severely_immunosuppressed: bool, // NEW: Indicator for severe immunosuppression
+    pub is_severely_immunosuppressed: bool, 
 
 }
 
@@ -126,7 +126,6 @@ impl Individual {
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
 
-        // Replace HashMap initializations with Vec initializations
         let date_last_infected = vec![0; num_bacteria];
         let infectious_syndrome = vec![0; num_bacteria];
         let level = vec![0.0; num_bacteria];
@@ -153,7 +152,6 @@ impl Individual {
             resistances.push(drug_resistances);
         }
 
-        // Placeholder for actual background mortality rate calculation
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
         } else {
@@ -168,7 +166,7 @@ impl Individual {
             region_cur_in: Region::Home, 
             days_visiting: 0, 
             hospital_status: HospitalStatus::NotInHospital, 
-            days_hospitalized: 0, // <--- INITIALIZATION HERE
+            days_hospitalized: 0, 
             sex_at_birth,
             date_last_infected,
             infectious_syndrome,
@@ -179,9 +177,9 @@ impl Individual {
             vaccination_status, 
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],
-            date_drug_initiated: vec![i32::MIN; num_drugs], // ADDED: Initialize to MIN
+            date_drug_initiated: vec![i32::MIN; num_drugs], 
             current_infection_related_death_risk: 0.0,
-            background_all_cause_mortality_rate, // should now be removed 
+            background_all_cause_mortality_rate,  
             sexual_contact_level: rng.gen_range(0.0..=10.0),
             airborne_contact_level_with_adults: rng.gen_range(0.0..=10.0),
             airborne_contact_level_with_children: rng.gen_range(0.0..=10.0),
@@ -191,11 +189,11 @@ impl Individual {
             cur_infection_from_environment,
             test_identified_infection,
             current_toxicity: rng.gen_range(0.0..=3.0),
-            mortality_risk_current_toxicity: 0.0, // probably should be removed as this death risk is implemented with separate logic
+            mortality_risk_current_toxicity: 0.0, // todo: probably should be removed as this death risk is implemented with separate logic
             resistances,
             date_of_death: None,
             cause_of_death: None,
-            is_severely_immunosuppressed: false, // NEW: Randomly assign severe immunosuppression
+            is_severely_immunosuppressed: false, 
         }
     }
 }
@@ -210,7 +208,7 @@ impl Population {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
         for i in 0..size {
-            let age = rng.gen_range(0..=36500); // Age range from 0 to 100 years in days
+            let age = rng.gen_range(0..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             individuals.push(Individual::new(i, age, sex));
         }
