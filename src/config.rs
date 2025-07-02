@@ -12,7 +12,7 @@ lazy_static! {
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0000001); // 0.0005
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
-        map.insert("drug_decay_rate_per_day".to_string(), 1.0);
+        map.insert("drug_decay_per_day".to_string(), 1.0);
         map.insert("already_on_drug_initiation_multiplier".to_string(), 0.000); // 0.0001
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
       
@@ -74,7 +74,7 @@ lazy_static! {
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1
             map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05); // 0.05
-            map.insert(format!("{}_decay_rate", bacteria), 0.02);
+            map.insert(format!("{}_decay", bacteria), 0.02);
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_oral_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -89,7 +89,7 @@ lazy_static! {
             map.insert(format!("{}_immunity_increase_rate_per_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
             map.insert(format!("{}_baseline_immunity_level", bacteria), 0.00001); // 0.00001
-            map.insert(format!("{}_immunity_decay_rate", bacteria), 0.1);
+            map.insert(format!("{}_immunity_decay", bacteria), 0.1);
         }
 
         // Default Initial Drug Levels and Double Dose Multipliers for ALL Drugs

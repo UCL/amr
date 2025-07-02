@@ -15,6 +15,9 @@ pub fn apply_rules(
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
 ) {
+    if individual.id == 0  { 
+        println!("   "); println!("mod.rs time step {}", time_step); println!("   "); 
+    }
     let mut rng = rand::thread_rng();
 
     // --- all these parameter lookups at the top so they're in scope everywhere ---
@@ -23,7 +26,7 @@ pub fn apply_rules(
     let drug_infection_present_multiplier = get_global_param("drug_infection_present_multiplier").unwrap_or(50.0);
     let already_on_drug_initiation_multiplier = get_global_param("already_on_drug_initiation_multiplier").unwrap_or(0.0001);
     let drug_test_identified_multiplier = get_global_param("drug_test_identified_multiplier").unwrap_or(20.0);
-    let drug_decay_rate = get_global_param("drug_decay_rate_per_day").unwrap_or(0.3);
+    let drug_decay = get_global_param("drug_decay_per_day").unwrap_or(0.3);
     let double_dose_probability = get_global_param("double_dose_probability_if_identified_infection").unwrap_or(0.1);
     let random_drug_cessation_prob = get_global_param("random_drug_cessation_probability").unwrap_or(0.001);
 
@@ -185,7 +188,7 @@ pub fn apply_rules(
         if rng.gen::<f64>() < recovery_rate {
             individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
             individual.days_hospitalized = 0;
-            // println!("DEBUG: Individual {} recovered from hospitalization.", individual.id); // Optional: For debugging
+            // println!("individual {} recovered from hospitalization.", individual.id);             
         }
         // discharge after max_days_in_hospital
         else if individual.days_hospitalized >= max_days_in_hospital as u32 {
@@ -228,7 +231,7 @@ pub fn apply_rules(
             // End of visit, rto home region
             individual.region_cur_in = Region::Home; // Set current region back to Home
             individual.days_visiting = 0; // Reset visit counter
-            // println!("DEBUG (Day {}): Individual {} (Age: {}) returned home from a trip.",
+            // println!("individual {} (Age: {}) returned home from a trip.",
             //     time_step, individual.id, individual.age);
         }
     }
@@ -297,12 +300,12 @@ pub fn apply_rules(
 
     let mut drugs_initiated_this_time_step: usize = 0;
 
-    // --- drug ttopping ---
+    // --- drug stopping ---
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         let drug_name = DRUG_SHORT_NAMES[drug_idx];
         if individual.cur_use_drug[drug_idx] {
             let mut relevant_infection_active_for_this_drug = false;
-            for (b_idx, _bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+            for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
                     let bacteria_name = BACTERIA_LIST[b_idx];
                     let drug_reduction_efficacy = get_bacteria_drug_param(
@@ -339,7 +342,7 @@ pub fn apply_rules(
         if individual.cur_use_drug[drug_idx] {
             individual.cur_level_drug[drug_idx] = drug_initial_level;
         } else {
-            individual.cur_level_drug[drug_idx] = (individual.cur_level_drug[drug_idx] - drug_decay_rate).max(0.0);
+            individual.cur_level_drug[drug_idx] = (individual.cur_level_drug[drug_idx] - drug_decay).max(0.0);
         }
     }
 
@@ -387,12 +390,9 @@ pub fn apply_rules(
                 // debug print                         
                 if individual.id == 0  { 
                     println!(
-                        "DEBUG: Individual {} started {} on day {}. Initiated due to (admin_prob: {:.4}). Current level: {:.2}",
-                        individual.id,
+                        "started {} - rate of starting was {:.4}",
                         drug_name,
-                        individual.date_drug_initiated[drug_idx],
                         administration_prob,
-                        get_drug_param(drug_name, "initial_level").unwrap_or(10.0)
                     );
                 }
                 // --- end debug print
@@ -425,7 +425,6 @@ pub fn apply_rules(
 
     // --- death                    
     if individual.date_of_death.is_none() {
-        let mut prob_of_death_today = 0.0;
         let mut cause: Option<String> = None;
         let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
             .expect("Missing base_background_mortality_rate_per_day in config");
@@ -444,7 +443,7 @@ pub fn apply_rules(
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
         if has_sepsis {
             let sepsis_absolute_death_risk = get_global_param("sepsis_absolute_death_risk_per_day")
-                .expect("Missing sepsis_absolute_death_risk_per_day in config");
+                .expect("missing sepsis_absolute_death_risk_per_day in config");
             prob_not_dying *= 1.0 - sepsis_absolute_death_risk;
             if cause.is_none() { cause = Some("sepsis_related".to_string()); }
         }
@@ -462,7 +461,8 @@ pub fn apply_rules(
             prob_not_dying *= 1.0 - drug_adverse_event_risk_for_individual;
             if cause.is_none() { cause = Some("drug_toxicity_related".to_string()); }
         }
-        prob_of_death_today = 1.0 - prob_not_dying;
+
+        let mut prob_of_death_today = 1.0 - prob_not_dying;
         prob_of_death_today = prob_of_death_today.clamp(0.0, 1.0);
         if rng.gen::<f64>() < prob_of_death_today {
             individual.date_of_death = Some(time_step);
@@ -745,10 +745,11 @@ pub fn apply_rules(
 
 
             if individual.id == 0 {
-                println!("--- DEBUG (Day {}), Individual {}: Bacteria {} ---", time_step, individual.id, bacteria);
-                println!("  Immunity Level: {:.4}", immunity_level);
-                println!("  Baseline Change: {:.4}", baseline_change);
-                println!("  Reduction due to Immune Response: {:.4}", immunity_level * reduction_due_to_immune_resp);
+                println!(" ");
+                println!("bacteria: {}", bacteria);
+                println!("immunity level: {:.4}", immunity_level);
+                println!("baseline change: {:.4}", baseline_change);
+                println!("reduction due to immune response: {:.4}", immunity_level * reduction_due_to_immune_resp);
             }
 
 
@@ -760,7 +761,7 @@ pub fn apply_rules(
 
                 if individual.id == 0 {
                         println!(
-                            "  Drug {}: Current Level = {:.4}, Activity_r = {:.4}",
+                            "{}: current level = {:.4}, activity_r = {:.4}",
                             DRUG_SHORT_NAMES[drug_idx],
                             individual.cur_level_drug[drug_idx],
                             resistance_data.activity_r
@@ -769,22 +770,22 @@ pub fn apply_rules(
                         
 
              if individual.id == 0 {
-                println!("  Total Reduction Due To Antibiotic: {:.4}", total_reduction_due_to_antibiotic);
+                println!("total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
             }   
             }
             }
-            let decay_rate = baseline_change - (immunity_level * reduction_due_to_immune_resp) - total_reduction_due_to_antibiotic;
+            let decay = baseline_change - (immunity_level * reduction_due_to_immune_resp) - total_reduction_due_to_antibiotic;
 
             let max_level = get_bacteria_param(bacteria, "max_level").unwrap_or(100.0);
-            let new_level = (individual.level[b_idx] + decay_rate).max(0.0).min(max_level);
+            let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
 
    
                 if individual.id == 0 {
 
-                println!("  Calculated Decay Rate: {:.4}", decay_rate);
-                println!("  Old Bacteria Level: {:.4}", individual.level[b_idx]);
-                println!("  New Bacteria Level: {:.4}", new_level);
-                println!("--------------------------------------------------");
+                println!("calculated decay: {:.4}", decay);
+                println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
+                println!("bacteria level after this time step: {:.4}", new_level);
+
                 
                 }
 

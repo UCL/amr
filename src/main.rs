@@ -25,55 +25,51 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   100_000 ;
-    let time_steps = 10;
+    let time_steps = 1;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
-    // Initial state check for Individual 0 (from main.rs)
-    println!("--- Initial state of Individual 0 (from main.rs) ---");
     let ind0 = &simulation.population.individuals[0];
-    println!("  ID: {}", ind0.id);
-    println!("  Age: {} days", ind0.age);
-    println!("  Sex: {}", ind0.sex_at_birth);
-    println!("  Region Living: {:?}", ind0.region_living);
-    println!("  Region Currently In: {:?}", ind0.region_cur_in);
+    
+    // print variable values at time step 0, before starting to go through the time steps
 
-    // Print vaccination status for all bacteria
-    println!("  --- Vaccination Status ---");
+    println!("  ");
+    println!("main.rs  variable values at time step 0, before starting to go through the time steps");
+    println!("  ");
+
     for (bacteria, &b_idx) in simulation.bacteria_indices.iter() {
-        println!("    {}_vaccination_status: {}", bacteria, ind0.vaccination_status[b_idx]);
+        println!("{}_vaccination_status: {}", bacteria, ind0.vaccination_status[b_idx]);
     }
-    let strep_pneu_idx = simulation.bacteria_indices["strep_pneu"];
-    println!("  strep_pneu: level = {:.2}", ind0.level[strep_pneu_idx]);
-    println!("  strep_pneu: immune_resp = {:.2}", ind0.immune_resp[strep_pneu_idx]);
-    println!("  strep_pneu: sepsis = {}", ind0.sepsis[strep_pneu_idx]);
-    println!("  strep_pneu: infectious_syndrome = {}", ind0.infectious_syndrome[strep_pneu_idx]);
-    println!("  strep_pneu: date_last_infected = {}", ind0.date_last_infected[strep_pneu_idx]);
-    println!("  strep_pneu: cur_infection_from_environment = {}", ind0.cur_infection_from_environment[strep_pneu_idx]);
-    println!("  strep_pneu: infection_hospital_acquired = {}", ind0.infection_hospital_acquired[strep_pneu_idx]);
-    println!("  strep_pneu: test_identified_infection = {}", ind0.test_identified_infection[strep_pneu_idx]);
-    let amoxicillin_idx = simulation.drug_indices["amoxicillin"];
-    println!("  cur_use_amoxicillin: {}", ind0.cur_use_drug[amoxicillin_idx]);
-    println!("  cur_level_amoxicillin: {:.2}", ind0.cur_level_drug[amoxicillin_idx]);
+    let acinetobac_bau_idx = simulation.bacteria_indices["acinetobac_bau"];
+    println!("acinetobac_bau: level = {:.2}", ind0.level[acinetobac_bau_idx]);
+    println!("acinetobac_bau: immune_resp = {:.2}", ind0.immune_resp[acinetobac_bau_idx]);
+    println!("acinetobac_bau: sepsis = {}", ind0.sepsis[acinetobac_bau_idx]);
+    println!("acinetobac_bau: infectious_syndrome = {}", ind0.infectious_syndrome[acinetobac_bau_idx]);
+    println!("acinetobac_bau: date_last_infected = {}", ind0.date_last_infected[acinetobac_bau_idx]);
+    println!("acinetobac_bau: cur_infection_from_environment = {}", ind0.cur_infection_from_environment[acinetobac_bau_idx]);
+    println!("acinetobac_bau: infection_hospital_acquired = {}", ind0.infection_hospital_acquired[acinetobac_bau_idx]);
+    println!("acinetobac_bau: test_identified_infection = {}", ind0.test_identified_infection[acinetobac_bau_idx]);
+    let cefepime_idx = simulation.drug_indices["cefepime"];
+    println!("cur_use_cefepime: {}", ind0.cur_use_drug[cefepime_idx]);
+    println!("cur_level_cefepime: {:.2}", ind0.cur_level_drug[cefepime_idx]);
 
-    println!("  current_infection_related_death_risk: {:.2}", ind0.current_infection_related_death_risk);
-    println!("  background_all_cause_mortality_rate: {:.4}", ind0.background_all_cause_mortality_rate);
-    println!("  sexual_contact_level: {:.2}", ind0.sexual_contact_level);
-    println!("  airborne_contact_level_with_adults: {:.2}", ind0.airborne_contact_level_with_adults);
-    println!("  airborne_contact_level_with_children: {:.2}", ind0.airborne_contact_level_with_children);
-    println!("  oral_exposure_level: {:.2}", ind0.oral_exposure_level);
-    println!("  mosquito_exposure_level: {:.2}", ind0.mosquito_exposure_level);
-    println!("  current_toxicity: {:.2}", ind0.current_toxicity);
-    println!("  mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
+    println!("current_infection_related_death_risk: {:.2}", ind0.current_infection_related_death_risk);
+    println!("background_all_cause_mortality_rate: {:.4}", ind0.background_all_cause_mortality_rate);
+    println!("sexual_contact_level: {:.2}", ind0.sexual_contact_level);
+    println!("airborne_contact_level_with_adults: {:.2}", ind0.airborne_contact_level_with_adults);
+    println!("airborne_contact_level_with_children: {:.2}", ind0.airborne_contact_level_with_children);
+    println!("oral_exposure_level: {:.2}", ind0.oral_exposure_level);
+    println!("mosquito_exposure_level: {:.2}", ind0.mosquito_exposure_level);
+    println!("current_toxicity: {:.2}", ind0.current_toxicity);
+    println!("mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
 
-    let resistance_data = &ind0.resistances[strep_pneu_idx][amoxicillin_idx];
-    println!("  strep_pneu resistance to amoxicillin:");
-    println!("    microbiome_r: {:.2}", resistance_data.microbiome_r);
-    println!("    test_r: {:.2}", resistance_data.test_r);
-    println!("    activity_r: {:.2}", resistance_data.activity_r);
-    println!("    any_r: {:.2}", resistance_data.any_r);
-    println!("    majority_r: {:.2}", resistance_data.majority_r);
-    println!("-------------------------------------------");
+    let resistance_data = &ind0.resistances[acinetobac_bau_idx][cefepime_idx];
+    println!("acinetobac_bau resistance to cefepime:");
+    println!("microbiome_r: {:.2}", resistance_data.microbiome_r);
+    println!("test_r: {:.2}", resistance_data.test_r);
+    println!("activity_r: {:.2}", resistance_data.activity_r);
+    println!("any_r: {:.2}", resistance_data.any_r);
+    println!("majority_r: {:.2}", resistance_data.majority_r);
 
     use std::time::Instant;
     let start = Instant::now();
@@ -81,8 +77,7 @@ fn main() {
     simulation.run();
 
     let duration = start.elapsed();
-    println!("\n--- SIMULATION RESULTS ---");
-    println!("Total simulation time: {:.3?} seconds", duration);
+    println!("\n--- final outputs ");
 
     // --- DEATH REPORTING START ---
     let mut total_deaths = 0;
@@ -97,14 +92,16 @@ fn main() {
         }
     }
 
-    println!("\nTotal Deaths during simulation: {}", total_deaths);
-    println!("Breakdown by Cause of Death:");
+    println!("total deaths during simulation: {}", total_deaths);
+    println!("breakdown by cause of death:");
     for (cause, count) in death_causes_count {
-        println!("  {}: {}", cause, count);
+    println!("{}: {}", cause, count);
     }
     // --- DEATH REPORTING END ---
 
-    println!("\n--- SIMULATION FINISHED ---");
+    println!("\n--- simulation ended ---");
+    println!("\n--- total simulation time: {:.3?} seconds", duration);
+    println!("                          ");
 }
 
 

@@ -43,20 +43,24 @@ impl Simulation {
 
         // --- Initial State Logging for Individual 0
 
-        println!("--- initial state of individual 0 ---");
-        println!("  Age: {} days", population.individuals[0].age);
-        println!("  Region Living: {:?}", population.individuals[0].region_living);
-        println!("  Region Currently In: {:?}", population.individuals[0].region_cur_in);
-        println!("  current_infection_related_death_risk: {:.2}", population.individuals[0].current_infection_related_death_risk);
-        println!("  background_all_cause_mortality_rate: {:.4}", population.individuals[0].background_all_cause_mortality_rate);
-        println!("  sexual_contact_level: {:.2}", population.individuals[0].sexual_contact_level);
-        println!("  airborne_contact_level_with_adults: {:.2}", population.individuals[0].airborne_contact_level_with_adults);
-        println!("  airborne_contact_level_with_children: {:.2}", population.individuals[0].airborne_contact_level_with_children);
-        println!("  oral_exposure_level: {:.2}", population.individuals[0].oral_exposure_level);
-        println!("  mosquito_exposure_level: {:.2}", population.individuals[0].mosquito_exposure_level);
-        println!("  current_toxicity: {:.2}", population.individuals[0].current_toxicity);
-        println!("  mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
-
+        println!(" ");
+        println!("--- simulation.rs  initial state of individual 0 ---");
+        println!(" ");
+        println!("id: {}", population.individuals[0].id);
+        println!("age: {} days", population.individuals[0].age);
+        println!("sex at birth: {}", population.individuals[0].sex_at_birth);
+        println!("region living: {:?}", population.individuals[0].region_living);
+        println!("region currently in: {:?}", population.individuals[0].region_cur_in);
+        println!("current_infection_related_death_risk: {:.2}", population.individuals[0].current_infection_related_death_risk);
+        println!("background_all_cause_mortality_rate: {:.4}", population.individuals[0].background_all_cause_mortality_rate);
+        println!("sexual_contact_level: {:.2}", population.individuals[0].sexual_contact_level);
+        println!("airborne_contact_level_with_adults: {:.2}", population.individuals[0].airborne_contact_level_with_adults);
+        println!("airborne_contact_level_with_children: {:.2}", population.individuals[0].airborne_contact_level_with_children);
+        println!("oral_exposure_level: {:.2}", population.individuals[0].oral_exposure_level);
+        println!("mosquito_exposure_level: {:.2}", population.individuals[0].mosquito_exposure_level);
+        println!("current_toxicity: {:.2}", population.individuals[0].current_toxicity);
+        println!("mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
+        println!(" ");
 
         Simulation { // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
             population,
@@ -70,10 +74,13 @@ impl Simulation {
 
     pub fn run(&mut self) { // public function named run, which executes the simulation for the specified number of time steps.
 
-        println!("--- simulation starting ---");
+        println!(" ");
+        println!("--- starting to run over time steps");
+        println!(" ");
 
         for t in 0..self.time_steps {
-            let step_start = std::time::Instant::now();
+
+            println!("simulation.rs time step: {}", t);
 
             // --- parallel application of rules to individuals ---
             // each individual's rules are applied independently.
@@ -95,15 +102,16 @@ impl Simulation {
                     for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                         if individual_0.cur_level_drug[drug_idx] > 0.0 {
                             let resistance_data = &individual_0.resistances[b_idx][drug_idx];
+                            println!("   "); 
                             println!(
-                                "after time step {}: {} (infected) + {} (present): activity_r = {:.4}, any_r = {:.4}, drug_level = {:.4}",
-                                t,
+                                "simulation.rs  {} (infected) + {} (present): activity_r = {:.4}, any_r = {:.4}, drug_level = {:.4}",
                                 bacteria_name,
                                 drug_name,
                                 resistance_data.activity_r,
                                 resistance_data.any_r,
                                 individual_0.cur_level_drug[drug_idx]
                             );
+                            println!("   "); 
                         }
                     }
                 }
@@ -129,7 +137,7 @@ impl Simulation {
                 let mut individual_has_any_r_positive = false;
                 // --- END ---
 
-                for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                     // Only count if currently infected
                     if individual.level[b_idx] > 0.001 {
                         // -flag if individual has an infection ---
@@ -176,30 +184,29 @@ impl Simulation {
                     } else {
                         " (decaying)"
                     };
-                    println!("             - {}: Level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
+                    println!("{}: level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
                     drugs_present_found_overall = true; // Use the newly declared variable
                 }
             }
             if !drugs_present_found_overall {
-                println!("              None (no antibiotics currently in system for Individual 0).");
+                println!("no antibiotics currently in system for Individual 0");
             }
 
 
-            println!("          --- bacteria infection details for individual 0 --");
             let mut has_infection = false;
             for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                 let level = individual_0.level[b_idx];
                 if level > 0.0001 {
                     has_infection = true;
-                    println!("               bacteria: {}", bacteria_name);
-                    println!("               infected = true");
-                    println!("               level = {:.4}", level);
-                    println!("               immune response = {:.4}", individual_0.immune_resp[b_idx]);
-                    println!("               infection from environment = {}", individual_0.cur_infection_from_environment[b_idx]);
-                    println!("               hospital acquired infection = {}", individual_0.infection_hospital_acquired[b_idx]);
-                    println!("               test identified infection = {}", individual_0.test_identified_infection[b_idx]);
+                    println!("bacteria: {}", bacteria_name);
+                    println!("infected = true");
+                    println!("level = {:.4}", level);
+                    println!("immune response = {:.4}", individual_0.immune_resp[b_idx]);
+                    println!("infection from environment = {}", individual_0.cur_infection_from_environment[b_idx]);
+                    println!("hospital acquired infection = {}", individual_0.infection_hospital_acquired[b_idx]);
+                    println!("test identified infection = {}", individual_0.test_identified_infection[b_idx]);
                     let mut drugs_present_found = false;
-                    println!("                 antibiotics Present in System (Current Level > 0):");
+                    println!("antibiotics present in system (current level > 0):");
                     for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
                         if individual_0.cur_level_drug[drug_idx] > 0.0 {
                             let status = if individual_0.cur_use_drug[drug_idx] {
@@ -207,20 +214,21 @@ impl Simulation {
                             } else {
                                 " (decaying)"
                             };
-                            println!("                   - {}: Level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
+                            println!("{}: level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
                             drugs_present_found = true;
                         }
                     }
                     if !drugs_present_found {
-                        println!("                     no antibiotics currently in system");
+                        println!("no antibiotics currently in system");
                     }
                     let mut effective_antibiotics_found = false;
-                    println!("                 any_r {}:", bacteria_name);
+  
                     for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
                         if individual_0.cur_level_drug[drug_idx] > 0.0 {
                             let resistance_data = &individual_0.resistances[b_idx][drug_idx];
+                            println!("any_r {}:", bacteria_name);    
                             println!(
-                                "                   - {}: level = {:.4}, any_R = {:.4}, activity_R = {:.4}, majority_R = {:.4}",
+                                "{}: level = {:.4}, any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
                                 drug_name_static,
                                 individual_0.cur_level_drug[drug_idx],
                                 resistance_data.any_r,
@@ -233,17 +241,15 @@ impl Simulation {
                         }
                     }
                     if !effective_antibiotics_found {
-                        println!("                     no effective antibiotics in system against this bacteria");
+                        println!("no effective antibiotics in system against this bacteria");
                     }
                     println!();
                 }
             }
             if !has_infection {
-                println!("             individual 0 has no active bacterial infections");
-
+                println!("no active bacterial infection as of end of the time step");
+                println!();
             }
-
-
 
             // --- Global Infection and Resistance Statistics Output ---
             let total_population_size = self.population.individuals.len();
@@ -253,17 +259,19 @@ impl Simulation {
                 0.0
             };
 
-            println!("\n--- infection and resistance summary outputs (time step {}) ---", t);
-            println!("  total individuals in population: {}", total_population_size);
-            println!("  number of individuals with any bacterial infection: {}", individuals_with_any_bacterial_infection);
-            println!("  number of individuals with any bacteria having any_r > 0: {}", individuals_with_any_r_positive_for_any_bacteria);
-            println!("  proportion of infected individuals with any_r > 0: {:.4}\n", proportion_any_r_positive);
+
+            println!("infection and resistance summary outputs:");
+            println!(" ");
+            println!("total individuals in population: {}", total_population_size);
+            println!("number of individuals with any bacterial infection: {}", individuals_with_any_bacterial_infection);
+            println!("number of individuals with any bacteria having any_r > 0: {}", individuals_with_any_r_positive_for_any_bacteria);
+            println!("proportion of infected individuals with any_r > 0: {:.4}\n", proportion_any_r_positive);
             // --- end  ---
 
-            let step_duration = step_start.elapsed();
-            println!("time step {} took {:.3?} seconds", t, step_duration);
+            println!("                                ");
+            
         }
 
-        println!("--- simulation ended ---");
+
     }
 }
