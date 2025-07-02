@@ -105,8 +105,8 @@ lazy_static! {
 
 
         // Background Mortality Parameters (Age, Region, and Sex dependent)
-        map.insert("base_background_mortality_rate_per_day".to_string(), 0.000005); // Example: 0.0005% chance of death per day, for a baseline individual
-        map.insert("age_mortality_multiplier_per_year".to_string(), 0.0000001); // Example: Small increase in daily death risk per year of age
+        map.insert("base_background_mortality_rate_per_day".to_string(), 0.00001); // 0.000005  Example: 0.0005% chance of death per day, for a baseline individual
+        map.insert("age_mortality_multiplier_per_year".to_string(), 0.0); // 0.0000001 Example: Small increase in daily death risk per year of age
 
         // Region-specific mortality multipliers. Ensure these match your `Region` enum variants.
         map.insert("northamerica_mortality_multiplier".to_string(), 1.0);

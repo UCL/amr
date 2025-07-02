@@ -25,7 +25,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   100_000 ;
-    let time_steps = 1;
+    let time_steps = 30;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -77,7 +77,7 @@ fn main() {
     simulation.run();
 
     let duration = start.elapsed();
-    println!("\n--- final outputs ");
+    println!("main.rs  final outputs ");
 
     // --- DEATH REPORTING START ---
     let mut total_deaths = 0;
@@ -97,7 +97,7 @@ fn main() {
     for (cause, count) in death_causes_count {
     println!("{}: {}", cause, count);
     }
-    // --- DEATH REPORTING END ---
+    // --- end death reporting ---
 
     println!("\n--- simulation ended ---");
     println!("\n--- total simulation time: {:.3?} seconds", duration);

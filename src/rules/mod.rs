@@ -15,6 +15,16 @@ pub fn apply_rules(
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
 ) {
+
+    if individual.age < 0 {
+        individual.age += 1; // Only advance age by 1 day
+        return; // Exit the function if unborn
+    }
+
+    if individual.date_of_death.is_some() {
+        return; // Exit the function if dead
+    }
+
     if individual.id == 0  { 
         println!("   "); println!("mod.rs time step {}", time_step); println!("   "); 
     }
@@ -164,9 +174,10 @@ pub fn apply_rules(
 
 
     // Get parameters from config.rs once per individual for this time step
+    // todo: review this update rule
     let baseline_rate = get_global_param("hospitalization_baseline_rate_per_day")
         .expect("Missing hospitalization_baseline_rate_per_day in config");
-    let age_multiplier = get_global_param("hospitalization_age_multiplier_per_day")
+    let age_multiplier_hosp = get_global_param("hospitalization_age_multiplier_per_day")
         .expect("Missing hospitalization_age_multiplier_per_day in config");
     let recovery_rate = get_global_param("hospitalization_recovery_rate_per_day")
         .expect("Missing hospitalization_recovery_rate_per_day in config");
@@ -175,7 +186,7 @@ pub fn apply_rules(
 
     // Potentially get hospitalized (if not currently hospitalized)
     if !individual.hospital_status.is_hospitalized() { 
-        let prob_hospitalization_today = baseline_rate + (individual.age as f64 * age_multiplier);
+        let prob_hospitalization_today = baseline_rate + (individual.age as f64 * age_multiplier_hosp);
 
         if rng.gen::<f64>() < prob_hospitalization_today {
             individual.hospital_status = HospitalStatus::InHospital; 
@@ -387,10 +398,11 @@ pub fn apply_rules(
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
 
-                // debug print                         
+                // debug print       
+                                  
                 if individual.id == 0  { 
                     println!(
-                        "started {} - rate of starting was {:.4}",
+                        "mod.rs   started {} - rate of starting was {:.4}",
                         drug_name,
                         administration_prob,
                     );
@@ -423,7 +435,10 @@ pub fn apply_rules(
     }
     individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase).max(0.0);
 
-    // --- death                    
+    // --- death     
+
+    // todo: review this update rule
+                   
     if individual.date_of_death.is_none() {
         let mut cause: Option<String> = None;
         let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
@@ -746,6 +761,7 @@ pub fn apply_rules(
 
             if individual.id == 0 {
                 println!(" ");
+                println!("mod.rs");  
                 println!("bacteria: {}", bacteria);
                 println!("immunity level: {:.4}", immunity_level);
                 println!("baseline change: {:.4}", baseline_change);
@@ -761,7 +777,7 @@ pub fn apply_rules(
 
                 if individual.id == 0 {
                         println!(
-                            "{}: current level = {:.4}, activity_r = {:.4}",
+                            "mod.rs  {}: current level = {:.4}, activity_r = {:.4}",
                             DRUG_SHORT_NAMES[drug_idx],
                             individual.cur_level_drug[drug_idx],
                             resistance_data.activity_r
@@ -770,7 +786,7 @@ pub fn apply_rules(
                         
 
              if individual.id == 0 {
-                println!("total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
+                println!("mod.rs  total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
             }   
             }
             }
@@ -782,9 +798,9 @@ pub fn apply_rules(
    
                 if individual.id == 0 {
 
-                println!("calculated decay: {:.4}", decay);
-                println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
-                println!("bacteria level after this time step: {:.4}", new_level);
+                println!("mod.rs  calculated decay: {:.4}", decay);
+                println!("mod.rs  bacteria level after previous time step: {:.4}", individual.level[b_idx]);
+                println!("mod.rs  bacteria level after this time step: {:.4}", new_level);
 
                 
                 }

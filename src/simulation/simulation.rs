@@ -180,16 +180,18 @@ impl Simulation {
             for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
                 if individual_0.cur_level_drug[drug_idx] > 0.0 {
                     let status = if individual_0.cur_use_drug[drug_idx] {
-                        " (currently being taken)"
+                        " simulation.rs (currently being taken)"
                     } else {
-                        " (decaying)"
+                        " simulation.rs (decaying)"
                     };
+                    println!("simulation.rs ");
                     println!("{}: level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
+                    println!(" ");
                     drugs_present_found_overall = true; // Use the newly declared variable
                 }
             }
             if !drugs_present_found_overall {
-                println!("no antibiotics currently in system for Individual 0");
+                println!("simulation.rs  no antibiotics currently in system");
             }
 
 
@@ -198,6 +200,8 @@ impl Simulation {
                 let level = individual_0.level[b_idx];
                 if level > 0.0001 {
                     has_infection = true;
+                    println!(" ");  
+                    println!("simulation.rs  ");  
                     println!("bacteria: {}", bacteria_name);
                     println!("infected = true");
                     println!("level = {:.4}", level);
@@ -219,7 +223,7 @@ impl Simulation {
                         }
                     }
                     if !drugs_present_found {
-                        println!("no antibiotics currently in system");
+                        println!("simulation.rs  no antibiotics currently in system");
                     }
                     let mut effective_antibiotics_found = false;
   
@@ -228,7 +232,7 @@ impl Simulation {
                             let resistance_data = &individual_0.resistances[b_idx][drug_idx];
                             println!("any_r {}:", bacteria_name);    
                             println!(
-                                "{}: level = {:.4}, any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
+                                "simulation.rs  {}: level = {:.4}, any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
                                 drug_name_static,
                                 individual_0.cur_level_drug[drug_idx],
                                 resistance_data.any_r,
@@ -241,13 +245,13 @@ impl Simulation {
                         }
                     }
                     if !effective_antibiotics_found {
-                        println!("no effective antibiotics in system against this bacteria");
+                        println!("simulation.rs  no effective antibiotics in system against this bacteria");
                     }
                     println!();
                 }
             }
             if !has_infection {
-                println!("no active bacterial infection as of end of the time step");
+                println!("simulation.rs  no active bacterial infection as of end of the time step");
                 println!();
             }
 
@@ -259,8 +263,8 @@ impl Simulation {
                 0.0
             };
 
-
-            println!("infection and resistance summary outputs:");
+            println!(" ");
+            println!("simulation.rs  infection and resistance summary outputs:");
             println!(" ");
             println!("total individuals in population: {}", total_population_size);
             println!("number of individuals with any bacterial infection: {}", individuals_with_any_bacterial_infection);
