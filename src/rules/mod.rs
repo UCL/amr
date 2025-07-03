@@ -1,7 +1,7 @@
 // src/rules/mod.rs
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
-use crate::config::{get_global_param, get_bacteria_param, get_bacteria_drug_param, get_drug_param};
+use crate::config::{get_global_param, get_bacteria_param, get_bacteria_drug_param, get_drug_param, get_resistance_emergence_rate_per_day_baseline};
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -698,9 +698,13 @@ pub fn apply_rules(
                         // only consider emergence if there's drug present (either being taken or decaying)
                         // and a positive bacteria level for selection pressure.
                         if drug_current_level > 0.0001 && current_bacteria_level > 0.0001 { 
-                            let emergence_rate_baseline = get_global_param("resistance_emergence_rate_per_day_baseline").unwrap_or(0.000001); // Very small baseline
-                            let bacteria_level_effect_multiplier = get_global_param("resistance_emergence_bacteria_level_multiplier").unwrap_or(0.05); // How much does bacteria level boost it
-                            let any_r_emergence_level_on_first_emergence = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5); // User changed to 0.5 (was 1.0)
+                            // Use the new per-drug/bacteria parameter
+                            let emergence_rate_baseline = get_resistance_emergence_rate_per_day_baseline(
+                                DRUG_SHORT_NAMES[drug_index],
+                                bacteria
+                            ).unwrap_or(0.000001); // fallback if not found
+                            let bacteria_level_effect_multiplier = get_global_param("resistance_emergence_bacteria_level_multiplier").unwrap_or(0.05);
+                            let any_r_emergence_level_on_first_emergence = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5);
 
                             // bacteria level dependency: Higher at higher levels
                             let max_bacteria_level = get_bacteria_param(bacteria, "max_level").unwrap_or(100.0);

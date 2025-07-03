@@ -21,7 +21,9 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 // Default to 1.0 (no multiplier effect) for all combinations
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.0);
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                // Add specific resistance emergence rate per drug/bacteria
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);
             }
         }
 
@@ -41,7 +43,6 @@ lazy_static! {
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
 
         // Resistance Emergence and Decay Parameters
-        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.00);  // 0.000001 Baseline probability for de novo resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
@@ -227,14 +228,14 @@ lazy_static! {
         map.insert("acinetobac_bau_immunity_increase_per_infection_day".to_string(), 0.2  );  // 0.2
         map.insert("acinetobac_bau_immunity_increase_per_unit_higher_bacteria_level".to_string(), 0.2  );  // 0.2
         map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005  );  // 0.005
-        map.insert("acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); // 0.7 Baseline probability for de novo resistance emergence
+        map.insert("cefepime_resistance_emergence_rate_per_day_baseline".to_string(), 0.5); // 0.0001 Baseline probability for de novo resistance emergence
 
 
         map.insert("acinetobac_bau_baseline_risk_per_day".to_string(), 0.00002);
 //      map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);
         map.insert("acinetobac_bau_duration_multiplier".to_string(), 0.000002);
 
-        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 10000.0); // High multiplier
+        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 50000.0); // High multiplier
 
 
 
@@ -375,4 +376,10 @@ pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
 pub fn get_bacteria_drug_param(bacteria_name: &str, drug_name: &str, param_suffix: &str) -> Option<f64> {
     let specific_key = (bacteria_name.to_string(), drug_name.to_string(), param_suffix.to_string());
     BACTERIA_DRUG_PARAMETERS.get(&specific_key).copied()
+}
+
+// Add a helper function to fetch the new parameter
+pub fn get_resistance_emergence_rate_per_day_baseline(drug: &str, bacteria: &str) -> Option<f64> {
+    let key = format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria);
+    PARAMETERS.get(&key).copied()
 }
