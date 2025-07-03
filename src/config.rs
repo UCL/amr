@@ -9,7 +9,7 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0000001); // 0.0005
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.000001); // 0.0000001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0);
@@ -21,6 +21,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 // Default to 1.0 (no multiplier effect) for all combinations
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.0);
             }
         }
 
@@ -40,7 +41,7 @@ lazy_static! {
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
 
         // Resistance Emergence and Decay Parameters
-        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.01);  // 0.000001 Baseline probability for de novo resistance emergence
+        map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.00);  // 0.000001 Baseline probability for de novo resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
@@ -81,16 +82,16 @@ lazy_static! {
             map.insert(format!("{}_sexual_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_mosquito_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
-            map.insert(format!("{}_level_change_rate_baseline", bacteria), 0.2); // currently if this is non-zero it means that people can have level > 0 and ths appear infected
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.01);
+            map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
             map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_increase_rate_baseline", bacteria), 0.1); // 0.001
-            map.insert(format!("{}_initial_immunity_on_infection", bacteria), 0.001); 
-            map.insert(format!("{}_immunity_increase_rate_per_level", bacteria), 0.05);
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.005); // 0.05 is strong effect
+            map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
+            map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
+            map.insert(format!("{}_acinetobac_bau_immunity_increase_per_infection_day", bacteria), 0.05);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
-            map.insert(format!("{}_baseline_immunity_level", bacteria), 0.00001); // 0.00001
             map.insert(format!("{}_immunity_decay", bacteria), 0.1);
         }
+
 
         // Default Initial Drug Levels and Double Dose Multipliers for ALL Drugs
         for &drug in DRUG_SHORT_NAMES.iter() {
@@ -220,19 +221,18 @@ lazy_static! {
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
 
         // acinetobac_bau Parameters
-        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.5);
+        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.05);
         map.insert("acinetobac_bau_hospital_acquired_proportion".to_string(), 0.15); // Often hospital-acquired
-        map.insert("acinetobac_bau_immunity_increase_rate_baseline".to_string(), 0.001); // 0.001
-        map.insert("acinetobac_bau_immunity_increase_rate_per_day".to_string(), 0.2);  // 0.2
-        map.insert("acinetobac_bau_immunity_increase_rate_per_level".to_string(), 0.2);  // 0.2
-        map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005);  
+        map.insert("acinetobac_bau_immunity_base_response".to_string(), 0.001); // 0.001
+        map.insert("acinetobac_bau_immunity_increase_per_infection_day".to_string(), 0.2  );  // 0.2
+        map.insert("acinetobac_bau_immunity_increase_per_unit_higher_bacteria_level".to_string(), 0.2  );  // 0.2
+        map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005  );  // 0.005
         map.insert("acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); // 0.7 Baseline probability for de novo resistance emergence
 
+
         map.insert("acinetobac_bau_baseline_risk_per_day".to_string(), 0.00002);
-        map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);
+//      map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);
         map.insert("acinetobac_bau_duration_multiplier".to_string(), 0.000002);
-
-
 
         map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 10000.0); // High multiplier
 

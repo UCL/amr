@@ -7,6 +7,9 @@ use rayon::prelude::*;
 pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
     pub population: Population, // specifying the population of individuals in the simulation.
     pub time_steps: usize, // specifying how many discrete time steps the simulation will run.
+
+    // todo: ensure that when we count across individuals that we include only those alive
+
     pub global_majority_r_proportions: HashMap<(usize, usize), f64>,  // Maps (bacteria_index, drug_index) pairs to a global proportion 
                                                                       // value to track summary statistics over time.
     pub majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>>,
@@ -202,9 +205,11 @@ impl Simulation {
                     has_infection = true;
                     println!(" ");  
                     println!("simulation.rs  ");  
+                    println!(" ");  
+                    println!("bacteria level = {:.4}", level);
                     println!("bacteria: {}", bacteria_name);
                     println!("infected = true");
-                    println!("level = {:.4}", level);
+
                     println!("immune response = {:.4}", individual_0.immune_resp[b_idx]);
                     println!("infection from environment = {}", individual_0.cur_infection_from_environment[b_idx]);
                     println!("hospital acquired infection = {}", individual_0.infection_hospital_acquired[b_idx]);

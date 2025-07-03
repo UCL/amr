@@ -438,7 +438,7 @@ pub fn apply_rules(
     // --- death     
 
     // todo: review this update rule
-                   
+
     if individual.date_of_death.is_none() {
         let mut cause: Option<String> = None;
         let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
@@ -547,9 +547,9 @@ pub fn apply_rules(
                     if infection_present {
                         let current_any_r = individual.resistances[b_idx][d_idx].any_r;
                         let current_microbiome_r = individual.resistances[b_idx][d_idx].microbiome_r;
-                        let should_attempt_transfer = (current_any_r > 0.0 && current_microbiome_r == 0.0) ||
+                        let possible_transfer_r_microbiome = (current_any_r > 0.0 && current_microbiome_r == 0.0) ||
                                                      (current_microbiome_r > 0.0 && current_any_r == 0.0);
-                        if should_attempt_transfer && rng.gen_bool(transfer_prob) {
+                        if possible_transfer_r_microbiome && rng.gen_bool(transfer_prob) {
                             if current_any_r > 0.0 && current_microbiome_r == 0.0 {
                                 individual.resistances[b_idx][d_idx].microbiome_r = current_any_r;
                             } else if current_microbiome_r > 0.0 && current_any_r == 0.0 {
@@ -621,6 +621,10 @@ pub fn apply_rules(
                     } else {
                         // When acquired from other individuals (neither env nor hospital):
                         // Sample a resistance level from the observed majority_r values in the population.
+
+                        // todo: ensure that when we count across individuals to calculate the observed majority_r 
+                        // that we include only those alive
+
                         if let Some(majority_r_values_from_population) = majority_r_positive_values_by_combo.get(&(b_idx, d_idx)) {
                             if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
                                 // If a resistant strain is acquired from the population,
@@ -730,8 +734,14 @@ pub fn apply_rules(
                     // calculate activity_r (should always be updated)
                     // todo: may need to specify the parameter 0.05 below in config.rs
                     if drug_current_level > 0.0 {
+                        // Fetch potency from config, fallback to 0.05 if not found
+                        let potency_param_key = format!(
+                            "drug_{}_for_bacteria_{}_potency_when_no_r",
+                            DRUG_SHORT_NAMES[drug_index], bacteria
+                        );
+                        let potency = get_global_param(&potency_param_key).unwrap_or(0.05);
                         let normalized_any_r = resistance_data.any_r / max_resistance_level;
-                        resistance_data.activity_r = 0.05 * drug_current_level * (1.0 - normalized_any_r);
+                        resistance_data.activity_r = potency * drug_current_level * (1.0 - normalized_any_r);
                     } else {
                         resistance_data.activity_r = 0.0;
                     }
@@ -754,7 +764,7 @@ pub fn apply_rules(
         // This entire block should only execute if the individual is currently infected with this bacteria
         if is_infected { 
             let immunity_level = individual.immune_resp[b_idx];
-            let baseline_change = get_bacteria_param(bacteria, "level_change_rate_baseline").unwrap_or(0.0);
+            let baseline_change = get_bacteria_param(bacteria, "base_bacteria_level_change").unwrap_or(0.0);
             let reduction_due_to_immune_resp = get_bacteria_param(bacteria, "immunity_effect_on_level_change").unwrap_or(0.0);
             let mut total_reduction_due_to_antibiotic = 0.0;
 
@@ -798,10 +808,11 @@ pub fn apply_rules(
    
                 if individual.id == 0 {
 
-                println!("mod.rs  calculated decay: {:.4}", decay);
-                println!("mod.rs  bacteria level after previous time step: {:.4}", individual.level[b_idx]);
-                println!("mod.rs  bacteria level after this time step: {:.4}", new_level);
-
+                println!("mod.rs");                    
+                println!(" ");  
+                println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
+                println!("bacteria level after this time step: {:.4}", new_level);
+                println!("calculated decay: {:.4}", decay);
                 
                 }
 
@@ -831,11 +842,11 @@ pub fn apply_rules(
         let infection_start_time = individual.date_last_infected[b_idx];
         let time_since_infection = (time_step as i32) - infection_start_time;
         let age = individual.age;
-        let mut immune_increase = get_bacteria_param(bacteria, "immunity_increase_rate_baseline").unwrap_or(0.0);
-        immune_increase += time_since_infection as f64 * get_bacteria_param(bacteria, "immunity_increase_rate_per_day").unwrap_or(0.0);
-        immune_increase += individual.level[b_idx] * get_bacteria_param(bacteria, "immunity_increase_rate_per_level").unwrap_or(0.0);
+        let mut immune_increase = get_bacteria_param(bacteria, "immunity_base_response").unwrap_or(0.0);
+        immune_increase += time_since_infection as f64 * get_bacteria_param(bacteria, "immunity_increase_per_infection_day").unwrap_or(0.0);
+        immune_increase += individual.level[b_idx] * get_bacteria_param(bacteria, "immunity_increase_per_unit_higher_bacteria_level").unwrap_or(0.0);
         let age_modifier = get_bacteria_param(bacteria, "immunity_age_modifier").unwrap_or(1.0);
-        immune_increase *= age_modifier.powf((-age as f64 / 365.0) / 50.0);
+        immune_increase *= age_modifier.powf((age as f64 / 365.0) / 50.0);
         individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase).max(0.0001);
     }
 

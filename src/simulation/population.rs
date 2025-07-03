@@ -128,7 +128,7 @@ impl Individual {
         let date_last_infected = vec![0; num_bacteria];
         let infectious_syndrome = vec![0; num_bacteria];
         let level = vec![0.0; num_bacteria];
-        let immune_resp = vec![0.1; num_bacteria];
+        let immune_resp = vec![0.0001; num_bacteria];
         let sepsis = vec![false; num_bacteria];
         let presence_microbiome = vec![false; num_bacteria];
         let infection_hospital_acquired = vec![false; num_bacteria];
