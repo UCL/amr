@@ -1,10 +1,12 @@
 // src/rules/mod.rs
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
-use crate::config::{get_global_param, get_bacteria_param, get_bacteria_drug_param, get_drug_param, get_resistance_emergence_rate_per_day_baseline};
+use crate::config::{get_global_param, get_bacteria_param, get_bacteria_drug_param, get_drug_param};
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
+use rand::distributions::WeightedIndex;
+use rand::distributions::Distribution; // <-- Add this import
 
 /// applies model rules to an individual for one time step.
 pub fn apply_rules(
@@ -299,6 +301,9 @@ pub fn apply_rules(
     let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
     let has_any_identified_infection = individual.test_identified_infection.iter().any(|&identified| identified);
 
+    // --- count number of drugs currently being used ---
+    let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
+
     let mut syndrome_administration_multiplier: f64 = 1.0;
     for &syndrome_id in individual.infectious_syndrome.iter() {
         if syndrome_id != 0 {
@@ -360,6 +365,11 @@ pub fn apply_rules(
     // --- drug initiation ---
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         let drug_name = DRUG_SHORT_NAMES[drug_idx];
+
+        // --- restriction: if already using two or more drugs, cannot start another ---
+        if num_drugs_currently_used + drugs_initiated_this_time_step >= 2 {
+            continue;
+        }
 
         // start with the base initiation rate for *any* drug
         let mut administration_prob = drug_base_initiation_rate;
@@ -501,7 +511,6 @@ pub fn apply_rules(
             let oral_exposure_multiplier = get_bacteria_param(bacteria, "oral_exposure_acq_rate_ratio_per_unit").unwrap_or(1.0);
             let mosquito_exposure_multiplier = get_bacteria_param(bacteria, "mosquito_exposure_acq_rate_ratio_per_unit").unwrap_or(1.0);
 
-            // todo: these will depend on bacteria 
             acquisition_probability *= sexual_contact_multiplier.powf(individual.sexual_contact_level);
             acquisition_probability *= airborne_adult_contact_multiplier.powf(individual.airborne_contact_level_with_adults);
             acquisition_probability *= airborne_child_contact_multiplier.powf(individual.airborne_contact_level_with_children);
@@ -519,6 +528,12 @@ pub fn apply_rules(
                 let microbiome_infection_multiplier = get_bacteria_param(bacteria, "microbiome_infection_acquisition_multiplier")
                     .unwrap_or_else(|| get_global_param("default_microbiome_infection_acquisition_multiplier").expect("Missing default_microbiome_infection_acquisition_multiplier in config"));
                 acquisition_probability *= microbiome_infection_multiplier;
+            }
+
+            // hospital-acquired multiplier (only if in hospital)
+            if individual.hospital_status.is_hospitalized() {
+                let hospital_multiplier = get_bacteria_param(bacteria, "hospital_acquired_multiplier").unwrap_or(1.0);
+                acquisition_probability *= hospital_multiplier;
             }
 
             // --- microbiome presence (Carriage) ---
@@ -565,37 +580,14 @@ pub fn apply_rules(
                 individual.level[b_idx] = initial_level;
                 individual.date_last_infected[b_idx] = time_step as i32;
 
-
-                // determine syndrome id
-                let syndrome_id = match bacteria {
-                    "strep_pneu" => 3, // Respiratory syndrome
-                    "haem_infl" => 3, // Can cause respiratory issues
-                    "kleb_pneu" => 3, // Can cause pneumonia
-                    "salm_typhi" => 7, // Gastrointestinal syndrome
-                    "salm_parat_a" => 7,
-                    "inv_nt_salm" => 7,
-                    "shig_spec" => 7,
-                    "esch_coli" => 7, // E.coli can also cause GI issues
-                    "n_gonorrhoeae" => 8, // Genital syndrome (example ID)
-                    "group_a_strep" => 9, // Skin/throat related (example ID)
-                    "group_b_strep" => 10, // Neonatal/sepsis related (example ID)
-                    _ => rng.gen_range(1..=10), // Random syndrome for others, adjust as needed
-                };
-                individual.infectious_syndrome[b_idx] = syndrome_id;
-
+                // --- probabilistic syndrome assignment ---
+                let syndrome_id = assign_syndrome_for_bacteria(bacteria, &mut rng);
+                individual.infectious_syndrome[b_idx] = syndrome_id as i32; // <-- Convert u32 to i32
 
                 let env_acquisition_chance = get_bacteria_param(bacteria, "environmental_acquisition_proportion").unwrap_or(0.1);
                 individual.cur_infection_from_environment[b_idx] = rng.gen::<f64>() < env_acquisition_chance;
 
-                let hospital_acquired_chance = get_bacteria_param(bacteria, "hospital_acquired_proportion").unwrap_or(0.05);
-                let mut is_hospital_acquired = false;
-
-                // only consider hospital-acquired if the individual is currently hospitalized
-                if individual.hospital_status.is_hospitalized() {
-                    is_hospital_acquired = rng.gen::<f64>() < hospital_acquired_chance;
-                }
-                individual.infection_hospital_acquired[b_idx] = is_hospital_acquired;
-
+                individual.infection_hospital_acquired[b_idx] = individual.hospital_status.is_hospitalized();
 
                 // --- any_r and majority_r setting logic on new infection acquisition ---
                 // in a newly infected person we should sample majority_r / any_r from all people in the same region with that 
@@ -698,13 +690,14 @@ pub fn apply_rules(
                         // only consider emergence if there's drug present (either being taken or decaying)
                         // and a positive bacteria level for selection pressure.
                         if drug_current_level > 0.0001 && current_bacteria_level > 0.0001 { 
-                            // Use the new per-drug/bacteria parameter
-                            let emergence_rate_baseline = get_resistance_emergence_rate_per_day_baseline(
+                            let param_key = format!(
+                                "drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline",
                                 DRUG_SHORT_NAMES[drug_index],
                                 bacteria
-                            ).unwrap_or(0.000001); // fallback if not found
-                            let bacteria_level_effect_multiplier = get_global_param("resistance_emergence_bacteria_level_multiplier").unwrap_or(0.05);
-                            let any_r_emergence_level_on_first_emergence = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5);
+                            );
+                            let emergence_rate_baseline = get_global_param(&param_key).unwrap_or(0.000001); // Very small baseline
+                            let bacteria_level_effect_multiplier = get_global_param("resistance_emergence_bacteria_level_multiplier").unwrap_or(0.05); // How much does bacteria level boost it
+                            let any_r_emergence_level_on_first_emergence = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5); // User changed to 0.5 (was 1.0)
 
                             // bacteria level dependency: Higher at higher levels
                             let max_bacteria_level = get_bacteria_param(bacteria, "max_level").unwrap_or(100.0);
@@ -719,9 +712,20 @@ pub fn apply_rules(
                             let mut norm_drug_level = drug_current_level / drug_initial_level_for_normalization;
                             norm_drug_level = norm_drug_level.clamp(0.0, 10.0); 
                             
-                            // bell-shaped curve: 0.02 * x * (10 - x). Peaks at 5.0, is 0 at 0 and 10.
-                            let activity_r_bell_curve_factor = 0.02 * norm_drug_level * (10.0 - norm_drug_level);
+                            // todo: review this code for resistance emergence probability
+                            // bell-shaped curve: 0.02 * x * (10 - x). Peaks at 5.0, is 0.1 at 0 and 10.
+                            let activity_r_bell_curve_factor = 0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
                             let final_activity_r_factor = activity_r_bell_curve_factor.clamp(0.0, 1.0);  
+
+
+
+                            if individual.id == 0 {
+                                println!(" ");
+                                println!("mod.rs");  
+                                println!("final_activity_r_factor: {:.4}", final_activity_r_factor);
+                            }
+
+
 
                             // total emergence probability
                             // adding 1.0 to bacteria_level_factor ensures a base contribution even if multiplier is low
@@ -812,6 +816,7 @@ pub fn apply_rules(
    
                 if individual.id == 0 {
 
+                println!(" "); 
                 println!("mod.rs");                    
                 println!(" ");  
                 println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
@@ -862,4 +867,29 @@ pub fn apply_rules(
             individual.resistances[i][j].test_r = 0.0;
         }
     }
+}
+
+/// Helper function to probabilistically assign a syndrome for a given bacteria.
+fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
+    // Define syndrome probabilities for each bacteria.
+    // Each entry: (syndrome_id, probability)
+    let syndrome_probs: &[(u32, f64)] = match bacteria {
+        "strep_pneu" => &[(3, 0.9), (7, 0.1)], // 90% respiratory, 10% GI
+        "haem_infl" => &[(3, 1.0)],
+        "kleb_pneu" => &[(3, 0.8), (7, 0.2)],
+        "salm_typhi" => &[(7, 1.0)],
+        "salm_parat_a" => &[(7, 1.0)],
+        "inv_nt_salm" => &[(7, 1.0)],
+        "shig_spec" => &[(7, 1.0)],
+        "esch_coli" => &[(7, 0.7), (8, 0.3)],
+        "n_gonorrhoeae" => &[(8, 1.0)],
+        "group_a_strep" => &[(9, 1.0)],
+        "group_b_strep" => &[(10, 1.0)],
+        // Add more bacteria as needed
+        _ => &[(1, 0.1), (2, 0.1), (3, 0.1), (4, 0.1), (5, 0.1), (6, 0.1), (7, 0.1), (8, 0.1), (9, 0.1), (10, 0.1)],
+    };
+
+    let weights: Vec<f64> = syndrome_probs.iter().map(|&(_, p)| p).collect();
+    let dist = WeightedIndex::new(&weights).unwrap();
+    syndrome_probs[dist.sample(rng)].0
 }

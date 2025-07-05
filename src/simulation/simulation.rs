@@ -261,7 +261,7 @@ impl Simulation {
             }
 
             // --- Global Infection and Resistance Statistics Output ---
-            let total_population_size = self.population.individuals.len();
+            let _total_population_size = self.population.individuals.len();
             let proportion_any_r_positive = if individuals_with_any_bacterial_infection > 0 {
                 individuals_with_any_r_positive_for_any_bacteria as f64 / individuals_with_any_bacterial_infection as f64
             } else {
@@ -271,7 +271,6 @@ impl Simulation {
             println!(" ");
             println!("simulation.rs  infection and resistance summary outputs:");
             println!(" ");
-            println!("total individuals in population: {}", total_population_size);
             println!("number of individuals with any bacterial infection: {}", individuals_with_any_bacterial_infection);
             println!("number of individuals with any bacteria having any_r > 0: {}", individuals_with_any_r_positive_for_any_bacteria);
             println!("proportion of infected individuals with any_r > 0: {:.4}\n", proportion_any_r_positive);

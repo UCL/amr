@@ -9,20 +9,18 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.000001); // 0.0000001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001); // 0.000001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0);
-        map.insert("already_on_drug_initiation_multiplier".to_string(), 0.000); // 0.0001
+        map.insert("already_on_drug_initiation_multiplier".to_string(), 1.000); // 0.0001
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
       
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
-                // Default to 1.0 (no multiplier effect) for all combinations
-                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
+                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0); // 0.0
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
-                // Add specific resistance emergence rate per drug/bacteria
                 map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);
             }
         }
@@ -43,7 +41,7 @@ lazy_static! {
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
 
         // Resistance Emergence and Decay Parameters
-        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
+        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.5); // 0.05 Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
         
@@ -72,10 +70,10 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.0); // 0.01
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.01
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1
-            map.insert(format!("{}_hospital_acquired_proportion", bacteria), 0.05); // 0.05
+            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 1.0); // <-- NEW: multiplier for hospital-acquired risk
             map.insert(format!("{}_decay", bacteria), 0.02);
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -160,7 +158,7 @@ lazy_static! {
         map.insert("sexual_contact_age_peak_days".to_string(), 25.0 * 365.0); // Age in days (25 years)
         map.insert("sexual_contact_age_rise_exponent".to_string(), 2.0); // Controls how fast contact rises with age before peak (higher = steeper)
         map.insert("sexual_contact_age_decline_rate".to_string(), 0.00005); // Rate of decline per day after peak age (e.g., 0.00005 means ~1.8% drop per year)
-        map.insert("sexual_contact_hospital_multiplier".to_string(), 0.0); // Significantly reduced in hospital (0.0 means no contact)
+        map.insert("sexual_contact_hospital_multiplier".to_string(), 0.0); 
 
         // Airborne Contact (Adults) Parameters
         map.insert("airborne_contact_adult_baseline".to_string(), 5.0);
@@ -222,24 +220,18 @@ lazy_static! {
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
 
         // acinetobac_bau Parameters
-        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.05);
-        map.insert("acinetobac_bau_hospital_acquired_proportion".to_string(), 0.15); // Often hospital-acquired
+        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.01 ); // 0.2
+        map.insert("acinetobac_bau_hospital_acquired_multiplier".to_string(), 5.0); // <-- NEW: higher risk in hospital
         map.insert("acinetobac_bau_immunity_base_response".to_string(), 0.001); // 0.001
         map.insert("acinetobac_bau_immunity_increase_per_infection_day".to_string(), 0.2  );  // 0.2
         map.insert("acinetobac_bau_immunity_increase_per_unit_higher_bacteria_level".to_string(), 0.2  );  // 0.2
         map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005  );  // 0.005
-        map.insert("cefepime_resistance_emergence_rate_per_day_baseline".to_string(), 0.5); // 0.0001 Baseline probability for de novo resistance emergence
-
-
-        map.insert("acinetobac_bau_baseline_risk_per_day".to_string(), 0.00002);
-//      map.insert("acinetobac_bau_level_multiplier".to_string(), 0.008);
-        map.insert("acinetobac_bau_duration_multiplier".to_string(), 0.000002);
-
-        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 50000.0); // High multiplier
+        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.01); // 0.2 0.0001 Baseline probability for de novo resistance emergence
+        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 1000.0); // 1000000.0
 
 
 
-        //  Drug-Specific Toxicity Parameters (Examples)
+        // Drug-Specific Toxicity Parameters (Examples)
         // Format: "drug_{drug_name}_toxicity_per_unit_level_per_day"
         map.insert("drug_penicilling_toxicity_per_unit_level_per_day".to_string(), 0.002); // Lower toxicity example
         map.insert("drug_cefepime_toxicity_per_unit_level_per_day".to_string(), 0.01);    // Higher toxicity example
@@ -378,8 +370,3 @@ pub fn get_bacteria_drug_param(bacteria_name: &str, drug_name: &str, param_suffi
     BACTERIA_DRUG_PARAMETERS.get(&specific_key).copied()
 }
 
-// Add a helper function to fetch the new parameter
-pub fn get_resistance_emergence_rate_per_day_baseline(drug: &str, bacteria: &str) -> Option<f64> {
-    let key = format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria);
-    PARAMETERS.get(&key).copied()
-}
