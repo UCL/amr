@@ -59,21 +59,21 @@ lazy_static! {
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)        
 
         // Hospitalization Parameters
-        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00001); // Baseline daily probability of hospitalization
+        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00001); // 0.00001  Baseline daily probability of hospitalization
         map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.000001); // Increase in daily hospitalization probability per year of age
         map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.1); // Daily probability of recovering from hospitalization
         map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
 
         // initiate travel
-        map.insert("travel_probability_per_day".to_string(), 0.0005);
+        map.insert("travel_probability_per_day".to_string(), 0.00005);
 
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.01
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
-            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1
-            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 1.0); // <-- NEW: multiplier for hospital-acquired risk
+            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
+            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 100.0); // multiplier for hospital-acquired risk
             map.insert(format!("{}_decay", bacteria), 0.02);
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -86,7 +86,7 @@ lazy_static! {
             map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.005); // 0.05 is strong effect
             map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
             map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
-            map.insert(format!("{}_acinetobac_bau_immunity_increase_per_infection_day", bacteria), 0.05);
+            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.05);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
             map.insert(format!("{}_immunity_decay", bacteria), 0.1);
         }
@@ -220,8 +220,8 @@ lazy_static! {
         // --- Overrides for Specific Bacteria (Customize these as needed) ---
 
         // acinetobac_bau Parameters
-        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.01 ); // 0.2
-        map.insert("acinetobac_bau_hospital_acquired_multiplier".to_string(), 5.0); // <-- NEW: higher risk in hospital
+        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.2 ); // 0.2
+        map.insert("acinetobac_bau_hospital_acquired_multiplier".to_string(), 5.0); // higher risk in hospital
         map.insert("acinetobac_bau_immunity_base_response".to_string(), 0.001); // 0.001
         map.insert("acinetobac_bau_immunity_increase_per_infection_day".to_string(), 0.2  );  // 0.2
         map.insert("acinetobac_bau_immunity_increase_per_unit_higher_bacteria_level".to_string(), 0.2  );  // 0.2

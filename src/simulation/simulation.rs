@@ -12,7 +12,6 @@ pub struct Simulation {  // public rust struct which encapsulates the state and 
 
     pub global_majority_r_proportions: HashMap<(usize, usize), f64>,  // Maps (bacteria_index, drug_index) pairs to a global proportion 
                                                                       // value to track summary statistics over time.
-    pub majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>>,
     pub bacteria_indices: HashMap<&'static str, usize>, // A string-to-index map converting bacteria names (&'static str) to integer indices.
     pub drug_indices: HashMap<&'static str, usize>, // as above, but for drugs.
 }
@@ -42,7 +41,7 @@ impl Simulation {
         }
 
         let global_majority_r_proportions = HashMap::new(); // Initialize an empty HashMap to store global majority_r proportions for bacteria/drug pairs.
-        let majority_r_positive_values_by_combo = HashMap::new(); // Initialize an empty HashMap to store majority_r positive values for each bacteria/drug combination.
+        // Removed: let majority_r_positive_values_by_combo = HashMap::new(); // Initialize an empty HashMap to store majority_r positive values for each bacteria/drug combination.
 
         // --- Initial State Logging for Individual 0
 
@@ -69,7 +68,6 @@ impl Simulation {
             population,
             time_steps,
             global_majority_r_proportions,
-            majority_r_positive_values_by_combo,
             bacteria_indices,
             drug_indices,
         }
@@ -82,17 +80,57 @@ impl Simulation {
         println!(" ");
 
         for t in 0..self.time_steps {
-
             println!("simulation.rs time step: {}", t);
 
+            // --- sequential aggregation of global statistics ---
+            let mut current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
+            let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
+            let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
+
+            // --- counters  ---
+            let mut _individuals_with_any_bacterial_infection = 0;
+            let mut _individuals_with_any_r_positive_for_any_bacteria = 0;
+            // --- ---
+
+            for individual in self.population.individuals.iter() {
+                let region_idx = individual.region_cur_in as usize;
+                let hospital_status_bool = individual.hospital_status.is_hospitalized();
+                let mut individual_has_any_infection = false;
+                let mut individual_has_any_r_positive = false;
+                for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                    if individual.level[b_idx] > 0.001 {
+                        individual_has_any_infection = true;
+                        *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
+                        for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                            let resistance_data = &individual.resistances[b_idx][d_idx];
+                            if resistance_data.majority_r > 0.0 {
+                                current_majority_r_positive_values_by_combo
+                                    .entry((region_idx, hospital_status_bool, b_idx, d_idx))
+                                    .or_insert_with(Vec::new)
+                                    .push(resistance_data.majority_r);
+                                *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
+                            }
+                            if resistance_data.any_r > 0.0 {
+                                individual_has_any_r_positive = true;
+                            }
+                        }
+                    }
+                }
+                if individual_has_any_infection {
+                    _individuals_with_any_bacterial_infection += 1;
+                }
+                if individual_has_any_r_positive {
+                    _individuals_with_any_r_positive_for_any_bacteria += 1;
+                }
+            }
+
             // --- parallel application of rules to individuals ---
-            // each individual's rules are applied independently.
-            self.population.individuals.par_iter_mut().for_each(|individual| { // this uses Rayon to parallelize the application of rules across all individuals.
-                apply_rules( // Calls the apply_rules function, passing in the individual and other necessary data structures.
+            self.population.individuals.par_iter_mut().for_each(|individual| {
+                apply_rules(
                     individual,
                     t,
                     &self.global_majority_r_proportions,
-                    &self.majority_r_positive_values_by_combo,
+                    &current_majority_r_positive_values_by_combo,
                     &self.bacteria_indices,
                     &self.drug_indices,
                 );
@@ -121,10 +159,7 @@ impl Simulation {
             }
 
             // --- sequential aggregation of global statistics ---
-            // This part must be sequential because it collects data from all individuals
-            // into shared, mutable HashMaps, which would cause data races if done in parallel
-            // without complex synchronization.
-            let mut current_majority_r_positive_values_by_combo: HashMap<(usize, usize), Vec<f64>> = HashMap::new();
+            let mut current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
             let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
             let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
 
@@ -134,49 +169,39 @@ impl Simulation {
             // --- ---
 
 
-            for individual in self.population.individuals.iter() { // Iterate over each individual in the population to collect statistics.
-                // --- Flags for this individual's status ---
+            for individual in self.population.individuals.iter() {
+                let region_idx = individual.region_cur_in as usize;
+                let hospital_status_bool = individual.hospital_status.is_hospitalized();
+                // Declare these flags inside the loop for each individual
                 let mut individual_has_any_infection = false;
                 let mut individual_has_any_r_positive = false;
-                // --- END ---
-
                 for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                    // Only count if currently infected
                     if individual.level[b_idx] > 0.001 {
-                        // -flag if individual has an infection ---
                         individual_has_any_infection = true;
-                        // --- end -
-
-                        *current_infected_counts_total.entry(b_idx).or_insert(0) += 1; // Increment the count of total infections for this bacteria index
-
-                        for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() { // Iterate over each drug for the current bacteria
-                            let resistance_data = &individual.resistances[b_idx][d_idx]; // get the resistance data for the current bacteria/drug pair
+                        *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
+                        for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                            let resistance_data = &individual.resistances[b_idx][d_idx];
                             if resistance_data.majority_r > 0.0 {
-                                current_majority_r_positive_values_by_combo //
-                                    .entry((b_idx, d_idx))
+                                current_majority_r_positive_values_by_combo
+                                    .entry((region_idx, hospital_status_bool, b_idx, d_idx))
                                     .or_insert_with(Vec::new)
                                     .push(resistance_data.majority_r);
-                                *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1; // Increment the count of infections with majority_r for this bacteria/drug pair
+                                *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
                             }
-                            // check for any_r > 0 for ANY bacteria/drug combo for this individual ---
                             if resistance_data.any_r > 0.0 {
                                 individual_has_any_r_positive = true;
                             }
-                            // --- end ---
                         }
                     }
                 }
-                // ---Increment overall counters for the individual AFTER checking all their infections ---
                 if individual_has_any_infection {
                     individuals_with_any_bacterial_infection += 1;
                 }
                 if individual_has_any_r_positive {
                     individuals_with_any_r_positive_for_any_bacteria += 1;
                 }
-                // --- end ---
             }
 
- 
             // Print drug details for individual 0, regardless of infection status
 
             let mut drugs_present_found_overall = false; // Declare and initialize here
@@ -277,7 +302,8 @@ impl Simulation {
             // --- end  ---
 
             println!("                                ");
-            
+            println!("hospital_status: {:?}", self.population.individuals[0].hospital_status);                                      
+            println!("                                ");
         }
 
 

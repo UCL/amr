@@ -13,7 +13,7 @@ pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
     _global_majority_r_proportions: &HashMap<(usize, usize), f64>,
-    majority_r_positive_values_by_combo: &HashMap<(usize, usize), Vec<f64>>,
+    majority_r_positive_values_by_combo: &HashMap<(usize, bool, usize, usize), Vec<f64>>, // <-- update type
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
 ) {
@@ -582,7 +582,7 @@ pub fn apply_rules(
 
                 // --- probabilistic syndrome assignment ---
                 let syndrome_id = assign_syndrome_for_bacteria(bacteria, &mut rng);
-                individual.infectious_syndrome[b_idx] = syndrome_id as i32; // <-- Convert u32 to i32
+                individual.infectious_syndrome[b_idx] = syndrome_id as i32;
 
                 let env_acquisition_chance = get_bacteria_param(bacteria, "environmental_acquisition_proportion").unwrap_or(0.1);
                 individual.cur_infection_from_environment[b_idx] = rng.gen::<f64>() < env_acquisition_chance;
@@ -590,15 +590,15 @@ pub fn apply_rules(
                 individual.infection_hospital_acquired[b_idx] = individual.hospital_status.is_hospitalized();
 
                 // --- any_r and majority_r setting logic on new infection acquisition ---
-                // in a newly infected person we should sample majority_r / any_r from all people in the same region with that 
-                // bacteria and assign the newly infected person that level 
                 let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let hospital_majority_r_level = get_global_param("hospital_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
 
-                // Use this before the for loop:
                 let is_from_environment = individual.cur_infection_from_environment[b_idx];
                 let is_hospital_acquired = individual.infection_hospital_acquired[b_idx];
+
+                let region_idx = individual.region_cur_in as usize;
+                let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
                 for drug_name_static in DRUG_SHORT_NAMES.iter() {
                     let d_idx = *drug_indices.get(drug_name_static).unwrap();
@@ -611,35 +611,25 @@ pub fn apply_rules(
                         resistance_data.majority_r = hospital_majority_r_level;
                         resistance_data.any_r = hospital_majority_r_level;
                     } else {
-                        // When acquired from other individuals (neither env nor hospital):
-                        // Sample a resistance level from the observed majority_r values in the population.
-
-                        // todo: ensure that when we count across individuals to calculate the observed majority_r 
-                        // that we include only those alive
-
-                        if let Some(majority_r_values_from_population) = majority_r_positive_values_by_combo.get(&(b_idx, d_idx)) {
+                        // --- region/hospital-specific sampling ---
+                        if let Some(majority_r_values_from_population) =
+                            majority_r_positive_values_by_combo.get(&(region_idx, hospital_status_bool, b_idx, d_idx))
+                        {
                             if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
-                                // If a resistant strain is acquired from the population,
-                                // both any_r and majority_r start at that level.
                                 let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
                                 resistance_data.any_r = clamped_level;
-                                resistance_data.majority_r = clamped_level; // Assign sampled level to majority_r too
+                                resistance_data.majority_r = clamped_level;
                             } else {
-                                // No majority-resistant strains observed in the population for this combo,
-                                // so acquired strain is non-resistant.
                                 resistance_data.any_r = 0.0;
                                 resistance_data.majority_r = 0.0;
                             }
                         } else {
-                            // No data for this bacteria-drug combo in majority_r_positive_values_by_combo,
-                            // assume non-resistant acquisition.
                             resistance_data.any_r = 0.0;
                             resistance_data.majority_r = 0.0;
                         }
                     }
                 }
                 // --- end generalized any_r and majority_r setting logic ---
-
             } 
         } else { // Bacteria is already present (infection progression)
             // --- majority_r evolution ---

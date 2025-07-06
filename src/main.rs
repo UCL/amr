@@ -6,11 +6,7 @@ mod config;
 
 
 //
-// order: 
-// infection with no immune response, multiple concurrent infections
-// infection with immune response, leading to eradication of infection
-// infection with immune response and drug (but no drug resistance)
-// infection with immune_response, drug and drug resistance
+// need a variable for whether drug was prescribed 
 // start getting out graphs
 //
 //
