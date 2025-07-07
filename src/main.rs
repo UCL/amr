@@ -11,11 +11,6 @@ mod config;
 //              bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug - but not sure yet if
 //              this is needed / justified
 //
-// todo: allow test_r to be > 0       
-//
-// todo: if test_r > 0 for any drug then have choice of drug always one for which the bacteria is sensitive (do we need a boolean
-//       for whether test_r_done = true)
-//
 // todo: review whether / how test_identified_infection is used
 //
 // start getting out graphs
@@ -29,7 +24,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   100_000 ;
-    let time_steps = 20;
+    let time_steps = 50;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -87,11 +82,30 @@ fn main() {
     let mut total_deaths = 0;
     let mut death_causes_count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
+    // New: Track per-bacteria and per-drug resistance counts
+    let mut bacteria_infection_counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut bacteria_drug_any_r_counts: std::collections::HashMap<(&str, &str), usize> = std::collections::HashMap::new();
+
     for individual in &simulation.population.individuals {
+        // Death reporting (existing)
         if let Some(_date_of_death) = individual.date_of_death {
             total_deaths += 1;
             if let Some(cause) = &individual.cause_of_death {
                 *death_causes_count.entry(cause.clone()).or_insert(0) += 1;
+            }
+        }
+
+        // Per-bacteria and per-drug resistance reporting
+        for (bacteria, &b_idx) in simulation.bacteria_indices.iter() {
+            if individual.level[b_idx] > 0.001 {
+                // Count as infected with this bacteria
+                *bacteria_infection_counts.entry(bacteria).or_insert(0) += 1;
+                // For each drug, count if any_r > 0
+                for (drug, &d_idx) in simulation.drug_indices.iter() {
+                    if individual.resistances[b_idx][d_idx].any_r > 0.0 {
+                        *bacteria_drug_any_r_counts.entry((bacteria, drug)).or_insert(0) += 1;
+                    }
+                }
             }
         }
     }
@@ -99,9 +113,19 @@ fn main() {
     println!("total deaths during simulation: {}", total_deaths);
     println!("breakdown by cause of death:");
     for (cause, count) in death_causes_count {
-    println!("{}: {}", cause, count);
+        println!("{}: {}", cause, count);
     }
-    // --- end death reporting ---
+
+    // New: Print bacteria and resistance summary
+    println!("\n--- Bacteria infection and resistance summary ---");
+    for (bacteria, &count) in &bacteria_infection_counts {
+        println!("{}: {} infected", bacteria, count);
+        for (drug, _) in simulation.drug_indices.iter() {
+            let any_r_count = *bacteria_drug_any_r_counts.get(&(bacteria, drug)).unwrap_or(&0);
+            println!("    {}: {} with any_r > 0", drug, any_r_count);
+        }
+    }
+    // --- end death and resistance reporting ---
 
     println!("\n--- simulation ended ---");
     println!("\n--- total simulation time: {:.3?} seconds", duration);

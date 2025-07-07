@@ -41,7 +41,6 @@ impl Simulation {
         }
 
         let global_majority_r_proportions = HashMap::new(); // Initialize an empty HashMap to store global majority_r proportions for bacteria/drug pairs.
-        // Removed: let majority_r_positive_values_by_combo = HashMap::new(); // Initialize an empty HashMap to store majority_r positive values for each bacteria/drug combination.
 
         // --- Initial State Logging for Individual 0
 
@@ -73,7 +72,8 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self) { // public function named run, which executes the simulation for the specified number of time steps.
+    pub fn run(&mut self) {
+        // public function named run, which executes the simulation for the specified number of time steps.
 
         println!(" ");
         println!("--- starting to run over time steps");
@@ -82,7 +82,7 @@ impl Simulation {
         for t in 0..self.time_steps {
             println!("simulation.rs time step: {}", t);
 
-            // --- sequential aggregation of global statistics ---
+
             let mut current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
             let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
             let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
@@ -158,49 +158,6 @@ impl Simulation {
                 }
             }
 
-            // --- sequential aggregation of global statistics ---
-            let mut current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
-            let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
-            let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
-
-            // --- counters  ---
-            let mut individuals_with_any_bacterial_infection = 0;
-            let mut individuals_with_any_r_positive_for_any_bacteria = 0;
-            // --- ---
-
-
-            for individual in self.population.individuals.iter() {
-                let region_idx = individual.region_cur_in as usize;
-                let hospital_status_bool = individual.hospital_status.is_hospitalized();
-                // Declare these flags inside the loop for each individual
-                let mut individual_has_any_infection = false;
-                let mut individual_has_any_r_positive = false;
-                for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                    if individual.level[b_idx] > 0.001 {
-                        individual_has_any_infection = true;
-                        *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
-                        for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                            let resistance_data = &individual.resistances[b_idx][d_idx];
-                            if resistance_data.majority_r > 0.0 {
-                                current_majority_r_positive_values_by_combo
-                                    .entry((region_idx, hospital_status_bool, b_idx, d_idx))
-                                    .or_insert_with(Vec::new)
-                                    .push(resistance_data.majority_r);
-                                *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
-                            }
-                            if resistance_data.any_r > 0.0 {
-                                individual_has_any_r_positive = true;
-                            }
-                        }
-                    }
-                }
-                if individual_has_any_infection {
-                    individuals_with_any_bacterial_infection += 1;
-                }
-                if individual_has_any_r_positive {
-                    individuals_with_any_r_positive_for_any_bacteria += 1;
-                }
-            }
 
             // Print drug details for individual 0, regardless of infection status
 
@@ -285,22 +242,10 @@ impl Simulation {
                 println!();
             }
 
-            // --- Global Infection and Resistance Statistics Output ---
-            let _total_population_size = self.population.individuals.len();
-            let proportion_any_r_positive = if individuals_with_any_bacterial_infection > 0 {
-                individuals_with_any_r_positive_for_any_bacteria as f64 / individuals_with_any_bacterial_infection as f64
-            } else {
-                0.0
-            };
 
             println!(" ");
             println!("simulation.rs  infection and resistance summary outputs:");
             println!(" ");
-            println!("number of individuals with any bacterial infection: {}", individuals_with_any_bacterial_infection);
-            println!("number of individuals with any bacteria having any_r > 0: {}", individuals_with_any_r_positive_for_any_bacteria);
-            println!("proportion of infected individuals with any_r > 0: {:.4}\n", proportion_any_r_positive);
-
-
 
             println!("                                ");
             println!("region_living: {:?}", self.population.individuals[0].region_living);                                      
