@@ -4,15 +4,23 @@ mod simulation;
 mod rules;
 mod config;
 
-
 //
-// need a variable for whether drug was prescribed 
+//
+//
+// to(maybe)do: perhaps introduce an effect whereby drug treatment leads to increase in risk of microbiome_r > 0 due to allowing more 
+//              bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug - but not sure yet if
+//              this is needed / justified
+//
+// todo: allow test_r to be > 0       
+//
+// todo: if test_r > 0 for any drug then have choice of drug always one for which the bacteria is sensitive (do we need a boolean
+//       for whether test_r_done = true)
+//
+// todo: review whether / how test_identified_infection is used
+//
 // start getting out graphs
 //
-//
-
-
-
+// 
 
 
 
@@ -21,7 +29,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   100_000 ;
-    let time_steps = 10;
+    let time_steps = 20;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -99,7 +107,3 @@ fn main() {
     println!("\n--- total simulation time: {:.3?} seconds", duration);
     println!("                          ");
 }
-
-
-
-

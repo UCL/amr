@@ -6,7 +6,7 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use rand::distributions::WeightedIndex;
-use rand::distributions::Distribution; // <-- Add this import
+use rand::distributions::Distribution; 
 
 /// applies model rules to an individual for one time step.
 pub fn apply_rules(
@@ -149,8 +149,6 @@ pub fn apply_rules(
     update_contact_level(&mut individual.mosquito_exposure_level, base_mosquito_level);
 
     // --- end update contact and exposure levels ---
-
-
 
 
 
@@ -371,6 +369,19 @@ pub fn apply_rules(
             continue;
         }
 
+        // --- restriction: do not start drug if test_r > 0 for any bacteria ---
+        let mut test_r_positive = false;
+        for b_idx in 0..BACTERIA_LIST.len() {
+            if individual.resistances[b_idx][drug_idx].test_r > 0.0 {
+                test_r_positive = true;
+                break;
+            }
+        }
+        if test_r_positive {
+            continue;
+        }
+        // --- end restriction ---
+
         // start with the base initiation rate for *any* drug
         let mut administration_prob = drug_base_initiation_rate;
 
@@ -448,6 +459,7 @@ pub fn apply_rules(
     // --- death     
 
     // todo: review this update rule
+    // e.g. death rate by age will be higher at very young age in africa
 
     if individual.date_of_death.is_none() {
         let mut cause: Option<String> = None;
@@ -456,7 +468,7 @@ pub fn apply_rules(
         let age_multiplier = get_global_param("age_mortality_multiplier_per_year")
             .expect("Missing age_mortality_multiplier_per_year in config");
         let mut background_risk = base_background_rate;
-        background_risk += (individual.age as f64 / 365.0) * age_multiplier;
+        background_risk *= (individual.age as f64 / 365.0) * age_multiplier;
         let region_multiplier_key = format!("{}_mortality_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
         let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0);
         background_risk *= region_multiplier;
@@ -543,6 +555,42 @@ pub fn apply_rules(
                 let microbiome_acquisition_probability = acquisition_probability * microbiome_acquisition_multiplier;
                 if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
                     individual.presence_microbiome[b_idx] = true;
+
+                    // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
+                    let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
+                    let hospital_majority_r_level = get_global_param("hospital_majority_r_level_for_new_acquisition").unwrap_or(0.0);
+                    let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+
+                    let is_from_environment = true; // Microbiome acquisition is always from environment in this model
+                    let is_hospital_acquired = individual.hospital_status.is_hospitalized();
+
+                    let region_idx = individual.region_cur_in as usize;
+                    let hospital_status_bool = individual.hospital_status.is_hospitalized();
+
+                    for drug_name_static in DRUG_SHORT_NAMES.iter() {
+                        let d_idx = *drug_indices.get(drug_name_static).unwrap();
+                        let resistance_data = &mut individual.resistances[b_idx][d_idx];
+
+                        if is_from_environment {
+                            resistance_data.microbiome_r = env_majority_r_level;
+                        } else if is_hospital_acquired {
+                            resistance_data.microbiome_r = hospital_majority_r_level;
+                        } else {
+                            if let Some(majority_r_values_from_population) =
+                                majority_r_positive_values_by_combo.get(&(region_idx, hospital_status_bool, b_idx, d_idx))
+                            {
+                                if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
+                                    let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
+                                    resistance_data.microbiome_r = clamped_level;
+                                } else {
+                                    resistance_data.microbiome_r = 0.0;
+                                }
+                            } else {
+                                resistance_data.microbiome_r = 0.0;
+                            }
+                        }
+                    }
+                    // --- end microbiome_r assignment ---
                 }
             } else {
                 let microbiome_clearance_prob = get_bacteria_param(bacteria, "microbiome_clearance_probability_per_day")
@@ -550,9 +598,34 @@ pub fn apply_rules(
                 if rng.gen_bool(microbiome_clearance_prob) {
                     individual.presence_microbiome[b_idx] = false;
                 }
+
+                // --- de novo resistance emergence in microbiome when on drug ---
+                if individual.presence_microbiome[b_idx] {
+                    let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                    for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                        let resistance_data = &mut individual.resistances[b_idx][d_idx];
+                        let drug_level = individual.cur_level_drug[d_idx];
+                        // Only consider emergence if drug is present and microbiome_r is low
+                        if drug_level > 0.0001 && resistance_data.microbiome_r < 0.0001 {
+                            // Use a specific parameter for microbiome resistance emergence if present, else fallback to general
+                            let emergence_rate_baseline = get_global_param("microbiome_resistance_emergence_rate_per_day_baseline")
+                                .or_else(|| get_global_param("resistance_emergence_rate_per_day_baseline"))
+                                .unwrap_or(0.000001);
+                            let microbiome_r_emergence_level = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5);
+
+                            // Optionally, you could scale by drug level or other factors
+                            let total_emergence_prob = emergence_rate_baseline; // * (drug_level / 10.0).clamp(0.0, 1.0);
+
+                            if rng.gen_bool(total_emergence_prob.clamp(0.0, 1.0)) {
+                                resistance_data.microbiome_r = microbiome_r_emergence_level.min(max_resistance_level);
+                            }
+                        }
+                    }
+                }
+                // --- end de novo resistance emergence in microbiome ---
             }
 
-            // ...resistance transfer logic...
+            // ...resistance transfer (each way) between infection site and microbiome ...
             for &drug in DRUG_SHORT_NAMES.iter() {
                 let d_idx = *drug_indices.get(drug).unwrap();
                 if !individual.presence_microbiome[b_idx] {
@@ -590,9 +663,15 @@ pub fn apply_rules(
                 individual.infection_hospital_acquired[b_idx] = individual.hospital_status.is_hospitalized();
 
                 // --- any_r and majority_r setting logic on new infection acquisition ---
+                // todo: have the posisbility of any_r also for new micribione acquisition of bacteria
                 let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let hospital_majority_r_level = get_global_param("hospital_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+
+                //  todo: drug treatment leads to increase in risk of microbiome_r > 0 (due to allowing more bacteria growth due to killing
+                //  other bacteria in microbiome (so can be caused by any drug) or direct selection of resistance to the drug veing taken 
+                //  (and those with cross resistance) as occurs for an infection) 
+
 
                 let is_from_environment = individual.cur_infection_from_environment[b_idx];
                 let is_hospital_acquired = individual.infection_hospital_acquired[b_idx];
@@ -740,6 +819,7 @@ pub fn apply_rules(
                         let potency = get_global_param(&potency_param_key).unwrap_or(0.05);
                         let normalized_any_r = resistance_data.any_r / max_resistance_level;
                         resistance_data.activity_r = potency * drug_current_level * (1.0 - normalized_any_r);
+   
                     } else {
                         resistance_data.activity_r = 0.0;
                     }
@@ -755,6 +835,33 @@ pub fn apply_rules(
         if !*current_test_status_entry && (time_step as i32) >= (last_infected_time + test_delay_days) {
             if rng.gen_bool(test_rate_per_day.clamp(0.0, 1.0)) {
                 *current_test_status_entry = true;
+            }
+        }
+
+        // --- test_r assignment logic ---
+        let prob_test_r_done = get_global_param("prob_test_r_done").unwrap_or(0.95);
+        let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
+        let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
+
+        if *current_test_status_entry {
+            let test_r_already_set = individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
+            if !test_r_already_set {
+                if rng.gen_bool(prob_test_r_done) {
+                    for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                        let any_r = individual.resistances[b_idx][d_idx].any_r;
+                        let error = rng.gen_bool(test_r_error_prob);
+                        let test_r = if error {
+                            if any_r < 0.001 { test_r_error_value } else { 0.0 }
+                        } else {
+                            any_r
+                        };
+                        individual.resistances[b_idx][d_idx].test_r = test_r;
+                    }
+                }
+            }
+        } else {
+            for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                individual.resistances[b_idx][d_idx].test_r = 0.0;
             }
         }
 
@@ -812,7 +919,7 @@ pub fn apply_rules(
                 println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
                 println!("bacteria level after this time step: {:.4}", new_level);
                 println!("calculated decay: {:.4}", decay);
-                
+
                 }
 
 
@@ -846,15 +953,68 @@ pub fn apply_rules(
         immune_increase += individual.level[b_idx] * get_bacteria_param(bacteria, "immunity_increase_per_unit_higher_bacteria_level").unwrap_or(0.0);
         let age_modifier = get_bacteria_param(bacteria, "immunity_age_modifier").unwrap_or(1.0);
         immune_increase *= age_modifier.powf((age as f64 / 365.0) / 50.0);
+        let immunodeficient_modifier = get_bacteria_param(bacteria, "immunity_immunodeficiencymodifier").unwrap_or(0.1);
+        if individual.is_severely_immunosuppressed {
+        immune_increase *= immunodeficient_modifier;
+        }
         individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase).max(0.0001);
     }
 
 
     // Set test_r to 0 for all bacteria/drug combos
-    // todo ?: allow test_r to be true
-    for i in 0..BACTERIA_LIST.len() {
-        for j in 0..DRUG_SHORT_NAMES.len() {
-            individual.resistances[i][j].test_r = 0.0;
+    let prob_test_r_done = get_global_param("prob_test_r_done").unwrap_or(0.95); // Probability test is actually done (per day eligible)
+    let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02); // Probability of error in test result
+    let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25); // Value to use for error
+    let test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
+
+    for b_idx in 0..BACTERIA_LIST.len() {
+        let infection_present = individual.level[b_idx] > 0.001;
+        let test_identified = individual.test_identified_infection[b_idx];
+        let last_infected_time = individual.date_last_infected[b_idx];
+
+        // Infection cleared: reset test_r and test_identified_infection
+        if !infection_present {
+            for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                individual.resistances[b_idx][d_idx].test_r = 0.0;
+            }
+            individual.test_identified_infection[b_idx] = false;
+            continue;
+        }
+
+        // Only eligible for test if enough days since infection
+        let eligible_for_test = (time_step as i32) >= (last_infected_time + test_delay_days);
+
+        // If test_identified_infection is not yet true and eligible, possibly set it to true
+        if !test_identified && eligible_for_test {
+            if rng.gen_bool(get_global_param("test_rate_per_day").unwrap_or(0.15).clamp(0.0, 1.0)) {
+                individual.test_identified_infection[b_idx] = true;
+            }
+        }
+
+        // If test_identified_infection is true and test_r not yet set, possibly set test_r (one-time, with prob_test_r_done)
+        if test_identified {
+            let test_r_already_set = individual.resistances[b_idx][0].test_r > 0.0
+                || individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
+
+            if !test_r_already_set {
+                if rng.gen_bool(prob_test_r_done) {
+                    for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                        let any_r = individual.resistances[b_idx][d_idx].any_r;
+                        let error = rng.gen_bool(test_r_error_prob);
+                        let test_r = if error {
+                            if any_r < 0.001 { test_r_error_value } else { 0.0 }
+                        } else {
+                            any_r
+                        };
+                        individual.resistances[b_idx][d_idx].test_r = test_r;
+                    }
+                }
+            }
+        } else {
+            // If not identified, always clear test_r
+            for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                individual.resistances[b_idx][d_idx].test_r = 0.0;
+            }
         }
     }
 }

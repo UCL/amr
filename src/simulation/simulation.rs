@@ -299,10 +299,15 @@ impl Simulation {
             println!("number of individuals with any bacterial infection: {}", individuals_with_any_bacterial_infection);
             println!("number of individuals with any bacteria having any_r > 0: {}", individuals_with_any_r_positive_for_any_bacteria);
             println!("proportion of infected individuals with any_r > 0: {:.4}\n", proportion_any_r_positive);
-            // --- end  ---
+
+
 
             println!("                                ");
+            println!("region_living: {:?}", self.population.individuals[0].region_living);                                      
+            println!("region_cur_in: {:?}", self.population.individuals[0].region_cur_in);                                      
             println!("hospital_status: {:?}", self.population.individuals[0].hospital_status);                                      
+            println!("date_last_infected: {:?}", self.population.individuals[0].date_last_infected);                                      
+            println!("is_severely_immunosuppressed: {:?}", self.population.individuals[0].is_severely_immunosuppressed);                                      
             println!("                                ");
         }
 
