@@ -24,7 +24,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   100_000 ;
-    let time_steps = 50;
+    let time_steps = 20;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -121,8 +121,52 @@ fn main() {
     for (bacteria, &count) in &bacteria_infection_counts {
         println!("{}: {} infected", bacteria, count);
         for (drug, _) in simulation.drug_indices.iter() {
-            let any_r_count = *bacteria_drug_any_r_counts.get(&(bacteria, drug)).unwrap_or(&0);
-            println!("    {}: {} with any_r > 0", drug, any_r_count);
+            // Collect the full distribution of any_r for this bacteria/drug pair
+            let mut any_r_values = Vec::new();
+            for individual in &simulation.population.individuals {
+                if let Some(&b_idx) = simulation.bacteria_indices.get(bacteria) {
+                    if individual.level[b_idx] > 0.001 {
+                        if let Some(&d_idx) = simulation.drug_indices.get(drug) {
+                            let any_r = individual.resistances[b_idx][d_idx].any_r;
+                            any_r_values.push(any_r);
+                        }
+                    }
+                }
+            }
+            // Print summary statistics for the distribution
+            if !any_r_values.is_empty() {
+                let n = any_r_values.len() as f64;
+                let mut count_0 = 0;
+                let mut count_001_025 = 0;
+                let mut count_0251_05 = 0;
+                let mut count_0501_075 = 0;
+                let mut count_0751_1 = 0;
+                for &val in &any_r_values {
+                    if val == 0.0 {
+                        count_0 += 1;
+                    } else if val > 0.0 && val <= 0.25 {
+                        count_001_025 += 1;
+                    } else if val > 0.25 && val <= 0.5 {
+                        count_0251_05 += 1;
+                    } else if val > 0.5 && val <= 0.75 {
+                        count_0501_075 += 1;
+                    } else if val > 0.75 && val <= 1.0 {
+                        count_0751_1 += 1;
+                    }
+                }
+                println!(
+                    "    {}: n = {}, prop 0 = {:.3}, prop 0..0.25 = {:.3}, prop 0.251..0.5 = {:.3}, prop 0.501..0.75 = {:.3}, prop 0.751..1 = {:.3}",
+                    drug,
+                    n as usize,
+                    count_0 as f64 / n,
+                    count_001_025 as f64 / n,
+                    count_0251_05 as f64 / n,
+                    count_0501_075 as f64 / n,
+                    count_0751_1 as f64 / n
+                );
+            } else {
+                println!("    {}: n = 0", drug);
+            }
         }
     }
     // --- end death and resistance reporting ---
