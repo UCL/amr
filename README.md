@@ -30,6 +30,7 @@ Currently the model considers 21 bacteria (the ones used in the Global Burden of
 
 Other variables include whether the person is hospitalized, with consequences for the range of bacteria exposed to.
 
+One of the potential uses of the model is to inform antibiotic stewardship policies.  
 Mortality risk is separated by (i) background mortality risk, which is age and region-specific (noting that region can be re-coded such that home is a given single country); (ii) mortality risk given sepsis (and possibly according to infection in a person with severe immunosuppression) and (iii) mortality risk specifically due to adverse antibiotic drug effects.   
 
  
