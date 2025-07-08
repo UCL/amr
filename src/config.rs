@@ -9,7 +9,7 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.000001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001); // 0.000001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0);
@@ -21,7 +21,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0); // 0.0
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.1);
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.8); // 0.1
             }
         }
 
