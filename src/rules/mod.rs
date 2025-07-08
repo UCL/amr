@@ -16,6 +16,7 @@ pub fn apply_rules(
     majority_r_positive_values_by_combo: &HashMap<(usize, bool, usize, usize), Vec<f64>>, // <-- update type
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
+    cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
 ) {
 
     if individual.age < 0 {
@@ -944,6 +945,10 @@ pub fn apply_rules(
             individual.test_identified_infection[b_idx] = false;
         }
 
+        // --- NEW: Apply cross-resistance logic ---
+        apply_cross_resistance(individual, b_idx, cross_resistance_groups);
+        // --- END NEW ---
+
         // immunity increase   todo: need a max for immune response ?
         let infection_start_time = individual.date_last_infected[b_idx];
         let time_since_infection = (time_step as i32) - infection_start_time;
@@ -959,61 +964,34 @@ pub fn apply_rules(
         }
         individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase).max(0.0001);
     }
+}
 
-
-    // Set test_r to 0 for all bacteria/drug combos
-    let prob_test_r_done = get_global_param("prob_test_r_done").unwrap_or(0.95); // Probability test is actually done (per day eligible)
-    let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02); // Probability of error in test result
-    let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25); // Value to use for error
-    let test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
-
-    for b_idx in 0..BACTERIA_LIST.len() {
-        let infection_present = individual.level[b_idx] > 0.001;
-        let test_identified = individual.test_identified_infection[b_idx];
-        let last_infected_time = individual.date_last_infected[b_idx];
-
-        // Infection cleared: reset test_r and test_identified_infection
-        if !infection_present {
-            for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                individual.resistances[b_idx][d_idx].test_r = 0.0;
-            }
-            individual.test_identified_infection[b_idx] = false;
-            continue;
-        }
-
-        // Only eligible for test if enough days since infection
-        let eligible_for_test = (time_step as i32) >= (last_infected_time + test_delay_days);
-
-        // If test_identified_infection is not yet true and eligible, possibly set it to true
-        if !test_identified && eligible_for_test {
-            if rng.gen_bool(get_global_param("test_rate_per_day").unwrap_or(0.15).clamp(0.0, 1.0)) {
-                individual.test_identified_infection[b_idx] = true;
-            }
-        }
-
-        // If test_identified_infection is true and test_r not yet set, possibly set test_r (one-time, with prob_test_r_done)
-        if test_identified {
-            let test_r_already_set = individual.resistances[b_idx][0].test_r > 0.0
-                || individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
-
-            if !test_r_already_set {
-                if rng.gen_bool(prob_test_r_done) {
-                    for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                        let any_r = individual.resistances[b_idx][d_idx].any_r;
-                        let error = rng.gen_bool(test_r_error_prob);
-                        let test_r = if error {
-                            if any_r < 0.001 { test_r_error_value } else { 0.0 }
-                        } else {
-                            any_r
-                        };
-                        individual.resistances[b_idx][d_idx].test_r = test_r;
+/// New helper function to apply cross-resistance within drug groups for a specific bacteria.
+fn apply_cross_resistance(
+    individual: &mut Individual,
+    b_idx: usize,
+    cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
+) {
+    // Check if there are any cross-resistance groups defined for this bacterium
+    if let Some(groups) = cross_resistance_groups.get(&b_idx) {
+        for group in groups {
+            // Find the maximum any_r value in the current group
+            let mut max_any_r = 0.0;
+            for &d_idx in group {
+                if let Some(resistance_data) = individual.resistances.get(b_idx).and_then(|r| r.get(d_idx)) {
+                    if resistance_data.any_r > max_any_r {
+                        max_any_r = resistance_data.any_r;
                     }
                 }
             }
-        } else {
-            // If not identified, always clear test_r
-            for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                individual.resistances[b_idx][d_idx].test_r = 0.0;
+
+            // If there's any resistance in the group, update all drugs in the group to the max value
+            if max_any_r > 0.0 {
+                for &d_idx in group {
+                    if let Some(resistance_data) = individual.resistances.get_mut(b_idx).and_then(|r| r.get_mut(d_idx)) {
+                        resistance_data.any_r = max_any_r;
+                    }
+                }
             }
         }
     }

@@ -377,3 +377,32 @@ pub fn get_bacteria_drug_param(bacteria_name: &str, drug_name: &str, param_suffi
     BACTERIA_DRUG_PARAMETERS.get(&specific_key).copied()
 }
 
+// --- NEW: Cross-Resistance Configuration ---
+
+lazy_static! {
+    static ref CROSS_RESISTANCE_GROUPS: HashMap<&'static str, Vec<Vec<&'static str>>> = {
+        let mut m = HashMap::new();
+
+        // Example: For E. coli, group penicillins and fluoroquinolones
+        m.insert("esch_coli", vec![
+            vec!["penicillin", "amoxicillin", "piperacillin_tazobactam"],
+            vec!["ciprofloxacin", "levofloxacin"],
+        ]);
+
+        // Example: For Strep. pneumoniae, group macrolides
+        m.insert("strep_pneu", vec![
+            vec!["azithromycin", "clarithromycin"],
+        ]);
+
+        // Add other bacteria-specific groups here
+        // If a bacteria is not listed, it has no cross-resistance groups.
+
+        m
+    };
+}
+
+/// Returns the cross-resistance drug groups for each bacterium.
+pub fn get_cross_resistance_groups() -> &'static HashMap<&'static str, Vec<Vec<&'static str>>> {
+    &CROSS_RESISTANCE_GROUPS
+}
+

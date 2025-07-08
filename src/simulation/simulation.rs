@@ -1,6 +1,7 @@
 // src/simulation/simulation.rs
 use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use crate::rules::apply_rules;
+use crate::config; // Import the config module
 use std::collections::HashMap;
 use rayon::prelude::*;
 
@@ -14,6 +15,7 @@ pub struct Simulation {  // public rust struct which encapsulates the state and 
                                                                       // value to track summary statistics over time.
     pub bacteria_indices: HashMap<&'static str, usize>, // A string-to-index map converting bacteria names (&'static str) to integer indices.
     pub drug_indices: HashMap<&'static str, usize>, // as above, but for drugs.
+    pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>, // New: (b_idx -> [[d_idx, d_idx], ...])
 }
 
 impl Simulation {
@@ -38,6 +40,18 @@ impl Simulation {
         let mut drug_indices: HashMap<&'static str, usize> = HashMap::new(); // Create a HashMap to map drug names to their indices.
         for (i, &drug) in DRUG_SHORT_NAMES.iter().enumerate() { // Iterate over the drug list and create a mapping from drug names to their indices.
             drug_indices.insert(drug, i);
+        }
+
+        // New: Load and process cross-resistance groups
+        let mut cross_resistance_groups = HashMap::new();
+        let raw_groups = config::get_cross_resistance_groups();
+        for (bacteria_name, groups) in raw_groups.iter() {
+            if let Some(&b_idx) = bacteria_indices.get(bacteria_name) {
+                let indexed_groups: Vec<Vec<usize>> = groups.iter().map(|group| {
+                    group.iter().filter_map(|drug_name| drug_indices.get(drug_name).copied()).collect()
+                }).collect();
+                cross_resistance_groups.insert(b_idx, indexed_groups);
+            }
         }
 
         let global_majority_r_proportions = HashMap::new(); // Initialize an empty HashMap to store global majority_r proportions for bacteria/drug pairs.
@@ -69,6 +83,7 @@ impl Simulation {
             global_majority_r_proportions,
             bacteria_indices,
             drug_indices,
+            cross_resistance_groups, // Add new field
         }
     }
 
@@ -133,6 +148,7 @@ impl Simulation {
                     &current_majority_r_positive_values_by_combo,
                     &self.bacteria_indices,
                     &self.drug_indices,
+                    &self.cross_resistance_groups, // Pass new data
                 );
             });
 

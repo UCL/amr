@@ -13,12 +13,11 @@ mod config;
 //
 // todo: review whether / how test_identified_infection is used
 //
-// todo: when any_r arises de novo during drug treatment for a bacteria, we need to immediately asign any_r > 0 to other drugs for that
-//       due to a common resistance mechanism - for resistannce mechanisms which are understood such as esbl may be better to 
-//        be using the approach below
+// review / test code for: when any_r arises de novo during drug treatment for a bacteria, we assign any_r > 0 to other drugs of the 
+//       same class for that bacteria due to a common resistance mechanism 
 //
-// to consider in future: explicitly model resistance mechanism 1, resistance mechanism 2, and resistance mechanism 3 etc and allow that
-//                        to determine the any_r value for each drug for that bacteria
+// to consider in future: explicitly model resistance mechanisms and allow that to determine the any_r value for each drug for 
+//                        that bacteria
 //
 // start getting out graphs
 //
