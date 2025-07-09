@@ -419,6 +419,7 @@ pub fn apply_rules(
             if rng.gen_bool(administration_prob) {
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
+                individual.ever_taken_drug[drug_idx] = true;
 
                 // debug print       
                                   

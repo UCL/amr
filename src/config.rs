@@ -9,7 +9,7 @@ lazy_static! {
         let mut map = HashMap::new();
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001); // 0.000001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.000001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0);
@@ -77,7 +77,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are inserted first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.0001); // 0.01
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.0001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
