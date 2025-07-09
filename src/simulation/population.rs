@@ -11,7 +11,7 @@ pub const BACTERIA_LIST: &[&str] = &[
     "group_a_strep", "group_b_strep", "haem_infl", "chlam_trach", 
 ];
 
-pub const DRUG_SHORT_NAMES: &[&str] = &[
+pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
     "penicilling", "ampicillin", "amoxicillin",
     "piperacillin", "ticarcillin", "cephalexin", "cefazolin",
     "cefuroxime", "ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "meropenem", "imipenem_c",
@@ -102,6 +102,7 @@ pub struct Individual {
     pub cur_use_drug: Vec<bool>,
     pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
     pub date_drug_initiated: Vec<i32>, // the time_step when each drug was last initiated
+    pub ever_taken_drug: Vec<bool>,
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,  
     pub sexual_contact_level: f64,
@@ -177,6 +178,7 @@ impl Individual {
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],
             date_drug_initiated: vec![i32::MIN; num_drugs], 
+            ever_taken_drug: vec![false; num_drugs],
             current_infection_related_death_risk: 0.0,
             background_all_cause_mortality_rate,  
             sexual_contact_level: rng.gen_range(0.0..=10.0),
@@ -207,10 +209,62 @@ impl Population {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
         for i in 0..size {
-            let age = rng.gen_range(0..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
+            let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             individuals.push(Individual::new(i, age, sex));
         }
         Population { individuals }
     }
 }
+
+
+/* 
+
+Drug	        Subclass
+
+penicilling	    Penicillin (β‑lactam, natural penicillins)
+ampicillin	    Aminopenicillin
+amoxicillin	    Aminopenicillin
+piperacillin	Extended‑spectrum penicillin
+ticarcillin	    Extended‑spectrum penicillin
+cephalexin	    Cephalosporin (1st gen)
+cefazolin	    Cephalosporin (1st gen)
+cefuroxime	    Cephalosporin (2nd gen) 
+ceftriaxone	    Cephalosporin (3rd gen)
+ceftazidime	    Cephalosporin (3rd gen)
+cefepime	    Cephalosporin (4th gen)
+ceftaroline	    Cephalosporin (5th gen)
+meropenem	    Carbapenem
+imipenem_c	    Carbapenem
+ertapenem	    Carbapenem
+aztreonam	    Monobactam
+erythromycin	Macrolide
+azithromycin	Macrolide
+clarithromycin	Macrolide
+clindamycin	    Lincosamide
+gentamicin	    Aminoglycoside
+tobramycin	    Aminoglycoside
+amikacin	    Aminoglycoside
+ciprofloxacin	Fluoroquinolone
+levofloxacin	Fluoroquinolone
+moxifloxacin	Fluoroquinolone
+ofloxacin	    Fluoroquinolone
+tetracycline	Tetracycline
+doxycycline	    Tetracycline (semi‑synthetic)
+minocycline	    Tetracycline (semi‑synthetic)
+vancomycin	    Glycopeptide
+teicoplanin	    Glycopeptide
+linezolid	    Oxazolidinone
+tedizolid	    Oxazolidinone
+quinu_dalfo     
+(quinupristin
+/dalfopristin)	Streptogramin
+trim_sulf       Folate pathway inhibitor (sulfonamide + trimethoprim)
+chloramphenicol	Amphenicol
+nitrofurantoin	Nitrofuran
+retapamulin	    Pleuromutilin
+fusidic_a 
+(fusidic acid)	Steroid‑like antibiotic
+metronidazole	Nitroimidazole
+
+*/

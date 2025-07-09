@@ -263,15 +263,89 @@ impl Simulation {
             println!("simulation.rs  infection and resistance summary outputs:");
             println!(" ");
 
+            let age_in_years = (self.population.individuals[0].age as f64 / 365.0).round() as i32;
+            let ever_taken_drug_vector: Vec<u8> = self.population.individuals[0].ever_taken_drug.iter().map(|&taken| if taken { 1 } else { 0 }).collect();
             println!("                                ");
+            println!("age_in_years: {}", age_in_years);
             println!("region_living: {:?}", self.population.individuals[0].region_living);                                      
             println!("region_cur_in: {:?}", self.population.individuals[0].region_cur_in);                                      
             println!("hospital_status: {:?}", self.population.individuals[0].hospital_status);                                      
-            println!("date_last_infected: {:?}", self.population.individuals[0].date_last_infected);                                      
             println!("is_severely_immunosuppressed: {:?}", self.population.individuals[0].is_severely_immunosuppressed);                                      
+            println!("date_last_infected: {:?}", self.population.individuals[0].date_last_infected);                                      
+            println!("ever_taken_drug: {:?}", ever_taken_drug_vector);
+            println!("date of death: {:?}", self.population.individuals[0].date_of_death);   
             println!("                                ");
+
+            // Print resistance summary for all infected individuals at this time step
+            self.print_resistance_summary(t);
         }
 
+    }
 
+    fn print_resistance_summary(&self, time_step: usize) {
+        // Calculate bacteria infection counts first
+        let mut bacteria_infection_counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        
+        for individual in &self.population.individuals {
+            for (bacteria, &b_idx) in self.bacteria_indices.iter() {
+                if individual.level[b_idx] > 0.001 {
+                    *bacteria_infection_counts.entry(bacteria).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Print bacteria and resistance summary
+        println!("\n--- Time step {} - Bacteria infection and resistance summary ---", time_step);
+        for (bacteria, &count) in &bacteria_infection_counts {
+            println!("{}: {} infected", bacteria, count);
+            for (drug, _) in self.drug_indices.iter() {
+                // Collect the full distribution of any_r for this bacteria/drug pair
+                let mut any_r_values = Vec::new();
+                for individual in &self.population.individuals {
+                    if let Some(&b_idx) = self.bacteria_indices.get(bacteria) {
+                        if individual.level[b_idx] > 0.001 {
+                            if let Some(&d_idx) = self.drug_indices.get(drug) {
+                                let any_r = individual.resistances[b_idx][d_idx].any_r;
+                                any_r_values.push(any_r);
+                            }
+                        }
+                    }
+                }
+                // Print summary statistics for the distribution
+                if !any_r_values.is_empty() {
+                    let n = any_r_values.len() as f64;
+                    let mut count_0 = 0;
+                    let mut count_001_025 = 0;
+                    let mut count_0251_05 = 0;
+                    let mut count_0501_075 = 0;
+                    let mut count_0751_1 = 0;
+                    for &val in &any_r_values {
+                        if val == 0.0 {
+                            count_0 += 1;
+                        } else if val > 0.0 && val <= 0.25 {
+                            count_001_025 += 1;
+                        } else if val > 0.25 && val <= 0.5 {
+                            count_0251_05 += 1;
+                        } else if val > 0.5 && val <= 0.75 {
+                            count_0501_075 += 1;
+                        } else if val > 0.75 && val <= 1.0 {
+                            count_0751_1 += 1;
+                        }
+                    }
+                    println!(
+                        "    {}: n = {}, prop 0.00 = {:.3}, prop 0.25 = {:.3}, prop 0.5 = {:.3}, prop 0.75 = {:.3}, prop 1.00 = {:.3}",
+                        drug,
+                        n as usize,
+                        count_0 as f64 / n,
+                        count_001_025 as f64 / n,
+                        count_0251_05 as f64 / n,
+                        count_0501_075 as f64 / n,
+                        count_0751_1 as f64 / n
+                    );
+                } else {
+                    println!("    {}: n = 0", drug);
+                }
+            }
+        }
     }
 }

@@ -5,32 +5,44 @@ mod rules;
 mod config;
 
 //
+// make sure test_identified_infection = true means that choice of drug is more likely to be the right choice for the bacteria
 //
+// todo: introduce age effect on risk of (at least some) bacterial infections 
 //
-// to(maybe)do: perhaps introduce an effect whereby drug treatment leads to increase in risk of microbiome_r > 0 due to allowing more 
-//              bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug - but not sure yet if
-//              this is needed / justified
+// work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
+// for azithromycin mda project
 //
-// todo: review whether / how test_identified_infection is used
+// work on the bacteria/drug/region-specific parameter values
+//
+// consider whether want to change the expression for updating activity_r 
+// 
+// consider if want to make any changes to code for immune response and effect of immunity on bacteria level 
 //
 // review / test code for: when any_r arises de novo during drug treatment for a bacteria, we assign any_r > 0 to other drugs of the 
-//       same class for that bacteria due to a common resistance mechanism 
+//       same sub-class for that bacteria due to a common resistance mechanism 
+//
+// for mda project can base in africa with an "other" region all groued together
+//
+// calibration data: approx drug usage per 100_000 per calendar year 
+//                   incidence of infection with each bacteria by age and calendar year
+//                   deaths from each bacteria per 100_000 by age and calendar year
+//                   resistance distribution for each used drug for each bacteria by calendar year  
+//
+// to(maybe)do: perhaps introduce an effect whereby drug treatment leads to an increase in risk of microbiome_r > 0 due to   
+//              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug 
+//              - but not sure yet if this is needed / justified
 //
 // to consider in future: explicitly model resistance mechanisms and allow that to determine the any_r value for each drug for 
 //                        that bacteria
 //
-// start getting out graphs
-//
-// 
-
 
 
 use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =   100_000 ;
-    let time_steps = 50;
+    let population_size =    100_000 ;
+    let time_steps = 30;
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -45,20 +57,7 @@ fn main() {
     for (bacteria, &b_idx) in simulation.bacteria_indices.iter() {
         println!("{}_vaccination_status: {}", bacteria, ind0.vaccination_status[b_idx]);
     }
-    let acinetobac_bau_idx = simulation.bacteria_indices["acinetobac_bau"];
-    println!("acinetobac_bau: level = {:.2}", ind0.level[acinetobac_bau_idx]);
-    println!("acinetobac_bau: immune_resp = {:.2}", ind0.immune_resp[acinetobac_bau_idx]);
-    println!("acinetobac_bau: sepsis = {}", ind0.sepsis[acinetobac_bau_idx]);
-    println!("acinetobac_bau: infectious_syndrome = {}", ind0.infectious_syndrome[acinetobac_bau_idx]);
-    println!("acinetobac_bau: date_last_infected = {}", ind0.date_last_infected[acinetobac_bau_idx]);
-    println!("acinetobac_bau: cur_infection_from_environment = {}", ind0.cur_infection_from_environment[acinetobac_bau_idx]);
-    println!("acinetobac_bau: infection_hospital_acquired = {}", ind0.infection_hospital_acquired[acinetobac_bau_idx]);
-    println!("acinetobac_bau: test_identified_infection = {}", ind0.test_identified_infection[acinetobac_bau_idx]);
-    let cefepime_idx = simulation.drug_indices["cefepime"];
-    println!("cur_use_cefepime: {}", ind0.cur_use_drug[cefepime_idx]);
-    println!("cur_level_cefepime: {:.2}", ind0.cur_level_drug[cefepime_idx]);
 
-    println!("current_infection_related_death_risk: {:.2}", ind0.current_infection_related_death_risk);
     println!("background_all_cause_mortality_rate: {:.4}", ind0.background_all_cause_mortality_rate);
     println!("sexual_contact_level: {:.2}", ind0.sexual_contact_level);
     println!("airborne_contact_level_with_adults: {:.2}", ind0.airborne_contact_level_with_adults);
@@ -67,14 +66,6 @@ fn main() {
     println!("mosquito_exposure_level: {:.2}", ind0.mosquito_exposure_level);
     println!("current_toxicity: {:.2}", ind0.current_toxicity);
     println!("mortality_risk_current_toxicity: {:.2}", ind0.mortality_risk_current_toxicity);
-
-    let resistance_data = &ind0.resistances[acinetobac_bau_idx][cefepime_idx];
-    println!("acinetobac_bau resistance to cefepime:");
-    println!("microbiome_r: {:.2}", resistance_data.microbiome_r);
-    println!("test_r: {:.2}", resistance_data.test_r);
-    println!("activity_r: {:.2}", resistance_data.activity_r);
-    println!("any_r: {:.2}", resistance_data.any_r);
-    println!("majority_r: {:.2}", resistance_data.majority_r);
 
     use std::time::Instant;
     let start = Instant::now();
@@ -115,6 +106,9 @@ fn main() {
         println!("{}: {}", cause, count);
     }
 
+
+/*  commented out just while debugging
+
     // New: Print bacteria and resistance summary
     println!("\n--- Bacteria infection and resistance summary ---");
     for (bacteria, &count) in &bacteria_infection_counts {
@@ -154,7 +148,7 @@ fn main() {
                     }
                 }
                 println!(
-                    "    {}: n = {}, prop 0 = {:.3}, prop 0..0.25 = {:.3}, prop 0.251..0.5 = {:.3}, prop 0.501..0.75 = {:.3}, prop 0.751..1 = {:.3}",
+                    "    {}: n = {}, prop 0.00 = {:.3}, prop 0.25 = {:.3}, prop 0.5 = {:.3}, prop 0.75 = {:.3}, prop 1.00 = {:.3}",
                     drug,
                     n as usize,
                     count_0 as f64 / n,
@@ -323,7 +317,13 @@ fn main() {
         println!("No bacteria/drug pair found with any nonzero any_r values.");
     }
 
+*/
+
     println!("\n--- simulation ended ---");
     println!("\n--- total simulation time: {:.3?} seconds", duration);
     println!("                          ");
+
+
 }
+
+
