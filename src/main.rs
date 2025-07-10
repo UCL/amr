@@ -9,10 +9,6 @@ mod config;
 //
 // work on the bacteria/drug/region-specific parameter values
 //
-// consider whether want to change the expression for updating activity_r 
-// 
-// consider if want to make any changes to code for immune response and effect of immunity on bacteria level 
-//
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
 //

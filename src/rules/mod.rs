@@ -412,6 +412,54 @@ pub fn apply_rules(
         }
         administration_prob *= syndrome_administration_multiplier;
 
+        // --- NEW: Apply bacterial identification effects on drug spectrum preference ---
+        let drug_spectrum = get_drug_param(drug_name, "spectrum_breadth").unwrap_or(3.0); // 1.0=narrow, 5.0=very broad
+        
+        if has_any_identified_infection {
+            // TARGETED THERAPY: bacteria identified, prefer appropriate narrow-spectrum drugs
+            let targeted_narrow_bonus = get_global_param("targeted_therapy_narrow_spectrum_bonus").unwrap_or(3.0);
+            let targeted_broad_penalty = get_global_param("targeted_therapy_broad_spectrum_penalty").unwrap_or(0.4);
+            let ineffective_drug_penalty = get_global_param("targeted_therapy_ineffective_drug_penalty").unwrap_or(0.1);
+            
+            // Check if this drug has good activity against any identified bacteria
+            let mut has_good_activity = false;
+            let mut best_potency: f64 = 0.0;
+            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                if individual.test_identified_infection[b_idx] && individual.level[b_idx] > 0.001 {
+                    let potency_param_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
+                    let potency = get_global_param(&potency_param_key).unwrap_or(0.0);
+                    best_potency = best_potency.max(potency);
+                    if potency > 0.02 { // Threshold for "good activity" (above baseline)
+                        has_good_activity = true;
+                    }
+                }
+            }
+            
+            if has_good_activity {
+                // Drug is effective against identified bacteria - prefer narrow spectrum
+                if drug_spectrum <= 2.5 { // Narrow to medium-narrow spectrum
+                    administration_prob *= targeted_narrow_bonus;
+                } else if drug_spectrum >= 4.0 { // Broad to very broad spectrum
+                    administration_prob *= targeted_broad_penalty;
+                }
+                // Medium spectrum (2.5-4.0) gets no bonus or penalty
+            } else {
+                // Drug is not effective against identified bacteria - strong penalty
+                administration_prob *= ineffective_drug_penalty;
+            }
+        } else if has_any_infection {
+            // EMPIRIC THERAPY: infection present but bacteria not yet identified, prefer broad-spectrum
+            let empiric_broad_bonus = get_global_param("empiric_therapy_broad_spectrum_bonus").unwrap_or(2.0);
+            
+            if drug_spectrum >= 3.5 { // Broad to very broad spectrum drugs
+                administration_prob *= empiric_broad_bonus;
+            } else if drug_spectrum <= 2.0 { // Very narrow spectrum drugs
+                administration_prob *= 0.6; // Slight penalty for very narrow drugs in empiric therapy
+            }
+            // Medium spectrum (2.0-3.5) gets no bonus or penalty
+        }
+        // --- END bacterial identification effects ---
+
         administration_prob = administration_prob.clamp(0.0, 1.0); // Ensure the probability is between 0 and 1
         if drugs_initiated_this_time_step < 2 && !individual.cur_use_drug[drug_idx] {
             if rng.gen_bool(administration_prob) {

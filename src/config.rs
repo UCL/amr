@@ -113,7 +113,26 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             map.insert(format!("drug_{}_initial_level", drug), 10.0); // Default initial level for each drug
             map.insert(format!("drug_{}_double_dose_multiplier", drug), 2.0); // Default double dose multiplier
+            map.insert(format!("drug_{}_spectrum_breadth", drug), 3.0); // Default spectrum: 1.0=narrow, 5.0=very broad
         }
+
+        // Bacterial Identification Effect Parameters
+        map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 2.0); // Multiplier for broad-spectrum drugs when no bacteria identified
+        map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 3.0); // Multiplier for narrow-spectrum drugs when bacteria identified  
+        map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.4); // Penalty for broad-spectrum drugs when bacteria identified
+        map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.1); // Strong penalty for drugs ineffective against identified bacteria
+
+        // Drug Spectrum Classifications (1.0=narrow, 5.0=very broad)
+        map.insert("drug_penicilling_spectrum_breadth".to_string(), 2.0); // Narrow spectrum
+        map.insert("drug_amoxicillin_spectrum_breadth".to_string(), 3.0); // Medium spectrum  
+        map.insert("drug_azithromycin_spectrum_breadth".to_string(), 4.0); // Broad spectrum
+        map.insert("drug_ciprofloxacin_spectrum_breadth".to_string(), 4.5); // Very broad spectrum
+        map.insert("drug_trim_sulf_spectrum_breadth".to_string(), 3.5); // Medium-broad spectrum
+        map.insert("drug_meropenem_spectrum_breadth".to_string(), 5.0); // Very broad spectrum (carbapenem)
+        map.insert("drug_cefepime_spectrum_breadth".to_string(), 4.0); // Broad spectrum (4th gen cephalosporin)
+        map.insert("drug_vancomycin_spectrum_breadth".to_string(), 2.5); // Narrow-medium spectrum (gram-positive only)
+        map.insert("drug_linezolid_spectrum_breadth".to_string(), 2.0); // Narrow spectrum (gram-positive only)
+        map.insert("drug_ceftriaxone_spectrum_breadth".to_string(), 4.0); // Broad spectrum (3rd gen cephalosporin)
 
         // Global defaults, used if a bacteria-specific parameter is not found
         map.insert("default_sepsis_baseline_risk_per_day".to_string(), 0.00001); // Very small baseline daily risk
