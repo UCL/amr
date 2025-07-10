@@ -7,19 +7,14 @@ mod config;
 //
 // make sure test_identified_infection = true means that choice of drug is more likely to be the right choice for the bacteria
 //
-// todo: introduce age effect on risk of (at least some) bacterial infections 
-//
-// work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
-// for azithromycin mda project
-//
 // work on the bacteria/drug/region-specific parameter values
 //
 // consider whether want to change the expression for updating activity_r 
 // 
 // consider if want to make any changes to code for immune response and effect of immunity on bacteria level 
 //
-// review / test code for: when any_r arises de novo during drug treatment for a bacteria, we assign any_r > 0 to other drugs of the 
-//       same sub-class for that bacteria due to a common resistance mechanism 
+// work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
+// for azithromycin mda project
 //
 // for mda project can base in africa with an "other" region all groued together
 //
@@ -42,7 +37,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =    100_000 ;
-    let time_steps = 30;
+    let time_steps = 5;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -107,7 +102,7 @@ fn main() {
     }
 
 
-/*  commented out just while debugging
+
 
     // New: Print bacteria and resistance summary
     println!("\n--- Bacteria infection and resistance summary ---");
@@ -317,7 +312,7 @@ fn main() {
         println!("No bacteria/drug pair found with any nonzero any_r values.");
     }
 
-*/
+
 
     println!("\n--- simulation ended ---");
     println!("\n--- total simulation time: {:.3?} seconds", duration);

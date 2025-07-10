@@ -1,7 +1,7 @@
 // src/rules/mod.rs
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
-use crate::config::{get_global_param, get_bacteria_param, get_bacteria_drug_param, get_drug_param};
+use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier};
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -323,12 +323,10 @@ pub fn apply_rules(
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
                     let bacteria_name = BACTERIA_LIST[b_idx];
-                    let drug_reduction_efficacy = get_bacteria_drug_param(
-                        bacteria_name,
-                        drug_name,
-                        "bacteria_level_reduction_per_unit_of_drug",
-                    ).unwrap_or(0.0);
-                    if drug_reduction_efficacy > 0.0 {
+                    // Use potency_when_no_r to determine if drug is relevant for this bacteria
+                    let potency_param_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
+                    let drug_potency = get_global_param(&potency_param_key).unwrap_or(0.0);
+                    if drug_potency > 0.0 {
                         relevant_infection_active_for_this_drug = true;
                         break;
                     }
@@ -549,6 +547,10 @@ pub fn apply_rules(
                 let hospital_multiplier = get_bacteria_param(bacteria, "hospital_acquired_multiplier").unwrap_or(1.0);
                 acquisition_probability *= hospital_multiplier;
             }
+
+            // age-based infection risk multiplier
+            let age_multiplier = get_age_infection_multiplier(bacteria, individual.age);
+            acquisition_probability *= age_multiplier;
 
             // --- microbiome presence (Carriage) ---
             if !individual.presence_microbiome[b_idx] {
@@ -950,20 +952,28 @@ pub fn apply_rules(
         apply_cross_resistance(individual, b_idx, cross_resistance_groups);
         // --- END NEW ---
 
-        // immunity increase   todo: need a max for immune response ?
-        let infection_start_time = individual.date_last_infected[b_idx];
-        let time_since_infection = (time_step as i32) - infection_start_time;
-        let age = individual.age;
-        let mut immune_increase = get_bacteria_param(bacteria, "immunity_base_response").unwrap_or(0.0);
-        immune_increase += time_since_infection as f64 * get_bacteria_param(bacteria, "immunity_increase_per_infection_day").unwrap_or(0.0);
-        immune_increase += individual.level[b_idx] * get_bacteria_param(bacteria, "immunity_increase_per_unit_higher_bacteria_level").unwrap_or(0.0);
-        let age_modifier = get_bacteria_param(bacteria, "immunity_age_modifier").unwrap_or(1.0);
-        immune_increase *= age_modifier.powf((age as f64 / 365.0) / 50.0);
-        let immunodeficient_modifier = get_bacteria_param(bacteria, "immunity_immunodeficiencymodifier").unwrap_or(0.1);
-        if individual.is_severely_immunosuppressed {
-        immune_increase *= immunodeficient_modifier;
+        // immunity dynamics: increase during infection, decay without infection
+        if is_infected {
+            // immunity increase with maximum cap (only when infected)
+            let infection_start_time = individual.date_last_infected[b_idx];
+            let time_since_infection = (time_step as i32) - infection_start_time;
+            let age = individual.age;
+            let mut immune_increase = get_bacteria_param(bacteria, "immunity_base_response").unwrap_or(0.0);
+            immune_increase += time_since_infection as f64 * get_bacteria_param(bacteria, "immunity_increase_per_infection_day").unwrap_or(0.0);
+            immune_increase += individual.level[b_idx] * get_bacteria_param(bacteria, "immunity_increase_per_unit_higher_bacteria_level").unwrap_or(0.0);
+            let age_modifier = get_bacteria_param(bacteria, "immunity_age_modifier").unwrap_or(1.0);
+            immune_increase *= age_modifier.powf((age as f64 / 365.0) / 50.0);
+            let immunodeficient_modifier = get_bacteria_param(bacteria, "immunity_immunodeficiency_modifier").unwrap_or(0.1);
+            if individual.is_severely_immunosuppressed {
+                immune_increase *= immunodeficient_modifier;
+            }
+            let max_immune_response = get_bacteria_param(bacteria, "max_immune_response").unwrap_or(10.0);
+            individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase).max(0.0001).min(max_immune_response);
+        } else {
+            // immunity decay when not infected
+            let immunity_decay_rate = get_global_param("immune_decay_rate_per_day").unwrap_or(0.02);
+            individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] - immunity_decay_rate).max(0.0);
         }
-        individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase).max(0.0001);
     }
 }
 

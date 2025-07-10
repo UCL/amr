@@ -277,10 +277,14 @@ impl Simulation {
             println!("                                ");
 
             // Print resistance summary for all infected individuals at this time step
-            self.print_resistance_summary(t);
+//          self.print_resistance_summary(t);
         }
 
     }
+
+
+/*   
+
 
     fn print_resistance_summary(&self, time_step: usize) {
         // Calculate bacteria infection counts first
@@ -294,10 +298,11 @@ impl Simulation {
             }
         }
 
+        
         // Print bacteria and resistance summary
         println!("\n--- Time step {} - Bacteria infection and resistance summary ---", time_step);
         for (bacteria, &count) in &bacteria_infection_counts {
-            println!("{}: {} infected", bacteria, count);
+            println!("{}: {} infected", bacteria, count);   
             for (drug, _) in self.drug_indices.iter() {
                 // Collect the full distribution of any_r for this bacteria/drug pair
                 let mut any_r_values = Vec::new();
@@ -311,6 +316,7 @@ impl Simulation {
                         }
                     }
                 }
+
                 // Print summary statistics for the distribution
                 if !any_r_values.is_empty() {
                     let n = any_r_values.len() as f64;
@@ -348,4 +354,7 @@ impl Simulation {
             }
         }
     }
+*/
+
 }
+

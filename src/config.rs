@@ -8,20 +8,53 @@ lazy_static! {
     pub static ref PARAMETERS: HashMap<String, f64> = {
         let mut map = HashMap::new();
 
+
+        // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
+        // These are inserted first, and can then be overridden by specific entries below.
+        for &bacteria in BACTERIA_LIST.iter() {
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.0001
+            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
+            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
+            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
+            map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
+            map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
+            map.insert(format!("{}_oral_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
+            map.insert(format!("{}_sexual_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
+            map.insert(format!("{}_mosquito_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
+            map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
+            map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
+            map.insert(format!("{}_max_level", bacteria), 5.0);
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.005); // 0.05 is strong effect
+            map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
+            map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
+            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.05);
+            map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
+            map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1);
+            map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level
+            
+            // Age-related infection risk parameters
+            map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
+        }
+
+
+
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.000001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.1); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0);
         map.insert("already_on_drug_initiation_multiplier".to_string(), 1.000); // 0.0001
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
+        
+        // Global Immune System Parameters
+        map.insert("immune_decay_rate_per_day".to_string(), 0.02); // Rate at which immunity decays when not actively fighting infection
       
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0); // 0.0
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.8); // 0.1
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // 0.05
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.8); // 0.0001
             }
         }
 
@@ -74,30 +107,6 @@ lazy_static! {
         // initiate travel
         map.insert("travel_probability_per_day".to_string(), 0.00005);
 
-        // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
-        // These are inserted first, and can then be overridden by specific entries below.
-        for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.0001
-            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
-            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
-            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
-            map.insert(format!("{}_decay", bacteria), 0.02);
-            map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_oral_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_sexual_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_mosquito_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
-            map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
-            map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.005); // 0.05 is strong effect
-            map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
-            map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
-            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.05);
-            map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
-            map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1);
-            map.insert(format!("{}_immunity_decay", bacteria), 0.1);
-        }
 
 
         // Default Initial Drug Levels and Double Dose Multipliers for ALL Drugs
@@ -268,6 +277,12 @@ lazy_static! {
 
         // Add more specific parameters for acinetobac_bau if needed
 
+        // --- Age Effect Scaling Overrides for Specific Bacteria ---
+        map.insert("strep_pneu_age_effect_scaling".to_string(), 1.2); // Stronger age effect for pneumonia
+        map.insert("salm_typhi_age_effect_scaling".to_string(), 0.8); // Weaker age effect 
+        map.insert("n_gonorrhoeae_age_effect_scaling".to_string(), 1.5); // Strong age effect for STI
+        map.insert("acinetobac_bau_age_effect_scaling".to_string(), 1.3); // Strong age effect for nosocomial pathogen
+
         // Overrides for Specific Drug Initial Levels & Double Dose Multipliers
         map.insert("drug_penicilling_double_dose_multiplier".to_string(), 2.5); // Example: higher multiplier for penicillin
 
@@ -294,54 +309,24 @@ lazy_static! {
         map
     };
 
-    // --- Bacteria-Drug Specific Parameters ---
-    // Key changed from (String, String) to (String, String, String) to include param_suffix
-    pub static ref BACTERIA_DRUG_PARAMETERS: HashMap<(String, String, String), f64> = {
+    // --- String Parameters (for template names, etc.) ---
+    pub static ref STRING_PARAMETERS: HashMap<String, String> = {
         let mut map = HashMap::new();
-
-        // Default antibiotic reduction for ALL bacteria-drug combinations
+        
+        // Default age risk templates for all bacteria
         for &bacteria in BACTERIA_LIST.iter() {
-            for &drug in DRUG_SHORT_NAMES.iter() {
-                // Key now includes the parameter suffix
-                map.insert((bacteria.to_string(), drug.to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.1); // 0.004 Generic reduction
-            }
+            map.insert(format!("{}_age_risk_template", bacteria), "respiratory".to_string()); // Default template
         }
 
-        // Overrides for specific bacteria-drug combinations (Customize these as needed)
-        // All these inserts below must also change to the 3-tuple key!
-
-        // strep_pneu drug effectiveness
-        map.insert(("strep_pneu".to_string(), "penicilling".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.1);
-        map.insert(("strep_pneu".to_string(), "amoxicillin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.1);
-        map.insert(("strep_pneu".to_string(), "azithromycin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.1);
-
-        // haem_infl drug effectiveness
-        map.insert(("haem_infl".to_string(), "amoxicillin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.006);
-        map.insert(("haem_infl".to_string(), "azithromycin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.005);
-
-        // salm_typhi drug effectiveness
-        map.insert(("salm_typhi".to_string(), "ciprofloxacin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.009);
-        map.insert(("salm_typhi".to_string(), "azithromycin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.007);
-
-        // esch_coli drug effectiveness
-        map.insert(("esch_coli".to_string(), "trim_sulf".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.005);
-        map.insert(("esch_coli".to_string(), "ciprofloxacin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.006);
-
-        // pseud_aerug drug effectiveness (example)
-        map.insert(("pseud_aerug".to_string(), "meropenem".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.01);
-        map.insert(("pseud_aerug".to_string(), "cefepime".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.008);
-
-        // staph_aureus drug effectiveness (example)
-        map.insert(("staph_aureus".to_string(), "vancomycin".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.009);
-        map.insert(("staph_aureus".to_string(), "linezolid".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.008);
-
-        // n_gonorrhoeae drug effectiveness (example)
-        map.insert(("n_gonorrhoeae".to_string(), "ceftriaxone".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.0095);
-
-        // You can add more specific drug effectiveness for each bacteria as needed
-        // For example:
-        // map.insert(("acinetobac_bau".to_string(), "imipenem_c".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.009);
-        // map.insert(("kleb_pneu".to_string(), "meropenem".to_string(), "bacteria_level_reduction_per_unit_of_drug".to_string()), 0.009);
+        // Specific bacteria overrides - assign each bacteria to most appropriate template
+        map.insert("strep_pneu_age_risk_template".to_string(), "respiratory".to_string());
+        map.insert("haem_infl_age_risk_template".to_string(), "respiratory".to_string());
+        map.insert("salm_typhi_age_risk_template".to_string(), "gastrointestinal".to_string());
+        map.insert("esch_coli_age_risk_template".to_string(), "urogenital".to_string());
+        map.insert("pseud_aerug_age_risk_template".to_string(), "bloodstream".to_string());
+        map.insert("staph_aureus_age_risk_template".to_string(), "skin_soft_tissue".to_string());
+        map.insert("n_gonorrhoeae_age_risk_template".to_string(), "sexually_transmitted".to_string());
+        map.insert("acinetobac_bau_age_risk_template".to_string(), "bloodstream".to_string());
 
         map
     };
@@ -369,12 +354,26 @@ pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
     PARAMETERS.get(&specific_key).copied()
 }
 
-/// Retrieves a bacteria-drug-specific simulation parameter.
-/// It directly looks up the specific (bacteria_name, drug_name, param_suffix) tuple.
-/// Returns `Some(value)` if found, `None` otherwise.
-pub fn get_bacteria_drug_param(bacteria_name: &str, drug_name: &str, param_suffix: &str) -> Option<f64> {
-    let specific_key = (bacteria_name.to_string(), drug_name.to_string(), param_suffix.to_string());
-    BACTERIA_DRUG_PARAMETERS.get(&specific_key).copied()
+// --- Age Risk Templates Configuration ---
+
+lazy_static! {
+    pub static ref AGE_RISK_TEMPLATES: HashMap<&'static str, Vec<f64>> = {
+        let mut m = HashMap::new();
+        
+        // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
+        // Values represent risk multipliers relative to baseline (18-50 age group = 1.0)
+        
+        m.insert("respiratory", vec![3.0, 1.8, 0.8, 1.0, 1.3, 2.5]);          // High infant/elderly risk (pneumonia, URI)
+        m.insert("gastrointestinal", vec![2.5, 2.0, 1.2, 1.0, 1.1, 1.8]);    // High young child risk (diarrheal diseases)
+        m.insert("urogenital", vec![1.2, 0.8, 0.9, 1.0, 1.4, 2.2]);          // Moderate elderly risk (UTIs)
+        m.insert("skin_soft_tissue", vec![1.5, 1.3, 1.1, 1.0, 1.2, 1.8]);    // Mild age gradient
+        m.insert("bloodstream", vec![4.0, 2.0, 0.7, 1.0, 1.5, 3.0]);         // Very high infant/elderly risk (sepsis)
+        m.insert("vector_borne", vec![1.8, 1.5, 1.0, 1.0, 1.1, 1.4]);        // Moderate child/elderly risk (mosquito-borne)
+        m.insert("sexually_transmitted", vec![0.1, 0.2, 0.8, 1.0, 0.8, 0.3]); // Peak in young adults
+        m.insert("flat", vec![1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);               // No age effect
+        
+        m
+    };
 }
 
 // --- NEW: Cross-Resistance Configuration ---
@@ -394,6 +393,13 @@ lazy_static! {
             vec!["azithromycin", "clarithromycin"],
         ]);
 
+
+        m.insert("acinetobacter baumannii", vec![
+            vec!["penicilling", "ampicillin", "amoxicillin"],
+        ]);
+        
+        
+
         // Add other bacteria-specific groups here
         // If a bacteria is not listed, it has no cross-resistance groups.
 
@@ -404,5 +410,48 @@ lazy_static! {
 /// Returns the cross-resistance drug groups for each bacterium.
 pub fn get_cross_resistance_groups() -> &'static HashMap<&'static str, Vec<Vec<&'static str>>> {
     &CROSS_RESISTANCE_GROUPS
+}
+
+/// Retrieves a string parameter (like template names).
+/// Returns `Some(value)` if found, `None` otherwise.
+pub fn get_string_param(key: &str) -> Option<String> {
+    STRING_PARAMETERS.get(key).cloned()
+}
+
+/// Calculates the age-based infection risk multiplier for a given bacteria and age.
+/// Uses the template system with bacteria-specific scaling.
+/// Returns a multiplier (1.0 = baseline risk, >1.0 = increased risk, <1.0 = decreased risk)
+pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
+    let age_years = age_days as f64 / 365.0;
+    
+    // Determine age group index (0-5 for the six age groups)
+    let age_group_idx = match age_years {
+        x if x < 1.0 => 0,   // 0-1 years
+        x if x < 5.0 => 1,   // 1-5 years  
+        x if x < 18.0 => 2,  // 5-18 years
+        x if x < 50.0 => 3,  // 18-50 years (reference group)
+        x if x < 70.0 => 4,  // 50-70 years
+        _ => 5,              // 70+ years
+    };
+    
+    // Get the template name for this bacteria
+    let template_key = format!("{}_age_risk_template", bacteria_name);
+    let template_name = get_string_param(&template_key).unwrap_or_else(|| "respiratory".to_string());
+    
+    // Get the scaling factor for this bacteria
+    let scaling = get_bacteria_param(bacteria_name, "age_effect_scaling").unwrap_or(1.0);
+    
+    // Look up the base multiplier from the template
+    if let Some(template) = AGE_RISK_TEMPLATES.get(template_name.as_str()) {
+        let base_multiplier = template[age_group_idx];
+        // Scale the deviation from 1.0 by the scaling factor
+        // scaling = 0.0 means no age effect (flat = 1.0)
+        // scaling = 1.0 means full template effect
+        // scaling > 1.0 means amplified age effect
+        1.0 + (base_multiplier - 1.0) * scaling
+    } else {
+        // Fallback if template not found
+        1.0
+    }
 }
 

@@ -5,10 +5,15 @@ use std::fmt;
 
 
 pub const BACTERIA_LIST: &[&str] = &[
-    "acinetobac_bau", "citrobac_spec", "enterobac_spec", "enterococ_faeca", "enterococ_faeci",
-    "esch_coli", "kleb_pneu", "morg_spec", "prot_spec", "serrat_spec", "pseud_aerug", "staph_aureus",
-    "strep_pneu", "salm_typhi", "salm_parat_a", "inv_nt_salm", "shig_spec", "n_gonorrhoeae",
-    "group_a_strep", "group_b_strep", "haem_infl", "chlam_trach", 
+    "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
+    "enterococcus faecium", "escherichia coli", "klebsiella pneumoniae", "morganella spp.", 
+    "proteus spp.", "serratia spp.", "pseudomonas aeruginosa", "staphylococcus aureus", 
+    "streptococcus pneumoniae", "salmonella enterica serovar typhi", 
+    "salmonella enterica serovar paratyphi a", "invasive non-typhoidal salmonella spp.", 
+    "shigella spp.", "neisseria gonorrhoeae", "streptococcus pyogenes", "streptococcus agalactiae", 
+    "haemophilus influenzae", "chlamydia trachomatis", "vibrio cholerae",
+    "neisseria_meningitidis", "listeria_monocytogenes", "clostridioides_difficile",
+    "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis"
 ];
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
@@ -19,7 +24,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "gentamicin", "tobramycin", "amikacin", "ciprofloxacin", "levofloxacin", "moxifloxacin",
     "ofloxacin", "tetracycline", "doxyclycline", "minocycline", "vancomycin", "teicoplanin",
     "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
-    "retapamulin", "fusidic_a", "metronidazole",
+    "retapamulin", "fusidic_a", "metronidazole", "furazolidone"
 ];
 
 
@@ -209,7 +214,8 @@ impl Population {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
         for i in 0..size {
-            let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
+//          let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
+            let age = rng.gen_range(0..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             individuals.push(Individual::new(i, age, sex));
         }
