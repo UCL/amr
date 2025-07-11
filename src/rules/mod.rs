@@ -544,13 +544,42 @@ pub fn apply_rules(
         let age_multiplier = get_global_param("age_mortality_multiplier_per_year")
             .expect("Missing age_mortality_multiplier_per_year in config");
         let mut background_risk = base_background_rate;
-        background_risk *= (individual.age as f64 / 365.0) * age_multiplier;
+        
+        // Age effects (linear and non-linear for very elderly)
+        let age_years = individual.age as f64 / 365.0;
+        let age_linear_effect = age_years * age_multiplier;
+        background_risk *= age_linear_effect;
+        
+        // Non-linear age effect for very elderly (age squared effect)
+        let age_squared_multiplier = get_global_param("age_squared_mortality_multiplier").unwrap_or(0.0);
+        if age_years > 65.0 {
+            let age_squared_effect = (age_years - 65.0).powi(2) * age_squared_multiplier;
+            background_risk *= age_squared_effect;
+        }
+        
+        // Regional mortality effects
         let region_multiplier_key = format!("{}_mortality_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
         let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0);
+        
         background_risk *= region_multiplier;
+        
+        // Sex-specific mortality differences
         let sex_multiplier_key = format!("{}_mortality_multiplier", individual.sex_at_birth.to_lowercase());
         let sex_multiplier = get_global_param(&sex_multiplier_key).unwrap_or(1.0);
         background_risk *= sex_multiplier;
+        
+        // Immunosuppression effect on background mortality
+        if individual.is_severely_immunosuppressed {
+            let immunosuppressed_multiplier = get_global_param("immunosuppressed_mortality_multiplier").unwrap_or(1.0);
+            background_risk *= immunosuppressed_multiplier;
+        }
+        
+        // Hospital status as proxy for comorbidities and acute illness
+        if matches!(individual.hospital_status, HospitalStatus::InHospital) {
+            let hospital_multiplier = get_global_param("hospital_mortality_multiplier").unwrap_or(1.0);
+            background_risk *= hospital_multiplier;
+        }
+        
         individual.background_all_cause_mortality_rate = background_risk.min(1.0);
         let mut prob_not_dying = 1.0 - background_risk;
         let has_sepsis = individual.sepsis.iter().any(|&status| status);

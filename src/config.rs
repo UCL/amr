@@ -441,6 +441,11 @@ lazy_static! {
         map.insert("male_mortality_multiplier".to_string(), 1.1);   // Example: Males have 10% higher mortality risk
         map.insert("female_mortality_multiplier".to_string(), 0.9); // Example: Females have 10% lower mortality risk
 
+        // Additional background mortality risk factors
+        map.insert("immunosuppressed_mortality_multiplier".to_string(), 2.5); // Severely immunosuppressed individuals have higher background mortality
+        map.insert("hospital_mortality_multiplier".to_string(), 1.3); // Hospitalized individuals have higher baseline mortality (proxy for comorbidities)
+        map.insert("age_squared_mortality_multiplier".to_string(), 0.000001); // Additional non-linear age effect for very elderly
+
 
         //  Immunosuppression Onset and Recovery Rates
         map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0001);   // Probability of becoming immunosuppressed daily
