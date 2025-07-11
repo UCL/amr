@@ -12,7 +12,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.0001
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.1); // 0.001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
@@ -39,7 +39,7 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.1); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.000); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
@@ -419,6 +419,11 @@ lazy_static! {
         map.insert("default_sepsis_level_multiplier".to_string(), 0.005); // Multiplier for bacterial level (e.g., higher level = higher risk)
         map.insert("default_sepsis_duration_multiplier".to_string(), 0.000001); // Multiplier for duration of infection (e.g., longer duration = higher risk)
 
+        // Sepsis Risk Category Multipliers (for bacteria-specific sepsis risk)
+        map.insert("high_sepsis_risk_multiplier".to_string(), 2.0);     // High-virulence pathogens (e.g., Staph aureus, Pseudomonas)
+        map.insert("moderate_sepsis_risk_multiplier".to_string(), 1.0); // Moderate-virulence pathogens (default)
+        map.insert("low_sepsis_risk_multiplier".to_string(), 0.3);      // Low-virulence pathogens (e.g., Chlamydia, Gonorrhea)
+
 
         // Background Mortality Parameters (Age, Region, and Sex dependent)
         map.insert("base_background_mortality_rate_per_day".to_string(), 0.00001); // 0.000005  Example: 0.0005% chance of death per day, for a baseline individual
@@ -442,8 +447,21 @@ lazy_static! {
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
 
 
-        // Sepsis Mortality Parameter (Absolute risk, independent of other factors)
-        map.insert("sepsis_absolute_death_risk_per_day".to_string(), 0.1); // Example: 10% absolute chance of death per day if septic
+        // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
+        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.02); // Base 2% daily death risk for sepsis (much more realistic than 10%)
+        map.insert("sepsis_age_mortality_multiplier_infant".to_string(), 3.0); // 0-1 years: much higher risk
+        map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk  
+        map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
+        map.insert("sepsis_age_mortality_multiplier_elderly".to_string(), 2.5); // 65+ years: much higher risk
+        map.insert("sepsis_immunosuppressed_multiplier".to_string(), 3.0); // Immunosuppressed: 3x higher risk
+        
+        // Region-specific sepsis mortality multipliers (reflecting healthcare quality)
+        map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.8); // Better ICU care
+        map.insert("europe_sepsis_mortality_multiplier".to_string(), 0.7); // Excellent healthcare systems
+        map.insert("oceania_sepsis_mortality_multiplier".to_string(), 0.8); // Good healthcare
+        map.insert("asia_sepsis_mortality_multiplier".to_string(), 1.2); // Variable healthcare quality
+        map.insert("south_america_sepsis_mortality_multiplier".to_string(), 1.4); // Limited ICU access
+        map.insert("africa_sepsis_mortality_multiplier".to_string(), 2.0); // Limited healthcare infrastructure
 
         //  Default Toxicity Parameter
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
@@ -1012,6 +1030,41 @@ pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
     } else {
         // Fallback if template not found
         1.0
+    }
+}
+
+/// Gets the sepsis risk category multiplier for a bacteria.
+/// Categorizes bacteria into high/moderate/low sepsis risk groups.
+/// Returns the appropriate risk multiplier.
+pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
+    // High sepsis risk: bloodstream pathogens, highly virulent
+    let high_risk_bacteria = [
+        "staphylococcus aureus",
+        "pseudomonas aeruginosa", 
+        "acinetobacter baumannii",
+        "enterococcus faecium",
+        "streptococcus pneumoniae",
+        "enterobacter spp.",
+        "klebsiella pneumoniae"
+    ];
+    
+    // Low sepsis risk: less invasive, more localized infections
+    let low_risk_bacteria = [
+        "chlamydia trachomatis",
+        "neisseria gonorrhoeae",
+        "campylobacter_jejuni",
+        "shigella spp.",
+        "moraxella_catarrhalis",
+        "haemophilus influenzae"
+    ];
+    
+    if high_risk_bacteria.contains(&bacteria_name) {
+        get_global_param("high_sepsis_risk_multiplier").unwrap_or(2.0)
+    } else if low_risk_bacteria.contains(&bacteria_name) {
+        get_global_param("low_sepsis_risk_multiplier").unwrap_or(0.3)
+    } else {
+        // Default to moderate risk for all other bacteria
+        get_global_param("moderate_sepsis_risk_multiplier").unwrap_or(1.0)
     }
 }
 

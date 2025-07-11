@@ -5,7 +5,8 @@ mod rules;
 mod config;
 
 //
-// work on the other bacteria/drug/region-specific parameter values
+//
+// decide on time zero for mda azithromycin project
 //
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
@@ -30,8 +31,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =    30_000 ;
-    let time_steps =  10  ;  // Reduced for testing immune response changes
+    let population_size =    10_000 ;
+    let time_steps =  20  ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -95,7 +96,7 @@ fn main() {
         println!("{}: {}", cause, count);
     }
 
-
+/*
 
 
     // New: Print bacteria and resistance summary
@@ -306,6 +307,10 @@ fn main() {
         println!("No bacteria/drug pair found with any nonzero any_r values.");
     }
 
+
+
+
+*/
 
 
     println!("\n--- simulation ended ---");
