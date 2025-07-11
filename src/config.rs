@@ -42,7 +42,79 @@ lazy_static! {
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.1); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
-        map.insert("drug_decay_per_day".to_string(), 1.0);
+        map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
+        
+        // Drug-specific half-lives (in days) for realistic pharmacokinetics
+        
+        // Beta-lactams (Penicillins)
+        map.insert("drug_penicilling_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_ampicillin_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_amoxicillin_half_life_days".to_string(), 0.04); // ~1 hour  
+        map.insert("drug_piperacillin_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_ticarcillin_half_life_days".to_string(), 0.046); // ~1.1 hours
+        
+        // Cephalosporins
+        map.insert("drug_cephalexin_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_cefazolin_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_cefuroxime_half_life_days".to_string(), 0.05); // ~1.3 hours
+        map.insert("drug_ceftriaxone_half_life_days".to_string(), 0.33); // ~8 hours
+        map.insert("drug_ceftazidime_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_cefepime_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_ceftaroline_half_life_days".to_string(), 0.11); // ~2.6 hours
+        
+        // Carbapenems
+        map.insert("drug_meropenem_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_imipenem_c_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_ertapenem_half_life_days".to_string(), 0.17); // ~4 hours
+        
+        // Monobactams
+        map.insert("drug_aztreonam_half_life_days".to_string(), 0.08); // ~2 hours
+        
+        // Macrolides
+        map.insert("drug_erythromycin_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_azithromycin_half_life_days".to_string(), 2.8); // ~68 hours
+        map.insert("drug_clarithromycin_half_life_days".to_string(), 0.25); // ~6 hours
+        
+        // Lincosamides
+        map.insert("drug_clindamycin_half_life_days".to_string(), 0.125); // ~3 hours
+        
+        // Aminoglycosides
+        map.insert("drug_gentamicin_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_tobramycin_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_amikacin_half_life_days".to_string(), 0.08); // ~2 hours
+        
+        // Fluoroquinolones
+        map.insert("drug_ciprofloxacin_half_life_days".to_string(), 0.17); // ~4 hours
+        map.insert("drug_levofloxacin_half_life_days".to_string(), 0.33); // ~8 hours
+        map.insert("drug_moxifloxacin_half_life_days".to_string(), 0.5); // ~12 hours
+        map.insert("drug_ofloxacin_half_life_days".to_string(), 0.25); // ~6 hours
+        
+        // Tetracyclines
+        map.insert("drug_tetracycline_half_life_days".to_string(), 0.33); // ~8 hours
+        map.insert("drug_doxyclycline_half_life_days".to_string(), 0.75); // ~18 hours
+        map.insert("drug_minocycline_half_life_days".to_string(), 0.67); // ~16 hours
+        
+        // Glycopeptides
+        map.insert("drug_vancomycin_half_life_days".to_string(), 0.25); // ~6 hours
+        map.insert("drug_teicoplanin_half_life_days".to_string(), 3.5); // ~83 hours (very long)
+        
+        // Oxazolidinones
+        map.insert("drug_linezolid_half_life_days".to_string(), 0.21); // ~5 hours
+        map.insert("drug_tedizolid_half_life_days".to_string(), 0.5); // ~12 hours
+        
+        // Quinolones (older)
+        map.insert("drug_quinu_dalfo_half_life_days".to_string(), 0.5); // ~12 hours (quinupristin/dalfopristin)
+        
+        // Folate antagonists
+        map.insert("drug_trim_sulf_half_life_days".to_string(), 0.5); // ~12 hours (trimethoprim)
+        
+        // Other antibiotics
+        map.insert("drug_chlorampheni_half_life_days".to_string(), 0.125); // ~3 hours
+        map.insert("drug_nitrofurantoin_half_life_days".to_string(), 0.017); // ~20 minutes
+        map.insert("drug_retapamulin_half_life_days".to_string(), 0.25); // ~6 hours (topical, limited data)
+        map.insert("drug_fusidic_a_half_life_days".to_string(), 0.375); // ~9 hours
+        map.insert("drug_metronidazole_half_life_days".to_string(), 0.33); // ~8 hours
+        map.insert("drug_furazolidone_half_life_days".to_string(), 0.25); // ~6 hours
         map.insert("already_on_drug_initiation_multiplier".to_string(), 1.000); // 0.0001
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
         

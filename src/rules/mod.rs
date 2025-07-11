@@ -39,7 +39,6 @@ pub fn apply_rules(
     let drug_infection_present_multiplier = get_global_param("drug_infection_present_multiplier").unwrap_or(50.0);
     let already_on_drug_initiation_multiplier = get_global_param("already_on_drug_initiation_multiplier").unwrap_or(0.0001);
     let drug_test_identified_multiplier = get_global_param("drug_test_identified_multiplier").unwrap_or(20.0);
-    let drug_decay = get_global_param("drug_decay_per_day").unwrap_or(0.3);
     let double_dose_probability = get_global_param("double_dose_probability_if_identified_infection").unwrap_or(0.1);
     let random_drug_cessation_prob = get_global_param("random_drug_cessation_probability").unwrap_or(0.001);
 
@@ -355,7 +354,13 @@ pub fn apply_rules(
         if individual.cur_use_drug[drug_idx] {
             individual.cur_level_drug[drug_idx] = drug_initial_level;
         } else {
-            individual.cur_level_drug[drug_idx] = (individual.cur_level_drug[drug_idx] - drug_decay).max(0.0);
+            // Use exponential decay based on drug-specific half-life
+            let half_life_days = get_drug_param(drug_name, "half_life_days").unwrap_or(0.25); // Default ~6 hours
+            let decay_constant = (2.0_f64).ln() / half_life_days; // k = ln(2) / t_half
+            let decay_factor = (-decay_constant).exp(); // e^(-k*t) where t=1 day
+            let new_level = individual.cur_level_drug[drug_idx] * decay_factor;
+            // Set levels below 0.001 (0.1% of standard dose) to exactly zero to avoid floating point artifacts
+            individual.cur_level_drug[drug_idx] = if new_level < 0.001 { 0.0 } else { new_level };
         }
     }
 

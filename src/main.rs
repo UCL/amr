@@ -5,9 +5,9 @@ mod rules;
 mod config;
 
 //
-// make sure test_identified_infection = true means that choice of drug is more likely to be the right choice for the bacteria
-//
 // work on the bacteria/drug/region-specific parameter values
+//
+// check on shape of decay in drug levels and perhaps also on time to reach full level (for single dose mda) 
 //
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
@@ -33,7 +33,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =    100_000 ;
-    let time_steps = 5;  // Reduced for testing immune response changes
+    let time_steps =  10  ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

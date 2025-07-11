@@ -176,10 +176,10 @@ impl Simulation {
 
 
             // Print drug details for individual 0, regardless of infection status
-
+            // Note: Using threshold of 0.001 to avoid showing negligible drug levels
             let mut drugs_present_found_overall = false; // Declare and initialize here
             for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                if individual_0.cur_level_drug[drug_idx] > 0.0 {
+                if individual_0.cur_level_drug[drug_idx] > 0.001 {
                     let status = if individual_0.cur_use_drug[drug_idx] {
                         " simulation.rs (currently being taken)"
                     } else {
