@@ -7,8 +7,6 @@ mod config;
 //
 // work on the bacteria/drug/region-specific parameter values
 //
-// check on shape of decay in drug levels and perhaps also on time to reach full level (for single dose mda) 
-//
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
 //
