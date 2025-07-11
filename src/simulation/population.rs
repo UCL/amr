@@ -4,11 +4,13 @@ use rand::distributions::{Distribution, Standard};
 use std::fmt; 
 
 
-/* 
+/*
 
 pub const BACTERIA_LIST: &[&str] = &[
-    "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", 
+    "acinetobacter baumannii" 
 ];
+
+ 
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
     "penicilling", "ampicillin", "amoxicillin",
@@ -16,7 +18,6 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
 
 */
 
- 
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
@@ -29,6 +30,7 @@ pub const BACTERIA_LIST: &[&str] = &[
     "neisseria_meningitidis", "listeria_monocytogenes", "clostridioides_difficile",
     "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis"
 ];
+
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
     "penicilling", "ampicillin", "amoxicillin",

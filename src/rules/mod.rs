@@ -1,7 +1,7 @@
 // src/rules/mod.rs
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
-use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier, get_drug_availability};
+use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier, get_drug_availability, get_bacteria_sepsis_risk_multiplier};
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -264,10 +264,14 @@ pub fn apply_rules(
             let sepsis_duration_multiplier = get_bacteria_param(bacteria, "sepsis_duration_multiplier")
                 .unwrap_or_else(|| get_global_param("default_sepsis_duration_multiplier").expect("Missing default_sepsis_duration_multiplier"));
 
-            // Calculate daily probability of sepsis
-            let prob_sepsis_today = sepsis_baseline_risk
+            // Get bacteria-specific sepsis risk category multiplier
+            let bacteria_sepsis_multiplier = get_bacteria_sepsis_risk_multiplier(bacteria);
+            
+            // Calculate daily probability of sepsis with bacteria-specific risk category
+            let prob_sepsis_today = (sepsis_baseline_risk
                                     + (current_level * sepsis_level_multiplier)
-                                    + (duration_of_infection as f64 * sepsis_duration_multiplier);
+                                    + (duration_of_infection as f64 * sepsis_duration_multiplier))
+                                    * bacteria_sepsis_multiplier;
 
             // Cap the probability at 1.0
             let prob_sepsis_today = prob_sepsis_today.min(1.0);
@@ -551,9 +555,41 @@ pub fn apply_rules(
         let mut prob_not_dying = 1.0 - background_risk;
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
         if has_sepsis {
-            let sepsis_absolute_death_risk = get_global_param("sepsis_absolute_death_risk_per_day")
-                .expect("missing sepsis_absolute_death_risk_per_day in config");
-            prob_not_dying *= 1.0 - sepsis_absolute_death_risk;
+            // Calculate age-adjusted sepsis mortality risk
+            let base_sepsis_death_risk = get_global_param("base_sepsis_death_risk_per_day")
+                .expect("missing base_sepsis_death_risk_per_day in config");
+            
+            let mut sepsis_death_risk = base_sepsis_death_risk;
+            
+            // Apply age-based multiplier
+            let age_years = individual.age as f64 / 365.0;
+            let age_multiplier = if age_years < 1.0 {
+                get_global_param("sepsis_age_mortality_multiplier_infant").unwrap_or(3.0)
+            } else if age_years < 18.0 {
+                get_global_param("sepsis_age_mortality_multiplier_child").unwrap_or(0.5)
+            } else if age_years < 65.0 {
+                get_global_param("sepsis_age_mortality_multiplier_adult").unwrap_or(1.0)
+            } else {
+                get_global_param("sepsis_age_mortality_multiplier_elderly").unwrap_or(2.5)
+            };
+            sepsis_death_risk *= age_multiplier;
+            
+            // Apply region-based multiplier (healthcare quality)
+            let region_sepsis_multiplier_key = format!("{}_sepsis_mortality_multiplier", 
+                individual.region_living.to_string().to_lowercase().replace(" ", "_"));
+            let region_sepsis_multiplier = get_global_param(&region_sepsis_multiplier_key).unwrap_or(1.0);
+            sepsis_death_risk *= region_sepsis_multiplier;
+            
+            // Apply immunosuppression multiplier
+            if individual.is_severely_immunosuppressed {
+                let immunosuppressed_multiplier = get_global_param("sepsis_immunosuppressed_multiplier").unwrap_or(3.0);
+                sepsis_death_risk *= immunosuppressed_multiplier;
+            }
+            
+            // Cap the risk at 1.0 (100%)
+            sepsis_death_risk = sepsis_death_risk.min(1.0);
+            
+            prob_not_dying *= 1.0 - sepsis_death_risk;
             if cause.is_none() { cause = Some("sepsis_related".to_string()); }
         }
         let mut drug_adverse_event_risk_for_individual = 0.0;
@@ -1005,7 +1041,7 @@ pub fn apply_rules(
                 println!(" ");  
                 println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
                 println!("bacteria level after this time step: {:.4}", new_level);
-                println!("calculated decay: {:.4}", decay);
+                println!("calculated change: {:.4}", decay);
 
                 }
 
