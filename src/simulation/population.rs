@@ -4,6 +4,20 @@ use rand::distributions::{Distribution, Standard};
 use std::fmt; 
 
 
+
+
+pub const BACTERIA_LIST: &[&str] = &[
+    "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", 
+];
+
+pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
+    "penicilling", "ampicillin", "amoxicillin",
+];
+
+
+
+/* 
+
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
     "enterococcus faecium", "escherichia coli", "klebsiella pneumoniae", "morganella spp.", 
@@ -26,6 +40,8 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
     "retapamulin", "fusidic_a", "metronidazole", "furazolidone"
 ];
+
+*/
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
