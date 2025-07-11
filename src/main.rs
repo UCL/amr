@@ -5,7 +5,7 @@ mod rules;
 mod config;
 
 //
-// work on the bacteria/drug/region-specific parameter values
+// work on the other bacteria/drug/region-specific parameter values
 //
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
@@ -30,7 +30,7 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =    100_000 ;
+    let population_size =    30_000 ;
     let time_steps =  10  ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
