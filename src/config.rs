@@ -122,12 +122,220 @@ lazy_static! {
         map.insert("immune_decay_rate_per_day".to_string(), 0.02); // Rate at which immunity decays when not actively fighting infection
       
 
+        // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
+        // Instead of uniform potency, use clinically relevant potency categories:
+        // 0.20+ = Excellent potency (first-line therapy)
+        // 0.10-0.19 = Good potency (reliable option)
+        // 0.05-0.09 = Moderate potency (situational use)
+        // 0.01-0.04 = Poor potency (usually ineffective)
+        // 0.005 = Very poor/no activity
+        
+        // Define drug classes for easier management
+        let penicillins = vec!["penicilling", "ampicillin", "amoxicillin", "piperacillin", "ticarcillin"];
+        let cephalosporins_1_2 = vec!["cephalexin", "cefazolin", "cefuroxime"];
+        let cephalosporins_3_4 = vec!["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline"];
+        let carbapenems = vec!["meropenem", "imipenem_c", "ertapenem"];
+        let _monobactams = vec!["aztreonam"];
+        let macrolides = vec!["erythromycin", "azithromycin", "clarithromycin"];
+        let _lincosamides = vec!["clindamycin"];
+        let aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
+        let fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
+        let _tetracyclines = vec!["tetracycline", "doxyclycline", "minocycline"];
+        let glycopeptides = vec!["vancomycin", "teicoplanin"];
+        let oxazolidinones = vec!["linezolid", "tedizolid"];
+        let _folate_antagonists = vec!["trim_sulf"];
+        let _other_antibiotics = vec!["quinu_dalfo", "chlorampheni", "nitrofurantoin", "retapamulin", "fusidic_a", "metronidazole", "furazolidone"];
+
+        // Define bacterial groups for potency patterns
+        let gram_pos_cocci = vec!["staphylococcus aureus", "streptococcus pneumoniae", "streptococcus pyogenes", "streptococcus agalactiae", "enterococcus faecalis", "enterococcus faecium"];
+        let gram_neg_enterobacteria = vec!["escherichia coli", "klebsiella pneumoniae", "enterobacter spp.", "citrobacter spp.", "serratia spp.", "proteus spp.", "morganella spp.", "enterobacter_cloacae"];
+        let gram_neg_non_fermenting = vec!["pseudomonas aeruginosa", "acinetobacter baumannii"];
+        let _fastidious_gram_neg = vec!["haemophilus influenzae", "moraxella_catarrhalis", "neisseria gonorrhoeae", "neisseria_meningitidis"];
+        let _enteric_pathogens = vec!["salmonella enterica serovar typhi", "salmonella enterica serovar paratyphi a", "invasive non-typhoidal salmonella spp.", "shigella spp.", "vibrio cholerae", "campylobacter_jejuni", "yersinia_enterocolitica"];
+        let _atypical_pathogens = vec!["chlamydia trachomatis"];
+        let _anaerobes_spore_formers = vec!["clostridioides_difficile"];
+        let _gram_pos_rods = vec!["listeria_monocytogenes"];
+
+        // Set default low potency for all combinations first
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
-                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0); // 0.0
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // 0.05
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.8); // 0.0001
+                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // Default low potency
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.8);
             }
+        }
+
+        // Now set specific potencies based on clinical evidence
+        
+        // GRAM-POSITIVE COCCI (Staph, Strep, Enterococcus)
+        for &bacteria in gram_pos_cocci.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Penicillins - excellent for Strep (if sensitive), poor for Staph due to beta-lactamase
+                for &drug in penicillins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if bacteria.contains("streptococcus") { 0.18 } else { 0.02 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Cephalosporins - good for most gram-positive (except Enterococcus)
+                for &drug in cephalosporins_1_2.iter().chain(cephalosporins_3_4.iter()) {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if bacteria.contains("enterococcus") { 0.01 } else { 0.15 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Carbapenems - good but reserve for resistant cases
+                for &drug in carbapenems.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if bacteria.contains("enterococcus") { 0.05 } else { 0.16 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Macrolides - good for Strep and atypicals
+                for &drug in macrolides.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.12);
+                    }
+                }
+                
+                // Glycopeptides - excellent for gram-positive, especially MRSA/VRE
+                for &drug in glycopeptides.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.20);
+                    }
+                }
+                
+                // Oxazolidinones - excellent for resistant gram-positive
+                for &drug in oxazolidinones.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.22);
+                    }
+                }
+            }
+        }
+
+        // GRAM-NEGATIVE ENTEROBACTERIA (E. coli, Klebsiella, etc.)
+        for &bacteria in gram_neg_enterobacteria.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Penicillins - poor except piperacillin
+                for &drug in penicillins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if drug == "piperacillin" { 0.14 } else { 0.02 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Cephalosporins - variable by generation
+                for &drug in cephalosporins_1_2.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.08);
+                    }
+                }
+                for &drug in cephalosporins_3_4.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.16);
+                    }
+                }
+                
+                // Carbapenems - excellent broad-spectrum
+                for &drug in carbapenems.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.21);
+                    }
+                }
+                
+                // Fluoroquinolones - good broad-spectrum
+                for &drug in fluoroquinolones.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.17);
+                    }
+                }
+                
+                // Aminoglycosides - good for serious infections
+                for &drug in aminoglycosides.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.15);
+                    }
+                }
+                
+                // Trim-sulf - moderate activity
+                if DRUG_SHORT_NAMES.contains(&"trim_sulf") {
+                    map.insert(format!("drug_trim_sulf_for_bacteria_{}_potency_when_no_r", bacteria), 0.10);
+                }
+            }
+        }
+
+        // PSEUDOMONAS & ACINETOBACTER (Non-fermenting gram-negatives)
+        for &bacteria in gram_neg_non_fermenting.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Most beta-lactams poor except specific anti-pseudomonal agents
+                for &drug in penicillins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if drug == "piperacillin" { 0.13 } else { 0.005 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Only specific cephalosporins active
+                for &drug in cephalosporins_1_2.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.005);
+                    }
+                }
+                for &drug in cephalosporins_3_4.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if drug == "ceftazidime" || drug == "cefepime" { 0.14 } else { 0.02 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Carbapenems - good but resistance emerging
+                for &drug in carbapenems.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if bacteria.contains("acinetobacter") { 0.12 } else { 0.16 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Fluoroquinolones - good activity
+                for &drug in fluoroquinolones.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.15);
+                    }
+                }
+                
+                // Aminoglycosides - good for combination therapy
+                for &drug in aminoglycosides.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.14);
+                    }
+                }
+            }
+        }
+
+        // Add specific high-potency combinations for clinical effectiveness
+        // These represent particularly effective drug-bacteria pairs
+        
+        // Azithromycin for atypicals and some enteric pathogens
+        if DRUG_SHORT_NAMES.contains(&"azithromycin") {
+            for &bacteria in &["chlamydia trachomatis", "campylobacter_jejuni"] {
+                if BACTERIA_LIST.contains(&bacteria) {
+                    map.insert(format!("drug_azithromycin_for_bacteria_{}_potency_when_no_r", bacteria), 0.25);
+                }
+            }
+        }
+        
+        // Nitrofurantoin for urinary E. coli
+        if DRUG_SHORT_NAMES.contains(&"nitrofurantoin") && BACTERIA_LIST.contains(&"escherichia coli") {
+            map.insert("drug_nitrofurantoin_for_bacteria_escherichia coli_potency_when_no_r".to_string(), 0.19);
+        }
+        
+        // Metronidazole for anaerobes
+        if DRUG_SHORT_NAMES.contains(&"metronidazole") && BACTERIA_LIST.contains(&"clostridioides_difficile") {
+            map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 0.18);
         }
 
 
