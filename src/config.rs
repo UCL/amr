@@ -675,32 +675,90 @@ lazy_static! {
     };
 }
 
-// --- NEW: Cross-Resistance Configuration ---
+// --- CROSS-RESISTANCE CONFIGURATION ---
+// NOTE: These groups are DIFFERENT from the potency drug classes above!
+// Potency classes = therapeutic effectiveness groupings
+// Cross-resistance groups = resistance mechanism groupings (bacteria-specific)
 
 lazy_static! {
     static ref CROSS_RESISTANCE_GROUPS: HashMap<&'static str, Vec<Vec<&'static str>>> = {
         let mut m = HashMap::new();
 
-        // Example: For E. coli, group penicillins and fluoroquinolones
-        m.insert("esch_coli", vec![
-            vec!["penicillin", "amoxicillin", "piperacillin_tazobactam"],
+        // E. coli resistance patterns
+        m.insert("escherichia coli", vec![
+            // ESBL resistance affects penicillins + some cephalosporins
+            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin"],
+            // Fluoroquinolone resistance (often ciprofloxacin + levofloxacin together)
+            vec!["ciprofloxacin", "levofloxacin"],
+            // Aminoglycoside resistance (often linked)
+            vec!["gentamicin", "tobramycin"],
+        ]);
+
+        // Acinetobacter baumannii resistance patterns
+        m.insert("acinetobacter baumannii", vec![
+            // β-lactamase affects most β-lactams
+            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime"],
+            // Carbapenemase affects carbapenems
+            vec!["meropenem", "imipenem_c", "ertapenem"],
+            // Fluoroquinolone resistance
+            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin"],
+            // Aminoglycoside resistance
+            vec!["gentamicin", "tobramycin", "amikacin"],
+        ]);
+
+        // Klebsiella pneumoniae resistance patterns  
+        m.insert("klebsiella pneumoniae", vec![
+            // ESBL resistance
+            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
+            // Carbapenemase (KPC, NDM, etc.)
+            vec!["meropenem", "imipenem_c", "ertapenem"],
+            // Fluoroquinolone resistance
             vec!["ciprofloxacin", "levofloxacin"],
         ]);
 
-        // Example: For Strep. pneumoniae, group macrolides
-        m.insert("strep_pneu", vec![
-            vec!["azithromycin", "clarithromycin"],
-        ]);
-
-
-        m.insert("acinetobacter baumannii", vec![
+        // Streptococcus pneumoniae resistance patterns
+        m.insert("streptococcus pneumoniae", vec![
+            // Macrolide resistance (erm genes affect all macrolides)
+            vec!["erythromycin", "azithromycin", "clarithromycin"],
+            // Penicillin resistance (affects β-lactams)
             vec!["penicilling", "ampicillin", "amoxicillin"],
         ]);
-        
-        
 
-        // Add other bacteria-specific groups here
-        // If a bacteria is not listed, it has no cross-resistance groups.
+        // Staphylococcus aureus resistance patterns
+        m.insert("staphylococcus aureus", vec![
+            // β-lactamase affects penicillins
+            vec!["penicilling", "ampicillin", "amoxicillin"],
+            // MRSA affects most β-lactams
+            vec!["cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
+            // Macrolide-lincosamide resistance
+            vec!["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
+        ]);
+
+        // Pseudomonas aeruginosa resistance patterns
+        m.insert("pseudomonas aeruginosa", vec![
+            // β-lactamase affects multiple β-lactams
+            vec!["piperacillin", "ceftazidime", "cefepime"],
+            // Carbapenemase
+            vec!["meropenem", "imipenem_c"],
+            // Fluoroquinolone resistance
+            vec!["ciprofloxacin", "levofloxacin"],
+            // Aminoglycoside resistance
+            vec!["gentamicin", "tobramycin", "amikacin"],
+        ]);
+
+        // Enterobacter species resistance patterns
+        m.insert("enterobacter spp.", vec![
+            // AmpC β-lactamase (chromosomal)
+            vec!["ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime"],
+            // ESBL if acquired
+            vec!["ceftriaxone", "ceftazidime", "cefepime"],
+            // Fluoroquinolone resistance
+            vec!["ciprofloxacin", "levofloxacin"],
+        ]);
+
+        // Add more bacteria as needed...
+        // The key insight: resistance groupings are bacteria-specific and mechanism-based,
+        // while potency groupings are based on therapeutic similarity.
 
         m
     };
