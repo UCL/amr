@@ -4,7 +4,7 @@ use rand::distributions::{Distribution, Standard};
 use std::fmt; 
 
 
-
+/* 
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", 
@@ -14,9 +14,9 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "penicilling", "ampicillin", "amoxicillin",
 ];
 
+*/
 
-
-/* 
+ 
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
@@ -41,7 +41,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "retapamulin", "fusidic_a", "metronidazole", "furazolidone"
 ];
 
-*/
+
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,8 +84,16 @@ impl Distribution<Region> for Standard {
 // Implement the Display trait for Region
 impl fmt::Display for Region {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Use debug format and then convert to lowercase and replace spaces
-        write!(f, "{:?}", self) // This will give "NorthAmerica", "SouthAmerica", etc.
+        let region_str = match self {
+            Region::NorthAmerica => "north_america",
+            Region::SouthAmerica => "south_america",
+            Region::Africa => "africa",
+            Region::Asia => "asia",
+            Region::Europe => "europe",
+            Region::Oceania => "oceania",
+            Region::Home => "home",
+        };
+        write!(f, "{}", region_str)
     }
 }
 

@@ -1,7 +1,7 @@
 // src/rules/mod.rs
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
-use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier};
+use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier, get_drug_availability};
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -386,6 +386,21 @@ pub fn apply_rules(
         }
         // --- end restriction ---
 
+        // --- NEW: Check drug availability in current region ---
+        let current_region_str = individual.region_cur_in.to_string();
+        let living_region_str = individual.region_living.to_string();
+        let drug_availability = get_drug_availability(
+            drug_name, 
+            &current_region_str, 
+            Some(&living_region_str)
+        );
+        
+        // If drug is not available or has very low availability, skip it
+        if drug_availability < 0.01 {
+            continue; // Drug not available in this region
+        }
+        // --- end drug availability check ---
+
         // start with the base initiation rate for *any* drug
         let mut administration_prob = drug_base_initiation_rate;
 
@@ -464,6 +479,10 @@ pub fn apply_rules(
             // Medium spectrum (2.0-3.5) gets no bonus or penalty
         }
         // --- END bacterial identification effects ---
+
+        // --- Apply drug availability multiplier ---
+        administration_prob *= drug_availability;
+        // --- end drug availability ---
 
         administration_prob = administration_prob.clamp(0.0, 1.0); // Ensure the probability is between 0 and 1
         if drugs_initiated_this_time_step < 2 && !individual.cur_use_drug[drug_idx] {
@@ -604,6 +623,17 @@ pub fn apply_rules(
             // age-based infection risk multiplier
             let age_multiplier = get_age_infection_multiplier(bacteria, individual.age);
             acquisition_probability *= age_multiplier;
+
+            // region-specific bacterial infection risk multiplier
+            let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
+            let region_bacteria_multiplier_key = format!("{}_{}_infection_risk_multiplier", region_name_for_param, bacteria.replace(" ", "_"));
+            let region_bacteria_multiplier = get_global_param(&region_bacteria_multiplier_key)
+                .unwrap_or_else(|| {
+                    // If specific region-bacteria combination not found, try default for this region
+                    let default_region_key = format!("{}_infection_risk_multiplier_default", region_name_for_param);
+                    get_global_param(&default_region_key).unwrap_or(1.0)  // Default to 1.0 if no region-specific multiplier found
+                });
+            acquisition_probability *= region_bacteria_multiplier;
 
             // --- microbiome presence (Carriage) ---
             if !individual.presence_microbiome[b_idx] {

@@ -10,7 +10,7 @@ lazy_static! {
 
 
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
-        // These are inserted first, and can then be overridden by specific entries below.
+        // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.0001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
@@ -425,8 +425,8 @@ lazy_static! {
         map.insert("age_mortality_multiplier_per_year".to_string(), 1.01); // 0.0000001 Example: Small increase in daily death risk per year of age
 
         // Region-specific mortality multipliers. Ensure these match your `Region` enum variants.
-        map.insert("northamerica_mortality_multiplier".to_string(), 1.0);
-        map.insert("southamerica_mortality_multiplier".to_string(), 1.0);
+        map.insert("north_america_mortality_multiplier".to_string(), 1.0);
+        map.insert("south_america_mortality_multiplier".to_string(), 1.0);
         map.insert("africa_mortality_multiplier".to_string(), 1.2);   
         map.insert("asia_mortality_multiplier".to_string(), 1.1);
         map.insert("europe_mortality_multiplier".to_string(), 0.9);     
@@ -497,114 +497,302 @@ lazy_static! {
         map.insert("mosquito_exposure_baseline".to_string(), 1.0);
         map.insert("mosquito_exposure_in_hospital_multiplier".to_string(), 0.2); // Significantly reduced indoors/hospital
         
-        // Region-specific multipliers (example values, adjust as needed based on actual epidemiology)
+        // Region-specific multipliers for mosquito exposure (example values, adjust as needed based on actual epidemiology)
         map.insert("north_america_mosquito_exposure_multiplier".to_string(), 0.5);
         map.insert("south_america_mosquito_exposure_multiplier".to_string(), 5.0);
         map.insert("africa_mosquito_exposure_multiplier".to_string(), 8.0);
         map.insert("asia_mosquito_exposure_multiplier".to_string(), 6.0);
         map.insert("europe_mosquito_exposure_multiplier".to_string(), 0.2);
         map.insert("oceania_mosquito_exposure_multiplier".to_string(), 3.0);
+        
+        // Region-specific bacterial infection risk multipliers
+        // Based on real-world epidemiological patterns and regional prevalence
+        // Format: "{region}_{bacteria_name}_infection_risk_multiplier"
+        // Note: Region names use underscore format (e.g., "north_america", "south_america")
+        // and bacteria names have spaces replaced with underscores
+        
+        // Acinetobacter baumannii - higher in tropical/subtropical regions, hospitals
+        map.insert("north_america_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("south_america_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 1.5);
+        map.insert("africa_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 2.0);
+        map.insert("asia_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("europe_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Citrobacter spp. - more common in tropical regions
+        map.insert("north_america_citrobacter_spp._infection_risk_multiplier".to_string(), 0.9);
+        map.insert("south_america_citrobacter_spp._infection_risk_multiplier".to_string(), 1.4);
+        map.insert("africa_citrobacter_spp._infection_risk_multiplier".to_string(), 1.8);
+        map.insert("asia_citrobacter_spp._infection_risk_multiplier".to_string(), 1.6);
+        map.insert("europe_citrobacter_spp._infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_citrobacter_spp._infection_risk_multiplier".to_string(), 1.1);
+        
+        // Enterobacter spp. - globally distributed but higher in developing regions
+        map.insert("north_america_enterobacter_spp._infection_risk_multiplier".to_string(), 1.0);
+        map.insert("south_america_enterobacter_spp._infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_enterobacter_spp._infection_risk_multiplier".to_string(), 1.7);
+        map.insert("asia_enterobacter_spp._infection_risk_multiplier".to_string(), 1.5);
+        map.insert("europe_enterobacter_spp._infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_enterobacter_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // Enterococcus faecalis - globally distributed, slightly higher in temperate regions
+        map.insert("north_america_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("south_america_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_enterococcus_faecalis_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("asia_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("europe_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("oceania_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.1);
+        
+        // Enterococcus faecium - higher in developed regions with heavy antibiotic use
+        map.insert("north_america_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("south_america_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_enterococcus_faecium_infection_risk_multiplier".to_string(), 0.7);
+        map.insert("asia_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("europe_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("oceania_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.2);
+        
+        // Escherichia coli - globally distributed, slightly higher in developing regions
+        map.insert("north_america_escherichia_coli_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("south_america_escherichia_coli_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_escherichia_coli_infection_risk_multiplier".to_string(), 1.6);
+        map.insert("asia_escherichia_coli_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("europe_escherichia_coli_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_escherichia_coli_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Klebsiella pneumoniae - higher in tropical/subtropical regions
+        map.insert("north_america_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("south_america_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("africa_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("asia_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.6);
+        map.insert("europe_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.1);
+        
+        // Pseudomonas aeruginosa - higher in humid/warm climates and developed healthcare systems
+        map.insert("north_america_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("south_america_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("asia_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("europe_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("oceania_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.2);
+        
+        // Staphylococcus aureus - globally distributed, slightly higher in crowded/poor sanitation areas
+        map.insert("north_america_staphylococcus_aureus_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("south_america_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("africa_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.5);
+        map.insert("asia_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("europe_staphylococcus_aureus_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Streptococcus pneumoniae - slightly higher in cold/dry climates and crowded conditions
+        map.insert("north_america_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("south_america_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("asia_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("europe_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("oceania_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Salmonella enterica serovar typhi - much higher in developing regions with poor sanitation
+        map.insert("north_america_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 0.2);
+        map.insert("south_america_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 2.0);
+        map.insert("africa_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 5.0);
+        map.insert("asia_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 4.0);
+        map.insert("europe_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 0.1);
+        map.insert("oceania_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 0.8);
+        
+        // Salmonella enterica serovar paratyphi a - similar pattern to typhi
+        map.insert("north_america_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 0.3);
+        map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("africa_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 3.5);
+        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 4.5);
+        map.insert("europe_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 0.2);
+        map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Invasive non-typhoidal salmonella - highest in sub-Saharan Africa
+        map.insert("north_america_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 0.5);
+        map.insert("south_america_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 1.2);
+        map.insert("africa_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 8.0);
+        map.insert("asia_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 1.5);
+        map.insert("europe_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 0.3);
+        map.insert("oceania_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // Shigella spp. - higher in regions with poor sanitation
+        map.insert("north_america_shigella_spp._infection_risk_multiplier".to_string(), 0.6);
+        map.insert("south_america_shigella_spp._infection_risk_multiplier".to_string(), 1.8);
+        map.insert("africa_shigella_spp._infection_risk_multiplier".to_string(), 3.0);
+        map.insert("asia_shigella_spp._infection_risk_multiplier".to_string(), 2.5);
+        map.insert("europe_shigella_spp._infection_risk_multiplier".to_string(), 0.4);
+        map.insert("oceania_shigella_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // Neisseria gonorrhoeae - varies by region with different sexual health practices
+        map.insert("north_america_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("south_america_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("africa_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 2.0);
+        map.insert("asia_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("europe_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 1.3);
+        
+        // Vibrio cholerae - much higher in regions with poor water/sanitation
+        map.insert("north_america_vibrio_cholerae_infection_risk_multiplier".to_string(), 0.1);
+        map.insert("south_america_vibrio_cholerae_infection_risk_multiplier".to_string(), 2.5);
+        map.insert("africa_vibrio_cholerae_infection_risk_multiplier".to_string(), 6.0);
+        map.insert("asia_vibrio_cholerae_infection_risk_multiplier".to_string(), 4.0);
+        map.insert("europe_vibrio_cholerae_infection_risk_multiplier".to_string(), 0.05);
+        map.insert("oceania_vibrio_cholerae_infection_risk_multiplier".to_string(), 1.5);
+        
+        // Chlamydia trachomatis - sexually transmitted, varies by region
+        map.insert("north_america_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("south_america_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("asia_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 0.7);
+        map.insert("europe_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("oceania_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.4);
+        
+        // Campylobacter jejuni - higher in regions with poor food safety
+        map.insert("north_america_campylobacter_jejuni_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("south_america_campylobacter_jejuni_infection_risk_multiplier".to_string(), 1.5);
+        map.insert("africa_campylobacter_jejuni_infection_risk_multiplier".to_string(), 2.2);
+        map.insert("asia_campylobacter_jejuni_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("europe_campylobacter_jejuni_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_campylobacter_jejuni_infection_risk_multiplier".to_string(), 1.1);
+        
+        // Add region-specific multipliers for remaining bacteria types
+        // Using more conservative variations for less well-studied regional patterns
+        
+        // Morganella spp.
+        map.insert("north_america_morganella_spp._infection_risk_multiplier".to_string(), 1.0);
+        map.insert("south_america_morganella_spp._infection_risk_multiplier".to_string(), 1.2);
+        map.insert("africa_morganella_spp._infection_risk_multiplier".to_string(), 1.4);
+        map.insert("asia_morganella_spp._infection_risk_multiplier".to_string(), 1.3);
+        map.insert("europe_morganella_spp._infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_morganella_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // Proteus spp.
+        map.insert("north_america_proteus_spp._infection_risk_multiplier".to_string(), 0.9);
+        map.insert("south_america_proteus_spp._infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_proteus_spp._infection_risk_multiplier".to_string(), 1.6);
+        map.insert("asia_proteus_spp._infection_risk_multiplier".to_string(), 1.4);
+        map.insert("europe_proteus_spp._infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_proteus_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // Serratia spp.
+        map.insert("north_america_serratia_spp._infection_risk_multiplier".to_string(), 1.0);
+        map.insert("south_america_serratia_spp._infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_serratia_spp._infection_risk_multiplier".to_string(), 1.5);
+        map.insert("asia_serratia_spp._infection_risk_multiplier".to_string(), 1.4);
+        map.insert("europe_serratia_spp._infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_serratia_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // Default multiplier for Home region and any missing region-bacteria combinations
+        map.insert("home_infection_risk_multiplier_default".to_string(), 1.0);
+        
+        // Region-specific drug availability multipliers
+        // Format: "{region}_drug_{drug_name}_availability"
+        // Values: 1.0 = fully available, 0.5 = limited availability, 0.0 = not available
+        // Based on realistic antibiotic access patterns across different healthcare systems
+        
+        // North America - Full access to most antibiotics
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            map.insert(format!("north_america_drug_{}_availability", drug), 1.0);
+        }
+        
+        // Europe - Full access to most antibiotics
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            map.insert(format!("europe_drug_{}_availability", drug), 1.0);
+        }
+        
+        // Asia - Good access to most drugs, some newer drugs may be limited
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let availability = match drug {
+                // Newer, expensive drugs may have limited availability
+                "tedizolid" | "ceftaroline" => 0.3,
+                "teicoplanin" => 0.7, // More available in Asia than tedizolid
+                _ => 1.0, // Most other drugs widely available
+            };
+            map.insert(format!("asia_drug_{}_availability", drug), availability);
+        }
+        
+        // Oceania - Generally good access, similar to developed regions
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let availability = match drug {
+                "tedizolid" | "ceftaroline" => 0.5, // Somewhat limited
+                _ => 1.0,
+            };
+            map.insert(format!("oceania_drug_{}_availability", drug), availability);
+        }
+        
+        // South America - Variable access, newer/expensive drugs limited
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let availability = match drug {
+                // Very limited access to newest drugs
+                "tedizolid" | "ceftaroline" => 0.1,
+                "teicoplanin" => 0.3,
+                "linezolid" => 0.5,
+                // Limited access to some carbapenems
+                "ertapenem" => 0.6,
+                "meropenem" | "imipenem_c" => 0.7,
+                // Moderate access to some newer cephalosporins
+                "cefepime" => 0.8,
+                // Good access to older, established drugs
+                _ => 1.0,
+            };
+            map.insert(format!("south_america_drug_{}_availability", drug), availability);
+        }
+        
+        // Africa - Most limited access, mainly basic antibiotics available
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let availability = match drug {
+                // Basic penicillins - widely available
+                "penicilling" | "ampicillin" | "amoxicillin" => 1.0,
+                // Basic cephalosporins - good availability
+                "cephalexin" | "cefazolin" => 0.9,
+                "cefuroxime" => 0.7,
+                // Third-generation cephalosporins - limited
+                "ceftriaxone" => 0.6,
+                "ceftazidime" => 0.4,
+                // Basic macrolides and fluoroquinolones - moderate availability
+                "erythromycin" | "azithromycin" => 0.8,
+                "ciprofloxacin" => 0.7,
+                "levofloxacin" => 0.5,
+                // Aminoglycosides - basic ones available
+                "gentamicin" => 0.8,
+                "tobramycin" | "amikacin" => 0.4,
+                // Older drugs - generally available
+                "tetracycline" | "doxyclycline" => 0.9,
+                "trim_sulf" => 0.9,
+                "chlorampheni" => 0.8,
+                "metronidazole" => 0.9,
+                // Vancomycin - very limited
+                "vancomycin" => 0.3,
+                // Newer/expensive drugs - very limited or unavailable
+                "meropenem" | "imipenem_c" => 0.2,
+                "ertapenem" => 0.1,
+                "linezolid" => 0.1,
+                "tedizolid" | "ceftaroline" | "teicoplanin" => 0.0,
+                "aztreonam" => 0.1,
+                "cefepime" => 0.3,
+                "moxifloxacin" => 0.2,
+                "minocycline" => 0.4,
+                "quinu_dalfo" => 0.1,
+                "nitrofurantoin" => 0.6,
+                "retapamulin" | "fusidic_a" => 0.2,
+                "furazolidone" => 0.3,
+                // Default for any remaining drugs
+                _ => 0.1,
+            };
+            map.insert(format!("africa_drug_{}_availability", drug), availability);
+        }
+        
+        // Home region - use availability based on region_living
+        // This will be handled in the drug initiation logic
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            map.insert(format!("home_drug_{}_availability", drug), 1.0); // Default fallback
+        }
+        
         // Ensure you have multipliers for all variants of your `Region` enum,
         // or add a default handling in the `mod.rs` if a region param isn't found.
         // If `Region::Home` refers to a generic home location not tied to a specific geographical region,
         // you might need to reconsider its role or default it to 1.0 or an average.
-
- 
-
-
-
-
-
-
-
-
-
-
-
-
-        // Drug-specific Adverse Event Death Risk Parameters (Absolute risk, independent and drug-specific)
-        // Add an entry for each drug that can cause an adverse event leading to death.
-        // The key format is "drug_{drug_short_name}_adverse_event_death_risk"
-        map.insert("drug_amoxicillin_adverse_event_death_risk".to_string(), 0.0001); // Example: 0.01% daily absolute risk from amoxicillin
-        map.insert("drug_meropenem_adverse_event_death_risk".to_string(), 0.0005);   // Example: 0.05% daily absolute risk from meropenem
-        // Add similar lines for other drugs as needed:
-        // map.insert("drug_ciprofloxacin_adverse_event_death_risk".to_string(), 0.0002);
-        // map.insert("drug_vancomycin_adverse_event_death_risk".to_string(), 0.0003);
-
-
-        // --- Overrides for Specific Bacteria (Customize these as needed) ---
-
-        // acinetobac_bau Parameters
-        map.insert("acinetobac_bau_acquisition_prob_baseline".to_string(), 0.001 ); // 0.2
-        map.insert("acinetobac_bau_hospital_acquired_multiplier".to_string(), 5.0); // higher risk in hospital
-        map.insert("acinetobac_bau_immunity_base_response".to_string(), 0.001); // 0.001
-        map.insert("acinetobac_bau_immunity_increase_per_infection_day".to_string(), 0.2  );  // 0.2
-        map.insert("acinetobac_bau_immunity_increase_per_unit_higher_bacteria_level".to_string(), 0.2  );  // 0.2
-        map.insert("acinetobac_bau_immunity_effect_on_level_change".to_string(), 0.005  );  // 0.005
-        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_resistance_emergence_rate_per_day_baseline".to_string(), 0.01); // 0.2 0.0001 Baseline probability for de novo resistance emergence
-        map.insert("drug_cefepime_for_bacteria_acinetobac_bau_initiation_multiplier".to_string(), 1.0); // 1000000.0
-
-
-
-        // Drug-Specific Toxicity Parameters (Examples)
-        // Format: "drug_{drug_name}_toxicity_per_unit_level_per_day"
-        map.insert("drug_penicilling_toxicity_per_unit_level_per_day".to_string(), 0.002); // Lower toxicity example
-        map.insert("drug_cefepime_toxicity_per_unit_level_per_day".to_string(), 0.01);    // Higher toxicity example
-        map.insert("drug_meropenem_toxicity_per_unit_level_per_day".to_string(), 0.008);
-
-
-        //  Bacteria-Specific Microbiome Acquisition Multipliers (Optional Examples)
-        // Format: "{bacteria_name}_microbiome_acquisition_multiplier"
-        map.insert("strep_pneu_microbiome_acquisition_multiplier".to_string(), 3.0); // Strep Pneu might colonize more easily
-        map.insert("salm_typhi_microbiome_acquisition_multiplier".to_string(), 0.5);  // Salmonella might colonize less easily than cause infection
-
-        //  Bacteria-Specific Microbiome Clearance Parameters (Optional Examples)
-        // Format: "{bacteria_name}_microbiome_clearance_probability_per_day"
-        map.insert("strep_pneu_microbiome_clearance_probability_per_day".to_string(), 0.02);
-        map.insert("esch_coli_microbiome_clearance_probability_per_day".to_string(), 0.005);
-
-
         
-        //  Bacteria-Specific Microbiome Infection Acquisition Multipliers (Optional Examples)
-        // Format: "{bacteria_name}_microbiome_infection_acquisition_multiplier"
-        map.insert("strep_pneu_microbiome_infection_acquisition_multiplier".to_string(), 0.05); // Maybe Strep Pneu is very protective when colonized
-        map.insert("salm_typhi_microbiome_infection_acquisition_multiplier".to_string(), 0.8);  // Salmonella might offer less protection, or even slightly increase risk if certain strains
-
-
-        // Add specific rates for your drugs (e.g., higher for more toxic drugs)
-        map.insert("gentamicin_toxicity_mortality_rate_per_day".to_string(), 0.00001); // Example for a specific drug
-
-        // Add more specific parameters for acinetobac_bau if needed
-
-        // --- Age Effect Scaling Overrides for Specific Bacteria ---
-        map.insert("strep_pneu_age_effect_scaling".to_string(), 1.2); // Stronger age effect for pneumonia
-        map.insert("salm_typhi_age_effect_scaling".to_string(), 0.8); // Weaker age effect 
-        map.insert("n_gonorrhoeae_age_effect_scaling".to_string(), 1.5); // Strong age effect for STI
-        map.insert("acinetobac_bau_age_effect_scaling".to_string(), 1.3); // Strong age effect for nosocomial pathogen
-
-        // Overrides for Specific Drug Initial Levels & Double Dose Multipliers
-        map.insert("drug_penicilling_double_dose_multiplier".to_string(), 2.5); // Example: higher multiplier for penicillin
-
-        map.insert("drug_amoxicillin_double_dose_multiplier".to_string(), 2.0);
-
-        map.insert("drug_azithromycin_double_dose_multiplier".to_string(), 1.8);
-
-        map.insert("drug_ciprofloxacin_double_dose_multiplier".to_string(), 2.2);
-
-        map.insert("drug_trim_sulf_double_dose_multiplier".to_string(), 2.0);
-
-        map.insert("drug_meropenem_double_dose_multiplier".to_string(), 2.0);
-
-        map.insert("drug_cefepime_double_dose_multiplier".to_string(), 2.0);
-
-        map.insert("drug_vancomycin_double_dose_multiplier".to_string(), 2.0);
-
-        map.insert("drug_linezolid_double_dose_multiplier".to_string(), 2.0);
-
-        map.insert("drug_ceftriaxone_double_dose_multiplier".to_string(), 2.0);
-
-        /* ... (rest of your commented out bacteria parameters) ... */
-
         map
     };
 
@@ -651,6 +839,21 @@ pub fn get_bacteria_param(bacteria_name: &str, param_suffix: &str) -> Option<f64
 pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
     let specific_key = format!("drug_{}_{}", drug_name, param_suffix);
     PARAMETERS.get(&specific_key).copied()
+}
+
+/// Checks if a drug is available in a given region.
+/// Returns the availability multiplier (0.0 = not available, 1.0 = fully available).
+/// For Home region, uses the individual's region_living.
+pub fn get_drug_availability(drug_name: &str, region: &str, region_living: Option<&str>) -> f64 {
+    // Handle Home region by using region_living
+    let effective_region = if region == "home" {
+        region_living.unwrap_or("north_america") // Default fallback if region_living not provided
+    } else {
+        region
+    };
+    
+    let availability_key = format!("{}_drug_{}_availability", effective_region, drug_name);
+    PARAMETERS.get(&availability_key).copied().unwrap_or(1.0) // Default to available if not specified
 }
 
 // --- Age Risk Templates Configuration ---
