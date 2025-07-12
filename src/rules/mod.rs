@@ -1,5 +1,9 @@
 // src/rules/mod.rs
 
+
+// for printing individual 0 per time step replace .id == 1000001 with .id == 0 (cntrl h to find and replace)
+
+
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
 use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier, get_drug_availability, get_bacteria_sepsis_risk_multiplier};
 use rand::Rng;
@@ -28,7 +32,7 @@ pub fn apply_rules(
         return; // Exit the function if dead
     }
 
-    if individual.id == 0  { 
+    if individual.id == 1000001  { 
         println!("   "); println!("mod.rs time step {}", time_step); println!("   "); 
     }
     let mut rng = rand::thread_rng();
@@ -503,7 +507,7 @@ pub fn apply_rules(
 
                 // debug print       
                                   
-                if individual.id == 0  { 
+                if individual.id == 1000001  { 
                     println!(
                         "mod.rs   started {} - rate of starting was {:.4}",
                         drug_name,
@@ -946,7 +950,7 @@ pub fn apply_rules(
 
 
 
-                            if individual.id == 0 {
+                            if individual.id == 1000001 {
                                 println!(" ");
                                 println!("mod.rs");  
                                 println!("final_activity_r_factor: {:.4}", final_activity_r_factor);
@@ -1032,7 +1036,7 @@ pub fn apply_rules(
             let mut total_reduction_due_to_antibiotic = 0.0;
 
 
-            if individual.id == 0 {
+            if individual.id == 1000001 {
                 println!(" ");
                 println!("mod.rs");  
                 println!("bacteria: {}", bacteria);
@@ -1048,7 +1052,7 @@ pub fn apply_rules(
                     total_reduction_due_to_antibiotic += resistance_data.activity_r;
 
 
-                if individual.id == 0 {
+                if individual.id == 1000001 {
                         println!(
                             "mod.rs  {}: current level = {:.4}, activity_r = {:.4}",
                             DRUG_SHORT_NAMES[drug_idx],
@@ -1058,7 +1062,7 @@ pub fn apply_rules(
                     }
                         
 
-             if individual.id == 0 {
+             if individual.id == 1000001 {
                 println!("mod.rs  total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
             }   
             }
@@ -1069,7 +1073,7 @@ pub fn apply_rules(
             let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
 
    
-                if individual.id == 0 {
+                if individual.id == 1000001 {
 
                 println!(" "); 
                 println!("mod.rs");                    

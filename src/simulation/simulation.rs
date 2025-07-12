@@ -95,7 +95,7 @@ impl Simulation {
         println!(" ");
 
         for t in 0..self.time_steps {
-            println!("simulation.rs time step: {}", t);
+//          println!("simulation.rs time step: {}", t);
 
 
             let mut current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
@@ -151,6 +151,9 @@ impl Simulation {
                     &self.cross_resistance_groups, // Pass new data
                 );
             });
+
+
+/* per time step printing block
 
             // --- print activity_r for all infected bacteria/drug pairs for individual 0 after update ---
             let individual_0 = &self.population.individuals[0];
@@ -278,13 +281,22 @@ impl Simulation {
 
             // Print resistance summary for all infected individuals at this time step
 //          self.print_resistance_summary(t);
+
+
+*/ // end of per timestep printing block
+
+
         }
 
     }
 
 
-/*   
 
+
+
+
+
+/*   
 
     fn print_resistance_summary(&self, time_step: usize) {
         // Calculate bacteria infection counts first
@@ -355,6 +367,8 @@ impl Simulation {
         }
     }
 */
+
+
 
 }
 
