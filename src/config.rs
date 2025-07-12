@@ -12,7 +12,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.1); // 0.001
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.001); // 0.001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
@@ -39,7 +39,7 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.000); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
@@ -386,6 +386,15 @@ lazy_static! {
 
         // initiate travel
         map.insert("travel_probability_per_day".to_string(), 0.00005);
+        
+        // Region-specific travel multipliers based on income/development level
+        // Higher income regions have higher outbound travel rates
+        map.insert("north_america_travel_multiplier".to_string(), 3.0);  // High income, high travel
+        map.insert("europe_travel_multiplier".to_string(), 3.5);         // High income, highest travel rates
+        map.insert("oceania_travel_multiplier".to_string(), 2.5);        // High income, high travel
+        map.insert("asia_travel_multiplier".to_string(), 1.5);          // Mixed income levels, moderate travel
+        map.insert("south_america_travel_multiplier".to_string(), 0.8);  // Middle income, lower travel
+        map.insert("africa_travel_multiplier".to_string(), 0.3);        // Lower income, lowest travel rates
 
 
 

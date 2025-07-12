@@ -212,8 +212,14 @@ pub fn apply_rules(
 
 
     // ---  region travel ---
-    let travel_prob = get_global_param("travel_probability_per_day")
+    let base_travel_prob = get_global_param("travel_probability_per_day")
         .expect("Missing travel_probability_per_day in config");
+    
+    // Apply region-specific travel multiplier based on individual's home region
+    let region_travel_multiplier_key = format!("{}_travel_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
+    let region_travel_multiplier = get_global_param(&region_travel_multiplier_key).unwrap_or(1.0);
+    let travel_prob = base_travel_prob * region_travel_multiplier;
+    
     const VISIT_LENGTH_DAYS: u32 = 30; // Fixed visit length
 
     // Check if the individual is currently in their home region
