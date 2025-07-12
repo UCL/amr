@@ -5,6 +5,10 @@ mod rules;
 mod config;
 
 //
+// make rates of travel between regions to be broadly realistic ? - eg rates of travel from home region depend on income level  region
+// of region   
+//
+// run model for the world to get idea of parameter values for rate of first appearance of resistance
 //
 // decide on time zero for mda azithromycin project
 //
@@ -32,7 +36,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =    10_000 ;
-    let time_steps =  20  ;  // Reduced for testing immune response changes
+    let time_steps =  30  ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

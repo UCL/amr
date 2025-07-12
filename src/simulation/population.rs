@@ -241,7 +241,7 @@ impl Population {
         let mut rng = rand::thread_rng();
         for i in 0..size {
 //          let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
-            let age = rng.gen_range(0..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
+            let age = rng.gen_range(-3650..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             individuals.push(Individual::new(i, age, sex));
         }
