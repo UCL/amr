@@ -5,6 +5,7 @@ mod rules;
 mod config;
 
 //
+// add drug specific drug introduction dates
 //
 // run model for the world to get idea of parameter values for rate of first appearance of resistance
 //
@@ -34,7 +35,7 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =    1_000_000 ;
+    let population_size =    10_000 ;
     let time_steps =  10  ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
@@ -325,7 +326,7 @@ fn main() {
 
 
     println!("\n--- simulation ended ---");
-    println!("\n--- total simulation time: {:.3?} seconds", duration);
+    println!("\n--- total simulation time: {:.3} seconds", duration.as_secs_f64());
     println!("                          ");
 
 
