@@ -1082,3 +1082,87 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
     }
 }
 
+// Drug introduction dates (as time steps from start of 1942)
+// Each time step = 1 day, so multiply years by 365
+lazy_static! {
+    pub static ref DRUG_INTRODUCTION_DATES: HashMap<&'static str, usize> = {
+        let mut map = HashMap::new();
+        
+        // Beta-lactams (Penicillins)
+        map.insert("penicilling", 0);        // 1942 (simulation start)
+        map.insert("ampicillin", 6935);      // 1961 (19 * 365)
+        map.insert("amoxicillin", 10950);    // 1972 (30 * 365)
+        map.insert("piperacillin", 14235);   // 1981 (39 * 365)
+        map.insert("ticarcillin", 12775);    // 1977 (35 * 365)
+        
+        // Cephalosporins
+        map.insert("cephalexin", 10220);     // 1970 (28 * 365)
+        map.insert("cefazolin", 11315);      // 1973 (31 * 365)
+        map.insert("cefuroxime", 13140);     // 1978 (36 * 365)
+        map.insert("ceftriaxone", 15330);    // 1984 (42 * 365)
+        map.insert("ceftazidime", 15695);    // 1985 (43 * 365)
+        map.insert("cefepime", 19710);       // 1996 (54 * 365)
+        map.insert("ceftaroline", 24820);    // 2010 (68 * 365)
+        
+        // Carbapenems
+        map.insert("meropenem", 19710);      // 1996 (54 * 365)
+        map.insert("imipenem_c", 15695);     // 1985 (43 * 365)
+        map.insert("ertapenem", 21535);      // 2001 (59 * 365)
+        
+        // Monobactams
+        map.insert("aztreonam", 16060);      // 1986 (44 * 365)
+        
+        // Macrolides
+        map.insert("erythromycin", 3650);    // 1952 (10 * 365)
+        map.insert("azithromycin", 17885);   // 1991 (49 * 365)
+        map.insert("clarithromycin", 17520); // 1990 (48 * 365)
+        
+        // Lincosamides
+        map.insert("clindamycin", 9490);     // 1968 (26 * 365)
+        
+        // Aminoglycosides
+        map.insert("gentamicin", 7665);      // 1963 (21 * 365)
+        map.insert("tobramycin", 12045);     // 1975 (33 * 365)
+        map.insert("amikacin", 12410);       // 1976 (34 * 365)
+        
+        // Fluoroquinolones
+        map.insert("ciprofloxacin", 16425);  // 1987 (45 * 365)
+        map.insert("levofloxacin", 19710);   // 1996 (54 * 365)
+        map.insert("moxifloxacin", 20805);   // 1999 (57 * 365)
+        map.insert("ofloxacin", 17520);      // 1990 (48 * 365)
+        
+        // Tetracyclines
+        map.insert("tetracycline", 2190);    // 1948 (6 * 365)
+        map.insert("doxyclycline", 9125);    // 1967 (25 * 365)
+        map.insert("minocycline", 10585);    // 1971 (29 * 365)
+        
+        // Glycopeptides
+        map.insert("vancomycin", 5840);      // 1958 (16 * 365)
+        map.insert("teicoplanin", 16790);    // 1988 (46 * 365)
+        
+        // Oxazolidinones
+        map.insert("linezolid", 21170);      // 2000 (58 * 365)
+        map.insert("tedizolid", 26280);      // 2014 (72 * 365)
+        
+        // Folate antagonists
+        map.insert("trim_sulf", 9490);       // 1968 (26 * 365) - trimethoprim-sulfamethoxazole
+        
+        // Other antibiotics
+        map.insert("quinu_dalfo", 20805);    // 1999 (57 * 365) - quinupristin/dalfopristin
+        map.insert("chlorampheni", 2555);    // 1949 (7 * 365) - chloramphenicol
+        map.insert("nitrofurantoin", 4015);  // 1953 (11 * 365)
+        map.insert("retapamulin", 23725);    // 2007 (65 * 365) - topical antibiotic
+        map.insert("fusidic_a", 7300);       // 1962 (20 * 365) - fusidic acid
+        map.insert("metronidazole", 6570);   // 1960 (18 * 365)
+        map.insert("furazolidone", 4745);    // 1955 (13 * 365)
+        
+        map
+    };
+}
+
+/// Gets the introduction date for a drug (as time step from 1942)
+/// Returns the time step if found, None otherwise
+pub fn get_drug_introduction_time_step(drug_name: &str) -> Option<usize> {
+    DRUG_INTRODUCTION_DATES.get(drug_name).copied()
+}
+

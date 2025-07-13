@@ -35,8 +35,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =    10_000 ;
-    let time_steps =  10  ;  // Reduced for testing immune response changes
+    let population_size =    100_000 ;
+    let time_steps =  20  ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -67,6 +67,15 @@ fn main() {
     simulation.run();
 
     let duration = start.elapsed();
+    
+    // Print summary statistics from logged data
+    simulation.print_summary_statistics();
+    
+    // Export to CSV for analysis
+    if let Err(e) = simulation.export_summary_to_csv("simulation_summary.csv") {
+        println!("Error exporting CSV: {}", e);
+    }
+
     println!("main.rs  final outputs ");
 
     // --- DEATH REPORTING START ---

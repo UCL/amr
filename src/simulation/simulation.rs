@@ -5,6 +5,20 @@ use crate::config; // Import the config module
 use std::collections::HashMap;
 use rayon::prelude::*;
 
+// Compact structure for time step summary data
+#[derive(Clone)]
+pub struct TimeStepSummary {
+    pub time_step: usize,
+    pub total_population: usize,
+    pub total_deaths: usize,
+    pub total_infections: usize,
+    pub total_with_resistance: usize,
+    #[allow(dead_code)] // May be used for detailed analysis later
+    pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
+    #[allow(dead_code)] // May be used for detailed analysis later
+    pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
+}
+
 pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
     pub population: Population, // specifying the population of individuals in the simulation.
     pub time_steps: usize, // specifying how many discrete time steps the simulation will run.
@@ -16,6 +30,15 @@ pub struct Simulation {  // public rust struct which encapsulates the state and 
     pub bacteria_indices: HashMap<&'static str, usize>, // A string-to-index map converting bacteria names (&'static str) to integer indices.
     pub drug_indices: HashMap<&'static str, usize>, // as above, but for drugs.
     pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>, // New: (b_idx -> [[d_idx, d_idx], ...])
+    pub current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>>, // Store between time steps
+
+    pub summary_log: Vec<TimeStepSummary>, // Efficient storage for summary data
+    
+    // Pre-allocated vectors for logging to avoid repeated allocations
+    #[allow(dead_code)] // These are for future optimization
+    log_infections_by_bacteria: Vec<usize>,
+    #[allow(dead_code)] // These are for future optimization
+    log_resistance_counts: Vec<Vec<usize>>,
 }
 
 impl Simulation {
@@ -84,6 +107,10 @@ impl Simulation {
             bacteria_indices,
             drug_indices,
             cross_resistance_groups, // Add new field
+            current_majority_r_positive_values_by_combo: HashMap::new(), // Initialize empty
+            summary_log: Vec::new(), // Initialize empty log
+            log_infections_by_bacteria: vec![0; BACTERIA_LIST.len()], // Pre-allocate
+            log_resistance_counts: vec![vec![0; DRUG_SHORT_NAMES.len()]; BACTERIA_LIST.len()], // Pre-allocate
         }
     }
 
@@ -97,33 +124,71 @@ impl Simulation {
         for t in 0..self.time_steps {
 //          println!("simulation.rs time step: {}", t);
 
+            // Use previous time step's resistance data for new acquisitions
+            let previous_majority_r_positive_values_by_combo = if t == 0 {
+                HashMap::new() // Empty for first time step
+            } else {
+                // Use the data collected in the previous iteration
+                std::mem::take(&mut self.current_majority_r_positive_values_by_combo)
+            };
 
-            let mut current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
+            // Initialize counters and data structures for this time step
+            let mut new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
             let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
             let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
-
-            // --- counters  ---
             let mut _individuals_with_any_bacterial_infection = 0;
             let mut _individuals_with_any_r_positive_for_any_bacteria = 0;
-            // --- ---
 
+            // Logging data - collected every time step
+            let mut log_infections_by_bacteria = vec![0; BACTERIA_LIST.len()];
+            let mut log_resistance_counts = vec![vec![0; DRUG_SHORT_NAMES.len()]; BACTERIA_LIST.len()];
+            let mut log_total_deaths = 0;
+
+            // Single loop: apply rules AND collect statistics
+            self.population.individuals.par_iter_mut().for_each(|individual| {
+                // Apply rules using previous time step's data
+                apply_rules(
+                    individual,
+                    t,
+                    &self.global_majority_r_proportions,
+                    &previous_majority_r_positive_values_by_combo,
+                    &self.bacteria_indices,
+                    &self.drug_indices,
+                    &self.cross_resistance_groups,
+                );
+            });
+
+            // After rule application, collect statistics for next time step
             for individual in self.population.individuals.iter() {
                 let region_idx = individual.region_cur_in as usize;
                 let hospital_status_bool = individual.hospital_status.is_hospitalized();
                 let mut individual_has_any_infection = false;
                 let mut individual_has_any_r_positive = false;
+                
+                // Count deaths
+                if individual.date_of_death.is_some() {
+                    log_total_deaths += 1;
+                }
+                
                 for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                     if individual.level[b_idx] > 0.001 {
                         individual_has_any_infection = true;
                         *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
+                        
+                        // Log infections
+                        log_infections_by_bacteria[b_idx] += 1;
+                        
                         for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                             let resistance_data = &individual.resistances[b_idx][d_idx];
                             if resistance_data.majority_r > 0.0 {
-                                current_majority_r_positive_values_by_combo
+                                new_majority_r_positive_values_by_combo
                                     .entry((region_idx, hospital_status_bool, b_idx, d_idx))
                                     .or_insert_with(Vec::new)
                                     .push(resistance_data.majority_r);
                                 *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
+                                
+                                // Log resistance
+                                log_resistance_counts[b_idx][d_idx] += 1;
                             }
                             if resistance_data.any_r > 0.0 {
                                 individual_has_any_r_positive = true;
@@ -139,21 +204,23 @@ impl Simulation {
                 }
             }
 
-            // --- parallel application of rules to individuals ---
-            self.population.individuals.par_iter_mut().for_each(|individual| {
-                apply_rules(
-                    individual,
-                    t,
-                    &self.global_majority_r_proportions,
-                    &current_majority_r_positive_values_by_combo,
-                    &self.bacteria_indices,
-                    &self.drug_indices,
-                    &self.cross_resistance_groups, // Pass new data
-                );
-            });
+            // Store for next iteration
+            self.current_majority_r_positive_values_by_combo = new_majority_r_positive_values_by_combo;
+
+            // Create summary for this time step
+            let summary = TimeStepSummary {
+                time_step: t,
+                total_population: self.population.individuals.len(),
+                total_deaths: log_total_deaths,
+                total_infections: _individuals_with_any_bacterial_infection,
+                total_with_resistance: _individuals_with_any_r_positive_for_any_bacteria,
+                infections_by_bacteria: log_infections_by_bacteria,
+                resistance_by_bacteria_drug: log_resistance_counts,
+            };
+            self.summary_log.push(summary);
 
 
-/* per time step printing block
+// /*  per time step printing block
 
             // --- print activity_r for all infected bacteria/drug pairs for individual 0 after update ---
             let individual_0 = &self.population.individuals[0];
@@ -283,92 +350,57 @@ impl Simulation {
 //          self.print_resistance_summary(t);
 
 
-*/ // end of per timestep printing block
+//  */  //  end of per timestep printing block
 
 
         }
 
     }
 
+    // Methods to efficiently access logged summary data
+    #[allow(dead_code)] // Public API for accessing summary data
+    pub fn get_summary_log(&self) -> &Vec<TimeStepSummary> {
+        &self.summary_log
+    }
 
-
-
-
-
-
-/*   
-
-    fn print_resistance_summary(&self, time_step: usize) {
-        // Calculate bacteria infection counts first
-        let mut bacteria_infection_counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-        
-        for individual in &self.population.individuals {
-            for (bacteria, &b_idx) in self.bacteria_indices.iter() {
-                if individual.level[b_idx] > 0.001 {
-                    *bacteria_infection_counts.entry(bacteria).or_insert(0) += 1;
-                }
-            }
+    pub fn print_summary_statistics(&self) {
+        if self.summary_log.is_empty() {
+            println!("No summary data logged.");
+            return;
         }
 
-        
-        // Print bacteria and resistance summary
-        println!("\n--- Time step {} - Bacteria infection and resistance summary ---", time_step);
-        for (bacteria, &count) in &bacteria_infection_counts {
-            println!("{}: {} infected", bacteria, count);   
-            for (drug, _) in self.drug_indices.iter() {
-                // Collect the full distribution of any_r for this bacteria/drug pair
-                let mut any_r_values = Vec::new();
-                for individual in &self.population.individuals {
-                    if let Some(&b_idx) = self.bacteria_indices.get(bacteria) {
-                        if individual.level[b_idx] > 0.001 {
-                            if let Some(&d_idx) = self.drug_indices.get(drug) {
-                                let any_r = individual.resistances[b_idx][d_idx].any_r;
-                                any_r_values.push(any_r);
-                            }
-                        }
-                    }
-                }
-
-                // Print summary statistics for the distribution
-                if !any_r_values.is_empty() {
-                    let n = any_r_values.len() as f64;
-                    let mut count_0 = 0;
-                    let mut count_001_025 = 0;
-                    let mut count_0251_05 = 0;
-                    let mut count_0501_075 = 0;
-                    let mut count_0751_1 = 0;
-                    for &val in &any_r_values {
-                        if val == 0.0 {
-                            count_0 += 1;
-                        } else if val > 0.0 && val <= 0.25 {
-                            count_001_025 += 1;
-                        } else if val > 0.25 && val <= 0.5 {
-                            count_0251_05 += 1;
-                        } else if val > 0.5 && val <= 0.75 {
-                            count_0501_075 += 1;
-                        } else if val > 0.75 && val <= 1.0 {
-                            count_0751_1 += 1;
-                        }
-                    }
-                    println!(
-                        "    {}: n = {}, prop 0.00 = {:.3}, prop 0.25 = {:.3}, prop 0.5 = {:.3}, prop 0.75 = {:.3}, prop 1.00 = {:.3}",
-                        drug,
-                        n as usize,
-                        count_0 as f64 / n,
-                        count_001_025 as f64 / n,
-                        count_0251_05 as f64 / n,
-                        count_0501_075 as f64 / n,
-                        count_0751_1 as f64 / n
-                    );
-                } else {
-                    println!("    {}: n = 0", drug);
-                }
-            }
+        println!("\n--- Simulation Summary Statistics ---");
+        for summary in &self.summary_log {
+            println!("Time step {}: {} infections, {} deaths, {} with resistance", 
+                summary.time_step, 
+                summary.total_infections, 
+                summary.total_deaths, 
+                summary.total_with_resistance
+            );
         }
     }
-*/
 
+    pub fn export_summary_to_csv(&self, filename: &str) -> Result<(), std::io::Error> {
+        use std::fs::File;
+        use std::io::Write;
 
-
+        let mut file = File::create(filename)?;
+        
+        // Write header
+        writeln!(file, "time_step,total_population,total_deaths,total_infections,total_with_resistance")?;
+        
+        // Write data
+        for summary in &self.summary_log {
+            writeln!(file, "{},{},{},{},{}", 
+                summary.time_step, 
+                summary.total_population,
+                summary.total_deaths,
+                summary.total_infections, 
+                summary.total_with_resistance
+            )?;
+        }
+        
+        println!("Summary data exported to {}", filename);
+        Ok(())
+    }
 }
-
