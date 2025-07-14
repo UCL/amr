@@ -13,9 +13,7 @@ pub struct TimeStepSummary {
     pub total_deaths: usize,
     pub total_infections: usize,
     pub total_with_resistance: usize,
-    #[allow(dead_code)] // May be used for detailed analysis later
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
-    #[allow(dead_code)] // May be used for detailed analysis later
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
 }
 
@@ -33,12 +31,6 @@ pub struct Simulation {  // public rust struct which encapsulates the state and 
     pub current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>>, // Store between time steps
 
     pub summary_log: Vec<TimeStepSummary>, // Efficient storage for summary data
-    
-    // Pre-allocated vectors for logging to avoid repeated allocations
-    #[allow(dead_code)] // These are for future optimization
-    log_infections_by_bacteria: Vec<usize>,
-    #[allow(dead_code)] // These are for future optimization
-    log_resistance_counts: Vec<Vec<usize>>,
 }
 
 impl Simulation {
@@ -109,8 +101,6 @@ impl Simulation {
             cross_resistance_groups, // Add new field
             current_majority_r_positive_values_by_combo: HashMap::new(), // Initialize empty
             summary_log: Vec::new(), // Initialize empty log
-            log_infections_by_bacteria: vec![0; BACTERIA_LIST.len()], // Pre-allocate
-            log_resistance_counts: vec![vec![0; DRUG_SHORT_NAMES.len()]; BACTERIA_LIST.len()], // Pre-allocate
         }
     }
 
@@ -207,10 +197,15 @@ impl Simulation {
             // Store for next iteration
             self.current_majority_r_positive_values_by_combo = new_majority_r_positive_values_by_combo;
 
+            // Count living population (age >= 0 and no date_of_death)
+            let living_population = self.population.individuals.iter()
+                .filter(|individual| individual.age >= 0 && individual.date_of_death.is_none())
+                .count();
+
             // Create summary for this time step
             let summary = TimeStepSummary {
                 time_step: t,
-                total_population: self.population.individuals.len(),
+                total_population: living_population,
                 total_deaths: log_total_deaths,
                 total_infections: _individuals_with_any_bacterial_infection,
                 total_with_resistance: _individuals_with_any_r_positive_for_any_bacteria,
@@ -355,12 +350,6 @@ impl Simulation {
 
         }
 
-    }
-
-    // Methods to efficiently access logged summary data
-    #[allow(dead_code)] // Public API for accessing summary data
-    pub fn get_summary_log(&self) -> &Vec<TimeStepSummary> {
-        &self.summary_log
     }
 
     pub fn print_summary_statistics(&self) {

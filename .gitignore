@@ -1,0 +1,14 @@
+# Rust
+/target
+.rustc_info.json
+cargo.lock
+
+# Python
+__pycache__/
+*.pyc
+.venv
+venv
+
+# Generated files from simulation and analysis
+*.csv
+*.png

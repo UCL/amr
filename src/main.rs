@@ -5,6 +5,12 @@ mod rules;
 mod config;
 
 //
+// ask for summary log with number of people, timesteps and time taken and time per 10,000 people per 365 days
+// must not overwrite - we want to store these on one growing log 
+//
+// think about level of any_r when resistance first appears - and do we want to model
+// a sequence of events that leads to gradual increase in any_r
+//
 // add drug specific drug introduction dates
 //
 // run model for the world to get idea of parameter values for rate of first appearance of resistance
@@ -35,8 +41,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =    100_000 ;
-    let time_steps =  20  ;  // Reduced for testing immune response changes
+    let population_size =     300_000 ;
+    let time_steps =  10 ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

@@ -12,4 +12,5 @@ path = "src/main.rs"
 rand = "0.8"
 rayon = "1.7"
 lazy_static = "1.4"
+plotters = "0.3" 
 
