@@ -266,25 +266,35 @@ pub fn apply_rules(
             let last_infected_day = individual.date_last_infected[b_idx];
             let duration_of_infection = (time_step as i32 - last_infected_day).max(0); // Ensure non-negative duration
 
-            // Retrieve bacteria-specific parameters, falling back to global defaults
-            let sepsis_baseline_risk = get_bacteria_param(bacteria, "sepsis_baseline_risk_per_day")
-                .unwrap_or_else(|| get_global_param("default_sepsis_baseline_risk_per_day").expect("Missing default_sepsis_baseline_risk_per_day"));
-            let sepsis_level_multiplier = get_bacteria_param(bacteria, "sepsis_level_multiplier")
-                .unwrap_or_else(|| get_global_param("default_sepsis_level_multiplier").expect("Missing default_sepsis_level_multiplier"));
-            let sepsis_duration_multiplier = get_bacteria_param(bacteria, "sepsis_duration_multiplier")
-                .unwrap_or_else(|| get_global_param("default_sepsis_duration_multiplier").expect("Missing default_sepsis_duration_multiplier"));
+            // NEW: Logistic regression model for sepsis risk
+            // Retrieve logistic parameters, falling back to global defaults
+            let sepsis_baseline_odds = get_bacteria_param(bacteria, "sepsis_baseline_odds")
+                .unwrap_or_else(|| get_global_param("sepsis_baseline_odds").expect("Missing sepsis_baseline_odds"));
+            let log_odds_infection_level = get_bacteria_param(bacteria, "log_odds_sepsis_infection_level")
+                .unwrap_or_else(|| get_global_param("log_odds_sepsis_infection_level").expect("Missing log_odds_sepsis_infection_level"));
+            let log_odds_infection_duration = get_bacteria_param(bacteria, "log_odds_sepsis_infection_duration")
+                .unwrap_or_else(|| get_global_param("log_odds_sepsis_infection_duration").expect("Missing log_odds_sepsis_infection_duration"));
 
-            // Get bacteria-specific sepsis risk category multiplier
-            let bacteria_sepsis_multiplier = get_bacteria_sepsis_risk_multiplier(bacteria);
+            // Determine bacteria risk category and get corresponding log odds
+            let bacteria_log_odds = if get_bacteria_sepsis_risk_multiplier(bacteria) > 1.5 {
+                // High risk bacteria
+                get_global_param("log_odds_bacteria_with_high_sepsis_risk").expect("Missing log_odds_bacteria_with_high_sepsis_risk")
+            } else if get_bacteria_sepsis_risk_multiplier(bacteria) < 0.5 {
+                // Low risk bacteria
+                get_global_param("log_odds_bacteria_with_low_sepsis_risk").expect("Missing log_odds_bacteria_with_low_sepsis_risk")
+            } else {
+                // Medium risk bacteria (reference category)
+                get_global_param("log_odds_bacteria_with_medium_sepsis_risk").expect("Missing log_odds_bacteria_with_medium_sepsis_risk")
+            };
             
-            // Calculate daily probability of sepsis with bacteria-specific risk category
-            let prob_sepsis_today = (sepsis_baseline_risk
-                                    + (current_level * sepsis_level_multiplier)
-                                    + (duration_of_infection as f64 * sepsis_duration_multiplier))
-                                    * bacteria_sepsis_multiplier;
+            // Calculate log odds of sepsis
+            let log_odds_sepsis = sepsis_baseline_odds
+                                + (current_level * log_odds_infection_level)
+                                + (duration_of_infection as f64 * log_odds_infection_duration)
+                                + bacteria_log_odds;
 
-            // Cap the probability at 1.0
-            let prob_sepsis_today = prob_sepsis_today.min(1.0);
+            // Convert log odds to probability using logistic function
+            let prob_sepsis_today = 1.0 / (1.0 + (-log_odds_sepsis).exp());
 
             if rng.gen::<f64>() < prob_sepsis_today {
                 // Set sepsis status to true for this bacteria

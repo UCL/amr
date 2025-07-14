@@ -423,15 +423,14 @@ lazy_static! {
         map.insert("drug_linezolid_spectrum_breadth".to_string(), 2.0); // Narrow spectrum (gram-positive only)
         map.insert("drug_ceftriaxone_spectrum_breadth".to_string(), 4.0); // Broad spectrum (3rd gen cephalosporin)
 
-        // Global defaults, used if a bacteria-specific parameter is not found
-        map.insert("default_sepsis_baseline_risk_per_day".to_string(), 0.00001); // Very small baseline daily risk
-        map.insert("default_sepsis_level_multiplier".to_string(), 0.005); // Multiplier for bacterial level (e.g., higher level = higher risk)
-        map.insert("default_sepsis_duration_multiplier".to_string(), 0.000001); // Multiplier for duration of infection (e.g., longer duration = higher risk)
 
-        // Sepsis Risk Category Multipliers (for bacteria-specific sepsis risk)
-        map.insert("high_sepsis_risk_multiplier".to_string(), 2.0);     // High-virulence pathogens (e.g., Staph aureus, Pseudomonas)
-        map.insert("moderate_sepsis_risk_multiplier".to_string(), 1.0); // Moderate-virulence pathogens (default)
-        map.insert("low_sepsis_risk_multiplier".to_string(), 0.3);      // Low-virulence pathogens (e.g., Chlamydia, Gonorrhea)
+        // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
+        map.insert("sepsis_baseline_odds".to_string(), -10.0); // Baseline log odds (very low baseline probability)
+        map.insert("log_odds_sepsis_infection_level".to_string(), 0.5); // Log odds increase per unit bacterial level
+        map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
+        map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
+        map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
+        map.insert("log_odds_bacteria_with_low_sepsis_risk".to_string(), -1.2); // Log odds for low-risk bacteria (e.g., exp(-1.2) = 0.3x odds ratio)
 
 
         // Background Mortality Parameters (Age, Region, and Sex dependent)

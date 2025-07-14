@@ -4,6 +4,7 @@ use crate::rules::apply_rules;
 use crate::config; // Import the config module
 use std::collections::HashMap;
 use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 // Compact structure for time step summary data
 #[derive(Clone)]
@@ -13,6 +14,10 @@ pub struct TimeStepSummary {
     pub total_deaths: usize,
     pub total_infections: usize,
     pub total_with_resistance: usize,
+    pub currently_taking_drug_count: usize, // New field
+    pub infected_10_days_count: usize,     // New field
+    pub infected_30_days_count: usize,     // New field
+    pub taking_two_drugs_count: usize,     // New field
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
 }
@@ -134,6 +139,12 @@ impl Simulation {
             let mut log_resistance_counts = vec![vec![0; DRUG_SHORT_NAMES.len()]; BACTERIA_LIST.len()];
             let mut log_total_deaths = 0;
 
+            // New: Initialize counters for additional statistics
+            let currently_taking_drug_count = AtomicUsize::new(0);
+            let infected_10_days_count = AtomicUsize::new(0);
+            let infected_30_days_count = AtomicUsize::new(0);
+            let taking_two_drugs_count = AtomicUsize::new(0);
+
             // Single loop: apply rules AND collect statistics
             self.population.individuals.par_iter_mut().for_each(|individual| {
                 // Apply rules using previous time step's data
@@ -146,6 +157,30 @@ impl Simulation {
                     &self.drug_indices,
                     &self.cross_resistance_groups,
                 );
+
+                // Count individuals currently taking a drug
+                if individual.cur_use_drug.iter().any(|&is_using| is_using) {
+                    currently_taking_drug_count.fetch_add(1, Ordering::Relaxed);
+                }
+
+                // Count individuals infected for >10 days and >30 days
+                for (b_idx, _) in BACTERIA_LIST.iter().enumerate() {
+                    if individual.level[b_idx] > 0.001 {
+                        let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
+                        if days_since_infection > 10 {
+                            infected_10_days_count.fetch_add(1, Ordering::Relaxed);
+                        }
+                        if days_since_infection > 30 {
+                            infected_30_days_count.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+
+                // Count individuals taking two drugs
+                let active_drug_count = individual.cur_use_drug.iter().filter(|&&is_using| is_using).count();
+                if active_drug_count >= 2 {
+                    taking_two_drugs_count.fetch_add(1, Ordering::Relaxed);
+                }
             });
 
             // After rule application, collect statistics for next time step
@@ -209,6 +244,10 @@ impl Simulation {
                 total_deaths: log_total_deaths,
                 total_infections: _individuals_with_any_bacterial_infection,
                 total_with_resistance: _individuals_with_any_r_positive_for_any_bacteria,
+                currently_taking_drug_count: currently_taking_drug_count.load(Ordering::Relaxed),
+                infected_10_days_count: infected_10_days_count.load(Ordering::Relaxed),
+                infected_30_days_count: infected_30_days_count.load(Ordering::Relaxed),
+                taking_two_drugs_count: taking_two_drugs_count.load(Ordering::Relaxed),
                 infections_by_bacteria: log_infections_by_bacteria,
                 resistance_by_bacteria_drug: log_resistance_counts,
             };
@@ -376,16 +415,20 @@ impl Simulation {
         let mut file = File::create(filename)?;
         
         // Write header
-        writeln!(file, "time_step,total_population,total_deaths,total_infections,total_with_resistance")?;
+        writeln!(file, "time_step,total_population,total_deaths,total_infections,total_with_resistance,currently_taking_drug_count,infected_10_days_count,infected_30_days_count,taking_two_drugs_count")?;
         
         // Write data
         for summary in &self.summary_log {
-            writeln!(file, "{},{},{},{},{}", 
+            writeln!(file, "{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.total_deaths,
                 summary.total_infections, 
-                summary.total_with_resistance
+                summary.total_with_resistance,
+                summary.currently_taking_drug_count,
+                summary.infected_10_days_count,
+                summary.infected_30_days_count,
+                summary.taking_two_drugs_count
             )?;
         }
         

@@ -5,6 +5,9 @@ mod rules;
 mod config;
 
 //
+// specify the logistic model for sepsis risk and likely similar for other risk 
+// models - explain how we model the log odds and then convert to a probability
+//
 // ask for summary log with number of people, timesteps and time taken and time per 10,000 people per 365 days
 // must not overwrite - we want to store these on one growing log 
 //
@@ -41,8 +44,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =     300_000 ;
-    let time_steps =  10 ;  // Reduced for testing immune response changes
+    let population_size =     3_000 ;
+    let time_steps =  30 ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
