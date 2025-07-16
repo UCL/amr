@@ -790,6 +790,11 @@ pub fn apply_rules(
                         total_log_odds += immunosuppressed_coefficient;
                     }
                     
+                    // (5) Region-specific effect (healthcare quality and ICU availability)
+                    let region_key = format!("sepsis_log_odds_region_{}", individual.region_living.to_string().to_lowercase().replace(' ', "_"));
+                    let region_coefficient = get_global_param(&region_key).unwrap_or(0.0); // Default to 0.0 if region not found
+                    total_log_odds += region_coefficient;
+                    
                     // Convert log odds to probability using logistic function
                     let recovery_probability = 1.0 / (1.0 + (-total_log_odds).exp());
                     

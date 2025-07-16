@@ -245,6 +245,42 @@ def generate_summary_statistics(df):
     
     return proportions_summary
 
+def create_sepsis_proportion_plot(df):
+    """Create a plot showing the proportion of people with current infections who have sepsis."""
+    
+    # Calculate the proportion of infected individuals who have sepsis
+    df['sepsis_among_infected_proportion'] = np.where(df['total_currently_infected'] > 0, 
+                                                     df['number_with_sepsis'] / df['total_currently_infected'], 0)
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    ax.plot(df['time_in_years'], df['sepsis_among_infected_proportion'], 
+            color='red', linewidth=2, label='Sepsis Among Infected')
+    
+    ax.set_title('Proportion of People with Current Infections Who Have Sepsis')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('Proportion with Sepsis')
+    ax.set_ylim(0, 1)  # Proportion ranges from 0 to 1
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Add some summary statistics as text on the plot
+    mean_prop = df['sepsis_among_infected_proportion'].mean()
+    max_prop = df['sepsis_among_infected_proportion'].max()
+    
+    textstr = f'Mean: {mean_prop:.3f}\nMax: {max_prop:.3f}'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+    
+    plt.tight_layout()
+    plt.savefig('sepsis_among_infected_proportion.png', dpi=300, bbox_inches='tight')
+    plt.show()
+    print("Sepsis proportion plot saved as 'sepsis_among_infected_proportion.png'")
+    
+    return df  # Return the dataframe with the new calculated column
+
 def main():
     """Main analysis function."""
     print("Starting AMR Simulation Data Analysis...")
@@ -267,6 +303,9 @@ def main():
     create_summary_plots(df)
     create_proportions_plot(df)
     create_infection_duration_proportions_plot(df)
+    
+    # Create sepsis proportion plot
+    df = create_sepsis_proportion_plot(df)
 
     # Additional plot: resistance among infected
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -284,12 +323,18 @@ def main():
     # Generate summary statistics
     summary_stats = generate_summary_statistics(df)
     
+    # Create sepsis proportion plot
+    df = create_sepsis_proportion_plot(df)
+    
     print("\nAnalysis complete!")
     print("Generated files:")
     print("  - simulation_overview.png")
     print("  - proportions_over_time.png") 
     print("  - infection_duration_proportions.png")
+    print("  - sepsis_among_infected_proportion.png")
+    print("  - resistance_among_infected.png")
     print("  - summary_statistics.csv")
+    print("  - sepsis_among_infected_proportion.png")
 
 if __name__ == "__main__":
     main()

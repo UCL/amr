@@ -20,6 +20,7 @@ pub struct TimeStepSummary {
     pub taking_two_drugs_count: usize,     // New field
     pub number_in_hospital: usize,         // New field
     pub number_severely_immunosuppressed: usize, // New field
+    pub number_with_sepsis: usize,         // New field
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
     pub newly_infected_count: usize, // Number of people newly infected this time step
@@ -135,8 +136,6 @@ impl Simulation {
             let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
             let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
             let mut _individuals_with_any_bacterial_infection = 0;
-            let mut total_currently_infected = 0;
-            let mut _individuals_with_any_r_positive_for_any_bacteria = 0;
 
             // All counters use AtomicUsize for thread-safe parallel processing
             let log_infections_by_bacteria: Vec<AtomicUsize> = (0..BACTERIA_LIST.len()).map(|_| AtomicUsize::new(0)).collect();
@@ -150,54 +149,14 @@ impl Simulation {
             let taking_two_drugs_count = AtomicUsize::new(0);
             let number_in_hospital = AtomicUsize::new(0);
             let number_severely_immunosuppressed = AtomicUsize::new(0);
+            let number_with_sepsis = AtomicUsize::new(0);
+            let newly_infected_count = AtomicUsize::new(0);
+            let total_currently_infected = AtomicUsize::new(0);
+            let total_with_resistance = AtomicUsize::new(0);
 
-            // First pass: collect statistics BEFORE rule application
-            self.population.individuals.par_iter().for_each(|individual| {
-                // Only count statistics for alive individuals
-                if individual.date_of_death.is_none() {
-                    // Count individuals currently taking a drug
-                    if individual.cur_use_drug.iter().any(|&is_using| is_using) {
-                        currently_taking_drug_count.fetch_add(1, Ordering::Relaxed);
-                    }
-
-                    // Count individuals infected for >10 days and >30 days
-                    let mut individual_max_infection_duration = 0;
-                    
-                    for (b_idx, _) in BACTERIA_LIST.iter().enumerate() {
-                        if individual.level[b_idx] > 0.001 {
-                            let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
-                            if days_since_infection > individual_max_infection_duration {
-                                individual_max_infection_duration = days_since_infection;
-                            }
-                        }
-                    }
-                    
-                    if individual_max_infection_duration > 10 {
-                        infected_10_days_count.fetch_add(1, Ordering::Relaxed);
-                    }
-                    if individual_max_infection_duration > 30 {
-                        infected_30_days_count.fetch_add(1, Ordering::Relaxed);
-                    }
-
-                    // Count individuals taking two drugs
-                    let active_drug_count = individual.cur_use_drug.iter().filter(|&&is_using| is_using).count();
-                    if active_drug_count >= 2 {
-                        taking_two_drugs_count.fetch_add(1, Ordering::Relaxed);
-                    }
-                    // Count individuals in hospital
-                    if individual.hospital_status.is_hospitalized() {
-                        number_in_hospital.fetch_add(1, Ordering::Relaxed);
-                    }
-                    // Count individuals severely immunosuppressed
-                    if individual.is_severely_immunosuppressed {
-                        number_severely_immunosuppressed.fetch_add(1, Ordering::Relaxed);
-                    }
-                }
-            });
-
-
-            // Second pass: apply rules
+            // Single pass: apply rules and collect all statistics
             self.population.individuals.par_iter_mut().for_each(|individual| {
+                // Apply rules first
                 apply_rules(
                     individual,
                     t,
@@ -207,16 +166,6 @@ impl Simulation {
                     &self.drug_indices,
                     &self.cross_resistance_groups,
                 );
-            });
-
-            // After rule application, collect statistics for next time step
-            let mut newly_infected_count = 0;
-            for individual in self.population.individuals.iter() {
-                let region_idx = individual.region_cur_in as usize;
-                let hospital_status_bool = individual.hospital_status.is_hospitalized();
-                let mut individual_has_any_infection = false;
-                let mut individual_has_any_r_positive = false;
-                let mut was_newly_infected = false;
 
                 // Count deaths in this time step only
                 if let Some(death_time) = individual.date_of_death {
@@ -225,50 +174,117 @@ impl Simulation {
                     }
                 }
 
-                // Only count if individual is alive
-                let is_alive = individual.date_of_death.is_none();
+                // Only collect statistics for alive individuals
+                if individual.date_of_death.is_none() {
+                    // Count individuals currently taking a drug
+                    if individual.cur_use_drug.iter().any(|&is_using| is_using) {
+                        currently_taking_drug_count.fetch_add(1, Ordering::Relaxed);
+                    }
 
-                for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                    if individual.level[b_idx] > 0.001 {
-                        individual_has_any_infection = true;
-                        *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
+                    // Count individuals infected for >10 days and >30 days
+                    let mut individual_max_infection_duration = 0;
+                    let mut individual_has_any_infection = false;
+                    let mut individual_has_any_r_positive = false;
+                    let mut was_newly_infected = false;
+                    
+                    for (b_idx, _) in BACTERIA_LIST.iter().enumerate() {
+                        if individual.level[b_idx] > 0.001 {
+                            individual_has_any_infection = true;
+                            
+                            // Log infections
+                            log_infections_by_bacteria[b_idx].fetch_add(1, Ordering::Relaxed);
 
-                        // Log infections
-                        log_infections_by_bacteria[b_idx].fetch_add(1, Ordering::Relaxed);
-
-                        // Check if newly infected at this time step
-                        if individual.date_last_infected[b_idx] == t as i32 {
-                            was_newly_infected = true;
-                        }
-
-                        for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                            let resistance_data = &individual.resistances[b_idx][d_idx];
-                            if resistance_data.majority_r > 0.0 {
-                                new_majority_r_positive_values_by_combo
-                                    .entry((region_idx, hospital_status_bool, b_idx, d_idx))
-                                    .or_insert_with(Vec::new)
-                                    .push(resistance_data.majority_r);
-                                *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
-
-                                // Log resistance
-                                log_resistance_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
+                            // Check infection duration
+                            let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
+                            if days_since_infection > individual_max_infection_duration {
+                                individual_max_infection_duration = days_since_infection;
                             }
-                            if resistance_data.any_r > 0.0 {
-                                individual_has_any_r_positive = true;
+
+                            // Check if newly infected at this time step
+                            if individual.date_last_infected[b_idx] == t as i32 {
+                                was_newly_infected = true;
+                            }
+
+                            // Count resistance
+                            for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
+                                let resistance_data = &individual.resistances[b_idx][d_idx];
+                                if resistance_data.majority_r > 0.0 {
+                                    log_resistance_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
+                                }
+                                if resistance_data.any_r > 0.0 {
+                                    individual_has_any_r_positive = true;
+                                }
                             }
                         }
                     }
+                    
+                    if individual_has_any_infection {
+                        total_currently_infected.fetch_add(1, Ordering::Relaxed);
+                    }
+                    
+                    if individual_has_any_r_positive {
+                        total_with_resistance.fetch_add(1, Ordering::Relaxed);
+                    }
+                    
+                    if individual_max_infection_duration > 10 {
+                        infected_10_days_count.fetch_add(1, Ordering::Relaxed);
+                    }
+                    if individual_max_infection_duration > 30 {
+                        infected_30_days_count.fetch_add(1, Ordering::Relaxed);
+                    }
+
+                    if was_newly_infected {
+                        newly_infected_count.fetch_add(1, Ordering::Relaxed);
+                    }
+
+                    // Count individuals taking two drugs
+                    let active_drug_count = individual.cur_use_drug.iter().filter(|&&is_using| is_using).count();
+                    if active_drug_count >= 2 {
+                        taking_two_drugs_count.fetch_add(1, Ordering::Relaxed);
+                    }
+                    
+                    // Count individuals in hospital
+                    if individual.hospital_status.is_hospitalized() {
+                        number_in_hospital.fetch_add(1, Ordering::Relaxed);
+                    }
+                    
+                    // Count individuals severely immunosuppressed
+                    if individual.is_severely_immunosuppressed {
+                        number_severely_immunosuppressed.fetch_add(1, Ordering::Relaxed);
+                    }
+                    
+                    // Count individuals with sepsis
+                    if individual.sepsis.iter().any(|&has_sepsis| has_sepsis) {
+                        number_with_sepsis.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
-                if was_newly_infected {
-                    newly_infected_count += 1;
-                }
-                // Only count currently infected and alive individuals
-                if individual_has_any_infection && is_alive {
-                    _individuals_with_any_bacterial_infection += 1;
-                    total_currently_infected += 1;
-                }
-                if individual_has_any_r_positive && is_alive {
-                    _individuals_with_any_r_positive_for_any_bacteria += 1;
+            });
+
+            // Collect remaining statistics that need sequential access
+            for individual in self.population.individuals.iter() {
+                let region_idx = individual.region_cur_in as usize;
+                let hospital_status_bool = individual.hospital_status.is_hospitalized();
+
+                // Only count if individual is alive
+                let is_alive = individual.date_of_death.is_none();
+
+                if is_alive {
+                    for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                        if individual.level[b_idx] > 0.001 {
+                            *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
+
+                            for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                                let resistance_data = &individual.resistances[b_idx][d_idx];
+                                if resistance_data.majority_r > 0.0 {
+                                    new_majority_r_positive_values_by_combo
+                                        .entry((region_idx, hospital_status_bool, b_idx, d_idx))
+                                        .or_insert_with(Vec::new)
+                                        .push(resistance_data.majority_r);
+                                    *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -304,9 +320,10 @@ impl Simulation {
                 total_population: living_population,
                 number_in_hospital: number_in_hospital.load(Ordering::Relaxed),
                 number_severely_immunosuppressed: number_severely_immunosuppressed.load(Ordering::Relaxed),
-                newly_infected_count,
-                total_currently_infected,
-                total_with_resistance: _individuals_with_any_r_positive_for_any_bacteria,
+                number_with_sepsis: number_with_sepsis.load(Ordering::Relaxed),
+                newly_infected_count: newly_infected_count.load(Ordering::Relaxed),
+                total_currently_infected: total_currently_infected.load(Ordering::Relaxed),
+                total_with_resistance: total_with_resistance.load(Ordering::Relaxed),
                 infected_10_days_count: infected_10_count,
                 infected_30_days_count: infected_30_count,
                 currently_taking_drug_count: currently_taking_drug_count.load(Ordering::Relaxed),
@@ -482,15 +499,16 @@ impl Simulation {
         let mut file = File::create(filename)?;
         
         // Write header
-        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,taking_two_drugs_count,newly_infected_count,total_deaths")?;
+        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,taking_two_drugs_count,newly_infected_count,total_deaths")?;
 
         // Write data
         for summary in &self.summary_log {
-            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{}", 
+            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
                 summary.number_severely_immunosuppressed,
+                summary.number_with_sepsis,
                 summary.total_currently_infected,
                 summary.infected_10_days_count,
                 summary.infected_30_days_count,

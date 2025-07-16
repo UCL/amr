@@ -24,7 +24,7 @@ lazy_static! {
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
             map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
             map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.2); // 0.005 / 0.05 is strong effect
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.1); // 0.005 / 0.05 is strong effect
             map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
             map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.1);
@@ -425,7 +425,7 @@ lazy_static! {
 
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
-        map.insert("sepsis_baseline_odds".to_string(), -10.0); // Baseline log odds (very low baseline probability)
+        map.insert("sepsis_baseline_odds".to_string(), -7.0); // -10.0 Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 0.5); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
@@ -489,6 +489,16 @@ lazy_static! {
         map.insert("sepsis_log_odds_age_adult".to_string(), 0.0); // Adults baseline (reference category)
         map.insert("sepsis_log_odds_age_elderly".to_string(), -0.7); // Elderly have lower recovery probability
         map.insert("sepsis_log_odds_immunosuppressed".to_string(), -1.0); // Immunosuppressed have much lower recovery probability
+        
+        // Region-specific sepsis recovery log odds (reflecting healthcare quality and ICU availability)
+        map.insert("sepsis_log_odds_region_north_america".to_string(), 0.4); // Better healthcare systems increase recovery
+        map.insert("sepsis_log_odds_region_europe".to_string(), 0.5); // Excellent healthcare systems, best recovery rates
+        map.insert("sepsis_log_odds_region_oceania".to_string(), 0.3); // Good healthcare systems
+        map.insert("sepsis_log_odds_region_asia".to_string(), 0.0); // Mixed healthcare quality, reference category
+        map.insert("sepsis_log_odds_region_south_america".to_string(), -0.3); // Limited ICU access decreases recovery
+        map.insert("sepsis_log_odds_region_africa".to_string(), -0.7); // Limited healthcare infrastructure significantly decreases recovery
+        map.insert("sepsis_log_odds_region_home".to_string(), 0.0); // Default to reference category
+        
         map.insert("sepsis_minimum_duration_days".to_string(), 1.0); // Minimum sepsis duration (1 day)
 
         //  Default Toxicity Parameter
