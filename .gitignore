@@ -1,7 +1,8 @@
 # Rust
 /target
 .rustc_info.json
-cargo.lock
+# Keep Cargo.lock for applications (comment out the line below for libraries)
+# Cargo.lock
 
 # Python
 __pycache__/

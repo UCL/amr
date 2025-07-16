@@ -126,6 +126,7 @@ pub struct Individual {
 
     pub immune_resp: Vec<f64>,                     
     pub sepsis: Vec<bool>,                         
+    pub sepsis_onset_day: Vec<i32>,                // Day when sepsis started for each bacteria (-1 if never had sepsis)
     pub presence_microbiome: Vec<bool>,            
     pub vaccination_status: Vec<bool>,             
     pub cur_infection_from_environment: Vec<bool>, 
@@ -162,6 +163,7 @@ impl Individual {
         let level = vec![0.0; num_bacteria];
         let immune_resp = vec![0.0001; num_bacteria];
         let sepsis = vec![false; num_bacteria];
+        let sepsis_onset_day = vec![-1; num_bacteria]; // -1 indicates never had sepsis
         let presence_microbiome = vec![false; num_bacteria];
         let infection_hospital_acquired = vec![false; num_bacteria];
         let cur_infection_from_environment = vec![false; num_bacteria];
@@ -204,6 +206,7 @@ impl Individual {
             level, 
             immune_resp,
             sepsis,
+            sepsis_onset_day,
             presence_microbiome,
             vaccination_status, 
             cur_use_drug: vec![false; num_drugs],

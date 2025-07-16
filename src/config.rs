@@ -24,10 +24,10 @@ lazy_static! {
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
             map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
             map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.05); // 0.005 / 0.05 is strong effect
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.2); // 0.005 / 0.05 is strong effect
             map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
             map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
-            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.05);
+            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.1);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
             map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1);
             map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level
@@ -39,7 +39,7 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.00000); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
@@ -479,6 +479,17 @@ lazy_static! {
         map.insert("asia_sepsis_mortality_multiplier".to_string(), 1.2); // Variable healthcare quality
         map.insert("south_america_sepsis_mortality_multiplier".to_string(), 1.4); // Limited ICU access
         map.insert("africa_sepsis_mortality_multiplier".to_string(), 2.0); // Limited healthcare infrastructure
+
+        // Sepsis Recovery Parameters (Logistic Model)
+        map.insert("sepsis_base_log_odds_of_recovery_per_day".to_string(), -2.0); // Base log odds (low baseline recovery probability ~12%)
+        map.insert("sepsis_log_odds_bacteria_level".to_string(), -0.3); // Higher bacteria level decreases recovery (negative coefficient)
+        map.insert("sepsis_log_odds_in_hospital".to_string(), 0.8); // Being in hospital increases recovery probability
+        map.insert("sepsis_log_odds_age_infant".to_string(), -0.5); // Infants have lower recovery probability
+        map.insert("sepsis_log_odds_age_child".to_string(), 0.4); // Children have higher recovery probability  
+        map.insert("sepsis_log_odds_age_adult".to_string(), 0.0); // Adults baseline (reference category)
+        map.insert("sepsis_log_odds_age_elderly".to_string(), -0.7); // Elderly have lower recovery probability
+        map.insert("sepsis_log_odds_immunosuppressed".to_string(), -1.0); // Immunosuppressed have much lower recovery probability
+        map.insert("sepsis_minimum_duration_days".to_string(), 1.0); // Minimum sepsis duration (1 day)
 
         //  Default Toxicity Parameter
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed

@@ -1,0 +1,22 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Ensure certain files always have LF line endings
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+
+# Ensure certain files always have CRLF line endings
+*.bat text eol=crlf
+
+# Declare files that will always have CRLF line endings on checkout
+*.sln text eol=crlf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

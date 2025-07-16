@@ -48,22 +48,26 @@ def create_summary_plots(df):
     axes[0].plot(df['time_in_years'], df['total_population'], 'b-', linewidth=2)
     axes[0].set_title('Living Population Over Time')
     axes[0].set_ylabel('Population')
+    axes[0].set_ylim(bottom=0)
     axes[0].grid(True, alpha=0.3)
 
     axes[1].plot(df['time_in_years'], df['total_deaths'], 'k-', linewidth=2)
-    axes[1].set_title('Cumulative Deaths Over Time')
+    axes[1].set_title('Deaths per timestep')
     axes[1].set_ylabel('Deaths')
+    axes[1].set_ylim(bottom=0)
     axes[1].grid(True, alpha=0.3)
 
     axes[2].plot(df['time_in_years'], df['total_with_resistance'], 'orange', linewidth=2)
     axes[2].set_title('Individuals with Resistance Over Time')
     axes[2].set_ylabel('Resistance')
+    axes[2].set_ylim(bottom=0)
     axes[2].grid(True, alpha=0.3)
 
     axes[3].plot(df['time_in_years'], df['number_in_hospital'], 'navy', linewidth=2, label='In Hospital')
     axes[3].plot(df['time_in_years'], df['number_severely_immunosuppressed'], 'crimson', linewidth=2, label='Severely Immunosuppressed')
     axes[3].set_title('Hospitalized & Immunosuppressed Individuals Over Time')
     axes[3].set_ylabel('Count')
+    axes[3].set_ylim(bottom=0)
     axes[3].legend()
     axes[3].grid(True, alpha=0.3)
 
@@ -71,6 +75,7 @@ def create_summary_plots(df):
     axes[4].set_title('Newly Infected Individuals Per Time Step')
     axes[4].set_xlabel('Time (Years)')
     axes[4].set_ylabel('Newly Infected')
+    axes[4].set_ylim(bottom=0)
     axes[4].grid(True, alpha=0.3)
 
     # Proportion with resistance among currently infected
@@ -80,6 +85,7 @@ def create_summary_plots(df):
     axes[5].set_title('Proportion with Resistance Among Currently Infected')
     axes[5].set_ylabel('Proportion')
     axes[5].set_xlabel('Time (Years)')
+    axes[5].set_ylim(bottom=0)
     axes[5].grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -95,8 +101,7 @@ def calculate_proportions(df):
                                    df['total_currently_infected'] / df['total_population'], 0)
     df['death_proportion'] = np.where(df['total_population'] > 0, 
                                df['total_deaths'] / df['total_population'], 0)
-    df['resistance_proportion'] = np.where(df['total_population'] > 0, 
-                                    df['total_with_resistance'] / df['total_population'], 0)
+
     return df
 
 def create_proportions_plot(df):
@@ -105,11 +110,11 @@ def create_proportions_plot(df):
     
     ax.plot(df['time_in_years'], df['infection_proportion'], label='Infection Proportion', linewidth=2)
     ax.plot(df['time_in_years'], df['death_proportion'], label='Death Proportion', linewidth=2)
-    ax.plot(df['time_in_years'], df['resistance_proportion'], label='Resistance Proportion', linewidth=2)
-    
-    ax.set_title('Infection, Death, and Resistance Proportions Over Time')
+     
+    ax.set_title('Infection, Death Proportions Over Time')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion of population')
+    ax.set_ylim(bottom=0)
     ax.legend()
     ax.grid(True, alpha=0.3)
     
@@ -119,25 +124,34 @@ def create_proportions_plot(df):
     print("Proportions plot saved as 'proportions_over_time.png'")
 
 def create_infection_duration_proportions_plot(df):
-    """Create a plot showing proportions of infected individuals, infected >10 days, and infected >30 days."""
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    # Ensure proportions are calculated correctly
+    """Create separate plots for infection proportions and duration-based proportions."""
+    
+    # Calculate proportions of infected individuals by duration
     df['infected_10_days_proportion'] = np.where(df['total_currently_infected'] > 0, 
                                                  df['infected_10_days_count'] / df['total_currently_infected'], 0)
     df['infected_30_days_proportion'] = np.where(df['total_currently_infected'] > 0, 
                                                  df['infected_30_days_count'] / df['total_currently_infected'], 0)
-
-    # Plot proportions
-    ax.plot(df['time_in_years'], df['infection_proportion'], label='Infection Proportion', linewidth=2, color='blue')
-    ax.plot(df['time_in_years'], df['infected_10_days_proportion'], label='Infected >10 Days Proportion', linewidth=2, color='green')
-    ax.plot(df['time_in_years'], df['infected_30_days_proportion'], label='Infected >30 Days Proportion', linewidth=2, color='brown')
-
-    ax.set_title('Proportions of Infection Durations Over Time')
-    ax.set_xlabel('Time (Years)')
-    ax.set_ylabel('Proportion of Population')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    
+    # Create two separate subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+    
+    # Top plot: Overall infection proportion (denominator = total population)
+    ax1.plot(df['time_in_years'], df['infection_proportion'], label='Infection Proportion', linewidth=2, color='blue')
+    ax1.set_ylabel('Proportion of Total Population')
+    ax1.set_title('Overall Infection Proportion Over Time\n(Denominator: Total Population)')
+    ax1.set_ylim(bottom=0)
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Bottom plot: Duration-based proportions (denominator = currently infected)
+    ax2.plot(df['time_in_years'], df['infected_10_days_proportion'], label='Infected >10 Days', linewidth=2, color='green')
+    ax2.plot(df['time_in_years'], df['infected_30_days_proportion'], label='Infected >30 Days', linewidth=2, color='brown')
+    ax2.set_xlabel('Time (years)')
+    ax2.set_ylabel('Proportion of Currently Infected')
+    ax2.set_title('Duration-Based Infection Proportions Over Time\n(Denominator: Currently Infected Individuals)')
+    ax2.set_ylim(bottom=0)
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.savefig('infection_duration_proportions.png', dpi=300, bbox_inches='tight')
@@ -260,6 +274,7 @@ def main():
     ax.set_title('Proportion with Resistance Among Currently Infected')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')
+    ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig('resistance_among_infected.png', dpi=300, bbox_inches='tight')

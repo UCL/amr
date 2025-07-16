@@ -4,7 +4,6 @@ mod simulation;
 mod rules;
 mod config;
 
-
 //
 // infection acquisition and bacteria acquisition in microbiome may need logistic models
 //
@@ -49,7 +48,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   3_000 ;
-    let time_steps =  15000   ;  // Reduced for testing immune response changes
+    let time_steps =  3650  ;  // Reduced for testing
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -362,11 +361,53 @@ fn main() {
 */
 
 
+    // Log the simulation run details
+    if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
+        eprintln!("Error logging simulation run: {}", e);
+    }
+
     println!("\n--- simulation ended ---");
-    println!("\n--- total simulation time: {:.3} seconds", duration.as_secs_f64());
+    println!("--- total simulation time: {:.3} seconds", duration.as_secs_f64());
     println!("                          ");
 
 
+}
+
+// Function to log simulation run details
+fn log_simulation_run(population_size: usize, time_steps: usize, duration_secs: f64) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use chrono::Utc;
+    
+    let timestamp = Utc::now();
+    let log_entry = format!(
+        "{},{},{},{:.3}\n",
+        timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
+        population_size,
+        time_steps,
+        duration_secs
+    );
+    
+    // Check if log file exists, if not create it with headers
+    let log_path = "simulation_run_log.csv";
+    let file_exists = std::path::Path::new(log_path).exists();
+    
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
+    
+    // Write header if file is new
+    if !file_exists {
+        writeln!(file, "timestamp,population_size,time_steps,duration_seconds")?;
+    }
+    
+    // Write the log entry
+    file.write_all(log_entry.as_bytes())?;
+    
+    println!("Simulation run logged to {}", log_path);
+    
+    Ok(())
 }
 
 
