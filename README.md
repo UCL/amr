@@ -27,7 +27,7 @@ We have a variable for the current level of immunity the person carries to each 
 
 People live in a certain region, but they may visit other regions.  Currently the regions are broadly aligned with continents but there could be flexibility over this.
 
-Currently the model considers 21 bacteria (the ones used in the Global Burden of Disease work on AMR) and 41 antibiotics (so 861 bacteria-drug combinations) but this can be expanded.
+Currently the model considers 30 bacteria (the ones used in the Global Burden of Disease work on AMR) and 42 antibiotics (so 30 x 42 bacteria-drug combinations) but this can be expanded.
 
 Other variables include whether the person is hospitalized, with consequences for the range of bacteria exposed to.
 

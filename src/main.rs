@@ -4,9 +4,13 @@ mod simulation;
 mod rules;
 mod config;
 
+
 //
-// specify the logistic model for sepsis risk and likely similar for other risk 
-// models - explain how we model the log odds and then convert to a probability
+// infection acquisition and bacteria acquisition in microbiome may need logistic models
+//
+// set up automated testing for the simulation (probably not yet though)
+//
+// risk of hospitalization may need logistic model
 //
 // ask for summary log with number of people, timesteps and time taken and time per 10,000 people per 365 days
 // must not overwrite - we want to store these on one growing log 
@@ -44,8 +48,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =     3_000 ;
-    let time_steps =  30 ;  // Reduced for testing immune response changes
+    let population_size =   3_000 ;
+    let time_steps =  15000   ;  // Reduced for testing immune response changes
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -87,12 +91,16 @@ fn main() {
 
     println!("main.rs  final outputs ");
 
-    // --- DEATH REPORTING START ---
+    // --- DEATH AND STATUS REPORTING START ---
     let mut total_deaths = 0;
     let mut death_causes_count: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
     // New: Track per-bacteria and per-drug resistance counts
     let mut bacteria_infection_counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+
+    // New: Track number in hospital and number severely immunosuppressed
+    let mut number_in_hospital = 0;
+    let mut number_severely_immunosuppressed = 0;
 
     for individual in &simulation.population.individuals {
         // Death reporting (existing)
@@ -110,6 +118,15 @@ fn main() {
                 *bacteria_infection_counts.entry(bacteria).or_insert(0) += 1;
             }
         }
+
+        // Count number in hospital
+        if individual.hospital_status.is_hospitalized() {
+            number_in_hospital += 1;
+        }
+        // Count number severely immunosuppressed
+        if individual.is_severely_immunosuppressed {
+            number_severely_immunosuppressed += 1;
+        }
     }
 
     println!("total deaths during simulation: {}", total_deaths);
@@ -117,6 +134,8 @@ fn main() {
     for (cause, count) in death_causes_count {
         println!("{}: {}", cause, count);
     }
+    println!("number in hospital: {}", number_in_hospital);
+    println!("number severely immunosuppressed: {}", number_severely_immunosuppressed);
 
 
 

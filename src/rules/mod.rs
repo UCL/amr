@@ -1,7 +1,7 @@
 // src/rules/mod.rs
 
 
-// for printing individual 0 per time step replace .id == 0 with .id == 0 (cntrl h to find and replace)
+// for printing individual 0 per time step replace .id == 0 with .id == 10000001 (cntrl h to find and replace)
 
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
@@ -566,51 +566,110 @@ pub fn apply_rules(
     // todo: review this update rule
     // e.g. death rate by age will be higher at very young age in africa
 
+    // if individual.date_of_death.is_none() {
+    //     let mut cause: Option<String> = None;
+    //     let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
+    //         .expect("Missing base_background_mortality_rate_per_day in config");
+    //     let age_multiplier = get_global_param("age_mortality_multiplier_per_year")
+    //         .expect("Missing age_mortality_multiplier_per_year in config");
+    //     let mut background_risk = base_background_rate;
+        
+    //     // Age effects (linear and non-linear for very elderly)
+    //     let age_years = individual.age as f64 / 365.0;
+    //     let age_linear_effect = age_years * age_multiplier;
+    //     background_risk *= age_linear_effect;
+        
+    //     // Non-linear age effect for very elderly (age squared effect)
+    //     let age_squared_multiplier = get_global_param("age_squared_mortality_multiplier").unwrap_or(0.0);
+    //     if age_years > 65.0 {
+    //         let age_squared_effect = (age_years - 65.0).powi(2) * age_squared_multiplier;
+    //         background_risk *= age_squared_effect;
+    //     }
+        
+    //     // Regional mortality effects
+    //     let region_multiplier_key = format!("{}_mortality_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
+    //     let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0);
+        
+    //     background_risk *= region_multiplier;
+        
+    //     // Sex-specific mortality differences
+    //     let sex_multiplier_key = format!("{}_mortality_multiplier", individual.sex_at_birth.to_lowercase());
+    //     let sex_multiplier = get_global_param(&sex_multiplier_key).unwrap_or(1.0);
+    //     background_risk *= sex_multiplier;
+        
+    //     // Immunosuppression effect on background mortality
+    //     if individual.is_severely_immunosuppressed {
+    //         let immunosuppressed_multiplier = get_global_param("immunosuppressed_mortality_multiplier").unwrap_or(1.0);
+    //         background_risk *= immunosuppressed_multiplier;
+    //     }
+        
+    //     // Hospital status as proxy for comorbidities and acute illness
+    //     if matches!(individual.hospital_status, HospitalStatus::InHospital) {
+    //         let hospital_multiplier = get_global_param("hospital_mortality_multiplier").unwrap_or(1.0);
+    //         background_risk *= hospital_multiplier;
+    //     }
+        
+    //     individual.background_all_cause_mortality_rate = background_risk.min(1.0);
+    //     let mut prob_not_dying = 1.0 - background_risk;
+
+
+
+
+
+
+    
     if individual.date_of_death.is_none() {
         let mut cause: Option<String> = None;
-        let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
-            .expect("Missing base_background_mortality_rate_per_day in config");
-        let age_multiplier = get_global_param("age_mortality_multiplier_per_year")
-            .expect("Missing age_mortality_multiplier_per_year in config");
-        let mut background_risk = base_background_rate;
-        
-        // Age effects (linear and non-linear for very elderly)
+
+        // --- New Logistic Background Mortality Model ---
+        let baseline_log_odds = get_global_param("background_mortality_baseline_log_odds")
+            .expect("Missing background_mortality_baseline_log_odds in config");
+       
+        let mut total_log_odds = baseline_log_odds;
+
         let age_years = individual.age as f64 / 365.0;
-        let age_linear_effect = age_years * age_multiplier;
-        background_risk *= age_linear_effect;
-        
-        // Non-linear age effect for very elderly (age squared effect)
-        let age_squared_multiplier = get_global_param("age_squared_mortality_multiplier").unwrap_or(0.0);
+
+        // Age effects
+        let log_odds_per_year = get_global_param("log_odds_mortality_per_year_of_age")
+            .expect("Missing log_odds_mortality_per_year_of_age in config");
+        total_log_odds += age_years * log_odds_per_year;
+
+        // Non-linear age effect for very elderly
         if age_years > 65.0 {
-            let age_squared_effect = (age_years - 65.0).powi(2) * age_squared_multiplier;
-            background_risk *= age_squared_effect;
+            let log_odds_age_squared = get_global_param("log_odds_mortality_per_year_of_age_squared")
+                .unwrap_or(0.0);
+            total_log_odds += (age_years - 65.0).powi(2) * log_odds_age_squared;
         }
-        
-        // Regional mortality effects
-        let region_multiplier_key = format!("{}_mortality_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
-        let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0);
-        
-        background_risk *= region_multiplier;
-        
-        // Sex-specific mortality differences
-        let sex_multiplier_key = format!("{}_mortality_multiplier", individual.sex_at_birth.to_lowercase());
-        let sex_multiplier = get_global_param(&sex_multiplier_key).unwrap_or(1.0);
-        background_risk *= sex_multiplier;
-        
-        // Immunosuppression effect on background mortality
+
+        // Regional effects
+        let region_log_odds_key = format!("log_odds_mortality_region_{}", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
+        total_log_odds += get_global_param(&region_log_odds_key).unwrap_or(0.0);
+
+        // Sex effects
+        let sex_log_odds_key = format!("log_odds_mortality_sex_{}", individual.sex_at_birth.to_lowercase());
+        total_log_odds += get_global_param(&sex_log_odds_key).unwrap_or(0.0);
+
+        // Immunosuppression effect
         if individual.is_severely_immunosuppressed {
-            let immunosuppressed_multiplier = get_global_param("immunosuppressed_mortality_multiplier").unwrap_or(1.0);
-            background_risk *= immunosuppressed_multiplier;
+            total_log_odds += get_global_param("log_odds_mortality_immunosuppressed").unwrap_or(0.0);
         }
-        
-        // Hospital status as proxy for comorbidities and acute illness
+
+        // Hospital status effect
         if matches!(individual.hospital_status, HospitalStatus::InHospital) {
-            let hospital_multiplier = get_global_param("hospital_mortality_multiplier").unwrap_or(1.0);
-            background_risk *= hospital_multiplier;
+            total_log_odds += get_global_param("log_odds_mortality_hospitalized").unwrap_or(0.0);
         }
-        
+
+        // Convert total log odds to probability
+        let background_risk = 1.0 / (1.0 + (-total_log_odds).exp());
+       
         individual.background_all_cause_mortality_rate = background_risk.min(1.0);
         let mut prob_not_dying = 1.0 - background_risk;
+
+
+
+
+
+
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
         if has_sepsis {
             // Calculate age-adjusted sepsis mortality risk

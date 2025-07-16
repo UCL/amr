@@ -12,7 +12,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.00001); // 
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.00001); // 0.00001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
@@ -24,7 +24,7 @@ lazy_static! {
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
             map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
             map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.005); // 0.05 is strong effect
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.05); // 0.005 / 0.05 is strong effect
             map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
             map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.05);
@@ -379,9 +379,9 @@ lazy_static! {
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)        
 
         // Hospitalization Parameters
-        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00001); // 0.00001  Baseline daily probability of hospitalization
+        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000001); // 0.00001  Baseline daily probability of hospitalization
         map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.000001); // Increase in daily hospitalization probability per year of age
-        map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.1); // Daily probability of recovering from hospitalization
+        map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // Daily probability of recovering from hospitalization
         map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
 
         // initiate travel
@@ -432,31 +432,35 @@ lazy_static! {
         map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
         map.insert("log_odds_bacteria_with_low_sepsis_risk".to_string(), -1.2); // Log odds for low-risk bacteria (e.g., exp(-1.2) = 0.3x odds ratio)
 
+        // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
-        // Background Mortality Parameters (Age, Region, and Sex dependent)
-        map.insert("base_background_mortality_rate_per_day".to_string(), 0.00001); // 0.000005  Example: 0.0005% chance of death per day, for a baseline individual
-        map.insert("age_mortality_multiplier_per_year".to_string(), 1.01); // 0.0000001 Example: Small increase in daily death risk per year of age
+        // These parameters are on the log-odds scale.
+        map.insert("background_mortality_baseline_log_odds".to_string(), -16.0); // Very low base probability (e.g., exp(-16) is tiny)
+        map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
+        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0001); // Additional non-linear effect for elderly
 
-        // Region-specific mortality multipliers. Ensure these match your `Region` enum variants.
-        map.insert("north_america_mortality_multiplier".to_string(), 1.0);
-        map.insert("south_america_mortality_multiplier".to_string(), 1.0);
-        map.insert("africa_mortality_multiplier".to_string(), 1.2);   
-        map.insert("asia_mortality_multiplier".to_string(), 1.1);
-        map.insert("europe_mortality_multiplier".to_string(), 0.9);     
-        map.insert("oceania_mortality_multiplier".to_string(), 1.0);    
+        // Region-specific log-odds adjustments. ln(1.0) = 0.
+        map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
+        map.insert("log_odds_mortality_region_south_america".to_string(), 0.18);     // ln(1.2)
+        map.insert("log_odds_mortality_region_africa".to_string(), 0.18);            // ln(1.2)
+        map.insert("log_odds_mortality_region_asia".to_string(), 0.095);             // ln(1.1)
+        map.insert("log_odds_mortality_region_europe".to_string(), -0.105);          // ln(0.9)
+        map.insert("log_odds_mortality_region_oceania".to_string(), 0.0);           // Reference
 
-        // Sex-specific mortality multipliers. Ensure these match your `sex_at_birth` strings.
-        map.insert("male_mortality_multiplier".to_string(), 1.1);   // Example: Males have 10% higher mortality risk
-        map.insert("female_mortality_multiplier".to_string(), 0.9); // Example: Females have 10% lower mortality risk
+        // Sex-specific log-odds adjustments.
+        map.insert("log_odds_mortality_sex_male".to_string(), 0.095);    // ln(1.1)
+        map.insert("log_odds_mortality_sex_female".to_string(), -0.105); // ln(0.9)
 
-        // Additional background mortality risk factors
-        map.insert("immunosuppressed_mortality_multiplier".to_string(), 2.5); // Severely immunosuppressed individuals have higher background mortality
-        map.insert("hospital_mortality_multiplier".to_string(), 1.3); // Hospitalized individuals have higher baseline mortality (proxy for comorbidities)
-        map.insert("age_squared_mortality_multiplier".to_string(), 0.000001); // Additional non-linear age effect for very elderly
+        // Additional background mortality risk factors (log-odds).
+        map.insert("log_odds_mortality_immunosuppressed".to_string(), 0.916); // ln(2.5)
+        map.insert("log_odds_mortality_hospitalized".to_string(), 0.262);     // ln(1.3)
+
+
+
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0001);   // Probability of becoming immunosuppressed daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00003);   // Probability of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
 
 
