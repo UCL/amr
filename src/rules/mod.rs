@@ -351,7 +351,7 @@ pub fn apply_rules(
         }
     }
 
-    let mut drugs_initiated_this_time_step: usize = 0;
+let drugs_initiated_this_time_step: usize = 0;
 
     // --- drug stopping ---
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
@@ -405,8 +405,8 @@ pub fn apply_rules(
 
     // --- drug initiation (two-stage process) ---
     // Stage 1: Decide whether to start any antibiotic
-    let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
-        .filter(|(idx, &name)| {
+let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
+    .filter(|(_, &name)| {
             let avail = get_drug_availability(
                 name,
                 &individual.region_cur_in.to_string(),
@@ -539,7 +539,7 @@ pub fn apply_rules(
                     chosen_initial_level *= double_dose_multiplier;
                 }
                 individual.cur_level_drug[drug_idx] = chosen_initial_level;
-                drugs_initiated_this_time_step += 1;
+                // drugs_initiated_this_time_step += 1; // No longer needed in two-stage logic
             }
         }
     }

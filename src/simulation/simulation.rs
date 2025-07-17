@@ -7,6 +7,7 @@ use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 // Compact structure for time step summary data
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct TimeStepSummary {
     pub time_step: usize,
