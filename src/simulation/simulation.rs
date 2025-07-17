@@ -12,6 +12,9 @@ pub struct TimeStepSummary {
     pub time_step: usize,
     pub total_population: usize,
     pub total_deaths: usize,
+    pub deaths_background: usize,        // Deaths from background mortality
+    pub deaths_sepsis: usize,           // Deaths from sepsis
+    pub deaths_drug_toxicity: usize,    // Deaths from drug toxicity
     pub total_with_resistance: usize,
     pub total_currently_infected: usize, // Number of living people currently infected with any bacteria
     pub currently_taking_drug_count: usize, // New field
@@ -143,6 +146,9 @@ impl Simulation {
                 .map(|_| (0..DRUG_SHORT_NAMES.len()).map(|_| AtomicUsize::new(0)).collect())
                 .collect();
             let log_total_deaths = AtomicUsize::new(0);
+            let log_deaths_background = AtomicUsize::new(0);
+            let log_deaths_sepsis = AtomicUsize::new(0);
+            let log_deaths_drug_toxicity = AtomicUsize::new(0);
             let currently_taking_drug_count = AtomicUsize::new(0);
             let infected_10_days_count = AtomicUsize::new(0);
             let infected_30_days_count = AtomicUsize::new(0);
@@ -167,10 +173,32 @@ impl Simulation {
                     &self.cross_resistance_groups,
                 );
 
-                // Count deaths in this time step only
+                // Count deaths in this time step only, with cause tracking
                 if let Some(death_time) = individual.date_of_death {
                     if death_time == t {
                         log_total_deaths.fetch_add(1, Ordering::Relaxed);
+                        
+                        // Count by cause of death
+                        if let Some(ref cause) = individual.cause_of_death {
+                            match cause.as_str() {
+                                "background_mortality" => {
+                                    log_deaths_background.fetch_add(1, Ordering::Relaxed);
+                                },
+                                "sepsis_related" => {
+                                    log_deaths_sepsis.fetch_add(1, Ordering::Relaxed);
+                                },
+                                "drug_toxicity_related" => {
+                                    log_deaths_drug_toxicity.fetch_add(1, Ordering::Relaxed);
+                                },
+                                _ => {
+                                    // Unknown cause, count as background
+                                    log_deaths_background.fetch_add(1, Ordering::Relaxed);
+                                }
+                            }
+                        } else {
+                            // No cause specified, count as background
+                            log_deaths_background.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 }
 
@@ -333,6 +361,9 @@ impl Simulation {
                     row.iter().map(|x| x.load(Ordering::Relaxed)).collect()
                 ).collect(),
                 total_deaths: log_total_deaths.load(Ordering::Relaxed),
+                deaths_background: log_deaths_background.load(Ordering::Relaxed),
+                deaths_sepsis: log_deaths_sepsis.load(Ordering::Relaxed),
+                deaths_drug_toxicity: log_deaths_drug_toxicity.load(Ordering::Relaxed),
             };
             self.summary_log.push(summary);
 
@@ -499,11 +530,11 @@ impl Simulation {
         let mut file = File::create(filename)?;
         
         // Write header
-        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,taking_two_drugs_count,newly_infected_count,total_deaths")?;
+        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,taking_two_drugs_count,newly_infected_count,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity")?;
 
         // Write data
         for summary in &self.summary_log {
-            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -517,6 +548,9 @@ impl Simulation {
                 summary.taking_two_drugs_count,
                 summary.newly_infected_count,
                 summary.total_deaths,
+                summary.deaths_background,
+                summary.deaths_sepsis,
+                summary.deaths_drug_toxicity,
             )?;
         }
         

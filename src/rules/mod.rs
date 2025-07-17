@@ -178,7 +178,7 @@ pub fn apply_rules(
 
 
     // Get parameters from config.rs once per individual for this time step
-    // todo: review this update rule
+    // todo: review this update rule - may want to make logistic model
     let baseline_rate = get_global_param("hospitalization_baseline_rate_per_day")
         .expect("Missing hospitalization_baseline_rate_per_day in config");
     let age_multiplier_hosp = get_global_param("hospitalization_age_multiplier_per_day")

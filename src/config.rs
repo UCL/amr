@@ -39,12 +39,15 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.00000); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
         
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
+        
+        // Sulfonamides (first antibiotics)
+        map.insert("drug_sulfanilamide_half_life_days".to_string(), 0.45); // ~11 hours
         
         // Beta-lactams (Penicillins)
         map.insert("drug_penicilling_half_life_days".to_string(), 0.04); // ~1 hour
@@ -380,7 +383,7 @@ lazy_static! {
 
         // Hospitalization Parameters
         map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000001); // 0.00001  Baseline daily probability of hospitalization
-        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.000001); // Increase in daily hospitalization probability per year of age
+        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000001); // Increase in daily hospitalization probability per year of age
         map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // Daily probability of recovering from hospitalization
         map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
 
@@ -426,7 +429,7 @@ lazy_static! {
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
         map.insert("sepsis_baseline_odds".to_string(), -7.0); // -10.0 Baseline log odds (very low baseline probability)
-        map.insert("log_odds_sepsis_infection_level".to_string(), 0.5); // Log odds increase per unit bacterial level
+        map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
         map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
@@ -435,7 +438,7 @@ lazy_static! {
         // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
         // These parameters are on the log-odds scale.
-        map.insert("background_mortality_baseline_log_odds".to_string(), -16.0); // Very low base probability (e.g., exp(-16) is tiny)
+        map.insert("background_mortality_baseline_log_odds".to_string(), -12.0); // Very low base probability (e.g., exp(-16) is tiny)
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
         map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0001); // Additional non-linear effect for elderly
 
@@ -465,7 +468,7 @@ lazy_static! {
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
-        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.02); // Base 2% daily death risk for sepsis (much more realistic than 10%)
+        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.02); // Base 2% daily death risk for sepsis 
         map.insert("sepsis_age_mortality_multiplier_infant".to_string(), 3.0); // 0-1 years: much higher risk
         map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk  
         map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
@@ -481,7 +484,7 @@ lazy_static! {
         map.insert("africa_sepsis_mortality_multiplier".to_string(), 2.0); // Limited healthcare infrastructure
 
         // Sepsis Recovery Parameters (Logistic Model)
-        map.insert("sepsis_base_log_odds_of_recovery_per_day".to_string(), -2.0); // Base log odds (low baseline recovery probability ~12%)
+        map.insert("sepsis_base_log_odds_of_recovery_per_day".to_string(), -1.5); // Base log odds (low baseline recovery probability ~12%)
         map.insert("sepsis_log_odds_bacteria_level".to_string(), -0.3); // Higher bacteria level decreases recovery (negative coefficient)
         map.insert("sepsis_log_odds_in_hospital".to_string(), 0.8); // Being in hospital increases recovery probability
         map.insert("sepsis_log_odds_age_infant".to_string(), -0.5); // Infants have lower recovery probability
@@ -1106,85 +1109,88 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
     }
 }
 
-// Drug introduction dates (as time steps from start of 1942)
+// Drug introduction dates (as time steps from start of 1937)
 // Each time step = 1 day, so multiply years by 365
 lazy_static! {
     pub static ref DRUG_INTRODUCTION_DATES: HashMap<&'static str, usize> = {
         let mut map = HashMap::new();
         
+        // Sulfonamides (first antibiotics)
+        map.insert("sulfanilamide", 0);      // 1937 (simulation start)
+        
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 0);        // 1942 (simulation start)
-        map.insert("ampicillin", 6935);      // 1961 (19 * 365)
-        map.insert("amoxicillin", 10950);    // 1972 (30 * 365)
-        map.insert("piperacillin", 14235);   // 1981 (39 * 365)
-        map.insert("ticarcillin", 12775);    // 1977 (35 * 365)
+        map.insert("penicilling", 1825);     // 1942 (5 * 365)
+        map.insert("ampicillin", 8760);      // 1961 (24 * 365)
+        map.insert("amoxicillin", 12775);    // 1972 (35 * 365)
+        map.insert("piperacillin", 16060);   // 1981 (44 * 365)
+        map.insert("ticarcillin", 14600);    // 1977 (40 * 365)
         
         // Cephalosporins
-        map.insert("cephalexin", 10220);     // 1970 (28 * 365)
-        map.insert("cefazolin", 11315);      // 1973 (31 * 365)
-        map.insert("cefuroxime", 13140);     // 1978 (36 * 365)
-        map.insert("ceftriaxone", 15330);    // 1984 (42 * 365)
-        map.insert("ceftazidime", 15695);    // 1985 (43 * 365)
-        map.insert("cefepime", 19710);       // 1996 (54 * 365)
-        map.insert("ceftaroline", 24820);    // 2010 (68 * 365)
+        map.insert("cephalexin", 12045);     // 1970 (33 * 365)
+        map.insert("cefazolin", 13140);      // 1973 (36 * 365)
+        map.insert("cefuroxime", 14965);     // 1978 (41 * 365)
+        map.insert("ceftriaxone", 17155);    // 1984 (47 * 365)
+        map.insert("ceftazidime", 17520);    // 1985 (48 * 365)
+        map.insert("cefepime", 21535);       // 1996 (59 * 365)
+        map.insert("ceftaroline", 26645);    // 2010 (73 * 365)
         
         // Carbapenems
-        map.insert("meropenem", 19710);      // 1996 (54 * 365)
-        map.insert("imipenem_c", 15695);     // 1985 (43 * 365)
-        map.insert("ertapenem", 21535);      // 2001 (59 * 365)
+        map.insert("meropenem", 21535);      // 1996 (59 * 365)
+        map.insert("imipenem_c", 17520);     // 1985 (48 * 365)
+        map.insert("ertapenem", 23360);      // 2001 (64 * 365)
         
         // Monobactams
-        map.insert("aztreonam", 16060);      // 1986 (44 * 365)
+        map.insert("aztreonam", 17885);      // 1986 (49 * 365)
         
         // Macrolides
-        map.insert("erythromycin", 3650);    // 1952 (10 * 365)
-        map.insert("azithromycin", 17885);   // 1991 (49 * 365)
-        map.insert("clarithromycin", 17520); // 1990 (48 * 365)
+        map.insert("erythromycin", 5475);    // 1952 (15 * 365)
+        map.insert("azithromycin", 19710);   // 1991 (54 * 365)
+        map.insert("clarithromycin", 19345); // 1990 (53 * 365)
         
         // Lincosamides
-        map.insert("clindamycin", 9490);     // 1968 (26 * 365)
+        map.insert("clindamycin", 11315);    // 1968 (31 * 365)
         
         // Aminoglycosides
-        map.insert("gentamicin", 7665);      // 1963 (21 * 365)
-        map.insert("tobramycin", 12045);     // 1975 (33 * 365)
-        map.insert("amikacin", 12410);       // 1976 (34 * 365)
+        map.insert("gentamicin", 9490);      // 1963 (26 * 365)
+        map.insert("tobramycin", 13870);     // 1975 (38 * 365)
+        map.insert("amikacin", 14235);       // 1976 (39 * 365)
         
         // Fluoroquinolones
-        map.insert("ciprofloxacin", 16425);  // 1987 (45 * 365)
-        map.insert("levofloxacin", 19710);   // 1996 (54 * 365)
-        map.insert("moxifloxacin", 20805);   // 1999 (57 * 365)
-        map.insert("ofloxacin", 17520);      // 1990 (48 * 365)
+        map.insert("ciprofloxacin", 18250);  // 1987 (50 * 365)
+        map.insert("levofloxacin", 21535);   // 1996 (59 * 365)
+        map.insert("moxifloxacin", 22630);   // 1999 (62 * 365)
+        map.insert("ofloxacin", 19345);      // 1990 (53 * 365)
         
         // Tetracyclines
-        map.insert("tetracycline", 2190);    // 1948 (6 * 365)
-        map.insert("doxyclycline", 9125);    // 1967 (25 * 365)
-        map.insert("minocycline", 10585);    // 1971 (29 * 365)
+        map.insert("tetracycline", 4015);    // 1948 (11 * 365)
+        map.insert("doxyclycline", 10950);   // 1967 (30 * 365)
+        map.insert("minocycline", 12410);    // 1971 (34 * 365)
         
         // Glycopeptides
-        map.insert("vancomycin", 5840);      // 1958 (16 * 365)
-        map.insert("teicoplanin", 16790);    // 1988 (46 * 365)
+        map.insert("vancomycin", 7665);      // 1958 (21 * 365)
+        map.insert("teicoplanin", 18615);    // 1988 (51 * 365)
         
         // Oxazolidinones
-        map.insert("linezolid", 21170);      // 2000 (58 * 365)
-        map.insert("tedizolid", 26280);      // 2014 (72 * 365)
+        map.insert("linezolid", 22995);      // 2000 (63 * 365)
+        map.insert("tedizolid", 28105);      // 2014 (77 * 365)
         
         // Folate antagonists
-        map.insert("trim_sulf", 9490);       // 1968 (26 * 365) - trimethoprim-sulfamethoxazole
+        map.insert("trim_sulf", 11315);      // 1968 (31 * 365) - trimethoprim-sulfamethoxazole
         
         // Other antibiotics
-        map.insert("quinu_dalfo", 20805);    // 1999 (57 * 365) - quinupristin/dalfopristin
-        map.insert("chlorampheni", 2555);    // 1949 (7 * 365) - chloramphenicol
-        map.insert("nitrofurantoin", 4015);  // 1953 (11 * 365)
-        map.insert("retapamulin", 23725);    // 2007 (65 * 365) - topical antibiotic
-        map.insert("fusidic_a", 7300);       // 1962 (20 * 365) - fusidic acid
-        map.insert("metronidazole", 6570);   // 1960 (18 * 365)
-        map.insert("furazolidone", 4745);    // 1955 (13 * 365)
+        map.insert("quinu_dalfo", 22630);    // 1999 (62 * 365) - quinupristin/dalfopristin
+        map.insert("chlorampheni", 4380);    // 1949 (12 * 365) - chloramphenicol
+        map.insert("nitrofurantoin", 5840);  // 1953 (16 * 365)
+        map.insert("retapamulin", 25550);    // 2007 (70 * 365) - topical antibiotic
+        map.insert("fusidic_a", 9125);       // 1962 (25 * 365) - fusidic acid
+        map.insert("metronidazole", 8395);   // 1960 (23 * 365)
+        map.insert("furazolidone", 6570);    // 1955 (18 * 365)
         
         map
     };
 }
 
-/// Gets the introduction date for a drug (as time step from 1942)
+/// Gets the introduction date for a drug (as time step from 1937)
 /// Returns the time step if found, None otherwise
 pub fn get_drug_introduction_time_step(drug_name: &str) -> Option<usize> {
     DRUG_INTRODUCTION_DATES.get(drug_name).copied()

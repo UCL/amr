@@ -33,7 +33,7 @@ pub const BACTERIA_LIST: &[&str] = &[
 
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
-    "penicilling", "ampicillin", "amoxicillin",
+    "sulfanilamide", "penicilling", "ampicillin", "amoxicillin",
     "piperacillin", "ticarcillin", "cephalexin", "cefazolin",
     "cefuroxime", "ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "meropenem", "imipenem_c",
     "ertapenem", "aztreonam", "erythromycin", "azithromycin", "clarithromycin", "clindamycin",
@@ -247,8 +247,8 @@ impl Population {
             let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             let mut individual = Individual::new(i, age, sex);
-            // Randomly set 0.1% to be hospitalized at start
-            if rng.gen_bool(0.001) {
+            // Randomly set 0.01% to be hospitalized at start
+            if rng.gen_bool(0.0001) {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
             // Randomly set a separate 0.1% to be severely immunosuppressed at start
