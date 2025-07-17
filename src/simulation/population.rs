@@ -131,6 +131,7 @@ pub struct Individual {
     pub vaccination_status: Vec<bool>,             
     pub cur_infection_from_environment: Vec<bool>, 
     pub test_identified_infection: Vec<bool>,      
+    pub test_for_resistance: Vec<bool>, // NEW: tracks if resistance test has been performed for each bacteria
     pub cur_use_drug: Vec<bool>,
     pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
     pub date_drug_initiated: Vec<i32>, // the time_step when each drug was last initiated
@@ -168,6 +169,7 @@ impl Individual {
         let infection_hospital_acquired = vec![false; num_bacteria];
         let cur_infection_from_environment = vec![false; num_bacteria];
         let test_identified_infection = vec![false; num_bacteria];
+        let test_for_resistance = vec![false; num_bacteria]; // NEW: initialize all to false
         let vaccination_status = (0..num_bacteria).map(|_| rng.gen_bool(0.5)).collect();
 
         let mut resistances = Vec::with_capacity(num_bacteria);
@@ -223,6 +225,7 @@ impl Individual {
             infection_hospital_acquired,
             cur_infection_from_environment,
             test_identified_infection,
+            test_for_resistance,
             current_toxicity: rng.gen_range(0.0..=3.0),
             mortality_risk_current_toxicity: 0.0, // todo: probably should be removed as this death risk is implemented with separate logic
             resistances,

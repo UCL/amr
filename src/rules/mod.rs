@@ -404,15 +404,16 @@ pub fn apply_rules(
             continue;
         }
 
-        // --- restriction: do not start drug if test_r > 0 for any bacteria ---
-        let mut test_r_positive = false;
+        // --- restriction: do not start drug if resistance test has been performed and resistance detected for any bacteria ---
+        let mut resistance_detected = false;
         for b_idx in 0..BACTERIA_LIST.len() {
-            if individual.resistances[b_idx][drug_idx].test_r > 0.0 {
-                test_r_positive = true;
+            // Only restrict if a resistance test has been performed for this bacteria
+            if individual.test_for_resistance[b_idx] && individual.resistances[b_idx][drug_idx].test_r > 0.0 {
+                resistance_detected = true;
                 break;
             }
         }
-        if test_r_positive {
+        if resistance_detected {
             continue;
         }
         // --- end restriction ---
