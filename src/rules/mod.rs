@@ -5,7 +5,15 @@
 
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
-use crate::config::{get_global_param, get_bacteria_param, get_drug_param, get_age_infection_multiplier, get_drug_availability, get_bacteria_sepsis_risk_multiplier};
+use crate::config::{
+    get_global_param,
+    get_bacteria_param,
+    get_drug_param,
+    get_age_infection_multiplier,
+    get_drug_availability,
+    get_bacteria_sepsis_risk_multiplier,
+    get_drug_introduction_time_step,
+};
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -395,154 +403,136 @@ pub fn apply_rules(
         }
     }
 
-    // --- drug initiation ---
-    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-        let drug_name = DRUG_SHORT_NAMES[drug_idx];
+    // --- drug initiation (two-stage process) ---
+    // Stage 1: Decide whether to start any antibiotic
+    let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
+        .filter(|(idx, &name)| {
+            let avail = get_drug_availability(
+                name,
+                &individual.region_cur_in.to_string(),
+                Some(&individual.region_living.to_string())
+            );
+            let intro_ok = match get_drug_introduction_time_step(name) {
+                Some(intro_step) => time_step >= intro_step,
+                None => true,
+            };
+            avail >= 0.01 && intro_ok
+        })
+        .map(|(idx, _)| idx)
+        .collect();
+    let available_drugs_count = available_drugs.len();
+    let min_available_drugs = 5; // Adjustable threshold
+    let scaling_factor = if available_drugs_count < min_available_drugs && available_drugs_count > 0 {
+        (min_available_drugs as f64) / (available_drugs_count as f64)
+    } else { 1.0 };
 
-        // --- restriction: if already using two or more drugs, cannot start another ---
-        if num_drugs_currently_used + drugs_initiated_this_time_step >= 2 {
-            continue;
-        }
-
-        // --- restriction: do not start drug if resistance test has been performed and resistance detected for any bacteria ---
-        let mut resistance_detected = false;
-        for b_idx in 0..BACTERIA_LIST.len() {
-            // Only restrict if a resistance test has been performed for this bacteria
-            if individual.test_for_resistance[b_idx] && individual.resistances[b_idx][drug_idx].test_r > 0.0 {
-                resistance_detected = true;
-                break;
-            }
-        }
-        if resistance_detected {
-            continue;
-        }
-        // --- end restriction ---
-
-        // --- NEW: Check drug availability in current region ---
-        let current_region_str = individual.region_cur_in.to_string();
-        let living_region_str = individual.region_living.to_string();
-        let drug_availability = get_drug_availability(
-            drug_name, 
-            &current_region_str, 
-            Some(&living_region_str)
-        );
-        
-        // If drug is not available or has very low availability, skip it
-        if drug_availability < 0.01 {
-            continue; // Drug not available in this region
-        }
-        // --- end drug availability check ---
-
-        // --- NEW: Check if drug has been introduced yet (historical modeling) ---
-        use crate::config::get_drug_introduction_time_step;
-        if let Some(introduction_time_step) = get_drug_introduction_time_step(drug_name) {
-            if time_step < introduction_time_step {
-                continue; // Drug not yet invented/approved
-            }
-        }
-        // --- end historical availability check ---
-
-        // start with the base initiation rate for *any* drug
-        let mut administration_prob = drug_base_initiation_rate;
-
-        // --- apply bacteria-specific multipliers if the individual has active infections ---
-        let mut max_bacteria_specific_multiplier: f64 = 1.0; // Use max to represent the highest relevance
-        for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-            // check if individual is infected with this specific bacteria and it's above threshold
-            if individual.level[b_idx] > 0.001 {
-                // Look up the specific multiplier for this drug-bacteria combination
-                let param_key = format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug_name, bacteria_name);
-                if let Some(specific_multiplier) = get_global_param(&param_key) {
-                    max_bacteria_specific_multiplier = max_bacteria_specific_multiplier.max(specific_multiplier);
-                }
-            }
-        }
-        // apply the highest relevant bacteria-specific multiplier
-        administration_prob *= max_bacteria_specific_multiplier;
-
-
-        // apply general multipliers after the base rate and bacteria-specific multiplier
+    // Restriction: if already using two or more drugs, cannot start another
+    if num_drugs_currently_used + drugs_initiated_this_time_step < 2 && available_drugs_count > 0 {
+        // Stage 1: Calculate probability to start any antibiotic
+        let mut start_any_antibiotic_prob = drug_base_initiation_rate * scaling_factor;
         let infection_acquired_this_step = individual.date_last_infected.iter().any(|&d| d == time_step as i32);
         if has_any_infection && !infection_acquired_this_step {
-        administration_prob *= drug_infection_present_multiplier;
+            start_any_antibiotic_prob *= drug_infection_present_multiplier;
         }
-       
-        if has_any_identified_infection { administration_prob *= drug_test_identified_multiplier; }
+        if has_any_identified_infection { start_any_antibiotic_prob *= drug_test_identified_multiplier; }
         if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
-            administration_prob *= already_on_drug_initiation_multiplier;
+            start_any_antibiotic_prob *= already_on_drug_initiation_multiplier;
         }
-        administration_prob *= syndrome_administration_multiplier;
+        start_any_antibiotic_prob *= syndrome_administration_multiplier;
+        start_any_antibiotic_prob = start_any_antibiotic_prob.clamp(0.0, 1.0);
 
-        // --- NEW: Apply bacterial identification effects on drug spectrum preference ---
-        let drug_spectrum = get_drug_param(drug_name, "spectrum_breadth").unwrap_or(3.0); // 1.0=narrow, 5.0=very broad
-        
-        if has_any_identified_infection {
-            // TARGETED THERAPY: bacteria identified, prefer appropriate narrow-spectrum drugs
-            let targeted_narrow_bonus = get_global_param("targeted_therapy_narrow_spectrum_bonus").unwrap_or(3.0);
-            let targeted_broad_penalty = get_global_param("targeted_therapy_broad_spectrum_penalty").unwrap_or(0.4);
-            let ineffective_drug_penalty = get_global_param("targeted_therapy_ineffective_drug_penalty").unwrap_or(0.1);
-            
-            // Check if this drug has good activity against any identified bacteria
-            let mut has_good_activity = false;
-            let mut best_potency: f64 = 0.0;
-            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                if individual.test_identified_infection[b_idx] && individual.level[b_idx] > 0.001 {
-                    let potency_param_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
-                    let potency = get_global_param(&potency_param_key).unwrap_or(0.0);
-                    best_potency = best_potency.max(potency);
-                    if potency > 0.02 { // Threshold for "good activity" (above baseline)
-                        has_good_activity = true;
+        if rng.gen_bool(start_any_antibiotic_prob) {
+            // Stage 2: Choose the most appropriate drug
+            // Score each available drug
+            let mut best_drug_idx: Option<usize> = None;
+            let mut best_score: f64 = -1.0;
+            for &drug_idx in &available_drugs {
+                let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                // Restriction: do not start drug if resistance test has been performed and resistance detected for any bacteria
+                let mut resistance_detected = false;
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.test_for_resistance[b_idx] && individual.resistances[b_idx][drug_idx].test_r > 0.0 {
+                        resistance_detected = true;
+                        break;
                     }
                 }
-            }
-            
-            if has_good_activity {
-                // Drug is effective against identified bacteria - prefer narrow spectrum
-                if drug_spectrum <= 2.5 { // Narrow to medium-narrow spectrum
-                    administration_prob *= targeted_narrow_bonus;
-                } else if drug_spectrum >= 4.0 { // Broad to very broad spectrum
-                    administration_prob *= targeted_broad_penalty;
+                if resistance_detected { continue; }
+
+                // Score drug based on spectrum, activity, and clinical scenario
+                let mut score = 1.0;
+                let mut max_bacteria_specific_multiplier: f64 = 1.0;
+                for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                    if individual.level[b_idx] > 0.001 {
+                        let param_key = format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug_name, bacteria_name);
+                        if let Some(specific_multiplier) = get_global_param(&param_key) {
+                            max_bacteria_specific_multiplier = max_bacteria_specific_multiplier.max(specific_multiplier);
+                        }
+                    }
                 }
-                // Medium spectrum (2.5-4.0) gets no bonus or penalty
-            } else {
-                // Drug is not effective against identified bacteria - strong penalty
-                administration_prob *= ineffective_drug_penalty;
-            }
-        } else if has_any_infection {
-            // EMPIRIC THERAPY: infection present but bacteria not yet identified, prefer broad-spectrum
-            let empiric_broad_bonus = get_global_param("empiric_therapy_broad_spectrum_bonus").unwrap_or(2.0);
-            
-            if drug_spectrum >= 3.5 { // Broad to very broad spectrum drugs
-                administration_prob *= empiric_broad_bonus;
-            } else if drug_spectrum <= 2.0 { // Very narrow spectrum drugs
-                administration_prob *= 0.6; // Slight penalty for very narrow drugs in empiric therapy
-            }
-            // Medium spectrum (2.0-3.5) gets no bonus or penalty
-        }
-        // --- END bacterial identification effects ---
+                score *= max_bacteria_specific_multiplier;
 
-        // --- Apply drug availability multiplier ---
-        administration_prob *= drug_availability;
-        // --- end drug availability ---
+                let drug_spectrum = get_drug_param(drug_name, "spectrum_breadth").unwrap_or(3.0);
+                if has_any_identified_infection {
+                    let targeted_narrow_bonus = get_global_param("targeted_therapy_narrow_spectrum_bonus").unwrap_or(3.0);
+                    let targeted_broad_penalty = get_global_param("targeted_therapy_broad_spectrum_penalty").unwrap_or(0.4);
+                    let ineffective_drug_penalty = get_global_param("targeted_therapy_ineffective_drug_penalty").unwrap_or(0.1);
+                    let mut has_good_activity = false;
+                    let mut best_potency: f64 = 0.0;
+                    for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                        if individual.test_identified_infection[b_idx] && individual.level[b_idx] > 0.001 {
+                            let potency_param_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
+                            let potency = get_global_param(&potency_param_key).unwrap_or(0.0);
+                            best_potency = best_potency.max(potency);
+                            if potency > 0.02 {
+                                has_good_activity = true;
+                            }
+                        }
+                    }
+                    if has_good_activity {
+                        if drug_spectrum <= 2.5 {
+                            score *= targeted_narrow_bonus;
+                        } else if drug_spectrum >= 4.0 {
+                            score *= targeted_broad_penalty;
+                        }
+                    } else {
+                        score *= ineffective_drug_penalty;
+                    }
+                } else if has_any_infection {
+                    let empiric_broad_bonus = get_global_param("empiric_therapy_broad_spectrum_bonus").unwrap_or(2.0);
+                    if drug_spectrum >= 3.5 {
+                        score *= empiric_broad_bonus;
+                    } else if drug_spectrum <= 2.0 {
+                        score *= 0.6;
+                    }
+                }
+                // Apply drug availability multiplier
+                let current_region_str = individual.region_cur_in.to_string();
+                let living_region_str = individual.region_living.to_string();
+                let drug_availability = get_drug_availability(
+                    drug_name, 
+                    &current_region_str, 
+                    Some(&living_region_str)
+                );
+                score *= drug_availability;
 
-        administration_prob = administration_prob.clamp(0.0, 1.0); // Ensure the probability is between 0 and 1
-        if drugs_initiated_this_time_step < 2 && !individual.cur_use_drug[drug_idx] {
-            if rng.gen_bool(administration_prob) {
+                if score > best_score {
+                    best_score = score;
+                    best_drug_idx = Some(drug_idx);
+                }
+            }
+            // If a suitable drug is found, initiate it
+            if let Some(drug_idx) = best_drug_idx {
+                let drug_name = DRUG_SHORT_NAMES[drug_idx];
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
                 individual.ever_taken_drug[drug_idx] = true;
-
-                // debug print       
-                                  
-                if individual.id == 0  { 
+                if individual.id == 0  {
                     println!(
-                        "mod.rs   started {} - rate of starting was {:.4}",
+                        "mod.rs   started {} - two-stage rate of starting was {:.4}",
                         drug_name,
-                        administration_prob,
+                        start_any_antibiotic_prob,
                     );
                 }
-                // --- end debug print
-
                 let mut chosen_initial_level = get_drug_param(drug_name, "initial_level").unwrap_or(10.0);
                 if has_any_identified_infection && rng.gen_bool(double_dose_probability) {
                     let double_dose_multiplier = get_drug_param(drug_name, "double_dose_multiplier").unwrap_or(2.0);
