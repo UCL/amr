@@ -24,6 +24,19 @@ FIGURE_SIZE_SINGLE = (12, 6)
 FIGURE_SIZE_DOUBLE = (12, 10)
 FIGURE_SIZE_OVERVIEW = (12, 12)
 
+# Dynamically determine screen size ONCE for all figures
+try:
+    import tkinter as tk
+    root = tk.Tk()
+    root.withdraw()
+    SCREEN_W = root.winfo_screenwidth()
+    SCREEN_H = root.winfo_screenheight()
+    root.destroy()
+    FIG_W = int(SCREEN_W * 0.8 / 96)  # inches (assuming 96 dpi)
+    FIG_H = int(SCREEN_H * 0.8 / 96)
+except Exception:
+    FIG_W, FIG_H = 16, 10  # fallback
+
 # File settings
 CSV_INPUT = "simulation_summary.csv"
 FLOAT_PRECISION = '%.6f'
@@ -109,58 +122,161 @@ def preprocess_data(df):
 # VISUALIZATION FUNCTIONS
 # =============================================================================
 
-def create_overview_plot(df):
-    """Create comprehensive overview plot with all key metrics."""
+def create_grouped_plots(df):
+    """Create grouped plots, each file containing 4 subplots."""
     setup_plot_style()
-    fig, axes = plt.subplots(6, 1, figsize=FIGURE_SIZE_OVERVIEW, sharex=True)
 
-    # Population
-    axes[0].plot(df['time_in_years'], df['total_population'], 'b-', linewidth=2)
-    axes[0].set_title('Living Population Over Time')
-    axes[0].set_ylabel('Population')
-    axes[0].set_ylim(bottom=0)
-    axes[0].grid(True, alpha=0.3)
+    # --- Group 1 ---
+    fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes1 = axes1.flatten()
+    fig1.suptitle('Grouped Figure 1: Population, Deaths, Resistance, Hospitalization', fontsize=16)
+    # 1. Living Population Over Time
+    axes1[0].plot(df['time_in_years'], df['total_population'], 'b-', linewidth=2)
+    axes1[0].set_title('Living Population Over Time')
+    axes1[0].set_ylabel('Population')
+    axes1[0].set_ylim(bottom=0)
+    axes1[0].grid(True, alpha=0.3)
+    # 2. Deaths per Timestep
+    axes1[1].plot(df['time_in_years'], df['total_deaths'], 'k-', linewidth=2)
+    axes1[1].set_title('Deaths per Timestep')
+    axes1[1].set_ylabel('Deaths')
+    axes1[1].set_ylim(bottom=0)
+    axes1[1].grid(True, alpha=0.3)
+    # 3. Individuals with Resistance Over Time
+    axes1[2].plot(df['time_in_years'], df['total_with_resistance'], 'orange', linewidth=2)
+    axes1[2].set_title('Individuals with Resistance Over Time')
+    axes1[2].set_ylabel('Count')
+    axes1[2].set_ylim(bottom=0)
+    axes1[2].grid(True, alpha=0.3)
+    # 4. Hospitalized & Immunosuppressed
+    axes1[3].plot(df['time_in_years'], df['number_in_hospital'], 'navy', linewidth=2, label='In Hospital')
+    axes1[3].plot(df['time_in_years'], df['number_severely_immunosuppressed'], 'crimson', linewidth=2, label='Severely Immunosuppressed')
+    axes1[3].set_title('Hospitalized & Immunosuppressed Individuals')
+    axes1[3].set_ylabel('Count')
+    axes1[3].set_ylim(bottom=0)
+    axes1[3].legend()
+    axes1[3].grid(True, alpha=0.3)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    # plt.show()  # Do not show automatically
+    print("✓ Grouped figure 1 saved as 'grouped_figure_1.png'")
 
-    # Deaths per timestep
-    axes[1].plot(df['time_in_years'], df['total_deaths'], 'k-', linewidth=2)
-    axes[1].set_title('Deaths per Timestep')
-    axes[1].set_ylabel('Deaths')
-    axes[1].set_ylim(bottom=0)
-    axes[1].grid(True, alpha=0.3)
+    # --- Group 2 ---
+    fig2, axes2 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes2 = axes2.flatten()
+    fig2.suptitle('Grouped Figure 2: Infections, Resistance, Proportions', fontsize=16)
+    # 1. Newly Infected Individuals Per Timestep
+    if 'newly_infected_count' in df.columns:
+        axes2[0].plot(df['time_in_years'], df['newly_infected_count'], 'teal', linewidth=2)
+        axes2[0].set_title('Newly Infected Individuals Per Timestep')
+        axes2[0].set_ylabel('Newly Infected')
+        axes2[0].set_ylim(bottom=0)
+        axes2[0].grid(True, alpha=0.3)
+    else:
+        axes2[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[0].set_title('Newly Infected Individuals Per Timestep')
+        axes2[0].set_axis_off()
+    # 2. Proportion with Resistance Among Currently Infected
+    if 'resistance_among_infected' in df.columns:
+        axes2[1].plot(df['time_in_years'], df['resistance_among_infected'], 'purple', linewidth=2)
+        axes2[1].set_title('Proportion with Resistance Among Currently Infected')
+        axes2[1].set_ylabel('Proportion')
+        axes2[1].set_ylim(bottom=0)
+        axes2[1].grid(True, alpha=0.3)
+    else:
+        axes2[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[1].set_title('Proportion with Resistance Among Currently Infected')
+        axes2[1].set_axis_off()
+    # 3. Infection Proportion Over Time
+    if 'infection_proportion' in df.columns:
+        axes2[2].plot(df['time_in_years'], df['infection_proportion'], linewidth=2, color='blue')
+        axes2[2].set_title('Infection Proportion Over Time')
+        axes2[2].set_xlabel('Time (Years)')
+        axes2[2].set_ylabel('Proportion of Population Infected')
+        axes2[2].set_ylim(bottom=0)
+        axes2[2].grid(True, alpha=0.3)
+    else:
+        axes2[2].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[2].set_title('Infection Proportion Over Time')
+        axes2[2].set_axis_off()
+    # 4. Death Proportion Over Time
+    if 'death_proportion' in df.columns:
+        axes2[3].plot(df['time_in_years'], df['death_proportion'], linewidth=2, color='red')
+        axes2[3].set_title('Death Proportion Over Time')
+        axes2[3].set_xlabel('Time (Years)')
+        axes2[3].set_ylabel('Proportion of Population Dying per Day')
+        axes2[3].set_ylim(bottom=0)
+        axes2[3].grid(True, alpha=0.3)
+    else:
+        axes2[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[3].set_title('Death Proportion Over Time')
+        axes2[3].set_axis_off()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('grouped_figure_2.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    # plt.show()  # Do not show automatically
+    print("✓ Grouped figure 2 saved as 'grouped_figure_2.png'")
 
-    # Resistance
-    axes[2].plot(df['time_in_years'], df['total_with_resistance'], 'orange', linewidth=2)
-    axes[2].set_title('Individuals with Resistance Over Time')
-    axes[2].set_ylabel('Count')
-    axes[2].set_ylim(bottom=0)
-    axes[2].grid(True, alpha=0.3)
-
-    # Hospital & Immunosuppressed
-    axes[3].plot(df['time_in_years'], df['number_in_hospital'], 'navy', linewidth=2, label='In Hospital')
-    axes[3].plot(df['time_in_years'], df['number_severely_immunosuppressed'], 'crimson', linewidth=2, label='Severely Immunosuppressed')
-    axes[3].set_title('Hospitalized & Immunosuppressed Individuals')
-    axes[3].set_ylabel('Count')
-    axes[3].set_ylim(bottom=0)
-    axes[3].legend()
-    axes[3].grid(True, alpha=0.3)
-
-    # New infections
-    axes[4].plot(df['time_in_years'], df['newly_infected_count'], 'teal', linewidth=2)
-    axes[4].set_title('Newly Infected Individuals Per Timestep')
-    axes[4].set_ylabel('Newly Infected')
-    axes[4].set_ylim(bottom=0)
-    axes[4].grid(True, alpha=0.3)
-
-    # Resistance among infected
-    axes[5].plot(df['time_in_years'], df['resistance_among_infected'], 'purple', linewidth=2)
-    axes[5].set_title('Proportion with Resistance Among Currently Infected')
-    axes[5].set_ylabel('Proportion')
-    axes[5].set_xlabel('Time (Years)')
-    axes[5].set_ylim(bottom=0)
-    axes[5].grid(True, alpha=0.3)
-
-    plt.subplots_adjust(hspace=2.0)  # Add even more space between subplots
-    save_and_show_plot(OUTPUT_FILES['overview'], "Overview plot")
+    # --- Group 3 ---
+    fig3, axes3 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes3 = axes3.flatten()
+    fig3.suptitle('Grouped Figure 3: Durations, Sepsis, Death Causes', fontsize=16)
+    # 1. Infection Duration Proportions
+    if 'infection_proportion' in df.columns:
+        axes3[0].plot(df['time_in_years'], df['infection_proportion'], linewidth=2, color='blue')
+        axes3[0].set_ylabel('Proportion of Total Population')
+        axes3[0].set_title('Overall Infection Proportion Over Time\n(Denominator: Total Population)')
+        axes3[0].set_ylim(bottom=0)
+        axes3[0].grid(True, alpha=0.3)
+    else:
+        axes3[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes3[0].set_title('Overall Infection Proportion Over Time\n(Denominator: Total Population)')
+        axes3[0].set_axis_off()
+    # 2. Duration-Based Infection Proportions
+    if 'infected_10_days_proportion' in df.columns and 'infected_30_days_proportion' in df.columns:
+        axes3[1].plot(df['time_in_years'], df['infected_10_days_proportion'], label='Infected >10 Days', linewidth=2, color='green')
+        axes3[1].plot(df['time_in_years'], df['infected_30_days_proportion'], label='Infected >30 Days', linewidth=2, color='brown')
+        axes3[1].set_xlabel('Time (Years)')
+        axes3[1].set_ylabel('Proportion of Currently Infected')
+        axes3[1].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+        axes3[1].set_ylim(bottom=0)
+        axes3[1].legend()
+        axes3[1].grid(True, alpha=0.3)
+    else:
+        axes3[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes3[1].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+        axes3[1].set_axis_off()
+    # 3. Sepsis Proportion (if available)
+    if 'sepsis_among_infected_proportion' in df.columns:
+        axes3[2].plot(df['time_in_years'], df['sepsis_among_infected_proportion'], color='red', linewidth=2)
+        axes3[2].set_title('Proportion of Infected Individuals with Sepsis')
+        axes3[2].set_xlabel('Time (Years)')
+        axes3[2].set_ylabel('Proportion with Sepsis')
+        axes3[2].set_ylim(0, 1)
+        axes3[2].grid(True, alpha=0.3)
+    else:
+        axes3[2].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes3[2].set_title('Proportion of Infected Individuals with Sepsis')
+        axes3[2].set_axis_off()
+    # 4. Death Causes (if available)
+    death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    if all(col in df.columns for col in death_cause_cols):
+        axes3[3].plot(df['time_in_years'], df['deaths_background'], label='Background', linewidth=2, color='gray')
+        axes3[3].plot(df['time_in_years'], df['deaths_sepsis'], label='Sepsis', linewidth=2, color='red')
+        axes3[3].plot(df['time_in_years'], df['deaths_drug_toxicity'], label='Drug Toxicity', linewidth=2, color='orange')
+        axes3[3].plot(df['time_in_years'], df['total_deaths'], label='Total', linewidth=2, color='black', linestyle='--', alpha=0.7)
+        axes3[3].set_title('Deaths by Cause Over Time (Absolute Counts)')
+        axes3[3].set_ylabel('Deaths per Day')
+        axes3[3].set_ylim(bottom=0)
+        axes3[3].legend()
+        axes3[3].grid(True, alpha=0.3)
+    else:
+        axes3[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes3[3].set_title('Deaths by Cause Over Time (Absolute Counts)')
+        axes3[3].set_axis_off()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    # plt.show()  # Do not show automatically
+    print("✓ Grouped figure 3 saved as 'grouped_figure_3.png'")
 
 def create_proportion_plots(df):
     """Create separate infection and death proportion plots."""
@@ -348,6 +464,50 @@ def export_data_files(df):
         df[existing_cols].to_csv(OUTPUT_FILES['key_data'], index=False, float_format=FLOAT_PRECISION)
         print(f"✓ Key data summary saved to '{OUTPUT_FILES['key_data']}'")
 
+def export_txt_data_file(df, filename="all_simulation_data.txt"):
+    """
+    Export the DataFrame to a .txt file in a wide, aligned, human-readable format.
+    Integers are printed without decimals, floats with six decimals.
+    """
+    print(f"Exporting data to '{filename}' in human-readable .txt format...")
+    columns = list(df.columns)
+    # Determine column types for formatting
+    dtypes = df.dtypes
+    # Set column widths based on max length of formatted data in each column
+    col_widths = []
+    for col in columns:
+        # Format a sample of values to determine width
+        if pd.api.types.is_integer_dtype(dtypes[col]):
+            formatted = df[col].map(lambda v: f"{int(v)}" if pd.notnull(v) else "").astype(str)
+        elif pd.api.types.is_float_dtype(dtypes[col]):
+            formatted = df[col].map(lambda v: f"{v:.6f}" if pd.notnull(v) else "").astype(str)
+        else:
+            formatted = df[col].astype(str)
+        max_data_len = formatted.map(len).max() if not df.empty else 0
+        col_widths.append(max(len(str(col)), max_data_len, 10))
+    with open(filename, 'w', encoding='utf-8') as f:
+        # Write column headers
+        header = " ".join([str(col).ljust(width) for col, width in zip(columns, col_widths)])
+        f.write(header + "\n")
+        f.write("-" * len(header) + "\n")
+        # Write data rows
+        for _, row in df.iterrows():
+            formatted_row = []
+            for col, width in zip(columns, col_widths):
+                val = row[col]
+                if pd.isnull(val):
+                    sval = ""
+                elif pd.api.types.is_integer_dtype(dtypes[col]):
+                    sval = f"{int(val)}"
+                elif pd.api.types.is_float_dtype(dtypes[col]):
+                    sval = f"{val:.6f}"
+                else:
+                    sval = str(val)
+                formatted_row.append(sval.ljust(width))
+            line = " ".join(formatted_row)
+            f.write(line + "\n")
+    print(f"✓ Data exported to '{filename}'")
+
 def generate_summary_statistics(df):
     """Generate and display comprehensive summary statistics."""
     print("\n=== SIMULATION SUMMARY STATISTICS ===")
@@ -410,30 +570,36 @@ def main():
     df = preprocess_data(df)
     print(f"Data preprocessing complete. Dataset shape: {df.shape}")
     
-    # Create all visualizations
-    print("\n=== CREATING VISUALIZATIONS ===")
-    create_overview_plot(df)
-    create_proportion_plots(df)
-    create_infection_duration_plot(df)
-    create_sepsis_plot(df)
-    create_death_causes_plot(df)
-    create_resistance_plot(df)
+    # Create grouped visualizations
+    print("\n=== CREATING GROUPED VISUALIZATIONS ===")
+    create_grouped_plots(df)
     
     # Export data and statistics
     export_data_files(df)
+    export_txt_data_file(df)
     generate_summary_statistics(df)
     
     # Summary of generated files
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png']:
+        if Path(fname).exists():
+            print(f"  ✓ {fname}")
+        else:
+            print(f"  ✗ {fname} (not created)")
     for key, filename in OUTPUT_FILES.items():
         if Path(filename).exists():
             print(f"  ✓ {filename}")
         else:
             print(f"  ✗ {filename} (not created)")
+    txt_file = "all_simulation_data.txt"
+    if Path(txt_file).exists():
+        print(f"  ✓ {txt_file}")
+    else:
+        print(f"  ✗ {txt_file} (not created)")
     
-    print("\nRecommendation: Open PNG files for visualizations, CSV files in Excel for data analysis.")
+    print("\nRecommendation: Open grouped PNG files for visualizations, CSV files in Excel for data analysis. The .txt file is human-readable.")
 
 if __name__ == "__main__":
     main()
