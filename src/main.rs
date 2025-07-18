@@ -47,8 +47,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =    30_000 ;
-    let time_steps =  32000  ;  
+    let population_size =   1_000 ;
+    let time_steps =  3650  ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

@@ -16,6 +16,11 @@ pub struct TimeStepSummary {
     pub deaths_background: usize,        // Deaths from background mortality
     pub deaths_sepsis: usize,           // Deaths from sepsis
     pub deaths_drug_toxicity: usize,    // Deaths from drug toxicity
+    // Rolling 1-year (365 days) death counts
+    pub deaths_past_year: usize, // all-cause
+    pub deaths_background_past_year: usize,
+    pub deaths_sepsis_past_year: usize,
+    pub deaths_drug_toxicity_past_year: usize,
     pub total_with_resistance: usize,
     pub total_currently_infected: usize, // Number of living people currently infected with any bacteria
     pub currently_taking_drug_count: usize, // New field
@@ -28,6 +33,8 @@ pub struct TimeStepSummary {
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
     pub newly_infected_count: usize, // Number of people newly infected this time step
+    pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
+    pub currently_infected_and_on_drug_count: usize, // NEW: intersection of currently infected AND on any drug
 }
 
 pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
@@ -127,6 +134,9 @@ impl Simulation {
         for t in 0..self.time_steps {
 //          println!("simulation.rs time step: {}", t);
 
+            // Counter for intersection of currently infected AND on any drug
+            let currently_infected_and_on_drug_count = AtomicUsize::new(0);
+
             // Use previous time step's resistance data for new acquisitions
             let previous_majority_r_positive_values_by_combo = if t == 0 {
                 HashMap::new() // Empty for first time step
@@ -208,6 +218,13 @@ impl Simulation {
                     // Count individuals currently taking a drug
                     if individual.cur_use_drug.iter().any(|&is_using| is_using) {
                         currently_taking_drug_count.fetch_add(1, Ordering::Relaxed);
+                    }
+
+                    // Count individuals who are both currently infected (any bacteria) AND on any drug
+                    let is_on_any_drug = individual.cur_use_drug.iter().any(|&is_using| is_using);
+                    let is_currently_infected = BACTERIA_LIST.iter().enumerate().any(|(b_idx, _)| individual.level[b_idx] > 0.001);
+                    if is_on_any_drug && is_currently_infected {
+                        currently_infected_and_on_drug_count.fetch_add(1, Ordering::Relaxed);
                     }
 
                     // Count individuals infected for >10 days and >30 days
@@ -329,20 +346,6 @@ impl Simulation {
             let infected_10_count = infected_10_days_count.load(Ordering::Relaxed);
             let infected_30_count = infected_30_days_count.load(Ordering::Relaxed);
             
-            // Debug: Always print the values for time steps where we saw issues
-            if t >= 15 && t <= 25 {
-                println!("DEBUG FINAL: Time step {}: infected_10_count={}, infected_30_count={}", 
-                       t, infected_10_count, infected_30_count);
-            }
-            
-            // Validation: 30-day count should never exceed 10-day count
-            if infected_30_count > infected_10_count {
-                println!("*** CRITICAL ERROR DETECTED ***");
-                println!("ERROR at time step {}: infected_30_days_count ({}) > infected_10_days_count ({})", 
-                         t, infected_30_count, infected_10_count);
-                println!("This is logically impossible and indicates a bug in the counting logic.");
-                println!("*** END ERROR REPORT ***");
-            }
             
             let summary = TimeStepSummary {
                 time_step: t,
@@ -365,11 +368,58 @@ impl Simulation {
                 deaths_background: log_deaths_background.load(Ordering::Relaxed),
                 deaths_sepsis: log_deaths_sepsis.load(Ordering::Relaxed),
                 deaths_drug_toxicity: log_deaths_drug_toxicity.load(Ordering::Relaxed),
+                // Rolling 1-year (365 days) death counts
+                deaths_past_year: {
+                    let start = if self.summary_log.len() >= 365 { self.summary_log.len() - 365 } else { 0 };
+                    self.summary_log[start..]
+                        .iter()
+                        .map(|s| s.total_deaths)
+                        .sum::<usize>()
+                        + log_total_deaths.load(Ordering::Relaxed)
+                        - self.summary_log.last().map_or(0, |s| s.total_deaths)
+                },
+                deaths_background_past_year: {
+                    let start = if self.summary_log.len() >= 365 { self.summary_log.len() - 365 } else { 0 };
+                    self.summary_log[start..]
+                        .iter()
+                        .map(|s| s.deaths_background)
+                        .sum::<usize>()
+                        + log_deaths_background.load(Ordering::Relaxed)
+                        - self.summary_log.last().map_or(0, |s| s.deaths_background)
+                },
+                deaths_sepsis_past_year: {
+                    let start = if self.summary_log.len() >= 365 { self.summary_log.len() - 365 } else { 0 };
+                    self.summary_log[start..]
+                        .iter()
+                        .map(|s| s.deaths_sepsis)
+                        .sum::<usize>()
+                        + log_deaths_sepsis.load(Ordering::Relaxed)
+                        - self.summary_log.last().map_or(0, |s| s.deaths_sepsis)
+                },
+                deaths_drug_toxicity_past_year: {
+                    let start = if self.summary_log.len() >= 365 { self.summary_log.len() - 365 } else { 0 };
+                    self.summary_log[start..]
+                        .iter()
+                        .map(|s| s.deaths_drug_toxicity)
+                        .sum::<usize>()
+                        + log_deaths_drug_toxicity.load(Ordering::Relaxed)
+                        - self.summary_log.last().map_or(0, |s| s.deaths_drug_toxicity)
+                },
+                newly_infected_past_year: {
+                    let start = if self.summary_log.len() >= 365 { self.summary_log.len() - 365 } else { 0 };
+                    self.summary_log[start..]
+                        .iter()
+                        .map(|s| s.newly_infected_count)
+                        .sum::<usize>()
+                        + newly_infected_count.load(Ordering::Relaxed)
+                        - self.summary_log.last().map_or(0, |s| s.newly_infected_count)
+                },
+                currently_infected_and_on_drug_count: currently_infected_and_on_drug_count.load(Ordering::Relaxed),
             };
             self.summary_log.push(summary);
 
 
-// /*  per time step printing block
+   /*  per time step printing block
 
             // --- print activity_r for all infected bacteria/drug pairs for individual 0 after update ---
             let individual_0 = &self.population.individuals[0];
@@ -500,7 +550,7 @@ impl Simulation {
 //          self.print_resistance_summary(t);
 
 
-//  */  //  end of per timestep printing block
+    */  //  end of per timestep printing block
 
 
         }
@@ -531,11 +581,11 @@ impl Simulation {
         let mut file = File::create(filename)?;
         
         // Write header
-        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,taking_two_drugs_count,newly_infected_count,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity")?;
+        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year")?;
 
         // Write data
         for summary in &self.summary_log {
-            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -546,12 +596,18 @@ impl Simulation {
                 summary.infected_30_days_count,
                 summary.total_with_resistance,
                 summary.currently_taking_drug_count,
+                summary.currently_infected_and_on_drug_count,
                 summary.taking_two_drugs_count,
                 summary.newly_infected_count,
+                summary.newly_infected_past_year,
                 summary.total_deaths,
                 summary.deaths_background,
                 summary.deaths_sepsis,
                 summary.deaths_drug_toxicity,
+                summary.deaths_past_year,
+                summary.deaths_background_past_year,
+                summary.deaths_sepsis_past_year,
+                summary.deaths_drug_toxicity_past_year,
             )?;
         }
         
