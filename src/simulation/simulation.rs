@@ -35,6 +35,11 @@ pub struct TimeStepSummary {
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
     pub currently_infected_and_on_drug_count: usize, // NEW: intersection of currently infected AND on any drug
+    pub num_age_0_5: usize,
+    pub num_age_6_14: usize,
+    pub num_age_15_49: usize,
+    pub num_age_50_79: usize,
+    pub num_age_80plus: usize,
 }
 
 pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
@@ -342,12 +347,37 @@ impl Simulation {
                 .filter(|individual| individual.age >= 0 && individual.date_of_death.is_none())
                 .count();
 
+
+            // Count living individuals in each age group
+            let (mut num_age_0_5, mut num_age_6_14, mut num_age_15_49, mut num_age_50_79, mut num_age_80plus) = (0, 0, 0, 0, 0);
+            for individual in self.population.individuals.iter() {
+                if individual.date_of_death.is_none() {
+                    let age_years = individual.age as f64 / 365.0;
+                    if age_years >= 0.0 && age_years < 6.0 {
+                        num_age_0_5 += 1;
+                    } else if age_years >= 6.0 && age_years < 15.0 {
+                        num_age_6_14 += 1;
+                    } else if age_years >= 15.0 && age_years < 50.0 {
+                        num_age_15_49 += 1;
+                    } else if age_years >= 50.0 && age_years < 80.0 {
+                        num_age_50_79 += 1;
+                    } else if age_years >= 80.0 {
+                        num_age_80plus += 1;
+                    }
+                }
+            }
+
             // Create summary for this time step
             let infected_10_count = infected_10_days_count.load(Ordering::Relaxed);
             let infected_30_count = infected_30_days_count.load(Ordering::Relaxed);
             
             
             let summary = TimeStepSummary {
+                num_age_0_5,
+                num_age_6_14,
+                num_age_15_49,
+                num_age_50_79,
+                num_age_80plus,
                 time_step: t,
                 total_population: living_population,
                 number_in_hospital: number_in_hospital.load(Ordering::Relaxed),
@@ -581,11 +611,11 @@ impl Simulation {
         let mut file = File::create(filename)?;
         
         // Write header
-        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year")?;
+        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus")?;
 
         // Write data
         for summary in &self.summary_log {
-            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -608,6 +638,11 @@ impl Simulation {
                 summary.deaths_background_past_year,
                 summary.deaths_sepsis_past_year,
                 summary.deaths_drug_toxicity_past_year,
+                summary.num_age_0_5,
+                summary.num_age_6_14,
+                summary.num_age_15_49,
+                summary.num_age_50_79,
+                summary.num_age_80plus,
             )?;
         }
         

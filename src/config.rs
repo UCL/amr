@@ -428,7 +428,7 @@ lazy_static! {
 
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
-        map.insert("sepsis_baseline_odds".to_string(), -9.0); // -7.0  -10.0 Baseline log odds (very low baseline probability)
+        map.insert("sepsis_baseline_odds".to_string(), -9.5); // -7.0  -10.0 Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
@@ -438,7 +438,7 @@ lazy_static! {
         // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
         // These parameters are on the log-odds scale.
-        map.insert("background_mortality_baseline_log_odds".to_string(), -15.0); // Very low base probability (e.g., exp(-16) is tiny)
+        map.insert("background_mortality_baseline_log_odds".to_string(), -14.5); // Very low base probability (e.g., exp(-16) is tiny)
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
         map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0001); // Additional non-linear effect for elderly
 

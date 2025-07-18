@@ -245,17 +245,27 @@ impl Population {
     pub fn new(size: usize) -> Self {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
+
+
+        // Use steady-state prevalence for severe immunosuppression
+        let onset = crate::config::get_global_param("immunosuppression_onset_rate_per_day").unwrap_or(0.00003);
+        let recovery = crate::config::get_global_param("immunosuppression_recovery_rate_per_day").unwrap_or(0.0005);
+        let steady_state_prev = if (onset + recovery) > 0.0 {
+            onset / (onset + recovery)
+        } else {
+            0.0
+        };
+
         for i in 0..size {
-//          let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
-            let age = rng.gen_range(-36500..=36500); // Age range from 0 to 100 years in days - will need to change 0 to -36500
+            let age = rng.gen_range(-36500..=36500);
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             let mut individual = Individual::new(i, age, sex);
             // Randomly set 0.01% to be hospitalized at start
             if rng.gen_bool(0.0001) {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
-            // Randomly set a separate 0.1% to be severely immunosuppressed at start
-            if rng.gen_bool(0.001) {
+            // Set severely immunosuppressed at steady-state prevalence
+            if rng.gen_bool(steady_state_prev as f64) {
                 individual.is_severely_immunosuppressed = true;
             }
             individuals.push(individual);
