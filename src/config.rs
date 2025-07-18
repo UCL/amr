@@ -507,6 +507,11 @@ lazy_static! {
         //  Default Toxicity Parameter
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
 
+        //  Probability per day of death due to adverse drug effect (toxicity)
+        //  This is the baseline daily risk of death for an individual experiencing drug toxicity.
+        //  You can tune this value to make drug toxicity more or less lethal.
+        map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.001); // 0.1% daily risk by default
+
         //  Default Microbiome Acquisition Parameter
         // A multiplier for the infection acquisition probability to get microbiome acquisition probability.
         // If > 1.0, microbiome acquisition is more likely than infection for the same factors.

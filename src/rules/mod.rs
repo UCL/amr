@@ -711,9 +711,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         for drug_idx in 0..DRUG_SHORT_NAMES.len() {
             let drug_name = DRUG_SHORT_NAMES[drug_idx];
             if individual.cur_level_drug[drug_idx] > 0.0 {
-                let drug_adverse_event_risk = get_drug_param(drug_name, "adverse_event_death_risk")
-                    .unwrap_or(0.0);
-                drug_adverse_event_risk_for_individual = (drug_adverse_event_risk_for_individual + drug_adverse_event_risk).min(1.0);
+                // Use only the global config parameter for drug toxicity death risk
+                let drug_toxicity_death_risk = get_global_param("drug_toxicity_death_risk_per_day").unwrap_or(0.0);
+                drug_adverse_event_risk_for_individual = (drug_adverse_event_risk_for_individual + drug_toxicity_death_risk).min(1.0);
             }
         }
         individual.mortality_risk_current_toxicity = drug_adverse_event_risk_for_individual;
