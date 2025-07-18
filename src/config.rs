@@ -12,7 +12,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.000005); // 0.00001
+            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.000002); // 0.00001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
@@ -24,8 +24,8 @@ lazy_static! {
             map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
             map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
             map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.1); // 0.005 / 0.05 is strong effect
-            map.insert(format!("{}_immunity_base_response", bacteria), 0.1); // 0.001
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.08); // 0.1  0.005 / 0.05 is strong effect
+            map.insert(format!("{}_immunity_base_response", bacteria), 0.03); // 0.01  0.001
             map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
             map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.1);
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
@@ -164,7 +164,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // Default low potency
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.8);
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.001);
             }
         }
 
@@ -428,7 +428,7 @@ lazy_static! {
 
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
-        map.insert("sepsis_baseline_odds".to_string(), -7.0); // -10.0 Baseline log odds (very low baseline probability)
+        map.insert("sepsis_baseline_odds".to_string(), -9.0); // -7.0  -10.0 Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
@@ -438,7 +438,7 @@ lazy_static! {
         // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
         // These parameters are on the log-odds scale.
-        map.insert("background_mortality_baseline_log_odds".to_string(), -12.0); // Very low base probability (e.g., exp(-16) is tiny)
+        map.insert("background_mortality_baseline_log_odds".to_string(), -15.0); // Very low base probability (e.g., exp(-16) is tiny)
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
         map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0001); // Additional non-linear effect for elderly
 
@@ -1116,10 +1116,10 @@ lazy_static! {
         let mut map = HashMap::new();
         
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 0);      // 1937 (simulation start)
+        map.insert("sulfanilamide", 100000);      // 0   1937 (simulation start)
         
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 1825);     // 1942 (5 * 365)
+        map.insert("penicilling", 1000);     // 1825    1942 (5 * 365)
         map.insert("ampicillin", 8760);      // 1961 (24 * 365)
         map.insert("amoxicillin", 12775);    // 1972 (35 * 365)
         map.insert("piperacillin", 16060);   // 1981 (44 * 365)
