@@ -5,21 +5,27 @@ mod rules;
 mod config;
 
 //
+// consider why the increase over time in background mortality for first 40 years - check the age distributuion 
+//
 // infection acquisition and bacteria acquisition in microbiome may need logistic models
+//
+// consider having new infection rate per bacteria dependent on proportion of population infected with that bacteria
 //
 // set up automated testing for the simulation (probably not yet though)
 //
 // risk of hospitalization may need logistic model
 //
-// ask for summary log with number of people, timesteps and time taken and time per 10,000 people per 365 days
-// must not overwrite - we want to store these on one growing log 
+// think whether want the increased risk of death in hospitalized (and immunosuppressed) but probably fine as is
 //
 // think about level of any_r when resistance first appears - and do we want to model
 // a sequence of events that leads to gradual increase in any_r
 //
-// add drug specific drug introduction dates
-//
 // run model for the world to get idea of parameter values for rate of first appearance of resistance
+//
+// calibration data: approx drug usage per 100_000 per calendar year 
+//                   incidence of infection with each bacteria by age and calendar year
+//                   deaths from each bacteria per 100_000 by age and calendar year
+//                   resistance distribution for each used drug for each bacteria by calendar year  
 //
 // decide on time zero for mda azithromycin project
 //
@@ -27,11 +33,6 @@ mod config;
 // for azithromycin mda project
 //
 // for mda project can base in africa with an "other" region all groued together
-//
-// calibration data: approx drug usage per 100_000 per calendar year 
-//                   incidence of infection with each bacteria by age and calendar year
-//                   deaths from each bacteria per 100_000 by age and calendar year
-//                   resistance distribution for each used drug for each bacteria by calendar year  
 //
 // to(maybe)do: perhaps introduce an effect whereby drug treatment leads to an increase in risk of microbiome_r > 0 due to   
 //              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug 
@@ -48,7 +49,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =   3_000 ;
-    let time_steps =  320 ;  
+    let time_steps =  3650 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

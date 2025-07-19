@@ -428,7 +428,7 @@ lazy_static! {
 
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
-        map.insert("sepsis_baseline_odds".to_string(), -9.5); // -7.0  -10.0 Baseline log odds (very low baseline probability)
+        map.insert("sepsis_baseline_odds".to_string(), -10.0); // -10.0 Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
@@ -440,7 +440,7 @@ lazy_static! {
         // These parameters are on the log-odds scale.
         map.insert("background_mortality_baseline_log_odds".to_string(), -14.5); // Very low base probability (e.g., exp(-16) is tiny)
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
-        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0001); // Additional non-linear effect for elderly
+        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.00005); // Additional non-linear effect for elderly
 
         // Region-specific log-odds adjustments. ln(1.0) = 0.
         map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
@@ -463,7 +463,7 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00003);   // Probability of becoming immunosuppressed daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00006);   // Probability of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
 
 
@@ -510,7 +510,7 @@ lazy_static! {
         //  Probability per day of death due to adverse drug effect (toxicity)
         //  This is the baseline daily risk of death for an individual experiencing drug toxicity.
         //  You can tune this value to make drug toxicity more or less lethal.
-        map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.001); // 0.1% daily risk by default
+        map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.0003); // 0.1% daily risk by default
 
         //  Default Microbiome Acquisition Parameter
         // A multiplier for the infection acquisition probability to get microbiome acquisition probability.

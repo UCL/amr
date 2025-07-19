@@ -151,10 +151,11 @@ impl Simulation {
             };
 
             // Initialize counters and data structures for this time step
+            // Remove HashMaps for per-bacteria/drug counts; use arrays for speed
             let mut new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
-            let mut current_infected_counts_with_majority_r: HashMap<(usize, usize), usize> = HashMap::new();
-            let mut current_infected_counts_total: HashMap<usize, usize> = HashMap::new();
-            let mut _individuals_with_any_bacterial_infection = 0;
+            let log_majority_r_positive_counts: Vec<Vec<AtomicUsize>> = (0..BACTERIA_LIST.len())
+                .map(|_| (0..DRUG_SHORT_NAMES.len()).map(|_| AtomicUsize::new(0)).collect())
+                .collect();
 
             // All counters use AtomicUsize for thread-safe parallel processing
             let log_infections_by_bacteria: Vec<AtomicUsize> = (0..BACTERIA_LIST.len()).map(|_| AtomicUsize::new(0)).collect();
@@ -256,16 +257,17 @@ impl Simulation {
                                 was_newly_infected = true;
                             }
 
-                            // Count resistance
-                            for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
-                                let resistance_data = &individual.resistances[b_idx][d_idx];
-                                if resistance_data.majority_r > 0.0 {
-                                    log_resistance_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
-                                }
-                                if resistance_data.any_r > 0.0 {
-                                    individual_has_any_r_positive = true;
-                                }
-                            }
+                // Count resistance
+                for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
+                    let resistance_data = &individual.resistances[b_idx][d_idx];
+                    if resistance_data.majority_r > 0.0 {
+                        log_resistance_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
+                        log_majority_r_positive_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
+                    }
+                    if resistance_data.any_r > 0.0 {
+                        individual_has_any_r_positive = true;
+                    }
+                }
                         }
                     }
                     
@@ -312,32 +314,7 @@ impl Simulation {
             });
 
             // Collect remaining statistics that need sequential access
-            for individual in self.population.individuals.iter() {
-                let region_idx = individual.region_cur_in as usize;
-                let hospital_status_bool = individual.hospital_status.is_hospitalized();
-
-                // Only count if individual is alive
-                let is_alive = individual.date_of_death.is_none();
-
-                if is_alive {
-                    for (b_idx, &_bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                        if individual.level[b_idx] > 0.001 {
-                            *current_infected_counts_total.entry(b_idx).or_insert(0) += 1;
-
-                            for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                                let resistance_data = &individual.resistances[b_idx][d_idx];
-                                if resistance_data.majority_r > 0.0 {
-                                    new_majority_r_positive_values_by_combo
-                                        .entry((region_idx, hospital_status_bool, b_idx, d_idx))
-                                        .or_insert_with(Vec::new)
-                                        .push(resistance_data.majority_r);
-                                    *current_infected_counts_with_majority_r.entry((b_idx, d_idx)).or_insert(0) += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // No need for sequential pass for per-bacteria/drug majority_r counts
 
             // Store for next iteration
             self.current_majority_r_positive_values_by_combo = new_majority_r_positive_values_by_combo;
@@ -373,6 +350,8 @@ impl Simulation {
             
             
             let summary = TimeStepSummary {
+                // Optionally, you can add a new field to TimeStepSummary to export these counts if desired
+                // Example: majority_r_positive_by_bacteria_drug: log_majority_r_positive_counts.iter().map(|row| row.iter().map(|x| x.load(Ordering::Relaxed)).collect()).collect(),
                 num_age_0_5,
                 num_age_6_14,
                 num_age_15_49,
