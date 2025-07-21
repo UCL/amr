@@ -257,11 +257,11 @@ impl Population {
         };
 
         for i in 0..size {
-            let age = rng.gen_range(-36500..=36500);
+            let age = rng.gen_range(-36500..=32850);
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
             let mut individual = Individual::new(i, age, sex);
-            // Randomly set 0.01% to be hospitalized at start
-            if rng.gen_bool(0.0001) {
+            // Randomly set 0.005% to be hospitalized at start
+            if rng.gen_bool(0.00005) {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
             // Set severely immunosuppressed at steady-state prevalence

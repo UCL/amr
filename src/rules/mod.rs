@@ -561,61 +561,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
     // --- death     
 
-    // todo: review this update rule
-    // e.g. death rate by age will be higher at very young age in africa
 
-    // if individual.date_of_death.is_none() {
-    //     let mut cause: Option<String> = None;
-    //     let base_background_rate = get_global_param("base_background_mortality_rate_per_day")
-    //         .expect("Missing base_background_mortality_rate_per_day in config");
-    //     let age_multiplier = get_global_param("age_mortality_multiplier_per_year")
-    //         .expect("Missing age_mortality_multiplier_per_year in config");
-    //     let mut background_risk = base_background_rate;
-        
-    //     // Age effects (linear and non-linear for very elderly)
-    //     let age_years = individual.age as f64 / 365.0;
-    //     let age_linear_effect = age_years * age_multiplier;
-    //     background_risk *= age_linear_effect;
-        
-    //     // Non-linear age effect for very elderly (age squared effect)
-    //     let age_squared_multiplier = get_global_param("age_squared_mortality_multiplier").unwrap_or(0.0);
-    //     if age_years > 65.0 {
-    //         let age_squared_effect = (age_years - 65.0).powi(2) * age_squared_multiplier;
-    //         background_risk *= age_squared_effect;
-    //     }
-        
-    //     // Regional mortality effects
-    //     let region_multiplier_key = format!("{}_mortality_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
-    //     let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0);
-        
-    //     background_risk *= region_multiplier;
-        
-    //     // Sex-specific mortality differences
-    //     let sex_multiplier_key = format!("{}_mortality_multiplier", individual.sex_at_birth.to_lowercase());
-    //     let sex_multiplier = get_global_param(&sex_multiplier_key).unwrap_or(1.0);
-    //     background_risk *= sex_multiplier;
-        
-    //     // Immunosuppression effect on background mortality
-    //     if individual.is_severely_immunosuppressed {
-    //         let immunosuppressed_multiplier = get_global_param("immunosuppressed_mortality_multiplier").unwrap_or(1.0);
-    //         background_risk *= immunosuppressed_multiplier;
-    //     }
-        
-    //     // Hospital status as proxy for comorbidities and acute illness
-    //     if matches!(individual.hospital_status, HospitalStatus::InHospital) {
-    //         let hospital_multiplier = get_global_param("hospital_mortality_multiplier").unwrap_or(1.0);
-    //         background_risk *= hospital_multiplier;
-    //     }
-        
-    //     individual.background_all_cause_mortality_rate = background_risk.min(1.0);
-    //     let mut prob_not_dying = 1.0 - background_risk;
-
-
-
-
-
-
-    
     if individual.date_of_death.is_none() {
         let mut cause: Option<String> = None;
 
@@ -633,10 +579,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         total_log_odds += age_years * log_odds_per_year;
 
         // Non-linear age effect for very elderly
-        if age_years > 65.0 {
+        if age_years > 80.0 {
             let log_odds_age_squared = get_global_param("log_odds_mortality_per_year_of_age_squared")
                 .unwrap_or(0.0);
-            total_log_odds += (age_years - 65.0).powi(2) * log_odds_age_squared;
+            total_log_odds += (age_years - 80.0).powi(2) * log_odds_age_squared;
         }
 
         // Regional effects
@@ -662,10 +608,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
        
         individual.background_all_cause_mortality_rate = background_risk.min(1.0);
         let mut prob_not_dying = 1.0 - background_risk;
-
-
-
-
 
 
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
@@ -730,6 +672,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         }
     }
     // --- death logic end   
+
 
     // --- sepsis recovery logic (applied after death risk, only if individual is alive) ---
     if individual.date_of_death.is_none() {
@@ -805,61 +748,106 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let is_infected = individual.level[b_idx] > 0.001;
 
         if !is_infected {
-            // --- bacteria-specific acquisition probability ---
-            let mut acquisition_probability = get_bacteria_param(bacteria, "acquisition_prob_baseline").unwrap_or(0.01);
+            // --- Logistic model for bacteria acquisition probability ---
+            // All risk factors contribute additively to log-odds, then logistic function is applied.
+            let mut log_odds = get_bacteria_param(bacteria, "acquisition_log_odds_baseline").unwrap_or_else(|| get_global_param("acquisition_log_odds_baseline").unwrap_or(-4.0));
 
-            // apply contact level modifiers dynamically
-            let sexual_contact_multiplier = get_bacteria_param(bacteria, "sexual_contact_acq_rate_ratio_per_unit").unwrap_or(1.0);
-            let airborne_adult_contact_multiplier = get_bacteria_param(bacteria, "adult_contact_acq_rate_ratio_per_unit").unwrap_or(1.0);
-            let airborne_child_contact_multiplier = get_bacteria_param(bacteria, "child_contact_acq_rate_ratio_per_unit").unwrap_or(1.0);
-            let oral_exposure_multiplier = get_bacteria_param(bacteria, "oral_exposure_acq_rate_ratio_per_unit").unwrap_or(1.0);
-            let mosquito_exposure_multiplier = get_bacteria_param(bacteria, "mosquito_exposure_acq_rate_ratio_per_unit").unwrap_or(1.0);
+            // Contact/exposure log-odds coefficients (per unit contact)
+            let log_odds_sexual_contact = get_bacteria_param(bacteria, "log_odds_sexual_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_sexual_contact_per_unit").unwrap_or(0.0));
+            let log_odds_airborne_adult = get_bacteria_param(bacteria, "log_odds_airborne_adult_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_adult_contact_per_unit").unwrap_or(0.0));
+            let log_odds_airborne_child = get_bacteria_param(bacteria, "log_odds_airborne_child_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_child_contact_per_unit").unwrap_or(0.0));
+            let log_odds_oral_exposure = get_bacteria_param(bacteria, "log_odds_oral_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_oral_exposure_per_unit").unwrap_or(0.0));
+            let log_odds_mosquito_exposure = get_bacteria_param(bacteria, "log_odds_mosquito_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_mosquito_exposure_per_unit").unwrap_or(0.0));
 
-            acquisition_probability *= sexual_contact_multiplier.powf(individual.sexual_contact_level);
-            acquisition_probability *= airborne_adult_contact_multiplier.powf(individual.airborne_contact_level_with_adults);
-            acquisition_probability *= airborne_child_contact_multiplier.powf(individual.airborne_contact_level_with_children);
-            acquisition_probability *= oral_exposure_multiplier.powf(individual.oral_exposure_level);
-            acquisition_probability *= mosquito_exposure_multiplier.powf(individual.mosquito_exposure_level);
+            log_odds += individual.sexual_contact_level * log_odds_sexual_contact;
+            log_odds += individual.airborne_contact_level_with_adults * log_odds_airborne_adult;
+            log_odds += individual.airborne_contact_level_with_children * log_odds_airborne_child;
+            log_odds += individual.oral_exposure_level * log_odds_oral_exposure;
+            log_odds += individual.mosquito_exposure_level * log_odds_mosquito_exposure;
 
-            // apply vaccination status effect dynamically
+            // Vaccination status (binary effect)
             if individual.vaccination_status[b_idx] {
-                let vaccine_efficacy = get_bacteria_param(bacteria, "vaccine_efficacy").unwrap_or(0.0);
-                acquisition_probability *= 1.0 - vaccine_efficacy;
+                let log_odds_vaccinated = get_bacteria_param(bacteria, "log_odds_vaccinated").unwrap_or_else(|| get_global_param("log_odds_vaccinated").unwrap_or(0.0));
+                log_odds += log_odds_vaccinated;
             }
 
-            // microbiome presence effect
+            // Microbiome presence effect
             if individual.presence_microbiome[b_idx] {
-                let microbiome_infection_multiplier = get_bacteria_param(bacteria, "microbiome_infection_acquisition_multiplier")
-                    .unwrap_or_else(|| get_global_param("default_microbiome_infection_acquisition_multiplier").expect("Missing default_microbiome_infection_acquisition_multiplier in config"));
-                acquisition_probability *= microbiome_infection_multiplier;
+                let log_odds_microbiome = get_bacteria_param(bacteria, "log_odds_microbiome_present").unwrap_or_else(|| get_global_param("log_odds_microbiome_present").unwrap_or(0.0));
+                log_odds += log_odds_microbiome;
             }
 
-            // hospital-acquired multiplier (only if in hospital)
+            // Hospital-acquired effect
             if individual.hospital_status.is_hospitalized() {
-                let hospital_multiplier = get_bacteria_param(bacteria, "hospital_acquired_multiplier").unwrap_or(1.0);
-                acquisition_probability *= hospital_multiplier;
+                let log_odds_hospital = get_bacteria_param(bacteria, "log_odds_hospital_acquired").unwrap_or_else(|| get_global_param("log_odds_hospital_acquired").unwrap_or(0.0));
+                log_odds += log_odds_hospital;
             }
 
-            // age-based infection risk multiplier
-            let age_multiplier = get_age_infection_multiplier(bacteria, individual.age);
-            acquisition_probability *= age_multiplier;
+            // Age-based effect (can be a function or coefficient)
+            let log_odds_age = get_age_infection_multiplier(bacteria, individual.age); // If this returns log-odds, otherwise replace with appropriate function
+            log_odds += log_odds_age;
 
-            // region-specific bacterial infection risk multiplier
+            // Region-specific effect
             let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-            let region_bacteria_multiplier_key = format!("{}_{}_infection_risk_multiplier", region_name_for_param, bacteria.replace(" ", "_"));
-            let region_bacteria_multiplier = get_global_param(&region_bacteria_multiplier_key)
+            let region_bacteria_log_odds_key = format!("{}_{}_acquisition_log_odds", region_name_for_param, bacteria.replace(" ", "_"));
+            let region_bacteria_log_odds = get_global_param(&region_bacteria_log_odds_key)
                 .unwrap_or_else(|| {
-                    // If specific region-bacteria combination not found, try default for this region
-                    let default_region_key = format!("{}_infection_risk_multiplier_default", region_name_for_param);
-                    get_global_param(&default_region_key).unwrap_or(1.0)  // Default to 1.0 if no region-specific multiplier found
+                    let default_region_key = format!("{}_acquisition_log_odds_default", region_name_for_param);
+                    get_global_param(&default_region_key).unwrap_or(0.0)
                 });
-            acquisition_probability *= region_bacteria_multiplier;
+            log_odds += region_bacteria_log_odds;
+
+            // Convert log-odds to probability
+            let acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
 
             // --- microbiome presence (Carriage) ---
             if !individual.presence_microbiome[b_idx] {
-                let microbiome_acquisition_multiplier = get_bacteria_param(bacteria, "microbiome_acquisition_multiplier")
-                    .unwrap_or_else(|| get_global_param("default_microbiome_acquisition_multiplier").expect("Missing default_microbiome_acquisition_multiplier in config"));
-                let microbiome_acquisition_probability = acquisition_probability * microbiome_acquisition_multiplier;
+                // --- Logistic model for microbiome acquisition probability ---
+                // All risk factors contribute additively to log-odds, then logistic function is applied.
+                let mut log_odds = get_bacteria_param(bacteria, "microbiome_acquisition_log_odds_baseline").unwrap_or_else(|| get_global_param("microbiome_acquisition_log_odds_baseline").unwrap_or(-4.0));
+
+                // Contact/exposure log-odds coefficients (per unit contact)
+                let log_odds_sexual_contact = get_bacteria_param(bacteria, "microbiome_log_odds_sexual_contact_per_unit").unwrap_or_else(|| get_global_param("microbiome_log_odds_sexual_contact_per_unit").unwrap_or(0.0));
+                let log_odds_airborne_adult = get_bacteria_param(bacteria, "microbiome_log_odds_airborne_adult_contact_per_unit").unwrap_or_else(|| get_global_param("microbiome_log_odds_airborne_adult_contact_per_unit").unwrap_or(0.0));
+                let log_odds_airborne_child = get_bacteria_param(bacteria, "microbiome_log_odds_airborne_child_contact_per_unit").unwrap_or_else(|| get_global_param("microbiome_log_odds_airborne_child_contact_per_unit").unwrap_or(0.0));
+                let log_odds_oral_exposure = get_bacteria_param(bacteria, "microbiome_log_odds_oral_exposure_per_unit").unwrap_or_else(|| get_global_param("microbiome_log_odds_oral_exposure_per_unit").unwrap_or(0.0));
+                let log_odds_mosquito_exposure = get_bacteria_param(bacteria, "microbiome_log_odds_mosquito_exposure_per_unit").unwrap_or_else(|| get_global_param("microbiome_log_odds_mosquito_exposure_per_unit").unwrap_or(0.0));
+
+                log_odds += individual.sexual_contact_level * log_odds_sexual_contact;
+                log_odds += individual.airborne_contact_level_with_adults * log_odds_airborne_adult;
+                log_odds += individual.airborne_contact_level_with_children * log_odds_airborne_child;
+                log_odds += individual.oral_exposure_level * log_odds_oral_exposure;
+                log_odds += individual.mosquito_exposure_level * log_odds_mosquito_exposure;
+
+                // Vaccination status (binary effect)
+                if individual.vaccination_status[b_idx] {
+                    let log_odds_vaccinated = get_bacteria_param(bacteria, "microbiome_log_odds_vaccinated").unwrap_or_else(|| get_global_param("microbiome_log_odds_vaccinated").unwrap_or(0.0));
+                    log_odds += log_odds_vaccinated;
+                }
+
+                // Hospital-acquired effect
+                if individual.hospital_status.is_hospitalized() {
+                    let log_odds_hospital = get_bacteria_param(bacteria, "microbiome_log_odds_hospital_acquired").unwrap_or_else(|| get_global_param("microbiome_log_odds_hospital_acquired").unwrap_or(0.0));
+                    log_odds += log_odds_hospital;
+                }
+
+                // Age-based effect (can be a function or coefficient)
+                let log_odds_age = get_age_infection_multiplier(bacteria, individual.age); // If this returns log-odds, otherwise replace with appropriate function
+                log_odds += log_odds_age;
+
+                // Region-specific effect
+                let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
+                let region_bacteria_log_odds_key = format!("{}_{}_microbiome_acquisition_log_odds", region_name_for_param, bacteria.replace(" ", "_"));
+                let region_bacteria_log_odds = get_global_param(&region_bacteria_log_odds_key)
+                    .unwrap_or_else(|| {
+                        let default_region_key = format!("{}_microbiome_acquisition_log_odds_default", region_name_for_param);
+                        get_global_param(&default_region_key).unwrap_or(0.0)
+                    });
+                log_odds += region_bacteria_log_odds;
+
+                // Convert log-odds to probability
+                let microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+
                 if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
                     individual.presence_microbiome[b_idx] = true;
 

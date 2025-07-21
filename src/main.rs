@@ -5,7 +5,7 @@ mod rules;
 mod config;
 
 //
-// consider why the increase over time in background mortality for first 40 years - check the age distributuion 
+// fix risk of hospitalization
 //
 // infection acquisition and bacteria acquisition in microbiome may need logistic models
 //
@@ -48,8 +48,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =   3_000 ;
-    let time_steps =  3650 ;  
+    let population_size =  3_000 ;
+    let time_steps = 1000 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

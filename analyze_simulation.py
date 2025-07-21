@@ -104,6 +104,13 @@ def load_simulation_data(csv_file=CSV_INPUT):
     return df
 
 def preprocess_data(df):
+    # Age group proportions
+    if 'num_age_0_5' in df.columns and 'total_population' in df.columns:
+        df['prop_age_0_5'] = safe_divide(df['num_age_0_5'], df['total_population'])
+        df['prop_age_6_14'] = safe_divide(df['num_age_6_14'], df['total_population'])
+        df['prop_age_15_49'] = safe_divide(df['num_age_15_49'], df['total_population'])
+        df['prop_age_50_79'] = safe_divide(df['num_age_50_79'], df['total_population'])
+        df['prop_age_80plus'] = safe_divide(df['num_age_80plus'], df['total_population'])
     # Proportion of currently infected who are on drug
     if 'currently_infected_and_on_drug_count' in df.columns and 'total_currently_infected' in df.columns:
         df['infected_and_on_drug_proportion'] = safe_divide(df['currently_infected_and_on_drug_count'], df['total_currently_infected'])
@@ -200,10 +207,12 @@ def create_grouped_plots(df):
     fig2.suptitle('Grouped Figure 2: New Infections, Durations, Sepsis, Past-Year Deaths', fontsize=16)
     # 1. Newly Infected in the Past Year as Proportion of Living Population
     if 'newly_infected_past_year_proportion' in df.columns:
-        axes2[0].plot(df['time_in_years'], df['newly_infected_past_year_proportion'], color='teal', linewidth=2)
+        mask = df['time_in_years'] >= 1.0
+        axes2[0].plot(df['time_in_years'][mask], df['newly_infected_past_year_proportion'][mask], color='teal', linewidth=2)
         axes2[0].set_title('Newly Infected in the Past Year (as Proportion of Living Population)')
         axes2[0].set_ylabel('Proportion of Population')
         axes2[0].set_ylim(bottom=0)
+        axes2[0].set_xlim(left=0)
         axes2[0].grid(True, alpha=0.3)
     else:
         axes2[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
@@ -241,13 +250,15 @@ def create_grouped_plots(df):
         'deaths_drug_toxicity_past_year',
     ]
     if all(col in df.columns for col in required_cols):
-        axes2[3].plot(df['time_in_years'], df['deaths_past_year_proportion'], label='All-cause', color='black', linewidth=2)
-        axes2[3].plot(df['time_in_years'], df['deaths_background_past_year_proportion'], label='Background', color='gray', linewidth=2)
-        axes2[3].plot(df['time_in_years'], df['deaths_sepsis_past_year_proportion'], label='Sepsis', color='red', linewidth=2)
-        axes2[3].plot(df['time_in_years'], df['deaths_drug_toxicity_past_year_proportion'], label='Drug Toxicity', color='orange', linewidth=2)
+        mask = df['time_in_years'] >= 1.0
+        axes2[3].plot(df['time_in_years'][mask], df['deaths_past_year_proportion'][mask], label='All-cause', color='black', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], df['deaths_background_past_year_proportion'][mask], label='Background', color='gray', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], df['deaths_sepsis_past_year_proportion'][mask], label='Sepsis', color='red', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], df['deaths_drug_toxicity_past_year_proportion'][mask], label='Drug Toxicity', color='orange', linewidth=2)
         axes2[3].set_title('Deaths in the Past Year (as Proportion of Living Population)')
         axes2[3].set_xlabel('Time (Years)')
         axes2[3].set_ylabel('Proportion of Population')
+        axes2[3].set_xlim(left=0)
         axes2[3].legend()
         axes2[3].grid(True, alpha=0.3)
     else:
@@ -291,10 +302,39 @@ def create_grouped_plots(df):
         axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
         axes3[1].set_axis_off()
 
-    # Fill remaining subplots with 'No data'
-    for i in range(2, 4):
-        axes3[i].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
-        axes3[i].set_axis_off()
+    # 3. Proportion of living people in each age group
+    age_group_cols = [
+        ('prop_age_0_5', '0-5'),
+        ('prop_age_6_14', '6-14'),
+        ('prop_age_15_49', '15-49'),
+        ('prop_age_50_79', '50-79'),
+        ('prop_age_80plus', '80+')
+    ]
+    if all(col in df.columns for col, _ in age_group_cols):
+        for col, label in age_group_cols:
+            axes3[2].plot(df['time_in_years'], df[col], label=label)
+        axes3[2].set_xlabel('Time (Years)')
+        axes3[2].set_ylabel('Proportion of Living Population')
+        axes3[2].set_title('Proportion of Living Population in Each Age Group')
+        axes3[2].set_ylim(0, 1)
+        axes3[2].legend()
+        axes3[2].grid(True, alpha=0.3)
+    else:
+        axes3[2].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
+        axes3[2].set_axis_off()
+
+    # 4. Proportion of people with any bacteria in their microbiome
+    if 'num_with_any_bacteria_microbiome' in df.columns and 'total_population' in df.columns:
+        df['any_microbiome_proportion'] = df['num_with_any_bacteria_microbiome'] / df['total_population']
+        axes3[3].plot(df['time_in_years'], df['any_microbiome_proportion'], color='purple', linewidth=2)
+        axes3[3].set_xlabel('Time (Years)')
+        axes3[3].set_ylabel('Proportion of Population')
+        axes3[3].set_title('Proportion with Any Bacteria in Microbiome')
+        axes3[3].set_ylim(0, 1)
+        axes3[3].grid(True, alpha=0.3)
+    else:
+        axes3[3].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
+        axes3[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig('grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     print("✓ Grouped figure 3 saved as 'grouped_figure_3.png'")

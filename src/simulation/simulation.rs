@@ -40,6 +40,7 @@ pub struct TimeStepSummary {
     pub num_age_15_49: usize,
     pub num_age_50_79: usize,
     pub num_age_80plus: usize,
+    pub num_with_any_bacteria_microbiome: usize, // NEW: number of people with any presence_microbiome=true
 }
 
 pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
@@ -142,6 +143,9 @@ impl Simulation {
             // Counter for intersection of currently infected AND on any drug
             let currently_infected_and_on_drug_count = AtomicUsize::new(0);
 
+            // NEW: Counter for people with any presence_microbiome=true
+            let num_with_any_bacteria_microbiome = AtomicUsize::new(0);
+
             // Use previous time step's resistance data for new acquisitions
             let previous_majority_r_positive_values_by_combo = if t == 0 {
                 HashMap::new() // Empty for first time step
@@ -221,6 +225,10 @@ impl Simulation {
 
                 // Only collect statistics for alive individuals
                 if individual.date_of_death.is_none() {
+                    // NEW: Check if any presence_microbiome is true
+                    if individual.presence_microbiome.iter().any(|&x| x) {
+                        num_with_any_bacteria_microbiome.fetch_add(1, Ordering::Relaxed);
+                    }
                     // Count individuals currently taking a drug
                     if individual.cur_use_drug.iter().any(|&is_using| is_using) {
                         currently_taking_drug_count.fetch_add(1, Ordering::Relaxed);
@@ -357,6 +365,7 @@ impl Simulation {
                 num_age_15_49,
                 num_age_50_79,
                 num_age_80plus,
+                num_with_any_bacteria_microbiome: num_with_any_bacteria_microbiome.load(Ordering::Relaxed),
                 time_step: t,
                 total_population: living_population,
                 number_in_hospital: number_in_hospital.load(Ordering::Relaxed),
@@ -590,11 +599,11 @@ impl Simulation {
         let mut file = File::create(filename)?;
         
         // Write header
-        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus")?;
+        writeln!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome")?;
 
         // Write data
         for summary in &self.summary_log {
-            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            writeln!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -622,6 +631,7 @@ impl Simulation {
                 summary.num_age_15_49,
                 summary.num_age_50_79,
                 summary.num_age_80plus,
+                summary.num_with_any_bacteria_microbiome,
             )?;
         }
         

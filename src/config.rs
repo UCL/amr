@@ -12,7 +12,6 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_acquisition_prob_baseline", bacteria), 0.000002); // 0.00001
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
@@ -348,6 +347,31 @@ lazy_static! {
         map.insert("random_drug_cessation_probability".to_string(), 0.03); // Probability an individual randomly stops a drug per day
 
         // General Acquisition & Resistance Parameters
+        // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
+        // Infection acquisition (site infection)
+        map.insert("acquisition_log_odds_baseline".to_string(), -14.0); // -14.0 Default baseline log-odds for infection acquisition
+        map.insert("log_odds_sexual_contact_per_unit".to_string(), 0.10); // Per unit sexual contact
+        map.insert("log_odds_airborne_adult_contact_per_unit".to_string(), 0.08); // Per unit airborne adult contact
+        map.insert("log_odds_airborne_child_contact_per_unit".to_string(), 0.08); // Per unit airborne child contact
+        map.insert("log_odds_oral_exposure_per_unit".to_string(), 0.06); // Per unit oral exposure
+        map.insert("log_odds_mosquito_exposure_per_unit".to_string(), 0.12); // Per unit mosquito exposure
+        map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
+        map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
+        map.insert("log_odds_hospital_acquired".to_string(), 1.0); // Hospital-acquired effect
+        // Example region default (can be overridden per region)
+        map.insert("north_america_bacteria_acquisition_log_odds_default".to_string(), 0.0);
+
+        // Microbiome acquisition
+        map.insert("microbiome_acquisition_log_odds_baseline".to_string(), -12.0); // -6.0 Default baseline log-odds for microbiome acquisition
+        map.insert("microbiome_log_odds_sexual_contact_per_unit".to_string(), 0.08);
+        map.insert("microbiome_log_odds_airborne_adult_contact_per_unit".to_string(), 0.06);
+        map.insert("microbiome_log_odds_airborne_child_contact_per_unit".to_string(), 0.06);
+        map.insert("microbiome_log_odds_oral_exposure_per_unit".to_string(), 0.05);
+        map.insert("microbiome_log_odds_mosquito_exposure_per_unit".to_string(), 0.10);
+        map.insert("microbiome_log_odds_vaccinated".to_string(), -1.5);
+        map.insert("microbiome_log_odds_hospital_acquired".to_string(), 0.8);
+        // Example region default (can be overridden per region)
+        map.insert("north_america_microbiome_acquisition_log_odds_default".to_string(), 0.0);
         // this two below will need to change over calendar time - for the hospital acquired may decide to sample from 
         // majority_r of people in hospital with the bacteria  
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.0);
@@ -382,10 +406,10 @@ lazy_static! {
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)        
 
         // Hospitalization Parameters
-        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000001); // 0.00001  Baseline daily probability of hospitalization
-        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000001); // Increase in daily hospitalization probability per year of age
-        map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // Daily probability of recovering from hospitalization
-        map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
+        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000001); // 0.0000001  Baseline daily probability of hospitalization
+        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000001); // 0.0000001  Increase in daily hospitalization probability per year of age
+        map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // 0.2  Daily probability of recovering from hospitalization
+        map.insert("hospitalization_max_days".to_string(), 30.0); // 30.0  Max days in hospital before forced discharge (as fallback)
 
         // initiate travel
         map.insert("travel_probability_per_day".to_string(), 0.00005);
@@ -439,8 +463,8 @@ lazy_static! {
 
         // These parameters are on the log-odds scale.
         map.insert("background_mortality_baseline_log_odds".to_string(), -14.5); // Very low base probability (e.g., exp(-16) is tiny)
-        map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
-        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.00005); // Additional non-linear effect for elderly
+        map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // 0.04  Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
+        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.05); // 0.0005  Additional non-linear effect for elderly
 
         // Region-specific log-odds adjustments. ln(1.0) = 0.
         map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
@@ -463,12 +487,12 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00006);   // Probability of becoming immunosuppressed daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00006);   // Probablity of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
-        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.02); // Base 2% daily death risk for sepsis 
+        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.01); // 0.02 Base 2% daily death risk for sepsis 
         map.insert("sepsis_age_mortality_multiplier_infant".to_string(), 3.0); // 0-1 years: much higher risk
         map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk  
         map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
@@ -505,6 +529,8 @@ lazy_static! {
         map.insert("sepsis_minimum_duration_days".to_string(), 1.0); // Minimum sepsis duration (1 day)
 
         //  Default Toxicity Parameter
+        //  Default Microbiome Clearance Parameter (required by simulation logic)
+        map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
 
         //  Probability per day of death due to adverse drug effect (toxicity)
@@ -512,20 +538,7 @@ lazy_static! {
         //  You can tune this value to make drug toxicity more or less lethal.
         map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.0003); // 0.1% daily risk by default
 
-        //  Default Microbiome Acquisition Parameter
-        // A multiplier for the infection acquisition probability to get microbiome acquisition probability.
-        // If > 1.0, microbiome acquisition is more likely than infection for the same factors.
-        // If < 1.0, microbiome acquisition is less likely.
-        map.insert("default_microbiome_acquisition_multiplier".to_string(), 2.0); // Example: Microbiome acquisition is twice as likely as infection given the same exposure.
 
-        //  Default Microbiome Clearance Parameter (from previous suggestion, ensure it's there)
-        map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
-
-        //  Microbiome Presence Effect on Infection Acquisition
-        // A multiplier for infection acquisition probability if the bacteria is already present in the microbiome.
-        // Value > 1.0 means microbiome presence increases infection risk.
-        // Value < 1.0 means microbiome presence decreases infection risk (e.g., due to local immunity/competition).
-        map.insert("default_microbiome_infection_acquisition_multiplier".to_string(), 0.1); // Example: Much harder to get infected if already colonized.
 
         //  Contact and Exposure Level Parameters
         map.insert("contact_level_daily_fluctuation_range".to_string(), 0.5); // Amount of random daily fluctuation
@@ -1114,88 +1127,89 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
     }
 }
 
-// Drug introduction dates (as time steps from start of 1937)
+// Drug introduction dates (as time steps from start of 1930)
 // Each time step = 1 day, so multiply years by 365
 lazy_static! {
     pub static ref DRUG_INTRODUCTION_DATES: HashMap<&'static str, usize> = {
         let mut map = HashMap::new();
         
+
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 100000);      // 0   1937 (simulation start)
-        
+        map.insert("sulfanilamide", 2555);      // 1937 (simulation start, 7 years after 1930)
+
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 1000);     // 1825    1942 (5 * 365)
-        map.insert("ampicillin", 8760);      // 1961 (24 * 365)
-        map.insert("amoxicillin", 12775);    // 1972 (35 * 365)
-        map.insert("piperacillin", 16060);   // 1981 (44 * 365)
-        map.insert("ticarcillin", 14600);    // 1977 (40 * 365)
-        
+        map.insert("penicilling", 3555);     // 1942 (12 years after 1930)
+        map.insert("ampicillin", 11315);      // 1961 (31 years after 1930)
+        map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
+        map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
+        map.insert("ticarcillin", 14600);    // 1977 (47 years after 1930)
+
         // Cephalosporins
-        map.insert("cephalexin", 12045);     // 1970 (33 * 365)
-        map.insert("cefazolin", 13140);      // 1973 (36 * 365)
-        map.insert("cefuroxime", 14965);     // 1978 (41 * 365)
-        map.insert("ceftriaxone", 17155);    // 1984 (47 * 365)
-        map.insert("ceftazidime", 17520);    // 1985 (48 * 365)
-        map.insert("cefepime", 21535);       // 1996 (59 * 365)
-        map.insert("ceftaroline", 26645);    // 2010 (73 * 365)
-        
+        map.insert("cephalexin", 14605);     // 1970 (40 years after 1930)
+        map.insert("cefazolin", 15700);      // 1973 (43 years after 1930)
+        map.insert("cefuroxime", 17525);     // 1978 (48 years after 1930)
+        map.insert("ceftriaxone", 19715);    // 1984 (54 years after 1930)
+        map.insert("ceftazidime", 20080);    // 1985 (55 years after 1930)
+        map.insert("cefepime", 24195);       // 1996 (66 years after 1930)
+        map.insert("ceftaroline", 29305);    // 2010 (80 years after 1930)
+
         // Carbapenems
-        map.insert("meropenem", 21535);      // 1996 (59 * 365)
-        map.insert("imipenem_c", 17520);     // 1985 (48 * 365)
-        map.insert("ertapenem", 23360);      // 2001 (64 * 365)
-        
+        map.insert("meropenem", 24195);      // 1996 (66 years after 1930)
+        map.insert("imipenem_c", 20080);     // 1985 (55 years after 1930)
+        map.insert("ertapenem", 25920);      // 2001 (71 years after 1930)
+
         // Monobactams
-        map.insert("aztreonam", 17885);      // 1986 (49 * 365)
-        
+        map.insert("aztreonam", 20445);      // 1986 (56 years after 1930)
+
         // Macrolides
-        map.insert("erythromycin", 5475);    // 1952 (15 * 365)
-        map.insert("azithromycin", 19710);   // 1991 (54 * 365)
-        map.insert("clarithromycin", 19345); // 1990 (53 * 365)
-        
+        map.insert("erythromycin", 8025);    // 1952 (22 years after 1930)
+        map.insert("azithromycin", 22260);   // 1991 (61 years after 1930)
+        map.insert("clarithromycin", 21895); // 1990 (60 years after 1930)
+
         // Lincosamides
-        map.insert("clindamycin", 11315);    // 1968 (31 * 365)
-        
+        map.insert("clindamycin", 13870);    // 1968 (38 years after 1930)
+
         // Aminoglycosides
-        map.insert("gentamicin", 9490);      // 1963 (26 * 365)
-        map.insert("tobramycin", 13870);     // 1975 (38 * 365)
-        map.insert("amikacin", 14235);       // 1976 (39 * 365)
-        
+        map.insert("gentamicin", 12045);      // 1963 (33 years after 1930)
+        map.insert("tobramycin", 16325);     // 1975 (45 years after 1930)
+        map.insert("amikacin", 16690);       // 1976 (46 years after 1930)
+
         // Fluoroquinolones
-        map.insert("ciprofloxacin", 18250);  // 1987 (50 * 365)
-        map.insert("levofloxacin", 21535);   // 1996 (59 * 365)
-        map.insert("moxifloxacin", 22630);   // 1999 (62 * 365)
-        map.insert("ofloxacin", 19345);      // 1990 (53 * 365)
-        
+        map.insert("ciprofloxacin", 20805);  // 1987 (57 years after 1930)
+        map.insert("levofloxacin", 24195);   // 1996 (66 years after 1930)
+        map.insert("moxifloxacin", 25290);   // 1999 (69 years after 1930)
+        map.insert("ofloxacin", 21895);      // 1990 (60 years after 1930)
+
         // Tetracyclines
-        map.insert("tetracycline", 4015);    // 1948 (11 * 365)
-        map.insert("doxyclycline", 10950);   // 1967 (30 * 365)
-        map.insert("minocycline", 12410);    // 1971 (34 * 365)
-        
+        map.insert("tetracycline", 6575);    // 1948 (18 years after 1930)
+        map.insert("doxyclycline", 13505);   // 1967 (37 years after 1930)
+        map.insert("minocycline", 14965);    // 1971 (41 years after 1930)
+
         // Glycopeptides
-        map.insert("vancomycin", 7665);      // 1958 (21 * 365)
-        map.insert("teicoplanin", 18615);    // 1988 (51 * 365)
-        
+        map.insert("vancomycin", 10215);      // 1958 (28 years after 1930)
+        map.insert("teicoplanin", 21170);    // 1988 (58 years after 1930)
+
         // Oxazolidinones
-        map.insert("linezolid", 22995);      // 2000 (63 * 365)
-        map.insert("tedizolid", 28105);      // 2014 (77 * 365)
-        
+        map.insert("linezolid", 25550);      // 2000 (70 years after 1930)
+        map.insert("tedizolid", 30660);      // 2014 (84 years after 1930)
+
         // Folate antagonists
-        map.insert("trim_sulf", 11315);      // 1968 (31 * 365) - trimethoprim-sulfamethoxazole
-        
+        map.insert("trim_sulf", 13870);      // 1968 (38 years after 1930) - trimethoprim-sulfamethoxazole
+
         // Other antibiotics
-        map.insert("quinu_dalfo", 22630);    // 1999 (62 * 365) - quinupristin/dalfopristin
-        map.insert("chlorampheni", 4380);    // 1949 (12 * 365) - chloramphenicol
-        map.insert("nitrofurantoin", 5840);  // 1953 (16 * 365)
-        map.insert("retapamulin", 25550);    // 2007 (70 * 365) - topical antibiotic
-        map.insert("fusidic_a", 9125);       // 1962 (25 * 365) - fusidic acid
-        map.insert("metronidazole", 8395);   // 1960 (23 * 365)
-        map.insert("furazolidone", 6570);    // 1955 (18 * 365)
+        map.insert("quinu_dalfo", 25290);    // 1999 (69 years after 1930) - quinupristin/dalfopristin
+        map.insert("chlorampheni", 6935);    // 1949 (19 years after 1930) - chloramphenicol
+        map.insert("nitrofurantoin", 8395);  // 1953 (23 years after 1930)
+        map.insert("retapamulin", 28405);    // 2007 (77 years after 1930) - topical antibiotic
+        map.insert("fusidic_a", 11680);       // 1962 (32 years after 1930) - fusidic acid
+        map.insert("metronidazole", 10965);   // 1960 (30 years after 1930)
+        map.insert("furazolidone", 9125);    // 1955 (25 years after 1930)
         
         map
     };
 }
 
-/// Gets the introduction date for a drug (as time step from 1937)
+/// Gets the introduction date for a drug (as time step from 1930)
 /// Returns the time step if found, None otherwise
 pub fn get_drug_introduction_time_step(drug_name: &str) -> Option<usize> {
     DRUG_INTRODUCTION_DATES.get(drug_name).copied()
