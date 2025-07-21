@@ -361,17 +361,8 @@ lazy_static! {
         // Example region default (can be overridden per region)
         map.insert("north_america_bacteria_acquisition_log_odds_default".to_string(), 0.0);
 
-        // Microbiome acquisition
-        map.insert("microbiome_acquisition_log_odds_baseline".to_string(), -12.0); // -6.0 Default baseline log-odds for microbiome acquisition
-        map.insert("microbiome_log_odds_sexual_contact_per_unit".to_string(), 0.08);
-        map.insert("microbiome_log_odds_airborne_adult_contact_per_unit".to_string(), 0.06);
-        map.insert("microbiome_log_odds_airborne_child_contact_per_unit".to_string(), 0.06);
-        map.insert("microbiome_log_odds_oral_exposure_per_unit".to_string(), 0.05);
-        map.insert("microbiome_log_odds_mosquito_exposure_per_unit".to_string(), 0.10);
-        map.insert("microbiome_log_odds_vaccinated".to_string(), -1.5);
-        map.insert("microbiome_log_odds_hospital_acquired".to_string(), 0.8);
-        // Example region default (can be overridden per region)
-        map.insert("north_america_microbiome_acquisition_log_odds_default".to_string(), 0.0);
+        // Microbiome acquisition now uses infection acquisition parameters plus a single offset
+        map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
         // this two below will need to change over calendar time - for the hospital acquired may decide to sample from 
         // majority_r of people in hospital with the bacteria  
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.0);
