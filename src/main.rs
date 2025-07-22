@@ -84,11 +84,13 @@ fn main() {
     // Print summary statistics from logged data
     simulation.print_summary_statistics();
     
-    // Generate a random 7-digit number for file labeling
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let random_id: u32 = rng.gen_range(1_000_000..10_000_000);
-    let csv_filename = format!("simulation_summary_{}.csv", random_id);
+    // DEVELOPMENT: Use a fixed filename for easier analysis in Python
+    // NOTE: The random filename logic below is commented out for now. Restore for large-scale runs.
+    // use rand::Rng;
+    // let mut rng = rand::thread_rng();
+    // let random_id: u32 = rng.gen_range(1_000_000..10_000_000);
+    // let csv_filename = format!("simulation_summary_{}.csv", random_id);
+    let csv_filename = "simulation_summary.csv".to_string();
 
     // Export to CSV for analysis
     if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {
