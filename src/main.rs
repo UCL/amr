@@ -48,8 +48,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =  30_000 ;
-    let time_steps = 35000 ;  
+    let population_size =  3_000 ;
+    let time_steps = 365 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -84,9 +84,17 @@ fn main() {
     // Print summary statistics from logged data
     simulation.print_summary_statistics();
     
+    // Generate a random 7-digit number for file labeling
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let random_id: u32 = rng.gen_range(1_000_000..10_000_000);
+    let csv_filename = format!("simulation_summary_{}.csv", random_id);
+
     // Export to CSV for analysis
-    if let Err(e) = simulation.export_summary_to_csv("simulation_summary.csv") {
+    if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {
         println!("Error exporting CSV: {}", e);
+    } else {
+        println!("Summary data exported to {}", csv_filename);
     }
 
     println!("main.rs  final outputs ");
