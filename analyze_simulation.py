@@ -1,45 +1,3 @@
-
-# =============================================================================
-# VISUALIZATION FUNCTIONS
-# =============================================================================
-
-def create_standardized_mic_above5_plots(df):
-    """
-    For each bacteria, plot the distribution over time of the number of drugs with standardized_mic > 5 among active infections.
-    Expects wide-format columns: {bacteria}_n_drugs_above5_{k} in df.
-    """
-    # Identify all bacteria and n_drugs_above5 columns
-    bacteria_ncols = {}
-    for col in df.columns:
-        if '_n_drugs_above5_' in col:
-            parts = col.split('_n_drugs_above5_')
-            if len(parts) == 2:
-                b, n = parts[0], int(parts[1])
-                bacteria_ncols.setdefault(b, []).append((n, col))
-    if not bacteria_ncols:
-        print("No standardized_mic_above5 columns found in summary CSV.")
-        return
-    for bacteria, ncols in bacteria_ncols.items():
-        ncols_sorted = sorted(ncols)
-        colnames = [col for n, col in ncols_sorted]
-        # Build a DataFrame: rows=time_in_years, columns=n_drugs_above5, values=count
-        mic_counts = df[colnames].copy()
-        mic_counts.index = df['time_in_years']
-        mic_counts.columns = [n for n, col in ncols_sorted]
-        # Normalize to proportions per time step
-        row_sums = mic_counts.sum(axis=1)
-        prop = mic_counts.div(row_sums, axis=0).fillna(0)
-        fig, ax = plt.subplots(figsize=(12, 6))
-        prop.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
-        ax.set_title(f"Distribution of #Drugs with standardized_mic > 5 for {bacteria}", fontsize=14)
-        ax.set_xlabel("Time (years)")
-        ax.set_ylabel("Proportion of active infections")
-        ax.legend(title="#Drugs > 5", bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.tight_layout()
-        fname = f"standardized_mic_above5_{bacteria}.png"
-        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close(fig)
-        print(f"✓ Saved {fname}")
 # =============================================================================
 # NEW: PAST YEAR DEATHS PLOT
 # =============================================================================
@@ -662,8 +620,6 @@ def generate_summary_statistics(df):
 # =============================================================================
 
 def main():
-    # Create standardized_mic_above5 plots (one per bacteria)
-    create_standardized_mic_above5_plots(df)
     """Main analysis function - orchestrates the entire analysis workflow."""
     print("Starting AMR Simulation Data Analysis...")
     print("=" * 50)
