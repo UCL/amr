@@ -1,7 +1,7 @@
 // src/rules/mod.rs
 
 
-// for printing individual 0 per time step replace .id == 10000001 with .id == 10000001 (cntrl h to find and replace)
+// for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
 
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
@@ -24,7 +24,7 @@ use rand::distributions::Distribution;
 pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
-    _global_majority_r_proportions: &HashMap<(usize, usize), f64>,
+    // REMOVED: _global_majority_r_proportions (no longer used)
     majority_r_positive_values_by_combo: &HashMap<(usize, bool, usize, usize), Vec<f64>>, // <-- update type
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
@@ -40,7 +40,7 @@ pub fn apply_rules(
         return; // Exit the function if dead
     }
 
-    if individual.id == 10000001  { 
+    if individual.id == 1000001  { 
         println!("   "); println!("mod.rs time step {}", time_step); println!("   "); 
     }
     let mut rng = rand::thread_rng();
@@ -526,7 +526,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
                 individual.ever_taken_drug[drug_idx] = true;
-                if individual.id == 10000001  {
+                if individual.id == 1000001  {
                     println!(
                         "mod.rs   started {} - two-stage rate of starting was {:.4}",
                         drug_name,
@@ -651,7 +651,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         }
         let mut drug_adverse_event_risk_for_individual = 0.0;
         for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-            let drug_name = DRUG_SHORT_NAMES[drug_idx];
+            // Removed unused variable 'drug_name'
             if individual.cur_level_drug[drug_idx] > 0.0 {
                 // Use only the global config parameter for drug toxicity death risk
                 let drug_toxicity_death_risk = get_global_param("drug_toxicity_death_risk_per_day").unwrap_or(0.0);
@@ -1088,7 +1088,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
 
 
-                            if individual.id == 10000001 {
+                            if individual.id == 1000001 {
                                 println!(" ");
                                 println!("mod.rs");  
                                 println!("final_activity_r_factor: {:.4}", final_activity_r_factor);
@@ -1174,7 +1174,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let mut total_reduction_due_to_antibiotic = 0.0;
 
 
-            if individual.id == 10000001 {
+            if individual.id == 1000001 {
                 println!(" ");
                 println!("mod.rs");  
                 println!("bacteria: {}", bacteria);
@@ -1190,7 +1190,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     total_reduction_due_to_antibiotic += resistance_data.activity_r;
 
 
-                if individual.id == 10000001 {
+                if individual.id == 1000001 {
                         println!(
                             "mod.rs  {}: current level = {:.4}, activity_r = {:.4}",
                             DRUG_SHORT_NAMES[drug_idx],
@@ -1200,7 +1200,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     }
                         
 
-             if individual.id == 10000001 {
+             if individual.id == 1000001 {
                 println!("mod.rs  total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
             }   
             }
@@ -1211,7 +1211,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
 
    
-                if individual.id == 10000001 {
+                if individual.id == 1000001 {
 
                 println!(" "); 
                 println!("mod.rs");                    

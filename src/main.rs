@@ -5,6 +5,23 @@ mod rules;
 mod config;
 
 //
+// note drug intro start temporarily set to 1930
+//
+// produce the bar graphs for each 
+// drug bacteria combination as done at the end and commented out 
+//
+// also do this below ?:
+// i would like summary counts for each bacteria 
+// - the number of drugs with  any_r = 0.  Also,   making use of the potency 
+// parameters defined in config.rs (           
+// map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, 
+// bacteria), 0.05);  )  I would like a count for 
+// each bacteria of the number of drugs with (any_r  = 0 AND potency > 0.1) 
+//
+// calculate an mic ? 1 / ((1-activity_r) * potency)
+//
+// consider adding tb, consider adding fungi
+//
 // fix risk of hospitalization
 //
 // infection acquisition and bacteria acquisition in microbiome may need logistic models
@@ -48,8 +65,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =  3_000 ;
-    let time_steps = 365 ;  
+    let population_size =  10_000 ;
+    let time_steps = 32 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -149,9 +166,9 @@ fn main() {
 
 
 
+//  /*  ADDITIONAL FINAL PRINTOUTS
+
 /*
-
-
     // New: Print bacteria and resistance summary
     println!("\n--- Bacteria infection and resistance summary ---");
     for (bacteria, &count) in &bacteria_infection_counts {
@@ -205,13 +222,8 @@ fn main() {
             }
         }
     }
-    // --- end death and resistance reporting ---
+*/    // --- end death and resistance reporting ---
 
-*/
-
-
-
-/*
 
     // Example: Plot distribution of any_r for one random bacteria-drug pair using plotters
     // (Requires plotters = "0.3" in Cargo.toml)
@@ -243,6 +255,7 @@ fn main() {
             }
         }
     }
+    println!("Number of bacteria/drug pairs: {}", pairs.len());
     println!("Number of bacteria/drug pairs with any any_r > 0: {}", found_pairs);
 
     for &(bacteria, drug) in pairs.iter().choose_multiple(&mut rng, pairs.len()) {
@@ -293,7 +306,7 @@ fn main() {
 
         // Use f64 for both axes in build_cartesian_2d and Rectangle coordinates
         let mut chart = ChartBuilder::on(&root)
-            .caption(format!("any_r distribution for {} / {}", bacteria, drug), ("sans-serif", 30))
+            .caption(format!("any_r distribution for {} / {}", bacteria, drug), ("sans-serif", 18))
             .margin(40)
             .x_label_area_size(40)
             .y_label_area_size(40)
@@ -367,9 +380,7 @@ fn main() {
     }
 
 
-
-
-*/
+// END OF ADDITIONAL FINAL PRINTOUTS */
 
 
     // Log the simulation run details

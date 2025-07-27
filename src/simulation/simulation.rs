@@ -49,8 +49,7 @@ pub struct Simulation {  // public rust struct which encapsulates the state and 
 
     // todo: ensure that when we count across individuals that we include only those alive
 
-    pub global_majority_r_proportions: HashMap<(usize, usize), f64>,  // Maps (bacteria_index, drug_index) pairs to a global proportion 
-                                                                      // value to track summary statistics over time.
+    // REMOVED: global_majority_r_proportions (no longer used)
     pub bacteria_indices: HashMap<&'static str, usize>, // A string-to-index map converting bacteria names (&'static str) to integer indices.
     pub drug_indices: HashMap<&'static str, usize>, // as above, but for drugs.
     pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>, // New: (b_idx -> [[d_idx, d_idx], ...])
@@ -95,7 +94,7 @@ impl Simulation {
             }
         }
 
-        let global_majority_r_proportions = HashMap::new(); // Initialize an empty HashMap to store global majority_r proportions for bacteria/drug pairs.
+        // REMOVED: global_majority_r_proportions initialization
 
         // --- Initial State Logging for Individual 0
 
@@ -121,7 +120,7 @@ impl Simulation {
         Simulation { // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
             population,
             time_steps,
-            global_majority_r_proportions,
+            // REMOVED: global_majority_r_proportions from constructor
             bacteria_indices,
             drug_indices,
             cross_resistance_groups, // Add new field
@@ -156,7 +155,7 @@ impl Simulation {
 
             // Initialize counters and data structures for this time step
             // Remove HashMaps for per-bacteria/drug counts; use arrays for speed
-            let mut new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
+            let new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
             let log_majority_r_positive_counts: Vec<Vec<AtomicUsize>> = (0..BACTERIA_LIST.len())
                 .map(|_| (0..DRUG_SHORT_NAMES.len()).map(|_| AtomicUsize::new(0)).collect())
                 .collect();
@@ -187,7 +186,7 @@ impl Simulation {
                 apply_rules(
                     individual,
                     t,
-                    &self.global_majority_r_proportions,
+                    // REMOVED: &self.global_majority_r_proportions,
                     &previous_majority_r_positive_values_by_combo,
                     &self.bacteria_indices,
                     &self.drug_indices,
@@ -337,26 +336,25 @@ impl Simulation {
             let (mut num_age_0_5, mut num_age_6_14, mut num_age_15_49, mut num_age_50_79, mut num_age_80plus) = (0, 0, 0, 0, 0);
             for individual in self.population.individuals.iter() {
                 if individual.date_of_death.is_none() {
-                    let age_years = individual.age as f64 / 365.0;
-                    if age_years >= 0.0 && age_years < 6.0 {
-                        num_age_0_5 += 1;
-                    } else if age_years >= 6.0 && age_years < 15.0 {
-                        num_age_6_14 += 1;
-                    } else if age_years >= 15.0 && age_years < 50.0 {
-                        num_age_15_49 += 1;
-                    } else if age_years >= 50.0 && age_years < 80.0 {
-                        num_age_50_79 += 1;
-                    } else if age_years >= 80.0 {
-                        num_age_80plus += 1;
-                    }
+            let age_years = individual.age as f64 / 365.0;
+            if age_years >= 0.0 && age_years < 6.0 {
+                num_age_0_5 += 1;
+            } else if age_years >= 6.0 && age_years < 15.0 {
+                num_age_6_14 += 1;
+            } else if age_years >= 15.0 && age_years < 50.0 {
+                num_age_15_49 += 1;
+            } else if age_years >= 50.0 && age_years < 80.0 {
+                num_age_50_79 += 1;
+            } else if age_years >= 80.0 {
+                num_age_80plus += 1;
+            }
                 }
             }
 
             // Create summary for this time step
             let infected_10_count = infected_10_days_count.load(Ordering::Relaxed);
             let infected_30_count = infected_30_days_count.load(Ordering::Relaxed);
-            
-            
+
             let summary = TimeStepSummary {
                 // Optionally, you can add a new field to TimeStepSummary to export these counts if desired
                 // Example: majority_r_positive_by_bacteria_drug: log_majority_r_positive_counts.iter().map(|row| row.iter().map(|x| x.load(Ordering::Relaxed)).collect()).collect(),
@@ -565,7 +563,7 @@ impl Simulation {
             println!("                                ");
 
             // Print resistance summary for all infected individuals at this time step
-//          self.print_resistance_summary(t);
+        //  self.print_resistance_summary(t);
 
 
     */  //  end of per timestep printing block

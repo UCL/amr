@@ -1,3 +1,5 @@
+
+
 // src/config.rs
 use std::collections::HashMap;
 use lazy_static::lazy_static;
@@ -1126,11 +1128,11 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 2555);      // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 2555);   // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
         map.insert("penicilling", 3555);     // 1942 (12 years after 1930)
-        map.insert("ampicillin", 11315);      // 1961 (31 years after 1930)
+        map.insert("ampicillin", 11315);     // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
         map.insert("ticarcillin", 14600);    // 1977 (47 years after 1930)

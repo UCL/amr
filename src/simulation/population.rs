@@ -28,7 +28,8 @@ pub const BACTERIA_LIST: &[&str] = &[
     "shigella spp.", "neisseria gonorrhoeae", "streptococcus pyogenes", "streptococcus agalactiae", 
     "haemophilus influenzae", "chlamydia trachomatis", "vibrio cholerae",
     "neisseria_meningitidis", "listeria_monocytogenes", "clostridioides_difficile",
-    "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis"
+    "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis",
+    "treponema pallidum",
 ];
 
 
