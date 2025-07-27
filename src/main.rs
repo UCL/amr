@@ -65,8 +65,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =  10_000 ;
-    let time_steps = 32 ;  
+    let population_size =  3_000 ;
+    let time_steps = 17500 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -168,7 +168,7 @@ fn main() {
 
 //  /*  ADDITIONAL FINAL PRINTOUTS
 
-/*
+  
     // New: Print bacteria and resistance summary
     println!("\n--- Bacteria infection and resistance summary ---");
     for (bacteria, &count) in &bacteria_infection_counts {
@@ -222,7 +222,45 @@ fn main() {
             }
         }
     }
-*/    // --- end death and resistance reporting ---
+    // --- Bacteria/drug pairs: standardized_mic > 5 summary ---
+    use crate::config;
+    println!("\n--- Bacteria/drug pairs: standardized_mic > 5 summary ---");
+    for (bacteria, &count) in &bacteria_infection_counts {
+        for (drug, _) in simulation.drug_indices.iter() {
+            let mut n_infected = 0;
+            let mut n_standardized_mic_gt5 = 0;
+            for individual in &simulation.population.individuals {
+                if let (Some(&b_idx), Some(&d_idx)) = (simulation.bacteria_indices.get(bacteria), simulation.drug_indices.get(drug)) {
+                    if individual.level[b_idx] > 0.001 {
+                        n_infected += 1;
+                        let resistance_data = &individual.resistances[b_idx][d_idx];
+                        let potency_param_key = format!(
+                            "drug_{}_for_bacteria_{}_potency_when_no_r",
+                            drug, bacteria
+                        );
+                        let potency = config::get_global_param(&potency_param_key).unwrap_or(0.05);
+                        let max_resistance_level = config::get_global_param("max_resistance_level").unwrap_or(1.0);
+                        let normalized_majority_r = resistance_data.majority_r / max_resistance_level;
+                        let standardized_mic = if (1.0 - normalized_majority_r) * potency > 0.0 {
+                            1.0 / ((1.0 - normalized_majority_r) * potency)
+                        } else {
+                            f64::INFINITY
+                        };
+                        if standardized_mic > 5.0 {
+                            n_standardized_mic_gt5 += 1;
+                        }
+                    }
+                }
+            }
+            if n_infected > 0 {
+                println!(
+                    "    {} / {}: n_infected = {}, n_standardized_mic_gt5 = {}, prop = {:.3}",
+                    bacteria, drug, n_infected, n_standardized_mic_gt5, n_standardized_mic_gt5 as f64 / n_infected as f64
+                );
+            }
+        }
+    }
+      // --- end death and resistance reporting ---
 
 
     // Example: Plot distribution of any_r for one random bacteria-drug pair using plotters

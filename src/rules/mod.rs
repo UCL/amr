@@ -1191,11 +1191,26 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
 
                 if individual.id == 1000001 {
+                        // Calculate standardized MIC: 1 / ((1 - majority_r) * potency)
+                        let potency_param_key = format!(
+                            "drug_{}_for_bacteria_{}_potency_when_no_r",
+                            DRUG_SHORT_NAMES[drug_idx],
+                            BACTERIA_LIST[b_idx]
+                        );
+                        let potency = get_global_param(&potency_param_key).unwrap_or(0.05);
+                        let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                        let normalized_majority_r = resistance_data.majority_r / max_resistance_level;
+                        let standardized_mic = if (1.0 - normalized_majority_r) * potency > 0.0 {
+                            1.0 / ((1.0 - normalized_majority_r) * potency)
+                        } else {
+                            f64::INFINITY
+                        };
                         println!(
-                            "mod.rs  {}: current level = {:.4}, activity_r = {:.4}",
+                            "mod.rs  {}: current level = {:.4}, activity_r = {:.4}, standardized_mic = {:.4}",
                             DRUG_SHORT_NAMES[drug_idx],
                             individual.cur_level_drug[drug_idx],
-                            resistance_data.activity_r
+                            resistance_data.activity_r,
+                            standardized_mic
                         );
                     }
                         
