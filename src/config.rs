@@ -165,7 +165,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.001);
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.001
             }
         }
 
@@ -367,8 +367,8 @@ lazy_static! {
         map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
         // this two below will need to change over calendar time - for the hospital acquired may decide to sample from 
         // majority_r of people in hospital with the bacteria  
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.0);
-        map.insert("hospital_majority_r_level_for_new_acquisition".to_string(), 0.0);
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.01); // placeholder
+        map.insert("hospital_majority_r_level_for_new_acquisition".to_string(), 0.01); // placeholder
 
         map.insert("max_resistance_level".to_string(), 1.0);
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
