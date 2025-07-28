@@ -1,0 +1,353 @@
+total deaths during simulation: 3
+breakdown by cause of death:
+background_mortality: 3
+number in hospital: 12
+number severely immunosuppressed: 152
+streptococcus pneumoniae: 1 infected
+    penicilling: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefazolin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tedizolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    gentamicin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    linezolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amoxicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    trim_sulf: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ampicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefuroxime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    chlorampheni: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amikacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    moxifloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ticarcillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftazidime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    meropenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    erythromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    aztreonam: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clindamycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    quinu_dalfo: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    nitrofurantoin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ciprofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tetracycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tobramycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    teicoplanin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    metronidazole: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clarithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ertapenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    furazolidone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    imipenem_c: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    azithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    fusidic_a: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    levofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    doxyclycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    sulfanilamide: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftaroline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    piperacillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    minocycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    vancomycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    retapamulin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefepime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cephalexin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftriaxone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+escherichia coli: 1 infected
+    penicilling: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefazolin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tedizolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    gentamicin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    linezolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amoxicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    trim_sulf: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ampicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefuroxime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    chlorampheni: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amikacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    moxifloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ticarcillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftazidime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    meropenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    erythromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    aztreonam: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clindamycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    quinu_dalfo: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    nitrofurantoin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ciprofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tetracycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tobramycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    teicoplanin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    metronidazole: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clarithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ertapenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    furazolidone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    imipenem_c: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    azithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    fusidic_a: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    levofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    doxyclycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    sulfanilamide: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftaroline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    piperacillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    minocycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    vancomycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    retapamulin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefepime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cephalexin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftriaxone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+acinetobacter baumannii: 1 infected
+    penicilling: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefazolin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tedizolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    gentamicin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    linezolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amoxicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    trim_sulf: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ampicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefuroxime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    chlorampheni: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amikacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    moxifloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ticarcillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftazidime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    meropenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    erythromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    aztreonam: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clindamycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    quinu_dalfo: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    nitrofurantoin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ciprofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tetracycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tobramycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    teicoplanin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    metronidazole: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clarithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ertapenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    furazolidone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    imipenem_c: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    azithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    fusidic_a: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    levofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    doxyclycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    sulfanilamide: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftaroline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    piperacillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    minocycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    vancomycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    retapamulin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefepime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cephalexin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftriaxone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+enterococcus faecalis: 1 infected
+    penicilling: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefazolin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tedizolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    gentamicin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    linezolid: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amoxicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    trim_sulf: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ampicillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefuroxime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    chlorampheni: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    amikacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    moxifloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ticarcillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftazidime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    meropenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    erythromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    aztreonam: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clindamycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    quinu_dalfo: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    nitrofurantoin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ciprofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tetracycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    tobramycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    teicoplanin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    metronidazole: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    clarithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ertapenem: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    furazolidone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    imipenem_c: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    azithromycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    fusidic_a: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    levofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    doxyclycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    sulfanilamide: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftaroline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    piperacillin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    minocycline: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    vancomycin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    retapamulin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cefepime: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ofloxacin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    cephalexin: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    ceftriaxone: n = 1, prop 0.00 = 1.000, prop 0.25 = 0.000, prop 0.5 = 0.000, prop 0.75 = 0.000, prop 1.00 = 0.000
+    streptococcus pneumoniae / penicilling: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / cefazolin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / tedizolid: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / gentamicin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / linezolid: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / amoxicillin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / trim_sulf: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / ampicillin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / cefuroxime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / chlorampheni: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / amikacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / moxifloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / ticarcillin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / ceftazidime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / meropenem: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / erythromycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / aztreonam: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / clindamycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / quinu_dalfo: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / nitrofurantoin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / ciprofloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / tetracycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / tobramycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / teicoplanin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / metronidazole: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / clarithromycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / ertapenem: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / furazolidone: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / imipenem_c: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / azithromycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / fusidic_a: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / levofloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / doxyclycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / sulfanilamide: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / ceftaroline: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / piperacillin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / minocycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / vancomycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / retapamulin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / cefepime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / ofloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    streptococcus pneumoniae / cephalexin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    streptococcus pneumoniae / ceftriaxone: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / penicilling: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / cefazolin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / tedizolid: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / gentamicin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / linezolid: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / amoxicillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / trim_sulf: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / ampicillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / cefuroxime: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / chlorampheni: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / amikacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / moxifloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / ticarcillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / ceftazidime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / meropenem: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / erythromycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / aztreonam: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / clindamycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / quinu_dalfo: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / nitrofurantoin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / ciprofloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / tetracycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / tobramycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / teicoplanin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / metronidazole: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / clarithromycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / ertapenem: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / furazolidone: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / imipenem_c: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / azithromycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / fusidic_a: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / levofloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / doxyclycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / sulfanilamide: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / ceftaroline: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / piperacillin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / minocycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / vancomycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / retapamulin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / cefepime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / ofloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    escherichia coli / cephalexin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    escherichia coli / ceftriaxone: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / penicilling: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / cefazolin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / tedizolid: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / gentamicin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / linezolid: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / amoxicillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / trim_sulf: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / ampicillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / cefuroxime: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / chlorampheni: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / amikacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / moxifloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / ticarcillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / ceftazidime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / meropenem: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / erythromycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / aztreonam: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / clindamycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / quinu_dalfo: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / nitrofurantoin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / ciprofloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / tetracycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / tobramycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / teicoplanin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / metronidazole: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / clarithromycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / ertapenem: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / furazolidone: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / imipenem_c: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / azithromycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / fusidic_a: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / levofloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / doxyclycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / sulfanilamide: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / ceftaroline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / piperacillin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / minocycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / vancomycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / retapamulin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / cefepime: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / ofloxacin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    acinetobacter baumannii / cephalexin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    acinetobacter baumannii / ceftriaxone: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / penicilling: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / cefazolin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / tedizolid: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / gentamicin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / linezolid: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / amoxicillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / trim_sulf: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ampicillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / cefuroxime: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / chlorampheni: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / amikacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / moxifloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ticarcillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ceftazidime: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / meropenem: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / erythromycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / aztreonam: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / clindamycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / quinu_dalfo: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / nitrofurantoin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ciprofloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / tetracycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / tobramycin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / teicoplanin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / metronidazole: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / clarithromycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / ertapenem: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / furazolidone: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / imipenem_c: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / azithromycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / fusidic_a: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / levofloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / doxyclycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / sulfanilamide: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ceftaroline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / piperacillin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / minocycline: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / vancomycin: n_infected = 1, n_standardized_mic_lt2 = 1, prop = 1.000
+    enterococcus faecalis / retapamulin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / cefepime: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ofloxacin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / cephalexin: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000
+    enterococcus faecalis / ceftriaxone: n_infected = 1, n_standardized_mic_lt2 = 0, prop = 0.000

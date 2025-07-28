@@ -46,7 +46,9 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
 
 
 
-
+// note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
+// resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection 
+// or what underlying other conditions they may have that would affect risk of hospitalization 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HospitalStatus {
     InHospital,  // consider in future whether to have a variable for whether in icu

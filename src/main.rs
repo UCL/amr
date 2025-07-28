@@ -5,10 +5,13 @@ mod rules;
 mod config;
 
 //
-// note drug intro start temporarily set to 1930
 //
 // produce the bar graphs for each 
 // drug bacteria combination as done at the end and commented out 
+//
+// consider fitness costs of resistance
+//
+// consider intermittent drug taking ? e.g. missing a day ?
 //
 // also do this below ?:
 // i would like summary counts for each bacteria 
@@ -17,6 +20,8 @@ mod config;
 // map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, 
 // bacteria), 0.05);  )  I would like a count for 
 // each bacteria of the number of drugs with (any_r  = 0 AND potency > 0.1) 
+//
+// think if / how am modelling horizontal gene transfer of resistance
 //
 // calculate an mic ? 1 / ((1-activity_r) * potency)
 //
@@ -29,6 +34,8 @@ mod config;
 // consider having new infection rate per bacteria dependent on proportion of population infected with that bacteria
 //
 // set up automated testing for the simulation (probably not yet though)
+//
+// more to do on resistance in infections from environment and from when in hospital
 //
 // risk of hospitalization may need logistic model
 //
@@ -66,7 +73,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =  3_000 ;
-    let time_steps = 17500 ;  
+    let time_steps = 37 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 
@@ -156,12 +163,30 @@ fn main() {
         }
     }
 
+    // Write summary outputs to a file as well as printing
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    let mut report_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("simulation_report.txt")
+        .expect("Unable to create/open simulation_report.txt");
+
+    writeln!(report_file, "total deaths during simulation: {}", total_deaths).ok();
     println!("total deaths during simulation: {}", total_deaths);
+
+    writeln!(report_file, "breakdown by cause of death:").ok();
     println!("breakdown by cause of death:");
-    for (cause, count) in death_causes_count {
+    for (cause, count) in &death_causes_count {
+        writeln!(report_file, "{}: {}", cause, count).ok();
         println!("{}: {}", cause, count);
     }
+
+    writeln!(report_file, "number in hospital: {}", number_in_hospital).ok();
     println!("number in hospital: {}", number_in_hospital);
+
+    writeln!(report_file, "number severely immunosuppressed: {}", number_severely_immunosuppressed).ok();
     println!("number severely immunosuppressed: {}", number_severely_immunosuppressed);
 
 
@@ -173,6 +198,7 @@ fn main() {
     println!("\n--- Bacteria infection and resistance summary ---");
     for (bacteria, &count) in &bacteria_infection_counts {
         println!("{}: {} infected", bacteria, count);
+        writeln!(report_file, "{}: {} infected", bacteria, count).ok();
         for (drug, _) in simulation.drug_indices.iter() {
             // Collect the full distribution of any_r for this bacteria/drug pair
             let mut any_r_values = Vec::new();
@@ -186,7 +212,7 @@ fn main() {
                     }
                 }
             }
-            // Print summary statistics for the distribution
+            // Print and write summary statistics for the distribution
             if !any_r_values.is_empty() {
                 let n = any_r_values.len() as f64;
                 let mut count_0 = 0;
@@ -217,18 +243,30 @@ fn main() {
                     count_0501_075 as f64 / n,
                     count_0751_1 as f64 / n
                 );
+                writeln!(
+                    report_file,
+                    "    {}: n = {}, prop 0.00 = {:.3}, prop 0.25 = {:.3}, prop 0.5 = {:.3}, prop 0.75 = {:.3}, prop 1.00 = {:.3}",
+                    drug,
+                    n as usize,
+                    count_0 as f64 / n,
+                    count_001_025 as f64 / n,
+                    count_0251_05 as f64 / n,
+                    count_0501_075 as f64 / n,
+                    count_0751_1 as f64 / n
+                ).ok();
             } else {
                 println!("    {}: n = 0", drug);
+                writeln!(report_file, "    {}: n = 0", drug).ok();
             }
         }
     }
-    // --- Bacteria/drug pairs: standardized_mic > 5 summary ---
+    // --- Bacteria/drug pairs: standardized_mic < 2 summary ---
     use crate::config;
-    println!("\n--- Bacteria/drug pairs: standardized_mic > 5 summary ---");
+    println!("\n--- Bacteria/drug pairs: standardized_mic < 2 summary ---");
     for (bacteria, &count) in &bacteria_infection_counts {
         for (drug, _) in simulation.drug_indices.iter() {
             let mut n_infected = 0;
-            let mut n_standardized_mic_gt5 = 0;
+            let mut n_standardized_mic_lt2 = 0;
             for individual in &simulation.population.individuals {
                 if let (Some(&b_idx), Some(&d_idx)) = (simulation.bacteria_indices.get(bacteria), simulation.drug_indices.get(drug)) {
                     if individual.level[b_idx] > 0.001 {
@@ -246,17 +284,22 @@ fn main() {
                         } else {
                             f64::INFINITY
                         };
-                        if standardized_mic > 5.0 {
-                            n_standardized_mic_gt5 += 1;
+                        if standardized_mic < 2.0 {
+                            n_standardized_mic_lt2 += 1;
                         }
                     }
                 }
             }
             if n_infected > 0 {
                 println!(
-                    "    {} / {}: n_infected = {}, n_standardized_mic_gt5 = {}, prop = {:.3}",
-                    bacteria, drug, n_infected, n_standardized_mic_gt5, n_standardized_mic_gt5 as f64 / n_infected as f64
+                    "    {} / {}: n_infected = {}, n_standardized_mic_lt2 = {}, prop = {:.3}",
+                    bacteria, drug, n_infected, n_standardized_mic_lt2, n_standardized_mic_lt2 as f64 / n_infected as f64
                 );
+                writeln!(
+                    report_file,
+                    "    {} / {}: n_infected = {}, n_standardized_mic_lt2 = {}, prop = {:.3}",
+                    bacteria, drug, n_infected, n_standardized_mic_lt2, n_standardized_mic_lt2 as f64 / n_infected as f64
+                ).ok();
             }
         }
     }

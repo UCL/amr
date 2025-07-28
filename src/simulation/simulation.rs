@@ -44,7 +44,7 @@ pub struct TimeStepSummary {
 
     // New: per-bacteria, per-drug infection and resistance counts (flat, len = bacteria * drugs)
     pub infected_by_bacteria_drug: Vec<usize>,
-    pub infected_and_standardized_mic_gt5_by_bacteria_drug: Vec<usize>,
+    pub infected_and_standardized_mic_lt2_by_bacteria_drug: Vec<usize>,
 }
 
 pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
@@ -145,11 +145,11 @@ impl Simulation {
             let num_bacteria = BACTERIA_LIST.len();
             let num_drugs = DRUG_SHORT_NAMES.len();
             // Each thread will return a (infected, infected_and_standardized_mic_gt5) Vec<Vec<usize>>
-            let (infected_by_bacteria_drug, infected_and_standardized_mic_gt5_by_bacteria_drug): (Vec<usize>, Vec<usize>) = self.population.individuals.par_iter()
+            let (infected_by_bacteria_drug, infected_and_standardized_mic_lt2_by_bacteria_drug): (Vec<usize>, Vec<usize>) = self.population.individuals.par_iter()
                 .filter(|individual| individual.date_of_death.is_none())
                 .map(|individual| {
                     let mut infected = vec![0usize; num_bacteria * num_drugs];
-                    let mut infected_and_standardized_mic_gt5 = vec![0usize; num_bacteria * num_drugs];
+                    let mut infected_and_standardized_mic_lt2 = vec![0usize; num_bacteria * num_drugs];
                     for b_idx in 0..num_bacteria {
                         if individual.level[b_idx] > 0.001 {
                             for d_idx in 0..num_drugs {
@@ -161,13 +161,13 @@ impl Simulation {
                                 let potency_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
                                 let potency = crate::config::PARAMETERS.get(&potency_key).copied().unwrap_or(0.01); // fallback to small value if missing
                                 let standardized_mic = 1.0 / ((1.0 - resistance_data.majority_r) * potency);
-                                if standardized_mic > 5.0 {
-                                    infected_and_standardized_mic_gt5[b_idx * num_drugs + d_idx] = 1;
+                                if standardized_mic < 2.0 {
+                                    infected_and_standardized_mic_lt2[b_idx * num_drugs + d_idx] = 1;
                                 }
                             }
                         }
                     }
-                    (infected, infected_and_standardized_mic_gt5)
+                    (infected, infected_and_standardized_mic_lt2)
                 })
                 .reduce(
                     || (vec![0usize; num_bacteria * num_drugs], vec![0usize; num_bacteria * num_drugs]),
@@ -399,7 +399,7 @@ impl Simulation {
 
             let summary = TimeStepSummary {
         infected_by_bacteria_drug: infected_by_bacteria_drug.clone(),
-        infected_and_standardized_mic_gt5_by_bacteria_drug: infected_and_standardized_mic_gt5_by_bacteria_drug.clone(),
+        infected_and_standardized_mic_lt2_by_bacteria_drug: infected_and_standardized_mic_lt2_by_bacteria_drug.clone(),
                 // Optionally, you can add a new field to TimeStepSummary to export these counts if desired
                 // Example: majority_r_positive_by_bacteria_drug: log_majority_r_positive_counts.iter().map(|row| row.iter().map(|x| x.load(Ordering::Relaxed)).collect()).collect(),
                 num_age_0_5,
@@ -649,7 +649,7 @@ impl Simulation {
         }
         for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
             for drug in DRUG_SHORT_NAMES.iter() {
-                write!(file, ",{}_infected_and_mic_gt5_{}", bacteria.replace(" ", "_"), drug)?;
+                write!(file, ",{}_infected_and_mic_lt2_{}", bacteria.replace(" ", "_"), drug)?;
             }
         }
         writeln!(file)?;
@@ -698,7 +698,7 @@ impl Simulation {
             for b_idx in 0..num_bacteria {
                 for d_idx in 0..num_drugs {
                     let idx = b_idx * num_drugs + d_idx;
-                    write!(file, ",{}", summary.infected_and_standardized_mic_gt5_by_bacteria_drug[idx])?;
+                    write!(file, ",{}", summary.infected_and_standardized_mic_lt2_by_bacteria_drug[idx])?;
                 }
             }
             writeln!(file)?;
