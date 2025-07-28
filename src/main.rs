@@ -6,7 +6,7 @@ mod config;
 
 //
 //
-// produce the bar graphs for each drug bacteria combination as done at the end and commented out 
+// produce the bar  graphs for each drug bacteria combination as done at the end and commented out 
 //
 // consider fitness costs of resistance
 //
