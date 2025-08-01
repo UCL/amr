@@ -1,5 +1,5 @@
 
-// search below for "per time step printing block" to add / remove printing of 
+// search below for "printing of variable values for individual 0"
 // variable values for individual 0
 
 // src/simulation/simulation.rs
@@ -475,6 +475,10 @@ impl Simulation {
                 currently_infected_and_on_drug_count: currently_infected_and_on_drug_count.load(Ordering::Relaxed),
             };
             self.summary_log.push(summary);
+
+
+     /* comment out printing of variable values for individual 0 
+
             // Comprehensive print block for individual 0
             let individual_0 = &self.population.individuals[0];
             println!("--- Individual 0 full state ---");
@@ -518,140 +522,15 @@ impl Simulation {
                 }
             }
 
-
- // /*  per time step printing block
-
-            // --- print activity_r for all infected bacteria/drug pairs for individual 0 after update ---
-            let individual_0 = &self.population.individuals[0];
-            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() { 
-                if individual_0.level[b_idx] > 0.0001 {
-                    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        if individual_0.cur_level_drug[drug_idx] > 0.0 {
-                            let resistance_data = &individual_0.resistances[b_idx][drug_idx];
-                            println!("   "); 
-                            println!(
-                                "simulation.rs  {} (infected) + {} (present): activity_r = {:.4}, any_r = {:.4}, drug_level = {:.4}",
-                                bacteria_name,
-                                drug_name,
-                                resistance_data.activity_r,
-                                resistance_data.any_r,
-                                individual_0.cur_level_drug[drug_idx]
-                            );
-                            println!("   "); 
-                        }
-                    }
-                }
-            }
-
-
-            // Print drug details for individual 0, regardless of infection status
-            // Note: Using threshold of 0.001 to avoid showing negligible drug levels
-            let mut drugs_present_found_overall = false; // Declare and initialize here
-            for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                if individual_0.cur_level_drug[drug_idx] > 0.001 {
-                    let status = if individual_0.cur_use_drug[drug_idx] {
-                        " simulation.rs (currently being taken)"
-                    } else {
-                        " simulation.rs (decaying)"
-                    };
-                    println!("simulation.rs ");
-                    println!("{}: level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
-                    println!(" ");
-                    drugs_present_found_overall = true; // Use the newly declared variable
-                }
-            }
-            if !drugs_present_found_overall {
-                println!("simulation.rs  no antibiotics currently in system");
-            }
-
-
-            let mut has_infection = false;
-            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                let level = individual_0.level[b_idx];
-                if level > 0.0001 {
-                    has_infection = true;
-                    println!(" ");  
-                    println!("simulation.rs  ");  
-                    println!(" ");  
-                    println!("bacteria level = {:.4}", level);
-                    println!("bacteria: {}", bacteria_name);
-                    println!("infected = true");
-
-                    println!("immune response = {:.4}", individual_0.immune_resp[b_idx]);
-                    println!("infection from environment = {}", individual_0.cur_infection_from_environment[b_idx]);
-                    println!("hospital acquired infection = {}", individual_0.infection_hospital_acquired[b_idx]);
-                    println!("test identified infection = {}", individual_0.test_identified_infection[b_idx]);
-                    println!("date_last_infected = {}", individual_0.date_last_infected[b_idx]);
-                    let mut drugs_present_found = false;
-                    println!("antibiotics present in system (current level > 0):");
-                    for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        if individual_0.cur_level_drug[drug_idx] > 0.0 {
-                            let status = if individual_0.cur_use_drug[drug_idx] {
-                                " (currently being taken)"
-                            } else {
-                                " (decaying)"
-                            };
-                            println!("{}: level = {:.4}{}", drug_name_static, individual_0.cur_level_drug[drug_idx], status);
-                            drugs_present_found = true;
-                        }
-                    }
-                    if !drugs_present_found {
-                        println!("simulation.rs  no antibiotics currently in system");
-                    }
-                    let mut effective_antibiotics_found = false;
-  
-                    for (drug_idx, &drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        if individual_0.cur_level_drug[drug_idx] > 0.0 {
-                            let resistance_data = &individual_0.resistances[b_idx][drug_idx];
-                            println!("any_r {}:", bacteria_name);    
-                            println!(
-                                "simulation.rs  {}: level = {:.4}, any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
-                                drug_name_static,
-                                individual_0.cur_level_drug[drug_idx],
-                                resistance_data.any_r,
-                                resistance_data.activity_r,
-                                resistance_data.majority_r
-                            );
-                            if resistance_data.activity_r > 0.0 {
-                                effective_antibiotics_found = true;
-                            }
-                        }
-                    }
-                    if !effective_antibiotics_found {
-                        println!("simulation.rs  no effective antibiotics in system against this bacteria");
-                    }
-                    println!();
-                }
-            }
-            if !has_infection {
-                println!("simulation.rs  no active bacterial infection as of end of the time step");
-                println!();
-            }
-
-
-            println!(" ");
-            println!("simulation.rs  infection and resistance summary outputs:");
-            println!(" ");
-
-            let age_in_years = (self.population.individuals[0].age as f64 / 365.0).round() as i32;
-            let ever_taken_drug_vector: Vec<u8> = self.population.individuals[0].ever_taken_drug.iter().map(|&taken| if taken { 1 } else { 0 }).collect();
-            println!("                                ");
-            println!("age_in_years: {}", age_in_years);
-            println!("region_living: {:?}", self.population.individuals[0].region_living);                                      
-            println!("region_cur_in: {:?}", self.population.individuals[0].region_cur_in);                                      
-            println!("hospital_status: {:?}", self.population.individuals[0].hospital_status);                                      
-            println!("is_severely_immunosuppressed: {:?}", self.population.individuals[0].is_severely_immunosuppressed);                                      
-            println!("date_last_infected: {:?}", self.population.individuals[0].date_last_infected);                                      
-            println!("ever_taken_drug: {:?}", ever_taken_drug_vector);
-            println!("date of death: {:?}", self.population.individuals[0].date_of_death);   
-            println!("                                ");
-
-            // Print resistance summary for all infected individuals at this time step
-        //  self.print_resistance_summary(t);
-
-
-//  */  //  end of per timestep printing block
-
+            // Print summary statistics for this time step
+            println!("Time step {}: {} newly infected, {} deaths, {} with resistance", 
+                t, 
+                summary.newly_infected_count, 
+                summary.total_deaths, 
+                summary.total_with_resistance
+            );
+    
+     */   // comment out printing of variable values for individual 0
 
         }
 

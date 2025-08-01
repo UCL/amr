@@ -23,9 +23,6 @@ mod config;
 // in the presence of the drug - we will also need the possibility of increases
 // in any / majority_r by non-specific mechanisms
 //
-// consider intermittent drug taking ? e.g. missing a day ?
-//
-// consider having new infection rate per bacteria dependent on proportion of population infected with that bacteria
 //
 //
 //
