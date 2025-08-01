@@ -4,7 +4,7 @@ use rand::distributions::{Distribution, Standard};
 use std::fmt; 
 
 
-/*
+  
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii" 
@@ -13,11 +13,11 @@ pub const BACTERIA_LIST: &[&str] = &[
  
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
-    "penicilling", "ampicillin", "amoxicillin",
+    "penicilling"
 ];
 
-*/
-
+  
+/*   
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
@@ -44,7 +44,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "retapamulin", "fusidic_a", "metronidazole", "furazolidone"
 ];
 
-
+*/
 
 // note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
 // resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection 

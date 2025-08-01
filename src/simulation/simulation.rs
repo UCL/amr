@@ -1,3 +1,7 @@
+
+// search below for "per time step printing block" to add / remove printing of 
+// variable values for individual 0
+
 // src/simulation/simulation.rs
 use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use crate::rules::apply_rules;
@@ -471,9 +475,51 @@ impl Simulation {
                 currently_infected_and_on_drug_count: currently_infected_and_on_drug_count.load(Ordering::Relaxed),
             };
             self.summary_log.push(summary);
+            // Comprehensive print block for individual 0
+            let individual_0 = &self.population.individuals[0];
+            println!("--- Individual 0 full state ---");
+            println!("id: {}", individual_0.id);
+            println!("age (days): {}", individual_0.age);
+            println!("sex_at_birth: {}", individual_0.sex_at_birth);
+            println!("region_living: {:?}", individual_0.region_living);
+            println!("region_cur_in: {:?}", individual_0.region_cur_in);
+            println!("current_infection_related_death_risk: {:.4}", individual_0.current_infection_related_death_risk);
+            println!("background_all_cause_mortality_rate: {:.4}", individual_0.background_all_cause_mortality_rate);
+            println!("sexual_contact_level: {:.4}", individual_0.sexual_contact_level);
+            println!("airborne_contact_level_with_adults: {:.4}", individual_0.airborne_contact_level_with_adults);
+            println!("airborne_contact_level_with_children: {:.4}", individual_0.airborne_contact_level_with_children);
+            println!("oral_exposure_level: {:.4}", individual_0.oral_exposure_level);
+            println!("mosquito_exposure_level: {:.4}", individual_0.mosquito_exposure_level);
+            println!("current_toxicity: {:.4}", individual_0.current_toxicity);
+            println!("mortality_risk_current_toxicity: {:.4}", individual_0.mortality_risk_current_toxicity);
+            println!("hospital_status: {:?}", individual_0.hospital_status);
+            println!("is_severely_immunosuppressed: {:?}", individual_0.is_severely_immunosuppressed);
+            println!("date_of_death: {:?}", individual_0.date_of_death);
+            // Arrays
+            println!("level: {:?}", individual_0.level);
+            println!("immune_resp: {:?}", individual_0.immune_resp);
+            println!("presence_microbiome: {:?}", individual_0.presence_microbiome);
+            println!("cur_level_drug: {:?}", individual_0.cur_level_drug);
+            println!("cur_use_drug: {:?}", individual_0.cur_use_drug);
+            println!("ever_taken_drug: {:?}", individual_0.ever_taken_drug);
+            println!("date_last_infected: {:?}", individual_0.date_last_infected);
+            println!("cur_infection_from_environment: {:?}", individual_0.cur_infection_from_environment);
+            println!("infection_hospital_acquired: {:?}", individual_0.infection_hospital_acquired);
+            println!("test_identified_infection: {:?}", individual_0.test_identified_infection);
+            println!("sepsis: {:?}", individual_0.sepsis);
+            // Per-bacteria/drug resistance data
+            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                    let resistance = &individual_0.resistances[b_idx][d_idx];
+                    println!(
+                        "Resistance for bacteria {} and drug {}: any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
+                        bacteria_name, drug_name, resistance.any_r, resistance.activity_r, resistance.majority_r
+                    );
+                }
+            }
 
 
-   /*  per time step printing block
+ // /*  per time step printing block
 
             // --- print activity_r for all infected bacteria/drug pairs for individual 0 after update ---
             let individual_0 = &self.population.individuals[0];
@@ -604,7 +650,7 @@ impl Simulation {
         //  self.print_resistance_summary(t);
 
 
-    */  //  end of per timestep printing block
+//  */  //  end of per timestep printing block
 
 
         }

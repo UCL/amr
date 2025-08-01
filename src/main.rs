@@ -1,45 +1,44 @@
 // src/main.rs
 
+// note:
+// when need to follow variable values over time steps for individual 0 
+// make the change shown at the top of simulation.rs and rules/mod.rs    
+// make the change in population.rs to restrict to small number of bacteria and drugs
+// decide which variable values to print out from the list in simulation.rs
+// run up to a certain point and should be able to see the previous e.g. 10 time step values
+//
+
 mod simulation;
 mod rules;
 mod config;
 
+
 //
-// work out how to simply print each variable value every day - to make basic checks in update code
-// need to have a quick way of switching so start with multiple drugs already in use and start with all age > 0
-// also consider ways to print out "flags" in mod.rs to confirm a line has run
-//
-// besides the above for basic logic checks, main approach is full model runs with >= 10,000
+// model structure developments to consider
 //
 // explicitly model resistance mechanisms and allow those to determine the any_r and majority_r values for each drug for 
 // that bacteria - so this will be 11 mechanisms - there will be less than 11 variables per bacteria as each bacteria
-// is only affected by a subset of the mechanisms. 
-//
-// include incidence of vaccination 
-//
-// consider fitness costs of resistance (some tendency for loss of resistance whenever a drug selecting for that resistance
-// is not being taken)
+// is only affected by a subset of the mechanisms - remember to include fitness cost
+// so the possibility that the mechanism is reversed when the bacteria is not replicating
+// in the presence of the drug - we will also need the possibility of increases
+// in any / majority_r by non-specific mechanisms
 //
 // consider intermittent drug taking ? e.g. missing a day ?
 //
 // consider having new infection rate per bacteria dependent on proportion of population infected with that bacteria
 //
-// set up automated testing for the simulation (probably not yet though)
 //
-// more to do on resistance in infections from environment and from when in hospital
 //
-// think whether want the increased risk of death in hospitalized (and immunosuppressed) but probably fine as is
 //
-// think about level of any_r when resistance first appears - and do we want to model
-// a sequence of events that leads to gradual increase in any_r - that would be largely taken care of by the modelling
-// of specific resistance mechanisms
 //
-// run model for the world to get idea of parameter values for rate of first appearance of resistance
+//
 //
 // calibration data: approx drug usage per 100_000 per calendar year 
 //                   incidence of infection with each bacteria by age and calendar year
 //                   deaths from each bacteria per 100_000 by age and calendar year
 //                   resistance distribution for each used drug for each bacteria by calendar year  
+//
+// set up automated testing for the simulation (probably not yet though)
 //
 // decide on time zero for mda azithromycin project
 //
