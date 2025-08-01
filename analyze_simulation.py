@@ -525,50 +525,50 @@ def export_data_files(df):
         df[existing_cols].to_csv(OUTPUT_FILES['key_data'], index=False, float_format=FLOAT_PRECISION)
         print(f"✓ Key data summary saved to '{OUTPUT_FILES['key_data']}'")
 
-def export_txt_data_file(df, filename="all_simulation_data.txt"):
-    """
-    Export the DataFrame to a .txt file in a wide, aligned, human-readable format.
-    Integers are printed without decimals, floats with six decimals.
-    """
-    print(f"Exporting data to '{filename}' in human-readable .txt format...")
-    columns = list(df.columns)
-    # Determine column types for formatting
-    dtypes = df.dtypes
-    # Set column widths based on max length of formatted data in each column
-    col_widths = []
-    for col in columns:
-        # Format a sample of values to determine width
-        if pd.api.types.is_integer_dtype(dtypes[col]):
-            formatted = df[col].map(lambda v: f"{int(v)}" if pd.notnull(v) else "").astype(str)
-        elif pd.api.types.is_float_dtype(dtypes[col]):
-            formatted = df[col].map(lambda v: f"{v:.6f}" if pd.notnull(v) else "").astype(str)
-        else:
-            formatted = df[col].astype(str)
-        max_data_len = formatted.map(len).max() if not df.empty else 0
-        col_widths.append(max(len(str(col)), max_data_len, 10))
-    # Add extra space between columns for better separation
-    col_sep = "   "  # triple space for clear separation
-    with open(filename, 'w', encoding='utf-8') as f:
-        # Write column headers
-        header = col_sep.join([str(col).ljust(width) for col, width in zip(columns, col_widths)])
-        f.write(header + "\n")
-        # Write data rows
-        for _, row in df.iterrows():
-            formatted_row = []
-            for col, width in zip(columns, col_widths):
-                val = row[col]
-                if pd.isnull(val):
-                    sval = ""
-                elif pd.api.types.is_integer_dtype(dtypes[col]):
-                    sval = f"{int(val)}"
-                elif pd.api.types.is_float_dtype(dtypes[col]):
-                    sval = f"{val:.6f}"
-                else:
-                    sval = str(val)
-                formatted_row.append(sval.ljust(width))
-            line = col_sep.join(formatted_row)
-            f.write(line + "\n")
-    print(f"\u2713 Data exported to '{filename}'")
+# def export_txt_data_file(df, filename="all_simulation_data.txt"):
+#     """
+#     Export the DataFrame to a .txt file in a wide, aligned, human-readable format.
+#     Integers are printed without decimals, floats with six decimals.
+#     """
+#     print(f"Exporting data to '{filename}' in human-readable .txt format...")
+#     columns = list(df.columns)
+#     # Determine column types for formatting
+#     dtypes = df.dtypes
+#     # Set column widths based on max length of formatted data in each column
+#     col_widths = []
+#     for col in columns:
+#         # Format a sample of values to determine width
+#         if pd.api.types.is_integer_dtype(dtypes[col]):
+#             formatted = df[col].map(lambda v: f"{int(v)}" if pd.notnull(v) else "").astype(str)
+#         elif pd.api.types.is_float_dtype(dtypes[col]):
+#             formatted = df[col].map(lambda v: f"{v:.6f}" if pd.notnull(v) else "").astype(str)
+#         else:
+#             formatted = df[col].astype(str)
+#         max_data_len = formatted.map(len).max() if not df.empty else 0
+#         col_widths.append(max(len(str(col)), max_data_len, 10))
+#     # Add extra space between columns for better separation
+#     col_sep = "   "  # triple space for clear separation
+#     with open(filename, 'w', encoding='utf-8') as f:
+#         # Write column headers
+#         header = col_sep.join([str(col).ljust(width) for col, width in zip(columns, col_widths)])
+#         f.write(header + "\n")
+#         # Write data rows
+#         for _, row in df.iterrows():
+#             formatted_row = []
+#             for col, width in zip(columns, col_widths):
+#                 val = row[col]
+#                 if pd.isnull(val):
+#                     sval = ""
+#                 elif pd.api.types.is_integer_dtype(dtypes[col]):
+#                     sval = f"{int(val)}"
+#                 elif pd.api.types.is_float_dtype(dtypes[col]):
+#                     sval = f"{val:.6f}"
+#                 else:
+#                     sval = str(val)
+#                 formatted_row.append(sval.ljust(width))
+#             line = col_sep.join(formatted_row)
+#             f.write(line + "\n")
+#     print(f"\u2713 Data exported to '{filename}'")
 
 def generate_summary_statistics(df):
     """Generate and display comprehensive summary statistics."""
@@ -656,11 +656,11 @@ def main():
             print(f"  ✓ {filename}")
         else:
             print(f"  ✗ {filename} (not created)")
-    txt_file = "all_simulation_data.txt"
-    if Path(txt_file).exists():
-        print(f"  ✓ {txt_file}")
-    else:
-        print(f"  ✗ {txt_file} (not created)")
+    # txt_file = "all_simulation_data.txt"
+    # if Path(txt_file).exists():
+    #     print(f"  ✓ {txt_file}")
+    # else:
+    #     print(f"  ✗ {txt_file} (not created)")
     
     print("\nRecommendation: Open grouped PNG files for visualizations, CSV files in Excel for data analysis. The .txt file is human-readable.")
 

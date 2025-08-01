@@ -5,22 +5,22 @@ mod rules;
 mod config;
 
 //
+// work out how to simply print each variable value every day - to make basic checks in update code
+// need to have a quick way of switching so start with multiple drugs already in use and start with all age > 0
+// also consider ways to print out "flags" in mod.rs to confirm a line has run
 //
-// produce the bar  graphs for each drug bacteria combination as done at the end and commented out 
+// besides the above for basic logic checks, main approach is full model runs with >= 10,000
 //
-// consider fitness costs of resistance
+// explicitly model resistance mechanisms and allow those to determine the any_r and majority_r values for each drug for 
+// that bacteria - so this will be 11 mechanisms - there will be less than 11 variables per bacteria as each bacteria
+// is only affected by a subset of the mechanisms. 
+//
+// include incidence of vaccination 
+//
+// consider fitness costs of resistance (some tendency for loss of resistance whenever a drug selecting for that resistance
+// is not being taken)
 //
 // consider intermittent drug taking ? e.g. missing a day ?
-//
-// think if / how am modelling horizontal gene transfer of resistance
-//
-// calculate an mic ? 1 / ((1-activity_r) * potency)
-//
-// consider adding tb, consider adding fungi
-//
-// fix risk of hospitalization
-//
-// infection acquisition and bacteria acquisition in microbiome may need logistic models
 //
 // consider having new infection rate per bacteria dependent on proportion of population infected with that bacteria
 //
@@ -28,12 +28,11 @@ mod config;
 //
 // more to do on resistance in infections from environment and from when in hospital
 //
-// risk of hospitalization may need logistic model
-//
 // think whether want the increased risk of death in hospitalized (and immunosuppressed) but probably fine as is
 //
 // think about level of any_r when resistance first appears - and do we want to model
-// a sequence of events that leads to gradual increase in any_r
+// a sequence of events that leads to gradual increase in any_r - that would be largely taken care of by the modelling
+// of specific resistance mechanisms
 //
 // run model for the world to get idea of parameter values for rate of first appearance of resistance
 //
@@ -53,8 +52,7 @@ mod config;
 //              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug 
 //              - but not sure yet if this is needed / justified
 //
-// to consider in future: explicitly model resistance mechanisms and allow that to determine the any_r value for each drug for 
-//                        that bacteria
+// consider adding tb, consider adding fungi
 //
 
 
@@ -64,7 +62,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =  3_000 ;
-    let time_steps = 37 ;  
+    let time_steps = 1000 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
 

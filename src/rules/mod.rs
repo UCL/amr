@@ -327,9 +327,46 @@ pub fn apply_rules(
 
 
     // loop through all bacteria to update vaccination status dynamically
-    for (b_idx, _bacteria) in BACTERIA_LIST.iter().enumerate() {
-        if rng.gen::<f64>() < 0.0001 {
-            individual.vaccination_status[b_idx] = !individual.vaccination_status[b_idx];
+    // Age-specific daily vaccination probability for each vaccine
+    // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
+    let age_years = individual.age as f64 / 365.0;
+    let age_group = if age_years < 1.0 {
+        "0_1"
+    } else if age_years < 5.0 {
+        "1_5"
+    } else if age_years < 18.0 {
+        "5_18"
+    } else if age_years < 50.0 {
+        "18_50"
+    } else if age_years < 70.0 {
+        "50_70"
+    } else {
+        "70plus"
+    };
+
+    let vaccines = vec!["pneumococcal", "meningococcal", "hib", "bcg", "rotavirus", "measles", "influenza", "covid19"];
+    for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+        // For each vaccine, check if this bacteria is targeted by the vaccine
+        for vaccine in &vaccines {
+            // Example: pneumococcal vaccine targets Streptococcus pneumoniae
+            let targets_bacteria = match (*vaccine, *bacteria) {
+                ("pneumococcal", "streptococcus pneumoniae") => true,
+                ("meningococcal", "neisseria meningitidis") => true,
+                ("hib", "haemophilus influenzae") => true,
+                ("bcg", "mycobacterium tuberculosis") => true,
+                ("rotavirus", "rotavirus") => true,
+                ("measles", "measles virus") => true,
+                ("influenza", "influenza virus") => true,
+                ("covid19", "sars-cov-2") => true,
+                _ => false,
+            };
+            if targets_bacteria && !individual.vaccination_status[b_idx] {
+                let param_key = format!("vaccine_{}_daily_prob_age_{}", vaccine, age_group);
+                let daily_prob = get_global_param(&param_key).unwrap_or(0.0);
+                if rng.gen::<f64>() < daily_prob {
+                    individual.vaccination_status[b_idx] = true;
+                }
+            }
         }
     }
 
@@ -942,6 +979,42 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 individual.resistances[b_idx][d_idx].microbiome_r = current_any_r;
                             } else if current_microbiome_r > 0.0 && current_any_r == 0.0 {
                                 individual.resistances[b_idx][d_idx].any_r = current_microbiome_r;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- HORIZONTAL GENE TRANSFER (HGT) BETWEEN DIFFERENT BACTERIA ---
+            // For each donor bacteria (with resistance), try to transfer to each other recipient bacteria
+            for donor_idx in 0..BACTERIA_LIST.len() {
+                // Donor must have resistance (infection or microbiome)
+                let donor_has_resistance = individual.level[donor_idx] > 0.001 || individual.presence_microbiome[donor_idx];
+                if donor_has_resistance {
+                    for recipient_idx in 0..BACTERIA_LIST.len() {
+                        if recipient_idx == donor_idx { continue; }
+                        let donor_name = BACTERIA_LIST[donor_idx];
+                        let recipient_name = BACTERIA_LIST[recipient_idx];
+                        let hgt_key = format!("hgt_prob_{}_to_{}", donor_name, recipient_name);
+                        let hgt_prob = crate::config::PARAMETERS.get(&hgt_key).copied().unwrap_or(0.0);
+                        if hgt_prob > 0.0 && rng.gen::<f64>() < hgt_prob {
+                            // Transfer resistance for all drugs
+                            for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                                let donor_r = individual.resistances[donor_idx][drug_idx].any_r;
+                                if donor_r > 0.0 {
+                                    // Transfer to infection
+                                    if individual.level[recipient_idx] > 0.001 {
+                                        individual.resistances[recipient_idx][drug_idx].any_r = donor_r.max(
+                                            individual.resistances[recipient_idx][drug_idx].any_r
+                                        );
+                                    }
+                                    // Transfer to microbiome
+                                    if individual.presence_microbiome[recipient_idx] {
+                                        individual.resistances[recipient_idx][drug_idx].any_r = donor_r.max(
+                                            individual.resistances[recipient_idx][drug_idx].any_r
+                                        );
+                                    }
+                                }
                             }
                         }
                     }

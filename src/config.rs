@@ -35,6 +35,27 @@ lazy_static! {
             
             // Age-related infection risk parameters
             map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
+
+            // --- Age-specific daily vaccination probability parameters for each vaccine ---
+            // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
+            let vaccines = vec!["pneumococcal", "meningococcal", "hib", "bcg", "rotavirus", "measles", "influenza", "covid19"];
+            let age_groups = vec!["0_1", "1_5", "5_18", "18_50", "50_70", "70plus"];
+            for vaccine in &vaccines {
+                for age in &age_groups {
+                    // Default: 0.0, user should override as needed
+                    map.insert(format!("vaccine_{}_daily_prob_age_{}", vaccine, age), 0.0);
+                }
+            }
+        }
+
+        // --- HGT Probabilities for All Donor-Recipient Bacteria Pairs ---
+        for &donor in BACTERIA_LIST.iter() {
+            for &recipient in BACTERIA_LIST.iter() {
+                if donor != recipient {
+                    // Default HGT probability (adjust as needed)
+                    map.insert(format!("hgt_prob_{}_to_{}", donor, recipient), 0.0001);
+                }
+            }
         }
 
 
@@ -480,8 +501,8 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00006);   // Probablity of becoming immunosuppressed daily
-        map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0005); // Probability of recovering from immunosuppression daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00004);   // Probablity of becoming immunosuppressed daily
+        map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0003); // Probability of recovering from immunosuppression daily
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
