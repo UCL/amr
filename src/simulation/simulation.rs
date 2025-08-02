@@ -59,6 +59,9 @@ pub struct TimeStepSummary {
 
     // per-bacteria, per-drug infection and resistance counts (flat, len = bacteria * drugs)
     pub infected_and_standardized_mic_lt2_by_bacteria_drug: Vec<usize>,
+
+    // NEW: per-drug currently on drug counts (indexed by drug)
+    pub currently_on_drug_by_drug: Vec<usize>,
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -229,6 +232,9 @@ impl Simulation {
             let total_currently_infected = AtomicUsize::new(0);
             let total_with_resistance = AtomicUsize::new(0);
 
+            // Per-drug: count number of living people currently taking each drug
+            let currently_on_drug_by_drug = (0..num_drugs).map(|_| AtomicUsize::new(0)).collect::<Vec<_>>();
+
             // Single pass: apply rules and collect all statistics
             self.population.individuals.par_iter_mut().for_each(|individual| {
                 // Apply rules first
@@ -272,6 +278,12 @@ impl Simulation {
 
                 // Only collect statistics for alive individuals
                 if individual.date_of_death.is_none() {
+                    // For each drug, count if this individual is currently taking it
+                    for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
+                        if is_using {
+                            currently_on_drug_by_drug[d_idx].fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
                     // Check if any presence_microbiome is true
                     if individual.presence_microbiome.iter().any(|&x| x) {
                         num_with_any_bacteria_microbiome.fetch_add(1, Ordering::Relaxed);
@@ -405,6 +417,7 @@ impl Simulation {
 
             let summary = TimeStepSummary {
         infected_and_standardized_mic_lt2_by_bacteria_drug: infected_and_standardized_mic_lt2_by_bacteria_drug.clone(),
+        currently_on_drug_by_drug: currently_on_drug_by_drug.iter().map(|x| x.load(Ordering::Relaxed)).collect(),
                 num_age_0_5,
                 num_age_6_14,
                 num_age_15_49,
@@ -563,9 +576,18 @@ impl Simulation {
         use std::io::Write;
 
         let mut file = File::create(filename)?;
-        
+
         // Write header
         write!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome")?;
+        // Add per-bacteria infection columns
+        for bacteria in BACTERIA_LIST.iter() {
+            write!(file, ",{}_currently_infected", bacteria.replace(" ", "_"))?;
+        }
+        // Add per-drug currently on drug columns
+        for drug in DRUG_SHORT_NAMES.iter() {
+            write!(file, ",{}_currently_on_drug", drug.replace(" ", "_"))?;
+        }
+        // Add per-bacteria, per-drug MIC < 2 columns
         for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
             for drug in DRUG_SHORT_NAMES.iter() {
                 write!(file, ",{}_infected_and_mic_lt2_{}", bacteria.replace(" ", "_"), drug)?;
@@ -607,6 +629,14 @@ impl Simulation {
                 summary.num_age_80plus,
                 summary.num_with_any_bacteria_microbiome,
             )?;
+            // Output per-bacteria infection counts
+            for b_idx in 0..num_bacteria {
+                write!(file, ",{}", summary.infections_by_bacteria[b_idx])?;
+            }
+            // Output per-drug currently on drug counts
+            for d_idx in 0..num_drugs {
+                write!(file, ",{}", summary.currently_on_drug_by_drug[d_idx])?;
+            }
             // Output per-bacteria, per-drug infection and resistance counts
             for b_idx in 0..num_bacteria {
                 for d_idx in 0..num_drugs {
@@ -616,7 +646,7 @@ impl Simulation {
             }
             writeln!(file)?;
         }
-        
+
         println!("Summary data exported to {}", filename);
         Ok(())
     }

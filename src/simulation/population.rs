@@ -12,7 +12,7 @@ use rand::distributions::{Distribution, Standard};
 use std::fmt; 
 
 
-  
+/* 
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii" 
@@ -24,8 +24,8 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "penicilling"
 ];
 
+*/
   
-/*   
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
@@ -55,7 +55,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "ceftazidime_avibactam", "meropenem_vaborbactam"
 ];
 
-*/
+
 
 // HospitalStatus: models healthcare-associated risk of acquiring resistant bacteria (not hospitalization due to infection/comorbidities).
 // REMAOVE ?: note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
