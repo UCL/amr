@@ -23,8 +23,8 @@ mod config;
 // in the presence of the drug - we will also need the possibility of increases
 // in any / majority_r by non-specific mechanisms
 //
-//
-//
+// consider summaries of the drug resistance situation every 10 years / probably a separate .csv file which is also 
+// read into the .py 
 //
 //
 //
