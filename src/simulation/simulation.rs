@@ -1,8 +1,17 @@
+// src/simulation/simulation.rs
+// Main simulation logic and summary data structures for AMR model.
+//
+// Contains:
+//   - TimeStepSummary: struct for per-timestep summary statistics
+//   - Simulation: struct and methods for running the simulation, managing population, and logging
+//   - Initialization of lookup tables for bacteria, drugs, and cross-resistance
+//   - Debug/print blocks for individual and population state
+//
 
 // search below for "printing of variable values for individual 0"
-// variable values for individual 0
+// when want to print variable values for individual 0 for de-bugging
 
-// src/simulation/simulation.rs
+
 use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
 use crate::rules::apply_rules;
 use crate::config; // Import the config module
@@ -13,6 +22,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 // Compact structure for time step summary data
 #[allow(dead_code)]
 #[derive(Clone)]
+// Summary statistics for each simulation time step.
+//
+// Captures population-level and per-bacteria/drug summary metrics for each time step.
 pub struct TimeStepSummary {
     pub time_step: usize,
     pub total_population: usize,
@@ -20,20 +32,19 @@ pub struct TimeStepSummary {
     pub deaths_background: usize,        // Deaths from background mortality
     pub deaths_sepsis: usize,           // Deaths from sepsis
     pub deaths_drug_toxicity: usize,    // Deaths from drug toxicity
-    // Rolling 1-year (365 days) death counts
-    pub deaths_past_year: usize, // all-cause
-    pub deaths_background_past_year: usize,
-    pub deaths_sepsis_past_year: usize,
-    pub deaths_drug_toxicity_past_year: usize,
+    pub deaths_past_year: usize, // all-cause     // Rolling 1-year (365 days) death counts
+    pub deaths_background_past_year: usize,     // Rolling 1-year (365 days) death counts
+    pub deaths_sepsis_past_year: usize,     // Rolling 1-year (365 days) death counts
+    pub deaths_drug_toxicity_past_year: usize,     // Rolling 1-year (365 days) death counts
     pub total_with_resistance: usize,
     pub total_currently_infected: usize, // Number of living people currently infected with any bacteria
-    pub currently_taking_drug_count: usize, // New field
-    pub infected_10_days_count: usize,     // New field
-    pub infected_30_days_count: usize,     // New field
-    pub taking_two_drugs_count: usize,     // New field
-    pub number_in_hospital: usize,         // New field
-    pub number_severely_immunosuppressed: usize, // New field
-    pub number_with_sepsis: usize,         // New field
+    pub currently_taking_drug_count: usize, 
+    pub infected_10_days_count: usize,     
+    pub infected_30_days_count: usize,     
+    pub taking_two_drugs_count: usize,     
+    pub number_in_hospital: usize,         
+    pub number_severely_immunosuppressed: usize, 
+    pub number_with_sepsis: usize,         
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
     pub newly_infected_count: usize, // Number of people newly infected this time step
@@ -46,50 +57,53 @@ pub struct TimeStepSummary {
     pub num_age_80plus: usize,
     pub num_with_any_bacteria_microbiome: usize, // NEW: number of people with any presence_microbiome=true
 
-    // New: per-bacteria, per-drug infection and resistance counts (flat, len = bacteria * drugs)
+    // per-bacteria, per-drug infection and resistance counts (flat, len = bacteria * drugs)
     pub infected_and_standardized_mic_lt2_by_bacteria_drug: Vec<usize>,
-}
+} 
 
-pub struct Simulation {  // public rust struct which encapsulates the state and configuration of a simulation run.
-    pub population: Population, // specifying the population of individuals in the simulation.
-    pub time_steps: usize, // specifying how many discrete time steps the simulation will run.
+// Main simulation struct: holds population, time steps, and lookup tables.
+//
+// Encapsulates the state and configuration of a simulation run, including population, time steps,
+// and lookup tables for bacteria, drugs, and cross-resistance groups.
+pub struct Simulation {
+    pub population: Population, 
+    pub time_steps: usize, 
 
-    // todo: ensure that when we count across individuals that we include only those alive
-
-    // REMOVED: global_majority_r_proportions (no longer used)
-    pub bacteria_indices: HashMap<&'static str, usize>, // A string-to-index map converting bacteria names (&'static str) to integer indices.
-    pub drug_indices: HashMap<&'static str, usize>, // as above, but for drugs.
-    pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>, // New: (b_idx -> [[d_idx, d_idx], ...])
-    pub current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>>, // Store between time steps
-
-    pub summary_log: Vec<TimeStepSummary>, // Efficient storage for summary data
+    /// Maps bacteria names to their indices in arrays.
+    pub bacteria_indices: HashMap<&'static str, usize>,
+    /// Maps drug names to their indices in arrays.
+    pub drug_indices: HashMap<&'static str, usize>,
+    /// Maps bacteria index to cross-resistance groups (each group is a Vec of drug indices).
+    pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>,
+    /// Stores majority_r positive values for each (bacteria, is_microbiome, drug, time_step) combo.
+    pub current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>>,
+    /// Efficient storage for summary data at each time step.
+    pub summary_log: Vec<TimeStepSummary>,
 }
 
 impl Simulation {
+    /// Create a new Simulation instance with initialized population and lookup tables.
+    ///
+    /// Initializes population, bacteria/drug indices, and cross-resistance groups.
     pub fn new(population_size: usize, time_steps: usize) -> Self {
-
+        let population = Population::new(population_size);
         // public function named new (rust’s conventional constructor pattern).  
-        // Takes two inputs: population_size: how many individuals to initialize.
+        // takes two inputs: population_size: how many individuals to initialize.
         // time_steps: how many time steps the simulation should run.
-        // Returns Self → shorthand for returning an instance of Simulation.
-
-        let population = Population::new(population_size); 
-
+        // returns Self → shorthand for returning an instance of Simulation.
         // calls a new constructor for the Population struct.  Passes in "population_size", returning a Population instance 
         // and stores it in the local population variable.
 
         // Initialize bacteria_indices and drug_indices
         let mut bacteria_indices: HashMap<&'static str, usize> = HashMap::new();
-        for (i, &bacteria) in BACTERIA_LIST.iter().enumerate() { // Iterate over the bacteria list and create a mapping from bacteria names to their indices.
-            bacteria_indices.insert(bacteria, i); // Inserts each bacteria name and its index into the HashMap.
+        for (i, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+            bacteria_indices.insert(bacteria, i);
         }
-
-        let mut drug_indices: HashMap<&'static str, usize> = HashMap::new(); // Create a HashMap to map drug names to their indices.
-        for (i, &drug) in DRUG_SHORT_NAMES.iter().enumerate() { // Iterate over the drug list and create a mapping from drug names to their indices.
+        let mut drug_indices: HashMap<&'static str, usize> = HashMap::new();
+        for (i, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             drug_indices.insert(drug, i);
         }
-
-        // New: Load and process cross-resistance groups
+        // Load and process cross-resistance groups
         let mut cross_resistance_groups = HashMap::new();
         let raw_groups = config::get_cross_resistance_groups();
         for (bacteria_name, groups) in raw_groups.iter() {
@@ -100,10 +114,6 @@ impl Simulation {
                 cross_resistance_groups.insert(b_idx, indexed_groups);
             }
         }
-
-        // REMOVED: global_majority_r_proportions initialization
-
-        // --- Initial State Logging for Individual 0
 
         println!(" ");
         println!("--- simulation.rs  initial state of individual 0 ---");
@@ -127,10 +137,9 @@ impl Simulation {
         Simulation { // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
             population,
             time_steps,
-            // REMOVED: global_majority_r_proportions from constructor
             bacteria_indices,
             drug_indices,
-            cross_resistance_groups, // Add new field
+            cross_resistance_groups, 
             current_majority_r_positive_values_by_combo: HashMap::new(), // Initialize empty
             summary_log: Vec::new(), // Initialize empty log
         }
@@ -183,19 +192,18 @@ impl Simulation {
             // Counter for intersection of currently infected AND on any drug
             let currently_infected_and_on_drug_count = AtomicUsize::new(0);
 
-            // NEW: Counter for people with any presence_microbiome=true
+            // Counter for people with any presence_microbiome=true
             let num_with_any_bacteria_microbiome = AtomicUsize::new(0);
 
             // Use previous time step's resistance data for new acquisitions
             let previous_majority_r_positive_values_by_combo = if t == 0 {
                 HashMap::new() // Empty for first time step
             } else {
-                // Use the data collected in the previous iteration
+            // Use the data collected in the previous iteration
                 std::mem::take(&mut self.current_majority_r_positive_values_by_combo)
             };
 
             // Initialize counters and data structures for this time step
-            // Remove HashMaps for per-bacteria/drug counts; use arrays for speed
             let new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
             let log_majority_r_positive_counts: Vec<Vec<AtomicUsize>> = (0..BACTERIA_LIST.len())
                 .map(|_| (0..DRUG_SHORT_NAMES.len()).map(|_| AtomicUsize::new(0)).collect())
@@ -227,7 +235,6 @@ impl Simulation {
                 apply_rules(
                     individual,
                     t,
-                    // REMOVED: &self.global_majority_r_proportions,
                     &previous_majority_r_positive_values_by_combo,
                     &self.bacteria_indices,
                     &self.drug_indices,
@@ -265,7 +272,7 @@ impl Simulation {
 
                 // Only collect statistics for alive individuals
                 if individual.date_of_death.is_none() {
-                    // NEW: Check if any presence_microbiome is true
+                    // Check if any presence_microbiome is true
                     if individual.presence_microbiome.iter().any(|&x| x) {
                         num_with_any_bacteria_microbiome.fetch_add(1, Ordering::Relaxed);
                     }
@@ -398,8 +405,6 @@ impl Simulation {
 
             let summary = TimeStepSummary {
         infected_and_standardized_mic_lt2_by_bacteria_drug: infected_and_standardized_mic_lt2_by_bacteria_drug.clone(),
-                // Optionally, you can add a new field to TimeStepSummary to export these counts if desired
-                // Example: majority_r_positive_by_bacteria_drug: log_majority_r_positive_counts.iter().map(|row| row.iter().map(|x| x.load(Ordering::Relaxed)).collect()).collect(),
                 num_age_0_5,
                 num_age_6_14,
                 num_age_15_49,

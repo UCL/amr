@@ -1,3 +1,12 @@
+//
+// Centralized configuration and parameter management for the AMR simulation.
+//
+// Contains:
+//   - Initialization of global, bacteria-specific, and drug-specific parameters
+//   - Functions for parameter lookup and cross-resistance group management
+//   - Age-specific vaccination, HGT, and other model parameters
+//   - Reference for template and override logic
+//
 
 
 // src/config.rs

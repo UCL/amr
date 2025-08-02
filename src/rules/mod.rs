@@ -1,3 +1,11 @@
+//
+// Core model rules and update logic for the AMR simulation.
+//
+// Contains:
+//   - apply_rules: main function to update an individual's state for one time step
+//   - Logic for resistance emergence, drug effects, MIC calculation, cross-resistance, HGT, and reversion
+//   - Helper functions for parameter lookup and stochastic events
+//
 // src/rules/mod.rs
 
 

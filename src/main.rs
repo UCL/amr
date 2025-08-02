@@ -1,4 +1,12 @@
 // src/main.rs
+//
+// Entry point for the AMR simulation.
+//
+// Responsibilities:
+//   - Sets up and runs the simulation using parameters from config.rs
+//   - Handles some initial and final reporting
+//
+
 
 // note:
 // when need to follow variable values over time steps for individual 0 
@@ -14,14 +22,10 @@ mod config;
 
 
 //
-// model structure developments to consider
+// model structure developments to consider:
 //
-// remember to include fitness cost
 //
-// add drugs with co-use of beta-lactamase inhibitors
 //
-// consider summaries of the drug resistance situation every 10 years / probably a separate .csv file which is also 
-// read into the .py 
 //
 //
 //
@@ -33,6 +37,11 @@ mod config;
 //                   resistance distribution for each used drug for each bacteria by calendar year  
 //
 // set up automated testing for the simulation (probably not yet though)
+//
+//
+//
+//
+// 
 //
 // decide on time zero for mda azithromycin project
 //

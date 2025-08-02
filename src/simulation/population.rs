@@ -1,4 +1,12 @@
 // src/simulation/population.rs
+//
+// Defines the core data structures for the simulation population, including:
+//   - BACTERIA_LIST and DRUG_SHORT_NAMES: lists of bacteria and drugs in the model
+//   - HospitalStatus and Region enums for individual state
+//   - Resistance and Individual structs for per-person and per-bacteria/drug state
+//   - Population struct and initialization logic
+//
+// Also includes legacy lists and antibiotic class reference for model expansion.
 use rand::Rng;
 use rand::distributions::{Distribution, Standard};
 use std::fmt; 
@@ -49,9 +57,10 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
 
 */
 
-// note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
-// resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection 
-// or what underlying other conditions they may have that would affect risk of hospitalization 
+// HospitalStatus: models healthcare-associated risk of acquiring resistant bacteria (not hospitalization due to infection/comorbidities).
+// REMAOVE ?: note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
+// REMAOVE ?: resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection 
+// REMAOVE ?: or what underlying other conditions they may have that would affect risk of hospitalization 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HospitalStatus {
     InHospital,  // consider in future whether to have a variable for whether in icu
@@ -116,6 +125,7 @@ pub struct Resistance {
                          // it will always take the same value as any_r
 }
 
+/// Represents a single individual in the simulation, with all per-person and per-bacteria/drug state variables.
 #[derive(Debug, Clone)]
 pub struct Individual {
     pub id: usize,
@@ -132,15 +142,19 @@ pub struct Individual {
 
     pub immune_resp: Vec<f64>,                     
     pub sepsis: Vec<bool>,                         
-    pub sepsis_onset_day: Vec<i32>,                // Day when sepsis started for each bacteria (-1 if never had sepsis)
+    /// Day when sepsis started for each bacteria (-1 if never had sepsis)
+    pub sepsis_onset_day: Vec<i32>,               
     pub presence_microbiome: Vec<bool>,            
     pub vaccination_status: Vec<bool>,             
     pub cur_infection_from_environment: Vec<bool>, 
     pub test_identified_infection: Vec<bool>,      
-    pub test_for_resistance: Vec<bool>, // NEW: tracks if resistance test has been performed for each bacteria
+    /// Tracks if resistance test has been performed for each bacteria
+    pub test_for_resistance: Vec<bool>, // REMAOVE ?: NEW: tracks if resistance test has been performed for each bacteria
     pub cur_use_drug: Vec<bool>,
-    pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
-    pub date_drug_initiated: Vec<i32>, // the time_step when each drug was last initiated
+    /// Standard level is 10 for a day on which a standard dose is taken / administered
+    pub cur_level_drug: Vec<f64>,  // REMAOVE ?: standard level is 10 for a day on which a standard dose is taken / administered 
+    /// The time_step when each drug was last initiated
+    pub date_drug_initiated: Vec<i32>, // REMAOVE ?: the time_step when each drug was last initiated
     pub ever_taken_drug: Vec<bool>,
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,  
@@ -160,6 +174,13 @@ pub struct Individual {
 }
 
 impl Individual {
+    /// Constructs a new Individual with randomized and default-initialized fields.
+    ///
+    /// - id: unique identifier
+    /// - age_days: age in days (negative = not yet born)
+    /// - sex_at_birth: "male" or "female"
+    ///
+    /// Initializes all per-bacteria and per-drug vectors to correct length, and randomizes some fields.
     pub fn new(id: usize, age_days: i32, sex_at_birth: String) -> Self {
         let mut rng = rand::thread_rng();
         let num_bacteria = BACTERIA_LIST.len();
