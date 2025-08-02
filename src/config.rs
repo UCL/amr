@@ -67,6 +67,13 @@ lazy_static! {
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
         
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
+        // Beta-lactam/beta-lactamase inhibitor combinations
+        map.insert("drug_amoxicillin_clavulanate_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_piperacillin_tazobactam_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_ampicillin_sulbactam_half_life_days".to_string(), 0.04); // ~1 hour
+        map.insert("drug_ticarcillin_clavulanate_half_life_days".to_string(), 0.046); // ~1.1 hours
+        map.insert("drug_ceftazidime_avibactam_half_life_days".to_string(), 0.08); // ~2 hours
+        map.insert("drug_meropenem_vaborbactam_half_life_days".to_string(), 0.04); // ~1 hour
         
         // Sulfonamides (first antibiotics)
         map.insert("drug_sulfanilamide_half_life_days".to_string(), 0.45); // ~11 hours
@@ -156,10 +163,21 @@ lazy_static! {
         // 0.05 = Very poor/no activity
         
         // Define drug classes for easier management
-        let penicillins = vec!["penicilling", "ampicillin", "amoxicillin", "piperacillin", "ticarcillin"];
+        let penicillins = vec!["penicilling", "ampicillin", "amoxicillin", "piperacillin", "ticarcillin",
+            // BL/BLI combinations
+            "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate"
+        ];
         let cephalosporins_1_2 = vec!["cephalexin", "cefazolin", "cefuroxime"];
         let cephalosporins_3_4 = vec!["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline"];
+        let cephalosporins_3_4 = vec!["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline",
+            // BL/BLI cephalosporin
+            "ceftazidime_avibactam"
+        ];
         let carbapenems = vec!["meropenem", "imipenem_c", "ertapenem"];
+        let carbapenems = vec!["meropenem", "imipenem_c", "ertapenem",
+            // BL/BLI carbapenem
+            "meropenem_vaborbactam"
+        ];
         let _monobactams = vec!["aztreonam"];
         let macrolides = vec!["erythromycin", "azithromycin", "clarithromycin"];
         let _lincosamides = vec!["clindamycin"];
@@ -395,6 +413,8 @@ lazy_static! {
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
 
         // Resistance Emergence and Decay Parameters
+        // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
+        map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
         map.insert("resistance_emergence_rate_per_day_baseline".to_string(), 0.01);  // 0.000001 Baseline probability for de novo resistance emergence
         map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.005); // Separate baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
@@ -980,8 +1000,8 @@ lazy_static! {
 
         // E. coli resistance patterns
         m.insert("escherichia coli", vec![
-            // ESBL resistance affects penicillins + some cephalosporins
-            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin"],
+            // ESBL resistance affects penicillins + some cephalosporins (BL/BLI combinations overcome ESBL)
+            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "amoxicillin_clavulanate", "ampicillin_sulbactam", "piperacillin_tazobactam", "ticarcillin_clavulanate"],
             // Fluoroquinolone resistance (often ciprofloxacin + levofloxacin together)
             vec!["ciprofloxacin", "levofloxacin"],
             // Aminoglycoside resistance (often linked)
@@ -990,10 +1010,10 @@ lazy_static! {
 
         // Acinetobacter baumannii resistance patterns
         m.insert("acinetobacter baumannii", vec![
-            // β-lactamase affects most β-lactams
-            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime"],
-            // Carbapenemase affects carbapenems
-            vec!["meropenem", "imipenem_c", "ertapenem"],
+            // β-lactamase affects most β-lactams (BL/BLI combinations included)
+            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime", "amoxicillin_clavulanate", "ampicillin_sulbactam", "piperacillin_tazobactam", "ticarcillin_clavulanate"],
+            // Carbapenemase affects carbapenems (including BL/BLI)
+            vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"],
             // Fluoroquinolone resistance
             vec!["ciprofloxacin", "levofloxacin", "moxifloxacin"],
             // Aminoglycoside resistance
@@ -1002,10 +1022,10 @@ lazy_static! {
 
         // Klebsiella pneumoniae resistance patterns  
         m.insert("klebsiella pneumoniae", vec![
-            // ESBL resistance
-            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime", "ceftriaxone"],
+            // ESBL resistance (BL/BLI combinations overcome ESBL)
+            vec!["penicilling", "ampicillin", "amoxicillin", "cephalexin", "cefazolin", "cefuroxime", "ceftriaxone", "amoxicillin_clavulanate", "ampicillin_sulbactam", "piperacillin_tazobactam", "ticarcillin_clavulanate"],
             // Carbapenemase (KPC, NDM, etc.)
-            vec!["meropenem", "imipenem_c", "ertapenem"],
+            vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"],
             // Fluoroquinolone resistance
             vec!["ciprofloxacin", "levofloxacin"],
         ]);

@@ -1246,6 +1246,21 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let reduction_due_to_immune_resp = get_bacteria_param(bacteria, "immunity_effect_on_level_change").unwrap_or(0.0);
             let mut total_reduction_due_to_antibiotic = 0.0;
 
+            // --- Resistance reversion logic: revert any_r/majority_r to 0 if not on any drug ---
+            let resistance_reversion_rate = get_global_param("resistance_reversion_rate_per_day").unwrap_or(0.0001); // Default: very rare
+            let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0001);
+            if !on_any_drug {
+                for drug_index in 0..DRUG_SHORT_NAMES.len() {
+                    let resistance_data = &mut individual.resistances[b_idx][drug_index];
+                    if resistance_data.any_r > 0.0 || resistance_data.majority_r > 0.0 {
+                        if rng.gen_bool(resistance_reversion_rate) {
+                            resistance_data.any_r = 0.0;
+                            resistance_data.majority_r = 0.0;
+                        }
+                    }
+                }
+            }
+
 
             if individual.id == 1000001 {
                 println!(" ");

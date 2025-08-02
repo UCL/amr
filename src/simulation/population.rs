@@ -41,7 +41,10 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "gentamicin", "tobramycin", "amikacin", "ciprofloxacin", "levofloxacin", "moxifloxacin",
     "ofloxacin", "tetracycline", "doxyclycline", "minocycline", "vancomycin", "teicoplanin",
     "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
-    "retapamulin", "fusidic_a", "metronidazole", "furazolidone"
+    "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
+    // Beta-lactam/beta-lactamase inhibitor combinations
+    "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
+    "ceftazidime_avibactam", "meropenem_vaborbactam"
 ];
 
 */

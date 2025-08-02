@@ -16,12 +16,9 @@ mod config;
 //
 // model structure developments to consider
 //
-// explicitly model resistance mechanisms and allow those to determine the any_r and majority_r values for each drug for 
-// that bacteria - so this will be 11 mechanisms - there will be less than 11 variables per bacteria as each bacteria
-// is only affected by a subset of the mechanisms - remember to include fitness cost
-// so the possibility that the mechanism is reversed when the bacteria is not replicating
-// in the presence of the drug - we will also need the possibility of increases
-// in any / majority_r by non-specific mechanisms
+// remember to include fitness cost
+//
+// add drugs with co-use of beta-lactamase inhibitors
 //
 // consider summaries of the drug resistance situation every 10 years / probably a separate .csv file which is also 
 // read into the .py 
@@ -50,14 +47,19 @@ mod config;
 //
 // consider adding tb, consider adding fungi
 //
-
-
+// ? explicitly model resistance mechanisms and allow those to determine the any_r and majority_r values for each drug for 
+// that bacteria - so this will be up to 11 mechanisms - there will be less than 11 variables per bacteria as each bacteria
+// is only affected by a subset of the mechanisms - include fitness cost so the possibility that the mechanism is reversed 
+// when the bacteria is not replicating in the presence of the drug - would still need the possibility of increases
+// in any / majority_r by non-specific mechanisms - have not included this until now due to concern about all these
+// mechanisms and others not being sufficiently well understood
+//
 
 use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =  3_000 ;
+    let population_size =  10_000 ;
     let time_steps = 1000 ;  
 
     let mut simulation = Simulation::new(population_size, time_steps);
