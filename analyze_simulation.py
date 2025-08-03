@@ -1,17 +1,50 @@
 # =============================================================================
+# BACTERIA INFECTION PROPORTION PLOTS
+# =============================================================================
+def create_bacteria_infection_proportion_plots(df):
+    """
+    For each bacteria, plot the proportion of people infected with that bacteria over time.
+    Each plot is saved as a separate PNG file.
+    """
+    print("\n=== CREATING BACTERIA INFECTION PROPORTION PLOTS FOR EACH BACTERIA ===")
+    # Find all columns matching *_currently_infected
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("No *_currently_infected columns found in data.")
+        return
+    for bacteria_col in bacteria_cols:
+        bacteria_name = bacteria_col.replace('_currently_infected', '')
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        # Proportion: number infected with this bacteria / total population
+        prop = safe_divide(df[bacteria_col], df['total_population'])
+        plt.plot(df['time_in_years'], prop, label=bacteria_name.replace('_', ' ').title(), linewidth=3)
+        plt.title(f"Proportion of People Infected with {bacteria_name.replace('_', ' ').title()}", fontsize=50)
+        plt.ylabel('Proportion of Living Population', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.ylim(0, 0.01)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = f"output_graphs/proportion_of_people_infected_with_each_bacteria/{bacteria_name}_infection_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+# =============================================================================
 # NEW: PAST YEAR DEATHS PLOT
 # =============================================================================
 def create_grouped_figure_4(df):
-    """Create grouped_figure_4.png: Top-left = past-year deaths plot, others blank."""
+    """Create grouped_figure_4.png: Placeholder (all subplots blank)."""
     fig, axes = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes = axes.flatten()
-    fig.suptitle('Grouped Figure 4: No Data', fontsize=16)
+    fig.suptitle('Grouped Figure 4: (Placeholder)', fontsize=16)
+    # All subplots: No data
     for i in range(4):
         axes[i].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
         axes[i].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig('grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
+    plt.savefig('output_graphs/grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png' (placeholder)")
 #!/usr/bin/env python3
 """
 AMR Simulation Data Analysis Script
@@ -100,7 +133,7 @@ def load_simulation_data(csv_file=CSV_INPUT):
     
     df = pd.read_csv(csv_file)
     print(f"Loaded {len(df)} time steps of simulation data")
-    print(f"Columns: {list(df.columns)}")
+    # print(f"Columns: {list(df.columns)}")  # Removed to avoid overwhelming output
     return df
 
 def preprocess_data(df):
@@ -198,7 +231,7 @@ def create_grouped_plots(df):
         axes1[3].set_title('Proportion with Resistance Among Currently Infected')
         axes1[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig('grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.savefig('output_graphs/grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     print("✓ Grouped figure 1 saved as 'grouped_figure_1.png'")
 
     # --- Group 2 ---
@@ -266,7 +299,7 @@ def create_grouped_plots(df):
         axes2[3].set_title('Deaths in the Past Year (Rolling 365 Days)')
         axes2[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig('grouped_figure_2.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.savefig('output_graphs/grouped_figure_2.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     print("✓ Grouped figure 2 saved as 'grouped_figure_2.png'")
 
     # --- Group 3 ---
@@ -336,7 +369,7 @@ def create_grouped_plots(df):
         axes3[3].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
         axes3[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig('grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.savefig('output_graphs/grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     print("✓ Grouped figure 3 saved as 'grouped_figure_3.png'")
 
 def create_proportion_plots(df):
@@ -358,7 +391,7 @@ def create_proportion_plots(df):
     ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
             verticalalignment='top', bbox=props)
     
-    save_and_show_plot(OUTPUT_FILES['infection_prop'], "Infection proportion plot")
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['infection_prop']}", "Infection proportion plot")
     
     # Death proportion plot
     fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
@@ -377,7 +410,7 @@ def create_proportion_plots(df):
     ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
             verticalalignment='top', bbox=props)
     
-    save_and_show_plot(OUTPUT_FILES['death_prop'], "Death proportion plot")
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['death_prop']}", "Death proportion plot")
 
 def create_infection_duration_plot(df):
     """Create infection duration analysis plot."""
@@ -401,7 +434,7 @@ def create_infection_duration_plot(df):
     ax2.grid(True, alpha=0.3)
 
     plt.subplots_adjust(hspace=0.7)  # Add even more space between subplots
-    save_and_show_plot(OUTPUT_FILES['infection_duration'], "Infection duration plot")
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['infection_duration']}", "Infection duration plot")
 
 def create_sepsis_plot(df):
     """Create sepsis proportion plot if data is available."""
@@ -426,7 +459,7 @@ def create_sepsis_plot(df):
     ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
             verticalalignment='top', bbox=props)
     
-    save_and_show_plot(OUTPUT_FILES['sepsis_prop'], "Sepsis proportion plot")
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['sepsis_prop']}", "Sepsis proportion plot")
 
 def create_death_causes_plot(df):
     """Create death causes analysis plot if data is available."""
@@ -484,7 +517,7 @@ def create_death_causes_plot(df):
                 verticalalignment='top', bbox=props)
     
     plt.subplots_adjust(hspace=0.7)  # Add even more space between subplots
-    save_and_show_plot(OUTPUT_FILES['death_causes'], "Death causes plot")
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['death_causes']}", "Death causes plot")
 
 def create_resistance_plot(df):
     """Create standalone resistance among infected plot."""
@@ -496,11 +529,103 @@ def create_resistance_plot(df):
     ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     
-    save_and_show_plot(OUTPUT_FILES['resistance_prop'], "Resistance proportion plot")
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['resistance_prop']}", "Resistance proportion plot")
+
 
 # =============================================================================
-# DATA EXPORT FUNCTIONS
+# MIC < 2 BY DRUG FOR EACH BACTERIA
 # =============================================================================
+def create_mic_lt2_by_drug_plots(df):
+    """
+    For each bacteria, plot the proportion of infections with MIC < 2 for all drugs.
+    Each plot is saved as a separate PNG file.
+    """
+    # ...existing code without debug print statements...
+    mic_cols = [col for col in df.columns if '_infected_and_mic_lt2_' in col]
+    pairs = [col.replace('_infected_and_mic_lt2_', '|').split('|') for col in mic_cols]
+    bacteria_set = sorted(set(b for b, d in pairs))
+    drug_set = sorted(set(d for b, d in pairs))
+    infected_col = next((col for col in df.columns if col.startswith('infections_by_bacteria')), None)
+    if infected_col is not None:
+        bacteria_list = []
+        for col in mic_cols:
+            b = col.replace('_infected_and_mic_lt2_', '|').split('|')[0]
+            if b not in bacteria_list:
+                bacteria_list.append(b)
+    else:
+        bacteria_list = bacteria_set
+    for b in bacteria_list:
+        # Make the figure twice as tall, same width
+        fig = plt.figure(figsize=(int(FIG_W * 5), int(FIG_H * 10)))
+        ax = fig.add_subplot(1, 1, 1)
+        found_any = False
+        for d in drug_set:
+            mic_col = f"{b}_infected_and_mic_lt2_{d}"
+            if mic_col not in df.columns:
+                continue
+            found_any = True
+            if infected_col is not None:
+                try:
+                    b_idx = None
+                    bacteria_cols = [col for col in df.columns if col.endswith('_infected_and_mic_lt2_' + d)]
+                    bacteria_names = [col.replace('_infected_and_mic_lt2_' + d, '') for col in bacteria_cols]
+                    if b in bacteria_names:
+                        b_idx = bacteria_names.index(b)
+                    if b_idx is not None:
+                        infections = df[infected_col].apply(lambda x: eval(x)[b_idx] if isinstance(x, str) else x[b_idx])
+                    else:
+                        infections = df['total_currently_infected']
+                except Exception:
+                    infections = df['total_currently_infected']
+            else:
+                infections = df['total_currently_infected']
+            mic_lt2 = df[mic_col]
+            prop = safe_divide(mic_lt2, infections)
+            ax.plot(df['time_in_years'], prop, label=d.replace('_', ' ').title())
+        ax.set_title(f"{b.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=50)
+        ax.set_ylabel('Proportion', fontsize=50)
+        ax.set_xlabel('Time (Years)', fontsize=50)
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+        ax.legend(title='Drug', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=50, title_fontsize=60)
+        # Center the plot vertically by adding top/bottom margins
+        fig.subplots_adjust(top=0.85, bottom=0.15)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        fname = f"output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2/{b}_mic_lt2_by_drug.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+# =============================================================================
+# DRUG USAGE PROPORTION PLOTS
+# =============================================================================
+def create_drug_usage_proportion_plots(df):
+    """
+    For each drug, plot the proportion of living people taking that drug over time.
+    Each plot is saved as a separate PNG file.
+    """
+    print("\n=== CREATING DRUG USAGE PROPORTION PLOTS FOR EACH DRUG ===")
+    # Find all columns matching *_currently_on_drug
+    drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
+    if not drug_cols:
+        print("No *_currently_on_drug columns found in data.")
+        return
+    for drug_col in drug_cols:
+        drug_name = drug_col.replace('_currently_on_drug', '')
+        plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 2)))
+        # Proportion: number on drug / total population
+        prop = safe_divide(df[drug_col], df['total_population'])
+        plt.plot(df['time_in_years'], prop, label=drug_name.replace('_', ' ').title(), linewidth=3)
+        plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=50)
+        plt.ylabel('Proportion of Living Population', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.ylim(0, 0.01)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
 
 def export_data_files(df):
     """Export data to various formats for external analysis."""
@@ -636,10 +761,17 @@ def main():
     print("\n=== CREATING GROUPED VISUALIZATIONS ===")
     create_grouped_plots(df)
     create_grouped_figure_4(df)
+
+    # Create MIC < 2 by drug plots for each bacteria
+    create_mic_lt2_by_drug_plots(df)
+    # Create drug usage proportion plots for each drug
+    create_drug_usage_proportion_plots(df)
+    # Create bacteria infection proportion plots for each bacteria
+    create_bacteria_infection_proportion_plots(df)
     
     # Export data and statistics
     export_data_files(df)
-    export_txt_data_file(df)
+    # export_txt_data_file(df)
     generate_summary_statistics(df)
     
     # Summary of generated files
@@ -666,3 +798,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+

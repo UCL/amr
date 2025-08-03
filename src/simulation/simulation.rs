@@ -492,10 +492,6 @@ impl Simulation {
                 },
                 currently_infected_and_on_drug_count: currently_infected_and_on_drug_count.load(Ordering::Relaxed),
             };
-            self.summary_log.push(summary);
-
-
-     /* comment out printing of variable values for individual 0 
 
             // Comprehensive print block for individual 0
             let individual_0 = &self.population.individuals[0];
@@ -547,8 +543,8 @@ impl Simulation {
                 summary.total_deaths, 
                 summary.total_with_resistance
             );
-    
-     */   // comment out printing of variable values for individual 0
+
+            self.summary_log.push(summary);
 
         }
 

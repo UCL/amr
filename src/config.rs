@@ -1,3 +1,10 @@
+
+
+// drug introduction dates 
+// rate of infection
+
+ 
+ 
 //
 // Centralized configuration and parameter management for the AMR simulation.
 //
@@ -23,7 +30,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
+            map.insert(format!("{}_initial_infection_level", bacteria), 0.2); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -526,12 +533,9 @@ lazy_static! {
         map.insert("log_odds_mortality_hospitalized".to_string(), 0.262);     // ln(1.3)
 
 
-
-
-
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00004);   // Probablity of becoming immunosuppressed daily
-        map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.0003); // Probability of recovering from immunosuppression daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00002);   // Probablity of becoming immunosuppressed daily
+        map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.001); // Probability of recovering from immunosuppression daily
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
@@ -1178,10 +1182,10 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 2555);   // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 365);   // 2555 // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 3555);     // 1942 (12 years after 1930)
+        map.insert("penicilling", 1095);     // 3555 // 1942 (12 years after 1930)
         map.insert("ampicillin", 11315);     // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
