@@ -17,11 +17,11 @@ def create_bacteria_infection_proportion_plots(df):
         plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
         # Proportion: number infected with this bacteria / total population
         prop = safe_divide(df[bacteria_col], df['total_population'])
-        plt.plot(df['time_in_years'], prop, label=bacteria_name.replace('_', ' ').title(), linewidth=3)
+        plt.plot(df['time_in_years'], prop, label=bacteria_name.replace('_', ' ').title(), linewidth=7)
         plt.title(f"Proportion of People Infected with {bacteria_name.replace('_', ' ').title()}", fontsize=50)
         plt.ylabel('Proportion of Living Population', fontsize=50)
         plt.xlabel('Time (Years)', fontsize=50)
-        plt.ylim(0, 0.01)
+        plt.ylim(0, 0.001)
         plt.grid(True, alpha=0.3)
         plt.legend(fontsize=30)
         plt.tick_params(axis='both', which='major', labelsize=40)
@@ -496,7 +496,7 @@ def create_death_causes_plot(df):
     ax2.set_title('Proportion of Deaths by Cause Over Time')
     ax2.set_xlabel('Time (Years)')
     ax2.set_ylabel('Proportion of Total Deaths')
-    ax2.set_ylim(0, 1)
+    ax2.set_ylim(bottom=0, top=1)
     ax2.legend(loc='upper right')
     ax2.grid(True, alpha=0.3)
     
@@ -587,10 +587,10 @@ def create_mic_lt2_by_drug_plots(df):
         ax.set_xlabel('Time (Years)', fontsize=50)
         ax.set_ylim(0, 1)
         ax.grid(True, alpha=0.3)
-        ax.legend(title='Drug', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=50, title_fontsize=60)
+        ax.legend(title='Drug', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=50, title_fontsize=50)
         # Center the plot vertically by adding top/bottom margins
         fig.subplots_adjust(top=0.85, bottom=0.15)
-        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tick_params(axis='both', which='major', labelsize=50)
         fname = f"output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2/{b}_mic_lt2_by_drug.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
@@ -613,14 +613,14 @@ def create_drug_usage_proportion_plots(df):
         plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 2)))
         # Proportion: number on drug / total population
         prop = safe_divide(df[drug_col], df['total_population'])
-        plt.plot(df['time_in_years'], prop, label=drug_name.replace('_', ' ').title(), linewidth=3)
+        plt.plot(df['time_in_years'], prop, label=drug_name.replace('_', ' ').title(), linewidth=7)
         plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=50)
         plt.ylabel('Proportion of Living Population', fontsize=50)
         plt.xlabel('Time (Years)', fontsize=50)
         plt.ylim(0, 0.01)
         plt.grid(True, alpha=0.3)
         plt.legend(fontsize=30)
-        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tick_params(axis='both', which='major', labelsize=100)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)

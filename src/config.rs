@@ -27,6 +27,7 @@ lazy_static! {
         let mut map = HashMap::new();
 
 
+
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
@@ -90,6 +91,23 @@ lazy_static! {
         map.insert("drug_ticarcillin_clavulanate_half_life_days".to_string(), 0.046); // ~1.1 hours
         map.insert("drug_ceftazidime_avibactam_half_life_days".to_string(), 0.08); // ~2 hours
         map.insert("drug_meropenem_vaborbactam_half_life_days".to_string(), 0.04); // ~1 hour
+
+        // Polymyxins (Colistin)
+        map.insert("drug_colistin_half_life_days".to_string(), 0.08); // ~2 hours
+
+        // Colistin parameters (grouped with other drugs)
+        map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
+        map.insert("drug_colistin_toxicity_per_unit_level_per_day".to_string(), 0.02); // Higher toxicity
+        // Colistin: higher risk of death from toxicity
+        map.insert("drug_colistin_toxicity_death_risk_per_day".to_string(), 0.002); // 0.2% daily risk (higher than default)
+        // Regional availability (assume widely available, adjust as needed)
+        map.insert("north_america_drug_colistin_availability".to_string(), 1.0);
+        map.insert("europe_drug_colistin_availability".to_string(), 1.0);
+        map.insert("asia_drug_colistin_availability".to_string(), 1.0);
+        map.insert("oceania_drug_colistin_availability".to_string(), 1.0);
+        map.insert("south_america_drug_colistin_availability".to_string(), 1.0);
+        map.insert("africa_drug_colistin_availability".to_string(), 1.0);
+        map.insert("home_drug_colistin_availability".to_string(), 1.0);
         
         // Sulfonamides (first antibiotics)
         map.insert("drug_sulfanilamide_half_life_days".to_string(), 0.45); // ~11 hours
@@ -179,6 +197,8 @@ lazy_static! {
         // 0.05 = Very poor/no activity
         
         // Define drug classes for easier management
+        // Polymyxins (currently only Colistin)
+        let polymyxins = vec!["colistin"];
         let penicillins = vec!["penicilling", "ampicillin", "amoxicillin", "piperacillin", "ticarcillin",
             // BL/BLI combinations
             "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate"
@@ -305,6 +325,20 @@ lazy_static! {
                         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.05);
                     }
                 }
+                // Polymyxins (Colistin) - high potency for most Gram-negatives
+                for &drug in polymyxins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = match bacteria {
+                            // Intrinsic resistance
+                            "morganella spp." | "proteus spp." | "serratia spp." => 0.0,
+                            // Partial activity
+                            "salmonella enterica serovar typhi" | "salmonella enterica serovar paratyphi a" | "invasive non-typhoidal salmonella spp." | "shigella spp." | "vibrio cholerae" | "yersinia_enterocolitica" => 0.5,
+                            // Most other Gram-negatives
+                            _ => 1.0,
+                        };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
                 
                 // Fluoroquinolones - good broad-spectrum
                 for &drug in fluoroquinolones.iter() {
@@ -356,6 +390,12 @@ lazy_static! {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if bacteria.contains("acinetobacter") { 0.60 } else { 0.80 };
                         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                // Polymyxins (Colistin) - high potency for non-fermenters
+                for &drug in polymyxins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.0);
                     }
                 }
                 
@@ -489,6 +529,7 @@ lazy_static! {
         map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.1); // Strong penalty for drugs ineffective against identified bacteria
 
         // Drug Spectrum Classifications (1.0=narrow, 5.0=very broad)
+        map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
         map.insert("drug_penicilling_spectrum_breadth".to_string(), 2.0); // Narrow spectrum
         map.insert("drug_amoxicillin_spectrum_breadth".to_string(), 3.0); // Medium spectrum  
         map.insert("drug_azithromycin_spectrum_breadth".to_string(), 4.0); // Broad spectrum
@@ -1182,14 +1223,21 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 365);   // 2555 // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 91);   // 2555 // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 1095);     // 3555 // 1942 (12 years after 1930)
+        map.insert("penicilling", 183);     // 3555 // 1942 (12 years after 1930)
         map.insert("ampicillin", 11315);     // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
         map.insert("ticarcillin", 14600);    // 1977 (47 years after 1930)
+        // Beta-lactam/beta-lactamase inhibitor combinations
+        map.insert("amoxicillin_clavulanate", 16425); // 1985 (55 years after 1930)
+        map.insert("ampicillin_sulbactam", 18250);    // 1990 (60 years after 1930)
+        map.insert("piperacillin_tazobactam", 19715); // 1984 (54 years after 1930)
+        map.insert("ticarcillin_clavulanate", 18250); // 1990 (60 years after 1930)
+        map.insert("meropenem_vaborbactam", 32045);   // 2018 (88 years after 1930)
+        map.insert("ceftazidime_avibactam", 27740);   // 2006 (76 years after 1930)
 
         // Cephalosporins
         map.insert("cephalexin", 14605);     // 1970 (40 years after 1930)

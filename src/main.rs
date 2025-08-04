@@ -20,14 +20,21 @@ mod simulation;
 mod rules;
 mod config;
 
-
+  
 //
 // model structure developments to consider:
 //
+// e coli seems likely to be present in the microbiome of all individuals
 //
+// sepsis / death rate likely to depend on infection site (e.g. lower with uti)
 //
+// update infection site distribution per bacteria
 //
+// resistance appearing too early
 //
+// consider adjusting the timing of resistance emergence in the simulation
+//
+// 
 //
 //
 //
@@ -68,8 +75,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =  300_000 ;
-    let time_steps = 300 ;  
+    let population_size =  1000;
+    let time_steps = 37 ; 
  
     let mut simulation = Simulation::new(population_size, time_steps);
 

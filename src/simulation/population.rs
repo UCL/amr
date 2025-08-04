@@ -52,7 +52,9 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
     // Beta-lactam/beta-lactamase inhibitor combinations
     "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
-    "ceftazidime_avibactam", "meropenem_vaborbactam"
+    "ceftazidime_avibactam", "meropenem_vaborbactam",
+    // Polymyxins
+    "colistin"
 ];
 
 
