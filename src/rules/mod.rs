@@ -194,7 +194,6 @@ pub fn apply_rules(
 
 
     // Get parameters from config.rs once per individual for this time step
-    // todo: review this update rule - may want to make logistic model
     let baseline_rate = get_global_param("hospitalization_baseline_rate_per_day")
         .expect("Missing hospitalization_baseline_rate_per_day in config");
     let age_multiplier_hosp = get_global_param("hospitalization_age_multiplier_per_day")
@@ -427,8 +426,8 @@ let drugs_initiated_this_time_step: usize = 0;
                 }
             }
             let mut stop_drug = false;
-            // todo: maybe re-work this so having no relavant infection is a very strong predictor of stopping but not 
-            // something that 100% causes stopping
+            // maybe re-work this so having no relavant infection is a very strong predictor of stopping but not 
+            // something that 100% causes stopping ?
             if !relevant_infection_active_for_this_drug || rng.gen_bool(random_drug_cessation_prob) {
                 stop_drug = true;
             }
@@ -569,7 +568,22 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     &current_region_str, 
                     Some(&living_region_str)
                 );
+                
+                // Check if drug has been introduced yet
+                let mut drug_introduced = false;
+                if let Some(intro_time) = crate::config::get_drug_introduction_time_step(drug_name) {
+                    if time_step >= intro_time {
+                        drug_introduced = true;
+                    }
+                } else {
+                    // If no introduction date specified, assume always available
+                    drug_introduced = true;
+                }
+                
                 score *= drug_availability;
+                if !drug_introduced {
+                    score = 0.0; // Drug not yet introduced, can't be prescribed
+                }
 
                 if score > best_score {
                     best_score = score;
@@ -1059,13 +1073,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 individual.infection_hospital_acquired[b_idx] = individual.hospital_status.is_hospitalized();
 
                 // --- any_r and majority_r setting logic on new infection acquisition ---
-                // todo: have the posisbility of any_r also for new micribione acquisition of bacteria
                 let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
-
-                //  todo: drug treatment leads to increase in risk of microbiome_r > 0 (due to allowing more bacteria growth due to killing
-                //  other bacteria in microbiome (so can be caused by any drug) or direct selection of resistance to the drug veing taken 
-                //  (and those with cross resistance) as occurs for an infection) 
 
 
                 let is_from_environment = individual.cur_infection_from_environment[b_idx];
@@ -1170,11 +1179,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if rng.gen_bool(majority_r_evolution_rate) {
                             resistance_data.majority_r = resistance_data.any_r;
                         }
-                    }
-
-                    // todo: check: value for any_r or majority_r for any drug bacteria combination should 
-                    // not decline so long as the bacterial infection is present - even after bacterial infection
-                    // has gone it may be in microbiome      
+                    } 
 
                     // any_r increase towards max_resistance_level
                     // when drug is present and majority_r is still 0
@@ -1223,7 +1228,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             let mut norm_drug_level = drug_current_level / drug_initial_level_for_normalization;
                             norm_drug_level = norm_drug_level.clamp(0.0, 10.0); 
                             
-                            // todo: review this code for resistance emergence probability
+                            // resistance emergence probability
                             // bell-shaped curve: 0.02 * x * (10 - x). Peaks at 5.0, is 0.1 at 0 and 10.
                             let activity_r_bell_curve_factor = 0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
                             let final_activity_r_factor = activity_r_bell_curve_factor.clamp(0.0, 1.0);  
@@ -1333,7 +1338,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
 
                     // calculate activity_r (should always be updated)
-                    // todo: may need to specify the parameter 0.05 below in config.rs
                     if drug_current_level > 0.0 {
                         // Fetch potency from config, fallback to 0.05 if not found
                         let potency_param_key = format!(

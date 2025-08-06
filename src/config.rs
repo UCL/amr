@@ -2,9 +2,6 @@
 
 // drug introduction dates 
 // rate of infection
-// environmental_majority_r_level_for_new_acquisition
-// hospital-acquired infections now sample from hospitalized population (no fixed parameter)
-// drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline
 // majority_r_evolution_rate_per_day_when_drug_present
 
 
@@ -245,8 +242,8 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.5);  // 0.005
-            }
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
+            } 
         }
 
         // Now set specific potencies based on clinical evidence
@@ -443,7 +440,7 @@ lazy_static! {
         }
 
 
-        // todo: for each drug-bacteria combination will need a specific multiplier for initiation rate
+        // for each drug-bacteria combination will need a specific multiplier for initiation rate
         // will need changes also in mod.rs 
 
         map.insert("random_drug_cessation_probability".to_string(), 0.03); // Probability an individual randomly stops a drug per day
@@ -513,11 +510,10 @@ lazy_static! {
         // Microbiome acquisition now uses infection acquisition parameters plus a single offset
         map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
         // Environmental resistance level for new acquisitions
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.00); // placeholder
-        // Hospital-acquired infections now sample from hospitalized population rather than using fixed parameter
-
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.01); // 0.01       
+  
         map.insert("max_resistance_level".to_string(), 1.0);
-        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.2); // 0.001
+        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.01); // 0.01
 
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present

@@ -318,7 +318,7 @@ impl Individual {
             test_identified_infection,
             test_for_resistance,
             current_toxicity: rng.gen_range(0.0..=3.0),
-            mortality_risk_current_toxicity: 0.0, // todo: probably should be removed as this death risk is implemented with separate logic
+            mortality_risk_current_toxicity: 0.0, 
             resistances,
             resistance_mechanisms,
             date_of_death: None,
