@@ -459,7 +459,54 @@ lazy_static! {
         map.insert("log_odds_mosquito_exposure_per_unit".to_string(), 0.12); // Per unit mosquito exposure
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
-        map.insert("log_odds_hospital_acquired".to_string(), 1.0); // Hospital-acquired effect
+        map.insert("log_odds_hospital_acquired".to_string(), 1.0); // Hospital-acquired effect (default/fallback)
+        
+        // Bacteria-specific hospital acquisition log-odds (healthcare-associated infection risk)
+        // These parameters reflect clinical reality where certain bacteria have much higher
+        // acquisition risk in hospital settings due to:
+        // - Environmental persistence (Acinetobacter, C. diff)
+        // - Device-associated transmission (Pseudomonas, Klebsiella)
+        // - Healthcare worker transmission (MRSA, VRE)
+        // - Antibiotic selection pressure (C. diff, ESBL producers)
+        // Values are log-odds multipliers: exp(3.0) = 20x higher risk, exp(2.0) = 7x higher, etc.
+        
+        // High HAI risk bacteria (major hospital pathogens)
+        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 3.0); // 20x higher risk (exp(3.0) ≈ 20)
+        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 2.5); // 12x higher risk
+        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 2.8); // 16x higher risk (VRE)
+        map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 2.3); // 10x higher risk (MRSA)
+        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 3.2); // 25x higher risk (C. diff)
+        map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 2.0); // 7x higher risk
+        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 2.2); // 9x higher risk
+        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 2.2); // 9x higher risk
+        map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 2.0); // 7x higher risk
+        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 1.8); // 6x higher risk
+        
+        // Moderate HAI risk bacteria
+        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 1.5); // 4.5x higher risk (device-associated)
+        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 1.6); // 5x higher risk
+        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 1.2); // 3.3x higher risk
+        map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 1.4); // 4x higher risk
+        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 1.3); // 3.7x higher risk
+        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), 1.0); // 2.7x higher risk
+        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 0.8); // 2.2x higher risk
+        map.insert("streptococcus_pyogenes_log_odds_hospital_acquired".to_string(), 1.1); // 3x higher risk
+        map.insert("streptococcus_agalactiae_log_odds_hospital_acquired".to_string(), 1.2); // 3.3x higher risk
+        map.insert("haemophilus_influenzae_log_odds_hospital_acquired".to_string(), 0.9); // 2.5x higher risk
+        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 0.7); // 2x higher risk
+        map.insert("yersinia_enterocolitica_log_odds_hospital_acquired".to_string(), 0.5); // 1.6x higher risk
+        
+        // Low/No HAI risk bacteria (mostly community pathogens)
+        map.insert("chlamydia_trachomatis_log_odds_hospital_acquired".to_string(), -1.0); // 0.37x (lower risk in hospital)
+        map.insert("neisseria_gonorrhoeae_log_odds_hospital_acquired".to_string(), -0.8); // 0.45x (lower risk in hospital)
+        map.insert("treponema_pallidum_log_odds_hospital_acquired".to_string(), -1.2); // 0.3x (much lower risk)
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_hospital_acquired".to_string(), 0.0); // Neutral (travel-related)
+        map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_hospital_acquired".to_string(), 0.0); // Neutral
+        map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_hospital_acquired".to_string(), 0.2); // Slight increase
+        map.insert("shigella_spp._log_odds_hospital_acquired".to_string(), -0.3); // 0.74x (foodborne, lower in hospital)
+        map.insert("vibrio_cholerae_log_odds_hospital_acquired".to_string(), -0.5); // 0.6x (waterborne, lower in hospital)
+        map.insert("campylobacter_jejuni_log_odds_hospital_acquired".to_string(), -0.4); // 0.67x (foodborne, lower in hospital)
+        
         // Example region default (can be overridden per region)
         map.insert("north_america_bacteria_acquisition_log_odds_default".to_string(), 0.0);
 

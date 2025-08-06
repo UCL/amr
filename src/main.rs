@@ -24,11 +24,9 @@ mod config;
 //
 // // model structure developments to consider //
 //
-//    ✓ IMPLEMENTED: sepsis / death rate now depends on infection site (infectious_syndrome)
-//
 //    see todo in rules/mod.rs 
 //
-//    need increased risk of infection with certain bacteria in people currently hospitalized
+//    ✓ IMPLEMENTED: increased risk of infection with certain bacteria in people currently hospitalized
 // 
 //    adding resistance mechanisms - steps - add risk of each mechanism appearing 
 //    for each bacteria, which will depend partially on drug level as for any_r 
