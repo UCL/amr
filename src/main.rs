@@ -21,10 +21,6 @@ mod rules;
 mod config;
 
 
-// // immediate things that look wrong //
-//
-//    resistance appearing too early
-//
 //
 // // model structure developments to consider //
 //
@@ -32,13 +28,10 @@ mod config;
 //
 //    see todo in rules/mod.rs 
 //
-//    resistance probability in bacteria acquired when in hospital should depend on
-//    resistance in concurrently hospitalized individuals - this seems to not be being
-//    fully implemented (nor by region)
+//    need increased risk of infection with certain bacteria in people currently hospitalized
 //
-//    transmitted resistance from environment can only happen once one of the 
-//    drugs selecting for resistance has been introduced - go so far as to make resistance from environment
-//    also dependnt on majority_r in others in population, with a multipier ?
+//    ✓ IMPLEMENTED: transmitted resistance from environment can only happen once one of the 
+//    drugs selecting for resistance has been introduced (includes cross-resistance patterns)
 //
 //    adding resistance mechanisms - steps - add risk of each mechanism appearing 
 //    for each bacteria, which will depend partially on drug level as for any_r 

@@ -3,7 +3,7 @@
 // drug introduction dates 
 // rate of infection
 // environmental_majority_r_level_for_new_acquisition
-// hospital_majority_r_level_for_new_acquisition
+// hospital-acquired infections now sample from hospitalized population (no fixed parameter)
 // drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline
 // majority_r_evolution_rate_per_day_when_drug_present
 
@@ -465,10 +465,9 @@ lazy_static! {
 
         // Microbiome acquisition now uses infection acquisition parameters plus a single offset
         map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
-        // this two below will need to change over calendar time - for the hospital acquired may decide to sample from 
-        // majority_r of people in hospital with the bacteria  
+        // Environmental resistance level for new acquisitions
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.00); // placeholder
-        map.insert("hospital_majority_r_level_for_new_acquisition".to_string(), 0.00); // placeholder
+        // Hospital-acquired infections now sample from hospitalized population rather than using fixed parameter
 
         map.insert("max_resistance_level".to_string(), 1.0);
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.2); // 0.001

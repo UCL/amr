@@ -903,7 +903,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                     // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
                     let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
-                    let hospital_majority_r_level = get_global_param("hospital_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                     let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
 
                     let is_from_environment = true; // Microbiome acquisition is always from environment in this model
@@ -918,11 +917,16 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                         if is_from_environment {
                             resistance_data.microbiome_r = env_majority_r_level;
-                        } else if is_hospital_acquired {
-                            resistance_data.microbiome_r = hospital_majority_r_level;
                         } else {
+                            // --- region/hospital-specific sampling for microbiome (same logic as infections) ---
+                            let sampling_hospital_status = if is_hospital_acquired {
+                                true // Hospital-acquired microbiome samples from hospitalized population
+                            } else {
+                                hospital_status_bool // Community-acquired microbiome samples based on current status
+                            };
+
                             if let Some(majority_r_values_from_population) =
-                                majority_r_positive_values_by_combo.get(&(region_idx, hospital_status_bool, b_idx, d_idx))
+                                majority_r_positive_values_by_combo.get(&(region_idx, sampling_hospital_status, b_idx, d_idx))
                             {
                                 if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
                                     let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
@@ -1046,7 +1050,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 // --- any_r and majority_r setting logic on new infection acquisition ---
                 // todo: have the posisbility of any_r also for new micribione acquisition of bacteria
                 let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
-                let hospital_majority_r_level = get_global_param("hospital_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
 
                 //  todo: drug treatment leads to increase in risk of microbiome_r > 0 (due to allowing more bacteria growth due to killing
@@ -1065,15 +1068,62 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     let resistance_data = &mut individual.resistances[b_idx][d_idx];
 
                     if is_from_environment {
-                        resistance_data.majority_r = env_majority_r_level;
-                        resistance_data.any_r = env_majority_r_level;
-                    } else if is_hospital_acquired {
-                        resistance_data.majority_r = hospital_majority_r_level;
-                        resistance_data.any_r = hospital_majority_r_level;
+                        // Check if any drug that selects for resistance to this drug has been introduced
+                        let mut any_selecting_drug_introduced = false;
+                        
+                        // Check if the drug itself has been introduced
+                        if let Some(intro_time) = crate::config::get_drug_introduction_time_step(drug_name_static) {
+                            if time_step >= intro_time {
+                                any_selecting_drug_introduced = true;
+                            }
+                        }
+                        
+                        // If not yet introduced by direct drug, check cross-resistance groups
+                        if !any_selecting_drug_introduced {
+                            if let Some(cross_resistance_drug_groups) = cross_resistance_groups.get(&b_idx) {
+                                for group in cross_resistance_drug_groups {
+                                    if group.contains(&d_idx) {
+                                        // This drug is in a cross-resistance group, check if any other drug in the group has been introduced
+                                        for &other_drug_idx in group {
+                                            if other_drug_idx != d_idx {
+                                                if let Some(other_drug_name) = DRUG_SHORT_NAMES.get(other_drug_idx) {
+                                                    if let Some(intro_time) = crate::config::get_drug_introduction_time_step(other_drug_name) {
+                                                        if time_step >= intro_time {
+                                                            any_selecting_drug_introduced = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if any_selecting_drug_introduced {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Only assign environmental resistance if a selecting drug has been introduced
+                        if any_selecting_drug_introduced {
+                            resistance_data.majority_r = env_majority_r_level;
+                            resistance_data.any_r = env_majority_r_level;
+                        } else {
+                            resistance_data.majority_r = 0.0;
+                            resistance_data.any_r = 0.0;
+                        }
                     } else {
-                        // --- region/hospital-specific sampling ---
+                        // --- region/hospital-specific sampling for both hospital-acquired and community-acquired ---
+                        // For hospital-acquired infections, we sample from hospitalized people (hospital_status_bool = true)
+                        // For community-acquired infections, we sample based on the person's current hospital status
+                        let sampling_hospital_status = if is_hospital_acquired {
+                            true // Hospital-acquired infections sample from hospitalized population
+                        } else {
+                            hospital_status_bool // Community-acquired infections sample based on current status
+                        };
+
                         if let Some(majority_r_values_from_population) =
-                            majority_r_positive_values_by_combo.get(&(region_idx, hospital_status_bool, b_idx, d_idx))
+                            majority_r_positive_values_by_combo.get(&(region_idx, sampling_hospital_status, b_idx, d_idx))
                         {
                             if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
                                 let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
