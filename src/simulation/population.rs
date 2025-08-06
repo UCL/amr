@@ -9,7 +9,60 @@
 // Also includes legacy lists and antibiotic class reference for model expansion.
 use rand::Rng;
 use rand::distributions::{Distribution, Standard};
-use std::fmt; 
+use std::fmt;
+
+/// Specific resistance mechanisms that can be present in bacteria
+/// These provide an overlay on the existing any_r/majority_r system
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResistanceMechanism {
+    ESBL,                    // Extended-spectrum beta-lactamase
+    Carbapenemase,          // Carbapenem-hydrolyzing enzymes  
+    AmpC,                   // AmpC beta-lactamase
+    SixteenSMethyltransferase, // 16S rRNA methyltransferase (aminoglycoside resistance)
+    Qnr,                    // Quinolone resistance protein
+    EffluxOverexpression,   // Efflux pump overexpression
+    ErmMethylation,         // Erm-mediated ribosomal methylation (macrolide resistance)
+    VanType,                // Van-type glycopeptide resistance
+    MecA,                   // MecA-mediated methicillin resistance
+    ReducedPermeability,    // Reduced outer membrane permeability
+    TargetSiteMutation,     // Target site mutations (e.g., gyrA, parC)
+}
+
+impl ResistanceMechanism {
+    /// Returns all resistance mechanisms as a slice
+    pub fn all() -> &'static [ResistanceMechanism] {
+        &[
+            ResistanceMechanism::ESBL,
+            ResistanceMechanism::Carbapenemase,
+            ResistanceMechanism::AmpC,
+            ResistanceMechanism::SixteenSMethyltransferase,
+            ResistanceMechanism::Qnr,
+            ResistanceMechanism::EffluxOverexpression,
+            ResistanceMechanism::ErmMethylation,
+            ResistanceMechanism::VanType,
+            ResistanceMechanism::MecA,
+            ResistanceMechanism::ReducedPermeability,
+            ResistanceMechanism::TargetSiteMutation,
+        ]
+    }
+
+    /// Returns the mechanism name as a string for configuration lookups
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ResistanceMechanism::ESBL => "esbl",
+            ResistanceMechanism::Carbapenemase => "carbapenemase",
+            ResistanceMechanism::AmpC => "ampc",
+            ResistanceMechanism::SixteenSMethyltransferase => "16s_methyltransferase",
+            ResistanceMechanism::Qnr => "qnr",
+            ResistanceMechanism::EffluxOverexpression => "efflux_overexpression",
+            ResistanceMechanism::ErmMethylation => "erm_methylation",
+            ResistanceMechanism::VanType => "van_type",
+            ResistanceMechanism::MecA => "meca",
+            ResistanceMechanism::ReducedPermeability => "reduced_permeability",
+            ResistanceMechanism::TargetSiteMutation => "target_site_mutation",
+        }
+    }
+} 
 
 
 /* 
@@ -169,6 +222,9 @@ pub struct Individual {
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64, 
     pub resistances: Vec<Vec<Resistance>>,
+    /// Tracks specific resistance mechanisms for each bacteria
+    /// [bacteria_index][mechanism_index] -> bool (mechanism present)
+    pub resistance_mechanisms: Vec<Vec<bool>>,
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
     pub is_severely_immunosuppressed: bool, 
@@ -216,6 +272,12 @@ impl Individual {
             resistances.push(drug_resistances);
         }
 
+        // Initialize resistance mechanisms (all false initially)
+        let mut resistance_mechanisms = Vec::with_capacity(num_bacteria);
+        for _ in 0..num_bacteria {
+            resistance_mechanisms.push(vec![false; ResistanceMechanism::all().len()]);
+        }
+
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
         } else {
@@ -258,6 +320,7 @@ impl Individual {
             current_toxicity: rng.gen_range(0.0..=3.0),
             mortality_risk_current_toxicity: 0.0, // todo: probably should be removed as this death risk is implemented with separate logic
             resistances,
+            resistance_mechanisms,
             date_of_death: None,
             cause_of_death: None,
             is_severely_immunosuppressed: false, 

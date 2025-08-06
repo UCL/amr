@@ -531,6 +531,33 @@ lazy_static! {
         //  Microbiome Resistance Transfer Parameter
         map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.05); // Probability per day for resistance transfer between infection and microbiome
     
+        // --- Resistance Mechanisms Parameters ---
+        // Baseline emergence rates for specific resistance mechanisms (per day when drug present)
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0005); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.002); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.001); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.001); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0002); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
+        
+        // Resistance enhancement multipliers: how much each mechanism increases resistance level
+        map.insert("resistance_mechanism_esbl_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
+        map.insert("resistance_mechanism_carbapenemase_enhancement_multiplier".to_string(), 0.6); // Adds 60% resistance  
+        map.insert("resistance_mechanism_ampc_enhancement_multiplier".to_string(), 0.3); // Adds 30% resistance
+        map.insert("resistance_mechanism_16s_methyltransferase_enhancement_multiplier".to_string(), 0.5); // Adds 50% resistance
+        map.insert("resistance_mechanism_qnr_enhancement_multiplier".to_string(), 0.2); // Adds 20% resistance (low-level)
+        map.insert("resistance_mechanism_efflux_overexpression_enhancement_multiplier".to_string(), 0.3); // Adds 30% resistance
+        map.insert("resistance_mechanism_erm_methylation_enhancement_multiplier".to_string(), 0.5); // Adds 50% resistance
+        map.insert("resistance_mechanism_van_type_enhancement_multiplier".to_string(), 0.8); // Adds 80% resistance (high-level)
+        map.insert("resistance_mechanism_meca_enhancement_multiplier".to_string(), 0.7); // Adds 70% resistance
+        map.insert("resistance_mechanism_reduced_permeability_enhancement_multiplier".to_string(), 0.2); // Adds 20% resistance
+        map.insert("resistance_mechanism_target_site_mutation_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
+    
 
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
