@@ -5,6 +5,8 @@
 // environmental_majority_r_level_for_new_acquisition
 // hospital_majority_r_level_for_new_acquisition
 // drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline
+// majority_r_evolution_rate_per_day_when_drug_present
+
 
  
  
@@ -469,7 +471,7 @@ lazy_static! {
         map.insert("hospital_majority_r_level_for_new_acquisition".to_string(), 0.00); // placeholder
 
         map.insert("max_resistance_level".to_string(), 1.0);
-        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.001);
+        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.2); // 0.001
 
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
