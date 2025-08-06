@@ -9,7 +9,7 @@
 // Also includes legacy lists and antibiotic class reference for model expansion.
 use rand::Rng;
 use rand::distributions::{Distribution, Standard};
-use std::fmt;
+use std::fmt; //
 
 /// Specific resistance mechanisms that can be present in bacteria
 /// These provide an overlay on the existing any_r/majority_r system
