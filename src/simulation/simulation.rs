@@ -18,6 +18,7 @@ use crate::config; // Import the config module
 use std::collections::HashMap;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 // Compact structure for time step summary data
 #[allow(dead_code)]
@@ -48,6 +49,7 @@ pub struct TimeStepSummary {
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
     pub newly_infected_count: usize, // Number of people newly infected this time step
+    pub newly_infected_with_resistance_count: usize, // NEW: Number of newly infected people who acquired resistance
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
     pub currently_infected_and_on_drug_count: usize, // NEW: intersection of currently infected AND on any drug
     pub num_age_0_5: usize,
@@ -207,7 +209,7 @@ impl Simulation {
             };
 
             // Initialize counters and data structures for this time step
-            let new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::new();
+            let new_majority_r_positive_values_by_combo: Mutex<HashMap<(usize, bool, usize, usize), Vec<f64>>> = Mutex::new(HashMap::new());
             let log_majority_r_positive_counts: Vec<Vec<AtomicUsize>> = (0..BACTERIA_LIST.len())
                 .map(|_| (0..DRUG_SHORT_NAMES.len()).map(|_| AtomicUsize::new(0)).collect())
                 .collect();
@@ -229,6 +231,7 @@ impl Simulation {
             let number_severely_immunosuppressed = AtomicUsize::new(0);
             let number_with_sepsis = AtomicUsize::new(0);
             let newly_infected_count = AtomicUsize::new(0);
+            let newly_infected_with_resistance_count = AtomicUsize::new(0);
             let total_currently_infected = AtomicUsize::new(0);
             let total_with_resistance = AtomicUsize::new(0);
 
@@ -324,7 +327,7 @@ impl Simulation {
                                 was_newly_infected = true;
                             }
 
-                // Count resistance
+                // Count resistance and collect resistance data for next time step
                 for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
                     let resistance_data = &individual.resistances[b_idx][d_idx];
                     if resistance_data.majority_r > 0.0 {
@@ -333,10 +336,27 @@ impl Simulation {
                     }
                     if resistance_data.any_r > 0.0 {
                         individual_has_any_r_positive = true;
-                    }
-                }
+                        
+                        // Check if this is a newly infected individual with resistance
+                        if individual.date_last_infected[b_idx] == t as i32 {
+                            newly_infected_with_resistance_count.fetch_add(1, Ordering::Relaxed);
                         }
                     }
+
+                    // Collect resistance data for population-based sampling (next time step)
+                    // Only collect from individuals with active infection of this bacteria
+                    if individual.level[b_idx] > 0.001 && resistance_data.majority_r > 0.0 {
+                        let region_idx = individual.region_cur_in as usize;
+                        let hospital_status_bool = individual.hospital_status.is_hospitalized();
+                        let key = (region_idx, hospital_status_bool, b_idx, d_idx);
+                        
+                        // Thread-safe collection of resistance values
+                        let mut resistance_map = new_majority_r_positive_values_by_combo.lock().unwrap();
+                        resistance_map.entry(key).or_insert_with(Vec::new).push(resistance_data.majority_r);
+                    }
+                }
+            }
+        }
                     
                     if individual_has_any_infection {
                         total_currently_infected.fetch_add(1, Ordering::Relaxed);
@@ -384,7 +404,7 @@ impl Simulation {
             // No need for sequential pass for per-bacteria/drug majority_r counts
 
             // Store for next iteration
-            self.current_majority_r_positive_values_by_combo = new_majority_r_positive_values_by_combo;
+            self.current_majority_r_positive_values_by_combo = new_majority_r_positive_values_by_combo.into_inner().unwrap();
 
             // Count living population (age >= 0 and no date_of_death)
             let living_population = self.population.individuals.iter()
@@ -430,6 +450,7 @@ impl Simulation {
                 number_severely_immunosuppressed: number_severely_immunosuppressed.load(Ordering::Relaxed),
                 number_with_sepsis: number_with_sepsis.load(Ordering::Relaxed),
                 newly_infected_count: newly_infected_count.load(Ordering::Relaxed),
+                newly_infected_with_resistance_count: newly_infected_with_resistance_count.load(Ordering::Relaxed),
                 total_currently_infected: total_currently_infected.load(Ordering::Relaxed),
                 total_with_resistance: total_with_resistance.load(Ordering::Relaxed),
                 infected_10_days_count: infected_10_count,
@@ -537,9 +558,10 @@ impl Simulation {
             }
 
             // Print summary statistics for this time step
-            println!("Time step {}: {} newly infected, {} deaths, {} with resistance", 
+            println!("Time step {}: {} newly infected, {} newly infected with resistance, {} deaths, {} with resistance", 
                 t, 
                 summary.newly_infected_count, 
+                summary.newly_infected_with_resistance_count,
                 summary.total_deaths, 
                 summary.total_with_resistance
             );
@@ -574,7 +596,7 @@ impl Simulation {
         let mut file = File::create(filename)?;
 
         // Write header
-        write!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome")?;
+        write!(file, "time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome")?;
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
             write!(file, ",{}_currently_infected", bacteria.replace(" ", "_"))?;
@@ -584,7 +606,7 @@ impl Simulation {
             write!(file, ",{}_currently_on_drug", drug.replace(" ", "_"))?;
         }
         // Add per-bacteria, per-drug MIC < 2 columns
-        for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+        for bacteria in BACTERIA_LIST.iter() {
             for drug in DRUG_SHORT_NAMES.iter() {
                 write!(file, ",{}_infected_and_mic_lt2_{}", bacteria.replace(" ", "_"), drug)?;
             }
@@ -595,7 +617,7 @@ impl Simulation {
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
         for summary in &self.summary_log {
-            write!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            write!(file, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -609,6 +631,7 @@ impl Simulation {
                 summary.currently_infected_and_on_drug_count,
                 summary.taking_two_drugs_count,
                 summary.newly_infected_count,
+                summary.newly_infected_with_resistance_count,
                 summary.newly_infected_past_year,
                 summary.total_deaths,
                 summary.deaths_background,

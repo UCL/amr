@@ -34,17 +34,52 @@ def create_bacteria_infection_proportion_plots(df):
 # NEW: PAST YEAR DEATHS PLOT
 # =============================================================================
 def create_grouped_figure_4(df):
-    """Create grouped_figure_4.png: Placeholder (all subplots blank)."""
+    """Create grouped_figure_4.png: Resistance transmission and drug metrics."""
     fig, axes = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes = axes.flatten()
-    fig.suptitle('Grouped Figure 4: (Placeholder)', fontsize=16)
-    # All subplots: No data
-    for i in range(4):
-        axes[i].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
+    fig.suptitle('Grouped Figure 4: Resistance Transmission and Drug Metrics', fontsize=16)
+    
+    # 1. Proportion of newly infected people with any drug resistance (top-left)
+    if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
+        # Calculate proportion
+        df['newly_infected_with_resistance_proportion'] = safe_divide(
+            df['newly_infected_with_resistance_count'], 
+            df['newly_infected_count']
+        )
+        axes[0].plot(df['time_in_years'], df['newly_infected_with_resistance_proportion'], 
+                    color='red', linewidth=2, label='Resistance on Acquisition')
+        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes[0].set_ylabel('Proportion')
+        axes[0].set_ylim(0, 1)
+        axes[0].grid(True, alpha=0.3)
+        axes[0].legend()
+        
+        # Add summary statistics
+        mean_val = df['newly_infected_with_resistance_proportion'].mean()
+        max_val = df['newly_infected_with_resistance_proportion'].max()
+        total_new = df['newly_infected_count'].sum()
+        total_new_with_r = df['newly_infected_with_resistance_count'].sum()
+        
+        textstr = (f'Overall: {total_new_with_r}/{total_new} '
+                  f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
+                  f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
+        props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
+        axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes[0].set_axis_off()
+    
+    # 2-4. Placeholder for future plots
+    for i in range(1, 4):
+        axes[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
         axes[i].set_axis_off()
+    
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig('output_graphs/grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png' (placeholder)")
+    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
 #!/usr/bin/env python3
 """
 AMR Simulation Data Analysis Script

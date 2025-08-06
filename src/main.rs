@@ -20,21 +20,40 @@ mod simulation;
 mod rules;
 mod config;
 
-  
+
+// // immediate things that look wrong //
 //
-// model structure developments to consider:
+//    resistance appearing too early
 //
-// e coli seems likely to be present in the microbiome of all individuals
 //
-// sepsis / death rate likely to depend on infection site (e.g. lower with uti)
+// // model structure developments to consider //
 //
-// update infection site distribution per bacteria
+//    sepsis / death rate likely to depend on infection site (e.g. lower with uti)
 //
-// resistance appearing too early
+//    see todo in rules/mod.rs 
 //
-// consider adjusting the timing of resistance emergence in the simulation
+//    resistance probability in bacteria acquired when in hospital should depend on
+//    resistance in concurrently hospitalized individuals - this seems to not be being
+//    fully implemented (nor by region)
+//
+//    transmitted resistance from environment can only happen once one of the 
+//    drugs selecting for resistance has been introduced - go so far as to make resistance from environment
+//    also dependnt on majority_r in others in population, with a multipier ?
+//
+//    adding resistance mechanisms - steps - add risk of each mechanism appearing 
+//    for each bacteria, which will depend partially on drug level as for any_r 
+//    appearance - keep all any_r code as is as this will remain the default 
+//    mechanism - allow presence of mechanism to over-write the any_r value 
 //
 // 
+// // parameter values (recognising there will be many changes) //
+//
+//    e coli seems likely to be present in the microbiome of all individuals
+//
+//    update infection site distribution per bacteria
+//
+//
+//  
 //
 //
 //
@@ -75,8 +94,8 @@ use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Create and run the simulation
-    let population_size =  1000;
-    let time_steps = 37 ; 
+    let population_size =  3_000;
+    let time_steps = 300 ; 
  
     let mut simulation = Simulation::new(population_size, time_steps);
 
