@@ -24,15 +24,12 @@ mod config;
 //
 // // model structure developments to consider //
 //
-//    sepsis / death rate likely to depend on infection site (e.g. lower with uti)
+//    ✓ IMPLEMENTED: sepsis / death rate now depends on infection site (infectious_syndrome)
 //
 //    see todo in rules/mod.rs 
 //
 //    need increased risk of infection with certain bacteria in people currently hospitalized
-//
-//    ✓ IMPLEMENTED: transmitted resistance from environment can only happen once one of the 
-//    drugs selecting for resistance has been introduced (includes cross-resistance patterns)
-//
+// 
 //    adding resistance mechanisms - steps - add risk of each mechanism appearing 
 //    for each bacteria, which will depend partially on drug level as for any_r 
 //    appearance - keep all any_r code as is as this will remain the default 

@@ -305,12 +305,23 @@ pub fn apply_rules(
                     // Medium risk bacteria (reference category)
                     get_global_param("log_odds_bacteria_with_medium_sepsis_risk").expect("Missing log_odds_bacteria_with_medium_sepsis_risk")
                 };
+
+                // Add syndrome-specific sepsis risk (infection site effect)
+                // This allows the same bacteria to have different sepsis risks depending on infection site
+                // e.g., E. coli UTI vs E. coli bacteremia have very different sepsis risks
+                let syndrome_log_odds = if individual.infectious_syndrome[b_idx] != 0 {
+                    let param_name = format!("log_odds_syndrome_{}_sepsis", individual.infectious_syndrome[b_idx]);
+                    get_global_param(&param_name).unwrap_or(0.0) // Default to no effect if parameter missing
+                } else {
+                    0.0 // No syndrome specified, no effect
+                };
                 
                 // Calculate log odds of sepsis
                 let log_odds_sepsis = sepsis_baseline_odds
                                     + (current_level * log_odds_infection_level)
                                     + (duration_of_infection as f64 * log_odds_infection_duration)
-                                    + bacteria_log_odds;
+                                    + bacteria_log_odds
+                                    + syndrome_log_odds;
 
                 // Convert log odds to probability using logistic function
                 let prob_sepsis_today = 1.0 / (1.0 + (-log_odds_sepsis).exp());

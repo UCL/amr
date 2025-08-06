@@ -554,6 +554,17 @@ lazy_static! {
         map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
         map.insert("log_odds_bacteria_with_low_sepsis_risk".to_string(), -1.2); // Log odds for low-risk bacteria (e.g., exp(-1.2) = 0.3x odds ratio)
 
+        // Syndrome-specific sepsis risk parameters (infectious site effects)
+        map.insert("log_odds_syndrome_1_sepsis".to_string(), -2.0); // UTI/Genitourinary: Much lower sepsis risk
+        map.insert("log_odds_syndrome_2_sepsis".to_string(), -1.0); // Skin/Soft tissue: Lower sepsis risk
+        map.insert("log_odds_syndrome_3_sepsis".to_string(), 0.0);  // Respiratory: Reference category
+        map.insert("log_odds_syndrome_4_sepsis".to_string(), 1.5);  // Bloodstream/Bacteremia: Much higher sepsis risk
+        map.insert("log_odds_syndrome_5_sepsis".to_string(), 0.8);  // Intra-abdominal: Higher sepsis risk
+        map.insert("log_odds_syndrome_6_sepsis".to_string(), 1.2);  // Central nervous system: High sepsis risk
+        map.insert("log_odds_syndrome_7_sepsis".to_string(), -0.5); // Gastrointestinal: Somewhat lower sepsis risk
+        map.insert("log_odds_syndrome_8_sepsis".to_string(), -1.5); // Genital: Lower sepsis risk
+        map.insert("log_odds_syndrome_9_sepsis".to_string(), 0.5);  // Bone/Joint: Moderately higher sepsis risk
+
         // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
         // These parameters are on the log-odds scale.
