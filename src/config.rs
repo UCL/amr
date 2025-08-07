@@ -1,9 +1,5 @@
 
 
-// drug introduction dates 
-// rate of infection
-// majority_r_evolution_rate_per_day_when_drug_present
-
 
  
  
@@ -33,7 +29,7 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_initial_infection_level", bacteria), 0.2); // 0.01
+            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
             map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -1308,10 +1304,10 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 91);   // 2555 // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 183);     // 3555 // 1942 (12 years after 1930)
+        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
         map.insert("ampicillin", 11315);     // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
@@ -1384,6 +1380,9 @@ lazy_static! {
         map.insert("fusidic_a", 11680);       // 1962 (32 years after 1930) - fusidic acid
         map.insert("metronidazole", 10965);   // 1960 (30 years after 1930)
         map.insert("furazolidone", 9125);    // 1955 (25 years after 1930)
+        
+        // Polymyxins  
+        map.insert("colistin", 7300);        // 1950 (20 years after 1930)
         
         map
     };

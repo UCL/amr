@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::time::Instant;
 
 // Compact structure for time step summary data
 #[allow(dead_code)]
@@ -84,6 +85,8 @@ pub struct Simulation {
     pub current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>>,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
+    /// Pre-computed parameter keys to avoid string allocation during simulation.
+    pub param_cache: crate::rules::ParameterKeyCache,
 }
 
 impl Simulation {
@@ -147,6 +150,7 @@ impl Simulation {
             cross_resistance_groups, 
             current_majority_r_positive_values_by_combo: HashMap::new(), // Initialize empty
             summary_log: Vec::new(), // Initialize empty log
+            param_cache: crate::rules::ParameterKeyCache::new(),
         }
     }
 
@@ -158,7 +162,11 @@ impl Simulation {
         println!(" ");
 
         for t in 0..self.time_steps {
+            let timestep_start = Instant::now();
+            
             // --- Per-bacteria, per-drug infection and resistance counts (parallel-friendly) ---
+            let calculation_start = Instant::now();
+            
             let num_bacteria = BACTERIA_LIST.len();
             let num_drugs = DRUG_SHORT_NAMES.len();
             // Each thread will return a (infected, infected_and_standardized_mic_gt5) Vec<Vec<usize>>
@@ -192,6 +200,11 @@ impl Simulation {
                         acc
                     }
                 );
+            
+            let calculation_time = calculation_start.elapsed();
+            if t % 10 == 0 { // Log every 10th timestep
+                println!("Time step {}: infected_and_standardized_mic_lt2 calculation took {:.3}ms", t, calculation_time.as_secs_f64() * 1000.0);
+            }
 //          println!("simulation.rs time step: {}", t);
 
             // Counter for intersection of currently infected AND on any drug
@@ -239,6 +252,8 @@ impl Simulation {
             let currently_on_drug_by_drug = (0..num_drugs).map(|_| AtomicUsize::new(0)).collect::<Vec<_>>();
 
             // Single pass: apply rules and collect all statistics
+            let rules_start = Instant::now();
+            
             self.population.individuals.par_iter_mut().for_each(|individual| {
                 // Apply rules first
                 apply_rules(
@@ -248,6 +263,7 @@ impl Simulation {
                     &self.bacteria_indices,
                     &self.drug_indices,
                     &self.cross_resistance_groups,
+                    &self.param_cache,
                 );
 
                 // Count deaths in this time step only, with cause tracking
@@ -399,6 +415,11 @@ impl Simulation {
                     }
                 }
             });
+            
+            let rules_time = rules_start.elapsed();
+            if t % 10 == 0 { // Log every 10th timestep
+                println!("Time step {}: rules application took {:.3}ms", t, rules_time.as_secs_f64() * 1000.0);
+            }
 
             // Collect remaining statistics that need sequential access
             // No need for sequential pass for per-bacteria/drug majority_r counts
@@ -518,49 +539,54 @@ impl Simulation {
 
             // Comprehensive print block for individual 0
             let individual_0 = &self.population.individuals[0];
-            println!("--- Individual 0 full state ---");
-            println!("id: {}", individual_0.id);
-            println!("age (days): {}", individual_0.age);
-            println!("sex_at_birth: {}", individual_0.sex_at_birth);
-            println!("region_living: {:?}", individual_0.region_living);
-            println!("region_cur_in: {:?}", individual_0.region_cur_in);
-            println!("current_infection_related_death_risk: {:.4}", individual_0.current_infection_related_death_risk);
-            println!("background_all_cause_mortality_rate: {:.4}", individual_0.background_all_cause_mortality_rate);
-            println!("sexual_contact_level: {:.4}", individual_0.sexual_contact_level);
-            println!("airborne_contact_level_with_adults: {:.4}", individual_0.airborne_contact_level_with_adults);
-            println!("airborne_contact_level_with_children: {:.4}", individual_0.airborne_contact_level_with_children);
-            println!("oral_exposure_level: {:.4}", individual_0.oral_exposure_level);
-            println!("mosquito_exposure_level: {:.4}", individual_0.mosquito_exposure_level);
-            println!("current_toxicity: {:.4}", individual_0.current_toxicity);
-            println!("mortality_risk_current_toxicity: {:.4}", individual_0.mortality_risk_current_toxicity);
-            println!("hospital_status: {:?}", individual_0.hospital_status);
-            println!("is_severely_immunosuppressed: {:?}", individual_0.is_severely_immunosuppressed);
-            println!("date_of_death: {:?}", individual_0.date_of_death);
-            // Arrays
-            println!("level: {:?}", individual_0.level);
-            println!("immune_resp: {:?}", individual_0.immune_resp);
-            println!("presence_microbiome: {:?}", individual_0.presence_microbiome);
-            println!("cur_level_drug: {:?}", individual_0.cur_level_drug);
-            println!("cur_use_drug: {:?}", individual_0.cur_use_drug);
-            println!("ever_taken_drug: {:?}", individual_0.ever_taken_drug);
-            println!("date_last_infected: {:?}", individual_0.date_last_infected);
-            println!("cur_infection_from_environment: {:?}", individual_0.cur_infection_from_environment);
-            println!("infection_hospital_acquired: {:?}", individual_0.infection_hospital_acquired);
-            println!("test_identified_infection: {:?}", individual_0.test_identified_infection);
-            println!("sepsis: {:?}", individual_0.sepsis);
-            // Per-bacteria/drug resistance data
-            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                    let resistance = &individual_0.resistances[b_idx][d_idx];
-                    println!(
-                        "Resistance for bacteria {} and drug {}: any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
-                        bacteria_name, drug_name, resistance.any_r, resistance.activity_r, resistance.majority_r
-                    );
-                }
-            }
-            
+            // println!("--- Individual 0 full state ---");
+            // println!("id: {}", individual_0.id);
+            // println!("age (days): {}", individual_0.age);
+            // println!("sex_at_birth: {}", individual_0.sex_at_birth);
+            // println!("region_living: {:?}", individual_0.region_living);
+            // println!("region_cur_in: {:?}", individual_0.region_cur_in);
+            // println!("current_infection_related_death_risk: {:.4}", individual_0.current_infection_related_death_risk);
+            // println!("background_all_cause_mortality_rate: {:.4}", individual_0.background_all_cause_mortality_rate);
+            // println!("sexual_contact_level: {:.4}", individual_0.sexual_contact_level);
+            // println!("airborne_contact_level_with_adults: {:.4}", individual_0.airborne_contact_level_with_adults);
+            // println!("airborne_contact_level_with_children: {:.4}", individual_0.airborne_contact_level_with_children);
+            // println!("oral_exposure_level: {:.4}", individual_0.oral_exposure_level);
+            // println!("mosquito_exposure_level: {:.4}", individual_0.mosquito_exposure_level);
+            // println!("current_toxicity: {:.4}", individual_0.current_toxicity);
+            // println!("mortality_risk_current_toxicity: {:.4}", individual_0.mortality_risk_current_toxicity);
+            // println!("hospital_status: {:?}", individual_0.hospital_status);
+            // println!("is_severely_immunosuppressed: {:?}", individual_0.is_severely_immunosuppressed);
+            // println!("date_of_death: {:?}", individual_0.date_of_death);
+            // // Arrays
+            // println!("level: {:?}", individual_0.level);
+            // println!("immune_resp: {:?}", individual_0.immune_resp);
+            // println!("presence_microbiome: {:?}", individual_0.presence_microbiome);
+            // println!("cur_level_drug: {:?}", individual_0.cur_level_drug);
+            // println!("cur_use_drug: {:?}", individual_0.cur_use_drug);
+            // println!("ever_taken_drug: {:?}", individual_0.ever_taken_drug);
+            // println!("date_last_infected: {:?}", individual_0.date_last_infected);
+            // println!("cur_infection_from_environment: {:?}", individual_0.cur_infection_from_environment);
+            // println!("infection_hospital_acquired: {:?}", individual_0.infection_hospital_acquired);
+            // println!("test_identified_infection: {:?}", individual_0.test_identified_infection);
+            // println!("sepsis: {:?}", individual_0.sepsis);
+            // // Per-bacteria/drug resistance data
+            // for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+            //     for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+            //         let resistance = &individual_0.resistances[b_idx][d_idx];
+            //         println!(
+            //             "Resistance for bacteria {} and drug {}: any_r = {:.4}, activity_r = {:.4}, majority_r = {:.4}",
+            //             bacteria_name, drug_name, resistance.any_r, resistance.activity_r, resistance.majority_r
+            //         );
+            //     }
+            // }
+
 
             self.summary_log.push(summary);
+            
+            let timestep_time = timestep_start.elapsed();
+            if t % 10 == 0 { // Log every 10th timestep
+                println!("Time step {} total time: {:.3}ms", t, timestep_time.as_secs_f64() * 1000.0);
+            }
 
         }
 
@@ -576,15 +602,15 @@ impl Simulation {
 
   
 
-        println!("\n--- Simulation Summary Statistics ---");
-        for summary in &self.summary_log {
-            println!("Time step {}: {} newly infected, {} deaths, {} with resistance", 
-                summary.time_step, 
-                summary.newly_infected_count, 
-                summary.total_deaths, 
-                summary.total_with_resistance
-            );
-        }
+        // println!("\n--- Simulation Summary Statistics ---");
+        // for summary in &self.summary_log {
+        //     println!("Time step {}: {} newly infected, {} deaths, {} with resistance", 
+        //         summary.time_step, 
+        //         summary.newly_infected_count, 
+        //         summary.total_deaths, 
+        //         summary.total_with_resistance
+        //     );
+        // }
 
 
 

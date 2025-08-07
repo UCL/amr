@@ -28,6 +28,166 @@ use std::collections::HashMap;
 use rand::distributions::WeightedIndex;
 use rand::distributions::Distribution; 
 
+/// Pre-computed parameter keys to avoid string allocation during simulation
+pub struct ParameterKeyCache {
+    // Most frequently used keys - drug/bacteria combinations
+    drug_bacteria_potency_keys: HashMap<(usize, usize), String>,
+    drug_bacteria_initiation_keys: HashMap<(usize, usize), String>,
+    
+    // Region-based keys
+    region_mosquito_keys: HashMap<String, String>,
+    region_travel_keys: HashMap<String, String>,
+    region_mortality_keys: HashMap<String, String>,
+    region_sepsis_keys: HashMap<String, String>,
+    region_sepsis_multiplier_keys: HashMap<String, String>,
+    region_bacteria_acquisition_keys: HashMap<(String, String), String>,
+    region_bacteria_default_keys: HashMap<String, String>,
+    
+    // Other frequently used keys
+    syndrome_sepsis_keys: HashMap<String, String>,
+    vaccine_age_keys: HashMap<(String, String), String>,
+    syndrome_initiation_keys: HashMap<String, String>,
+    sex_mortality_keys: HashMap<String, String>,
+    hgt_keys: HashMap<(String, String), String>,
+    resistance_mechanism_emergence_keys: HashMap<String, String>,
+    resistance_mechanism_enhancement_keys: HashMap<String, String>,
+}
+
+impl ParameterKeyCache {
+    pub fn new() -> Self {
+        let mut cache = ParameterKeyCache {
+            drug_bacteria_potency_keys: HashMap::new(),
+            drug_bacteria_initiation_keys: HashMap::new(),
+            region_mosquito_keys: HashMap::new(),
+            region_travel_keys: HashMap::new(),
+            region_mortality_keys: HashMap::new(),
+            region_sepsis_keys: HashMap::new(),
+            region_sepsis_multiplier_keys: HashMap::new(),
+            region_bacteria_acquisition_keys: HashMap::new(),
+            region_bacteria_default_keys: HashMap::new(),
+            syndrome_sepsis_keys: HashMap::new(),
+            vaccine_age_keys: HashMap::new(),
+            syndrome_initiation_keys: HashMap::new(),
+            sex_mortality_keys: HashMap::new(),
+            hgt_keys: HashMap::new(),
+            resistance_mechanism_emergence_keys: HashMap::new(),
+            resistance_mechanism_enhancement_keys: HashMap::new(),
+        };
+        
+        // Pre-compute all drug/bacteria combinations
+        for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                cache.drug_bacteria_potency_keys.insert(
+                    (d_idx, b_idx),
+                    format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name)
+                );
+                cache.drug_bacteria_initiation_keys.insert(
+                    (d_idx, b_idx),
+                    format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug_name, bacteria_name)
+                );
+            }
+        }
+        
+        // Pre-compute region-based keys
+        let regions = ["north_america", "europe", "asia", "africa", "south_america", "oceania", "home"];
+        for region in &regions {
+            cache.region_mosquito_keys.insert(
+                region.to_string(),
+                format!("{}_mosquito_exposure_multiplier", region)
+            );
+            cache.region_travel_keys.insert(
+                region.to_string(),
+                format!("{}_travel_multiplier", region)
+            );
+            cache.region_mortality_keys.insert(
+                region.to_string(),
+                format!("log_odds_mortality_region_{}", region)
+            );
+            cache.region_sepsis_keys.insert(
+                region.to_string(),
+                format!("sepsis_log_odds_region_{}", region)
+            );
+            cache.region_sepsis_multiplier_keys.insert(
+                region.to_string(),
+                format!("{}_sepsis_mortality_multiplier", region)
+            );
+            cache.region_bacteria_default_keys.insert(
+                region.to_string(),
+                format!("{}_acquisition_log_odds_default", region)
+            );
+            
+            // Pre-compute region/bacteria combinations
+            for &bacteria in BACTERIA_LIST {
+                let bacteria_clean = bacteria.replace(" ", "_");
+                cache.region_bacteria_acquisition_keys.insert(
+                    (region.to_string(), bacteria_clean.clone()),
+                    format!("{}_{}_acquisition_log_odds", region, bacteria_clean)
+                );
+            }
+        }
+        
+        // Pre-compute sex-based keys
+        for sex in &["male", "female"] {
+            cache.sex_mortality_keys.insert(
+                sex.to_string(),
+                format!("log_odds_mortality_sex_{}", sex)
+            );
+        }
+        
+        // Pre-compute syndrome keys (numeric syndrome IDs)
+        for syndrome_id in 1..=10 {
+            cache.syndrome_sepsis_keys.insert(
+                syndrome_id.to_string(),
+                format!("log_odds_syndrome_{}_sepsis", syndrome_id)
+            );
+            cache.syndrome_initiation_keys.insert(
+                syndrome_id.to_string(),
+                format!("syndrome_{}_initiation_multiplier", syndrome_id)
+            );
+        }
+        
+        // Pre-compute vaccine/age combinations
+        let vaccines = vec!["pneumococcal", "meningococcal", "hib", "bcg", "rotavirus", "measles", "influenza", "covid19"];
+        let age_groups = vec!["0_1", "1_5", "5_18", "18_50", "50_70", "70plus"];
+        for vaccine in &vaccines {
+            for age_group in &age_groups {
+                cache.vaccine_age_keys.insert(
+                    (vaccine.to_string(), age_group.to_string()),
+                    format!("vaccine_{}_daily_prob_age_{}", vaccine, age_group)
+                );
+            }
+        }
+        
+        // Pre-compute HGT keys for bacteria pairs
+        for &donor in BACTERIA_LIST {
+            for &recipient in BACTERIA_LIST {
+                if donor != recipient {
+                    cache.hgt_keys.insert(
+                        (donor.to_string(), recipient.to_string()),
+                        format!("hgt_prob_{}_to_{}", donor, recipient)
+                    );
+                }
+            }
+        }
+        
+        // Pre-compute resistance mechanism keys using actual enum values
+        use crate::simulation::population::ResistanceMechanism;
+        for mechanism in ResistanceMechanism::all() {
+            let mechanism_str = mechanism.as_str();
+            cache.resistance_mechanism_emergence_keys.insert(
+                mechanism_str.to_string(),
+                format!("resistance_mechanism_{}_emergence_rate", mechanism_str)
+            );
+            cache.resistance_mechanism_enhancement_keys.insert(
+                mechanism_str.to_string(),
+                format!("resistance_mechanism_{}_enhancement_multiplier", mechanism_str)
+            );
+        }
+        
+        cache
+    }
+}
+
 /// applies model rules to an individual for one time step.
 pub fn apply_rules(
     individual: &mut Individual,
@@ -37,6 +197,7 @@ pub fn apply_rules(
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
     cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
+    param_cache: &ParameterKeyCache, // New parameter cache
 ) {
 
     if individual.age < 0 {
@@ -159,8 +320,8 @@ pub fn apply_rules(
 
     // Apply region-specific multiplier
     let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-    let region_multiplier_key = format!("{}_mosquito_exposure_multiplier", region_name_for_param);
-    let region_multiplier = get_global_param(&region_multiplier_key).unwrap_or(1.0); // Default to 1.0 if region not specified
+    let region_multiplier_key = &param_cache.region_mosquito_keys[&region_name_for_param];
+    let region_multiplier = get_global_param(region_multiplier_key).unwrap_or(1.0); // Default to 1.0 if region not specified
     base_mosquito_level *= region_multiplier;
 
     if individual.hospital_status.is_hospitalized() {
@@ -235,8 +396,9 @@ pub fn apply_rules(
         .expect("Missing travel_probability_per_day in config");
     
     // Apply region-specific travel multiplier based on individual's home region
-    let region_travel_multiplier_key = format!("{}_travel_multiplier", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
-    let region_travel_multiplier = get_global_param(&region_travel_multiplier_key).unwrap_or(1.0);
+    let region_name_for_param = individual.region_living.to_string().to_lowercase().replace(" ", "_");
+    let region_travel_multiplier_key = &param_cache.region_travel_keys[&region_name_for_param];
+    let region_travel_multiplier = get_global_param(region_travel_multiplier_key).unwrap_or(1.0);
     let travel_prob = base_travel_prob * region_travel_multiplier;
     
     const VISIT_LENGTH_DAYS: u32 = 30; // Fixed visit length
@@ -309,8 +471,13 @@ pub fn apply_rules(
                 // This allows the same bacteria to have different sepsis risks depending on infection site
                 // e.g., E. coli UTI vs E. coli bacteremia have very different sepsis risks
                 let syndrome_log_odds = if individual.infectious_syndrome[b_idx] != 0 {
-                    let param_name = format!("log_odds_syndrome_{}_sepsis", individual.infectious_syndrome[b_idx]);
-                    get_global_param(&param_name).unwrap_or(0.0) // Default to no effect if parameter missing
+                    let syndrome_id = individual.infectious_syndrome[b_idx].to_string();
+                    if let Some(param_name) = param_cache.syndrome_sepsis_keys.get(&syndrome_id) {
+                        get_global_param(param_name).unwrap_or(0.0)
+                    } else {
+                        println!("Warning: Missing syndrome cache key for syndrome ID: {}", syndrome_id);
+                        0.0 // Default to no effect if missing
+                    }
                 } else {
                     0.0 // No syndrome specified, no effect
                 };
@@ -379,8 +546,8 @@ pub fn apply_rules(
                 _ => false,
             };
             if targets_bacteria && !individual.vaccination_status[b_idx] {
-                let param_key = format!("vaccine_{}_daily_prob_age_{}", vaccine, age_group);
-                let daily_prob = get_global_param(&param_key).unwrap_or(0.0);
+                let param_key = &param_cache.vaccine_age_keys[&(vaccine.to_string(), age_group.to_string())];
+                let daily_prob = get_global_param(param_key).unwrap_or(0.0);
                 if rng.gen::<f64>() < daily_prob {
                     individual.vaccination_status[b_idx] = true;
                 }
@@ -399,9 +566,10 @@ pub fn apply_rules(
     let mut syndrome_administration_multiplier: f64 = 1.0;
     for &syndrome_id in individual.infectious_syndrome.iter() {
         if syndrome_id != 0 {
-            let param_name = format!("syndrome_{}_initiation_multiplier", syndrome_id);
-            if let Some(multiplier) = get_global_param(&param_name) {
-                syndrome_administration_multiplier = syndrome_administration_multiplier.max(multiplier);
+            if let Some(param_name) = param_cache.syndrome_initiation_keys.get(&syndrome_id.to_string()) {
+                if let Some(multiplier) = get_global_param(param_name) {
+                    syndrome_administration_multiplier = syndrome_administration_multiplier.max(multiplier);
+                }
             }
         }
     }
@@ -410,15 +578,13 @@ let drugs_initiated_this_time_step: usize = 0;
 
     // --- drug stopping ---
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-        let drug_name = DRUG_SHORT_NAMES[drug_idx];
         if individual.cur_use_drug[drug_idx] {
             let mut relevant_infection_active_for_this_drug = false;
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
-                    let bacteria_name = BACTERIA_LIST[b_idx];
                     // Use potency_when_no_r to determine if drug is relevant for this bacteria
-                    let potency_param_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
-                    let drug_potency = get_global_param(&potency_param_key).unwrap_or(0.0);
+                    let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                    let drug_potency = get_global_param(potency_param_key).unwrap_or(0.0);
                     if drug_potency > 0.0 {
                         relevant_infection_active_for_this_drug = true;
                         break;
@@ -516,10 +682,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 // Score drug based on spectrum, activity, and clinical scenario
                 let mut score = 1.0;
                 let mut max_bacteria_specific_multiplier: f64 = 1.0;
-                for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                for b_idx in 0..BACTERIA_LIST.len() {
                     if individual.level[b_idx] > 0.001 {
-                        let param_key = format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug_name, bacteria_name);
-                        if let Some(specific_multiplier) = get_global_param(&param_key) {
+                        let param_key = &param_cache.drug_bacteria_initiation_keys[&(drug_idx, b_idx)];
+                        if let Some(specific_multiplier) = get_global_param(param_key) {
                             max_bacteria_specific_multiplier = max_bacteria_specific_multiplier.max(specific_multiplier);
                         }
                     }
@@ -533,10 +699,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     let ineffective_drug_penalty = get_global_param("targeted_therapy_ineffective_drug_penalty").unwrap_or(0.1);
                     let mut has_good_activity = false;
                     let mut best_potency: f64 = 0.0;
-                    for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                    for b_idx in 0..BACTERIA_LIST.len() {
                         if individual.test_identified_infection[b_idx] && individual.level[b_idx] > 0.001 {
-                            let potency_param_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug_name, bacteria_name);
-                            let potency = get_global_param(&potency_param_key).unwrap_or(0.0);
+                            let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                            let potency = get_global_param(potency_param_key).unwrap_or(0.0);
                             best_potency = best_potency.max(potency);
                             if potency > 0.02 {
                                 has_good_activity = true;
@@ -575,10 +741,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     if time_step >= intro_time {
                         drug_introduced = true;
                     }
-                } else {
-                    // If no introduction date specified, assume always available
-                    drug_introduced = true;
                 }
+                // If no introduction date specified, assume drug is NOT available yet
+                // This prevents anachronistic drug use
                 
                 score *= drug_availability;
                 if !drug_introduced {
@@ -656,12 +821,13 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         }
 
         // Regional effects
-        let region_log_odds_key = format!("log_odds_mortality_region_{}", individual.region_living.to_string().to_lowercase().replace(" ", "_"));
-        total_log_odds += get_global_param(&region_log_odds_key).unwrap_or(0.0);
+        let region_name_for_param = individual.region_living.to_string().to_lowercase().replace(" ", "_");
+        let region_log_odds_key = &param_cache.region_mortality_keys[&region_name_for_param];
+        total_log_odds += get_global_param(region_log_odds_key).unwrap_or(0.0);
 
         // Sex effects
-        let sex_log_odds_key = format!("log_odds_mortality_sex_{}", individual.sex_at_birth.to_lowercase());
-        total_log_odds += get_global_param(&sex_log_odds_key).unwrap_or(0.0);
+        let sex_log_odds_key = &param_cache.sex_mortality_keys[&individual.sex_at_birth.to_lowercase()];
+        total_log_odds += get_global_param(sex_log_odds_key).unwrap_or(0.0);
 
         // Immunosuppression effect
         if individual.is_severely_immunosuppressed {
@@ -702,9 +868,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             sepsis_death_risk *= age_multiplier;
             
             // Apply region-based multiplier (healthcare quality)
-            let region_sepsis_multiplier_key = format!("{}_sepsis_mortality_multiplier", 
-                individual.region_living.to_string().to_lowercase().replace(" ", "_"));
-            let region_sepsis_multiplier = get_global_param(&region_sepsis_multiplier_key).unwrap_or(1.0);
+            let region_name_for_param = individual.region_living.to_string().to_lowercase().replace(" ", "_");
+            let region_sepsis_multiplier_key = &param_cache.region_sepsis_multiplier_keys[&region_name_for_param];
+            let region_sepsis_multiplier = get_global_param(region_sepsis_multiplier_key).unwrap_or(1.0);
             sepsis_death_risk *= region_sepsis_multiplier;
             
             // Apply immunosuppression multiplier
@@ -795,8 +961,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     }
                     
                     // (5) Region-specific effect (healthcare quality and ICU availability)
-                    let region_key = format!("sepsis_log_odds_region_{}", individual.region_living.to_string().to_lowercase().replace(' ', "_"));
-                    let region_coefficient = get_global_param(&region_key).unwrap_or(0.0); // Default to 0.0 if region not found
+                    let region_name_for_param = individual.region_living.to_string().to_lowercase().replace(' ', "_");
+                    let region_key = &param_cache.region_sepsis_keys[&region_name_for_param];
+                    let region_coefficient = get_global_param(region_key).unwrap_or(0.0); // Default to 0.0 if region not found
                     total_log_odds += region_coefficient;
                     
                     // Convert log odds to probability using logistic function
@@ -859,11 +1026,12 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
             // Region-specific effect
             let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-            let region_bacteria_log_odds_key = format!("{}_{}_acquisition_log_odds", region_name_for_param, bacteria.replace(" ", "_"));
-            let region_bacteria_log_odds = get_global_param(&region_bacteria_log_odds_key)
+            let bacteria_clean = bacteria.replace(" ", "_");
+            let region_bacteria_log_odds_key = &param_cache.region_bacteria_acquisition_keys[&(region_name_for_param.clone(), bacteria_clean)];
+            let region_bacteria_log_odds = get_global_param(region_bacteria_log_odds_key)
                 .unwrap_or_else(|| {
-                    let default_region_key = format!("{}_acquisition_log_odds_default", region_name_for_param);
-                    get_global_param(&default_region_key).unwrap_or(0.0)
+                    let default_region_key = &param_cache.region_bacteria_default_keys[&region_name_for_param];
+                    get_global_param(default_region_key).unwrap_or(0.0)
                 });
             log_odds += region_bacteria_log_odds;
 
@@ -908,11 +1076,12 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                 // Region-specific effect
                 let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-                let region_bacteria_log_odds_key = format!("{}_{}_acquisition_log_odds", region_name_for_param, bacteria.replace(" ", "_"));
-                let region_bacteria_log_odds = get_global_param(&region_bacteria_log_odds_key)
+                let bacteria_clean = bacteria.replace(" ", "_");
+                let region_bacteria_log_odds_key = &param_cache.region_bacteria_acquisition_keys[&(region_name_for_param.clone(), bacteria_clean)];
+                let region_bacteria_log_odds = get_global_param(region_bacteria_log_odds_key)
                     .unwrap_or_else(|| {
-                        let default_region_key = format!("{}_acquisition_log_odds_default", region_name_for_param);
-                        get_global_param(&default_region_key).unwrap_or(0.0)
+                        let default_region_key = &param_cache.region_bacteria_default_keys[&region_name_for_param];
+                        get_global_param(default_region_key).unwrap_or(0.0)
                     });
                 log_odds += region_bacteria_log_odds;
 
@@ -1032,8 +1201,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if recipient_idx == donor_idx { continue; }
                         let donor_name = BACTERIA_LIST[donor_idx];
                         let recipient_name = BACTERIA_LIST[recipient_idx];
-                        let hgt_key = format!("hgt_prob_{}_to_{}", donor_name, recipient_name);
-                        let hgt_prob = crate::config::PARAMETERS.get(&hgt_key).copied().unwrap_or(0.0);
+                        let hgt_key = &param_cache.hgt_keys[&(donor_name.to_string(), recipient_name.to_string())];
+                        let hgt_prob = crate::config::PARAMETERS.get(hgt_key).copied().unwrap_or(0.0);
                         if hgt_prob > 0.0 && rng.gen::<f64>() < hgt_prob {
                             // Transfer resistance for all drugs
                             for drug_idx in 0..DRUG_SHORT_NAMES.len() {
@@ -1323,8 +1492,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 };
                                 
                                 if mechanism_applicable {
+                                    let mechanism_str = mechanism.as_str();
                                     let mechanism_emergence_rate = get_global_param(
-                                        &format!("resistance_mechanism_{}_emergence_rate", mechanism.as_str())
+                                        param_cache.resistance_mechanism_emergence_keys.get(mechanism_str)
+                                            .unwrap_or(&format!("resistance_mechanism_{}_emergence_rate", mechanism_str))
                                     ).unwrap_or(0.001);
                                     
                                     if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
@@ -1340,11 +1511,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     // calculate activity_r (should always be updated)
                     if drug_current_level > 0.0 {
                         // Fetch potency from config, fallback to 0.05 if not found
-                        let potency_param_key = format!(
-                            "drug_{}_for_bacteria_{}_potency_when_no_r",
-                            DRUG_SHORT_NAMES[drug_index], bacteria
-                        );
-                        let base_potency = get_global_param(&potency_param_key).unwrap_or(0.05);
+                        let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_index, bacteria_full_idx)];
+                        let base_potency = get_global_param(potency_param_key).unwrap_or(0.05);
                         
                         // Calculate resistance mechanism enhancement
                         let mut mechanism_resistance_boost = 0.0;
@@ -1410,8 +1578,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     };
                                     
                                     if mechanism_affects_drug {
+                                        let mechanism_str = mechanism.as_str();
                                         let mechanism_enhancement = get_global_param(
-                                            &format!("resistance_mechanism_{}_enhancement_multiplier", mechanism.as_str())
+                                            param_cache.resistance_mechanism_enhancement_keys.get(mechanism_str)
+                                                .unwrap_or(&format!("resistance_mechanism_{}_enhancement_multiplier", mechanism_str))
                                         ).unwrap_or(0.3);
                                         
                                         // Only add enhancement if it would actually increase resistance
@@ -1532,12 +1702,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                 if individual.id == 1000001 {
                         // Calculate standardized MIC: 1 / ((1 - majority_r) * potency)
-                        let potency_param_key = format!(
-                            "drug_{}_for_bacteria_{}_potency_when_no_r",
-                            DRUG_SHORT_NAMES[drug_idx],
-                            BACTERIA_LIST[b_idx]
-                        );
-                        let potency = get_global_param(&potency_param_key).unwrap_or(0.05);
+                        let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                        let potency = get_global_param(potency_param_key).unwrap_or(0.05);
                         let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
                         let normalized_majority_r = resistance_data.majority_r / max_resistance_level;
                         let standardized_mic = if (1.0 - normalized_majority_r) * potency > 0.0 {
