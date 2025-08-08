@@ -49,10 +49,18 @@ BACTERIA INDEX REFERENCE (from population.rs BACTERIA_LIST):
 INDIVIDUAL_INDEX = 1
 BACTERIUM_INDEX = 0
 
-# Optional: set this to a filename to save the output (e.g., 'output.txt'). Leave as None to disable.
 OUTPUT_FILENAME = 'individual_output.txt'
 # Max length for cell display
 MAX_CELL_LEN = 20
+
+
+# Specify the range of time steps to print (inclusive). Set to None to print all.
+# Example: TIME_STEP_START = 10; TIME_STEP_END = 20
+TIME_STEP_START = None  # e.g., 10
+TIME_STEP_END = None    # e.g., 20
+
+# Only print rows where the person is infected with the selected bacterium
+ONLY_WHEN_INFECTED = False  # Set to True to enable
  
 # Usage: python individuals_log_view.py [filename]
 def print_aligned_csv(filename, max_rows=30):
@@ -108,7 +116,41 @@ def print_aligned_csv(filename, max_rows=30):
     ]
     resistance_vars = ["any_r", "activity_r", "majority_r", "test_r", "microbiome_r"]
     for row in data_rows:
+        # Filter by individual id
         if len(row) > 2 and row[2] == individual_id:
+            # Filter by infection status if enabled (use 'level' variable for selected bacterium)
+            if ONLY_WHEN_INFECTED:
+                try:
+                    level_idx = next(i for i, var in enumerate(header) if var.strip().lower() == "level")
+                except StopIteration:
+                    level_idx = None
+                if level_idx is not None:
+                    cell = row[level_idx]
+                    if ";" in cell:
+                        parts = cell.split(";")
+                        if BACTERIUM_INDEX < len(parts):
+                            val = parts[BACTERIUM_INDEX].strip()
+                            try:
+                                val_f = float(val)
+                            except ValueError:
+                                continue
+                            if val_f <= 0:
+                                continue
+                        else:
+                            continue
+                    else:
+                        # Not an array column, skip check
+                        pass
+            # Filter by time step range if specified (assume time step is in column 0 and is integer)
+            if TIME_STEP_START is not None or TIME_STEP_END is not None:
+                try:
+                    timestep = int(row[0])
+                except (ValueError, IndexError):
+                    timestep = None
+                if TIME_STEP_START is not None and (timestep is None or timestep < TIME_STEP_START):
+                    continue
+                if TIME_STEP_END is not None and (timestep is None or timestep > TIME_STEP_END):
+                    continue
             # Print all variables as before
             for i, (var, cell) in enumerate(zip(header, row)):
                 if i in array_col_indices:
