@@ -1,85 +1,6 @@
-# =============================================================================
-# BACTERIA INFECTION PROPORTION PLOTS
-# =============================================================================
-def create_bacteria_infection_proportion_plots(df):
-    """
-    For each bacteria, plot the proportion of people infected with that bacteria over time.
-    Each plot is saved as a separate PNG file.
-    """
-    print("\n=== CREATING BACTERIA INFECTION PROPORTION PLOTS FOR EACH BACTERIA ===")
-    # Find all columns matching *_currently_infected
-    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
-    if not bacteria_cols:
-        print("No *_currently_infected columns found in data.")
-        return
-    for bacteria_col in bacteria_cols:
-        bacteria_name = bacteria_col.replace('_currently_infected', '')
-        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
-        # Proportion: number infected with this bacteria / total population
-        prop = safe_divide(df[bacteria_col], df['total_population'])
-        plt.plot(df['time_in_years'], prop, label=bacteria_name.replace('_', ' ').title(), linewidth=7)
-        plt.title(f"Proportion of People Infected with {bacteria_name.replace('_', ' ').title()}", fontsize=50)
-        plt.ylabel('Proportion of Living Population', fontsize=50)
-        plt.xlabel('Time (Years)', fontsize=50)
-        plt.ylim(0, 0.001)
-        plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=30)
-        plt.tick_params(axis='both', which='major', labelsize=40)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        fname = f"output_graphs/proportion_of_people_infected_with_each_bacteria/{bacteria_name}_infection_proportion.png"
-        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
-        print(f"  ✓ {fname} saved.")
-# =============================================================================
-# NEW: PAST YEAR DEATHS PLOT
-# =============================================================================
-def create_grouped_figure_4(df):
-    """Create grouped_figure_4.png: Resistance transmission and drug metrics."""
-    fig, axes = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
-    axes = axes.flatten()
-    fig.suptitle('Grouped Figure 4: Resistance Transmission and Drug Metrics', fontsize=16)
-    
-    # 1. Proportion of newly infected people with any drug resistance (top-left)
-    if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
-        # Calculate proportion
-        df['newly_infected_with_resistance_proportion'] = safe_divide(
-            df['newly_infected_with_resistance_count'], 
-            df['newly_infected_count']
-        )
-        axes[0].plot(df['time_in_years'], df['newly_infected_with_resistance_proportion'], 
-                    color='red', linewidth=2, label='Resistance on Acquisition')
-        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
-        axes[0].set_ylabel('Proportion')
-        axes[0].set_ylim(0, 1)
-        axes[0].grid(True, alpha=0.3)
-        axes[0].legend()
-        
-        # Add summary statistics
-        mean_val = df['newly_infected_with_resistance_proportion'].mean()
-        max_val = df['newly_infected_with_resistance_proportion'].max()
-        total_new = df['newly_infected_count'].sum()
-        total_new_with_r = df['newly_infected_with_resistance_count'].sum()
-        
-        textstr = (f'Overall: {total_new_with_r}/{total_new} '
-                  f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
-                  f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
-        props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
-        axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
-                    verticalalignment='top', bbox=props)
-    else:
-        axes[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
-                    ha='center', va='center', fontsize=12, color='gray')
-        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
-        axes[0].set_axis_off()
-    
-    # 2-4. Placeholder for future plots
-    for i in range(1, 4):
-        axes[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
-        axes[i].set_axis_off()
-    
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig('output_graphs/grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
+
+# ...existing code...
+
 #!/usr/bin/env python3
 """
 AMR Simulation Data Analysis Script
@@ -88,11 +9,22 @@ This script analyzes the CSV output from the Rust AMR simulation
 and creates visualizations and summary statistics.
 """
 
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from pathlib import Path
+# =============================================================================
+# SMOOTHING WINDOW CONFIGURATION
+# =============================================================================
+# Number of days for rolling mean smoothing (used in all time series plots)
+SMOOTHING_WINDOW_DAYS = 365
+
+# =============================================================================
+# TOGGLE: Set to True to generate output_graphs plots, False to skip them
+# =============================================================================
+GENERATE_OUTPUT_GRAPHS = False
 
 # =============================================================================
 # CONFIGURATION
@@ -235,20 +167,20 @@ def create_grouped_plots(df):
     axes1 = axes1.flatten()
     fig1.suptitle('Grouped Figure 1: Population, Resistance, Hospitalization, New Infections', fontsize=16)
     # 1. Living Population Over Time
-    axes1[0].plot(df['time_in_years'], df['total_population'], 'b-', linewidth=2)
+    axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
     axes1[0].set_title('Living Population Over Time')
     axes1[0].set_ylabel('Population')
     axes1[0].set_ylim(bottom=0)
     axes1[0].grid(True, alpha=0.3)
     # 2. Individuals with Resistance Over Time
-    axes1[1].plot(df['time_in_years'], df['total_with_resistance'], 'orange', linewidth=2)
+    axes1[1].plot(df['time_in_years'], pd.Series(df['total_with_resistance']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'orange', linewidth=2)
     axes1[1].set_title('Individuals with Resistance Over Time')
     axes1[1].set_ylabel('Count')
     axes1[1].set_ylim(bottom=0)
     axes1[1].grid(True, alpha=0.3)
     # 3. Hospitalized & Immunosuppressed
-    axes1[2].plot(df['time_in_years'], df['number_in_hospital'], 'navy', linewidth=2, label='In Hospital')
-    axes1[2].plot(df['time_in_years'], df['number_severely_immunosuppressed'], 'crimson', linewidth=2, label='Severely Immunosuppressed')
+    axes1[2].plot(df['time_in_years'], pd.Series(df['number_in_hospital']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'navy', linewidth=2, label='In Hospital')
+    axes1[2].plot(df['time_in_years'], pd.Series(df['number_severely_immunosuppressed']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'crimson', linewidth=2, label='Severely Immunosuppressed')
     axes1[2].set_title('Hospitalized & Immunosuppressed Individuals')
     axes1[2].set_ylabel('Count')
     axes1[2].set_ylim(bottom=0)
@@ -256,7 +188,7 @@ def create_grouped_plots(df):
     axes1[2].grid(True, alpha=0.3)
     # 4. Proportion with Resistance Among Currently Infected
     if 'resistance_among_infected' in df.columns:
-        axes1[3].plot(df['time_in_years'], df['resistance_among_infected'], 'purple', linewidth=2)
+        axes1[3].plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'purple', linewidth=2)
         axes1[3].set_title('Proportion with Resistance Among Currently Infected')
         axes1[3].set_ylabel('Proportion')
         axes1[3].set_ylim(bottom=0)
@@ -276,7 +208,7 @@ def create_grouped_plots(df):
     # 1. Newly Infected in the Past Year as Proportion of Living Population
     if 'newly_infected_past_year_proportion' in df.columns:
         mask = df['time_in_years'] >= 1.0
-        axes2[0].plot(df['time_in_years'][mask], df['newly_infected_past_year_proportion'][mask], color='teal', linewidth=2)
+        axes2[0].plot(df['time_in_years'][mask], pd.Series(df['newly_infected_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='teal', linewidth=2)
         axes2[0].set_title('Newly Infected in the Past Year (as Proportion of Living Population)')
         axes2[0].set_ylabel('Proportion of Population')
         axes2[0].set_ylim(bottom=0)
@@ -288,7 +220,7 @@ def create_grouped_plots(df):
         axes2[0].set_axis_off()
     # 2. Proportion of Population Currently Infected
     if 'infection_proportion' in df.columns:
-        axes2[1].plot(df['time_in_years'], df['infection_proportion'], color='darkgreen', linewidth=2)
+        axes2[1].plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='darkgreen', linewidth=2)
         axes2[1].set_xlabel('Time (Years)')
         axes2[1].set_ylabel('Proportion of Population')
         axes2[1].set_title('Proportion of Population Currently Infected')
@@ -300,7 +232,7 @@ def create_grouped_plots(df):
         axes2[1].set_axis_off()
     # 3. Sepsis Proportion (if available)
     if 'sepsis_among_infected_proportion' in df.columns:
-        axes2[2].plot(df['time_in_years'], df['sepsis_among_infected_proportion'], color='red', linewidth=2)
+        axes2[2].plot(df['time_in_years'], pd.Series(df['sepsis_among_infected_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='red', linewidth=2)
         axes2[2].set_title('Proportion of Infected Individuals with Sepsis')
         axes2[2].set_xlabel('Time (Years)')
         axes2[2].set_ylabel('Proportion with Sepsis')
@@ -319,10 +251,10 @@ def create_grouped_plots(df):
     ]
     if all(col in df.columns for col in required_cols):
         mask = df['time_in_years'] >= 1.0
-        axes2[3].plot(df['time_in_years'][mask], df['deaths_past_year_proportion'][mask], label='All-cause', color='black', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], df['deaths_background_past_year_proportion'][mask], label='Background', color='gray', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], df['deaths_sepsis_past_year_proportion'][mask], label='Sepsis', color='red', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], df['deaths_drug_toxicity_past_year_proportion'][mask], label='Drug Toxicity', color='orange', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='All-cause', color='black', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Background', color='gray', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Sepsis', color='red', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_drug_toxicity_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Drug Toxicity', color='orange', linewidth=2)
         axes2[3].set_title('Deaths in the Past Year (as Proportion of Living Population)')
         axes2[3].set_xlabel('Time (Years)')
         axes2[3].set_ylabel('Proportion of Population')
@@ -343,8 +275,8 @@ def create_grouped_plots(df):
     fig3.suptitle('Grouped Figure 3: Duration-Based Infection Proportions', fontsize=16)
     # 1. Duration-Based Infection Proportions
     if 'infected_10_days_proportion' in df.columns and 'infected_30_days_proportion' in df.columns:
-        axes3[0].plot(df['time_in_years'], df['infected_10_days_proportion'], label='Infected >10 Days', linewidth=2, color='green')
-        axes3[0].plot(df['time_in_years'], df['infected_30_days_proportion'], label='Infected >30 Days', linewidth=2, color='brown')
+        axes3[0].plot(df['time_in_years'], pd.Series(df['infected_10_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >10 Days', linewidth=2, color='green')
+        axes3[0].plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >30 Days', linewidth=2, color='brown')
         axes3[0].set_xlabel('Time (Years)')
         axes3[0].set_ylabel('Proportion of Currently Infected')
         axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
@@ -358,7 +290,7 @@ def create_grouped_plots(df):
 
     # 2. Proportion of currently infected who are on drug
     if 'infected_and_on_drug_proportion' in df.columns:
-        axes3[1].plot(df['time_in_years'], df['infected_and_on_drug_proportion'], label='Infected & On Drug', linewidth=2, color='blue')
+        axes3[1].plot(df['time_in_years'], pd.Series(df['infected_and_on_drug_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected & On Drug', linewidth=2, color='blue')
         axes3[1].set_xlabel('Time (Years)')
         axes3[1].set_ylabel('Proportion of Currently Infected')
         axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
@@ -380,7 +312,7 @@ def create_grouped_plots(df):
     ]
     if all(col in df.columns for col, _ in age_group_cols):
         for col, label in age_group_cols:
-            axes3[2].plot(df['time_in_years'], df[col], label=label)
+            axes3[2].plot(df['time_in_years'], pd.Series(df[col]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label=label)
         axes3[2].set_xlabel('Time (Years)')
         axes3[2].set_ylabel('Proportion of Living Population')
         axes3[2].set_title('Proportion of Living Population in Each Age Group')
@@ -394,7 +326,7 @@ def create_grouped_plots(df):
     # 4. Proportion of people with any potentially pathogenic bacteria in their microbiome
     if 'num_with_any_bacteria_microbiome' in df.columns and 'total_population' in df.columns:
         df['any_microbiome_proportion'] = df['num_with_any_bacteria_microbiome'] / df['total_population']
-        axes3[3].plot(df['time_in_years'], df['any_microbiome_proportion'], color='purple', linewidth=2)
+        axes3[3].plot(df['time_in_years'], pd.Series(df['any_microbiome_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='purple', linewidth=2)
         axes3[3].set_xlabel('Time (Years)')
         axes3[3].set_ylabel('Proportion of Population')
         axes3[3].set_title('Proportion with Any Potentially Pathogenic Bacteriain Microbiome')
@@ -407,11 +339,14 @@ def create_grouped_plots(df):
     plt.savefig('output_graphs/grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     print("✓ Grouped figure 3 saved as 'grouped_figure_3.png'")
 
+    # --- Grouped Figure 4 ---
+    create_grouped_figure_4(df)
+
 def create_proportion_plots(df):
     """Create separate infection and death proportion plots."""
     # Infection proportion plot
     fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
-    ax.plot(df['time_in_years'], df['infection_proportion'], linewidth=2, color='blue')
+    ax.plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), linewidth=2, color='blue')
     ax.set_title('Infection Proportion Over Time')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion of Population Infected')
@@ -430,7 +365,7 @@ def create_proportion_plots(df):
     
     # Death proportion plot
     fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
-    ax.plot(df['time_in_years'], df['death_proportion'], linewidth=2, color='red')
+    ax.plot(df['time_in_years'], pd.Series(df['death_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), linewidth=2, color='red')
     ax.set_title('Death Proportion Over Time')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion of Population Dying per Day')
@@ -452,15 +387,15 @@ def create_infection_duration_plot(df):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=FIGURE_SIZE_DOUBLE)
     
     # Overall infection proportion
-    ax1.plot(df['time_in_years'], df['infection_proportion'], linewidth=2, color='blue')
+    ax1.plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), linewidth=2, color='blue')
     ax1.set_ylabel('Proportion of Total Population')
     ax1.set_title('Overall Infection Proportion Over Time\n(Denominator: Total Population)')
     ax1.set_ylim(bottom=0)
     ax1.grid(True, alpha=0.3)
     
     # Duration-based proportions
-    ax2.plot(df['time_in_years'], df['infected_10_days_proportion'], label='Infected >10 Days', linewidth=2, color='green')
-    ax2.plot(df['time_in_years'], df['infected_30_days_proportion'], label='Infected >30 Days', linewidth=2, color='brown')
+    ax2.plot(df['time_in_years'], pd.Series(df['infected_10_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >10 Days', linewidth=2, color='green')
+    ax2.plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >30 Days', linewidth=2, color='brown')
     ax2.set_xlabel('Time (Years)')
     ax2.set_ylabel('Proportion of Currently Infected')
     ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
@@ -478,7 +413,7 @@ def create_sepsis_plot(df):
         return
     
     fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
-    ax.plot(df['time_in_years'], df['sepsis_among_infected_proportion'], 
+    ax.plot(df['time_in_years'], pd.Series(df['sepsis_among_infected_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
             color='red', linewidth=2)
     ax.set_title('Proportion of Infected Individuals with Sepsis')
     ax.set_xlabel('Time (Years)')
@@ -508,10 +443,10 @@ def create_death_causes_plot(df):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=FIGURE_SIZE_DOUBLE)
     
     # Absolute counts
-    ax1.plot(df['time_in_years'], df['deaths_background'], label='Background', linewidth=2, color='gray')
-    ax1.plot(df['time_in_years'], df['deaths_sepsis'], label='Sepsis', linewidth=2, color='red')
-    ax1.plot(df['time_in_years'], df['deaths_drug_toxicity'], label='Drug Toxicity', linewidth=2, color='orange')
-    ax1.plot(df['time_in_years'], df['total_deaths'], label='Total', linewidth=2, color='black', linestyle='--', alpha=0.7)
+    ax1.plot(df['time_in_years'], pd.Series(df['deaths_background']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Background', linewidth=2, color='gray')
+    ax1.plot(df['time_in_years'], pd.Series(df['deaths_sepsis']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Sepsis', linewidth=2, color='red')
+    ax1.plot(df['time_in_years'], pd.Series(df['deaths_drug_toxicity']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Drug Toxicity', linewidth=2, color='orange')
+    ax1.plot(df['time_in_years'], pd.Series(df['total_deaths']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Total', linewidth=2, color='black', linestyle='--', alpha=0.7)
     
     ax1.set_title('Deaths by Cause Over Time (Absolute Counts)')
     ax1.set_ylabel('Deaths per Day')
@@ -521,9 +456,9 @@ def create_death_causes_plot(df):
     
     # Proportional (stacked area)
     ax2.stackplot(df['time_in_years'], 
-                  df['prop_deaths_background'],
-                  df['prop_deaths_sepsis'], 
-                  df['prop_deaths_drug_toxicity'],
+                  pd.Series(df['prop_deaths_background']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
+                  pd.Series(df['prop_deaths_sepsis']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
+                  pd.Series(df['prop_deaths_drug_toxicity']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
                   labels=['Background', 'Sepsis', 'Drug Toxicity'],
                   colors=['gray', 'red', 'orange'],
                   alpha=0.7)
@@ -557,14 +492,103 @@ def create_death_causes_plot(df):
 def create_resistance_plot(df):
     """Create standalone resistance among infected plot."""
     fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
-    ax.plot(df['time_in_years'], df['resistance_among_infected'], color='purple', linewidth=2)
+    ax.plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='purple', linewidth=2)
     ax.set_title('Proportion with Resistance Among Currently Infected')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')
     ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     
+
     save_and_show_plot(f"output_graphs/{OUTPUT_FILES['resistance_prop']}", "Resistance proportion plot")
+
+# =============================================================================
+# BACTERIA INFECTION PROPORTION PLOTS
+# =============================================================================
+def create_bacteria_infection_proportion_plots(df):
+    """
+    For each bacteria, plot the proportion of people infected with that bacteria over time.
+    Each plot is saved as a separate PNG file.
+    """
+    print("\n=== CREATING BACTERIA INFECTION PROPORTION PLOTS FOR EACH BACTERIA ===")
+    # Find all columns matching *_currently_infected
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("No *_currently_infected columns found in data.")
+        return
+    for bacteria_col in bacteria_cols:
+        bacteria_name = bacteria_col.replace('_currently_infected', '')
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        # Proportion: number infected with this bacteria / total population
+        prop = safe_divide(df[bacteria_col], df['total_population'])
+        # Apply rolling mean smoothing (e.g., 30-day window)
+        window = SMOOTHING_WINDOW_DAYS  # days; adjust as needed
+        prop_smooth = pd.Series(prop).rolling(window=window, min_periods=1, center=True).mean()
+        plt.plot(df['time_in_years'], prop_smooth, label=f"{bacteria_name.replace('_', ' ').title()} (Smoothed)", linewidth=7)
+        plt.title(f"Proportion of People Infected with {bacteria_name.replace('_', ' ').title()} (Smoothed)", fontsize=50)
+        plt.ylabel('Proportion of Living Population', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.ylim(0, 0.001)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = f"output_graphs/proportion_of_people_infected_with_each_bacteria/{bacteria_name}_infection_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# GROUPED FIGURE 4: RESISTANCE TRANSMISSION AND DRUG METRICS
+# =============================================================================
+def create_grouped_figure_4(df):
+    """Create grouped_figure_4.png: Resistance transmission and drug metrics."""
+    fig, axes = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes = axes.flatten()
+    fig.suptitle('Grouped Figure 4: Resistance Transmission and Drug Metrics', fontsize=16)
+    
+    # 1. Proportion of newly infected people with any drug resistance (top-left)
+    if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
+        # Calculate proportion
+        df['newly_infected_with_resistance_proportion'] = safe_divide(
+            df['newly_infected_with_resistance_count'], 
+            df['newly_infected_count']
+        )
+        prop_smooth = pd.Series(df['newly_infected_with_resistance_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        axes[0].plot(df['time_in_years'], prop_smooth, 
+                    color='red', linewidth=2, label='Resistance on Acquisition (Smoothed)')
+        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes[0].set_ylabel('Proportion')
+        axes[0].set_ylim(0, 1)
+        axes[0].grid(True, alpha=0.3)
+        axes[0].legend()
+        
+        # Add summary statistics
+        mean_val = df['newly_infected_with_resistance_proportion'].mean()
+        max_val = df['newly_infected_with_resistance_proportion'].max()
+        total_new = df['newly_infected_count'].sum()
+        total_new_with_r = df['newly_infected_with_resistance_count'].sum()
+        
+        textstr = (f'Overall: {total_new_with_r}/{total_new} '
+                  f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
+                  f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
+        props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
+        axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes[0].set_axis_off()
+    
+    # 2-4. Placeholder for future plots
+    for i in range(1, 4):
+        axes[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
+        axes[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
 
 
 # =============================================================================
@@ -616,7 +640,8 @@ def create_mic_lt2_by_drug_plots(df):
                 infections = df['total_currently_infected']
             mic_lt2 = df[mic_col]
             prop = safe_divide(mic_lt2, infections)
-            ax.plot(df['time_in_years'], prop, label=d.replace('_', ' ').title())
+            prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            ax.plot(df['time_in_years'], prop_smooth, label=d.replace('_', ' ').title())
         ax.set_title(f"{b.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=50)
         ax.set_ylabel('Proportion', fontsize=50)
         ax.set_xlabel('Time (Years)', fontsize=50)
@@ -648,7 +673,8 @@ def create_drug_usage_proportion_plots(df):
         plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 2)))
         # Proportion: number on drug / total population
         prop = safe_divide(df[drug_col], df['total_population'])
-        plt.plot(df['time_in_years'], prop, label=drug_name.replace('_', ' ').title(), linewidth=7)
+        prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        plt.plot(df['time_in_years'], prop_smooth, label=drug_name.replace('_', ' ').title() + ' (Smoothed)', linewidth=7)
         plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=50)
         plt.ylabel('Proportion of Living Population', fontsize=50)
         plt.xlabel('Time (Years)', fontsize=50)
@@ -792,17 +818,21 @@ def main():
     df = preprocess_data(df)
     print(f"Data preprocessing complete. Dataset shape: {df.shape}")
     
-    # Create grouped visualizations
+
+    # Always create grouped visualizations (figures 1-4)
     print("\n=== CREATING GROUPED VISUALIZATIONS ===")
     create_grouped_plots(df)
-    create_grouped_figure_4(df)
 
-    # Create MIC < 2 by drug plots for each bacteria
-    create_mic_lt2_by_drug_plots(df)
-    # Create drug usage proportion plots for each drug
-    create_drug_usage_proportion_plots(df)
-    # Create bacteria infection proportion plots for each bacteria
-    create_bacteria_infection_proportion_plots(df)
+    # Optionally create the three other output_graphs plot sets
+    if GENERATE_OUTPUT_GRAPHS:
+        # Create MIC < 2 by drug plots for each bacteria
+        create_mic_lt2_by_drug_plots(df)
+        # Create drug usage proportion plots for each drug
+        create_drug_usage_proportion_plots(df)
+        # Create bacteria infection proportion plots for each bacteria
+        create_bacteria_infection_proportion_plots(df)
+    else:
+        print("\n=== SKIPPING MIC<2, drug usage, and bacteria infection output_graphs plot generation (set GENERATE_OUTPUT_GRAPHS = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)
@@ -813,11 +843,12 @@ def main():
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png']:
-        if Path(fname).exists():
-            print(f"  ✓ {fname}")
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png']:
+        out_path = Path('output_graphs') / fname
+        if out_path.exists():
+            print(f"  ✓ output_graphs/{fname}")
         else:
-            print(f"  ✗ {fname} (not created)")
+            print(f"  ✗ output_graphs/{fname} (not created)")
     for key, filename in OUTPUT_FILES.items():
         if Path(filename).exists():
             print(f"  ✓ {filename}")

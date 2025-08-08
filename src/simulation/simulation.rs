@@ -72,9 +72,9 @@ pub struct TimeStepSummary {
 // Encapsulates the state and configuration of a simulation run, including population, time steps,
 // and lookup tables for bacteria, drugs, and cross-resistance groups.
 pub struct Simulation {
-    pub population: Population, 
-    pub time_steps: usize, 
-
+    pub population: Population,
+    pub time_steps: usize,
+    pub log_individuals: bool,
     /// Maps bacteria names to their indices in arrays.
     pub bacteria_indices: HashMap<&'static str, usize>,
     /// Maps drug names to their indices in arrays.
@@ -93,7 +93,7 @@ impl Simulation {
     /// Create a new Simulation instance with initialized population and lookup tables.
     ///
     /// Initializes population, bacteria/drug indices, and cross-resistance groups.
-    pub fn new(population_size: usize, time_steps: usize) -> Self {
+    pub fn new(population_size: usize, time_steps: usize, log_individuals: bool) -> Self {
         let population = Population::new(population_size);
         // public function named new (rust’s conventional constructor pattern).  
         // takes two inputs: population_size: how many individuals to initialize.
@@ -145,6 +145,7 @@ impl Simulation {
         Simulation { // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
             population,
             time_steps,
+            log_individuals,
             bacteria_indices,
             drug_indices,
             cross_resistance_groups, 
@@ -165,7 +166,7 @@ impl Simulation {
             let timestep_start = Instant::now();
             
             // --- Per-bacteria, per-drug infection and resistance counts (parallel-friendly) ---
-            let calculation_start = Instant::now();
+            let _calculation_start = Instant::now();
             
             let num_bacteria = BACTERIA_LIST.len();
             let num_drugs = DRUG_SHORT_NAMES.len();
@@ -201,10 +202,10 @@ impl Simulation {
                     }
                 );
             
-            let calculation_time = calculation_start.elapsed();
-            if t % 10 == 0 { // Log every 10th timestep
-                println!("Time step {}: infected_and_standardized_mic_lt2 calculation took {:.3}ms", t, calculation_time.as_secs_f64() * 1000.0);
-            }
+//             let calculation_time = calculation_start.elapsed();
+//             if t % 100 == 0 { // Log every 10th timestep
+//                 println!("Time step {}", t);
+//             }
 //          println!("simulation.rs time step: {}", t);
 
             // Counter for intersection of currently infected AND on any drug
@@ -252,7 +253,7 @@ impl Simulation {
             let currently_on_drug_by_drug = (0..num_drugs).map(|_| AtomicUsize::new(0)).collect::<Vec<_>>();
 
             // Single pass: apply rules and collect all statistics
-            let rules_start = Instant::now();
+            let _rules_start = Instant::now();
             
             self.population.individuals.par_iter_mut().for_each(|individual| {
                 // Apply rules first
@@ -416,10 +417,10 @@ impl Simulation {
                 }
             });
             
-            let rules_time = rules_start.elapsed();
-            if t % 10 == 0 { // Log every 10th timestep
-                println!("Time step {}: rules application took {:.3}ms", t, rules_time.as_secs_f64() * 1000.0);
-            }
+            // let rules_time = rules_start.elapsed();
+            // if t % 10 == 0 { // Log every 10th timestep
+            //     println!("Time step {}: rules application took {:.3}ms", t, rules_time.as_secs_f64() * 1000.0);
+            // }
 
             // Collect remaining statistics that need sequential access
             // No need for sequential pass for per-bacteria/drug majority_r counts
@@ -538,7 +539,7 @@ impl Simulation {
 
 
             // Comprehensive print block for individual 0
-            let individual_0 = &self.population.individuals[0];
+            let _individual_0 = &self.population.individuals[0];
             // println!("--- Individual 0 full state ---");
             // println!("id: {}", individual_0.id);
             // println!("age (days): {}", individual_0.age);
@@ -582,10 +583,90 @@ impl Simulation {
 
 
             self.summary_log.push(summary);
+
+            if self.log_individuals {
+                use std::fs::OpenOptions;
+                use std::io::Write;
+                let n_log = 10.min(self.population.individuals.len());
+                let log_path = "individuals_log.csv";
+                let file_exists = std::path::Path::new(log_path).exists();
+                let mut file = OpenOptions::new().create(true).append(true).open(log_path).expect("Unable to open individuals_log.csv");
+                // Write header if file is new
+                if !file_exists {
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                }
+                fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
+                    v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
+                }
+                for i in 0..n_log {
+                    let ind = &self.population.individuals[i];
+                    // Flatten all resistance values for all bacteria/drugs
+                    let mut microbiome_r = Vec::new();
+                    let mut test_r = Vec::new();
+                    let mut activity_r = Vec::new();
+                    let mut any_r = Vec::new();
+                    let mut majority_r = Vec::new();
+                    for bact in &ind.resistances {
+                        for res in bact {
+                            microbiome_r.push(res.microbiome_r);
+                            test_r.push(res.test_r);
+                            activity_r.push(res.activity_r);
+                            any_r.push(res.any_r);
+                            majority_r.push(res.majority_r);
+                        }
+                    }
+                    // Flatten all resistance mechanisms for all bacteria
+                    let mut mechanisms = Vec::new();
+                    for bact_mechs in &ind.resistance_mechanisms {
+                        for &present in bact_mechs {
+                            mechanisms.push(if present { "1" } else { "0" });
+                        }
+                    }
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                        t,
+                        i,
+                        ind.id,
+                        ind.age,
+                        ind.sex_at_birth,
+                        ind.region_living,
+                        ind.region_cur_in,
+                        ind.current_infection_related_death_risk,
+                        ind.background_all_cause_mortality_rate,
+                        ind.sexual_contact_level,
+                        ind.airborne_contact_level_with_adults,
+                        ind.airborne_contact_level_with_children,
+                        ind.oral_exposure_level,
+                        ind.mosquito_exposure_level,
+                        ind.current_toxicity,
+                        ind.mortality_risk_current_toxicity,
+                        format!("{:?}", ind.hospital_status),
+                        ind.is_severely_immunosuppressed,
+                        format!("{:?}", ind.date_of_death),
+                        fmt_vec(&ind.level),
+                        fmt_vec(&ind.immune_resp),
+                        fmt_vec(&ind.presence_microbiome),
+                        fmt_vec(&ind.cur_level_drug),
+                        fmt_vec(&ind.cur_use_drug),
+                        fmt_vec(&ind.ever_taken_drug),
+                        fmt_vec(&ind.date_last_infected),
+                        fmt_vec(&ind.cur_infection_from_environment),
+                        fmt_vec(&ind.infection_hospital_acquired),
+                        fmt_vec(&ind.test_identified_infection),
+                        fmt_vec(&ind.sepsis),
+                        fmt_vec(&microbiome_r),
+                        fmt_vec(&test_r),
+                        fmt_vec(&activity_r),
+                        fmt_vec(&any_r),
+                        fmt_vec(&majority_r),
+                        mechanisms.join(";")
+                    ).unwrap();
+                }
+            }
             
-            let timestep_time = timestep_start.elapsed();
-            if t % 10 == 0 { // Log every 10th timestep
-                println!("Time step {} total time: {:.3}ms", t, timestep_time.as_secs_f64() * 1000.0);
+            let _timestep_time = timestep_start.elapsed();
+            if t % 100 == 0 { // Log every 100th timestep
+                println!("Time step {}", t);
+                // println!("Time step {} total time: {:.3}ms", t, timestep_time.as_secs_f64() * 1000.0);
             }
 
         }

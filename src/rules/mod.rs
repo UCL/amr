@@ -1494,8 +1494,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 if mechanism_applicable {
                                     let mechanism_str = mechanism.as_str();
                                     let mechanism_emergence_rate = get_global_param(
-                                        param_cache.resistance_mechanism_emergence_keys.get(mechanism_str)
-                                            .unwrap_or(&format!("resistance_mechanism_{}_emergence_rate", mechanism_str))
+                                        &param_cache.resistance_mechanism_emergence_keys[mechanism_str]
                                     ).unwrap_or(0.001);
                                     
                                     if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
@@ -1580,8 +1579,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     if mechanism_affects_drug {
                                         let mechanism_str = mechanism.as_str();
                                         let mechanism_enhancement = get_global_param(
-                                            param_cache.resistance_mechanism_enhancement_keys.get(mechanism_str)
-                                                .unwrap_or(&format!("resistance_mechanism_{}_enhancement_multiplier", mechanism_str))
+                                            &param_cache.resistance_mechanism_enhancement_keys[mechanism_str]
                                         ).unwrap_or(0.3);
                                         
                                         // Only add enhancement if it would actually increase resistance

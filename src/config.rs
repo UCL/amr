@@ -202,12 +202,12 @@ lazy_static! {
             "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate"
         ];
         let cephalosporins_1_2 = vec!["cephalexin", "cefazolin", "cefuroxime"];
-        let cephalosporins_3_4 = vec!["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline"];
+        let _cephalosporins_3_4 = vec!["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline"];
         let cephalosporins_3_4 = vec!["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline",
             // BL/BLI cephalosporin
             "ceftazidime_avibactam"
         ];
-        let carbapenems = vec!["meropenem", "imipenem_c", "ertapenem"];
+        let _carbapenems = vec!["meropenem", "imipenem_c", "ertapenem"];
         let carbapenems = vec!["meropenem", "imipenem_c", "ertapenem",
             // BL/BLI carbapenem
             "meropenem_vaborbactam"

@@ -66,18 +66,19 @@ mod config;
 //
 
 use crate::simulation::simulation::Simulation;
-
+ 
 fn main() {
     // Create and run the simulation
-    let population_size =  3_000;
-    let time_steps = 7300 ; 
-  
-    let mut simulation = Simulation::new(population_size, time_steps);
+    let population_size = 500;
+    let time_steps = 3_000;
+    let log_individuals = true; // Set to false to disable detailed individual logging
+
+    let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
 
     let ind0 = &simulation.population.individuals[0];
     
     // print variable values at time step 0, before starting to go through the time steps
-
+ 
     println!("  ");
     println!("main.rs  variable values at time step 0, before starting to go through the time steps");
     println!("  ");
@@ -260,7 +261,7 @@ fn main() {
     // --- Bacteria/drug pairs: standardized_mic < 2 summary ---
     use crate::config;
     println!("\n--- Bacteria/drug pairs: standardized_mic < 2 summary ---");
-    for (bacteria, &count) in &bacteria_infection_counts {
+    for (bacteria, &_count) in &bacteria_infection_counts {
         for (drug, _) in simulation.drug_indices.iter() {
             let mut n_infected = 0;
             let mut n_standardized_mic_lt2 = 0;
