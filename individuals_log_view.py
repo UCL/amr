@@ -1,3 +1,8 @@
+# this reads in the individuals_Log.csv that is optionally created in simulation.rs 
+# which contains variable values at each time step for individuals 0 - 9 for
+# de-bugging. this allows a certain bacteria to be selected and a certain 
+# individual amongst the 10.   
+
 
 import csv
 import sys
@@ -89,10 +94,23 @@ def print_aligned_csv(filename, max_rows=30):
     individual_id = selected_row[2] if len(selected_row) > 2 else None
 
     # Print only rows for this individual id
+    DRUG_SHORT_NAMES = [
+        "sulfanilamide", "penicilling", "ampicillin", "amoxicillin",
+        "piperacillin", "ticarcillin", "cephalexin", "cefazolin",
+        "cefuroxime", "ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "meropenem", "imipenem_c",
+        "ertapenem", "aztreonam", "erythromycin", "azithromycin", "clarithromycin", "clindamycin",
+        "gentamicin", "tobramycin", "amikacin", "ciprofloxacin", "levofloxacin", "moxifloxacin",
+        "ofloxacin", "tetracycline", "doxyclycline", "minocycline", "vancomycin", "teicoplanin",
+        "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
+        "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
+        "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
+        "ceftazidime_avibactam", "meropenem_vaborbactam", "colistin"
+    ]
+    resistance_vars = ["any_r", "activity_r", "majority_r", "test_r", "microbiome_r"]
     for row in data_rows:
         if len(row) > 2 and row[2] == individual_id:
+            # Print all variables as before
             for i, (var, cell) in enumerate(zip(header, row)):
-                # For array columns, print only the value for the selected bacteria
                 if i in array_col_indices:
                     val = extract_bacterium(cell)
                 else:
@@ -101,6 +119,17 @@ def print_aligned_csv(filename, max_rows=30):
                     val = str(val)[:MAX_CELL_LEN-3] + "..."
                 line = f"{var}: {val}"
                 output_lines.append(line)
+            # For each resistance variable, print each drug as its own line
+            for res_var in resistance_vars:
+                # Find the column for this resistance variable (should be an array column)
+                res_indices = [i for i, var in enumerate(header) if res_var in var and i in array_col_indices]
+                if res_indices:
+                    # For each, extract the value for the selected bacterium (semicolon-separated string for all drugs)
+                    for idx in res_indices:
+                        cell = row[idx]
+                        values = cell.split(";")
+                        for drug, value in zip(DRUG_SHORT_NAMES, values):
+                            output_lines.append(f"{res_var}_{drug}: {value}")
             output_lines.append("")
 
     if OUTPUT_FILENAME:
