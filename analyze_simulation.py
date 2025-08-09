@@ -26,10 +26,10 @@ SMOOTHING_WINDOW_DAYS = 365
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-GENERATE_MIC_LT2_BY_DRUG_GRAPHS = True  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-GENERATE_DRUG_USAGE_PROPORTION_GRAPHS = False  # output_graphs/proportion_of_people_taking_each_drug
-GENERATE_BACTERIA_INFECTION_PROPORTION_GRAPHS = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
-GENERATE_PROPORTION_SHARE_AMONG_DRUG_USERS_GRAPHS = False  # output_graphs/proportion_share_among_drug_users
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
+proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
+proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
+proportion_share_among_drug_users = False  # output_graphs/proportion_share_among_drug_users
 
 # =============================================================================
 # CONFIGURATION
@@ -512,7 +512,7 @@ def create_resistance_plot(df):
 # =============================================================================
 def create_bacteria_infection_proportion_plots(df):
     """
-    For each bacteria, plot the proportion of people infected with that bacteria over time.
+    For each bacteria, plot the proportion of infections with MIC < 2 for all drugs.
     Each plot is saved as a separate PNG file.
     """
     print("\n=== CREATING BACTERIA INFECTION PROPORTION PLOTS FOR EACH BACTERIA ===")
@@ -676,25 +676,25 @@ def create_drug_usage_proportion_plots(df):
     # Per-drug usage vs total population
     for drug_col in drug_cols:
         drug_name = drug_col.replace('_currently_on_drug', '')
-        plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 2)))
+        plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 6)))  # (iv) triple height
         prop_total_pop = safe_divide(df[drug_col], df['total_population'])
         prop_total_pop_smooth = pd.Series(prop_total_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-        plt.plot(df['time_in_years'], prop_total_pop_smooth, label=drug_name.replace('_', ' ').title(), linewidth=7)
-    plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=36)
-    plt.ylabel('Proportion of Living Population', fontsize=4)
-    plt.xlabel('Time (Years)', fontsize=4)
-    plt.ylim(0, 0.01)
-    plt.grid(True, alpha=0.3)
-    plt.legend(fontsize=30)
-    plt.tick_params(axis='both', which='major', labelsize=4)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
-    plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-    plt.close()
-    print(f"  ✓ {fname} saved.")
+        plt.plot(df['time_in_years'], prop_total_pop_smooth, label=drug_name.replace('_', ' ').title(), linewidth=20)  # (v) double thickness
+        plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)  # 4x larger title
+        plt.ylabel('Proportion of Living Population', fontsize=80)
+        plt.xlabel('Time (Years)', fontsize=80)
+        plt.ylim(0, 0.01)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=96, title_fontsize=192)  # halve legend size, halve legend title size
+        plt.tick_params(axis='both', which='major', labelsize=80)  # (ii) double tick/number size
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
 
     # Per-drug share among all people currently taking any drug
-    if GENERATE_PROPORTION_SHARE_AMONG_DRUG_USERS_GRAPHS:
+    if proportion_share_among_drug_users:
         if 'currently_taking_drug_count' in df.columns:
             share_dir = Path("output_graphs/proportion_share_among_drug_users")
             share_dir.mkdir(parents=True, exist_ok=True)
@@ -719,8 +719,7 @@ def create_drug_usage_proportion_plots(df):
         else:
             print("Warning: 'currently_taking_drug_count' column not found; skipping per-drug share plots.")
     else:
-        print("\n=== SKIPPING proportion_share_among_drug_users plots (set GENERATE_PROPORTION_SHARE_AMONG_DRUG_USERS_GRAPHS = True to enable) ===")
-
+        print("\n=== SKIPPING proportion_share_among_drug_users plots (set proportion_share_among_drug_users = True to enable) ===")
 def export_data_files(df):
     """Export data to various formats for external analysis."""
     print("\n=== EXPORTING DATA FILES ===")
@@ -857,20 +856,20 @@ def main():
     create_grouped_plots(df)
 
     # Optionally create the three other output_graphs plot sets (per subfolder)
-    if GENERATE_MIC_LT2_BY_DRUG_GRAPHS:
+    if for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
         create_mic_lt2_by_drug_plots(df)
     else:
-        print("\n=== SKIPPING MIC<2 by drug plots (set GENERATE_MIC_LT2_BY_DRUG_GRAPHS = True to enable) ===")
+        print("\n=== SKIPPING MIC<2 by drug plots (set for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True to enable) ===")
 
-    if GENERATE_DRUG_USAGE_PROPORTION_GRAPHS:
+    if proportion_of_people_taking_each_drug:
         create_drug_usage_proportion_plots(df)
     else:
-        print("\n=== SKIPPING drug usage proportion plots (set GENERATE_DRUG_USAGE_PROPORTION_GRAPHS = True to enable) ===")
+        print("\n=== SKIPPING drug usage proportion plots (set proportion_of_people_taking_each_drug = True to enable) ===")
 
-    if GENERATE_BACTERIA_INFECTION_PROPORTION_GRAPHS:
+    if proportion_of_people_infected_with_each_bacteria:
         create_bacteria_infection_proportion_plots(df)
     else:
-        print("\n=== SKIPPING bacteria infection proportion plots (set GENERATE_BACTERIA_INFECTION_PROPORTION_GRAPHS = True to enable) ===")
+        print("\n=== SKIPPING bacteria infection proportion plots (set proportion_of_people_infected_with_each_bacteria = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)
