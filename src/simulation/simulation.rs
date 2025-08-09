@@ -20,6 +20,7 @@ use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
+use std::io::Write;
 
 // Compact structure for time step summary data
 #[allow(dead_code)]
@@ -249,8 +250,10 @@ impl Simulation {
             let total_currently_infected = AtomicUsize::new(0);
             let total_with_resistance = AtomicUsize::new(0);
 
-            // Per-drug: count number of living people currently taking each drug
-            let currently_on_drug_by_drug = (0..num_drugs).map(|_| AtomicUsize::new(0)).collect::<Vec<_>>();
+            // Prepare atomic counters for current drug usage (count of individuals currently on each drug)
+            let currently_on_drug_by_drug_atomic: Vec<AtomicUsize> = (0..num_drugs)
+                .map(|_| AtomicUsize::new(0))
+                .collect();
 
             // Single pass: apply rules and collect all statistics
             let _rules_start = Instant::now();
@@ -298,10 +301,10 @@ impl Simulation {
 
                 // Only collect statistics for alive individuals
                 if individual.date_of_death.is_none() {
-                    // For each drug, count if this individual is currently taking it
+                    // Count current drug usage (after rules applied) per drug
                     for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
                         if is_using {
-                            currently_on_drug_by_drug[d_idx].fetch_add(1, Ordering::Relaxed);
+                            currently_on_drug_by_drug_atomic[d_idx].fetch_add(1, Ordering::Relaxed);
                         }
                     }
                     // Check if any presence_microbiome is true
@@ -325,55 +328,47 @@ impl Simulation {
                     let mut individual_has_any_infection = false;
                     let mut individual_has_any_r_positive = false;
                     let mut was_newly_infected = false;
-                    
+                    let mut was_newly_infected_with_resistance = false; // Track if resistance count is already incremented
                     for (b_idx, _) in BACTERIA_LIST.iter().enumerate() {
                         if individual.level[b_idx] > 0.001 {
                             individual_has_any_infection = true;
-                            
-                            // Log infections
                             log_infections_by_bacteria[b_idx].fetch_add(1, Ordering::Relaxed);
 
-                            // Check infection duration
                             let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
                             if days_since_infection > individual_max_infection_duration {
                                 individual_max_infection_duration = days_since_infection;
                             }
 
-                            // Check if newly infected at this time step
                             if individual.date_last_infected[b_idx] == t as i32 {
                                 was_newly_infected = true;
                             }
 
-                // Count resistance and collect resistance data for next time step
-                for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
-                    let resistance_data = &individual.resistances[b_idx][d_idx];
-                    if resistance_data.majority_r > 0.0 {
-                        log_resistance_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
-                        log_majority_r_positive_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
-                    }
-                    if resistance_data.any_r > 0.0 {
-                        individual_has_any_r_positive = true;
-                        
-                        // Check if this is a newly infected individual with resistance
-                        if individual.date_last_infected[b_idx] == t as i32 {
-                            newly_infected_with_resistance_count.fetch_add(1, Ordering::Relaxed);
+                            for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
+                                let resistance_data = &individual.resistances[b_idx][d_idx];
+                                if resistance_data.majority_r > 0.0 {
+                                    log_resistance_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
+                                    log_majority_r_positive_counts[b_idx][d_idx].fetch_add(1, Ordering::Relaxed);
+                                }
+                                if resistance_data.any_r > 0.0 {
+                                    individual_has_any_r_positive = true;
+
+                                    if individual.date_last_infected[b_idx] == t as i32 && !was_newly_infected_with_resistance {
+                                        newly_infected_with_resistance_count.fetch_add(1, Ordering::Relaxed);
+                                        was_newly_infected_with_resistance = true; // Prevent multiple increments
+                                    }
+                                }
+
+                                if individual.level[b_idx] > 0.001 && resistance_data.majority_r > 0.0 {
+                                    let region_idx = individual.region_cur_in as usize;
+                                    let hospital_status_bool = individual.hospital_status.is_hospitalized();
+                                    let key = (region_idx, hospital_status_bool, b_idx, d_idx);
+
+                                    let mut resistance_map = new_majority_r_positive_values_by_combo.lock().unwrap();
+                                    resistance_map.entry(key).or_insert_with(Vec::new).push(resistance_data.majority_r);
+                                }
+                            }
                         }
                     }
-
-                    // Collect resistance data for population-based sampling (next time step)
-                    // Only collect from individuals with active infection of this bacteria
-                    if individual.level[b_idx] > 0.001 && resistance_data.majority_r > 0.0 {
-                        let region_idx = individual.region_cur_in as usize;
-                        let hospital_status_bool = individual.hospital_status.is_hospitalized();
-                        let key = (region_idx, hospital_status_bool, b_idx, d_idx);
-                        
-                        // Thread-safe collection of resistance values
-                        let mut resistance_map = new_majority_r_positive_values_by_combo.lock().unwrap();
-                        resistance_map.entry(key).or_insert_with(Vec::new).push(resistance_data.majority_r);
-                    }
-                }
-            }
-        }
                     
                     if individual_has_any_infection {
                         total_currently_infected.fetch_add(1, Ordering::Relaxed);
@@ -457,9 +452,18 @@ impl Simulation {
             let infected_10_count = infected_10_days_count.load(Ordering::Relaxed);
             let infected_30_count = infected_30_days_count.load(Ordering::Relaxed);
 
+            // Load per-drug current usage counts
+            let currently_on_drug_by_drug: Vec<usize> = currently_on_drug_by_drug_atomic
+                .iter()
+                .map(|x| x.load(Ordering::Relaxed))
+                .collect();
+
+            // Optional debug (uncomment if needed)
+            // if t % 500 == 0 { println!("Time step {} drug usage counts: {:?}", t, currently_on_drug_by_drug); }
+
             let summary = TimeStepSummary {
-        infected_and_standardized_mic_lt2_by_bacteria_drug: infected_and_standardized_mic_lt2_by_bacteria_drug.clone(),
-        currently_on_drug_by_drug: currently_on_drug_by_drug.iter().map(|x| x.load(Ordering::Relaxed)).collect(),
+                infected_and_standardized_mic_lt2_by_bacteria_drug: infected_and_standardized_mic_lt2_by_bacteria_drug.clone(),
+                currently_on_drug_by_drug,
                 num_age_0_5,
                 num_age_6_14,
                 num_age_15_49,
@@ -586,7 +590,6 @@ impl Simulation {
 
             if self.log_individuals {
                 use std::fs::OpenOptions;
-                use std::io::Write;
                 let n_log = 10.min(self.population.individuals.len());
                 let log_path = "individuals_log.csv";
                 let file_exists = std::path::Path::new(log_path).exists();

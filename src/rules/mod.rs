@@ -1152,7 +1152,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if drug_level > 0.0001 && resistance_data.microbiome_r < 0.0001 {
                             // Use a specific parameter for microbiome resistance emergence if present, else fallback to general
                             let emergence_rate_baseline = get_global_param("microbiome_resistance_emergence_rate_per_day_baseline")
-                                .or_else(|| get_global_param("resistance_emergence_rate_per_day_baseline"))
+                                .or_else(|| None)
                                 .unwrap_or(0.000001);
                             let microbiome_r_emergence_level = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5);
 
@@ -1297,6 +1297,21 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if any_selecting_drug_introduced {
                             resistance_data.majority_r = env_majority_r_level;
                             resistance_data.any_r = env_majority_r_level;
+                            // --- Probabilistic mechanism assignment on new infection (environmental) ---
+                            use crate::simulation::population::ResistanceMechanism;
+                            let mechanism_prob = 0.8;
+                            let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                            for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                // Only assign if mechanism is relevant (enhancement <= any_r)
+                                let mechanism_str = mechanism.as_str();
+                                let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+                                if enhancement <= resistance_data.any_r {
+                                    if rng.gen_bool(mechanism_prob) {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                    }
+                                }
+                            }
+                            // --- End mechanism assignment ---
                         } else {
                             resistance_data.majority_r = 0.0;
                             resistance_data.any_r = 0.0;
@@ -1318,6 +1333,20 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
                                 resistance_data.any_r = clamped_level;
                                 resistance_data.majority_r = clamped_level;
+                                // --- Probabilistic mechanism assignment on new infection (population) ---
+                                use crate::simulation::population::ResistanceMechanism;
+                                let mechanism_prob = 0.8;
+                                let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                                for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                    let mechanism_str = mechanism.as_str();
+                                    let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+                                    if enhancement <= resistance_data.any_r {
+                                        if rng.gen_bool(mechanism_prob) {
+                                            individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                        }
+                                    }
+                                }
+                                // --- End mechanism assignment ---
                             } else {
                                 resistance_data.any_r = 0.0;
                                 resistance_data.majority_r = 0.0;
@@ -1449,13 +1478,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     (ResistanceMechanism::Carbapenemase, drug) => {
                                         matches!(drug, "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam")
                                     },
-                                    // AmpC affects beta-lactams
-                                    (ResistanceMechanism::AmpC, drug) => {
-                                        matches!(drug, "penicilling" | "ampicillin" | "amoxicillin" | "piperacillin" | 
-                                               "ticarcillin" | "cephalexin" | "cefazolin" | "cefuroxime" | 
-                                               "ceftriaxone" | "amoxicillin_clavulanate" | "piperacillin_tazobactam" |
-                                               "ampicillin_sulbactam" | "ticarcillin_clavulanate")
-                                    },
                                     // 16S methyltransferase affects aminoglycosides
                                     (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
                                         matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
@@ -1464,8 +1486,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     (ResistanceMechanism::Qnr, drug) => {
                                         matches!(drug, "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin")
                                     },
-                                    // Efflux overexpression can affect multiple drug classes
-                                    (ResistanceMechanism::EffluxOverexpression, _) => true,
                                     // Erm methylation affects macrolides
                                     (ResistanceMechanism::ErmMethylation, drug) => {
                                         matches!(drug, "erythromycin" | "azithromycin" | "clarithromycin")
@@ -1481,6 +1501,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                                "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | 
                                                "cefepime" | "meropenem" | "imipenem_c" | "ertapenem")
                                     },
+                                    // Efflux overexpression can affect multiple drug classes
+                                    (ResistanceMechanism::EffluxOverexpression, _) => true,
                                     // Reduced permeability affects many drugs, especially in Gram-negatives
                                     (ResistanceMechanism::ReducedPermeability, _) => {
                                         !matches!(bacteria, "staphylococcus aureus" | "streptococcus pneumoniae" | 
@@ -1489,6 +1511,13 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     },
                                     // Target site mutations can affect various drugs
                                     (ResistanceMechanism::TargetSiteMutation, _) => true,
+                                    // AmpC affects beta-lactams
+                                    (ResistanceMechanism::AmpC, drug) => {
+                                        matches!(drug, "penicilling" | "ampicillin" | "amoxicillin" | "piperacillin" | 
+                                               "ticarcillin" | "cephalexin" | "cefazolin" | "cefuroxime" | 
+                                               "ceftriaxone" | "amoxicillin_clavulanate" | "piperacillin_tazobactam" |
+                                               "ampicillin_sulbactam" | "ticarcillin_clavulanate")
+                                    },
                                 };
                                 
                                 if mechanism_applicable {

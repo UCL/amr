@@ -1,4 +1,3 @@
-
 # ...existing code...
 
 #!/usr/bin/env python3
@@ -24,7 +23,7 @@ SMOOTHING_WINDOW_DAYS = 365
 # =============================================================================
 # TOGGLE: Set to True to generate output_graphs plots, False to skip them
 # =============================================================================
-GENERATE_OUTPUT_GRAPHS = False
+GENERATE_OUTPUT_GRAPHS = True
 
 # =============================================================================
 # CONFIGURATION
@@ -254,7 +253,7 @@ def create_grouped_plots(df):
         axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='All-cause', color='black', linewidth=2)
         axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Background', color='gray', linewidth=2)
         axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Sepsis', color='red', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_drug_toxicity_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Drug Toxicity', color='orange', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_drug_toxicity_past_year'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Drug Toxicity', color='orange', linewidth=2)
         axes2[3].set_title('Deaths in the Past Year (as Proportion of Living Population)')
         axes2[3].set_xlabel('Time (Years)')
         axes2[3].set_ylabel('Proportion of Population')
@@ -668,13 +667,13 @@ def create_drug_usage_proportion_plots(df):
     if not drug_cols:
         print("No *_currently_on_drug columns found in data.")
         return
+    # Per-drug usage vs total population
     for drug_col in drug_cols:
         drug_name = drug_col.replace('_currently_on_drug', '')
         plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 2)))
-        # Proportion: number on drug / total population
-        prop = safe_divide(df[drug_col], df['total_population'])
-        prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-        plt.plot(df['time_in_years'], prop_smooth, label=drug_name.replace('_', ' ').title() + ' (Smoothed)', linewidth=7)
+        prop_total_pop = safe_divide(df[drug_col], df['total_population'])
+        prop_total_pop_smooth = pd.Series(prop_total_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        plt.plot(df['time_in_years'], prop_total_pop_smooth, label=drug_name.replace('_', ' ').title(), linewidth=7)
         plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=50)
         plt.ylabel('Proportion of Living Population', fontsize=50)
         plt.xlabel('Time (Years)', fontsize=50)
@@ -687,6 +686,30 @@ def create_drug_usage_proportion_plots(df):
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print(f"  ✓ {fname} saved.")
+
+    # Per-drug share among all people currently taking any drug
+    if 'currently_taking_drug_count' in df.columns:
+        share_dir = Path("output_graphs/proportion_share_among_drug_users")
+        share_dir.mkdir(parents=True, exist_ok=True)
+        for drug_col in drug_cols:
+            drug_name = drug_col.replace('_currently_on_drug', '')
+            plt.figure(figsize=FIGURE_SIZE_SINGLE)
+            share = safe_divide(df[drug_col], df['currently_taking_drug_count'])
+            share_smooth = pd.Series(share).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            plt.plot(df['time_in_years'], share_smooth, label=f"{drug_name.replace('_', ' ').title()} Share", linewidth=2)
+            plt.title(f"Share of Drug Users Taking {drug_name.replace('_', ' ').title()}")
+            plt.xlabel('Time (Years)')
+            plt.ylabel('Proportion of All People On Any Drug')
+            plt.ylim(0, 1)
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            out_path = share_dir / f"{drug_name}_share_among_drug_users.png"
+            plt.savefig(out_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+            plt.close()
+            print(f"  ✓ {out_path} saved.")
+    else:
+        print("Warning: 'currently_taking_drug_count' column not found; skipping per-drug share plots.")
 
 def export_data_files(df):
     """Export data to various formats for external analysis."""
