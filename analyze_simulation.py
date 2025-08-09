@@ -23,7 +23,13 @@ SMOOTHING_WINDOW_DAYS = 365
 # =============================================================================
 # TOGGLE: Set to True to generate output_graphs plots, False to skip them
 # =============================================================================
-GENERATE_OUTPUT_GRAPHS = False
+# =============================================================================
+# OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
+# =============================================================================
+GENERATE_MIC_LT2_BY_DRUG_GRAPHS = True  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
+GENERATE_DRUG_USAGE_PROPORTION_GRAPHS = False  # output_graphs/proportion_of_people_taking_each_drug
+GENERATE_BACTERIA_INFECTION_PROPORTION_GRAPHS = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
+GENERATE_PROPORTION_SHARE_AMONG_DRUG_USERS_GRAPHS = False  # output_graphs/proportion_share_among_drug_users
 
 # =============================================================================
 # CONFIGURATION
@@ -614,7 +620,7 @@ def create_mic_lt2_by_drug_plots(df):
         bacteria_list = bacteria_set
     for b in bacteria_list:
         # Make the figure twice as tall, same width
-        fig = plt.figure(figsize=(int(FIG_W * 5), int(FIG_H * 10)))
+        fig = plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 3)))
         ax = fig.add_subplot(1, 1, 1)
         found_any = False
         for d in drug_set:
@@ -640,16 +646,16 @@ def create_mic_lt2_by_drug_plots(df):
             mic_lt2 = df[mic_col]
             prop = safe_divide(mic_lt2, infections)
             prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            ax.plot(df['time_in_years'], prop_smooth, label=d.replace('_', ' ').title())
-        ax.set_title(f"{b.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=50)
-        ax.set_ylabel('Proportion', fontsize=50)
-        ax.set_xlabel('Time (Years)', fontsize=50)
+            ax.plot(df['time_in_years'], prop_smooth, label=d.replace('_', ' ').title(), linewidth=10)
+        ax.set_title(f"{b.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=40)
+        ax.set_ylabel('Proportion', fontsize=40)
+        ax.set_xlabel('Time (Years)', fontsize=40)
         ax.set_ylim(0, 1)
         ax.grid(True, alpha=0.3)
-        ax.legend(title='Drug', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=50, title_fontsize=50)
+        ax.legend(title='Drug', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=20, title_fontsize=20)
         # Center the plot vertically by adding top/bottom margins
         fig.subplots_adjust(top=0.85, bottom=0.15)
-        plt.tick_params(axis='both', which='major', labelsize=50)
+        plt.tick_params(axis='both', which='major', labelsize=40)
         fname = f"output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2/{b}_mic_lt2_by_drug.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
@@ -674,42 +680,46 @@ def create_drug_usage_proportion_plots(df):
         prop_total_pop = safe_divide(df[drug_col], df['total_population'])
         prop_total_pop_smooth = pd.Series(prop_total_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
         plt.plot(df['time_in_years'], prop_total_pop_smooth, label=drug_name.replace('_', ' ').title(), linewidth=7)
-        plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=50)
-        plt.ylabel('Proportion of Living Population', fontsize=50)
-        plt.xlabel('Time (Years)', fontsize=50)
-        plt.ylim(0, 0.01)
-        plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=30)
-        plt.tick_params(axis='both', which='major', labelsize=100)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
-        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
-        print(f"  ✓ {fname} saved.")
+    plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=36)
+    plt.ylabel('Proportion of Living Population', fontsize=4)
+    plt.xlabel('Time (Years)', fontsize=4)
+    plt.ylim(0, 0.01)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=30)
+    plt.tick_params(axis='both', which='major', labelsize=4)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
+    plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print(f"  ✓ {fname} saved.")
 
     # Per-drug share among all people currently taking any drug
-    if 'currently_taking_drug_count' in df.columns:
-        share_dir = Path("output_graphs/proportion_share_among_drug_users")
-        share_dir.mkdir(parents=True, exist_ok=True)
-        for drug_col in drug_cols:
-            drug_name = drug_col.replace('_currently_on_drug', '')
-            plt.figure(figsize=FIGURE_SIZE_SINGLE)
-            share = safe_divide(df[drug_col], df['currently_taking_drug_count'])
-            share_smooth = pd.Series(share).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            plt.plot(df['time_in_years'], share_smooth, label=f"{drug_name.replace('_', ' ').title()} Share", linewidth=2)
-            plt.title(f"Share of Drug Users Taking {drug_name.replace('_', ' ').title()}")
-            plt.xlabel('Time (Years)')
-            plt.ylabel('Proportion of All People On Any Drug')
-            plt.ylim(0, 1)
-            plt.grid(True, alpha=0.3)
-            plt.legend()
-            plt.tight_layout()
-            out_path = share_dir / f"{drug_name}_share_among_drug_users.png"
-            plt.savefig(out_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-            plt.close()
-            print(f"  ✓ {out_path} saved.")
+    if GENERATE_PROPORTION_SHARE_AMONG_DRUG_USERS_GRAPHS:
+        if 'currently_taking_drug_count' in df.columns:
+            share_dir = Path("output_graphs/proportion_share_among_drug_users")
+            share_dir.mkdir(parents=True, exist_ok=True)
+            for drug_col in drug_cols:
+                drug_name = drug_col.replace('_currently_on_drug', '')
+                plt.figure(figsize=FIGURE_SIZE_SINGLE)
+                share = safe_divide(df[drug_col], df['currently_taking_drug_count'])
+                share_smooth = pd.Series(share).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                plt.plot(df['time_in_years'], share_smooth, label=f"{drug_name.replace('_', ' ').title()} Share", linewidth=6)
+                plt.title(f"Share of Drug Users Taking {drug_name.replace('_', ' ').title()}", fontsize=18)
+                plt.xlabel('Time (Years)', fontsize=24)
+                plt.ylabel('Proportion of All People On Any Drug', fontsize=24)
+                plt.ylim(0, 1)
+                plt.grid(True, alpha=0.3)
+                plt.legend(fontsize=24)
+                plt.tick_params(axis='both', which='major', labelsize=24)
+                plt.tight_layout()
+                out_path = share_dir / f"{drug_name}_share_among_drug_users.png"
+                plt.savefig(out_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+                plt.close()
+                print(f"  ✓ {out_path} saved.")
+        else:
+            print("Warning: 'currently_taking_drug_count' column not found; skipping per-drug share plots.")
     else:
-        print("Warning: 'currently_taking_drug_count' column not found; skipping per-drug share plots.")
+        print("\n=== SKIPPING proportion_share_among_drug_users plots (set GENERATE_PROPORTION_SHARE_AMONG_DRUG_USERS_GRAPHS = True to enable) ===")
 
 def export_data_files(df):
     """Export data to various formats for external analysis."""
@@ -846,16 +856,21 @@ def main():
     print("\n=== CREATING GROUPED VISUALIZATIONS ===")
     create_grouped_plots(df)
 
-    # Optionally create the three other output_graphs plot sets
-    if GENERATE_OUTPUT_GRAPHS:
-        # Create MIC < 2 by drug plots for each bacteria
+    # Optionally create the three other output_graphs plot sets (per subfolder)
+    if GENERATE_MIC_LT2_BY_DRUG_GRAPHS:
         create_mic_lt2_by_drug_plots(df)
-        # Create drug usage proportion plots for each drug
+    else:
+        print("\n=== SKIPPING MIC<2 by drug plots (set GENERATE_MIC_LT2_BY_DRUG_GRAPHS = True to enable) ===")
+
+    if GENERATE_DRUG_USAGE_PROPORTION_GRAPHS:
         create_drug_usage_proportion_plots(df)
-        # Create bacteria infection proportion plots for each bacteria
+    else:
+        print("\n=== SKIPPING drug usage proportion plots (set GENERATE_DRUG_USAGE_PROPORTION_GRAPHS = True to enable) ===")
+
+    if GENERATE_BACTERIA_INFECTION_PROPORTION_GRAPHS:
         create_bacteria_infection_proportion_plots(df)
     else:
-        print("\n=== SKIPPING MIC<2, drug usage, and bacteria infection output_graphs plot generation (set GENERATE_OUTPUT_GRAPHS = True to enable) ===")
+        print("\n=== SKIPPING bacteria infection proportion plots (set GENERATE_BACTERIA_INFECTION_PROPORTION_GRAPHS = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)
