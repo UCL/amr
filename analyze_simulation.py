@@ -23,7 +23,7 @@ SMOOTHING_WINDOW_DAYS = 365
 # =============================================================================
 # TOGGLE: Set to True to generate output_graphs plots, False to skip them
 # =============================================================================
-GENERATE_OUTPUT_GRAPHS = True
+GENERATE_OUTPUT_GRAPHS = False
 
 # =============================================================================
 # CONFIGURATION
