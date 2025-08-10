@@ -28,7 +28,7 @@ SMOOTHING_WINDOW_DAYS = 365
 # =============================================================================
 for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
 proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
-proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
+proportion_of_people_taking_each_drug = False  # output_graphs/proportion_of_people_taking_each_drug
 proportion_share_among_drug_users = False  # output_graphs/proportion_share_among_drug_users
 
 # =============================================================================
@@ -256,14 +256,19 @@ def create_grouped_plots(df):
     ]
     if all(col in df.columns for col in required_cols):
         mask = df['time_in_years'] >= 1.0
-        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='All-cause', color='black', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Background', color='gray', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Sepsis', color='red', linewidth=2)
-        axes2[3].plot(df['time_in_years'][mask], pd.Series(df['deaths_drug_toxicity_past_year'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Drug Toxicity', color='orange', linewidth=2)
-        axes2[3].set_title('Deaths in the Past Year (as Proportion of Living Population)')
+        deaths_all = pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        deaths_bg = pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        deaths_sepsis = pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        deaths_tox = pd.Series(df['deaths_drug_toxicity_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        axes2[3].plot(df['time_in_years'][mask], deaths_all, label='All-cause', color='black', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], deaths_bg, label='Background', color='gray', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], deaths_sepsis, label='Sepsis', color='red', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], deaths_tox, label='Drug Toxicity', color='orange', linewidth=2)
+        axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
         axes2[3].set_xlabel('Time (Years)')
-        axes2[3].set_ylabel('Proportion of Population')
+        axes2[3].set_ylabel('Deaths in Past Year / Current Population')
         axes2[3].set_xlim(left=0)
+        axes2[3].set_ylim(0, 0.01)
         axes2[3].legend()
         axes2[3].grid(True, alpha=0.3)
     else:
@@ -590,10 +595,33 @@ def create_grouped_figure_4(df):
     for i in range(1, 4):
         axes[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
         axes[i].set_axis_off()
+
+def create_stacked_drug_share_plot(df):
+    """Create a standalone stacked area chart of drug use share over time and save in the proportion_share_among_drug_users folder."""
+    drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
+    if drug_cols and 'currently_taking_drug_count' in df.columns:
+        shares = []
+        for drug_col in drug_cols:
+            share = safe_divide(df[drug_col], df['currently_taking_drug_count'])
+            shares.append(pd.Series(share).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean())
+        plt.figure(figsize=FIGURE_SIZE_DOUBLE)
+        plt.stackplot(df['time_in_years'], shares, labels=[col.replace('_currently_on_drug','').replace('_',' ').title() for col in drug_cols], alpha=0.8)
+        plt.title('Share of Drug Use Among All Drug Users (Stacked)', fontsize=18)
+        plt.xlabel('Time (Years)')
+        plt.ylabel('Proportion of All People On Any Drug')
+        plt.ylim(0, 1.0)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
+        plt.grid(True, alpha=0.3)
+        out_path = Path('output_graphs/proportion_share_among_drug_users/00_stacked_drug_share_among_users.png')
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"✓ Stacked drug share plot saved as '{out_path}'")
+        return
     
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig('output_graphs/grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
+    # else block for missing data
+    # print('Drug use share data not available for stacked plot.')
 
 
 # =============================================================================
@@ -875,12 +903,15 @@ def main():
     export_data_files(df)
     # export_txt_data_file(df)
     generate_summary_statistics(df)
-    
+
+    # Standalone stacked drug share plot
+    create_stacked_drug_share_plot(df)
+
     # Summary of generated files
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png']:
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', 'proportion_share_among_drug_users/stacked_drug_share_among_users.png']:
         out_path = Path('output_graphs') / fname
         if out_path.exists():
             print(f"  ✓ output_graphs/{fname}")
@@ -896,7 +927,7 @@ def main():
     #     print(f"  ✓ {txt_file}")
     # else:
     #     print(f"  ✗ {txt_file} (not created)")
-    
+
     print("\nRecommendation: Open grouped PNG files for visualizations, CSV files in Excel for data analysis. The .txt file is human-readable.")
 
 if __name__ == "__main__":

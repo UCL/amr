@@ -24,9 +24,9 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01
-            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.8); // 0.1
-            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 10.0); // multiplier for hospital-acquired risk
+            map.insert(format!("{}_initial_infection_level", bacteria), 0.005); // 0.01
+            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1
+            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 100.0); // multiplier for hospital-acquired risk
             map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
             map.insert(format!("{}_oral_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
@@ -630,7 +630,7 @@ lazy_static! {
         // These parameters are on the log-odds scale.
         map.insert("background_mortality_baseline_log_odds".to_string(), -14.5); // Very low base probability (e.g., exp(-16) is tiny)
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // 0.04  Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
-        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.05); // 0.0005  Additional non-linear effect for elderly
+        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0005); // 0.05  Additional non-linear effect for elderly
 
         // Region-specific log-odds adjustments. ln(1.0) = 0.
         map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
@@ -660,7 +660,7 @@ lazy_static! {
         map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk  
         map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
         map.insert("sepsis_age_mortality_multiplier_elderly".to_string(), 2.5); // 65+ years: much higher risk
-        map.insert("sepsis_immunosuppressed_multiplier".to_string(), 3.0); // Immunosuppressed: 3x higher risk
+        map.insert("sepsis_immunosuppressed_multiplier".to_string(), 30.0); // Immunosuppressed: 30x higher risk
         
         // Region-specific sepsis mortality multipliers (reflecting healthcare quality)
         map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.8); // Better ICU care

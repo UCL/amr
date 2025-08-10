@@ -24,9 +24,9 @@ mod config;
 //
 // // model structure developments to consider //
 //
+//  graph - stcked graph of drug use - ask for this to be done for each bacteria 
 //
-//
-//
+// 
 // // parameter values (recognising there will be many changes) //
 //
 //    e coli seems likely to be present in the microbiome of all individuals
@@ -69,8 +69,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 2000;
-    let time_steps = 5000;
+    let population_size = 5_000;
+    let time_steps = 35_000;
     let log_individuals = false; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

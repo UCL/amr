@@ -701,11 +701,11 @@ impl Simulation {
  
     
 
-    pub fn print_summary_statistics(&self) {
-        if self.summary_log.is_empty() {
-            println!("No summary data logged.");
-            return;
-        }
+    // pub fn print_summary_statistics(&self) {
+    //     if self.summary_log.is_empty() {
+    //         println!("No summary data logged.");
+    //         return;
+    //     }
 
   
 
