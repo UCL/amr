@@ -334,8 +334,8 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > 0.001 {
                                     let base = b_idx * num_drugs;
-                                    let on_any_drug = individual.cur_use_drug.iter().any(|&x| x);
-                                    if on_any_drug {
+                                    // Count if infected with this bacteria and on any drug
+                                    if individual.cur_use_drug.iter().any(|&x| x) {
                                         lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
                                     }
                                     for d_idx in 0..num_drugs {
@@ -774,6 +774,10 @@ impl Simulation {
                 write!(file, ",{}_currently_on_drug_{}", bacteria.replace(" ", "_"), drug)?;
             }
         }
+        // Add per-bacteria infected and on any drug columns to header (after other per-bacteria columns)
+        for bacteria in BACTERIA_LIST.iter() {
+            write!(file, ",{}_infected_and_on_any_drug", bacteria.replace(" ", "_"))?;
+        }
         writeln!(file)?;
 
         // Write data
@@ -834,6 +838,10 @@ impl Simulation {
                 }
             }
             writeln!(file)?;
+            // Output per-bacteria infected and on any drug counts
+            for b_idx in 0..BACTERIA_LIST.len() {
+                write!(file, ",{}", summary.infected_and_on_any_drug_by_bacteria[b_idx])?;
+            }
         }
 
         println!("Summary data exported to {}", filename);
