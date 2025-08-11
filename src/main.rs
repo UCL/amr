@@ -69,8 +69,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 5_000;
-    let time_steps = 35_000;
+    let population_size = 500;
+    let time_steps = 6000;
     let log_individuals = false; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
@@ -93,14 +93,14 @@ fn main() {
     // let csv_filename = format!("simulation_summary_{}.csv", random_id);
     let csv_filename = "simulation_summary.csv".to_string();
 
-    // Export to CSV for analysis
-    if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {
-        println!("Error exporting CSV: {}", e);
-    } else {
-        println!("Summary data exported to {}", csv_filename);
-    }
+    // // Export to CSV for analysis
+    // if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {
+    //     println!("Error exporting CSV: {}", e);
+    // } else {
+    //     println!("Summary data exported to {}", csv_filename);
+    // }
 
-    println!("main.rs  final outputs ");
+    // println!("main.rs  final outputs ");
 
 
     // --- FINAL SUMMARY/STATISTICS/REPORTING SECTION ---

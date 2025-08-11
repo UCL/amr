@@ -24,26 +24,19 @@ lazy_static! {
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
-            map.insert(format!("{}_initial_infection_level", bacteria), 0.005); // 0.01
-            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1
-            map.insert(format!("{}_hospital_acquired_multiplier", bacteria), 100.0); // multiplier for hospital-acquired risk
-            map.insert(format!("{}_adult_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_child_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_oral_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_sexual_contact_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_mosquito_exposure_acq_rate_ratio_per_unit", bacteria), 1.0);
-            map.insert(format!("{}_vaccine_efficacy", bacteria), 0.0); // Default to no vaccine effect
-            map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 
-            map.insert(format!("{}_max_level", bacteria), 5.0);
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.08); // 0.1  0.005 / 0.05 is strong effect
-            map.insert(format!("{}_immunity_base_response", bacteria), 0.03); // 0.01  0.001
-            map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05);
-            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.1);
-            map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0);
-            map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1);
-            map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level
-            
-            // Age-related infection risk parameters
+            map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01 // bacteria level at initial infection
+            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1  // proportion of new infections from environment
+            map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 // base change in bacteria level per day
+            map.insert(format!("{}_max_level", bacteria), 5.0); // max bacteria level (arbitrary standardized scale)
+            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.08); // 0.1  0.005 / 0.05 is strong effect // effect of the immune response on bacteria level
+            map.insert(format!("{}_immunity_base_response", bacteria), 0.03); // 0.01  0.001 // base immune response
+            map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05); // effect of bacteria level on immune response 
+            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.1); // effect of time infected on immune response
+            map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0); // effect of age on immune response
+            map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1); // effect of being immunodeficient on immune response 
+            map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level (arbitrary scale)
+             
+            // Age-related bactera-specific infection risk parameters
             map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
 
             // --- Age-specific daily vaccination probability parameters for each vaccine ---
@@ -447,7 +440,7 @@ lazy_static! {
         map.insert("log_odds_mosquito_exposure_per_unit".to_string(), 0.12); // Per unit mosquito exposure
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
-        map.insert("log_odds_hospital_acquired".to_string(), 1.0); // Hospital-acquired effect (default/fallback)
+        map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
         
         // Bacteria-specific hospital acquisition log-odds (healthcare-associated infection risk)
         // These parameters reflect clinical reality where certain bacteria have much higher

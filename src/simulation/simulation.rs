@@ -28,6 +28,8 @@ use std::io::Write;
 //
 // Captures population-level and per-bacteria/drug summary metrics for each time step.
 pub struct TimeStepSummary {
+    // NEW: per-bacteria count of people on any drug (infected with each bacteria and on at least one drug)
+    pub infected_and_on_any_drug_by_bacteria: Vec<usize>,
     pub time_step: usize,
     pub total_population: usize,
     pub total_deaths: usize,
@@ -63,7 +65,10 @@ pub struct TimeStepSummary {
     // per-bacteria, per-drug infection and resistance counts (flat, len = bacteria * drugs)
     pub infected_and_standardized_mic_lt2_by_bacteria_drug: Vec<usize>,
 
-    // NEW: per-drug currently on drug counts (indexed by drug)
+    // NEW: per-bacteria, per-drug currently on drug counts (flat, len = bacteria * drugs)
+    pub currently_on_drug_by_bacteria_drug: Vec<usize>,
+
+    // per-drug currently on drug counts (indexed by drug)
     pub currently_on_drug_by_drug: Vec<usize>,
 } 
 
@@ -215,7 +220,9 @@ impl Simulation {
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
+                infected_and_on_any_drug_by_bacteria: Vec<usize>,
                 mic_lt2_counts: Vec<usize>,
+                currently_on_drug_by_bacteria_drug: Vec<usize>,
                 infections_by_bacteria: Vec<usize>,
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
@@ -249,6 +256,8 @@ impl Simulation {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
                     Self {
                         mic_lt2_counts: vec![0; num_bacteria * num_drugs],
+                        currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
+                        infected_and_on_any_drug_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria: vec![0; num_bacteria],
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
@@ -280,6 +289,8 @@ impl Simulation {
                 }
                 fn merge(&mut self, other: Self) {
                     for (a,b) in self.mic_lt2_counts.iter_mut().zip(other.mic_lt2_counts) { *a += b; }
+                    for (a,b) in self.currently_on_drug_by_bacteria_drug.iter_mut().zip(other.currently_on_drug_by_bacteria_drug) { *a += b; }
+                    for (a,b) in self.infected_and_on_any_drug_by_bacteria.iter_mut().zip(other.infected_and_on_any_drug_by_bacteria) { *a += b; }
                     for (a,b) in self.infections_by_bacteria.iter_mut().zip(other.infections_by_bacteria) { *a += b; }
                     for (a,b) in self.resistance_by_bacteria_drug.iter_mut().zip(other.resistance_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.currently_on_drug_by_drug.iter_mut().zip(other.currently_on_drug_by_drug) { *a += b; }
@@ -323,10 +334,18 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > 0.001 {
                                     let base = b_idx * num_drugs;
+                                    let on_any_drug = individual.cur_use_drug.iter().any(|&x| x);
+                                    if on_any_drug {
+                                        lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
+                                    }
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
                                         let threshold = mic_lt2_thresholds[base + d_idx];
                                         if resistance_data.majority_r < threshold { lt.mic_lt2_counts[base + d_idx] += 1; }
+                                        // per-bacteria, per-drug currently on drug
+                                        if individual.cur_use_drug[d_idx] {
+                                            lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
+                                        }
                                     }
                                 }
                             }
@@ -427,7 +446,9 @@ impl Simulation {
 
                 // Destructure to move out (avoid cloning large vectors)
                 let LocalTotals {
+                    infected_and_on_any_drug_by_bacteria,
                     mic_lt2_counts: infected_and_standardized_mic_lt2_by_bacteria_drug,
+                    currently_on_drug_by_bacteria_drug,
                     infections_by_bacteria: infections_by_bacteria_vec,
                     resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                     currently_on_drug_by_drug,
@@ -487,7 +508,9 @@ impl Simulation {
             // if t % 500 == 0 { println!("Time step {} drug usage counts: {:?}", t, currently_on_drug_by_drug); }
 
             let summary = TimeStepSummary {
+                infected_and_on_any_drug_by_bacteria,
                 infected_and_standardized_mic_lt2_by_bacteria_drug,
+                currently_on_drug_by_bacteria_drug,
                 currently_on_drug_by_drug,
                 num_age_0_5,
                 num_age_6_14,
@@ -745,6 +768,12 @@ impl Simulation {
                 write!(file, ",{}_infected_and_mic_lt2_{}", bacteria.replace(" ", "_"), drug)?;
             }
         }
+        // Add per-bacteria, per-drug currently on drug columns
+        for bacteria in BACTERIA_LIST.iter() {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                write!(file, ",{}_currently_on_drug_{}", bacteria.replace(" ", "_"), drug)?;
+            }
+        }
         writeln!(file)?;
 
         // Write data
@@ -783,18 +812,25 @@ impl Simulation {
                 summary.num_with_any_bacteria_microbiome,
             )?;
             // Output per-bacteria infection counts
-            for b_idx in 0..num_bacteria {
+            for b_idx in 0..BACTERIA_LIST.len() {
                 write!(file, ",{}", summary.infections_by_bacteria[b_idx])?;
             }
             // Output per-drug currently on drug counts
-            for d_idx in 0..num_drugs {
+            for d_idx in 0..DRUG_SHORT_NAMES.len() {
                 write!(file, ",{}", summary.currently_on_drug_by_drug[d_idx])?;
             }
             // Output per-bacteria, per-drug infection and resistance counts
-            for b_idx in 0..num_bacteria {
-                for d_idx in 0..num_drugs {
-                    let idx = b_idx * num_drugs + d_idx;
+            for b_idx in 0..BACTERIA_LIST.len() {
+                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let idx = b_idx * DRUG_SHORT_NAMES.len() + d_idx;
                     write!(file, ",{}", summary.infected_and_standardized_mic_lt2_by_bacteria_drug[idx])?;
+                }
+            }
+            // Output per-bacteria, per-drug currently on drug counts
+            for b_idx in 0..BACTERIA_LIST.len() {
+                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let idx = b_idx * DRUG_SHORT_NAMES.len() + d_idx;
+                    write!(file, ",{}", summary.currently_on_drug_by_bacteria_drug[idx])?;
                 }
             }
             writeln!(file)?;
