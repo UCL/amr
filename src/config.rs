@@ -628,9 +628,9 @@ lazy_static! {
         // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
         // These parameters are on the log-odds scale.
-        map.insert("background_mortality_baseline_log_odds".to_string(), -14.5); // Very low base probability (e.g., exp(-16) is tiny)
+        map.insert("background_mortality_baseline_log_odds".to_string(), -15.5); // Very low base probability (e.g., exp(-16) is tiny)
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // 0.04  Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
-        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.0005); // 0.05  Additional non-linear effect for elderly
+        map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.05); // 0.05  Additional non-linear effect for elderly
 
         // Region-specific log-odds adjustments. ln(1.0) = 0.
         map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
@@ -650,7 +650,7 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00005);   // Probablity of becoming immunosuppressed daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0002);   // Probablity of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.001); // Probability of recovering from immunosuppression daily
 
 
