@@ -50,6 +50,7 @@ pub struct TimeStepSummary {
     pub number_severely_immunosuppressed: usize, 
     pub number_with_sepsis: usize,         
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
+    pub deaths_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // NEW: Number of newly infected people who acquired resistance
@@ -224,6 +225,7 @@ impl Simulation {
                 mic_lt2_counts: Vec<usize>,
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
                 infections_by_bacteria: Vec<usize>,
+                deaths_by_bacteria: Vec<usize>,
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
                 majority_r_entries: Vec<((usize, bool, usize, usize), f64)>,
@@ -259,6 +261,7 @@ impl Simulation {
                         currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         infected_and_on_any_drug_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria: vec![0; num_bacteria],
+                        deaths_by_bacteria: vec![0; num_bacteria],
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
                         majority_r_entries: Vec::with_capacity(majority_r_capacity),
@@ -292,6 +295,7 @@ impl Simulation {
                     for (a,b) in self.currently_on_drug_by_bacteria_drug.iter_mut().zip(other.currently_on_drug_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.infected_and_on_any_drug_by_bacteria.iter_mut().zip(other.infected_and_on_any_drug_by_bacteria) { *a += b; }
                     for (a,b) in self.infections_by_bacteria.iter_mut().zip(other.infections_by_bacteria) { *a += b; }
+                    for (a,b) in self.deaths_by_bacteria.iter_mut().zip(other.deaths_by_bacteria) { *a += b; }
                     for (a,b) in self.resistance_by_bacteria_drug.iter_mut().zip(other.resistance_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.currently_on_drug_by_drug.iter_mut().zip(other.currently_on_drug_by_drug) { *a += b; }
                     self.majority_r_entries.extend(other.majority_r_entries);
@@ -374,6 +378,12 @@ impl Simulation {
                                         _ => lt.deaths_background += 1,
                                     }
                                 } else { lt.deaths_background += 1; }
+                                // Count deaths by bacteria
+                                for b_idx in 0..num_bacteria {
+                                    if individual.level[b_idx] > 0.001 {
+                                        lt.deaths_by_bacteria[b_idx] += 1;
+                                    }
+                                }
                             }
                         }
 
@@ -450,6 +460,7 @@ impl Simulation {
                     mic_lt2_counts: infected_and_standardized_mic_lt2_by_bacteria_drug,
                     currently_on_drug_by_bacteria_drug,
                     infections_by_bacteria: infections_by_bacteria_vec,
+                    deaths_by_bacteria,
                     resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                     currently_on_drug_by_drug,
                     majority_r_entries,
@@ -532,6 +543,7 @@ impl Simulation {
                 currently_taking_drug_count,
                 taking_two_drugs_count,
                 infections_by_bacteria: infections_by_bacteria_vec,
+                deaths_by_bacteria,
                 resistance_by_bacteria_drug,
                 total_deaths,
                 deaths_background,
@@ -758,6 +770,10 @@ impl Simulation {
         for bacteria in BACTERIA_LIST.iter() {
             write!(file, ",{}_currently_infected", bacteria.replace(" ", "_"))?;
         }
+        // Add per-bacteria deaths columns
+        for bacteria in BACTERIA_LIST.iter() {
+            write!(file, ",{}_deaths", bacteria.replace(" ", "_"))?;
+        }
         // Add per-drug currently on drug columns
         for drug in DRUG_SHORT_NAMES.iter() {
             write!(file, ",{}_currently_on_drug", drug.replace(" ", "_"))?;
@@ -818,6 +834,10 @@ impl Simulation {
             // Output per-bacteria infection counts
             for b_idx in 0..BACTERIA_LIST.len() {
                 write!(file, ",{}", summary.infections_by_bacteria[b_idx])?;
+            }
+            // Output per-bacteria deaths counts
+            for b_idx in 0..BACTERIA_LIST.len() {
+                write!(file, ",{}", summary.deaths_by_bacteria[b_idx])?;
             }
             // Output per-drug currently on drug counts
             for d_idx in 0..DRUG_SHORT_NAMES.len() {

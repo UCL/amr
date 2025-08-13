@@ -1,3 +1,13 @@
+
+
+
+// want to output sum of activity_r for each person on drug who has a bacterial infection
+// then will get graph of mean activity_r
+
+
+
+
+
 // src/main.rs
 //
 // Entry point for the AMR simulation.
@@ -69,8 +79,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 100_000;
-    let time_steps = 600;
+    let population_size = 0_500;
+    let time_steps = 1_000;
     let log_individuals = false; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

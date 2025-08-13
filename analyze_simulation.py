@@ -1,62 +1,4 @@
-# ...existing code...
 
-# =============================================================================
-# DRUG USE DISTRIBUTION BY BACTERIA (STACKED PLOTS)
-# =============================================================================
-def create_distribution_drug_use_by_bacteria_plots(df):
-    """
-    For each bacteria, plot the distribution of drug use among people infected with that bacteria (stacked area plot).
-    Each plot is saved as output_graphs/distribution_drug_use_by_bacteria/bacteria_x_distribution_drug_use.png
-    """
-    print("\n=== CREATING DRUG USE DISTRIBUTION PLOTS FOR EACH BACTERIA ===")
-    out_dir = Path("output_graphs/distribution_drug_use_by_bacteria")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    # Identify bacteria and drug names from columns
-    bacteria_names = []
-    drug_names = []
-    for col in df.columns:
-        if col.endswith("_currently_infected"):
-            bacteria_names.append(col.replace("_currently_infected", ""))
-    for col in df.columns:
-        if col.endswith("_currently_on_drug"):
-            drug_names.append(col.replace("_currently_on_drug", ""))
-    # For each bacteria, collect the per-drug counts
-    for b in bacteria_names:
-        # Find all columns for this bacteria and each drug
-        drug_cols = [f"{b}_currently_on_drug_{d}" for d in drug_names if f"{b}_currently_on_drug_{d}" in df.columns]
-        if not drug_cols:
-            print(f"  ✗ No per-drug columns for {b}")
-            continue
-        # Smooth counts for each drug for this bacteria
-        smoothed_counts = []
-        for drug_col in drug_cols:
-            count_smooth = pd.Series(df[drug_col]).rolling(
-                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-            ).mean()
-            smoothed_counts.append(count_smooth)
-        smoothed_counts_df = pd.concat(smoothed_counts, axis=1).fillna(0)
-        smoothed_counts_df.columns = drug_cols
-        # Recompute shares so they sum to 1 exactly for this bacteria
-        total_smooth = smoothed_counts_df.sum(axis=1)
-        shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
-        plt.figure(figsize=FIGURE_SIZE_DOUBLE)
-        plt.stackplot(
-            df['time_in_years'],
-            shares_df.T.to_numpy(),
-            labels=[col.replace(f'{b}_currently_on_drug_','').replace('_',' ').title() for col in drug_cols],
-            alpha=0.8
-        )
-        plt.title(f"Distribution of Drug Use Among People Infected with {b.replace('_',' ').title()}", fontsize=18)
-        plt.xlabel('Time (Years)')
-        plt.ylabel('Proportion of Infected with This Bacteria')
-        plt.ylim(0, 1.0)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        fname = out_dir / f"{b}_distribution_drug_use.png"
-        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
-        print(f"  ✓ {fname} saved.")
 
 #!/usr/bin/env python3
 """
@@ -76,7 +18,7 @@ from pathlib import Path
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 365
+SMOOTHING_WINDOW_DAYS = 10
 
 # =============================================================================
 # TOGGLE: Set to True to generate output_graphs plots, False to skip them
@@ -84,9 +26,9 @@ SMOOTHING_WINDOW_DAYS = 365
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
-proportion_of_people_taking_each_drug = False  # output_graphs/proportion_of_people_taking_each_drug
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
+proportion_of_people_infected_with_each_bacteria = True  # output_graphs/proportion_of_people_infected_with_each_bacteria
+proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
 proportion_share_among_drug_users = True  # output_graphs/proportion_share_among_drug_users
 distribution_drug_use_by_bacteria = True  # output_graphs/distribution_drug_use_by_bacteria
 
@@ -128,9 +70,7 @@ OUTPUT_FILES = {
     'infection_duration': 'infection_duration_proportions.png',
     'sepsis_prop': 'sepsis_among_infected_proportion.png',
     'resistance_prop': 'resistance_among_infected.png',
-    'summary_stats': 'summary_statistics.csv',
-    'all_data': 'all_simulation_data.csv',
-    'key_data': 'simulation_data_summary.csv'
+    'summary_stats': 'summary_statistics.csv'
 }
 
 # =============================================================================
@@ -327,7 +267,7 @@ def create_grouped_plots(df):
         axes2[3].set_xlabel('Time (Years)')
         axes2[3].set_ylabel('Deaths in Past Year / Current Population')
         axes2[3].set_xlim(left=0)
-        axes2[3].set_ylim(0, 0.01)
+        axes2[3].set_ylim(0, 0.02)
         axes2[3].legend()
         axes2[3].grid(True, alpha=0.3)
     else:
@@ -570,6 +510,64 @@ def create_resistance_plot(df):
     
 
     save_and_show_plot(f"output_graphs/{OUTPUT_FILES['resistance_prop']}", "Resistance proportion plot")
+
+# =============================================================================
+# DRUG USE DISTRIBUTION BY BACTERIA (STACKED PLOTS)
+# =============================================================================
+def create_distribution_drug_use_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the distribution of drug use among people infected with that bacteria (stacked area plot).
+    Each plot is saved as output_graphs/distribution_drug_use_by_bacteria/bacteria_x_distribution_drug_use.png
+    """
+    print("\n=== CREATING DRUG USE DISTRIBUTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/distribution_drug_use_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Identify bacteria and drug names from columns
+    bacteria_names = []
+    drug_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected"):
+            bacteria_names.append(col.replace("_currently_infected", ""))
+    for col in df.columns:
+        if col.endswith("_currently_on_drug"):
+            drug_names.append(col.replace("_currently_on_drug", ""))
+    # For each bacteria, collect the per-drug counts
+    for b in bacteria_names:
+        # Find all columns for this bacteria and each drug
+        drug_cols = [f"{b}_currently_on_drug_{d}" for d in drug_names if f"{b}_currently_on_drug_{d}" in df.columns]
+        if not drug_cols:
+            print(f"  ✗ No per-drug columns for {b}")
+            continue
+        # Smooth counts for each drug for this bacteria
+        smoothed_counts = []
+        for drug_col in drug_cols:
+            count_smooth = pd.Series(df[drug_col]).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            smoothed_counts.append(count_smooth)
+        smoothed_counts_df = pd.concat(smoothed_counts, axis=1).fillna(0)
+        smoothed_counts_df.columns = drug_cols
+        # Recompute shares so they sum to 1 exactly for this bacteria
+        total_smooth = smoothed_counts_df.sum(axis=1)
+        shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
+        plt.figure(figsize=FIGURE_SIZE_DOUBLE)
+        plt.stackplot(
+            df['time_in_years'],
+            shares_df.T.to_numpy(),
+            labels=[col.replace(f'{b}_currently_on_drug_','').replace('_',' ').title() for col in drug_cols],
+            alpha=0.8
+        )
+        plt.title(f"Distribution of Drug Use Among People Infected with {b.replace('_',' ').title()}", fontsize=18)
+        plt.xlabel('Time (Years)')
+        plt.ylabel('Proportion of Infected with This Bacteria')
+        plt.ylim(0, 1.0)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        fname = out_dir / f"{b}_distribution_drug_use.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
 
 # =============================================================================
 # BACTERIA INFECTION PROPORTION PLOTS
@@ -825,24 +823,7 @@ def export_data_files(df):
     """Export data to various formats for external analysis."""
     print("\n=== EXPORTING DATA FILES ===")
     
-    # Save complete data
-    df.to_csv(OUTPUT_FILES['all_data'], index=False, float_format=FLOAT_PRECISION)
-    print(f"✓ Complete data saved to '{OUTPUT_FILES['all_data']}'")
-    
-    # Save key columns summary
-    key_columns = ['time_step', 'time_in_years', 'total_population', 'total_currently_infected', 
-                   'total_with_resistance', 'total_deaths', 'infection_proportion', 'death_proportion']
-    
-    # Add death cause columns if available
-    death_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
-    key_columns.extend([col for col in death_cols if col in df.columns])
-    
-    # Only include columns that exist
-    existing_cols = [col for col in key_columns if col in df.columns]
-    
-    if existing_cols:
-        df[existing_cols].to_csv(OUTPUT_FILES['key_data'], index=False, float_format=FLOAT_PRECISION)
-        print(f"✓ Key data summary saved to '{OUTPUT_FILES['key_data']}'")
+    # No longer saving 'all_simulation_data.csv' or 'simulation_data_summary.csv'
 
 # def export_txt_data_file(df, filename="all_simulation_data.txt"):
 #     """

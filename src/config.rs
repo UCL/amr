@@ -1,10 +1,10 @@
 
 /* 
         map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
-
-        // Beta-lactams (Penicillins)
         map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
- 
+
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
+
 */
 
 
@@ -234,16 +234,15 @@ lazy_static! {
         let _anaerobes_spore_formers = vec!["clostridioides_difficile"];
         let _gram_pos_rods = vec!["listeria_monocytogenes"];
 
-        // Set default low potency for all combinations first
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // Default low potency (was 0.01)
                 map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.001);  // 0.005
             } 
         }
 
-        // Now set specific potencies based on clinical evidence
+        // Set specific potencies based on clinical evidence
         
         // GRAM-POSITIVE COCCI (Staph, Strep, Enterococcus)
         for &bacteria in gram_pos_cocci.iter() {
@@ -507,7 +506,7 @@ lazy_static! {
         // Microbiome acquisition now uses infection acquisition parameters plus a single offset
         map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
         // Environmental resistance level for new acquisitions
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.01); // 0.01       
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01       
   
         map.insert("max_resistance_level".to_string(), 1.0);
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.01); // 0.01
@@ -566,8 +565,8 @@ lazy_static! {
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)        
 
         // Hospitalization Parameters
-        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000001); // 0.0000001  Baseline daily probability of hospitalization
-        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000001); // 0.0000001  Increase in daily hospitalization probability per year of age
+        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000005); // 0.0000001  Baseline daily probability of hospitalization
+        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000005); // 0.0000001  Increase in daily hospitalization probability per year of age
         map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // 0.2  Daily probability of recovering from hospitalization
         map.insert("hospitalization_max_days".to_string(), 30.0); // 30.0  Max days in hospital before forced discharge (as fallback)
 
@@ -634,7 +633,7 @@ lazy_static! {
         // // Background Mortality Parameters (Age, Region, and Sex dependent)
 
         // These parameters are on the log-odds scale.
-        map.insert("background_mortality_baseline_log_odds".to_string(), -15.5); // Very low base probability (e.g., exp(-16) is tiny)
+        map.insert("background_mortality_baseline_log_odds".to_string(), -14.0); // -15.5
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // 0.04  Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
         map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.05); // 0.05  Additional non-linear effect for elderly
 
@@ -1304,10 +1303,10 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 200);   // 2555 // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 730);   // 2555 // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 400);     // 3555 // 1942 (12 years after 1930)
+        map.insert("penicilling", 1460);     // 3555 // 1942 (12 years after 1930)
         map.insert("ampicillin", 11315);     // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
