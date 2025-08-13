@@ -52,6 +52,8 @@ pub struct TimeStepSummary {
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub deaths_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
+    /// NEW: per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
+    pub activity_r_sum_by_bacteria: Vec<f64>,
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // NEW: Number of newly infected people who acquired resistance
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
@@ -253,6 +255,8 @@ impl Simulation {
                 num_age_15_49: usize,
                 num_age_50_79: usize,
                 num_age_80plus: usize,
+                /// NEW: per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
+                activity_r_sum_by_bacteria: Vec<f64>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -288,6 +292,7 @@ impl Simulation {
                         num_age_15_49: 0,
                         num_age_50_79: 0,
                         num_age_80plus: 0,
+                        activity_r_sum_by_bacteria: vec![0.0; num_bacteria],
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -322,6 +327,7 @@ impl Simulation {
                     self.num_age_15_49 += other.num_age_15_49;
                     self.num_age_50_79 += other.num_age_50_79;
                     self.num_age_80plus += other.num_age_80plus;
+                    for (a,b) in self.activity_r_sum_by_bacteria.iter_mut().zip(other.activity_r_sum_by_bacteria) { *a += b; }
                 }
             }
 
@@ -419,12 +425,18 @@ impl Simulation {
                                         infected_any_tmp = true;
                                         individual_has_any_infection = true;
                                         lt.infections_by_bacteria[b_idx] += 1;
+                                        // NEW: sum activity_r for this bacteria, ONLY for individuals on drug
+                                        let mut activity_r_sum = 0.0;
                                         let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
                                         if days_since_infection > individual_max_infection_duration { individual_max_infection_duration = days_since_infection; }
                                         if individual.date_last_infected[b_idx] == t as i32 { was_newly_infected = true; }
                                         let base = b_idx * num_drugs;
                                         for d_idx in 0..num_drugs {
                                             let resistance_data = &individual.resistances[b_idx][d_idx];
+                                            // Only sum activity_r if individual is currently on this drug
+                                            if individual.cur_use_drug[d_idx] {
+                                                activity_r_sum += resistance_data.activity_r;
+                                            }
                                             if resistance_data.majority_r > 0.0 { lt.resistance_by_bacteria_drug[base + d_idx] += 1; lt.majority_r_entries.push(((individual.region_cur_in as usize, individual.hospital_status.is_hospitalized(), b_idx, d_idx), resistance_data.majority_r)); }
                                             if resistance_data.any_r > 0.0 {
                                                 individual_has_any_r_positive = true;
@@ -433,6 +445,10 @@ impl Simulation {
                                                     was_newly_infected_with_resistance = true;
                                                 }
                                             }
+                                        }
+                                        // Only include individuals who are on any drug for this bacteria
+                                        if individual.cur_use_drug.iter().any(|&x| x) {
+                                            lt.activity_r_sum_by_bacteria[b_idx] += activity_r_sum;
                                         }
                                     }
                                 }
@@ -487,6 +503,7 @@ impl Simulation {
                     num_age_15_49,
                     num_age_50_79,
                     num_age_80plus,
+                    activity_r_sum_by_bacteria,
                 } = totals;
 
                 // Rebuild 2D resistance structure for summary
@@ -596,6 +613,7 @@ impl Simulation {
                         - self.summary_log.last().map_or(0, |s| s.newly_infected_count)
                 },
         currently_infected_and_on_drug_count: currently_infected_and_on_drug_count,
+        activity_r_sum_by_bacteria,
             };
 
 
@@ -774,6 +792,10 @@ impl Simulation {
         for bacteria in BACTERIA_LIST.iter() {
             write!(file, ",{}_deaths", bacteria.replace(" ", "_"))?;
         }
+        // Add per-bacteria activity_r sum columns
+        for bacteria in BACTERIA_LIST.iter() {
+            write!(file, ",{}_activity_r_sum", bacteria.replace(" ", "_"))?;
+        }
         // Add per-drug currently on drug columns
         for drug in DRUG_SHORT_NAMES.iter() {
             write!(file, ",{}_currently_on_drug", drug.replace(" ", "_"))?;
@@ -838,6 +860,10 @@ impl Simulation {
             // Output per-bacteria deaths counts
             for b_idx in 0..BACTERIA_LIST.len() {
                 write!(file, ",{}", summary.deaths_by_bacteria[b_idx])?;
+            }
+            // Output per-bacteria activity_r_sum counts
+            for b_idx in 0..BACTERIA_LIST.len() {
+                write!(file, ",{}", summary.activity_r_sum_by_bacteria[b_idx])?;
             }
             // Output per-drug currently on drug counts
             for d_idx in 0..DRUG_SHORT_NAMES.len() {

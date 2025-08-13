@@ -31,6 +31,8 @@ proportion_of_people_infected_with_each_bacteria = True  # output_graphs/proport
 proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
 proportion_share_among_drug_users = True  # output_graphs/proportion_share_among_drug_users
 distribution_drug_use_by_bacteria = True  # output_graphs/distribution_drug_use_by_bacteria
+death_rate_by_bacteria = True  # output_graphs/death_rate_by_bacteria
+mean_activity_r_by_bacteria = True  # output_graphs/mean_activity_r_by_bacteria
 
 # =============================================================================
 # CONFIGURATION
@@ -578,6 +580,9 @@ def create_bacteria_infection_proportion_plots(df):
     Each plot is saved as a separate PNG file.
     """
     print("\n=== CREATING BACTERIA INFECTION PROPORTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/proportion_of_people_infected_with_each_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
     # Find all columns matching *_currently_infected
     bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
     if not bacteria_cols:
@@ -600,7 +605,111 @@ def create_bacteria_infection_proportion_plots(df):
         plt.legend(fontsize=30)
         plt.tick_params(axis='both', which='major', labelsize=40)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        fname = f"output_graphs/proportion_of_people_infected_with_each_bacteria/{bacteria_name}_infection_proportion.png"
+        fname = out_dir / f"{bacteria_name}_infection_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# DEATH RATE BY BACTERIA PLOTS
+# =============================================================================
+def create_death_rate_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the death rate (deaths / infected people with that bacteria).
+    Each plot is saved as output_graphs/death_rate_by_bacteria/bacteria_x_death_rate.png
+    """
+    print("\n=== CREATING DEATH RATE BY BACTERIA PLOTS ===")
+    out_dir = Path("output_graphs/death_rate_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for *_currently_infected columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected"):
+            bacteria_names.append(col.replace("_currently_infected", ""))
+    
+    for bacteria_name in bacteria_names:
+        infected_col = f"{bacteria_name}_currently_infected"
+        deaths_col = f"{bacteria_name}_deaths"
+        
+        if infected_col not in df.columns or deaths_col not in df.columns:
+            print(f"  ✗ Missing columns for {bacteria_name} (need {infected_col} and {deaths_col})")
+            continue
+        
+        # Calculate death rate: deaths / infected people
+        death_rate = safe_divide(df[deaths_col], df[infected_col])
+        
+        # Apply rolling mean smoothing
+        death_rate_smooth = pd.Series(death_rate).rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        plt.plot(df['time_in_years'], death_rate_smooth, 
+                linewidth=7, color='red', 
+                label=f"{bacteria_name.replace('_', ' ').title()} Death Rate (Smoothed)")
+        
+        plt.title(f"Death Rate for {bacteria_name.replace('_', ' ').title()}", fontsize=50)
+        plt.ylabel('Deaths per Infected Person', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_death_rate.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# MEAN ACTIVITY_R BY BACTERIA PLOTS
+# =============================================================================
+def create_mean_activity_r_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the mean activity_r (activity_r_sum / infected_and_on_any_drug).
+    Each plot is saved as output_graphs/mean_activity_r_by_bacteria/bacteria_x_mean_activity_r.png
+    """
+    print("\n=== CREATING MEAN ACTIVITY_R BY BACTERIA PLOTS ===")
+    out_dir = Path("output_graphs/mean_activity_r_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for *_activity_r_sum columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_activity_r_sum"):
+            bacteria_names.append(col.replace("_activity_r_sum", ""))
+    
+    for bacteria_name in bacteria_names:
+        activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
+        infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+        
+        if activity_r_sum_col not in df.columns or infected_and_on_drug_col not in df.columns:
+            print(f"  ✗ Missing columns for {bacteria_name} (need {activity_r_sum_col} and {infected_and_on_drug_col})")
+            continue
+        
+        # Calculate mean activity_r: activity_r_sum / infected_and_on_any_drug
+        mean_activity_r = safe_divide(df[activity_r_sum_col], df[infected_and_on_drug_col])
+        
+        # Apply rolling mean smoothing
+        mean_activity_r_smooth = pd.Series(mean_activity_r).rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        plt.plot(df['time_in_years'], mean_activity_r_smooth, 
+                linewidth=7, color='blue', 
+                label=f"{bacteria_name.replace('_', ' ').title()} Mean Activity_R (Smoothed)")
+        
+        plt.title(f"Mean Activity_R for {bacteria_name.replace('_', ' ').title()}", fontsize=50)
+        plt.ylabel('Mean Activity_R Value', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_mean_activity_r.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print(f"  ✓ {fname} saved.")
@@ -703,6 +812,10 @@ def create_mic_lt2_by_drug_plots(df):
     For each bacteria, plot the proportion of infections with MIC < 2 for all drugs.
     Each plot is saved as a separate PNG file.
     """
+    print("\n=== CREATING MIC<2 BY DRUG PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
     # ...existing code without debug print statements...
     mic_cols = [col for col in df.columns if '_infected_and_mic_lt2_' in col]
     pairs = [col.replace('_infected_and_mic_lt2_', '|').split('|') for col in mic_cols]
@@ -755,9 +868,10 @@ def create_mic_lt2_by_drug_plots(df):
         # Center the plot vertically by adding top/bottom margins
         fig.subplots_adjust(top=0.85, bottom=0.15)
         plt.tick_params(axis='both', which='major', labelsize=40)
-        fname = f"output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2/{b}_mic_lt2_by_drug.png"
+        fname = out_dir / f"{b}_mic_lt2_by_drug.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
+        print(f"  ✓ {fname} saved.")
 # =============================================================================
 # DRUG USAGE PROPORTION PLOTS
 # =============================================================================
@@ -767,6 +881,9 @@ def create_drug_usage_proportion_plots(df):
     Each plot is saved as a separate PNG file.
     """
     print("\n=== CREATING DRUG USAGE PROPORTION PLOTS FOR EACH DRUG ===")
+    out_dir = Path("output_graphs/proportion_of_people_taking_each_drug")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
     # Find all columns matching *_currently_on_drug
     drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
     if not drug_cols:
@@ -787,7 +904,7 @@ def create_drug_usage_proportion_plots(df):
         plt.legend(fontsize=96, title_fontsize=192)  # halve legend size, halve legend title size
         plt.tick_params(axis='both', which='major', labelsize=80)  # (ii) double tick/number size
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        fname = f"output_graphs/proportion_of_people_taking_each_drug/{drug_name}_usage_proportion.png"
+        fname = out_dir / f"{drug_name}_usage_proportion.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print(f"  ✓ {fname} saved.")
@@ -959,6 +1076,16 @@ def main():
         create_bacteria_infection_proportion_plots(df)
     else:
         print("\n=== SKIPPING bacteria infection proportion plots (set proportion_of_people_infected_with_each_bacteria = True to enable) ===")
+    
+    if death_rate_by_bacteria:
+        create_death_rate_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING death rate by bacteria plots (set death_rate_by_bacteria = True to enable) ===")
+    
+    if mean_activity_r_by_bacteria:
+        create_mean_activity_r_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING mean activity_r by bacteria plots (set mean_activity_r_by_bacteria = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)
