@@ -1,3 +1,16 @@
+
+/* 
+        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
+
+        // Beta-lactams (Penicillins)
+        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
+ 
+*/
+
+
+
+
+
 //
 // Centralized configuration and parameter management for the AMR simulation.
 //
@@ -1291,10 +1304,10 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 200);   // 2555 // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
+        map.insert("penicilling", 400);     // 3555 // 1942 (12 years after 1930)
         map.insert("ampicillin", 11315);     // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)

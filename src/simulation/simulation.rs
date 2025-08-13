@@ -837,11 +837,11 @@ impl Simulation {
                     write!(file, ",{}", summary.currently_on_drug_by_bacteria_drug[idx])?;
                 }
             }
-            writeln!(file)?;
             // Output per-bacteria infected and on any drug counts
             for b_idx in 0..BACTERIA_LIST.len() {
                 write!(file, ",{}", summary.infected_and_on_any_drug_by_bacteria[b_idx])?;
             }
+            writeln!(file)?;
         }
 
         println!("Summary data exported to {}", filename);
