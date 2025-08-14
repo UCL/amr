@@ -1,5 +1,3 @@
-
-
 #!/usr/bin/env python3
 """
 AMR Simulation Data Analysis Script
@@ -26,13 +24,14 @@ SMOOTHING_WINDOW_DAYS = 10
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-proportion_of_people_infected_with_each_bacteria = True  # output_graphs/proportion_of_people_infected_with_each_bacteria
-proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
-proportion_share_among_drug_users = True  # output_graphs/proportion_share_among_drug_users
-distribution_drug_use_by_bacteria = True  # output_graphs/distribution_drug_use_by_bacteria
-death_rate_by_bacteria = True  # output_graphs/death_rate_by_bacteria
-mean_activity_r_by_bacteria = True  # output_graphs/mean_activity_r_by_bacteria
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
+proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
+proportion_of_people_taking_each_drug = False  # output_graphs/proportion_of_people_taking_each_drug
+proportion_share_among_drug_users = False  # output_graphs/proportion_share_among_drug_users
+distribution_drug_use_by_bacteria = False  # output_graphs/distribution_drug_use_by_bacteria
+death_rate_by_bacteria = False  # output_graphs/death_rate_by_bacteria
+mean_activity_r_by_bacteria = False  # output_graphs/mean_activity_r_by_bacteria
+resistance_mechanism_by_bacteria = False  # output_graphs/resistance_mechanism_by_bacteria
 
 # =============================================================================
 # CONFIGURATION
@@ -110,6 +109,7 @@ def load_simulation_data(csv_file=CSV_INPUT):
     return df
 
 def preprocess_data(df):
+    """Add calculated columns and prepare data for analysis."""
     # Age group proportions
     if 'num_age_0_5' in df.columns and 'total_population' in df.columns:
         df['prop_age_0_5'] = safe_divide(df['num_age_0_5'], df['total_population'])
@@ -132,7 +132,7 @@ def preprocess_data(df):
         df['deaths_sepsis_past_year_proportion'] = safe_divide(df['deaths_sepsis_past_year'], df['total_population'])
     if 'deaths_drug_toxicity_past_year' in df.columns and 'total_population' in df.columns:
         df['deaths_drug_toxicity_past_year_proportion'] = safe_divide(df['deaths_drug_toxicity_past_year'], df['total_population'])
-    """Add calculated columns and prepare data for analysis."""
+
     # Convert time step to years
     df['time_in_years'] = df['time_step'] / 365
     
@@ -205,6 +205,7 @@ def create_grouped_plots(df):
         axes1[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig('output_graphs/grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close() # Close the figure to free memory
     print("✓ Grouped figure 1 saved as 'grouped_figure_1.png'")
 
     # --- Group 2 ---
@@ -278,6 +279,7 @@ def create_grouped_plots(df):
         axes2[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig('output_graphs/grouped_figure_2.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
     print("✓ Grouped figure 2 saved as 'grouped_figure_2.png'")
 
     # --- Group 3 ---
@@ -298,7 +300,6 @@ def create_grouped_plots(df):
         axes3[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
         axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
         axes3[0].set_axis_off()
-
     # 2. Proportion of currently infected who are on drug
     if 'infected_and_on_drug_proportion' in df.columns:
         axes3[1].plot(df['time_in_years'], pd.Series(df['infected_and_on_drug_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected & On Drug', linewidth=2, color='blue')
@@ -312,7 +313,6 @@ def create_grouped_plots(df):
         axes3[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
         axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
         axes3[1].set_axis_off()
-
     # 3. Proportion of living people in each age group
     age_group_cols = [
         ('prop_age_0_5', '0-5'),
@@ -333,7 +333,6 @@ def create_grouped_plots(df):
     else:
         axes3[2].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
         axes3[2].set_axis_off()
-
     # 4. Proportion of people with any potentially pathogenic bacteria in their microbiome
     if 'num_with_any_bacteria_microbiome' in df.columns and 'total_population' in df.columns:
         df['any_microbiome_proportion'] = df['num_with_any_bacteria_microbiome'] / df['total_population']
@@ -348,10 +347,58 @@ def create_grouped_plots(df):
         axes3[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig('output_graphs/grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
     print("✓ Grouped figure 3 saved as 'grouped_figure_3.png'")
+    
+    # --- Grouped Figure 4 (Integrated) ---
+    fig4, axes4 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes4 = axes4.flatten()
+    fig4.suptitle('Grouped Figure 4: Resistance Transmission and Drug Metrics', fontsize=16)
+    
+    # 1. Proportion of newly infected people with any drug resistance (top-left)
+    if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
+        # Calculate proportion
+        df['newly_infected_with_resistance_proportion'] = safe_divide(
+            df['newly_infected_with_resistance_count'], 
+            df['newly_infected_count']
+        )
+        prop_smooth = pd.Series(df['newly_infected_with_resistance_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        axes4[0].plot(df['time_in_years'], prop_smooth, 
+                    color='red', linewidth=2, label='Resistance on Acquisition (Smoothed)')
+        axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes4[0].set_ylabel('Proportion')
+        axes4[0].set_ylim(0, 1)
+        axes4[0].grid(True, alpha=0.3)
+        axes4[0].legend()
+        
+        # Add summary statistics
+        mean_val = df['newly_infected_with_resistance_proportion'].mean()
+        max_val = df['newly_infected_with_resistance_proportion'].max()
+        total_new = df['newly_infected_count'].sum()
+        total_new_with_r = df['newly_infected_with_resistance_count'].sum()
+        
+        textstr = (f'Overall: {total_new_with_r}/{total_new} '
+                  f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
+                  f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
+        props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
+        axes4[0].text(0.02, 0.98, textstr, transform=axes4[0].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes4[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes4[0].set_axis_off()
+    
+    # 2-4. Placeholder for future plots
+    for i in range(1, 4):
+        axes4[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
+        axes4[i].set_axis_off()
+        
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig("output_graphs/grouped_figure_4.png", dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
 
-    # --- Grouped Figure 4 ---
-    create_grouped_figure_4(df)
 
 def create_proportion_plots(df):
     """Create separate infection and death proportion plots."""
@@ -714,53 +761,6 @@ def create_mean_activity_r_by_bacteria_plots(df):
         plt.close()
         print(f"  ✓ {fname} saved.")
 
-# =============================================================================
-# GROUPED FIGURE 4: RESISTANCE TRANSMISSION AND DRUG METRICS
-# =============================================================================
-def create_grouped_figure_4(df):
-    """Create grouped_figure_4.png: Resistance transmission and drug metrics."""
-    fig, axes = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
-    axes = axes.flatten()
-    fig.suptitle('Grouped Figure 4: Resistance Transmission and Drug Metrics', fontsize=16)
-    
-    # 1. Proportion of newly infected people with any drug resistance (top-left)
-    if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
-        # Calculate proportion
-        df['newly_infected_with_resistance_proportion'] = safe_divide(
-            df['newly_infected_with_resistance_count'], 
-            df['newly_infected_count']
-        )
-        prop_smooth = pd.Series(df['newly_infected_with_resistance_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-        axes[0].plot(df['time_in_years'], prop_smooth, 
-                    color='red', linewidth=2, label='Resistance on Acquisition (Smoothed)')
-        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
-        axes[0].set_ylabel('Proportion')
-        axes[0].set_ylim(0, 1)
-        axes[0].grid(True, alpha=0.3)
-        axes[0].legend()
-        
-        # Add summary statistics
-        mean_val = df['newly_infected_with_resistance_proportion'].mean()
-        max_val = df['newly_infected_with_resistance_proportion'].max()
-        total_new = df['newly_infected_count'].sum()
-        total_new_with_r = df['newly_infected_with_resistance_count'].sum()
-        
-        textstr = (f'Overall: {total_new_with_r}/{total_new} '
-                  f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
-                  f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
-        props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
-        axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
-                    verticalalignment='top', bbox=props)
-    else:
-        axes[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
-                    ha='center', va='center', fontsize=12, color='gray')
-        axes[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
-        axes[0].set_axis_off()
-    
-    # 2-4. Placeholder for future plots
-    for i in range(1, 4):
-        axes[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
-        axes[i].set_axis_off()
 def create_stacked_drug_share_plot(df):
     drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
     if drug_cols and 'currently_taking_drug_count' in df.columns:
@@ -816,7 +816,7 @@ def create_mic_lt2_by_drug_plots(df):
     out_dir = Path("output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2")
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # ...existing code without debug print statements...
+    # ...existing code...
     mic_cols = [col for col in df.columns if '_infected_and_mic_lt2_' in col]
     pairs = [col.replace('_infected_and_mic_lt2_', '|').split('|') for col in mic_cols]
     bacteria_set = sorted(set(b for b, d in pairs))
@@ -1030,8 +1030,53 @@ def generate_summary_statistics(df):
                 print(f"{cause_name}: {total:,} ({pct:.1f}%)")
 
 # =============================================================================
-# MAIN ANALYSIS WORKFLOW
+# RESISTANCE MECHANISM PROPORTION BY BACTERIA PLOTS
 # =============================================================================
+def create_resistance_mechanism_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the proportion of infected individuals with each resistance mechanism.
+    Each plot is saved as output_graphs/resistance_mechanism_by_bacteria/bacteria_x_resistance_mechanism.png
+    """
+    print("\n=== CREATING RESISTANCE MECHANISM PROPORTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/resistance_mechanism_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Identify bacteria and mechanisms from columns
+    bacteria_names = []
+    mechanism_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected"):
+            bacteria_names.append(col.replace("_currently_infected", ""))
+    for col in df.columns:
+        if "_infected_with_" in col:
+            parts = col.split("_infected_with_")
+            if len(parts) == 2:
+                mechanism_names.append(parts[1])
+    mechanism_names = sorted(set(mechanism_names))
+    for b in bacteria_names:
+        infected_col = f"{b}_currently_infected"
+        if infected_col not in df.columns:
+            continue
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        for mech in mechanism_names:
+            mech_col = f"{b}_infected_with_{mech}"
+            if mech_col not in df.columns:
+                continue
+            prop = safe_divide(df[mech_col], df[infected_col])
+            prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            plt.plot(df['time_in_years'], prop_smooth, label=mech.replace('_', ' ').title(), linewidth=7)
+        plt.title(f"Proportion of Infected with Resistance Mechanism by Bacteria: {b.replace('_', ' ').title()}", fontsize=40)
+        plt.ylabel('Proportion of Infected', fontsize=40)
+        plt.xlabel('Time (Years)', fontsize=40)
+        plt.ylim(0, 1)
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Resistance Mechanism', fontsize=20, title_fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=30)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = out_dir / f"{b}_resistance_mechanism.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -1052,49 +1097,43 @@ def main():
         create_distribution_drug_use_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING distribution_drug_use_by_bacteria plots (set distribution_drug_use_by_bacteria = True to enable) ===")
-    
     df = preprocess_data(df)
     print(f"Data preprocessing complete. Dataset shape: {df.shape}")
-    
-
     # Always create grouped visualizations (figures 1-4)
     print("\n=== CREATING GROUPED VISUALIZATIONS ===")
     create_grouped_plots(df)
-
     # Optionally create the three other output_graphs plot sets (per subfolder)
     if for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
         create_mic_lt2_by_drug_plots(df)
     else:
         print("\n=== SKIPPING MIC<2 by drug plots (set for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True to enable) ===")
-
     if proportion_of_people_taking_each_drug:
         create_drug_usage_proportion_plots(df)
     else:
         print("\n=== SKIPPING drug usage proportion plots (set proportion_of_people_taking_each_drug = True to enable) ===")
-
     if proportion_of_people_infected_with_each_bacteria:
         create_bacteria_infection_proportion_plots(df)
     else:
         print("\n=== SKIPPING bacteria infection proportion plots (set proportion_of_people_infected_with_each_bacteria = True to enable) ===")
-    
     if death_rate_by_bacteria:
         create_death_rate_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING death rate by bacteria plots (set death_rate_by_bacteria = True to enable) ===")
-    
     if mean_activity_r_by_bacteria:
         create_mean_activity_r_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING mean activity_r by bacteria plots (set mean_activity_r_by_bacteria = True to enable) ===")
-    
+    # Resistance mechanism by bacteria plots
+    if resistance_mechanism_by_bacteria:
+        create_resistance_mechanism_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING resistance_mechanism_by_bacteria plots (set resistance_mechanism_by_bacteria = True to enable) ===")
     # Export data and statistics
     export_data_files(df)
     # export_txt_data_file(df)
     generate_summary_statistics(df)
-
     # Standalone stacked drug share plot
     create_stacked_drug_share_plot(df)
-
     # Summary of generated files
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
@@ -1115,11 +1154,7 @@ def main():
     #     print(f"  ✓ {txt_file}")
     # else:
     #     print(f"  ✗ {txt_file} (not created)")
-
     print("\nRecommendation: Open grouped PNG files for visualizations, CSV files in Excel for data analysis. The .txt file is human-readable.")
 
 if __name__ == "__main__":
     main()
-
-
-

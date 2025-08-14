@@ -592,11 +592,17 @@ let drugs_initiated_this_time_step: usize = 0;
                 }
             }
             let mut stop_drug = false;
-            // maybe re-work this so having no relavant infection is a very strong predictor of stopping but not 
-            // something that 100% causes stopping ?
-            if !relevant_infection_active_for_this_drug || rng.gen_bool(random_drug_cessation_prob) {
-                stop_drug = true;
-            }
+                // Use different cessation probabilities depending on infection status
+                let random_cessation_if_no_infection = get_global_param("random_drug_cessation_probability_if_no_active_infection").unwrap_or(0.25);
+                if !relevant_infection_active_for_this_drug {
+                    if rng.gen_bool(random_cessation_if_no_infection) {
+                        stop_drug = true;
+                    }
+                } else {
+                    if rng.gen_bool(random_drug_cessation_prob) {
+                        stop_drug = true;
+                    }
+                }
             if individual.date_drug_initiated[drug_idx] == (time_step as i32) - 1 {
                 stop_drug = false;
             }

@@ -12,7 +12,7 @@
 // when want to print variable values for individual 0 for de-bugging
 
 
-use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES};
+use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES, ResistanceMechanism};
 use crate::rules::apply_rules;
 use crate::config; // Import the config module
 use std::collections::HashMap;
@@ -73,6 +73,10 @@ pub struct TimeStepSummary {
 
     // per-drug currently on drug counts (indexed by drug)
     pub currently_on_drug_by_drug: Vec<usize>,
+
+    // NEW: per-bacteria, per-resistance-mechanism counts (flat, len = bacteria * mechanisms)
+    // infected_with_bacteria_and_mechanism[bacteria_idx * num_mechanisms + mechanism_idx] = count
+    pub infected_with_bacteria_and_mechanism: Vec<usize>,
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -257,6 +261,8 @@ impl Simulation {
                 num_age_80plus: usize,
                 /// NEW: per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
                 activity_r_sum_by_bacteria: Vec<f64>,
+                /// NEW: per-bacteria, per-resistance-mechanism counts (flat, len = bacteria * mechanisms)
+                infected_with_bacteria_and_mechanism: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -293,6 +299,7 @@ impl Simulation {
                         num_age_50_79: 0,
                         num_age_80plus: 0,
                         activity_r_sum_by_bacteria: vec![0.0; num_bacteria],
+                        infected_with_bacteria_and_mechanism: vec![0; num_bacteria * ResistanceMechanism::all().len()],
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -328,6 +335,7 @@ impl Simulation {
                     self.num_age_50_79 += other.num_age_50_79;
                     self.num_age_80plus += other.num_age_80plus;
                     for (a,b) in self.activity_r_sum_by_bacteria.iter_mut().zip(other.activity_r_sum_by_bacteria) { *a += b; }
+                    for (a,b) in self.infected_with_bacteria_and_mechanism.iter_mut().zip(other.infected_with_bacteria_and_mechanism) { *a += b; }
                 }
             }
 
@@ -355,6 +363,15 @@ impl Simulation {
                                         // per-bacteria, per-drug currently on drug
                                         if individual.cur_use_drug[d_idx] {
                                             lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
+                                        }
+                                    }
+                                    
+                                    // Count resistance mechanisms for this bacteria
+                                    let num_mechanisms = ResistanceMechanism::all().len();
+                                    for (mech_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                        if individual.resistance_mechanisms[b_idx][mech_idx] {
+                                            let flat_idx = b_idx * num_mechanisms + mech_idx;
+                                            lt.infected_with_bacteria_and_mechanism[flat_idx] += 1;
                                         }
                                     }
                                 }
@@ -504,6 +521,7 @@ impl Simulation {
                     num_age_50_79,
                     num_age_80plus,
                     activity_r_sum_by_bacteria,
+                    infected_with_bacteria_and_mechanism,
                 } = totals;
 
                 // Rebuild 2D resistance structure for summary
@@ -614,6 +632,7 @@ impl Simulation {
                 },
         currently_infected_and_on_drug_count: currently_infected_and_on_drug_count,
         activity_r_sum_by_bacteria,
+        infected_with_bacteria_and_mechanism,
             };
 
 
@@ -816,6 +835,12 @@ impl Simulation {
         for bacteria in BACTERIA_LIST.iter() {
             write!(file, ",{}_infected_and_on_any_drug", bacteria.replace(" ", "_"))?;
         }
+        // Add per-bacteria, per-resistance-mechanism columns to header
+        for bacteria in BACTERIA_LIST.iter() {
+            for mechanism in ResistanceMechanism::all() {
+                write!(file, ",{}_infected_with_{}", bacteria.replace(" ", "_"), mechanism.as_str())?;
+            }
+        }
         writeln!(file)?;
 
         // Write data
@@ -886,6 +911,13 @@ impl Simulation {
             // Output per-bacteria infected and on any drug counts
             for b_idx in 0..BACTERIA_LIST.len() {
                 write!(file, ",{}", summary.infected_and_on_any_drug_by_bacteria[b_idx])?;
+            }
+            // Output per-bacteria, per-resistance-mechanism counts
+            for b_idx in 0..BACTERIA_LIST.len() {
+                for mech_idx in 0..ResistanceMechanism::all().len() {
+                    let idx = b_idx * ResistanceMechanism::all().len() + mech_idx;
+                    write!(file, ",{}", summary.infected_with_bacteria_and_mechanism[idx])?;
+                }
             }
             writeln!(file)?;
         }
