@@ -1841,6 +1841,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             individual.infection_hospital_acquired[b_idx] = false;
             individual.cur_infection_from_environment[b_idx] = false;
             individual.test_identified_infection[b_idx] = false;
+            individual.test_for_resistance[b_idx] = false;
         }
 
         // --- NEW: Apply cross-resistance logic ---

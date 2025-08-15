@@ -32,6 +32,7 @@ distribution_drug_use_by_bacteria = False  # output_graphs/distribution_drug_use
 death_rate_by_bacteria = False  # output_graphs/death_rate_by_bacteria
 mean_activity_r_by_bacteria = False  # output_graphs/mean_activity_r_by_bacteria
 resistance_mechanism_by_bacteria = False  # output_graphs/resistance_mechanism_by_bacteria
+proportion_of_population_with_presence_bacteria = True  # output_graphs/proportion_of_population_with_presence_bacteria
 source_of_new_resistance_by_drug_bacteria = True  # output_graphs/source_of_new_resistance_by_drug_bacteria
 
 # =============================================================================
@@ -1031,6 +1032,53 @@ def generate_summary_statistics(df):
                 print(f"{cause_name}: {total:,} ({pct:.1f}%)")
 
 # =============================================================================
+# PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS
+# =============================================================================
+def create_proportion_of_population_with_presence_bacteria_plots(df):
+    """
+    For each bacteria, plot the proportion of the population with presence_microbiome = true.
+    Each plot is saved as output_graphs/proportion_of_population_with_presence_bacteria/bacteria_x_presence_proportion.png
+    """
+    print("\n=== CREATING PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS ===")
+    out_dir = Path("output_graphs/proportion_of_population_with_presence_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all columns matching *_presence_microbiome
+    presence_cols = [col for col in df.columns if col.endswith('_presence_microbiome')]
+    if not presence_cols:
+        print("No *_presence_microbiome columns found in data.")
+        return
+    
+    for presence_col in presence_cols:
+        bacteria_name = presence_col.replace('_presence_microbiome', '')
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        
+        # Proportion: people with this bacteria in microbiome / total population
+        prop = safe_divide(df[presence_col], df['total_population'])
+        
+        # Apply rolling mean smoothing
+        window = SMOOTHING_WINDOW_DAYS
+        prop_smooth = pd.Series(prop).rolling(window=window, min_periods=1, center=True).mean()
+        
+        plt.plot(df['time_in_years'], prop_smooth, 
+                label=f"{bacteria_name.replace('_', ' ').title()} (Smoothed)", 
+                linewidth=7, color='green')
+        
+        plt.title(f"Proportion of Population with {bacteria_name.replace('_', ' ').title()} in Microbiome (Smoothed)", 
+                 fontsize=50)
+        plt.ylabel('Proportion of Living Population', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_presence_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
 # RESISTANCE MECHANISM PROPORTION BY BACTERIA PLOTS
 # =============================================================================
 def create_resistance_mechanism_by_bacteria_plots(df):
@@ -1225,6 +1273,12 @@ def main():
         create_resistance_mechanism_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING resistance_mechanism_by_bacteria plots (set resistance_mechanism_by_bacteria = True to enable) ===")
+    
+    # Proportion of population with presence bacteria plots
+    if proportion_of_population_with_presence_bacteria:
+        create_proportion_of_population_with_presence_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING proportion_of_population_with_presence_bacteria plots (set proportion_of_population_with_presence_bacteria = True to enable) ===")
     
     # Source of new resistance by bacteria-drug plots
     if source_of_new_resistance_by_drug_bacteria:
