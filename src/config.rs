@@ -1,4 +1,3 @@
-
 /* 
         map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
         map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
@@ -262,7 +261,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // Default low potency (was 0.01)
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.01);  // 0.005
             } 
         }
 
@@ -481,7 +480,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -12.5); // -14.0 Default baseline log-odds for infection acquisition
+        map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -14.0 Default baseline log-odds for infection acquisition
         map.insert("log_odds_sexual_contact_per_unit".to_string(), 0.10); // Per unit sexual contact
         map.insert("log_odds_airborne_adult_contact_per_unit".to_string(), 0.08); // Per unit airborne adult contact
         map.insert("log_odds_airborne_child_contact_per_unit".to_string(), 0.08); // Per unit airborne child contact
@@ -586,6 +585,7 @@ lazy_static! {
         map.insert("resistance_mechanism_reduced_permeability_enhancement_multiplier".to_string(), 0.2); // Adds 20% resistance
         map.insert("resistance_mechanism_target_site_mutation_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
     
+        map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
 
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
@@ -1429,3 +1429,4 @@ lazy_static! {
 pub fn get_drug_introduction_time_step(drug_name: &str) -> Option<usize> {
     DRUG_INTRODUCTION_DATES.get(drug_name).copied()
 }
+

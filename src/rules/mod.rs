@@ -1216,15 +1216,43 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 if donor_r > 0.0 {
                                     // Transfer to infection
                                     if individual.level[recipient_idx] > 0.001 {
-                                        individual.resistances[recipient_idx][drug_idx].any_r = donor_r.max(
-                                            individual.resistances[recipient_idx][drug_idx].any_r
-                                        );
+                                        let prev_any_r = individual.resistances[recipient_idx][drug_idx].any_r;
+                                        let new_any_r = donor_r.max(prev_any_r);
+                                        individual.resistances[recipient_idx][drug_idx].any_r = new_any_r;
+                                        if prev_any_r == 0.0 && new_any_r > 0.0 {
+                                            // Inline mechanism assignment
+                                            use crate::simulation::population::ResistanceMechanism;
+                                            let mechanism_prob = get_global_param("mechanism_assignment_probability_on_any_r_gain").unwrap_or(0.8);
+                                            for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                                let mechanism_str = mechanism.as_str();
+                                                let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+                                                if enhancement <= new_any_r {
+                                                    if rng.gen_bool(mechanism_prob) {
+                                                        individual.resistance_mechanisms[recipient_idx][mech_idx] = true;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                     // Transfer to microbiome
                                     if individual.presence_microbiome[recipient_idx] {
-                                        individual.resistances[recipient_idx][drug_idx].any_r = donor_r.max(
-                                            individual.resistances[recipient_idx][drug_idx].any_r
-                                        );
+                                        let prev_any_r = individual.resistances[recipient_idx][drug_idx].any_r;
+                                        let new_any_r = donor_r.max(prev_any_r);
+                                        individual.resistances[recipient_idx][drug_idx].any_r = new_any_r;
+                                        if prev_any_r == 0.0 && new_any_r > 0.0 {
+                                            // Inline mechanism assignment
+                                            use crate::simulation::population::ResistanceMechanism;
+                                            let mechanism_prob = get_global_param("mechanism_assignment_probability_on_any_r_gain").unwrap_or(0.8);
+                                            for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                                let mechanism_str = mechanism.as_str();
+                                                let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+                                                if enhancement <= new_any_r {
+                                                    if rng.gen_bool(mechanism_prob) {
+                                                        individual.resistance_mechanisms[recipient_idx][mech_idx] = true;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1303,12 +1331,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if any_selecting_drug_introduced {
                             resistance_data.majority_r = env_majority_r_level;
                             resistance_data.any_r = env_majority_r_level;
-                            // --- Probabilistic mechanism assignment on new infection (environmental) ---
+                            // Inline mechanism assignment
                             use crate::simulation::population::ResistanceMechanism;
-                            let mechanism_prob = 0.8;
-                            let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                            let mechanism_prob = get_global_param("mechanism_assignment_probability_on_any_r_gain").unwrap_or(0.8);
                             for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                                // Only assign if mechanism is relevant (enhancement <= any_r)
                                 let mechanism_str = mechanism.as_str();
                                 let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
                                 if enhancement <= resistance_data.any_r {
@@ -1317,7 +1343,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     }
                                 }
                             }
-                            // --- End mechanism assignment ---
                         } else {
                             resistance_data.majority_r = 0.0;
                             resistance_data.any_r = 0.0;
@@ -1339,20 +1364,19 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
                                 resistance_data.any_r = clamped_level;
                                 resistance_data.majority_r = clamped_level;
-                                // --- Probabilistic mechanism assignment on new infection (population) ---
+                                // Inline mechanism assignment
                                 use crate::simulation::population::ResistanceMechanism;
-                                let mechanism_prob = 0.8;
-                                let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                                let mechanism_prob = get_global_param("mechanism_assignment_probability_on_any_r_gain").unwrap_or(0.8);
                                 for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
                                     let mechanism_str = mechanism.as_str();
                                     let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+
                                     if enhancement <= resistance_data.any_r {
                                         if rng.gen_bool(mechanism_prob) {
                                             individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                         }
                                     }
                                 }
-                                // --- End mechanism assignment ---
                             } else {
                                 resistance_data.any_r = 0.0;
                                 resistance_data.majority_r = 0.0;
@@ -1390,6 +1414,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     if resistance_data.majority_r == 0.0 && // No majority resistance yet
                        resistance_data.any_r > 0.0 && // But some minority resistance exists
                        resistance_data.any_r < max_resistance_level && // And it's not yet full resistance
+
                        drug_currently_present // And the drug is present, providing selection pressure
                     {
                         let any_r_increase_rate = get_global_param("any_r_increase_rate_per_day_when_drug_present").unwrap_or(0.05); // New parameter
@@ -1410,11 +1435,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         // only consider emergence if there's drug present (either being taken or decaying)
                         // and a positive bacteria level for selection pressure.
                         if drug_current_level > 0.0001 && current_bacteria_level > 0.0001 { 
-                            let param_key = format!(
+                            let param_key = format![
                                 "drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline",
                                 DRUG_SHORT_NAMES[drug_index],
                                 bacteria
-                            );
+                            ];
                             let emergence_rate_baseline = get_global_param(&param_key).unwrap_or(0.000001); // Very small baseline
                             let bacteria_level_effect_multiplier = get_global_param("resistance_emergence_bacteria_level_multiplier").unwrap_or(0.05); // How much does bacteria level boost it
                             let any_r_emergence_level_on_first_emergence = get_global_param("any_r_emergence_level_on_first_emergence").unwrap_or(0.5); // User changed to 0.5 (was 1.0)
@@ -1453,6 +1478,18 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                             if rng.gen_bool(total_emergence_prob.clamp(0.0, 1.0)) {
                                 resistance_data.any_r = any_r_emergence_level_on_first_emergence;
+                                // Inline mechanism assignment
+                                use crate::simulation::population::ResistanceMechanism;
+                                let mechanism_prob = get_global_param("mechanism_assignment_probability_on_any_r_gain").unwrap_or(0.8);
+                                for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                    let mechanism_str = mechanism.as_str();
+                                    let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+                                    if enhancement <= resistance_data.any_r {
+                                        if rng.gen_bool(mechanism_prob) {
+                                            individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

@@ -1,13 +1,4 @@
 
-
-
-// want to output sum of activity_r for each person on drug who has a bacterial infection
-// then will get graph of mean activity_r
-
-
-
-
-
 // src/main.rs
 //
 // Entry point for the AMR simulation.
@@ -18,14 +9,14 @@
 //
 
 
-// note:
+// note: (may no longer be relevant - consier deleting)
 // when need to follow variable values over time steps for individual 0 
 // make the change shown at the top of simulation.rs and rules/mod.rs    
 // make the change in population.rs to restrict to small number of bacteria and drugs
 // decide which variable values to print out from the list in simulation.rs
 // run up to a certain point and should be able to see the previous e.g. 10 time step values
 //
-
+ 
 mod simulation;
 mod rules;
 mod config;
@@ -34,6 +25,19 @@ mod config;
 //
 // // model structure developments to consider //
 //
+// think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
+// carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
+//
+//
+//
+// // additional output graphs
+//
+// outputs for presence in microbiome and resistance in microbiome 
+//
+// output on whether test_r done and other tests
+//
+// would like to think of having a toggle in analyze_simulation.py to specify that (as relevant) all graphs are 
+// specific to a specified bacteria 
 //
 //
 //
@@ -79,9 +83,9 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 10_000;
-    let time_steps = 2_000;
-    let log_individuals = true; // Set to false to disable detailed individual logging
+    let population_size = 3_000;
+    let time_steps = 1_500;
+    let log_individuals = false; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
 

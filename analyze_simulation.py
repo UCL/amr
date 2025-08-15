@@ -24,14 +24,14 @@ SMOOTHING_WINDOW_DAYS = 10
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
-proportion_of_people_taking_each_drug = False  # output_graphs/proportion_of_people_taking_each_drug
-proportion_share_among_drug_users = False  # output_graphs/proportion_share_among_drug_users
-distribution_drug_use_by_bacteria = False  # output_graphs/distribution_drug_use_by_bacteria
-death_rate_by_bacteria = False  # output_graphs/death_rate_by_bacteria
-mean_activity_r_by_bacteria = False  # output_graphs/mean_activity_r_by_bacteria
-resistance_mechanism_by_bacteria = False  # output_graphs/resistance_mechanism_by_bacteria
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
+proportion_of_people_infected_with_each_bacteria = True  # output_graphs/proportion_of_people_infected_with_each_bacteria
+proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
+proportion_share_among_drug_users = True  # output_graphs/proportion_share_among_drug_users
+distribution_drug_use_by_bacteria = True  # output_graphs/distribution_drug_use_by_bacteria
+death_rate_by_bacteria = True  # output_graphs/death_rate_by_bacteria
+mean_activity_r_by_bacteria = True  # output_graphs/mean_activity_r_by_bacteria
+resistance_mechanism_by_bacteria = True  # output_graphs/resistance_mechanism_by_bacteria
 
 # =============================================================================
 # CONFIGURATION
