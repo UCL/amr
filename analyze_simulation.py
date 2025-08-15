@@ -24,14 +24,15 @@ SMOOTHING_WINDOW_DAYS = 10
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-proportion_of_people_infected_with_each_bacteria = True  # output_graphs/proportion_of_people_infected_with_each_bacteria
-proportion_of_people_taking_each_drug = True  # output_graphs/proportion_of_people_taking_each_drug
-proportion_share_among_drug_users = True  # output_graphs/proportion_share_among_drug_users
-distribution_drug_use_by_bacteria = True  # output_graphs/distribution_drug_use_by_bacteria
-death_rate_by_bacteria = True  # output_graphs/death_rate_by_bacteria
-mean_activity_r_by_bacteria = True  # output_graphs/mean_activity_r_by_bacteria
-resistance_mechanism_by_bacteria = True  # output_graphs/resistance_mechanism_by_bacteria
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
+proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
+proportion_of_people_taking_each_drug = False  # output_graphs/proportion_of_people_taking_each_drug
+proportion_share_among_drug_users = False  # output_graphs/proportion_share_among_drug_users
+distribution_drug_use_by_bacteria = False  # output_graphs/distribution_drug_use_by_bacteria
+death_rate_by_bacteria = False  # output_graphs/death_rate_by_bacteria
+mean_activity_r_by_bacteria = False  # output_graphs/mean_activity_r_by_bacteria
+resistance_mechanism_by_bacteria = False  # output_graphs/resistance_mechanism_by_bacteria
+source_of_new_resistance_by_drug_bacteria = True  # output_graphs/source_of_new_resistance_by_drug_bacteria
 
 # =============================================================================
 # CONFIGURATION
@@ -1078,6 +1079,102 @@ def create_resistance_mechanism_by_bacteria_plots(df):
         print(f"  ✓ {fname} saved.")
 
 # =============================================================================
+# SOURCE OF NEW RESISTANCE BY BACTERIA-DRUG PLOTS
+# =============================================================================
+
+def create_source_of_new_resistance_by_drug_bacteria_plots(df):
+    """
+    For each bacteria-drug combination, create stacked area charts showing 
+    the contribution of each resistance acquisition mechanism over time.
+    Each plot is saved as output_graphs/source_of_new_resistance_by_drug_bacteria/bacteria_drug_new_resistance_sources.png
+    """
+    print("\n=== CREATING SOURCE OF NEW RESISTANCE PLOTS FOR EACH BACTERIA-DRUG COMBINATION ===")
+    out_dir = Path("output_graphs/source_of_new_resistance_by_drug_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Identify bacteria and drugs from new resistance acquisition columns
+    bacteria_drug_pairs = []
+    acquisition_types = ['at_infection_community', 'at_infection_env', 'hgt', 'from_microbiome_r']
+    
+    for col in df.columns:
+        if col.endswith("_new_resistance_at_infection_community"):
+            # Extract bacteria_drug from column name
+            bacteria_drug = col.replace("_new_resistance_at_infection_community", "")
+            bacteria_drug_pairs.append(bacteria_drug)
+    
+    bacteria_drug_pairs = sorted(set(bacteria_drug_pairs))
+    
+    print(f"Found {len(bacteria_drug_pairs)} bacteria-drug combinations to analyze...")
+    
+    # Color scheme for the 4 acquisition types
+    colors = {
+        'at_infection_community': '#1f77b4',  # blue
+        'at_infection_env': '#ff7f0e',        # orange  
+        'hgt': '#2ca02c',                     # green
+        'from_microbiome_r': '#d62728'        # red
+    }
+    
+    labels = {
+        'at_infection_community': 'Community Infection',
+        'at_infection_env': 'Environmental Infection',
+        'hgt': 'Horizontal Gene Transfer',
+        'from_microbiome_r': 'From Microbiome'
+    }
+    
+    for bacteria_drug in bacteria_drug_pairs:
+        # Check if all required columns exist
+        required_cols = [f"{bacteria_drug}_new_resistance_{acq_type}" for acq_type in acquisition_types]
+        if not all(col in df.columns for col in required_cols):
+            print(f"  ⚠ Skipping {bacteria_drug} - missing required columns")
+            continue
+            
+        # Extract data for this bacteria-drug combination
+        data = {}
+        for acq_type in acquisition_types:
+            col_name = f"{bacteria_drug}_new_resistance_{acq_type}"
+            # Apply smoothing to reduce noise
+            data[acq_type] = pd.Series(df[col_name]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        # Create line plot
+        plt.figure(figsize=(int(FIG_W * 1.5), int(FIG_H)))
+        
+        # Plot each acquisition type as a separate line
+        for acq_type in acquisition_types:
+            plt.plot(df['time_in_years'], data[acq_type], 
+                    label=labels[acq_type], color=colors[acq_type], 
+                    linewidth=2, alpha=0.8)
+        
+        # Format the plot
+        bacteria_name = bacteria_drug.split('_')[:-1]  # Remove drug name
+        drug_name = bacteria_drug.split('_')[-1]       # Get drug name
+        bacteria_display = ' '.join(bacteria_name).replace('_', ' ').title()
+        drug_display = drug_name.replace('_', ' ').title()
+        
+        plt.title(f"New Resistance Acquisition Sources Over Time\n{bacteria_display} - {drug_display}", 
+                 fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('New Resistance Cases per Timestep (Smoothed)', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.legend(loc='upper right', fontsize=10)
+        plt.tick_params(axis='both', which='major', labelsize=10)
+        
+        # Set y-axis to start from 0
+        plt.ylim(bottom=0)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        safe_bacteria_drug = bacteria_drug.replace(' ', '_').replace('/', '_')
+        fname = out_dir / f"{safe_bacteria_drug}_new_resistance_sources.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        if len(bacteria_drug_pairs) <= 10:  # Only print individual confirmations for small numbers
+            print(f"  ✓ {fname} saved.")
+    
+    print(f"✓ Completed {len(bacteria_drug_pairs)} source of new resistance plots.")
+
+# =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
 
@@ -1128,6 +1225,13 @@ def main():
         create_resistance_mechanism_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING resistance_mechanism_by_bacteria plots (set resistance_mechanism_by_bacteria = True to enable) ===")
+    
+    # Source of new resistance by bacteria-drug plots
+    if source_of_new_resistance_by_drug_bacteria:
+        create_source_of_new_resistance_by_drug_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING source_of_new_resistance_by_drug_bacteria plots (set source_of_new_resistance_by_drug_bacteria = True to enable) ===")
+    
     # Export data and statistics
     export_data_files(df)
     # export_txt_data_file(df)
