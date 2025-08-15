@@ -1232,6 +1232,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                                     }
                                                 }
                                             }
+                                            individual.how_resistance_acquired[recipient_idx][drug_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
                                         }
                                     }
                                     // Transfer to microbiome
@@ -1343,6 +1344,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     }
                                 }
                             }
+                            individual.how_resistance_acquired[b_idx][d_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv);
                         } else {
                             resistance_data.majority_r = 0.0;
                             resistance_data.any_r = 0.0;
@@ -1377,6 +1379,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                         }
                                     }
                                 }
+                                individual.how_resistance_acquired[b_idx][d_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity);
                             } else {
                                 resistance_data.any_r = 0.0;
                                 resistance_data.majority_r = 0.0;
@@ -1490,6 +1493,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                         }
                                     }
                                 }
+                                individual.how_resistance_acquired[b_idx][drug_index] = Some(crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR);
                             }
                         }
                     }
@@ -1723,6 +1727,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         individual.resistances[b_idx][d_idx].test_r = test_r;
                     }
                 }
+            } else {
+                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                    individual.resistances[b_idx][d_idx].test_r = 0.0;
+                }
             }
         } else {
             for d_idx in 0..DRUG_SHORT_NAMES.len() {
@@ -1823,6 +1831,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 resistance_data.any_r = 0.0;
                 resistance_data.majority_r = 0.0;
                 resistance_data.activity_r = 0.0;
+                individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
             }
             individual.level[b_idx] = 0.0;
             individual.infectious_syndrome[b_idx] = 0;

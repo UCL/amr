@@ -55,7 +55,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::SixteenSMethyltransferase => "16s_methyltransferase",
             ResistanceMechanism::Qnr => "qnr",
             ResistanceMechanism::EffluxOverexpression => "efflux_overexpression",
-            ResistanceMechanism::ErmMethylation => "erm_methylation",
+            ResistanceMechanism::ErmMethylation => "erm_methyltransferase",
             ResistanceMechanism::VanType => "van_type",
             ResistanceMechanism::MecA => "meca",
             ResistanceMechanism::ReducedPermeability => "reduced_permeability",
@@ -63,6 +63,26 @@ impl ResistanceMechanism {
         }
     }
 } 
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResistanceAcquisitionType {
+    AtInfectionCommunity,
+    AtInfectionEnv,
+    Hgt,
+    FromMicrobiomeR,
+}
+
+impl ResistanceAcquisitionType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ResistanceAcquisitionType::AtInfectionCommunity => "at_infection_community",
+            ResistanceAcquisitionType::AtInfectionEnv => "at_infection_env",
+            ResistanceAcquisitionType::Hgt => "hgt",
+            ResistanceAcquisitionType::FromMicrobiomeR => "from_microbiome_r",
+        }
+    }
+}
 
 
 /* 
@@ -225,6 +245,8 @@ pub struct Individual {
     /// Tracks specific resistance mechanisms for each bacteria
     /// [bacteria_index][mechanism_index] -> bool (mechanism present)
     pub resistance_mechanisms: Vec<Vec<bool>>,
+    /// Tracks how resistance was acquired for each bacteria and drug (None if never acquired)
+    pub how_resistance_acquired: Vec<Vec<Option<ResistanceAcquisitionType>>>,
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
     pub is_severely_immunosuppressed: bool, 
@@ -277,6 +299,11 @@ impl Individual {
         for _ in 0..num_bacteria {
             resistance_mechanisms.push(vec![false; ResistanceMechanism::all().len()]);
         }
+        // Initialize how_resistance_acquired (all None initially)
+        let mut how_resistance_acquired = Vec::with_capacity(num_bacteria);
+        for _ in 0..num_bacteria {
+            how_resistance_acquired.push(vec![None; num_drugs]);
+        }
 
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
@@ -321,6 +348,7 @@ impl Individual {
             mortality_risk_current_toxicity: 0.0, 
             resistances,
             resistance_mechanisms,
+            how_resistance_acquired,
             date_of_death: None,
             cause_of_death: None,
             is_severely_immunosuppressed: false, 
@@ -356,6 +384,7 @@ impl Population {
         Population { individuals }
     }
 }
+
 
 
 /* 

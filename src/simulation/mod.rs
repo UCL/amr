@@ -6,4 +6,5 @@
 //   - simulation.rs: Implements the Simulation struct and main simulation logic
 //
 pub mod population;
-pub mod simulation; 
+pub mod simulation;
+
