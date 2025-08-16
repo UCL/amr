@@ -24,16 +24,16 @@ SMOOTHING_WINDOW_DAYS = 10
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False  # output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2
-proportion_of_people_infected_with_each_bacteria = False  # output_graphs/proportion_of_people_infected_with_each_bacteria
-proportion_of_people_taking_each_drug = False  # output_graphs/proportion_of_people_taking_each_drug
-proportion_share_among_drug_users = False  # output_graphs/proportion_share_among_drug_users
-distribution_drug_use_by_bacteria = False  # output_graphs/distribution_drug_use_by_bacteria
-death_rate_by_bacteria = False  # output_graphs/death_rate_by_bacteria
-mean_activity_r_by_bacteria = False  # output_graphs/mean_activity_r_by_bacteria
-resistance_mechanism_by_bacteria = False  # output_graphs/resistance_mechanism_by_bacteria
-proportion_of_population_with_presence_bacteria = True  # output_graphs/proportion_of_population_with_presence_bacteria
-source_of_new_resistance_by_drug_bacteria = True  # output_graphs/source_of_new_resistance_by_drug_bacteria
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
+proportion_of_people_infected_with_each_bacteria = False
+proportion_of_people_taking_each_drug = False
+proportion_share_among_drug_users = False
+distribution_drug_use_by_bacteria = False
+death_rate_by_bacteria = False
+mean_activity_r_by_bacteria = False
+resistance_mechanism_by_bacteria = False
+proportion_of_population_with_microbiome_presence_bacteria = False
+source_of_new_resistance_by_drug_bacteria = False
 
 # =============================================================================
 # CONFIGURATION
@@ -355,7 +355,7 @@ def create_grouped_plots(df):
     # --- Grouped Figure 4 (Integrated) ---
     fig4, axes4 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes4 = axes4.flatten()
-    fig4.suptitle('Grouped Figure 4: Resistance Transmission and Drug Metrics', fontsize=16)
+    fig4.suptitle('Grouped Figure 4: Resistance and Testing Metrics', fontsize=16)
     
     # 1. Proportion of newly infected people with any drug resistance (top-left)
     if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
@@ -391,10 +391,67 @@ def create_grouped_plots(df):
         axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
         axes4[0].set_axis_off()
     
-    # 2-4. Placeholder for future plots
-    for i in range(1, 4):
-        axes4[i].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
-        axes4[i].set_axis_off()
+    # 2. Proportion of infected with test_identified_infection = true (top-right)
+    # Sum all bacteria-specific test_identified columns
+    test_identified_cols = [col for col in df.columns if col.endswith('_infected_with_test_identified')]
+    if test_identified_cols and 'total_currently_infected' in df.columns:
+        total_test_identified = sum(df[col] for col in test_identified_cols)
+        test_identified_prop = safe_divide(total_test_identified, df['total_currently_infected'])
+        test_identified_smooth = pd.Series(test_identified_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        axes4[1].plot(df['time_in_years'], test_identified_smooth, 
+                    color='blue', linewidth=2, label='Test Identified (Smoothed)')
+        axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria')
+        axes4[1].set_ylabel('Proportion')
+        axes4[1].set_ylim(0, 1)
+        axes4[1].grid(True, alpha=0.3)
+        axes4[1].legend()
+        
+        # Add summary statistics
+        mean_val = test_identified_prop.mean()
+        max_val = test_identified_prop.max()
+        textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+        props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+        axes4[1].text(0.02, 0.98, textstr, transform=axes4[1].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes4[1].text(0.5, 0.5, 'Data not available\n(test_identified columns)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria')
+        axes4[1].set_axis_off()
+    
+    # 3. Proportion of infected with test_for_resistance = true (bottom-left)
+    test_resistance_cols = [col for col in df.columns if col.endswith('_infected_with_test_for_resistance')]
+    if test_resistance_cols and 'total_currently_infected' in df.columns:
+        total_test_resistance = sum(df[col] for col in test_resistance_cols)
+        test_resistance_prop = safe_divide(total_test_resistance, df['total_currently_infected'])
+        test_resistance_smooth = pd.Series(test_resistance_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        axes4[2].plot(df['time_in_years'], test_resistance_smooth, 
+                    color='green', linewidth=2, label='Test for Resistance (Smoothed)')
+        axes4[2].set_title('Proportion of Infected with Test for Resistance')
+        axes4[2].set_xlabel('Time (Years)')
+        axes4[2].set_ylabel('Proportion')
+        axes4[2].set_ylim(0, 1)
+        axes4[2].grid(True, alpha=0.3)
+        axes4[2].legend()
+        
+        # Add summary statistics
+        mean_val = test_resistance_prop.mean()
+        max_val = test_resistance_prop.max()
+        textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+        props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+        axes4[2].text(0.02, 0.98, textstr, transform=axes4[2].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes4[2].text(0.5, 0.5, 'Data not available\n(test_for_resistance columns)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes4[2].set_title('Proportion of Infected with Test for Resistance')
+        axes4[2].set_axis_off()
+    
+    # 4. Placeholder for future plot (bottom-right)
+    axes4[3].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
+    axes4[3].set_axis_off()
         
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig("output_graphs/grouped_figure_4.png", dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
@@ -1034,13 +1091,13 @@ def generate_summary_statistics(df):
 # =============================================================================
 # PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS
 # =============================================================================
-def create_proportion_of_population_with_presence_bacteria_plots(df):
+def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df):
     """
     For each bacteria, plot the proportion of the population with presence_microbiome = true.
-    Each plot is saved as output_graphs/proportion_of_population_with_presence_bacteria/bacteria_x_presence_proportion.png
+    Each plot is saved as output_graphs/proportion_of_population_with_microbiome_presence_bacteria/bacteria_x_presence_proportion.png
     """
     print("\n=== CREATING PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS ===")
-    out_dir = Path("output_graphs/proportion_of_population_with_presence_bacteria")
+    out_dir = Path("output_graphs/proportion_of_population_with_microbiome_presence_bacteria")
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # Find all columns matching *_presence_microbiome
@@ -1275,10 +1332,10 @@ def main():
         print("\n=== SKIPPING resistance_mechanism_by_bacteria plots (set resistance_mechanism_by_bacteria = True to enable) ===")
     
     # Proportion of population with presence bacteria plots
-    if proportion_of_population_with_presence_bacteria:
-        create_proportion_of_population_with_presence_bacteria_plots(df)
+    if proportion_of_population_with_microbiome_presence_bacteria:
+        create_proportion_of_population_with_microbiome_presence_bacteria_plots(df)
     else:
-        print("\n=== SKIPPING proportion_of_population_with_presence_bacteria plots (set proportion_of_population_with_presence_bacteria = True to enable) ===")
+        print("\n=== SKIPPING proportion_of_population_with_microbiome_presence_bacteria plots (set proportion_of_population_with_microbiome_presence_bacteria = True to enable) ===")
     
     # Source of new resistance by bacteria-drug plots
     if source_of_new_resistance_by_drug_bacteria:

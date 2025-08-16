@@ -225,6 +225,8 @@ pub struct Individual {
     pub test_identified_infection: Vec<bool>,      
     /// Tracks if resistance test has been performed for each bacteria
     pub test_for_resistance: Vec<bool>, // REMAOVE ?: NEW: tracks if resistance test has been performed for each bacteria
+    /// Tracks when resistance testing was initiated for each bacteria (-1 if never initiated)
+    pub resistance_test_initiated_day: Vec<i32>, // NEW: tracks when resistance testing was started
     pub cur_use_drug: Vec<bool>,
     /// Standard level is 10 for a day on which a standard dose is taken / administered
     pub cur_level_drug: Vec<f64>,  // REMAOVE ?: standard level is 10 for a day on which a standard dose is taken / administered 
@@ -277,6 +279,7 @@ impl Individual {
         let cur_infection_from_environment = vec![false; num_bacteria];
         let test_identified_infection = vec![false; num_bacteria];
         let test_for_resistance = vec![false; num_bacteria]; // NEW: initialize all to false
+        let resistance_test_initiated_day = vec![-1; num_bacteria]; // NEW: initialize all to -1 (never initiated)
         let vaccination_status = (0..num_bacteria).map(|_| rng.gen_bool(0.5)).collect();
 
         let mut resistances = Vec::with_capacity(num_bacteria);
@@ -344,6 +347,7 @@ impl Individual {
             cur_infection_from_environment,
             test_identified_infection,
             test_for_resistance,
+            resistance_test_initiated_day,
             current_toxicity: rng.gen_range(0.0..=3.0),
             mortality_risk_current_toxicity: 0.0, 
             resistances,

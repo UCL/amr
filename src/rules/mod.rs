@@ -1711,11 +1711,23 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let prob_test_r_done = get_global_param("prob_test_r_done").unwrap_or(0.95);
         let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
         let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
+        let resistance_test_result_delay_days = get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32;
 
         if *current_test_status_entry {
-            let test_r_already_set = individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
-            if !test_r_already_set {
+            // Check if we should initiate resistance testing (if not already initiated)
+            if individual.resistance_test_initiated_day[b_idx] == -1 {
                 if rng.gen_bool(prob_test_r_done) {
+                    // Set the flag indicating resistance testing was initiated
+                    individual.test_for_resistance[b_idx] = true;
+                    individual.resistance_test_initiated_day[b_idx] = time_step as i32;
+                }
+            }
+            
+            // Check if resistance test results should be available yet
+            let test_initiated_day = individual.resistance_test_initiated_day[b_idx];
+            if test_initiated_day != -1 && (time_step as i32) >= (test_initiated_day + resistance_test_result_delay_days) {
+                let test_r_already_set = individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
+                if !test_r_already_set {
                     for d_idx in 0..DRUG_SHORT_NAMES.len() {
                         let any_r = individual.resistances[b_idx][d_idx].any_r;
                         let error = rng.gen_bool(test_r_error_prob);
@@ -1727,12 +1739,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         individual.resistances[b_idx][d_idx].test_r = test_r;
                     }
                 }
-            } else {
-                for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                    individual.resistances[b_idx][d_idx].test_r = 0.0;
-                }
             }
         } else {
+            // Reset resistance test results if bacterial identification test is negative
             for d_idx in 0..DRUG_SHORT_NAMES.len() {
                 individual.resistances[b_idx][d_idx].test_r = 0.0;
             }
@@ -1842,6 +1851,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             individual.cur_infection_from_environment[b_idx] = false;
             individual.test_identified_infection[b_idx] = false;
             individual.test_for_resistance[b_idx] = false;
+            individual.resistance_test_initiated_day[b_idx] = -1;
         }
 
         // --- NEW: Apply cross-resistance logic ---
