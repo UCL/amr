@@ -1,38 +1,3 @@
-/* 
-        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
-        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
-
-        map.insert("acquisition_log_odds_baseline".to_string(), -14.0); // -14.0 Default baseline log-odds for infection acquisition
-        
-        for &drug in DRUG_SHORT_NAMES.iter() {
-        for &bacteria in BACTERIA_LIST.iter() {
-        if drug == "sulfanilamide" {
-            map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85);
-        }
-        }
-        }
-
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
-        map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.001);  // 0.005
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.005); // Separate baseline for microbiome resistance emergence
-
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // ESBL emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0005); // Carbapenemase emergence (rarer)
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.002); // AmpC emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Aminoglycoside resistance
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.001); // Quinolone resistance
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // More common mechanism
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.001); // Macrolide resistance
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0002); // Vancomycin resistance (rare)
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
-        
-*/
-
-
-
-
 
 //
 // Centralized configuration and parameter management for the AMR simulation.
@@ -260,21 +225,32 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01); // Default low potency (was 0.01)
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.01);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
             } 
         }
 
         // examples of how to override potencies
         // Specific override: sulfanilamide has high potency against haemophilus influenzae
         // map.insert("drug_sulfanilamide_for_bacteria_haemophilus influenzae_potency_when_no_r".to_string(), 0.85); // Example high potency
-        // override for all bacteria
+        
+        // Sulfanilamide - historically effective against specific pathogens
         for &drug in DRUG_SHORT_NAMES.iter() {
-        for &bacteria in BACTERIA_LIST.iter() {
-        if drug == "sulfanilamide" {
-            map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.10);
-        }
-        }
+            for &bacteria in BACTERIA_LIST.iter() {
+                if drug == "sulfanilamide" {
+                    let potency = match bacteria {
+                        // Excellent against streptococci (historical primary indication)
+                        bacteria if bacteria.contains("streptococcus") => 0.85,
+                        // Good against E. coli (UTI treatment)
+                        "escherichia coli" => 0.65,
+                        // Moderate against other gram-positives
+                        "staphylococcus aureus" => 0.45,
+                        // Limited against enterococci and most gram-negatives
+                        _ => 0.20,
+                    };
+                    map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                }
+            }
         }
 
         // Set specific potencies based on clinical evidence
@@ -542,7 +518,7 @@ lazy_static! {
         // Microbiome acquisition now uses infection acquisition parameters plus a single offset
         map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
         // Environmental resistance level for new acquisitions
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.00); // 0.001  0.01       
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
   
         map.insert("max_resistance_level".to_string(), 1.0);
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.01); // 0.01
@@ -550,7 +526,7 @@ lazy_static! {
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); // 0.005 Separate baseline for microbiome resistance emergence
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.005); // Separate baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
@@ -560,17 +536,17 @@ lazy_static! {
     
         // --- Resistance Mechanisms Parameters ---
         // Baseline emergence rates for specific resistance mechanisms (per day when drug present)
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0); // ESBL emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0); // Carbapenemase emergence (rarer)
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.0); // AmpC emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0); // Aminoglycoside resistance
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0); // Quinolone resistance
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.0); // More common mechanism
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0); // Macrolide resistance
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0); // Vancomycin resistance (rare)
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0); // MRSA emergence
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.0); // Common adaptive mechanism
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0); // Point mutations
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0005); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.002); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.001); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.001); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0002); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
         
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
         map.insert("resistance_mechanism_esbl_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
@@ -1340,10 +1316,10 @@ lazy_static! {
         
 
         // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 730);   // 2555 // 1937 (simulation start, 7 years after 1930)
+        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
 
         // Beta-lactams (Penicillins)
-        map.insert("penicilling", 1460);     // 3555 // 1942 (12 years after 1930)
+        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
         map.insert("ampicillin", 11315);     // 11315 // 1961 (31 years after 1930)
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
