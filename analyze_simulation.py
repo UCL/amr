@@ -33,6 +33,9 @@ death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = False
+proportion_of_microbiome_presence_with_resistance_by_drug = False
+mean_any_r_by_drug_for_each_bacteria = False
+mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 
 # =============================================================================
@@ -449,9 +452,47 @@ def create_grouped_plots(df):
         axes4[2].set_title('Proportion of Infected with Test for Resistance')
         axes4[2].set_axis_off()
     
-    # 4. Placeholder for future plot (bottom-right)
-    axes4[3].text(0.5, 0.5, 'Future plot', ha='center', va='center', fontsize=14, color='gray')
-    axes4[3].set_axis_off()
+    # 4. Mean Any-R by Region (pooled across all bacteria and drugs) (bottom-right)
+    region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_display_names = ['North America', 'South America', 'Africa', 'Asia', 'Europe', 'Oceania']
+    
+    found_region_data = False
+    for i, region in enumerate(region_names):
+        any_r_col = f"{region}_any_r_sum"
+        infected_col = f"{region}_infected_count"
+        
+        if any_r_col in df.columns and infected_col in df.columns:
+            # Calculate mean any_r = sum / infected_count
+            any_r_sum = df[any_r_col]
+            infected_count = df[infected_col]
+            
+            # Calculate mean resistance, handling division by zero
+            mean_any_r = []
+            for j in range(len(df)):
+                if infected_count.iloc[j] > 0:
+                    mean_any_r.append(any_r_sum.iloc[j] / infected_count.iloc[j])
+                else:
+                    mean_any_r.append(0.0)  # No infections = no resistance
+            
+            mean_any_r = pd.Series(mean_any_r)
+            # Apply smoothing
+            mean_any_r_smooth = mean_any_r.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            axes4[3].plot(df['time_in_years'], mean_any_r_smooth, 
+                         label=region_display_names[i], linewidth=2)
+            found_region_data = True
+    
+    if found_region_data:
+        axes4[3].set_title('Mean Any-R Resistance Level by Region\n(All Bacteria & Drugs Pooled)', fontsize=12)
+        axes4[3].set_xlabel('Time (Years)', fontsize=10)
+        axes4[3].set_ylabel('Mean Any-R Level (0-1)', fontsize=10)
+        axes4[3].set_ylim(0, 1)
+        axes4[3].grid(True, alpha=0.3)
+        axes4[3].legend(fontsize=8, loc='upper left')
+        axes4[3].tick_params(axis='both', which='major', labelsize=9)
+    else:
+        axes4[3].text(0.5, 0.5, 'Region data not available', ha='center', va='center', fontsize=12, color='gray')
+        axes4[3].set_axis_off()
         
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig("output_graphs/grouped_figure_4.png", dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
@@ -1136,6 +1177,273 @@ def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df):
         print(f"  ✓ {fname} saved.")
 
 # =============================================================================
+# PROPORTION OF MICROBIOME PRESENCE WITH RESISTANCE BY DRUG PLOTS
+# =============================================================================
+def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(df):
+    """
+    For each bacteria, plot the proportion of people with presence_microbiome who have microbiome_r > 0 for each drug.
+    Each plot is saved as output_graphs/proportion_of_microbiome_presence_with_resistance_by_drug/bacteria_x_microbiome_resistance_by_drug.png
+    """
+    print("\n=== CREATING PROPORTION OF MICROBIOME PRESENCE WITH RESISTANCE BY DRUG PLOTS ===")
+    out_dir = Path("output_graphs/proportion_of_microbiome_presence_with_resistance_by_drug")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for *_presence_microbiome columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith('_presence_microbiome'):
+            bacteria_names.append(col.replace('_presence_microbiome', ''))
+    
+    if not bacteria_names:
+        print("No *_presence_microbiome columns found in data.")
+        return
+    
+    # Find all drugs by looking for microbiome_r columns
+    drug_names = []
+    for col in df.columns:
+        if '_microbiome_r_positive_' in col:
+            # Extract drug name from column like "bacteria_microbiome_r_positive_drugname"
+            parts = col.split('_microbiome_r_positive_')
+            if len(parts) == 2:
+                drug_names.append(parts[1])
+    
+    drug_names = sorted(set(drug_names))
+    
+    if not drug_names:
+        print("No microbiome resistance columns found in data.")
+        return
+    
+    print(f"Found {len(bacteria_names)} bacteria and {len(drug_names)} drugs for microbiome resistance analysis...")
+    
+    for bacteria_name in bacteria_names:
+        presence_col = f"{bacteria_name}_presence_microbiome"
+        
+        if presence_col not in df.columns:
+            print(f"  ✗ Missing presence column for {bacteria_name}")
+            continue
+        
+        plt.figure(figsize=(25, 40))  # Adjusted height: 25 inches wide, 40 inches tall
+        
+        found_any_drug = False
+        for drug_name in drug_names:
+            resistance_col = f"{bacteria_name}_microbiome_r_positive_{drug_name}"
+            
+            if resistance_col not in df.columns:
+                continue
+            
+            found_any_drug = True
+            
+            # Calculate proportion: people with microbiome_r > 0 / people with presence_microbiome
+            prop = safe_divide(df[resistance_col], df[presence_col])
+            
+            # Apply rolling mean smoothing
+            prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            plt.plot(df['time_in_years'], prop_smooth, 
+                    label=f"{drug_name.replace('_', ' ').title()}", 
+                    linewidth=7)
+        
+        if not found_any_drug:
+            print(f"  ✗ No drug resistance columns found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        plt.title(f"Proportion of {bacteria_name.replace('_', ' ').title()} Microbiome Carriers with Resistance by Drug", 
+                 fontsize=60)  # Increased from 40 to 60 (50% larger)
+        plt.ylabel('Proportion with Resistance', fontsize=60)  # Increased from 40 to 60
+        plt.xlabel('Time (Years)', fontsize=60)  # Increased from 40 to 60
+        plt.ylim(0, 1)
+        plt.xlim(0, df['time_in_years'].max() * 0.75)  # Limit x-axis to 75% of the time range
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Drug', fontsize=30, title_fontsize=36)  # Increased from 20 to 30, title from 24 to 36
+        plt.tick_params(axis='both', which='major', labelsize=45)  # Increased from 30 to 45
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_microbiome_resistance_by_drug.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS
+# =============================================================================
+def create_mean_any_r_by_drug_for_each_bacteria_plots(df):
+    """
+    For each bacteria, plot the mean any_r resistance level for each drug over time.
+    Mean any_r = sum_any_r / number_currently_infected for each bacteria-drug combination.
+    Each plot is saved as output_graphs/mean_any_r_by_drug_for_each_bacteria/bacteria_x_mean_any_r_by_drug.png
+    """
+    print("\n=== CREATING MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS ===")
+    out_dir = Path("output_graphs/mean_any_r_by_drug_for_each_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for sum_any_r columns
+    bacteria_names = set()
+    for col in df.columns:
+        if '_sum_any_r_' in col and '_sum_any_r_hospital_' not in col:
+            bacteria_name = col.split('_sum_any_r_')[0]
+            bacteria_names.add(bacteria_name)
+    
+    if not bacteria_names:
+        print("No sum_any_r columns found in data.")
+        return
+    
+    print(f"Found {len(bacteria_names)} bacteria for mean any_r analysis...")
+    
+    for bacteria_name in bacteria_names:
+        # Check if we have infection data for this bacteria
+        infection_col = f"{bacteria_name}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"  ✗ Missing infection data for {bacteria_name}")
+            continue
+        
+        plt.figure(figsize=(25, 40))  # Same size as other resistance plots
+        
+        # Find all drugs for this bacteria
+        sum_any_r_columns = [col for col in df.columns if col.startswith(f"{bacteria_name}_sum_any_r_") and not col.startswith(f"{bacteria_name}_sum_any_r_hospital_")]
+        
+        if not sum_any_r_columns:
+            print(f"  ✗ No sum_any_r columns found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        found_any_drug = False
+        for col in sum_any_r_columns:
+            drug_name = col.replace(f"{bacteria_name}_sum_any_r_", "")
+            
+            # Calculate mean any_r = sum_any_r / currently_infected
+            sum_any_r = df[col]
+            currently_infected = df[infection_col]
+            
+            # Calculate mean resistance, handling division by zero
+            mean_any_r = []
+            for i in range(len(df)):
+                if currently_infected.iloc[i] > 0:
+                    mean_any_r.append(sum_any_r.iloc[i] / currently_infected.iloc[i])
+                else:
+                    mean_any_r.append(0.0)  # No infections = no resistance
+            
+            mean_any_r = pd.Series(mean_any_r)
+            
+            # Apply smoothing
+            mean_any_r_smooth = mean_any_r.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            plt.plot(df['time_in_years'], mean_any_r_smooth, 
+                    label=drug_name.replace('_', ' ').title(), 
+                    linewidth=7)
+            found_any_drug = True
+        
+        if not found_any_drug:
+            print(f"  ✗ No valid drug data found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        plt.title(f"Mean Any-R Resistance Level for {bacteria_name.replace('_', ' ').title()} by Drug", fontsize=60)
+        plt.ylabel('Mean Any-R Resistance Level (0-1)', fontsize=60)
+        plt.xlabel('Time (Years)', fontsize=60)
+        plt.ylim(0, 1)
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Drug', fontsize=30, title_fontsize=36)
+        plt.tick_params(axis='both', which='major', labelsize=45)
+        plt.tight_layout()
+        
+        filename = f"{bacteria_name}_mean_any_r_by_drug.png"
+        file_path = out_dir / filename
+        plt.savefig(file_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {file_path} saved.")
+
+# =============================================================================
+# MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS (HOSPITAL-ACQUIRED ONLY)
+# =============================================================================
+def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(df):
+    """
+    For each bacteria, plot the mean any_r resistance level for each drug over time,
+    restricted to hospital-acquired infections only.
+    Mean any_r = sum_any_r_hospital / number_currently_infected for each bacteria-drug combination.
+    Each plot is saved as output_graphs/mean_any_r_by_drug_for_each_bacteria_hospital/bacteria_x_mean_any_r_by_drug_hospital.png
+    """
+    print("\n=== CREATING MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS (HOSPITAL-ACQUIRED ONLY) ===")
+    out_dir = Path("output_graphs/mean_any_r_by_drug_for_each_bacteria_hospital")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for sum_any_r_hospital columns
+    bacteria_names = set()
+    for col in df.columns:
+        if '_sum_any_r_hospital_' in col:
+            bacteria_name = col.split('_sum_any_r_hospital_')[0]
+            bacteria_names.add(bacteria_name)
+    
+    if not bacteria_names:
+        print("No sum_any_r_hospital columns found in data.")
+        return
+    
+    print(f"Found {len(bacteria_names)} bacteria for hospital-acquired mean any_r analysis...")
+    
+    for bacteria_name in bacteria_names:
+        # Check if we have infection data for this bacteria
+        infection_col = f"{bacteria_name}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"  ✗ Missing infection data for {bacteria_name}")
+            continue
+        
+        plt.figure(figsize=(25, 40))  # Same size as other resistance plots
+        
+        # Find all drugs for this bacteria (hospital version)
+        sum_any_r_hospital_columns = [col for col in df.columns if col.startswith(f"{bacteria_name}_sum_any_r_hospital_")]
+        
+        if not sum_any_r_hospital_columns:
+            print(f"  ✗ No sum_any_r_hospital columns found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        found_any_drug = False
+        for col in sum_any_r_hospital_columns:
+            drug_name = col.replace(f"{bacteria_name}_sum_any_r_hospital_", "")
+            
+            # Calculate mean any_r = sum_any_r_hospital / currently_infected
+            sum_any_r_hospital = df[col]
+            currently_infected = df[infection_col]
+            
+            # Calculate mean resistance, handling division by zero
+            mean_any_r_hospital = []
+            for i in range(len(df)):
+                if currently_infected.iloc[i] > 0:
+                    mean_any_r_hospital.append(sum_any_r_hospital.iloc[i] / currently_infected.iloc[i])
+                else:
+                    mean_any_r_hospital.append(0.0)  # No infections = no resistance
+            
+            mean_any_r_hospital = pd.Series(mean_any_r_hospital)
+            
+            # Apply smoothing
+            mean_any_r_hospital_smooth = mean_any_r_hospital.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            plt.plot(df['time_in_years'], mean_any_r_hospital_smooth, 
+                    label=drug_name.replace('_', ' ').title(), 
+                    linewidth=7)
+            found_any_drug = True
+        
+        if not found_any_drug:
+            print(f"  ✗ No valid drug data found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        plt.title(f"Mean Any-R Resistance Level for {bacteria_name.replace('_', ' ').title()} by Drug\n(Hospital-Acquired Infections Only)", fontsize=60)
+        plt.ylabel('Mean Any-R Resistance Level (0-1)', fontsize=60)
+        plt.xlabel('Time (Years)', fontsize=60)
+        plt.ylim(0, 1)
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Drug', fontsize=30, title_fontsize=36)
+        plt.tick_params(axis='both', which='major', labelsize=45)
+        plt.tight_layout()
+        
+        filename = f"{bacteria_name}_mean_any_r_by_drug_hospital.png"
+        file_path = out_dir / filename
+        plt.savefig(file_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {file_path} saved.")
+
+# =============================================================================
 # RESISTANCE MECHANISM PROPORTION BY BACTERIA PLOTS
 # =============================================================================
 def create_resistance_mechanism_by_bacteria_plots(df):
@@ -1337,6 +1645,24 @@ def main():
     else:
         print("\n=== SKIPPING proportion_of_population_with_microbiome_presence_bacteria plots (set proportion_of_population_with_microbiome_presence_bacteria = True to enable) ===")
     
+    # Proportion of microbiome presence with resistance by drug plots
+    if proportion_of_microbiome_presence_with_resistance_by_drug:
+        create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(df)
+    else:
+        print("\n=== SKIPPING proportion_of_microbiome_presence_with_resistance_by_drug plots (set proportion_of_microbiome_presence_with_resistance_by_drug = True to enable) ===")
+    
+    # Mean any_r by drug for each bacteria plots
+    if mean_any_r_by_drug_for_each_bacteria:
+        create_mean_any_r_by_drug_for_each_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING mean_any_r_by_drug_for_each_bacteria plots (set mean_any_r_by_drug_for_each_bacteria = True to enable) ===")
+    
+    # Mean any_r by drug for each bacteria plots (hospital-acquired only)
+    if mean_any_r_by_drug_for_each_bacteria_hospital:
+        create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(df)
+    else:
+        print("\n=== SKIPPING mean_any_r_by_drug_for_each_bacteria_hospital plots (set mean_any_r_by_drug_for_each_bacteria_hospital = True to enable) ===")
+    
     # Source of new resistance by bacteria-drug plots
     if source_of_new_resistance_by_drug_bacteria:
         create_source_of_new_resistance_by_drug_bacteria_plots(df)
@@ -1347,8 +1673,11 @@ def main():
     export_data_files(df)
     # export_txt_data_file(df)
     generate_summary_statistics(df)
-    # Standalone stacked drug share plot
-    create_stacked_drug_share_plot(df)
+    
+    # Standalone stacked drug share plot (only if toggle is enabled)
+    if proportion_share_among_drug_users:
+        create_stacked_drug_share_plot(df)
+    
     # Summary of generated files
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")

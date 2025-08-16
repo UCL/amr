@@ -34,20 +34,7 @@ mod config;
 //
 //
 //
-// would like to think of having a toggle in analyze_simulation.py to specify that (as relevant) all graphs are 
-// specific to a specified bacteria 
 //
-
-/*  
-
-of those infected proportion with test_identified_infection = true
-of those infected proportion with test_for_resistance = true
-
-proportion of population with presence_microbiome by bacteria
-for each bacteria (and by drug on each bacteria plot), proportion of those with presence_microbiome who have any_r > 0  
-
-*/ 
-
 //
 //
 // // parameter values (recognising there will be many changes) //

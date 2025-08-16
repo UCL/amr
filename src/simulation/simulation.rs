@@ -12,7 +12,7 @@
 // when want to print variable values for individual 0 for de-bugging
 
 
-use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES, ResistanceMechanism};
+use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES, ResistanceMechanism, Region};
 use crate::rules::apply_rules;
 use crate::config; // Import the config module
 use std::collections::HashMap;
@@ -20,6 +20,27 @@ use rayon::prelude::*;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
 use std::time::Instant;
 use std::io::Write;
+
+// Helper function to convert Region enum to array index
+fn region_to_index(region: Region) -> usize {
+    match region {
+        Region::NorthAmerica => 0,
+        Region::SouthAmerica => 1,
+        Region::Africa => 2,
+        Region::Asia => 3,
+        Region::Europe => 4,
+        Region::Oceania => 5,
+        Region::Home => panic!("Home should be resolved to actual region before calling this function"),
+    }
+}
+
+// Helper function to get the effective region (resolves Home to actual home region)
+fn get_effective_region(individual: &crate::simulation::population::Individual) -> Region {
+    match individual.region_cur_in {
+        Region::Home => individual.region_living,
+        other => other,
+    }
+}
 
 // Compact structure for time step summary data
 #[allow(dead_code)]
@@ -76,6 +97,18 @@ pub struct TimeStepSummary {
 
     // NEW: per-bacteria, per-drug microbiome_r > 0 counts (flat, len = bacteria * drugs)
     pub microbiome_r_positive_by_bacteria_drug: Vec<usize>,
+
+    // NEW: per-bacteria, per-drug any_r sum values for infected individuals (flat, len = bacteria * drugs)
+    pub any_r_sum_by_bacteria_drug: Vec<f64>,
+    
+    // NEW: per-bacteria, per-drug any_r sum values for hospital-acquired infected individuals (flat, len = bacteria * drugs)
+    pub any_r_sum_by_bacteria_drug_hospital: Vec<f64>,
+
+    // NEW: per-region any_r sum values pooled across all bacteria and drugs (indexed by region)
+    pub any_r_sum_by_region: Vec<f64>,
+    
+    // NEW: per-region count of infected individuals (for calculating mean) (indexed by region)
+    pub infected_count_by_region: Vec<usize>,
 
     // per-drug currently on drug counts (indexed by drug)
     pub currently_on_drug_by_drug: Vec<usize>,
@@ -278,6 +311,14 @@ impl Simulation {
                 num_age_80plus: usize,
                 /// NEW: per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
                 activity_r_sum_by_bacteria: Vec<f64>,
+                /// NEW: per-bacteria, per-drug sum of any_r values for infected individuals (float, indexed by bacteria * drugs)
+                any_r_sum_by_bacteria_drug: Vec<f64>,
+                /// NEW: per-bacteria, per-drug sum of any_r values for hospital-acquired infected individuals (float, indexed by bacteria * drugs)
+                any_r_sum_by_bacteria_drug_hospital: Vec<f64>,
+                /// NEW: per-region sum of any_r values pooled across all bacteria and drugs (indexed by region)
+                any_r_sum_by_region: Vec<f64>,
+                /// NEW: per-region count of infected individuals (for calculating mean) (indexed by region)
+                infected_count_by_region: Vec<usize>,
                 /// NEW: per-bacteria, per-resistance-mechanism counts (flat, len = bacteria * mechanisms)
                 infected_with_bacteria_and_mechanism: Vec<usize>,
                 /// NEW: counts of newly acquired resistance by acquisition type this timestep per bacteria-drug combination
@@ -325,6 +366,10 @@ impl Simulation {
                         num_age_50_79: 0,
                         num_age_80plus: 0,
                         activity_r_sum_by_bacteria: vec![0.0; num_bacteria],
+                        any_r_sum_by_bacteria_drug: vec![0.0; num_bacteria * num_drugs],
+                        any_r_sum_by_bacteria_drug_hospital: vec![0.0; num_bacteria * num_drugs],
+                        any_r_sum_by_region: vec![0.0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania (excluding Home)
+                        infected_count_by_region: vec![0; 6], // 6 regions
                         infected_with_bacteria_and_mechanism: vec![0; num_bacteria * ResistanceMechanism::all().len()],
                         new_resistance_at_infection_community_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         new_resistance_at_infection_env_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
@@ -369,6 +414,10 @@ impl Simulation {
                     self.num_age_50_79 += other.num_age_50_79;
                     self.num_age_80plus += other.num_age_80plus;
                     for (a,b) in self.activity_r_sum_by_bacteria.iter_mut().zip(other.activity_r_sum_by_bacteria) { *a += b; }
+                    for (a,b) in self.any_r_sum_by_bacteria_drug.iter_mut().zip(other.any_r_sum_by_bacteria_drug) { *a += b; }
+                    for (a,b) in self.any_r_sum_by_bacteria_drug_hospital.iter_mut().zip(other.any_r_sum_by_bacteria_drug_hospital) { *a += b; }
+                    for (a,b) in self.any_r_sum_by_region.iter_mut().zip(other.any_r_sum_by_region) { *a += b; }
+                    for (a,b) in self.infected_count_by_region.iter_mut().zip(other.infected_count_by_region) { *a += b; }
                     for (a,b) in self.infected_with_bacteria_and_mechanism.iter_mut().zip(other.infected_with_bacteria_and_mechanism) { *a += b; }
                     for (a,b) in self.new_resistance_at_infection_community_by_bacteria_drug.iter_mut().zip(other.new_resistance_at_infection_community_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.new_resistance_at_infection_env_by_bacteria_drug.iter_mut().zip(other.new_resistance_at_infection_env_by_bacteria_drug) { *a += b; }
@@ -387,6 +436,15 @@ impl Simulation {
             .fold(|| LocalTotals::new(num_bacteria, num_drugs, per_thread_cap), |mut lt, individual| {
                         // Pre-rules MIC snapshot
                         if individual.date_of_death.is_none() {
+                                // Check if individual is infected with any bacteria
+                                let is_infected = individual.level.iter().any(|&level| level > 0.001);
+                                if is_infected {
+                                    // Count infected individual by region (only once per individual)
+                                    let effective_region = get_effective_region(individual);
+                                    let region_idx = region_to_index(effective_region);
+                                    lt.infected_count_by_region[region_idx] += 1;
+                                }
+                                
                                 for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > 0.001 {
                                     let base = b_idx * num_drugs;
@@ -402,6 +460,16 @@ impl Simulation {
                                         if individual.cur_use_drug[d_idx] {
                                             lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
                                         }
+                                        // Sum any_r values for infected individuals
+                                        lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
+                                        // Sum any_r values for hospital-acquired infected individuals
+                                        if individual.infection_hospital_acquired[b_idx] {
+                                            lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
+                                        }
+                                        // Sum any_r values by region (pooled across all bacteria and drugs)
+                                        let effective_region = get_effective_region(individual);
+                                        let region_idx = region_to_index(effective_region);
+                                        lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
                                     }
                                     
                                     // Count resistance mechanisms for this bacteria
@@ -596,6 +664,10 @@ impl Simulation {
                     num_age_50_79,
                     num_age_80plus,
                     activity_r_sum_by_bacteria,
+                    any_r_sum_by_bacteria_drug,
+                    any_r_sum_by_bacteria_drug_hospital,
+                    any_r_sum_by_region,
+                    infected_count_by_region,
                     infected_with_bacteria_and_mechanism,
                     new_resistance_at_infection_community_by_bacteria_drug,
                     new_resistance_at_infection_env_by_bacteria_drug,
@@ -637,6 +709,10 @@ impl Simulation {
                 infected_and_standardized_mic_lt2_by_bacteria_drug,
                 currently_on_drug_by_bacteria_drug,
                 microbiome_r_positive_by_bacteria_drug,
+                any_r_sum_by_bacteria_drug,
+                any_r_sum_by_bacteria_drug_hospital,
+                any_r_sum_by_region,
+                infected_count_by_region,
                 currently_on_drug_by_drug,
                 num_age_0_5,
                 num_age_6_14,
@@ -936,6 +1012,27 @@ impl Simulation {
                 write!(file, ",{}_microbiome_r_positive_{}", bacteria.replace(" ", "_"), drug)?;
             }
         }
+        // Add per-bacteria, per-drug any_r sum columns
+        for bacteria in BACTERIA_LIST.iter() {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                write!(file, ",{}_sum_any_r_{}", bacteria.replace(" ", "_"), drug)?;
+            }
+        }
+        // Add per-bacteria, per-drug any_r sum columns for hospital-acquired infections
+        for bacteria in BACTERIA_LIST.iter() {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                write!(file, ",{}_sum_any_r_hospital_{}", bacteria.replace(" ", "_"), drug)?;
+            }
+        }
+        // Add per-region any_r sum columns (pooled across all bacteria and drugs)
+        let region_names = ["north_america", "south_america", "africa", "asia", "europe", "oceania"];
+        for region in region_names.iter() {
+            write!(file, ",{}_any_r_sum", region)?;
+        }
+        // Add per-region infected count columns
+        for region in region_names.iter() {
+            write!(file, ",{}_infected_count", region)?;
+        }
         // Add per-bacteria infected and on any drug columns to header (after other per-bacteria columns)
         for bacteria in BACTERIA_LIST.iter() {
             write!(file, ",{}_infected_and_on_any_drug", bacteria.replace(" ", "_"))?;
@@ -1050,6 +1147,28 @@ impl Simulation {
                     let idx = b_idx * DRUG_SHORT_NAMES.len() + d_idx;
                     write!(file, ",{}", summary.microbiome_r_positive_by_bacteria_drug[idx])?;
                 }
+            }
+            // Output per-bacteria, per-drug any_r sum values
+            for b_idx in 0..BACTERIA_LIST.len() {
+                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let idx = b_idx * DRUG_SHORT_NAMES.len() + d_idx;
+                    write!(file, ",{}", summary.any_r_sum_by_bacteria_drug[idx])?;
+                }
+            }
+            // Output per-bacteria, per-drug any_r sum values for hospital-acquired infections
+            for b_idx in 0..BACTERIA_LIST.len() {
+                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                    let idx = b_idx * DRUG_SHORT_NAMES.len() + d_idx;
+                    write!(file, ",{}", summary.any_r_sum_by_bacteria_drug_hospital[idx])?;
+                }
+            }
+            // Output per-region any_r sum values (pooled across all bacteria and drugs)
+            for region_idx in 0..6 {
+                write!(file, ",{}", summary.any_r_sum_by_region[region_idx])?;
+            }
+            // Output per-region infected count values
+            for region_idx in 0..6 {
+                write!(file, ",{}", summary.infected_count_by_region[region_idx])?;
             }
             // Output per-bacteria infected and on any drug counts
             for b_idx in 0..BACTERIA_LIST.len() {
