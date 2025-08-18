@@ -16,7 +16,7 @@ from pathlib import Path
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 10
+SMOOTHING_WINDOW_DAYS = 91
 
 # =============================================================================
 # TOGGLE: Set to True to generate output_graphs plots, False to skip them
@@ -37,6 +37,9 @@ proportion_of_microbiome_presence_with_resistance_by_drug = False
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
+
+# NEW TOGGLE: infection resolution tracking plots
+infection_resolution_by_bacteria = True
 
 # =============================================================================
 # CONFIGURATION
@@ -1588,6 +1591,110 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df):
     print(f"✓ Completed {len(bacteria_drug_pairs)} source of new resistance plots.")
 
 # =============================================================================
+# INFECTION RESOLUTION TRACKING PLOTS
+# =============================================================================
+def create_infection_resolution_by_bacteria_plots(df):
+    """
+    For each bacteria, create stacked area charts showing infection resolution outcomes.
+    Each plot is saved as output_graphs/infection_resolution_by_bacteria/bacteria_x_infection_resolution.png
+    """
+    print("\n=== CREATING INFECTION RESOLUTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/infection_resolution_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find bacteria with infection resolution data
+    bacteria_with_resolution_data = set()
+    resolution_types = ['immune_clearance', 'drug_assisted_clearance', 'death_from_sepsis', 
+                       'death_from_background', 'death_from_toxicity']
+    
+    for col in df.columns:
+        if 'infection_resolution' in col:
+            # Extract bacteria name from column like "bacteria_name_infection_resolution_immune_clearance"
+            parts = col.split('_infection_resolution_')
+            if len(parts) == 2:
+                bacteria_name = parts[0]
+                bacteria_with_resolution_data.add(bacteria_name)
+    
+    if not bacteria_with_resolution_data:
+        print("No infection resolution data found in dataset.")
+        return
+    
+    print(f"Found {len(bacteria_with_resolution_data)} bacteria with resolution data...")
+    
+    # Color scheme for the 5 resolution types
+    colors = {
+        'immune_clearance': '#2ca02c',      # green - good outcome
+        'drug_assisted_clearance': '#1f77b4',  # blue - treatment success
+        'death_from_sepsis': '#d62728',     # red - worst outcome
+        'death_from_background': '#ff7f0e', # orange - unrelated death
+        'death_from_toxicity': '#9467bd'    # purple - treatment complication
+    }
+    
+    labels = {
+        'immune_clearance': 'Immune Clearance',
+        'drug_assisted_clearance': 'Drug-Assisted Clearance',
+        'death_from_sepsis': 'Death from Sepsis',
+        'death_from_background': 'Death from Background Causes',
+        'death_from_toxicity': 'Death from Drug Toxicity'
+    }
+    
+    for bacteria_name in sorted(bacteria_with_resolution_data):
+        # Check if all required columns exist
+        required_cols = [f"{bacteria_name}_infection_resolution_{res_type}" for res_type in resolution_types]
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        
+        if missing_cols:
+            print(f"  ⚠ Skipping {bacteria_name} - missing columns: {missing_cols}")
+            continue
+        
+        # Extract data for this bacteria
+        data = {}
+        for res_type in resolution_types:
+            col_name = f"{bacteria_name}_infection_resolution_{res_type}"
+            # Apply smoothing to reduce noise
+            data[res_type] = pd.Series(df[col_name]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        # Create stacked area plot
+        plt.figure(figsize=(int(FIG_W * 1.5), int(FIG_H)))
+        
+        # Plot as stacked area chart
+        plt.stackplot(df['time_in_years'],
+                     data['immune_clearance'], 
+                     data['drug_assisted_clearance'],
+                     data['death_from_sepsis'],
+                     data['death_from_background'],
+                     data['death_from_toxicity'],
+                     labels=[labels[res_type] for res_type in resolution_types],
+                     colors=[colors[res_type] for res_type in resolution_types],
+                     alpha=0.8)
+        
+        # Format the plot
+        bacteria_display = bacteria_name.replace('_', ' ').title()
+        plt.title(f"Infection Resolution Outcomes Over Time\n{bacteria_display}", 
+                 fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('Resolution Events per Timestep (Smoothed)', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.legend(loc='upper right', fontsize=10)
+        plt.tick_params(axis='both', which='major', labelsize=10)
+        
+        # Set y-axis to start from 0
+        plt.ylim(bottom=0)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        safe_bacteria_name = bacteria_name.replace(' ', '_').replace('/', '_')
+        fname = out_dir / f"{safe_bacteria_name}_infection_resolution.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        if len(bacteria_with_resolution_data) <= 10:  # Only print individual confirmations for small numbers
+            print(f"  ✓ {fname} saved.")
+    
+    print(f"✓ Completed {len(bacteria_with_resolution_data)} infection resolution plots.")
+
+# =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
 
@@ -1668,6 +1775,12 @@ def main():
         create_source_of_new_resistance_by_drug_bacteria_plots(df)
     else:
         print("\n=== SKIPPING source_of_new_resistance_by_drug_bacteria plots (set source_of_new_resistance_by_drug_bacteria = True to enable) ===")
+    
+    # Infection resolution by bacteria plots
+    if infection_resolution_by_bacteria:
+        create_infection_resolution_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING infection_resolution_by_bacteria plots (set infection_resolution_by_bacteria = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)

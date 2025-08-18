@@ -12,7 +12,8 @@
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
 
 
-use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region}; 
+use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region, 
+                                   InfectionResolutionType}; 
 use crate::config::{
     get_global_param,
     get_bacteria_param,
@@ -207,6 +208,13 @@ pub fn apply_rules(
 
     if individual.date_of_death.is_some() {
         return; // Exit the function if dead
+    }
+
+    // Before applying rules, reset infection resolution counts for this timestep
+    for b_idx in 0..BACTERIA_LIST.len() {
+        for res_idx in 0..InfectionResolutionType::all().len() {
+            individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
+        }
     }
 
     if individual.id == 1000001  { 
@@ -446,7 +454,7 @@ pub fn apply_rules(
                 let last_infected_day = individual.date_last_infected[b_idx];
                 let duration_of_infection = (time_step as i32 - last_infected_day).max(0); // Ensure non-negative duration
 
-                // NEW: Logistic regression model for sepsis risk
+                // Logistic regression model for sepsis risk
                 // Retrieve logistic parameters, falling back to global defaults
                 let sepsis_baseline_odds = get_bacteria_param(bacteria, "sepsis_baseline_odds")
                     .unwrap_or_else(|| get_global_param("sepsis_baseline_odds").expect("Missing sepsis_baseline_odds"));
@@ -911,6 +919,29 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         if rng.gen::<f64>() < prob_of_death_today {
             individual.date_of_death = Some(time_step);
             individual.cause_of_death = cause.or(Some("background_mortality".to_string()));
+            
+            // Track infection resolution due to death for all current infections
+            if let Some(ref death_cause) = individual.cause_of_death {
+                let resolution_type = match death_cause.as_str() {
+                    "sepsis_related" => InfectionResolutionType::DeathFromSepsis,
+                    "drug_toxicity_related" => InfectionResolutionType::DeathFromToxicity,
+                    _ => InfectionResolutionType::DeathFromBackground,
+                };
+                
+                // Record resolution for all currently infected bacteria
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.level[b_idx] > 0.001 {
+                        let resolution_idx = match resolution_type {
+                            InfectionResolutionType::ImmuneClearance => 0,
+                            InfectionResolutionType::DrugAssistedClearance => 1,
+                            InfectionResolutionType::DeathFromSepsis => 2,
+                            InfectionResolutionType::DeathFromBackground => 3,
+                            InfectionResolutionType::DeathFromToxicity => 4,
+                        };
+                        individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
+                    }
+                }
+            }
         }
     }
     // --- death logic end   
@@ -1465,19 +1496,66 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             let activity_r_bell_curve_factor = 0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
                             let final_activity_r_factor = activity_r_bell_curve_factor.clamp(0.0, 1.0);  
 
-
-
-                            if individual.id == 1000001 {
-                                println!(" ");
-                                println!("mod.rs");  
-                                println!("final_activity_r_factor: {:.4}", final_activity_r_factor);
+                            // Calculate multi-drug penalty if multiple drugs are active
+                            let active_drug_count = individual.cur_level_drug.iter()
+                                .filter(|&&level| level > 0.0001)
+                                .count();
+                            
+                            let multi_drug_penalty_threshold = get_global_param("multi_drug_penalty_threshold_num_drugs").unwrap_or(2.0) as usize;
+                            let mut multi_drug_penalty_factor = 1.0;
+                            let mut drugs_affected_by_this_resistance = 1; // Default: single drug resistance
+                            
+                            if active_drug_count >= multi_drug_penalty_threshold {
+                                // Count how many active drugs this potential resistance would affect
+                                drugs_affected_by_this_resistance = if let Some(cross_resistance_groups) = 
+                                    crate::config::get_cross_resistance_groups().get(bacteria) {
+                                    
+                                    let current_drug_name = DRUG_SHORT_NAMES[drug_index];
+                                    let mut affected_count = 0;
+                                    
+                                    // Check if this drug is in any cross-resistance group
+                                    for group in cross_resistance_groups {
+                                        if group.contains(&current_drug_name) {
+                                            // Count how many drugs in this cross-resistance group are currently active
+                                            for &group_drug in group {
+                                                if let Some(group_drug_idx) = DRUG_SHORT_NAMES.iter().position(|&d| d == group_drug) {
+                                                    if individual.cur_level_drug[group_drug_idx] > 0.0001 {
+                                                        affected_count += 1;
+                                                    }
+                                                }
+                                            }
+                                            break; // Found the group, no need to check others
+                                        }
+                                    }
+                                    
+                                    // If drug not in any cross-resistance group, resistance only affects this single drug
+                                    if affected_count == 0 {
+                                        affected_count = 1;
+                                    }
+                                    
+                                    affected_count
+                                } else {
+                                    // No cross-resistance data for this bacteria, assume single drug resistance
+                                    1
+                                };
+                                
+                                // Apply penalty based on how many active drugs the resistance affects
+                                if drugs_affected_by_this_resistance < active_drug_count {
+                                    // Resistance doesn't affect all active drugs
+                                    if drugs_affected_by_this_resistance == 1 {
+                                        // Single drug resistance among multiple active drugs
+                                        multi_drug_penalty_factor = get_global_param("multi_drug_penalty_for_single_drug_resistance").unwrap_or(0.05);
+                                    } else {
+                                        // Partial cross-resistance among multiple active drugs
+                                        multi_drug_penalty_factor = get_global_param("multi_drug_penalty_for_partial_cross_resistance").unwrap_or(0.3);
+                                    }
+                                }
+                                // If drugs_affected_by_this_resistance >= active_drug_count, no penalty (full cross-resistance)
                             }
 
-
-
-                            // total emergence probability
+                            // total emergence probability with multi-drug penalty
                             // adding 1.0 to bacteria_level_factor ensures a base contribution even if multiplier is low
-                            let total_emergence_prob = emergence_rate_baseline * (1.0 + bacteria_level_factor) * final_activity_r_factor;
+                            let total_emergence_prob = emergence_rate_baseline * (1.0 + bacteria_level_factor) * final_activity_r_factor * multi_drug_penalty_factor;
 
                             if rng.gen_bool(total_emergence_prob.clamp(0.0, 1.0)) {
                                 resistance_data.any_r = any_r_emergence_level_on_first_emergence;
@@ -1818,43 +1896,65 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let max_level = get_bacteria_param(bacteria, "max_level").unwrap_or(100.0);
             let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
 
-   
-                if individual.id == 1000001 {
-
-                println!(" "); 
-                println!("mod.rs");                    
-                println!(" ");  
-                println!("bacteria level after previous time step: {:.4}", individual.level[b_idx]);
-                println!("bacteria level after this time step: {:.4}", new_level);
-                println!("calculated change: {:.4}", decay);
-
+            // Check for infection clearance before updating the level
+            let old_level = individual.level[b_idx];
+            
+            if new_level < 0.0001 {
+                // Check if there was an infection before clearance (previous level > 0.001)
+                let was_previously_infected = old_level > 0.001;
+                
+                if was_previously_infected {
+                    // Determine resolution type based on drugs and context
+                    let has_relevant_drugs = individual.cur_use_drug.iter().enumerate()
+                        .any(|(drug_idx, &on_drug)| {
+                            if !on_drug { return false; }
+                            // Check if this drug has potency against this bacteria
+                            let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                            let drug_potency = get_global_param(potency_param_key).unwrap_or(0.0);
+                            drug_potency > 0.0
+                        });
+                    
+                    let resolution_type = if has_relevant_drugs {
+                        InfectionResolutionType::DrugAssistedClearance
+                    } else {
+                        InfectionResolutionType::ImmuneClearance
+                    };
+                    
+                    let resolution_idx = match resolution_type {
+                        InfectionResolutionType::ImmuneClearance => 0,
+                        InfectionResolutionType::DrugAssistedClearance => 1,
+                        InfectionResolutionType::DeathFromSepsis => 2,
+                        InfectionResolutionType::DeathFromBackground => 3,
+                        InfectionResolutionType::DeathFromToxicity => 4,
+                    };
+                    individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
                 }
-
-
-            individual.level[b_idx] = new_level;
-        } 
-
-        if individual.level[b_idx] < 0.0001 {
-            for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
-                let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
-                resistance_data.any_r = 0.0;
-                resistance_data.majority_r = 0.0;
-                resistance_data.activity_r = 0.0;
-                individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
+                
+                // Clear infection data after tracking resolution
+                for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
+                    let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
+                    resistance_data.any_r = 0.0;
+                    resistance_data.majority_r = 0.0;
+                    resistance_data.activity_r = 0.0;
+                    individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
+                }
+                individual.level[b_idx] = 0.0;
+                individual.infectious_syndrome[b_idx] = 0;
+                individual.date_last_infected[b_idx] = 0;
+                individual.immune_resp[b_idx] = 0.0;
+                individual.sepsis[b_idx] = false;
+                individual.infection_hospital_acquired[b_idx] = false;
+                individual.cur_infection_from_environment[b_idx] = false;
+                individual.test_identified_infection[b_idx] = false;
+                individual.test_for_resistance[b_idx] = false;
+                individual.resistance_test_initiated_day[b_idx] = -1;
+            } else {
+                // Update level for infections that are continuing
+                individual.level[b_idx] = new_level;
             }
-            individual.level[b_idx] = 0.0;
-            individual.infectious_syndrome[b_idx] = 0;
-            individual.date_last_infected[b_idx] = 0;
-            individual.immune_resp[b_idx] = 0.0;
-            individual.sepsis[b_idx] = false;
-            individual.infection_hospital_acquired[b_idx] = false;
-            individual.cur_infection_from_environment[b_idx] = false;
-            individual.test_identified_infection[b_idx] = false;
-            individual.test_for_resistance[b_idx] = false;
-            individual.resistance_test_initiated_day[b_idx] = -1;
         }
 
-        // --- NEW: Apply cross-resistance logic ---
+        // --- Apply cross-resistance logic ---
         apply_cross_resistance(individual, b_idx, cross_resistance_groups);
         // --- END NEW ---
 

@@ -84,6 +84,44 @@ impl ResistanceAcquisitionType {
     }
 }
 
+/// Tracks how an infection was resolved (why it ended)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InfectionResolutionType {
+    /// Infection cleared by immune system without drug assistance
+    ImmuneClearance,
+    /// Infection cleared with help from antimicrobial drugs  
+    DrugAssistedClearance,
+    /// Individual died from sepsis related to this infection
+    DeathFromSepsis,
+    /// Individual died from background causes while infected
+    DeathFromBackground,
+    /// Individual died from drug toxicity while infected
+    DeathFromToxicity,
+}
+
+impl InfectionResolutionType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            InfectionResolutionType::ImmuneClearance => "immune_clearance",
+            InfectionResolutionType::DrugAssistedClearance => "drug_assisted_clearance",
+            InfectionResolutionType::DeathFromSepsis => "death_from_sepsis",
+            InfectionResolutionType::DeathFromBackground => "death_from_background",
+            InfectionResolutionType::DeathFromToxicity => "death_from_toxicity",
+        }
+    }
+
+    /// Returns all resolution types as a slice
+    pub fn all() -> &'static [InfectionResolutionType] {
+        &[
+            InfectionResolutionType::ImmuneClearance,
+            InfectionResolutionType::DrugAssistedClearance,
+            InfectionResolutionType::DeathFromSepsis,
+            InfectionResolutionType::DeathFromBackground,
+            InfectionResolutionType::DeathFromToxicity,
+        ]
+    }
+}
+
 
 /* 
 
@@ -249,6 +287,9 @@ pub struct Individual {
     pub resistance_mechanisms: Vec<Vec<bool>>,
     /// Tracks how resistance was acquired for each bacteria and drug (None if never acquired)
     pub how_resistance_acquired: Vec<Vec<Option<ResistanceAcquisitionType>>>,
+    /// Tracks infection resolution outcomes for current timestep only
+    /// Reset to zero at the start of each timestep, incremented when resolutions occur
+    pub infection_resolution_this_timestep: Vec<Vec<u32>>, // [bacteria_index][resolution_type_index] -> count
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
     pub is_severely_immunosuppressed: bool, 
@@ -308,6 +349,12 @@ impl Individual {
             how_resistance_acquired.push(vec![None; num_drugs]);
         }
 
+        // Initialize infection_resolution_this_timestep (all zeros initially)
+        let mut infection_resolution_this_timestep = Vec::with_capacity(num_bacteria);
+        for _ in 0..num_bacteria {
+            infection_resolution_this_timestep.push(vec![0u32; InfectionResolutionType::all().len()]);
+        }
+
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
         } else {
@@ -353,6 +400,7 @@ impl Individual {
             resistances,
             resistance_mechanisms,
             how_resistance_acquired,
+            infection_resolution_this_timestep,
             date_of_death: None,
             cause_of_death: None,
             is_severely_immunosuppressed: false, 

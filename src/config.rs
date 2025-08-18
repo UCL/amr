@@ -1,3 +1,26 @@
+/* 
+
+        map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
+
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0005); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.002); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.001); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.001); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0002); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
+
+        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
+
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001        
+
+*/
+
 
 //
 // Centralized configuration and parameter management for the AMR simulation.
@@ -65,7 +88,7 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001 ); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
@@ -225,8 +248,8 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85); // Default low potency (was 0.01)
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);  // 0.005
             } 
         }
 
@@ -518,7 +541,7 @@ lazy_static! {
         // Microbiome acquisition now uses infection acquisition parameters plus a single offset
         map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Additional log-odds for microbiome vs infection acquisition
         // Environmental resistance level for new acquisitions
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
+        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.0); // 0.01 
   
         map.insert("max_resistance_level".to_string(), 1.0);
         map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.01); // 0.01
@@ -534,19 +557,26 @@ lazy_static! {
         //  Microbiome Resistance Transfer Parameter
         map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.05); // Probability per day for resistance transfer between infection and microbiome
     
+        // --- Multi-Drug Resistance Emergence Penalty Parameters ---
+        // When multiple drugs are active, resistance emergence is reduced because mutations
+        // must confer resistance to ALL active drugs to provide survival advantage
+        map.insert("multi_drug_penalty_for_single_drug_resistance".to_string(), 0.05); // Penalty when resistance affects only 1 of multiple active drugs (5% survival)
+        map.insert("multi_drug_penalty_for_partial_cross_resistance".to_string(), 0.3); // Penalty when resistance affects some but not all active drugs (30% survival)
+        map.insert("multi_drug_penalty_threshold_num_drugs".to_string(), 2.0); // Minimum number of active drugs to trigger multi-drug penalty
+
         // --- Resistance Mechanisms Parameters ---
         // Baseline emergence rates for specific resistance mechanisms (per day when drug present)
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // ESBL emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0005); // Carbapenemase emergence (rarer)
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.002); // AmpC emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Aminoglycoside resistance
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.001); // Quinolone resistance
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // More common mechanism
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.001); // Macrolide resistance
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0002); // Vancomycin resistance (rare)
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.0); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.0); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.0); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0); // Point mutations
         
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
         map.insert("resistance_mechanism_esbl_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
