@@ -211,11 +211,12 @@ pub fn apply_rules(
     }
 
     // Before applying rules, reset infection resolution counts for this timestep
-    for b_idx in 0..BACTERIA_LIST.len() {
-        for res_idx in 0..InfectionResolutionType::all().len() {
-            individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
-        }
-    }
+    // NOTE: This is commented out - resolution counts should be reset AFTER aggregation
+    // for b_idx in 0..BACTERIA_LIST.len() {
+    //     for res_idx in 0..InfectionResolutionType::all().len() {
+    //         individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
+    //     }
+    // }
 
     if individual.id == 1000001  { 
         println!("   "); println!("mod.rs time step {}", time_step); println!("   "); 
@@ -920,7 +921,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             individual.date_of_death = Some(time_step);
             individual.cause_of_death = cause.or(Some("background_mortality".to_string()));
             
-            // Track infection resolution due to death for all current infections
+            // Track death resolution for all current infections
             if let Some(ref death_cause) = individual.cause_of_death {
                 let resolution_type = match death_cause.as_str() {
                     "sepsis_related" => InfectionResolutionType::DeathFromSepsis,
@@ -928,7 +929,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     _ => InfectionResolutionType::DeathFromBackground,
                 };
                 
-                // Record resolution for all currently infected bacteria
+                // Record resolution for ALL bacteria where person is currently infected
                 for b_idx in 0..BACTERIA_LIST.len() {
                     if individual.level[b_idx] > 0.001 {
                         let resolution_idx = match resolution_type {
@@ -938,6 +939,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             InfectionResolutionType::DeathFromBackground => 3,
                             InfectionResolutionType::DeathFromToxicity => 4,
                         };
+                        
                         individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
                     }
                 }

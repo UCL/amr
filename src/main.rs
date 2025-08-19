@@ -73,14 +73,14 @@ mod config;
 //
 // consider adding tb, consider adding fungi
 //
-//
+// 
 
 use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 3_000;
-    let time_steps = 4_000;
+    let population_size = 3_000;  // Balanced size for good statistics without excessive runtime
+    let time_steps = 3_000;
     let log_individuals = false; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

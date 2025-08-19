@@ -1595,7 +1595,9 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df):
 # =============================================================================
 def create_infection_resolution_by_bacteria_plots(df):
     """
-    For each bacteria, create stacked area charts showing infection resolution outcomes.
+    For each bacteria, create stacked area plots showing percentage of infection resolution outcomes.
+    Each plot shows 5 stacked areas (one for each resolution type) with percentages that sum to 100%
+    when resolutions occur, and are blank when no resolutions occur.
     Each plot is saved as output_graphs/infection_resolution_by_bacteria/bacteria_x_infection_resolution.png
     """
     print("\n=== CREATING INFECTION RESOLUTION PLOTS FOR EACH BACTERIA ===")
@@ -1647,39 +1649,64 @@ def create_infection_resolution_by_bacteria_plots(df):
             print(f"  ⚠ Skipping {bacteria_name} - missing columns: {missing_cols}")
             continue
         
-        # Extract data for this bacteria
-        data = {}
+        # Extract raw data for this bacteria
+        raw_data = {}
         for res_type in resolution_types:
             col_name = f"{bacteria_name}_infection_resolution_{res_type}"
-            # Apply smoothing to reduce noise
-            data[res_type] = pd.Series(df[col_name]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            raw_data[res_type] = df[col_name].values
+        
+        # Calculate total resolutions per timestep
+        total_resolutions = np.array([sum(raw_data[rt][i] for rt in resolution_types) 
+                                    for i in range(len(df))])
+        
+        # Find timesteps where we have resolutions
+        has_resolutions = total_resolutions > 0
+        
+        if not np.any(has_resolutions):
+            print(f"  ⚠ Skipping {bacteria_name} - no resolution events found")
+            continue
+        
+        # Calculate percentages for each resolution type
+        percentages = {}
+        for res_type in resolution_types:
+            percentages[res_type] = np.where(has_resolutions, 
+                                           (raw_data[res_type] / total_resolutions) * 100, 
+                                           0)  # Use 0 instead of NaN for stackplot
         
         # Create stacked area plot
         plt.figure(figsize=(int(FIG_W * 1.5), int(FIG_H)))
         
-        # Plot as stacked area chart
-        plt.stackplot(df['time_in_years'],
-                     data['immune_clearance'], 
-                     data['drug_assisted_clearance'],
-                     data['death_from_sepsis'],
-                     data['death_from_background'],
-                     data['death_from_toxicity'],
-                     labels=[labels[res_type] for res_type in resolution_types],
-                     colors=[colors[res_type] for res_type in resolution_types],
-                     alpha=0.8)
+        # Only plot timesteps where we have resolutions
+        time_with_resolutions = df['time_in_years'][has_resolutions]
+        
+        # Prepare data for stackplot (only timesteps with resolutions)
+        stack_data = []
+        stack_labels = []
+        stack_colors = []
+        
+        for res_type in resolution_types:
+            data_for_stack = percentages[res_type][has_resolutions]
+            if np.any(data_for_stack > 0):  # Only include if this type actually occurs
+                stack_data.append(data_for_stack)
+                stack_labels.append(labels[res_type])
+                stack_colors.append(colors[res_type])
+        
+        if stack_data:
+            plt.stackplot(time_with_resolutions, *stack_data, 
+                         labels=stack_labels, colors=stack_colors, alpha=0.8)
         
         # Format the plot
         bacteria_display = bacteria_name.replace('_', ' ').title()
         plt.title(f"Infection Resolution Outcomes Over Time\n{bacteria_display}", 
                  fontsize=14, fontweight='bold')
         plt.xlabel('Time (Years)', fontsize=12)
-        plt.ylabel('Resolution Events per Timestep (Smoothed)', fontsize=12)
+        plt.ylabel('Percentage of Resolutions by Cause (%)', fontsize=12)
         plt.grid(True, alpha=0.3)
         plt.legend(loc='upper right', fontsize=10)
         plt.tick_params(axis='both', which='major', labelsize=10)
         
-        # Set y-axis to start from 0
-        plt.ylim(bottom=0)
+        # Set y-axis to show percentages (0-100%)
+        plt.ylim(0, 100)
         
         plt.tight_layout()
         

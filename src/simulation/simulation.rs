@@ -645,19 +645,45 @@ impl Simulation {
                             if individual.hospital_status.is_hospitalized() { lt.number_in_hospital += 1; }
                             if individual.is_severely_immunosuppressed { lt.number_severely_immunosuppressed += 1; }
                             if individual.sepsis.iter().any(|&s| s) { lt.number_with_sepsis += 1; }
-                            
-                            // Accumulate infection resolution counts
-                            for (b_idx, resolution_counts) in individual.infection_resolution_this_timestep.iter().enumerate() {
-                                lt.infection_resolution_immune_clearance_by_bacteria[b_idx] += resolution_counts[0] as usize;
-                                lt.infection_resolution_drug_assisted_clearance_by_bacteria[b_idx] += resolution_counts[1] as usize;
-                                lt.infection_resolution_death_from_sepsis_by_bacteria[b_idx] += resolution_counts[2] as usize;
-                                lt.infection_resolution_death_from_background_by_bacteria[b_idx] += resolution_counts[3] as usize;
-                                lt.infection_resolution_death_from_toxicity_by_bacteria[b_idx] += resolution_counts[4] as usize;
-                            }
                         }
                         lt
                     })
                     .reduce(|| LocalTotals::new(num_bacteria, num_drugs, per_thread_cap), |mut a, b| { a.merge(b); a });
+
+                // Collect infection resolution data after rules have been applied
+                let infection_resolution_totals = self.population.individuals.par_iter()
+                    .fold(|| (
+                        vec![0usize; num_bacteria], // immune_clearance
+                        vec![0usize; num_bacteria], // drug_assisted_clearance
+                        vec![0usize; num_bacteria], // death_from_sepsis
+                        vec![0usize; num_bacteria], // death_from_background
+                        vec![0usize; num_bacteria], // death_from_toxicity
+                    ), |mut acc, individual| {
+                        for (b_idx, resolution_counts) in individual.infection_resolution_this_timestep.iter().enumerate() {
+                            acc.0[b_idx] += resolution_counts[0] as usize;
+                            acc.1[b_idx] += resolution_counts[1] as usize;
+                            acc.2[b_idx] += resolution_counts[2] as usize;
+                            acc.3[b_idx] += resolution_counts[3] as usize;
+                            acc.4[b_idx] += resolution_counts[4] as usize;
+                        }
+                        acc
+                    })
+                    .reduce(|| (
+                        vec![0usize; num_bacteria],
+                        vec![0usize; num_bacteria],
+                        vec![0usize; num_bacteria],
+                        vec![0usize; num_bacteria],
+                        vec![0usize; num_bacteria],
+                    ), |mut a, b| {
+                        for i in 0..num_bacteria {
+                            a.0[i] += b.0[i];
+                            a.1[i] += b.1[i];
+                            a.2[i] += b.2[i];
+                            a.3[i] += b.3[i];
+                            a.4[i] += b.4[i];
+                        }
+                        a
+                    });
 
                 // Destructure to move out (avoid cloning large vectors)
                 let LocalTotals {
@@ -706,12 +732,21 @@ impl Simulation {
                     new_resistance_at_infection_env_by_bacteria_drug,
                     new_resistance_hgt_by_bacteria_drug,
                     new_resistance_from_microbiome_r_by_bacteria_drug,
+                    infection_resolution_immune_clearance_by_bacteria: _,
+                    infection_resolution_drug_assisted_clearance_by_bacteria: _,
+                    infection_resolution_death_from_sepsis_by_bacteria: _,
+                    infection_resolution_death_from_background_by_bacteria: _,
+                    infection_resolution_death_from_toxicity_by_bacteria: _,
+                } = totals;
+
+                // Use the separately collected infection resolution data
+                let (
                     infection_resolution_immune_clearance_by_bacteria,
                     infection_resolution_drug_assisted_clearance_by_bacteria,
                     infection_resolution_death_from_sepsis_by_bacteria,
                     infection_resolution_death_from_background_by_bacteria,
                     infection_resolution_death_from_toxicity_by_bacteria,
-                } = totals;
+                ) = infection_resolution_totals;
 
                 // Rebuild 2D resistance structure for summary
                 let mut resistance_by_bacteria_drug: Vec<Vec<usize>> = Vec::with_capacity(num_bacteria);
@@ -888,6 +923,15 @@ impl Simulation {
 
 
             self.summary_log.push(summary);
+
+            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
+            self.population.individuals.par_iter_mut().for_each(|individual| {
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    for res_idx in 0..crate::simulation::population::InfectionResolutionType::all().len() {
+                        individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
+                    }
+                }
+            });
 
             if self.log_individuals {
                 use std::fs::OpenOptions;
