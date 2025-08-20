@@ -937,10 +937,16 @@ impl Simulation {
                 use std::fs::OpenOptions;
                 let n_log = 10.min(self.population.individuals.len());
                 let log_path = "individuals_log.csv";
-                let file_exists = std::path::Path::new(log_path).exists();
-                let mut file = OpenOptions::new().create(true).append(true).open(log_path).expect("Unable to open individuals_log.csv");
-                // Write header if file is new
-                if !file_exists {
+                let is_first_timestep = t == 0;
+                let mut file = if is_first_timestep {
+                    // Overwrite file on first timestep
+                    OpenOptions::new().create(true).write(true).truncate(true).open(log_path).expect("Unable to open individuals_log.csv")
+                } else {
+                    // Append to file for subsequent timesteps
+                    OpenOptions::new().create(true).append(true).open(log_path).expect("Unable to open individuals_log.csv")
+                };
+                // Write header only on first timestep
+                if is_first_timestep {
                     writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
@@ -948,6 +954,7 @@ impl Simulation {
                 }
                 for i in 0..n_log {
                     let ind = &self.population.individuals[i];
+                    
                     // Flatten all resistance values for all bacteria/drugs
                     let mut microbiome_r = Vec::new();
                     let mut test_r = Vec::new();

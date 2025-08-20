@@ -15,10 +15,7 @@
         map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
         map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
 
-        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05); // Default low potency (was 0.01)
-
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001        
-
+        map.insert("test_rate_per_day".to_string(), 0.20);  // 0.15
 */
 
 
@@ -88,7 +85,7 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001 ); // 0.0001
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
@@ -248,7 +245,7 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85); // Default low potency (was 0.01)
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
                 map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);  // 0.005
             } 
         }
@@ -595,7 +592,7 @@ lazy_static! {
 
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
-        map.insert("test_rate_per_day".to_string(), 0.20);  // 0.15
+        map.insert("test_rate_per_day".to_string(), 0.0);  // 0.15
 
         // --- Test result and test_r logic parameters ---
         map.insert("prob_test_r_done".to_string(), 0.95); // Probability test is actually done (per day eligible)
@@ -747,7 +744,7 @@ lazy_static! {
         //  Probability per day of death due to adverse drug effect (toxicity)
         //  This is the baseline daily risk of death for an individual experiencing drug toxicity.
         //  You can tune this value to make drug toxicity more or less lethal.
-        map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.0003); // 0.1% daily risk by default
+        map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.0003); 
 
 
 

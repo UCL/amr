@@ -26,7 +26,7 @@ SMOOTHING_WINDOW_DAYS = 91
 # =============================================================================
 for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
 proportion_of_people_infected_with_each_bacteria = False
-proportion_of_people_taking_each_drug = False
+proportion_of_people_taking_each_drug = True
 proportion_share_among_drug_users = False
 distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
@@ -278,7 +278,7 @@ def create_grouped_plots(df):
         axes2[3].set_xlabel('Time (Years)')
         axes2[3].set_ylabel('Deaths in Past Year / Current Population')
         axes2[3].set_xlim(left=0)
-        axes2[3].set_ylim(0, 0.02)
+        axes2[3].set_ylim(0, 0.03)
         axes2[3].legend()
         axes2[3].grid(True, alpha=0.3)
     else:
@@ -1002,7 +1002,7 @@ def create_drug_usage_proportion_plots(df):
         plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)  # 4x larger title
         plt.ylabel('Proportion of Living Population', fontsize=80)
         plt.xlabel('Time (Years)', fontsize=80)
-        plt.ylim(0, 0.01)
+        plt.ylim(0, 0.05)
         plt.grid(True, alpha=0.3)
         plt.legend(fontsize=96, title_fontsize=192)  # halve legend size, halve legend title size
         plt.tick_params(axis='both', which='major', labelsize=80)  # (ii) double tick/number size

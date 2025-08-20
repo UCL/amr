@@ -25,10 +25,18 @@ mod config;
 //
 // // model structure developments to consider //
 //
+// this about whether  drug_infection_present_multiplier 50.0 and 
+// drug_test_identified_multiplier 50.0 make sense as values and how 
+// implemented in mod.rs
+//
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
 //
+// review incidence of immunodeficiency and resolution
+// need to separately model incidence of high sepsis death risk - or are existing variables ok ?
+// also think about whether hospitalization modelling is ok - e.g. being in hospital a contributory cause of sepsis ? 
 //
+// 
 //
 // // additional output graphs
 //
@@ -52,6 +60,11 @@ mod config;
 //                   incidence of infection with each bacteria by age and calendar year
 //                   deaths from each bacteria per 100_000 by age and calendar year
 //                   resistance distribution for each used drug for each bacteria by calendar year  
+//
+// https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
+//
+//
+//
 //
 // set up automated testing for the simulation (probably not yet though)
 //
@@ -79,9 +92,9 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 3_000;  // Balanced size for good statistics without excessive runtime
-    let time_steps = 3_000;
-    let log_individuals = false; // Set to false to disable detailed individual logging
+    let population_size = 1_000; 
+    let time_steps = 10_000;
+    let log_individuals = true; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
 

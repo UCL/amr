@@ -6,7 +6,7 @@
 //   - Logic for resistance emergence, drug effects, MIC calculation, cross-resistance, HGT, and reversion
 //   - Helper functions for parameter lookup and stochastic events
 //
-// src/rules/mod.rs
+// src/rules/mod.rs\
 
 
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
@@ -210,17 +210,6 @@ pub fn apply_rules(
         return; // Exit the function if dead
     }
 
-    // Before applying rules, reset infection resolution counts for this timestep
-    // NOTE: This is commented out - resolution counts should be reset AFTER aggregation
-    // for b_idx in 0..BACTERIA_LIST.len() {
-    //     for res_idx in 0..InfectionResolutionType::all().len() {
-    //         individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
-    //     }
-    // }
-
-    if individual.id == 1000001  { 
-        println!("   "); println!("mod.rs time step {}", time_step); println!("   "); 
-    }
     let mut rng = rand::thread_rng();
 
     // --- all these parameter lookups at the top so they're in scope everywhere ---
@@ -1435,7 +1424,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     let resistance_data = &mut individual.resistances[bacteria_full_idx][drug_index];
 
                     let drug_current_level = individual.cur_level_drug[drug_index];
-                    let drug_currently_present = drug_current_level > 0.0001; // Check if drug is effectively present
+                    let drug_currently_present = drug_current_level > 0.0; // Check if drug is effectively present
                     let current_bacteria_level = individual.level[b_idx];
 
                     // existing majority_r evolution based on drug presence
@@ -1470,7 +1459,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     if resistance_data.any_r < 0.0001 { // Check if any_r is effectively zero
                         // only consider emergence if there's drug present (either being taken or decaying)
                         // and a positive bacteria level for selection pressure.
-                        if drug_current_level > 0.0001 && current_bacteria_level > 0.0001 { 
+                        if drug_current_level > 0.0 && current_bacteria_level > 0.0001 { 
                             let param_key = format![
                                 "drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline",
                                 DRUG_SHORT_NAMES[drug_index],
@@ -1500,7 +1489,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                             // Calculate multi-drug penalty if multiple drugs are active
                             let active_drug_count = individual.cur_level_drug.iter()
-                                .filter(|&&level| level > 0.0001)
+                                .filter(|&&level| level > 0.0)
                                 .count();
                             
                             let multi_drug_penalty_threshold = get_global_param("multi_drug_penalty_threshold_num_drugs").unwrap_or(2.0) as usize;
@@ -1521,7 +1510,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                             // Count how many drugs in this cross-resistance group are currently active
                                             for &group_drug in group {
                                                 if let Some(group_drug_idx) = DRUG_SHORT_NAMES.iter().position(|&d| d == group_drug) {
-                                                    if individual.cur_level_drug[group_drug_idx] > 0.0001 {
+                                                    if individual.cur_level_drug[group_drug_idx] > 0.0 {
                                                         affected_count += 1;
                                                     }
                                                 }
@@ -1581,7 +1570,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                     // --- resistance mechanism emergence logic ---
                     // Check for emergence of specific resistance mechanisms when drug is present
-                    if drug_current_level > 0.0001 && current_bacteria_level > 0.0001 {
+                    if drug_current_level > 0.0 && current_bacteria_level > 0.0001 {
                         use crate::simulation::population::ResistanceMechanism;
                         
                         if let Some(bacteria_full_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
@@ -1781,7 +1770,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let current_test_status_entry = &mut individual.test_identified_infection[b_idx];
         let test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
         let test_rate_per_day = get_global_param("test_rate_per_day").unwrap_or(0.15);
-        if !*current_test_status_entry && (time_step as i32) >= (last_infected_time + test_delay_days) {
+        if is_infected && !*current_test_status_entry && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) {
             if rng.gen_bool(test_rate_per_day.clamp(0.0, 1.0)) {
                 *current_test_status_entry = true;
             }
@@ -1837,7 +1826,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
             // --- Resistance reversion logic: revert any_r/majority_r to 0 if not on any drug ---
             let resistance_reversion_rate = get_global_param("resistance_reversion_rate_per_day").unwrap_or(0.0001); // Default: very rare
-            let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0001);
+            let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
             if !on_any_drug {
                 for drug_index in 0..DRUG_SHORT_NAMES.len() {
                     let resistance_data = &mut individual.resistances[b_idx][drug_index];
@@ -1954,6 +1943,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 // Update level for infections that are continuing
                 individual.level[b_idx] = new_level;
             }
+        }
+
+        // Safety check: ensure test_identified_infection is false when not infected
+        if !is_infected {
+            individual.test_identified_infection[b_idx] = false;
         }
 
         // --- Apply cross-resistance logic ---

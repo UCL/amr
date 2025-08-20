@@ -46,8 +46,8 @@ BACTERIA INDEX REFERENCE (from population.rs BACTERIA_LIST):
 '''
 
 # Set this to the index of the individual you want to print (1 = first individual after header, 2 = second, etc.)
-INDIVIDUAL_INDEX = 1
-BACTERIUM_INDEX = 0
+INDIVIDUAL_INDEX = 4
+BACTERIUM_INDEX = -1  # Set to -1 to show all bacteria, or 0-30 for specific bacteria
 
 OUTPUT_FILENAME = 'individual_output.txt'
 # Max length for cell display
@@ -60,7 +60,19 @@ TIME_STEP_START = None  # e.g., 10
 TIME_STEP_END = None    # e.g., 20
 
 # Only print rows where the person is infected with the selected bacterium
-ONLY_WHEN_INFECTED = False  # Set to True to enable
+ONLY_WHEN_INFECTED = True  # Set to True to enable
+
+# If True, check for ANY bacterial infection; if False, check only the selected bacterium
+ANY_BACTERIAL_INFECTION = True  # Set to True to check for any infection, False for specific bacterium
+
+# Variable output toggles - control which variables to print
+PRINT_BASIC_INFO = True        # time_step, individual_id, age, etc.
+PRINT_INFECTION_LEVELS = True  # level (bacteria infection levels)
+PRINT_DRUG_USAGE = True        # cur_use_drug, cur_level_drug
+PRINT_RESISTANCE_DATA = False   # any_r, majority_r, activity_r, test_r, microbiome_r
+PRINT_HEALTH_STATUS = True     # hospital_status, sepsis, immunosuppressed, etc.
+PRINT_DEMOGRAPHICS = True      # region, sex, etc.
+PRINT_OTHER_VARIABLES = True   # All other variables not in the above categories
  
 # Usage: python individuals_log_view.py [filename]
 def print_aligned_csv(filename, max_rows=30):
@@ -87,15 +99,94 @@ def print_aligned_csv(filename, max_rows=30):
         if ";" in cell:
             array_col_indices.append(i)
 
-    def extract_bacterium(cell):
-        # For array columns, return only the value for the selected bacteria
-        if ";" in cell:
-            parts = cell.split(";")
-            if BACTERIUM_INDEX < len(parts):
-                return parts[BACTERIUM_INDEX]
+    def extract_bacterium(cell, var_name):
+        """Extract bacteria data in a readable format, showing only non-zero values"""
+        if ";" not in cell:
+            return [f"{var_name}: {cell}"]
+        
+        # Get bacteria names list
+        bacteria_names = [
+            "acinetobacter_baumannii", "citrobacter_spp", "enterobacter_spp", 
+            "enterococcus_faecalis", "enterococcus_faecium", "escherichia_coli",
+            "klebsiella_pneumoniae", "morganella_spp", "proteus_spp", "serratia_spp",
+            "pseudomonas_aeruginosa", "staphylococcus_aureus", "streptococcus_pneumoniae",
+            "salmonella_enterica_serovar_typhi", "salmonella_enterica_serovar_paratyphi_a",
+            "invasive_non_typhoidal_salmonella_spp", "shigella_spp", "neisseria_gonorrhoeae",
+            "streptococcus_pyogenes", "streptococcus_agalactiae", "haemophilus_influenzae",
+            "chlamydia_trachomatis", "vibrio_cholerae", "neisseria_meningitidis",
+            "listeria_monocytogenes", "clostridioides_difficile", "campylobacter_jejuni",
+            "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis",
+            "treponema_pallidum"
+        ]
+        
+        parts = cell.split(";")
+        results = []
+        
+        # Show individual bacteria with non-zero values
+        for i, value in enumerate(parts):
+            if i < len(bacteria_names):
+                value_stripped = value.strip().lower()
+                bacteria_name = bacteria_names[i]
+                
+                # Handle boolean values - only show 'true' values
+                if value_stripped in ['true', 'false']:
+                    if value_stripped == 'true':
+                        results.append(f"{bacteria_name} {var_name}: true")
+                    # Skip 'false' values - we can infer they're false
+                else:
+                    # Handle numeric values
+                    try:
+                        val_float = float(value_stripped)
+                        if val_float > 0:  # Only show non-zero values
+                            if val_float < 0.01:
+                                formatted_val = f"{val_float:.6f}"  # More precision for very small values
+                            else:
+                                formatted_val = f"{val_float:.3f}"  # 3 decimal places for normal values
+                            results.append(f"{bacteria_name} {var_name}: {formatted_val}")
+                    except ValueError:
+                        # Non-numeric, non-boolean value, show as is if non-empty
+                        if value_stripped:
+                            results.append(f"{bacteria_name} {var_name}: {value_stripped}")
+        
+        # If no results found, show a summary based on variable type
+        if not results:
+            if any(part.strip().lower() in ['true', 'false'] for part in parts):
+                results.append(f"{var_name}: all false")
             else:
-                return ""
-        return cell
+                results.append(f"{var_name}: all zero")
+            
+        return results
+
+    def should_print_variable(var_name):
+        """Determine if a variable should be printed based on toggles"""
+        var_lower = var_name.lower()
+        
+        # Basic info
+        if var_lower in ['time_step', 'individual_id', 'age']:
+            return PRINT_BASIC_INFO
+        
+        # Infection levels
+        if 'level' in var_lower and 'drug' not in var_lower:
+            return PRINT_INFECTION_LEVELS
+        
+        # Drug usage
+        if any(x in var_lower for x in ['cur_use_drug', 'cur_level_drug', 'drug']):
+            return PRINT_DRUG_USAGE
+        
+        # Health status
+        if any(x in var_lower for x in ['hospital', 'sepsis', 'immunosuppressed', 'mortality', 'death']):
+            return PRINT_HEALTH_STATUS
+        
+        # Demographics
+        if any(x in var_lower for x in ['region', 'sex', 'vaccination']):
+            return PRINT_DEMOGRAPHICS
+        
+        # Resistance data (handled separately but check here too)
+        if any(x in var_lower for x in ['any_r', 'majority_r', 'activity_r', 'test_r', 'microbiome_r']):
+            return PRINT_RESISTANCE_DATA
+        
+        # Other variables
+        return PRINT_OTHER_VARIABLES
 
     # Get the individual id for the selected index (assume column 2 is individual id)
     selected_row = data_rows[INDIVIDUAL_INDEX-1]
@@ -118,7 +209,7 @@ def print_aligned_csv(filename, max_rows=30):
     for row in data_rows:
         # Filter by individual id
         if len(row) > 2 and row[2] == individual_id:
-            # Filter by infection status if enabled (use 'level' variable for selected bacterium)
+            # Filter by infection status if enabled (use 'level' variable for selected bacterium or any bacterium)
             if ONLY_WHEN_INFECTED:
                 try:
                     level_idx = next(i for i, var in enumerate(header) if var.strip().lower() == "level")
@@ -128,16 +219,23 @@ def print_aligned_csv(filename, max_rows=30):
                     cell = row[level_idx]
                     if ";" in cell:
                         parts = cell.split(";")
-                        if BACTERIUM_INDEX < len(parts):
-                            val = parts[BACTERIUM_INDEX].strip()
-                            try:
-                                val_f = float(val)
-                            except ValueError:
-                                continue
-                            if val_f <= 0:
+                        if ANY_BACTERIAL_INFECTION:
+                            # Check if infected with ANY bacteria (any value > 0)
+                            has_any_infection = any(float(part.strip()) > 0 for part in parts if part.strip().replace('.','').replace('-','').isdigit())
+                            if not has_any_infection:
                                 continue
                         else:
-                            continue
+                            # Check only the selected bacterium
+                            if BACTERIUM_INDEX < len(parts):
+                                val = parts[BACTERIUM_INDEX].strip()
+                                try:
+                                    val_f = float(val)
+                                except ValueError:
+                                    continue
+                                if val_f <= 0:
+                                    continue
+                            else:
+                                continue
                     else:
                         # Not an array column, skip check
                         pass
@@ -151,27 +249,47 @@ def print_aligned_csv(filename, max_rows=30):
                     continue
                 if TIME_STEP_END is not None and (timestep is None or timestep > TIME_STEP_END):
                     continue
-            # Print all variables as before
+            # Print variables based on toggles
             for i, (var, cell) in enumerate(zip(header, row)):
-                if i in array_col_indices:
-                    val = extract_bacterium(cell)
-                else:
-                    val = cell
-                if len(str(val)) > MAX_CELL_LEN:
-                    val = str(val)[:MAX_CELL_LEN-3] + "..."
-                line = f"{var}: {val}"
-                output_lines.append(line)
-            # For each resistance variable, print each drug as its own line
-            for res_var in resistance_vars:
-                # Find the column for this resistance variable (should be an array column)
-                res_indices = [i for i, var in enumerate(header) if res_var in var and i in array_col_indices]
-                if res_indices:
-                    # For each, extract the value for the selected bacterium (semicolon-separated string for all drugs)
-                    for idx in res_indices:
-                        cell = row[idx]
-                        values = cell.split(";")
-                        for drug, value in zip(DRUG_SHORT_NAMES, values):
-                            output_lines.append(f"{res_var}_{drug}: {value}")
+                if should_print_variable(var):
+                    if i in array_col_indices:
+                        lines = extract_bacterium(cell, var)
+                        output_lines.extend(lines)
+                    else:
+                        val = cell
+                        if len(str(val)) > MAX_CELL_LEN:
+                            val = str(val)[:MAX_CELL_LEN-3] + "..."
+                        line = f"{var}: {val}"
+                        output_lines.append(line)
+            
+            # Print resistance data if enabled
+            if PRINT_RESISTANCE_DATA:
+                for res_var in resistance_vars:
+                    # Find the column for this resistance variable (should be an array column)
+                    res_indices = [i for i, var in enumerate(header) if res_var in var and i in array_col_indices]
+                    if res_indices:
+                        # For each, extract the value for the selected bacterium (semicolon-separated string for all drugs)
+                        for idx in res_indices:
+                            cell = row[idx]
+                            values = cell.split(";")
+                            # Only show non-zero resistance values
+                            for drug, value in zip(DRUG_SHORT_NAMES, values):
+                                value_stripped = value.strip().lower()
+                                
+                                # Handle boolean values - only show 'true'
+                                if value_stripped in ['true', 'false']:
+                                    if value_stripped == 'true':
+                                        output_lines.append(f"{drug} {res_var}: true")
+                                else:
+                                    # Handle numeric values
+                                    try:
+                                        val_float = float(value_stripped)
+                                        if val_float > 0:  # Only show non-zero resistance
+                                            formatted_val = f"{val_float:.3f}" if val_float >= 0.01 else f"{val_float:.6f}"
+                                            output_lines.append(f"{drug} {res_var}: {formatted_val}")
+                                    except ValueError:
+                                        if value_stripped:  # Non-numeric, non-boolean but non-empty
+                                            output_lines.append(f"{drug} {res_var}: {value_stripped}")
             output_lines.append("")
 
     if OUTPUT_FILENAME:
