@@ -924,15 +924,6 @@ impl Simulation {
 
             self.summary_log.push(summary);
 
-            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
-            self.population.individuals.par_iter_mut().for_each(|individual| {
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    for res_idx in 0..crate::simulation::population::InfectionResolutionType::all().len() {
-                        individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
-                    }
-                }
-            });
-
             if self.log_individuals {
                 use std::fs::OpenOptions;
                 let n_log = 10.min(self.population.individuals.len());
@@ -947,7 +938,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -977,7 +968,14 @@ impl Simulation {
                             mechanisms.push(if present { "1" } else { "0" });
                         }
                     }
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                    // Flatten infection resolution data for all bacteria/resolution types
+                    let mut infection_resolutions = Vec::new();
+                    for bact_resolutions in &ind.infection_resolution_this_timestep {
+                        for &count in bact_resolutions {
+                            infection_resolutions.push(count);
+                        }
+                    }
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                         t,
                         i,
                         ind.id,
@@ -1008,6 +1006,7 @@ impl Simulation {
                         fmt_vec(&ind.infection_hospital_acquired),
                         fmt_vec(&ind.test_identified_infection),
                         fmt_vec(&ind.sepsis),
+                        fmt_vec(&infection_resolutions),
                         fmt_vec(&microbiome_r),
                         fmt_vec(&test_r),
                         fmt_vec(&activity_r),
@@ -1017,6 +1016,15 @@ impl Simulation {
                     ).unwrap();
                 }
             }
+            
+            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
+            self.population.individuals.par_iter_mut().for_each(|individual| {
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    for res_idx in 0..crate::simulation::population::InfectionResolutionType::all().len() {
+                        individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
+                    }
+                }
+            });
             
             let _timestep_time = timestep_start.elapsed();
             if t % 100 == 0 { // Log every 100th timestep

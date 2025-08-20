@@ -37,9 +37,7 @@ proportion_of_microbiome_presence_with_resistance_by_drug = False
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
-
-# NEW TOGGLE: infection resolution tracking plots
-infection_resolution_by_bacteria = True
+infection_resolution_by_bacteria = False
 
 # =============================================================================
 # CONFIGURATION
@@ -501,6 +499,141 @@ def create_grouped_plots(df):
     plt.savefig("output_graphs/grouped_figure_4.png", dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     plt.close()
     print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
+
+    # --- Grouped Figure 5: Infection Resolution Pooled Across All Bacteria ---
+    fig5, axes5 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes5 = axes5.flatten()
+    fig5.suptitle('Grouped Figure 5: Infection Resolution Outcomes (Pooled Across All Bacteria)', fontsize=16)
+    
+    # Find all infection resolution columns
+    resolution_types = ['immune_clearance', 'drug_assisted_clearance', 'death_from_sepsis', 
+                       'death_from_background', 'death_from_toxicity']
+    
+    # Pool data across all bacteria for each resolution type
+    pooled_data = {}
+    for res_type in resolution_types:
+        pooled_data[res_type] = np.zeros(len(df))
+        # Sum across all bacteria for this resolution type
+        for col in df.columns:
+            if f'infection_resolution_{res_type}' in col:
+                pooled_data[res_type] += df[col].values
+    
+    # Calculate total resolutions per timestep
+    total_resolutions = np.array([sum(pooled_data[rt] for rt in resolution_types)])
+    
+    # Only proceed if we have resolution data
+    if np.any(total_resolutions > 0):
+        # 1. Stacked area plot showing percentages (top-left)
+        # Find timesteps where we have resolutions
+        has_resolutions = total_resolutions[0] > 0
+        
+        if np.any(has_resolutions):
+            # Calculate percentages for each resolution type
+            percentages = {}
+            for res_type in resolution_types:
+                percentages[res_type] = np.where(has_resolutions, 
+                                               (pooled_data[res_type] / total_resolutions[0]) * 100, 
+                                               0)
+            
+            # Color scheme for the 5 resolution types
+            colors = {
+                'immune_clearance': '#2ca02c',      # green - good outcome
+                'drug_assisted_clearance': '#1f77b4',  # blue - treatment success
+                'death_from_sepsis': '#d62728',     # red - worst outcome
+                'death_from_background': '#ff7f0e', # orange - unrelated death
+                'death_from_toxicity': '#9467bd'    # purple - treatment complication
+            }
+            
+            labels = {
+                'immune_clearance': 'Immune Clearance',
+                'drug_assisted_clearance': 'Drug-Assisted Clearance',
+                'death_from_sepsis': 'Death from Sepsis',
+                'death_from_background': 'Death from Background Causes',
+                'death_from_toxicity': 'Death from Drug Toxicity'
+            }
+            
+            # Only plot timesteps where we have resolutions
+            time_with_resolutions = df['time_in_years'][has_resolutions]
+            
+            # Prepare data for stackplot
+            stack_data = []
+            stack_labels = []
+            stack_colors = []
+            
+            for res_type in resolution_types:
+                data_for_stack = percentages[res_type][has_resolutions]
+                if np.any(data_for_stack > 0):  # Only include if this type actually occurs
+                    stack_data.append(data_for_stack)
+                    stack_labels.append(labels[res_type])
+                    stack_colors.append(colors[res_type])
+            
+            if stack_data:
+                axes5[0].stackplot(time_with_resolutions, *stack_data, 
+                                 labels=stack_labels, colors=stack_colors, alpha=0.8)
+                axes5[0].set_title('Infection Resolution Outcomes\n(Percentage Distribution)')
+                axes5[0].set_ylabel('Percentage of Resolutions (%)')
+                axes5[0].set_ylim(0, 100)
+                axes5[0].legend(loc='upper right', fontsize=8)
+                axes5[0].grid(True, alpha=0.3)
+        
+        # 2. Absolute counts over time (top-right)
+        for res_type in resolution_types:
+            if np.any(pooled_data[res_type] > 0):
+                smoothed = pd.Series(pooled_data[res_type]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                axes5[1].plot(df['time_in_years'], smoothed, 
+                            label=labels[res_type], color=colors[res_type], linewidth=2)
+        
+        axes5[1].set_title('Infection Resolution Counts Over Time\n(All Bacteria Combined)')
+        axes5[1].set_ylabel('Resolution Events per Day')
+        axes5[1].legend(fontsize=8)
+        axes5[1].grid(True, alpha=0.3)
+        
+        # 3. Cumulative resolution events (bottom-left)
+        for res_type in resolution_types:
+            if np.any(pooled_data[res_type] > 0):
+                cumulative = np.cumsum(pooled_data[res_type])
+                axes5[2].plot(df['time_in_years'], cumulative, 
+                            label=labels[res_type], color=colors[res_type], linewidth=2)
+        
+        axes5[2].set_title('Cumulative Infection Resolution Events')
+        axes5[2].set_xlabel('Time (Years)')
+        axes5[2].set_ylabel('Cumulative Resolution Events')
+        axes5[2].legend(fontsize=8)
+        axes5[2].grid(True, alpha=0.3)
+        
+        # 4. Resolution rate as proportion of total infections (bottom-right)
+        if 'total_currently_infected' in df.columns:
+            total_daily_resolutions = total_resolutions[0]
+            smoothed_resolutions = pd.Series(total_daily_resolutions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smoothed_infections = pd.Series(df['total_currently_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            # Calculate resolution rate as percentage of current infections
+            resolution_rate = np.where(smoothed_infections > 0, 
+                                     (smoothed_resolutions / smoothed_infections) * 100, 0)
+            
+            axes5[3].plot(df['time_in_years'], resolution_rate, 
+                        color='black', linewidth=2, label='Daily Resolution Rate')
+            axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected)')
+            axes5[3].set_xlabel('Time (Years)')
+            axes5[3].set_ylabel('Daily Resolutions / Current Infections (%)')
+            axes5[3].grid(True, alpha=0.3)
+            axes5[3].legend()
+        else:
+            axes5[3].text(0.5, 0.5, 'Total infection data not available', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes5[3].set_axis_off()
+    
+    else:
+        # No resolution data found
+        for i in range(4):
+            axes5[i].text(0.5, 0.5, 'No infection resolution data found', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes5[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_5.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 5 saved as 'grouped_figure_5.png'")
 
 
 def create_proportion_plots(df):

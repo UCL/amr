@@ -46,7 +46,7 @@ BACTERIA INDEX REFERENCE (from population.rs BACTERIA_LIST):
 '''
 
 # Set this to the index of the individual you want to print (1 = first individual after header, 2 = second, etc.)
-INDIVIDUAL_INDEX = 4
+INDIVIDUAL_INDEX = 1 
 BACTERIUM_INDEX = -1  # Set to -1 to show all bacteria, or 0-30 for specific bacteria
 
 OUTPUT_FILENAME = 'individual_output.txt'
@@ -72,6 +72,7 @@ PRINT_DRUG_USAGE = True        # cur_use_drug, cur_level_drug
 PRINT_RESISTANCE_DATA = False   # any_r, majority_r, activity_r, test_r, microbiome_r
 PRINT_HEALTH_STATUS = True     # hospital_status, sepsis, immunosuppressed, etc.
 PRINT_DEMOGRAPHICS = True      # region, sex, etc.
+PRINT_INFECTION_RESOLUTION = True  # infection_resolution_this_timestep
 PRINT_OTHER_VARIABLES = True   # All other variables not in the above categories
  
 # Usage: python individuals_log_view.py [filename]
@@ -99,7 +100,7 @@ def print_aligned_csv(filename, max_rows=30):
         if ";" in cell:
             array_col_indices.append(i)
 
-    def extract_bacterium(cell, var_name):
+    def extract_bacterium(cell, var_name, current_row=None):
         """Extract bacteria data in a readable format, showing only non-zero values"""
         if ";" not in cell:
             return [f"{var_name}: {cell}"]
@@ -122,16 +123,92 @@ def print_aligned_csv(filename, max_rows=30):
         parts = cell.split(";")
         results = []
         
-        # Show individual bacteria with non-zero values
+        # For infection_resolution_this_timestep, show by bacteria and resolution type
+        if var_name.lower() == "infection_resolution_this_timestep":
+            # This is a flattened array: bacteria_count * resolution_type_count values
+            # Resolution types: ImmuneClearance, DrugAssistedClearance, DeathFromSepsis, DeathFromBackground, DeathFromToxicity
+            resolution_types = ["ImmuneClearance", "DrugAssistedClearance", "DeathFromSepsis", "DeathFromBackground", "DeathFromToxicity"]
+            num_resolution_types = len(resolution_types)
+            
+            for bact_idx, bacteria_name in enumerate(bacteria_names):
+                for res_idx, res_type in enumerate(resolution_types):
+                    flat_idx = bact_idx * num_resolution_types + res_idx
+                    if flat_idx < len(parts):
+                        try:
+                            count = int(parts[flat_idx].strip())
+                            if count > 0:  # Only show non-zero resolution counts
+                                results.append(f"{bacteria_name} {res_type}: {count}")
+                        except ValueError:
+                            continue
+            
+            if not results:
+                results.append(f"{var_name}: no resolutions this timestep")
+            return results
+        
+        # For immune_resp, only show values for bacteria the person is infected with
+        if var_name.lower() == "immune_resp" and current_row is not None:
+            # Find the level column to check infection status
+            try:
+                level_idx = next(i for i, var in enumerate(header) if var.strip().lower() == "level")
+                level_cell = current_row[level_idx]
+                if ";" in level_cell:
+                    level_parts = level_cell.split(";")
+                    # Only show immune_resp for bacteria with level > 0
+                    for i, value in enumerate(parts):
+                        if i < len(bacteria_names) and i < len(level_parts):
+                            try:
+                                level_val = float(level_parts[i].strip())
+                                if level_val > 0:  # Only show if infected
+                                    value_stripped = value.strip()
+                                    bacteria_name = bacteria_names[i]
+                                    try:
+                                        val_float = float(value_stripped)
+                                        if val_float < 0.01:
+                                            formatted_val = f"{val_float:.6f}"
+                                        else:
+                                            formatted_val = f"{val_float:.3f}"
+                                        results.append(f"{bacteria_name} {var_name}: {formatted_val}")
+                                    except ValueError:
+                                        if value_stripped:
+                                            results.append(f"{bacteria_name} {var_name}: {value_stripped}")
+                            except ValueError:
+                                continue
+                    if not results:
+                        results.append(f"{var_name}: no infections")
+                    return results
+            except StopIteration:
+                pass  # No level column found, fall back to normal processing
+        
+        # Normal processing for all other variables
+        # Determine which names to use based on variable type
+        if any(drug_var in var_name.lower() for drug_var in ['cur_level_drug', 'cur_use_drug', 'ever_taken_drug']):
+            # Use drug names for drug-related variables
+            name_list = [
+                "sulfanilamide", "penicilling", "ampicillin", "amoxicillin",
+                "piperacillin", "ticarcillin", "cephalexin", "cefazolin",
+                "cefuroxime", "ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "meropenem", "imipenem_c",
+                "ertapenem", "aztreonam", "erythromycin", "azithromycin", "clarithromycin", "clindamycin",
+                "gentamicin", "tobramycin", "amikacin", "ciprofloxacin", "levofloxacin", "moxifloxacin",
+                "ofloxacin", "tetracycline", "doxyclycline", "minocycline", "vancomycin", "teicoplanin",
+                "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
+                "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
+                "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
+                "ceftazidime_avibactam", "meropenem_vaborbactam", "colistin"
+            ]
+        else:
+            # Use bacteria names for bacteria-related variables
+            name_list = bacteria_names
+        
+        # Show individual items with non-zero values
         for i, value in enumerate(parts):
-            if i < len(bacteria_names):
+            if i < len(name_list):
                 value_stripped = value.strip().lower()
-                bacteria_name = bacteria_names[i]
+                item_name = name_list[i]
                 
                 # Handle boolean values - only show 'true' values
                 if value_stripped in ['true', 'false']:
                     if value_stripped == 'true':
-                        results.append(f"{bacteria_name} {var_name}: true")
+                        results.append(f"{item_name} {var_name}: true")
                     # Skip 'false' values - we can infer they're false
                 else:
                     # Handle numeric values
@@ -142,11 +219,11 @@ def print_aligned_csv(filename, max_rows=30):
                                 formatted_val = f"{val_float:.6f}"  # More precision for very small values
                             else:
                                 formatted_val = f"{val_float:.3f}"  # 3 decimal places for normal values
-                            results.append(f"{bacteria_name} {var_name}: {formatted_val}")
+                            results.append(f"{item_name} {var_name}: {formatted_val}")
                     except ValueError:
                         # Non-numeric, non-boolean value, show as is if non-empty
                         if value_stripped:
-                            results.append(f"{bacteria_name} {var_name}: {value_stripped}")
+                            results.append(f"{item_name} {var_name}: {value_stripped}")
         
         # If no results found, show a summary based on variable type
         if not results:
@@ -185,6 +262,10 @@ def print_aligned_csv(filename, max_rows=30):
         if any(x in var_lower for x in ['any_r', 'majority_r', 'activity_r', 'test_r', 'microbiome_r']):
             return PRINT_RESISTANCE_DATA
         
+        # Infection resolution data
+        if 'infection_resolution' in var_lower:
+            return PRINT_INFECTION_RESOLUTION
+        
         # Other variables
         return PRINT_OTHER_VARIABLES
 
@@ -213,32 +294,43 @@ def print_aligned_csv(filename, max_rows=30):
             if ONLY_WHEN_INFECTED:
                 try:
                     level_idx = next(i for i, var in enumerate(header) if var.strip().lower() == "level")
+                    infection_resolution_idx = next(i for i, var in enumerate(header) if var.strip().lower() == "infection_resolution_this_timestep")
                 except StopIteration:
                     level_idx = None
+                    infection_resolution_idx = None
+                
                 if level_idx is not None:
                     cell = row[level_idx]
+                    has_current_infection = False
+                    has_resolution_this_timestep = False
+                    
+                    # Check for current infections
                     if ";" in cell:
                         parts = cell.split(";")
                         if ANY_BACTERIAL_INFECTION:
                             # Check if infected with ANY bacteria (any value > 0)
-                            has_any_infection = any(float(part.strip()) > 0 for part in parts if part.strip().replace('.','').replace('-','').isdigit())
-                            if not has_any_infection:
-                                continue
+                            has_current_infection = any(float(part.strip()) > 0 for part in parts if part.strip().replace('.','').replace('-','').isdigit())
                         else:
                             # Check only the selected bacterium
                             if BACTERIUM_INDEX < len(parts):
                                 val = parts[BACTERIUM_INDEX].strip()
                                 try:
                                     val_f = float(val)
+                                    has_current_infection = val_f > 0
                                 except ValueError:
-                                    continue
-                                if val_f <= 0:
-                                    continue
-                            else:
-                                continue
-                    else:
-                        # Not an array column, skip check
-                        pass
+                                    pass
+                    
+                    # Check for infection resolution events this timestep
+                    if infection_resolution_idx is not None:
+                        resolution_cell = row[infection_resolution_idx]
+                        if ";" in resolution_cell:
+                            resolution_parts = resolution_cell.split(";")
+                            # Check if any resolution events occurred (any non-zero values)
+                            has_resolution_this_timestep = any(int(part.strip()) > 0 for part in resolution_parts if part.strip().isdigit())
+                    
+                    # Include row if there's either a current infection OR a resolution event this timestep
+                    if not (has_current_infection or has_resolution_this_timestep):
+                        continue
             # Filter by time step range if specified (assume time step is in column 0 and is integer)
             if TIME_STEP_START is not None or TIME_STEP_END is not None:
                 try:
@@ -253,7 +345,7 @@ def print_aligned_csv(filename, max_rows=30):
             for i, (var, cell) in enumerate(zip(header, row)):
                 if should_print_variable(var):
                     if i in array_col_indices:
-                        lines = extract_bacterium(cell, var)
+                        lines = extract_bacterium(cell, var, row)
                         output_lines.extend(lines)
                     else:
                         val = cell

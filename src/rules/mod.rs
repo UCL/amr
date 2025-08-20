@@ -193,7 +193,6 @@ impl ParameterKeyCache {
 pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
-    // REMOVED: _global_majority_r_proportions (no longer used)
     majority_r_positive_values_by_combo: &HashMap<(usize, bool, usize, usize), Vec<f64>>, // <-- update type
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,

@@ -15,7 +15,6 @@
         map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
         map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
 
-        map.insert("test_rate_per_day".to_string(), 0.20);  // 0.15
 */
 
 
@@ -444,6 +443,10 @@ lazy_static! {
             }
         }
 
+
+
+
+
         // Add specific high-potency combinations for clinical effectiveness
         // These represent particularly effective drug-bacteria pairs
         
@@ -471,7 +474,7 @@ lazy_static! {
         // will need changes also in mod.rs 
 
         map.insert("random_drug_cessation_probability".to_string(), 0.03); // Probability an individual randomly stops a drug per day
-        map.insert("random_drug_cessation_probability_if_no_active_infection".to_string(), 0.25); // Higher probability if no active infection
+        map.insert("random_drug_cessation_probability_if_no_active_infection".to_string(), 0.2); // Higher probability if no active infection
 
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
@@ -592,7 +595,7 @@ lazy_static! {
 
         // Testing Parameters
         map.insert("test_delay_days".to_string(), 3.0);
-        map.insert("test_rate_per_day".to_string(), 0.0);  // 0.15
+        map.insert("test_rate_per_day".to_string(), 0.2);  // 0.15
 
         // --- Test result and test_r logic parameters ---
         map.insert("prob_test_r_done".to_string(), 0.95); // Probability test is actually done (per day eligible)
@@ -700,7 +703,7 @@ lazy_static! {
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
-        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.01); // 0.02 Base 2% daily death risk for sepsis 
+        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.02); // 0.02 Base 2% daily death risk for sepsis 
         map.insert("sepsis_age_mortality_multiplier_infant".to_string(), 3.0); // 0-1 years: much higher risk
         map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk  
         map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
