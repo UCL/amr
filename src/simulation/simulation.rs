@@ -947,7 +947,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -984,7 +984,27 @@ impl Simulation {
                             infection_resolutions.push(count);
                         }
                     }
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                    
+                    // Calculate active infection activity_r value
+                    let active_infection_activity_r = {
+                        // Find first bacteria where person is infected and on drug
+                        let mut result = 0.0;
+                        for b_idx in 0..BACTERIA_LIST.len() {
+                            if ind.level[b_idx] > 0.0 && ind.cur_use_drug.iter().any(|&on_drug| on_drug) {
+                                // Person is infected with this bacteria and on some drug
+                                // Use activity_r from first drug for this bacteria
+                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                    if ind.cur_use_drug[d_idx] {
+                                        result = ind.resistances[b_idx][d_idx].activity_r;
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        result
+                    };
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{}",
                         t,
                         i,
                         ind.id,
@@ -1016,6 +1036,7 @@ impl Simulation {
                         fmt_vec(&ind.test_identified_infection),
                         fmt_vec(&ind.sepsis),
                         fmt_vec(&infection_resolutions),
+                        active_infection_activity_r,
                         fmt_vec(&microbiome_r),
                         fmt_vec(&test_r),
                         fmt_vec(&activity_r),

@@ -30,7 +30,7 @@ proportion_of_people_taking_each_drug = False
 proportion_share_among_drug_users = False
 distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
-mean_activity_r_by_bacteria = False
+mean_activity_r_by_bacteria = True 
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = False
 proportion_of_microbiome_presence_with_resistance_by_drug = False
@@ -634,6 +634,113 @@ def create_grouped_plots(df):
     plt.savefig('output_graphs/grouped_figure_5.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     plt.close()
     print("✓ Grouped figure 5 saved as 'grouped_figure_5.png'")
+
+    # --- Grouped Figure 6: Overall Activity R Ratio ---
+    fig6, axes6 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes6 = axes6.flatten()
+    fig6.suptitle('Grouped Figure 6: Overall Activity R Analysis', fontsize=16)
+    
+    # Find all bacteria by looking for *_activity_r_sum columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_activity_r_sum"):
+            bacteria_names.append(col.replace("_activity_r_sum", ""))
+    
+    if bacteria_names:
+        # Calculate total activity_r_sum across all bacteria
+        total_activity_r_sum = pd.Series(0, index=df.index)
+        total_infected_and_on_drug = pd.Series(0, index=df.index)
+        
+        for bacteria_name in bacteria_names:
+            activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
+            infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+            
+            if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
+                total_activity_r_sum += df[activity_r_sum_col].fillna(0)
+                total_infected_and_on_drug += df[infected_and_on_drug_col].fillna(0)
+        
+        # 1. Overall Activity R Ratio (top-left)
+        overall_ratio = safe_divide(total_activity_r_sum, total_infected_and_on_drug)
+        overall_ratio = pd.Series(overall_ratio, index=df.index)  # Convert back to pandas Series
+        overall_ratio_smooth = overall_ratio.rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        axes6[0].plot(df['time_in_years'], overall_ratio_smooth, 
+                    linewidth=2, color='navy', label='Overall Activity R Ratio')
+        axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug)')
+        axes6[0].set_ylabel('Overall Activity R Ratio')
+        axes6[0].grid(True, alpha=0.3)
+        axes6[0].legend()
+        
+        # Add summary statistics
+        mean_val = overall_ratio.mean()
+        max_val = overall_ratio.max()
+        textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+        props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+        axes6[0].text(0.02, 0.98, textstr, transform=axes6[0].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+        
+        # 2. Total Activity R Sum Over Time (top-right)
+        total_activity_r_smooth = total_activity_r_sum.rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        axes6[1].plot(df['time_in_years'], total_activity_r_smooth, 
+                    linewidth=2, color='red', label='Total Activity R Sum')
+        axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined)')
+        axes6[1].set_ylabel('Total Activity R Sum')
+        axes6[1].grid(True, alpha=0.3)
+        axes6[1].legend()
+        
+        # 3. Total Infected & On Drug Over Time (bottom-left)
+        total_infected_smooth = total_infected_and_on_drug.rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        axes6[2].plot(df['time_in_years'], total_infected_smooth, 
+                    linewidth=2, color='green', label='Total Infected & On Drug')
+        axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined)')
+        axes6[2].set_xlabel('Time (Years)')
+        axes6[2].set_ylabel('Count')
+        axes6[2].grid(True, alpha=0.3)
+        axes6[2].legend()
+        
+        # 4. Distribution of Activity R Ratio by Bacteria (bottom-right)
+        # Show individual bacteria ratios
+        bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(bacteria_names)))
+        for i, bacteria_name in enumerate(bacteria_names[:8]):  # Limit to first 8 for readability
+            activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
+            infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+            
+            if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
+                bacteria_ratio = safe_divide(df[activity_r_sum_col], df[infected_and_on_drug_col])
+                bacteria_ratio = pd.Series(bacteria_ratio, index=df.index)  # Convert back to pandas Series
+                bacteria_ratio_smooth = bacteria_ratio.rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                ).mean()
+                
+                axes6[3].plot(df['time_in_years'], bacteria_ratio_smooth, 
+                            linewidth=1.5, color=bacteria_colors[i], 
+                            label=bacteria_name.replace('_', ' ').title()[:15])
+        
+        axes6[3].set_title('Activity R Ratio by Bacteria\n(Individual Bacteria Trends)')
+        axes6[3].set_xlabel('Time (Years)')
+        axes6[3].set_ylabel('Activity R Ratio')
+        axes6[3].grid(True, alpha=0.3)
+        axes6[3].legend(fontsize=7, loc='upper left')
+        
+    else:
+        # No activity_r data found
+        for i in range(4):
+            axes6[i].text(0.5, 0.5, 'No activity_r data found', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes6[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_6.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 6 saved as 'grouped_figure_6.png'")
 
 
 def create_proportion_plots(df):
@@ -1955,7 +2062,7 @@ def main():
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', 'proportion_share_among_drug_users/stacked_drug_share_among_users.png']:
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', 'proportion_share_among_drug_users/stacked_drug_share_among_users.png']:
         out_path = Path('output_graphs') / fname
         if out_path.exists():
             print(f"  ✓ output_graphs/{fname}")

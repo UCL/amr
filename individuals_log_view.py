@@ -46,7 +46,7 @@ BACTERIA INDEX REFERENCE (from population.rs BACTERIA_LIST):
 '''
 
 # Set this to the index of the individual you want to print (1 = first individual after header, 2 = second, etc.)
-INDIVIDUAL_INDEX = 1 
+INDIVIDUAL_INDEX = 4 
 BACTERIUM_INDEX = -1  # Set to -1 to show all bacteria, or 0-30 for specific bacteria
 
 OUTPUT_FILENAME = 'individual_output.txt'
@@ -69,9 +69,9 @@ ANY_BACTERIAL_INFECTION = True  # Set to True to check for any infection, False 
 PRINT_BASIC_INFO = True        # time_step, individual_id, age, etc.
 PRINT_INFECTION_LEVELS = True  # level (bacteria infection levels)
 PRINT_DRUG_USAGE = True        # cur_use_drug, cur_level_drug
-PRINT_RESISTANCE_DATA = False   # any_r, majority_r, activity_r, test_r, microbiome_r
+PRINT_RESISTANCE_DATA = True   # any_r, majority_r, activity_r, test_r, microbiome_r, active_infection_activity_r
 PRINT_HEALTH_STATUS = True     # hospital_status, sepsis, immunosuppressed, etc.
-PRINT_DEMOGRAPHICS = True      # region, sex, etc.
+PRINT_DEMOGRAPHICS = False     # region, sex, etc.
 PRINT_INFECTION_RESOLUTION = True  # infection_resolution_this_timestep
 PRINT_OTHER_VARIABLES = True   # All other variables not in the above categories
  
@@ -257,6 +257,10 @@ def print_aligned_csv(filename, max_rows=30):
         # Demographics
         if any(x in var_lower for x in ['region', 'sex', 'vaccination']):
             return PRINT_DEMOGRAPHICS
+        
+        # Special case for active_infection_activity_r (single value, not array)
+        if var_lower == 'active_infection_activity_r':
+            return PRINT_RESISTANCE_DATA
         
         # Resistance data (handled separately but check here too)
         if any(x in var_lower for x in ['any_r', 'majority_r', 'activity_r', 'test_r', 'microbiome_r']):

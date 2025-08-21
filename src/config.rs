@@ -1,7 +1,5 @@
 /* 
 
-        map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -14.0 Default baseline log-odds for infection acquisition
-
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
@@ -250,7 +248,7 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.2); // Default low potency 0.1 
                 map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);  // 0.005
             } 
         }
@@ -478,26 +476,6 @@ lazy_static! {
 
 
 
-
-
-// for debugging
-      
-        for &drug in DRUG_SHORT_NAMES.iter() {
-            for &bacteria in BACTERIA_LIST.iter() {
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.2); // Default low potency 0.1 
-            } 
-        }
-
-
-
-
-
-
-
-
-
-
-
         // for each drug-bacteria combination will need a specific multiplier for initiation rate
         // will need changes also in mod.rs 
 
@@ -507,7 +485,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -11.5); // -14.0 Default baseline log-odds for infection acquisition
+        map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -14.0 Default baseline log-odds for infection acquisition
         map.insert("log_odds_sexual_contact_per_unit".to_string(), 0.10); // Per unit sexual contact
         map.insert("log_odds_airborne_adult_contact_per_unit".to_string(), 0.08); // Per unit airborne adult contact
         map.insert("log_odds_airborne_child_contact_per_unit".to_string(), 0.08); // Per unit airborne child contact
