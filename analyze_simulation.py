@@ -26,7 +26,7 @@ SMOOTHING_WINDOW_DAYS = 91
 # =============================================================================
 for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
 proportion_of_people_infected_with_each_bacteria = False
-proportion_of_people_taking_each_drug = True
+proportion_of_people_taking_each_drug = False
 proportion_share_among_drug_users = False
 distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
@@ -37,7 +37,7 @@ proportion_of_microbiome_presence_with_resistance_by_drug = False
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
-infection_resolution_by_bacteria = False
+infection_resolution_by_bacteria = True 
 
 # =============================================================================
 # CONFIGURATION

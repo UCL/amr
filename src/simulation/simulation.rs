@@ -924,6 +924,15 @@ impl Simulation {
 
             self.summary_log.push(summary);
 
+            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
+            self.population.individuals.par_iter_mut().for_each(|individual| {
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    for res_idx in 0..crate::simulation::population::InfectionResolutionType::all().len() {
+                        individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
+                    }
+                }
+            });
+
             if self.log_individuals {
                 use std::fs::OpenOptions;
                 let n_log = 10.min(self.population.individuals.len());
@@ -1016,15 +1025,6 @@ impl Simulation {
                     ).unwrap();
                 }
             }
-            
-            // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
-            self.population.individuals.par_iter_mut().for_each(|individual| {
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    for res_idx in 0..crate::simulation::population::InfectionResolutionType::all().len() {
-                        individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
-                    }
-                }
-            });
             
             let _timestep_time = timestep_start.elapsed();
             if t % 100 == 0 { // Log every 100th timestep
