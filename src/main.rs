@@ -7,8 +7,9 @@
 //   - Sets up and runs the simulation using parameters from config.rs
 //   - Handles some initial and final reporting
 //
-
-
+// to run on less cores type this in before running: $env:RAYON_NUM_THREADS = "4"
+//
+//
 // note: (may no longer be relevant - consier deleting)
 // when need to follow variable values over time steps for individual 0 
 // make the change shown at the top of simulation.rs and rules/mod.rs    
@@ -25,9 +26,7 @@ mod config;
 //
 // // model structure developments to consider //
 //
-// this about whether  drug_infection_present_multiplier 50.0 and 
-// drug_test_identified_multiplier 50.0 make sense as values and how 
-// implemented in mod.rs
+// need some variability in immunosuppression_recovery_rate_per_day
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
@@ -40,7 +39,7 @@ mod config;
 //
 // // additional output graphs
 //
-//
+// time from infection that drug is started (in those in whom drug is started)
 //
 //
 //
@@ -92,8 +91,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 1_000; 
-    let time_steps =   3_000;
+    let population_size = 20_000; 
+    let time_steps =   3_500;
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

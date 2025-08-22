@@ -30,14 +30,14 @@ proportion_of_people_taking_each_drug = False
 proportion_share_among_drug_users = False
 distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
-mean_activity_r_by_bacteria = True 
+mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = False
 proportion_of_microbiome_presence_with_resistance_by_drug = False
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
-infection_resolution_by_bacteria = True 
+infection_resolution_by_bacteria = False 
 
 # =============================================================================
 # CONFIGURATION
@@ -588,18 +588,45 @@ def create_grouped_plots(df):
         axes5[1].legend(fontsize=8)
         axes5[1].grid(True, alpha=0.3)
         
-        # 3. Cumulative resolution events (bottom-left)
-        for res_type in resolution_types:
-            if np.any(pooled_data[res_type] > 0):
-                cumulative = np.cumsum(pooled_data[res_type])
-                axes5[2].plot(df['time_in_years'], cumulative, 
-                            label=labels[res_type], color=colors[res_type], linewidth=2)
-        
-        axes5[2].set_title('Cumulative Infection Resolution Events')
-        axes5[2].set_xlabel('Time (Years)')
-        axes5[2].set_ylabel('Cumulative Resolution Events')
-        axes5[2].legend(fontsize=8)
-        axes5[2].grid(True, alpha=0.3)
+        # 3. Total Currently Infected vs Total On Drug (bottom-left)
+        if 'total_currently_infected' in df.columns and 'currently_taking_drug_count' in df.columns:
+            # Apply smoothing to both series
+            infected_smooth = pd.Series(df['total_currently_infected']).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            on_drug_smooth = pd.Series(df['currently_taking_drug_count']).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            
+            axes5[2].plot(df['time_in_years'], infected_smooth, 
+                        label='Currently Infected', color='red', linewidth=2)
+            axes5[2].plot(df['time_in_years'], on_drug_smooth, 
+                        label='Currently On Drug', color='blue', linewidth=2)
+            
+            axes5[2].set_title('Total Currently Infected vs Total On Drug')
+            axes5[2].set_xlabel('Time (Years)')
+            axes5[2].set_ylabel('Number of People')
+            axes5[2].legend(fontsize=8)
+            axes5[2].grid(True, alpha=0.3)
+            
+            # Add summary statistics
+            mean_infected = df['total_currently_infected'].mean()
+            mean_on_drug = df['currently_taking_drug_count'].mean()
+            max_infected = df['total_currently_infected'].max()
+            max_on_drug = df['currently_taking_drug_count'].max()
+            
+            textstr = (f'Mean Infected: {mean_infected:.0f}\n'
+                      f'Mean On Drug: {mean_on_drug:.0f}\n'
+                      f'Max Infected: {max_infected:.0f}\n'
+                      f'Max On Drug: {max_on_drug:.0f}')
+            props = dict(boxstyle='round', facecolor='lightyellow', alpha=0.8)
+            axes5[2].text(0.02, 0.98, textstr, transform=axes5[2].transAxes, fontsize=8,
+                        verticalalignment='top', bbox=props)
+        else:
+            axes5[2].text(0.5, 0.5, 'Data not available\n(total_currently_infected or currently_taking_drug_count)', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes5[2].set_title('Total Currently Infected vs Total On Drug')
+            axes5[2].set_axis_off()
         
         # 4. Resolution rate as proportion of total infections (bottom-right)
         if 'total_currently_infected' in df.columns:
