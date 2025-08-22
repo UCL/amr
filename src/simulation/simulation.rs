@@ -14,7 +14,7 @@
 
 use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES, ResistanceMechanism, Region};
 use crate::rules::apply_rules;
-use crate::config; // Import the config module
+use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use std::collections::HashMap;
 use rayon::prelude::*;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
@@ -131,6 +131,10 @@ pub struct TimeStepSummary {
     pub infection_resolution_death_from_sepsis_by_bacteria: Vec<usize>,
     pub infection_resolution_death_from_background_by_bacteria: Vec<usize>,
     pub infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
+    
+    // day-7 drug initiation tracking: counts by bacteria
+    pub day_7_evaluations_by_bacteria: Vec<usize>,        // [bacteria_idx] = number of post-infection evaluations (configurable timing)
+    pub day_7_drug_used_by_bacteria: Vec<usize>,          // [bacteria_idx] = number where drug was used by day 7
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -874,6 +878,57 @@ impl Simulation {
         infection_resolution_death_from_sepsis_by_bacteria,
         infection_resolution_death_from_background_by_bacteria,
         infection_resolution_death_from_toxicity_by_bacteria,
+        
+        // Calculate day-7 drug initiation statistics
+        day_7_evaluations_by_bacteria: {
+            let evaluation_days = get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
+            let mut day_7_evals = vec![0; BACTERIA_LIST.len()];
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    let infection_start_day = individual.date_last_infected_keep[b_idx];
+                    
+                    // Only count if today is exactly the evaluation day after infection start (i.e., evaluation happens TODAY)
+                    if infection_start_day > 0 && (t as i32) == (infection_start_day + evaluation_days) {
+                        day_7_evals[b_idx] += 1;
+                    }
+                }
+            }
+            day_7_evals
+        },
+        day_7_drug_used_by_bacteria: {
+            let evaluation_days = get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
+            let mut day_7_used = vec![0; BACTERIA_LIST.len()];
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    let infection_start_day = individual.date_last_infected_keep[b_idx];
+                    
+                    // Only count if today is exactly the evaluation day after infection start AND drug was used
+                    if infection_start_day > 0 && (t as i32) == (infection_start_day + evaluation_days) {
+                        // Check if any drug was initiated since the infection started
+                        let mut drug_used_since_infection = false;
+                        
+                        for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                            let drug_start_day = individual.date_drug_initiated[d_idx];
+                            
+                            // Drug was started if it was initiated on or after the infection start day
+                            if drug_start_day != i32::MIN && drug_start_day >= infection_start_day {
+                                drug_used_since_infection = true;
+                                break;
+                            }
+                        }
+                        
+                        if drug_used_since_infection {
+                            day_7_used[b_idx] += 1;
+                        }
+                    }
+                }
+            }
+            day_7_used
+        },
             };
 
 
@@ -947,7 +1002,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -1004,7 +1059,18 @@ impl Simulation {
                         }
                         result
                     };
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{}",
+
+                    // Format day_7_since_last_infection_drug_used field
+                    let fmt_day_7_drug_used = ind.day_7_since_last_infection_drug_used.iter()
+                        .map(|opt| match opt {
+                            Some(true) => "true",
+                            Some(false) => "false", 
+                            None => "null"
+                        })
+                        .collect::<Vec<_>>()
+                        .join(";");
+
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{}",
                         t,
                         i,
                         ind.id,
@@ -1037,6 +1103,7 @@ impl Simulation {
                         fmt_vec(&ind.sepsis),
                         fmt_vec(&infection_resolutions),
                         active_infection_activity_r,
+                        fmt_day_7_drug_used,
                         fmt_vec(&microbiome_r),
                         fmt_vec(&test_r),
                         fmt_vec(&activity_r),
@@ -1272,6 +1339,18 @@ impl Simulation {
             header.push_str("_infection_resolution_death_from_toxicity");
         }
         
+        // Add per-bacteria day-7 drug initiation columns to header
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_day_7_evaluations");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_day_7_drug_used");
+        }
+        
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
@@ -1338,6 +1417,10 @@ impl Simulation {
             for value in &summary.infection_resolution_death_from_sepsis_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infection_resolution_death_from_background_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infection_resolution_death_from_toxicity_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            
+            // Add day-7 drug initiation data
+            for value in &summary.day_7_evaluations_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.day_7_drug_used_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             
             row.push('\n');
             writer.write_all(row.as_bytes())?;

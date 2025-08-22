@@ -1287,6 +1287,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let initial_level = get_bacteria_param(bacteria, "initial_infection_level").unwrap_or(0.01);
                 individual.level[b_idx] = initial_level;
                 individual.date_last_infected[b_idx] = time_step as i32;
+                individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
 
                 // --- probabilistic syndrome assignment ---
                 let syndrome_id = assign_syndrome_for_bacteria(bacteria, &mut rng);
@@ -1976,6 +1977,36 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] - immunity_decay_rate).max(0.0);
         }
     }
+
+    // Check for post-infection drug usage evaluation (configurable timing)
+    let evaluation_days = get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
+    
+    for b_idx in 0..BACTERIA_LIST.len() {
+        let infection_start_day = individual.date_last_infected_keep[b_idx];
+        
+        // Only evaluate if there was an infection and today is exactly the evaluation day after infection start
+        if infection_start_day > 0 && (time_step as i32) == (infection_start_day + evaluation_days) {
+            // Check if any drug was initiated since the infection started
+            let mut drug_used_since_infection = false;
+            
+            for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                let drug_start_day = individual.date_drug_initiated[d_idx];
+                
+                // Drug was started if it was initiated on or after the infection start day
+                if drug_start_day != i32::MIN && drug_start_day >= infection_start_day {
+                    drug_used_since_infection = true;
+                    break;
+                }
+            }
+            
+            // Set the evaluation result for this bacteria (this will be counted once in summary stats)
+            individual.day_7_since_last_infection_drug_used[b_idx] = Some(drug_used_since_infection);
+        }
+    }
+    
+    // Note: We do NOT reset day_7_since_last_infection_drug_used values here because 
+    // the summary statistics need to capture them during this timestep. 
+    // They will be reset when a new infection occurs or when the infection clears.
 }
 
 /// New helper function to apply cross-resistance within drug groups for a specific bacteria.

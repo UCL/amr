@@ -91,8 +91,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 20_000; 
-    let time_steps =   3_500;
+    let population_size = 5_000; 
+    let time_steps =   1000;
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

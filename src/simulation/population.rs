@@ -250,6 +250,8 @@ pub struct Individual {
     pub hospital_status: HospitalStatus,
     pub days_hospitalized: u32, 
     pub date_last_infected: Vec<i32>,              
+    /// Persistent record of last infection start date (not reset when infection clears)
+    pub date_last_infected_keep: Vec<i32>,         
     pub infectious_syndrome: Vec<i32>,             
     pub level: Vec<f64>,
 
@@ -290,6 +292,9 @@ pub struct Individual {
     /// Tracks infection resolution outcomes for current timestep only
     /// Reset to zero at the start of each timestep, incremented when resolutions occur
     pub infection_resolution_this_timestep: Vec<Vec<u32>>, // [bacteria_index][resolution_type_index] -> count
+    /// Tracks if any drug was started within 7 days of infection start for each bacteria infection
+    /// Value is set on day 7 post-infection: Some(true/false), None means no evaluation yet or not day 7
+    pub day_7_since_last_infection_drug_used: Vec<Option<bool>>, // [bacteria_index] -> Option<bool>
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
     pub is_severely_immunosuppressed: bool, 
@@ -310,6 +315,7 @@ impl Individual {
         let num_drugs = DRUG_SHORT_NAMES.len();
 
         let date_last_infected = vec![0; num_bacteria];
+        let date_last_infected_keep = vec![0; num_bacteria];
         let infectious_syndrome = vec![0; num_bacteria];
         let level = vec![0.0; num_bacteria];
         let immune_resp = vec![0.0001; num_bacteria];
@@ -355,6 +361,9 @@ impl Individual {
             infection_resolution_this_timestep.push(vec![0u32; InfectionResolutionType::all().len()]);
         }
 
+        // Initialize day_7_since_last_infection_drug_used (all None initially)
+        let day_7_since_last_infection_drug_used = vec![None; num_bacteria];
+
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
         } else {
@@ -372,6 +381,7 @@ impl Individual {
             days_hospitalized: 0, 
             sex_at_birth,
             date_last_infected,
+            date_last_infected_keep,
             infectious_syndrome,
             level, 
             immune_resp,
@@ -401,6 +411,7 @@ impl Individual {
             resistance_mechanisms,
             how_resistance_acquired,
             infection_resolution_this_timestep,
+            day_7_since_last_infection_drug_used,
             date_of_death: None,
             cause_of_death: None,
             is_severely_immunosuppressed: false, 

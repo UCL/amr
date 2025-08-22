@@ -292,6 +292,9 @@ lazy_static! {
         
         // Global Immune System Parameters
         map.insert("immune_decay_rate_per_day".to_string(), 0.02); // Rate at which immunity decays when not actively fighting infection
+        
+        // Drug Evaluation Timing Parameters
+        map.insert("drug_evaluation_days_post_infection".to_string(), 7.0); // Number of days after infection to evaluate drug initiation
       
 
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---

@@ -9,9 +9,16 @@ and creates visualizations and summary statistics.
 
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 from pathlib import Path
+
+# Optional seaborn import
+try:
+    import seaborn as sns
+    HAS_SEABORN = True
+except ImportError:
+    HAS_SEABORN = False
+    print("Warning: seaborn not available, some styling may be different")
 # =============================================================================
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
@@ -768,6 +775,170 @@ def create_grouped_plots(df):
     plt.savefig('output_graphs/grouped_figure_6.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     plt.close()
     print("✓ Grouped figure 6 saved as 'grouped_figure_6.png'")
+
+    # --- Grouped Figure 7: Day 7 Drug Initiation Analysis ---
+    fig7, axes7 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes7 = axes7.flatten()
+    fig7.suptitle('Figure 7: Proportion of Infections with Drug Started by Day 7', fontsize=16, fontweight='bold')
+    
+    # Find day-7 evaluation and drug use columns
+    day_7_eval_cols = [col for col in df.columns if col.endswith('_day_7_evaluations')]
+    day_7_used_cols = [col for col in df.columns if col.endswith('_day_7_drug_used')]
+    
+    if day_7_eval_cols and day_7_used_cols:
+        # Create bacteria names from column names
+        bacteria_names = []
+        for col in day_7_eval_cols:
+            bacteria_name = col.replace('_day_7_evaluations', '').replace('_', ' ').title()
+            bacteria_names.append(bacteria_name)
+        
+        print(f"Processing day-7 data for {len(bacteria_names)} bacteria types")
+        
+        # 1. Overall Proportion of Infections with Drug Started by Day 7 (top-left)
+        # Calculate overall proportion across all bacteria
+        total_evaluations = df[day_7_eval_cols].sum(axis=1)
+        total_drug_used = df[day_7_used_cols].sum(axis=1)
+        
+        # Calculate proportion (avoid division by zero)
+        overall_proportions = total_drug_used / total_evaluations.replace(0, np.nan)
+        
+        # Apply smoothing
+        prop_smooth = overall_proportions.rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(overall_proportions)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes7[0].plot(df['time_in_years'], prop_smooth, linewidth=2, color='darkblue', 
+                    label='Overall Proportion')
+        axes7[0].set_title('Proportion of Infections with Drug Started by Day 7\n(All Bacteria Combined)')
+        axes7[0].set_ylabel('Proportion')
+        axes7[0].set_ylim(0, 1)
+        axes7[0].grid(True, alpha=0.3)
+        axes7[0].legend()
+        
+        # Add summary statistics
+        mean_prop = overall_proportions.mean()
+        max_prop = overall_proportions.max()
+        total_evals = total_evaluations.sum()
+        total_used = total_drug_used.sum()
+        
+        textstr = f'Mean: {mean_prop:.3f}\nMax: {max_prop:.3f}\nTotal evals: {total_evals:,}\nTotal used: {total_used:,}'
+        props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+        axes7[0].text(0.02, 0.98, textstr, transform=axes7[0].transAxes, 
+                    fontsize=9, verticalalignment='top', bbox=props)
+        
+        # 2. Number of Day 7 Evaluations Over Time (top-right)
+        eval_counts_smooth = total_evaluations.rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(total_evaluations)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes7[1].plot(df['time_in_years'], eval_counts_smooth, linewidth=2, color='green', 
+                    label='Day 7 Evaluations')
+        axes7[1].set_title('Number of Day 7 Evaluations Over Time\n(Count of infections reaching 7 days)')
+        axes7[1].set_ylabel('Count')
+        axes7[1].grid(True, alpha=0.3)
+        axes7[1].legend()
+        
+        # 3. Proportion by Top Bacteria (bottom-left)
+        # Calculate overall proportions by bacteria
+        bacteria_proportions = {}
+        for i, bacteria_name in enumerate(bacteria_names):
+            eval_col = day_7_eval_cols[i]
+            used_col = day_7_used_cols[i]
+            
+            total_evals = df[eval_col].sum()
+            total_used = df[used_col].sum()
+            
+            if total_evals > 0:
+                bacteria_proportions[bacteria_name] = total_used / total_evals
+            else:
+                bacteria_proportions[bacteria_name] = 0
+        
+        # Sort and take top 8 bacteria
+        sorted_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)[:8]
+        
+        if sorted_bacteria:
+            bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(sorted_bacteria)))
+            
+            for i, (bacteria_name, _) in enumerate(sorted_bacteria):
+                # Find the corresponding column indices
+                bacteria_idx = bacteria_names.index(bacteria_name)
+                eval_col = day_7_eval_cols[bacteria_idx]
+                used_col = day_7_used_cols[bacteria_idx]
+                
+                # Calculate time series proportions for this bacteria
+                bacteria_evals = df[eval_col]
+                bacteria_used = df[used_col]
+                bacteria_props = bacteria_used / bacteria_evals.replace(0, np.nan)
+                
+                # Apply smoothing
+                bacteria_props_smooth = bacteria_props.rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(bacteria_props)), 
+                    min_periods=1, center=True
+                ).mean()
+                
+                axes7[2].plot(df['time_in_years'], bacteria_props_smooth, 
+                            linewidth=1.5, color=bacteria_colors[i], 
+                            label=bacteria_name[:15])
+            
+            axes7[2].set_title('Day 7 Drug Initiation by Bacteria\n(Top 8 Bacteria by Proportion)')
+            axes7[2].set_xlabel('Time (Years)')
+            axes7[2].set_ylabel('Proportion')
+            axes7[2].set_ylim(0, 1)
+            axes7[2].grid(True, alpha=0.3)
+            axes7[2].legend(fontsize=7, loc='upper left')
+        else:
+            axes7[2].text(0.5, 0.5, 'No bacteria data available', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes7[2].set_axis_off()
+        
+        # 4. Summary Statistics (bottom-right)
+        # Create a summary bar chart
+        if bacteria_proportions:
+            # Take top 10 bacteria for bar chart
+            top_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)[:10]
+            
+            bacteria_labels = [name[:20] for name, _ in top_bacteria]
+            proportions = [prop for _, prop in top_bacteria]
+            
+            # Get evaluation counts for labels
+            eval_counts = []
+            for name, _ in top_bacteria:
+                bacteria_idx = bacteria_names.index(name)
+                eval_col = day_7_eval_cols[bacteria_idx]
+                eval_counts.append(df[eval_col].sum())
+            
+            y_pos = np.arange(len(bacteria_labels))
+            bars = axes7[3].barh(y_pos, proportions, color='lightcoral', alpha=0.7)
+            axes7[3].set_yticks(y_pos)
+            axes7[3].set_yticklabels(bacteria_labels, fontsize=8)
+            axes7[3].set_xlabel('Proportion')
+            axes7[3].set_title('Day 7 Drug Initiation by Bacteria\n(Top 10 by Proportion)')
+            axes7[3].grid(True, alpha=0.3, axis='x')
+            axes7[3].set_xlim(0, max(proportions) * 1.1 if proportions else 1)
+            
+            # Add count labels on bars
+            for i, (bar, count) in enumerate(zip(bars, eval_counts)):
+                width = bar.get_width()
+                axes7[3].text(width + max(proportions) * 0.01, bar.get_y() + bar.get_height()/2, 
+                            f'n={count:,}', ha='left', va='center', fontsize=7)
+        else:
+            axes7[3].text(0.5, 0.5, 'No summary data available', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes7[3].set_axis_off()
+    
+    else:
+        # No day-7 data found
+        for i in range(4):
+            axes7[i].text(0.5, 0.5, f'No day-7 data found\nEval cols: {len(day_7_eval_cols)}, Used cols: {len(day_7_used_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes7[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_7.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 7 saved as 'grouped_figure_7.png'")
 
 
 def create_proportion_plots(df):
@@ -2089,7 +2260,7 @@ def main():
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', 'proportion_share_among_drug_users/stacked_drug_share_among_users.png']:
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', f'grouped_figure_7.png', 'proportion_share_among_drug_users/stacked_drug_share_among_users.png']:
         out_path = Path('output_graphs') / fname
         if out_path.exists():
             print(f"  ✓ output_graphs/{fname}")
