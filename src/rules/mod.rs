@@ -1089,7 +1089,6 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     log_odds += log_odds_vaccinated;
                 }
 
-                // Microbiome presence effect (should not apply here)
 
                 // Hospital-acquired effect
                 if individual.hospital_status.is_hospitalized() {
@@ -1919,6 +1918,16 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         InfectionResolutionType::DeathFromToxicity => 4,
                     };
                     individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
+                    
+                    // If infection was cleared by drugs and bacteria is present in microbiome, 
+                    // consider clearing it from microbiome as well
+                    if matches!(resolution_type, InfectionResolutionType::DrugAssistedClearance) && 
+                       individual.presence_microbiome[b_idx] {
+                        let microbiome_clearance_on_drug_treatment = get_global_param("microbiome_clearance_probability_on_drug_treatment").unwrap_or(0.8);
+                        if rng.gen_bool(microbiome_clearance_on_drug_treatment) {
+                            individual.presence_microbiome[b_idx] = false;
+                        }
+                    }
                 }
                 
                 // Clear infection data after tracking resolution

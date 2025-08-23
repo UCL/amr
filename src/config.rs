@@ -1,5 +1,7 @@
 /* 
 
+        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
+  
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001
         map.insert("drug_infection_present_multiplier".to_string(), 50.0);
         map.insert("drug_test_identified_multiplier".to_string(), 50.0);
@@ -803,7 +805,7 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.00003);   // Probablity of becoming immunosuppressed daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0001);   // Probablity of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.005); // Probability of recovering from immunosuppression daily
 
 
@@ -847,6 +849,8 @@ lazy_static! {
         //  Default Toxicity Parameter
         //  Default Microbiome Clearance Parameter (required by simulation logic)
         map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
+        // Probability of clearing microbiome when drug treatment successfully clears infection  
+        map.insert("microbiome_clearance_probability_on_drug_treatment".to_string(), 0.8); // 80% chance drugs clear microbiome when they clear infection
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
 
         //  Probability per day of death due to adverse drug effect (toxicity)
