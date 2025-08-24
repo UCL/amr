@@ -1,10 +1,10 @@
 /* 
 
         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
-  
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0001 ); // 0.0001
-        map.insert("drug_infection_present_multiplier".to_string(), 50.0);
-        map.insert("drug_test_identified_multiplier".to_string(), 50.0);
+
+        map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 1945 (15 years after 1930) - Bacterial culture/identification becomes available
+        map.insert("resistance_testing_available_from_day".to_string(), 9131.0); // 1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
+
 
         map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
@@ -187,7 +187,7 @@ lazy_static! {
 
         // General Drug Parameters
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0005 ); // 0.0001
-        map.insert("drug_infection_present_multiplier".to_string(), 30.0);
+        map.insert("drug_infection_present_multiplier".to_string(), 300.0); // 1000
         map.insert("drug_test_identified_multiplier".to_string(), 2.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
         
@@ -349,7 +349,7 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.2); // Default low potency 0.1 
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.3); // Default low potency 0.1 
                 map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);  // 0.005
             } 
         }
@@ -577,6 +577,7 @@ lazy_static! {
 
 
 
+
         // for each drug-bacteria combination will need a specific multiplier for initiation rate
         // will need changes also in mod.rs 
 
@@ -701,6 +702,8 @@ lazy_static! {
         map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
 
         // Testing Parameters
+        map.insert("bacterial_testing_available_from_day".to_string(), 548.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available
+        map.insert("resistance_testing_available_from_day".to_string(), 913.0); // 9131.0  1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
         map.insert("test_delay_days".to_string(), 3.0);
         map.insert("test_rate_per_day".to_string(), 0.2);  // 0.15
 
@@ -805,7 +808,7 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0001);   // Probablity of becoming immunosuppressed daily
+        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0003);   // Probablity of becoming immunosuppressed daily
         map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.005); // Probability of recovering from immunosuppression daily
 
 
@@ -1448,7 +1451,11 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
 }
 
 
-// Drug introduction dates - FOR CODE DEVELOPMENT DIVIDING TIMES TO INTRODUCTION BY 10
+
+
+// Drug introduction dates - 
+// FOR CODE DEVELOPMENT DIVIDING TIMES TO INTRODUCTION BY 10
+
 lazy_static! {
     pub static ref DRUG_INTRODUCTION_DATES: HashMap<&'static str, usize> = {
         let mut map = HashMap::new();
@@ -1538,6 +1545,12 @@ lazy_static! {
         map
     };
 }
+
+
+
+
+
+
 
 /// Gets the introduction date for a drug (as time step from 1930)
 /// Returns the time step if found, None otherwise

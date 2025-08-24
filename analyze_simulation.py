@@ -592,6 +592,7 @@ def create_grouped_plots(df):
         
         axes5[1].set_title('Infection Resolution Counts Over Time\n(All Bacteria Combined)')
         axes5[1].set_ylabel('Resolution Events per Day')
+        axes5[1].set_ylim(bottom=0)
         axes5[1].legend(fontsize=8)
         axes5[1].grid(True, alpha=0.3)
         
@@ -613,6 +614,7 @@ def create_grouped_plots(df):
             axes5[2].set_title('Total Currently Infected vs Total On Drug')
             axes5[2].set_xlabel('Time (Years)')
             axes5[2].set_ylabel('Number of People')
+            axes5[2].set_ylim(bottom=0)
             axes5[2].legend(fontsize=8)
             axes5[2].grid(True, alpha=0.3)
             
@@ -650,6 +652,7 @@ def create_grouped_plots(df):
             axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected)')
             axes5[3].set_xlabel('Time (Years)')
             axes5[3].set_ylabel('Daily Resolutions / Current Infections (%)')
+            axes5[3].set_ylim(bottom=0)
             axes5[3].grid(True, alpha=0.3)
             axes5[3].legend()
         else:
@@ -704,6 +707,7 @@ def create_grouped_plots(df):
                     linewidth=2, color='navy', label='Overall Activity R Ratio')
         axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug)')
         axes6[0].set_ylabel('Overall Activity R Ratio')
+        axes6[0].set_ylim(bottom=0)
         axes6[0].grid(True, alpha=0.3)
         axes6[0].legend()
         
@@ -724,6 +728,7 @@ def create_grouped_plots(df):
                     linewidth=2, color='red', label='Total Activity R Sum')
         axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined)')
         axes6[1].set_ylabel('Total Activity R Sum')
+        axes6[1].set_ylim(bottom=0)
         axes6[1].grid(True, alpha=0.3)
         axes6[1].legend()
         
@@ -737,6 +742,7 @@ def create_grouped_plots(df):
         axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined)')
         axes6[2].set_xlabel('Time (Years)')
         axes6[2].set_ylabel('Count')
+        axes6[2].set_ylim(bottom=0)
         axes6[2].grid(True, alpha=0.3)
         axes6[2].legend()
         
@@ -761,6 +767,7 @@ def create_grouped_plots(df):
         axes6[3].set_title('Activity R Ratio by Bacteria\n(Individual Bacteria Trends)')
         axes6[3].set_xlabel('Time (Years)')
         axes6[3].set_ylabel('Activity R Ratio')
+        axes6[3].set_ylim(bottom=0)
         axes6[3].grid(True, alpha=0.3)
         axes6[3].legend(fontsize=7, loc='upper left')
         
@@ -837,6 +844,7 @@ def create_grouped_plots(df):
                     label='Day 7 Evaluations')
         axes7[1].set_title('Number of Day 7 Evaluations Over Time\n(Count of infections reaching 7 days)')
         axes7[1].set_ylabel('Count')
+        axes7[1].set_ylim(bottom=0)
         axes7[1].grid(True, alpha=0.3)
         axes7[1].legend()
         

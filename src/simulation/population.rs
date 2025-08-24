@@ -272,6 +272,8 @@ pub struct Individual {
     pub cur_level_drug: Vec<f64>,  // REMAOVE ?: standard level is 10 for a day on which a standard dose is taken / administered 
     /// The time_step when each drug was last initiated
     pub date_drug_initiated: Vec<i32>, // REMAOVE ?: the time_step when each drug was last initiated
+    /// Persistent record of drug initiation dates (not reset when drugs are stopped)
+    pub date_drug_initiated_keep: Vec<i32>,
     pub ever_taken_drug: Vec<bool>,
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,  
@@ -392,6 +394,7 @@ impl Individual {
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],
             date_drug_initiated: vec![i32::MIN; num_drugs], 
+            date_drug_initiated_keep: vec![i32::MIN; num_drugs],
             ever_taken_drug: vec![false; num_drugs],
             current_infection_related_death_risk: 0.0,
             background_all_cause_mortality_rate,  

@@ -763,6 +763,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
                 individual.cur_use_drug[drug_idx] = true;
                 individual.date_drug_initiated[drug_idx] = time_step as i32;
+                individual.date_drug_initiated_keep[drug_idx] = time_step as i32; // Persistent record
                 individual.ever_taken_drug[drug_idx] = true;
                 if individual.id == 1000001  {
                     println!(
@@ -1769,7 +1770,12 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let current_test_status_entry = &mut individual.test_identified_infection[b_idx];
         let test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
         let test_rate_per_day = get_global_param("test_rate_per_day").unwrap_or(0.15);
-        if is_infected && !*current_test_status_entry && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) {
+        
+        // Check if bacterial testing is available yet (historically realistic dates)
+        let bacterial_testing_available_from_day = get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32;
+        let bacterial_testing_available = time_step >= bacterial_testing_available_from_day as usize;
+        
+        if is_infected && !*current_test_status_entry && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) && bacterial_testing_available {
             if rng.gen_bool(test_rate_per_day.clamp(0.0, 1.0)) {
                 *current_test_status_entry = true;
             }
@@ -1780,8 +1786,12 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
         let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
         let resistance_test_result_delay_days = get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32;
+        
+        // Check if resistance testing is available yet (historically realistic dates)
+        let resistance_testing_available_from_day = get_global_param("resistance_testing_available_from_day").unwrap_or(9131.0) as i32;
+        let resistance_testing_available = time_step >= resistance_testing_available_from_day as usize;
 
-        if *current_test_status_entry {
+        if *current_test_status_entry && resistance_testing_available {
             // Check if we should initiate resistance testing (if not already initiated)
             if individual.resistance_test_initiated_day[b_idx] == -1 {
                 if rng.gen_bool(prob_test_r_done) {
@@ -1999,7 +2009,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let mut drug_used_since_infection = false;
             
             for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                let drug_start_day = individual.date_drug_initiated[d_idx];
+                let drug_start_day = individual.date_drug_initiated_keep[d_idx];
                 
                 // Drug was started if it was initiated on or after the infection start day
                 if drug_start_day != i32::MIN && drug_start_day >= infection_start_day {

@@ -26,7 +26,7 @@ mod config;
 //
 // // model structure developments to consider //
 //
-// effect of region on testing
+// effect of region and calendar time on testing
 //
 // need some variability in immunosuppression_recovery_rate_per_day
 //
@@ -38,7 +38,7 @@ mod config;
 // also think about whether hospitalization modelling is ok - e.g. being in hospital a contributory cause of sepsis ? 
 //
 // 
-//
+// 
 // // additional output graphs
 //
 // time from infection that drug is started (in those in whom drug is started)
@@ -93,8 +93,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 1_000; 
-    let time_steps =   500;
+    let population_size = 3_000; 
+    let time_steps =   1800;
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

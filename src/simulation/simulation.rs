@@ -900,6 +900,7 @@ impl Simulation {
         day_7_drug_used_by_bacteria: {
             let evaluation_days = get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
             let mut day_7_used = vec![0; BACTERIA_LIST.len()];
+            
             for individual in &self.population.individuals {
                 if individual.date_of_death.is_some() { continue; } // Skip dead individuals
                 
@@ -912,7 +913,7 @@ impl Simulation {
                         let mut drug_used_since_infection = false;
                         
                         for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                            let drug_start_day = individual.date_drug_initiated[d_idx];
+                            let drug_start_day = individual.date_drug_initiated_keep[d_idx];
                             
                             // Drug was started if it was initiated on or after the infection start day
                             if drug_start_day != i32::MIN && drug_start_day >= infection_start_day {
@@ -927,6 +928,7 @@ impl Simulation {
                     }
                 }
             }
+            
             day_7_used
         },
             };
