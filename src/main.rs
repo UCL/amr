@@ -29,16 +29,11 @@ mod config;
 //
 // // model structure developments to consider //
 //
-// effect of region and calendar time on testing
-//
-// think about structure of distribution of age at start of simulation - project to 2035 or beyond ?
-//
-// need some variability in immunosuppression_recovery_rate_per_day
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
 //
-// some people with (at least temporary) immunodeficiency will be on drug ? if so bacteria acquisition immediately
+// some people with (at least temporary) immunodeficiency will be on drug ? if so, bacteria acquisition immediately
 // reversed ? 
 //
 // review incidence of immunodeficiency and resolution
@@ -108,8 +103,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 1_000; 
-    let time_steps =   3_000;
+    let population_size = 3_000; 
+    let time_steps =   38_325;  // 38_325
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

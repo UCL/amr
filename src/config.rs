@@ -720,6 +720,40 @@ lazy_static! {
         map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000005); // 0.0000001  Increase in daily hospitalization probability per year of age
         map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // 0.2  Daily probability of recovering from hospitalization
         map.insert("hospitalization_max_days".to_string(), 30.0); // 30.0  Max days in hospital before forced discharge (as fallback)
+        map.insert("hospitalization_sepsis_admission_multiplier".to_string(), 1000.0); // Strong predictor: sepsis patients very likely to be hospitalized
+        map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 1.0); // 1.0 = true, 0.0 = false: prevent discharge of patients with active sepsis
+
+        // Testing Framework Parameters
+        // Base testing rates (modern era baseline)
+        map.insert("bacterial_testing_base_rate_per_day".to_string(), 0.15); // Modern baseline rate for bacterial identification
+        map.insert("resistance_testing_base_rate_per_day".to_string(), 0.95); // Probability of resistance testing given bacterial identification
+        
+        // Hospital status multipliers
+        map.insert("bacterial_testing_hospital_multiplier".to_string(), 8.0); // Hospitalized patients 8x more likely to get bacterial testing
+        map.insert("resistance_testing_hospital_multiplier".to_string(), 5.0); // Hospitalized patients 5x more likely to get resistance testing
+        
+        // Regional resource multipliers for testing access
+        map.insert("north_america_testing_multiplier".to_string(), 1.1);
+        map.insert("europe_testing_multiplier".to_string(), 1.2);
+        map.insert("asia_testing_multiplier".to_string(), 0.7);
+        map.insert("south_america_testing_multiplier".to_string(), 0.6);
+        map.insert("oceania_testing_multiplier".to_string(), 0.8);
+        map.insert("africa_testing_multiplier".to_string(), 0.3); // Limited lab infrastructure
+        
+        // Clinical status multipliers
+        map.insert("testing_immunosuppressed_multiplier".to_string(), 2.5); // Immunosuppressed patients get more testing
+        map.insert("testing_sepsis_multiplier".to_string(), 4.0); // Sepsis patients get urgent testing
+        
+        // Temporal adoption parameters (testing evolution over time)
+        // Bacterial testing temporal evolution
+        map.insert("bacterial_testing_initial_adoption_rate".to_string(), 0.1); // 1945: 10% of modern rates
+        map.insert("bacterial_testing_adoption_rate_per_year".to_string(), 0.025); // 2.5% improvement per year
+        map.insert("bacterial_testing_max_temporal_multiplier".to_string(), 1.0); // Cap at modern rates
+        
+        // Resistance testing temporal evolution (slower adoption)
+        map.insert("resistance_testing_initial_adoption_rate".to_string(), 0.05); // 1955: 5% of modern rates
+        map.insert("resistance_testing_adoption_rate_per_year".to_string(), 0.015); // 1.5% improvement per year
+        map.insert("resistance_testing_max_temporal_multiplier".to_string(), 1.0); // Cap at modern rates
 
         // initiate travel
         map.insert("travel_probability_per_day".to_string(), 0.00005);
@@ -806,8 +840,23 @@ lazy_static! {
 
 
         //  Immunosuppression Onset and Recovery Rates
-        map.insert("immunosuppression_onset_rate_per_day".to_string(), 0.0003);   // Probablity of becoming immunosuppressed daily
-        map.insert("immunosuppression_recovery_rate_per_day".to_string(), 0.005); // Probability of recovering from immunosuppression daily
+        // Temporary immunodeficiency (e.g., chemotherapy, short-term steroids)
+        map.insert("temporary_immunosuppression_onset_rate_per_day".to_string(), 0.0002);   // Slightly lower onset rate for temporary
+        map.insert("temporary_immunosuppression_recovery_rate_per_day".to_string(), 0.01);   // Faster recovery (10x faster)
+        
+        // Chronic immunodeficiency (e.g., HIV, genetic disorders, organ transplant)
+        map.insert("chronic_immunosuppression_onset_rate_per_day".to_string(), 0.0001);     // Lower onset rate for chronic
+        map.insert("chronic_immunosuppression_recovery_rate_per_day".to_string(), 0.0005);  // Much slower recovery (10x slower)
+        
+        // Age effect on immunodeficiency type assignment (probability of chronic vs temporary at onset)
+        map.insert("chronic_immunodeficiency_probability_age_0_1".to_string(), 0.3);   // Infants: higher chance of genetic/congenital
+        map.insert("chronic_immunodeficiency_probability_age_1_18".to_string(), 0.2);  // Children: moderate chance
+        map.insert("chronic_immunodeficiency_probability_age_18_65".to_string(), 0.4); // Adults: higher chance (HIV, transplants)
+        map.insert("chronic_immunodeficiency_probability_age_65_plus".to_string(), 0.6); // Elderly: highest chance (multiple conditions)
+
+        // Prophylactic antibiotic use in immunocompromised patients
+        map.insert("immunodeficiency_prophylactic_drug_multiplier".to_string(), 8.0);  // 8x higher drug initiation rate for immunocompromised (prophylaxis)
+        map.insert("antibiotic_infection_prevention_efficacy".to_string(), 0.85);      // 85% efficacy: existing antibiotic prevents new susceptible infections
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)

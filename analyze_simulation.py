@@ -952,7 +952,7 @@ def create_grouped_plots(df):
     # --- Grouped Figure 8: Infectious Syndrome Tracking ---
     fig8, axes8 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes8 = axes8.flatten()
-    fig8.suptitle('Figure 8: Infectious Syndrome Distribution Over Time', fontsize=16, fontweight='bold')
+    fig8.suptitle('Figure 8: Population Dynamics and Infection Patterns Over Time', fontsize=16, fontweight='bold')
     
     # Find syndrome columns
     syndrome_cols = [col for col in df.columns if col.startswith('syndrome_') and col.endswith('_infected')]
@@ -1030,20 +1030,226 @@ def create_grouped_plots(df):
             axes8[0].text(0.02, 0.98, textstr, transform=axes8[0].transAxes, 
                         fontsize=9, verticalalignment='top', bbox=props)
         
-        # 2. Empty subplot (top-right) - reserved for future use
-        axes8[1].text(0.5, 0.5, 'Reserved for\nAdditional Analysis', 
-                    ha='center', va='center', fontsize=14, color='gray')
-        axes8[1].set_axis_off()
+        # 2. Regional Population Distribution (top-right)
+        region_cols = [col for col in df.columns if col.endswith('_population') and col != 'total_population']
         
-        # 3. Empty subplot (bottom-left) - reserved for future use  
-        axes8[2].text(0.5, 0.5, 'Reserved for\nAdditional Analysis', 
-                    ha='center', va='center', fontsize=14, color='gray')
-        axes8[2].set_axis_off()
+        if region_cols:
+            print(f"Processing region data for {len(region_cols)} regions")
+            
+            # Get region population data
+            region_data = df[region_cols].values
+            total_population = region_data.sum(axis=1)
+            
+            # Calculate proportions (avoid division by zero)
+            region_proportions = np.zeros_like(region_data, dtype=float)
+            nonzero_mask = total_population > 0
+            region_proportions[nonzero_mask] = region_data[nonzero_mask] / total_population[nonzero_mask, np.newaxis]
+            
+            # Create time series with smoothing
+            region_props_smooth = np.zeros_like(region_proportions)
+            for i in range(len(region_cols)):
+                region_props_smooth[:, i] = pd.Series(region_proportions[:, i]).rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(region_proportions)), 
+                    min_periods=1, center=True
+                ).mean()
+            
+            # Create stacked area plot
+            region_colors = plt.cm.Set3(np.linspace(0, 1, len(region_cols)))
+            
+            # Use every 100th point to reduce density for better visualization
+            step = max(1, len(df) // 500)  # Show ~500 points maximum
+            time_subset = df['time_in_years'].iloc[::step]
+            props_subset = region_props_smooth[::step]
+            
+            bottom = np.zeros(len(time_subset))
+            
+            # Create region labels (clean up column names)
+            region_labels = []
+            for col in region_cols:
+                region_name = col.replace('_population', '').replace('_', ' ').title()
+                region_labels.append(region_name)
+            
+            for i, (color, label) in enumerate(zip(region_colors, region_labels)):
+                axes8[1].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                                    color=color, alpha=0.7, label=label)
+                bottom += props_subset[:, i]
+            
+            axes8[1].set_title('Regional Population Distribution Over Time\n(Stacked Proportions, 0-1 Scale)')
+            axes8[1].set_xlabel('Time (Years)')
+            axes8[1].set_ylabel('Proportion')
+            axes8[1].set_ylim(0, 1)
+            axes8[1].grid(True, alpha=0.3)
+            axes8[1].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # Add summary statistics
+            if total_population.sum() > 0:
+                region_percentages = (region_data.sum(axis=0) / region_data.sum() * 100)
+                most_populous_idx = np.argmax(region_percentages)
+                textstr = f'Total population: {int(total_population.mean()):,}\nLargest region: {region_labels[most_populous_idx]}\n({region_percentages[most_populous_idx]:.1f}% of population)'
+                props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+                axes8[1].text(0.02, 0.98, textstr, transform=axes8[1].transAxes, 
+                            fontsize=9, verticalalignment='top', bbox=props)
+        else:
+            # No region data found
+            axes8[1].text(0.5, 0.5, f'No region data found\nExpected columns: north_america_population, etc.\nFound columns: {len(region_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes8[1].set_axis_off()
         
-        # 4. Empty subplot (bottom-right) - reserved for future use
-        axes8[3].text(0.5, 0.5, 'Reserved for\nAdditional Analysis', 
-                    ha='center', va='center', fontsize=14, color='gray')
-        axes8[3].set_axis_off()
+        # 3. Bacteria Infection Breakdown (bottom-left)
+        bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected') and col != 'total_currently_infected']
+        
+        if bacteria_cols:
+            print(f"Processing bacteria infection data for {len(bacteria_cols)} bacteria types")
+            
+            # Get bacteria infection data
+            bacteria_data = df[bacteria_cols].values
+            total_infected = bacteria_data.sum(axis=1)
+            
+            # Calculate proportions (avoid division by zero)
+            bacteria_proportions = np.zeros_like(bacteria_data, dtype=float)
+            nonzero_mask = total_infected > 0
+            bacteria_proportions[nonzero_mask] = bacteria_data[nonzero_mask] / total_infected[nonzero_mask, np.newaxis]
+            
+            # Only show top bacteria by total infections to avoid overcrowding
+            total_infections_by_bacteria = bacteria_data.sum(axis=0)
+            top_bacteria_indices = np.argsort(total_infections_by_bacteria)[-12:]  # Top 12 bacteria
+            
+            # Filter to top bacteria only
+            top_bacteria_data = bacteria_data[:, top_bacteria_indices]
+            top_bacteria_props = bacteria_proportions[:, top_bacteria_indices]
+            top_bacteria_cols = [bacteria_cols[i] for i in top_bacteria_indices]
+            
+            # Recalculate proportions for top bacteria only
+            top_total_infected = top_bacteria_data.sum(axis=1)
+            top_bacteria_proportions = np.zeros_like(top_bacteria_data, dtype=float)
+            nonzero_mask = top_total_infected > 0
+            top_bacteria_proportions[nonzero_mask] = top_bacteria_data[nonzero_mask] / top_total_infected[nonzero_mask, np.newaxis]
+            
+            # Create time series with smoothing
+            bacteria_props_smooth = np.zeros_like(top_bacteria_proportions)
+            for i in range(len(top_bacteria_cols)):
+                bacteria_props_smooth[:, i] = pd.Series(top_bacteria_proportions[:, i]).rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(top_bacteria_proportions)), 
+                    min_periods=1, center=True
+                ).mean()
+            
+            # Create stacked area plot
+            bacteria_colors = plt.cm.tab20(np.linspace(0, 1, len(top_bacteria_cols)))
+            
+            # Use every 100th point to reduce density for better visualization
+            step = max(1, len(df) // 500)  # Show ~500 points maximum
+            time_subset = df['time_in_years'].iloc[::step]
+            props_subset = bacteria_props_smooth[::step]
+            
+            bottom = np.zeros(len(time_subset))
+            
+            # Create bacteria labels (clean up column names)
+            bacteria_labels = []
+            for col in top_bacteria_cols:
+                bacteria_name = col.replace('_currently_infected', '').replace('_', ' ').title()
+                # Shorten very long names
+                if len(bacteria_name) > 20:
+                    bacteria_name = bacteria_name[:17] + '...'
+                bacteria_labels.append(bacteria_name)
+            
+            for i, (color, label) in enumerate(zip(bacteria_colors, bacteria_labels)):
+                axes8[2].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                                    color=color, alpha=0.7, label=label)
+                bottom += props_subset[:, i]
+            
+            axes8[2].set_title('Top Bacteria Among Infected People\n(Stacked Proportions, 0-1 Scale)')
+            axes8[2].set_xlabel('Time (Years)')
+            axes8[2].set_ylabel('Proportion')
+            axes8[2].set_ylim(0, 1)
+            axes8[2].grid(True, alpha=0.3)
+            axes8[2].legend(fontsize=7, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # Add summary statistics
+            if total_infected.sum() > 0:
+                bacteria_percentages = (top_bacteria_data.sum(axis=0) / top_bacteria_data.sum() * 100)
+                most_common_idx = np.argmax(bacteria_percentages)
+                textstr = f'Total infections: {int(total_infected.mean()):,}\nMost common: {bacteria_labels[most_common_idx][:15]}\n({bacteria_percentages[most_common_idx]:.1f}% of infections)'
+                props = dict(boxstyle='round', facecolor='lightyellow', alpha=0.8)
+                axes8[2].text(0.02, 0.98, textstr, transform=axes8[2].transAxes, 
+                            fontsize=8, verticalalignment='top', bbox=props)
+        else:
+            # No bacteria infection data found
+            axes8[2].text(0.5, 0.5, f'No bacteria infection data found\nExpected columns: *_currently_infected\nFound columns: {len(bacteria_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes8[2].set_axis_off()
+        
+        # 4. Drug Share Among Users (bottom-right)
+        drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
+        
+        if drug_cols and 'currently_taking_drug_count' in df.columns:
+            print(f"Processing drug share data for {len(drug_cols)} drugs")
+            
+            # Smooth counts first
+            smoothed_counts = []
+            for drug_col in drug_cols:
+                count_smooth = pd.Series(df[drug_col]).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                ).mean()
+                smoothed_counts.append(count_smooth)
+
+            smoothed_counts_df = pd.concat(smoothed_counts, axis=1).fillna(0)
+            smoothed_counts_df.columns = drug_cols
+
+            # Recompute shares so they sum to 1 exactly
+            total_smooth = smoothed_counts_df.sum(axis=1)
+            shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
+            
+            # Only show top drugs by usage to avoid overcrowding
+            total_usage_by_drug = smoothed_counts_df.sum(axis=0)
+            top_drug_indices = np.argsort(total_usage_by_drug)[-15:]  # Top 15 drugs
+            
+            # Filter to top drugs only
+            top_drug_cols = [drug_cols[i] for i in top_drug_indices]
+            top_shares_df = shares_df[top_drug_cols]
+            
+            # Use every 100th point to reduce density for better visualization
+            step = max(1, len(df) // 500)  # Show ~500 points maximum
+            time_subset = df['time_in_years'].iloc[::step]
+            shares_subset = top_shares_df.iloc[::step]
+            
+            # Create drug labels (clean up column names)
+            drug_labels = []
+            for col in top_drug_cols:
+                drug_name = col.replace('_currently_on_drug', '').replace('_', ' ').title()
+                # Shorten very long names
+                if len(drug_name) > 15:
+                    drug_name = drug_name[:12] + '...'
+                drug_labels.append(drug_name)
+            
+            # Create stacked area plot
+            axes8[3].stackplot(
+                time_subset,
+                shares_subset.T.to_numpy(),
+                labels=drug_labels,
+                alpha=0.7
+            )
+            
+            axes8[3].set_title('Drug Share Among All Drug Users\n(Stacked Proportions, 0-1 Scale)')
+            axes8[3].set_xlabel('Time (Years)')
+            axes8[3].set_ylabel('Proportion')
+            axes8[3].set_ylim(0, 1.0)
+            axes8[3].grid(True, alpha=0.3)
+            axes8[3].legend(fontsize=6, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # Add summary statistics
+            if total_smooth.sum() > 0:
+                drug_percentages = (total_usage_by_drug[top_drug_indices] / total_usage_by_drug[top_drug_indices].sum() * 100)
+                most_used_idx = np.argmax(drug_percentages)
+                mean_users = total_smooth.mean()
+                textstr = f'Avg drug users: {int(mean_users):,}\nMost used: {drug_labels[most_used_idx][:12]}\n({drug_percentages[most_used_idx]:.1f}% of usage)'
+                props = dict(boxstyle='round', facecolor='lightcyan', alpha=0.8)
+                axes8[3].text(0.02, 0.98, textstr, transform=axes8[3].transAxes, 
+                            fontsize=8, verticalalignment='top', bbox=props)
+        else:
+            # No drug usage data found
+            axes8[3].text(0.5, 0.5, f'No drug usage data found\nExpected columns: *_currently_on_drug\nFound columns: {len(drug_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes8[3].set_axis_off()
         
     else:
         # No syndrome data found
@@ -1422,48 +1628,6 @@ def create_mean_activity_r_by_bacteria_plots(df):
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print(f"  ✓ {fname} saved.")
-
-def create_stacked_drug_share_plot(df):
-    drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
-    if drug_cols and 'currently_taking_drug_count' in df.columns:
-        # Smooth counts first
-        smoothed_counts = []
-        for drug_col in drug_cols:
-            count_smooth = pd.Series(df[drug_col]).rolling(
-                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
-            ).mean()
-            smoothed_counts.append(count_smooth)
-
-        smoothed_counts_df = pd.concat(smoothed_counts, axis=1).fillna(0)
-        smoothed_counts_df.columns = drug_cols
-
-        # Recompute shares so they sum to 1 exactly
-        total_smooth = smoothed_counts_df.sum(axis=1)
-        shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
-
-        plt.figure(figsize=FIGURE_SIZE_DOUBLE)
-        plt.stackplot(
-            df['time_in_years'],
-            shares_df.T.to_numpy(),
-            labels=[col.replace('_currently_on_drug','').replace('_',' ').title() for col in drug_cols],
-            alpha=0.8
-        )
-        plt.title('Share of Drug Use Among All Drug Users (Stacked)', fontsize=18)
-        plt.xlabel('Time (Years)')
-        plt.ylabel('Proportion of All People On Any Drug')
-        plt.ylim(0, 1.0)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
-        plt.grid(True, alpha=0.3)
-
-        out_path = Path('output_graphs/proportion_share_among_drug_users/00_stacked_drug_share_among_users.png')
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.tight_layout()
-        plt.savefig(out_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
-        print(f"✓ Stacked drug share plot saved as '{out_path}'")
-
-    # else block for missing data
-    # print('Drug use share data not available for stacked plot.')
 
 
 # =============================================================================
@@ -2373,15 +2537,11 @@ def main():
     # export_txt_data_file(df)
     generate_summary_statistics(df)
     
-    # Standalone stacked drug share plot (only if toggle is enabled)
-    if proportion_share_among_drug_users:
-        create_stacked_drug_share_plot(df)
-    
     # Summary of generated files
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', f'grouped_figure_7.png', 'proportion_share_among_drug_users/stacked_drug_share_among_users.png']:
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', f'grouped_figure_7.png', f'grouped_figure_8.png']:
         out_path = Path('output_graphs') / fname
         if out_path.exists():
             print(f"  ✓ output_graphs/{fname}")

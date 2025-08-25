@@ -677,7 +677,7 @@ impl Simulation {
                             let active_drug_count = individual.cur_use_drug.iter().filter(|&&x| x).count();
                             if active_drug_count >= 2 { lt.taking_two_drugs_count += 1; }
                             if individual.hospital_status.is_hospitalized() { lt.number_in_hospital += 1; }
-                            if individual.is_severely_immunosuppressed { lt.number_severely_immunosuppressed += 1; }
+                            if individual.immunodeficiency_type.is_some() { lt.number_severely_immunosuppressed += 1; }
                             if individual.sepsis.iter().any(|&s| s) { lt.number_with_sepsis += 1; }
                         }
                         lt
@@ -1122,7 +1122,7 @@ impl Simulation {
                         ind.current_toxicity,
                         ind.mortality_risk_current_toxicity,
                         format!("{:?}", ind.hospital_status),
-                        ind.is_severely_immunosuppressed,
+                        format!("{:?}", ind.immunodeficiency_type),
                         format!("{:?}", ind.date_of_death),
                         fmt_vec(&ind.level),
                         fmt_vec(&ind.immune_resp),

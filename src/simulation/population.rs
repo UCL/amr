@@ -8,8 +8,7 @@
 //
 // Also includes legacy lists and antibiotic class reference for model expansion.
 use rand::Rng;
-use rand::distributions::{Distribution, Standard};
-use std::fmt; //
+use std::fmt;
 
 /// Specific resistance mechanisms that can be present in bacteria
 /// These provide an overlay on the existing any_r/majority_r system
@@ -122,6 +121,26 @@ impl InfectionResolutionType {
     }
 }
 
+/// Types of severe immunodeficiency based on expected duration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImmunodeficiencyType {
+    /// Temporary immunodeficiency (chemotherapy, acute treatments, post-transplant induction)
+    /// Expected recovery within months to 1-2 years
+    Temporary,
+    /// Chronic immunodeficiency (primary immunodeficiencies, long-term immunosuppression)
+    /// Lifelong or very long-term (>5 years)
+    Chronic,
+}
+
+impl ImmunodeficiencyType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ImmunodeficiencyType::Temporary => "temporary",
+            ImmunodeficiencyType::Chronic => "chronic",
+        }
+    }
+}
+
 
 /* 
 
@@ -198,19 +217,6 @@ pub enum Region {
     Home, // This represents the individual's home region, which could be any of the above.
 }
 
-impl Distribution<Region> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Region {
-        match rng.gen_range(0..6) { // 0 to 5 for the 6 geographic regions
-            0 => Region::NorthAmerica,
-            1 => Region::SouthAmerica,
-            2 => Region::Africa,
-            3 => Region::Asia,
-            4 => Region::Europe,
-            _ => Region::Oceania, // Default for 5
-        }
-    }
-}
-
 // Implement the Display trait for Region
 impl fmt::Display for Region {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -264,14 +270,14 @@ pub struct Individual {
     pub cur_infection_from_environment: Vec<bool>, 
     pub test_identified_infection: Vec<bool>,      
     /// Tracks if resistance test has been performed for each bacteria
-    pub test_for_resistance: Vec<bool>, // REMAOVE ?: NEW: tracks if resistance test has been performed for each bacteria
+    pub test_for_resistance: Vec<bool>, // tracks if resistance test has been performed for each bacteria
     /// Tracks when resistance testing was initiated for each bacteria (-1 if never initiated)
     pub resistance_test_initiated_day: Vec<i32>, // NEW: tracks when resistance testing was started
     pub cur_use_drug: Vec<bool>,
     /// Standard level is 10 for a day on which a standard dose is taken / administered
-    pub cur_level_drug: Vec<f64>,  // REMAOVE ?: standard level is 10 for a day on which a standard dose is taken / administered 
+    pub cur_level_drug: Vec<f64>,  // standard level is 10 for a day on which a standard dose is taken / administered 
     /// The time_step when each drug was last initiated
-    pub date_drug_initiated: Vec<i32>, // REMAOVE ?: the time_step when each drug was last initiated
+    pub date_drug_initiated: Vec<i32>, // the time_step when each drug was last initiated
     /// Persistent record of drug initiation dates (not reset when drugs are stopped)
     pub date_drug_initiated_keep: Vec<i32>,
     pub ever_taken_drug: Vec<bool>,
@@ -298,7 +304,8 @@ pub struct Individual {
     pub day_7_since_last_infection_drug_used: Vec<Option<bool>>, // [bacteria_index] -> Option<bool>
     pub date_of_death: Option<usize>,
     pub cause_of_death: Option<String>,
-    pub is_severely_immunosuppressed: bool, 
+    /// Type of severe immunodeficiency (None = not immunosuppressed)
+    pub immunodeficiency_type: Option<ImmunodeficiencyType>,
 
 }
 
@@ -375,7 +382,7 @@ impl Individual {
         Individual {
             id,
             age: age_days,
-            region_living: rng.gen(), 
+            region_living: Region::Home, // Will be set by Population::new()
             region_cur_in: Region::Home, 
             days_visiting: 0, 
             hospital_status: HospitalStatus::NotInHospital, 
@@ -415,8 +422,84 @@ impl Individual {
             day_7_since_last_infection_drug_used,
             date_of_death: None,
             cause_of_death: None,
-            is_severely_immunosuppressed: false, 
+            immunodeficiency_type: None, 
         }
+    }
+}
+
+/// Generate realistic age for 1930-2035 simulation based on historical demographics
+/// Returns age in days: -37,595 (born 2035) to +32,485 (born 1841, age 89 in 1930)
+fn generate_realistic_age_by_region(rng: &mut impl rand::Rng) -> i32 {
+    // Population growth from ~2.07B (1930) to ~8.9B (2035) = 4.3x growth
+    // Most people (75%+) will have negative ages representing future births
+    
+    let rand_val = rng.gen::<f64>();
+    
+    // Age distribution reflecting massive population growth 1930-2035
+    if rand_val < 0.78 {
+        // 78% future births (negative ages) - weighted toward more recent births
+        let birth_year_offset = rng.gen_range(0.0..1.0_f64).powf(1.5); // Skew toward recent
+        let days_after_1930 = (birth_year_offset * 105.0 * 365.0) as i32; // 0 to 38,325 days
+        -(days_after_1930) // Negative age = born after 1930
+    } else if rand_val < 0.95 {
+        // 17% people alive in 1930 (ages 0-70 in 1930)
+        let age_in_1930_years = rng.gen_range(0.0..70.0_f64).powf(0.8); // Younger skew
+        (age_in_1930_years * 365.0) as i32
+    } else {
+        // 5% elderly in 1930 (ages 70-89)
+        let age_in_1930_years = rng.gen_range(70.0..89.0);
+        (age_in_1930_years * 365.0) as i32
+    }
+}
+
+/// Assign region based on 1930 demographics + realistic growth projections to 2035
+/// Based on historical chart data showing different regional growth patterns
+fn assign_region_with_growth_model(rng: &mut impl rand::Rng, age: i32) -> Region {
+    // Age determines which population cohort this person belongs to
+    let birth_year = 1930.0 + (age as f64 / 365.0);
+    
+    // 1930 base proportions (from historical data)
+    let (asia_base, europe_base, africa_base, n_america_base, s_america_base, oceania_base) = 
+        (0.55, 0.25, 0.08, 0.07, 0.04, 0.01);
+    
+    // Adjust regional weights based on differential growth patterns from chart
+    let years_since_1930 = (birth_year - 1930.0).max(0.0);
+    let africa_multiplier = 1.0 + years_since_1930 / 105.0 * 4.0; // 4x growth advantage
+    let asia_multiplier = 1.0 + years_since_1930 / 105.0 * 1.5;   // 1.5x growth advantage  
+    let europe_multiplier = 1.0 + years_since_1930 / 105.0 * (-0.3); // Declining share
+    let others_multiplier = 1.0 + years_since_1930 / 105.0 * 0.8;  // Moderate growth
+    
+    // Calculate adjusted probabilities
+    let asia_prob = asia_base * asia_multiplier;
+    let africa_prob = africa_base * africa_multiplier;
+    let europe_prob = europe_base * europe_multiplier;
+    let n_america_prob = n_america_base * others_multiplier;
+    let s_america_prob = s_america_base * others_multiplier;
+    let oceania_prob = oceania_base * others_multiplier;
+    
+    // Normalize probabilities
+    let total = asia_prob + africa_prob + europe_prob + n_america_prob + s_america_prob + oceania_prob;
+    let norm_asia = asia_prob / total;
+    let norm_africa = africa_prob / total;
+    let norm_europe = europe_prob / total;
+    let norm_n_america = n_america_prob / total;
+    let norm_s_america = s_america_prob / total;
+    
+    // Sample from weighted distribution
+    let rand_val = rng.gen::<f64>();
+    
+    if rand_val < norm_asia {
+        Region::Asia
+    } else if rand_val < norm_asia + norm_africa {
+        Region::Africa
+    } else if rand_val < norm_asia + norm_africa + norm_europe {
+        Region::Europe
+    } else if rand_val < norm_asia + norm_africa + norm_europe + norm_n_america {
+        Region::NorthAmerica
+    } else if rand_val < norm_asia + norm_africa + norm_europe + norm_n_america + norm_s_america {
+        Region::SouthAmerica
+    } else {
+        Region::Oceania
     }
 }
 
@@ -430,23 +513,117 @@ impl Population {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
 
-        // https://www.statista.com/statistics/997040/world-population-by-continent-1950-2020/#:~:text=Similarly%2C%20the%20population%20of%20the,of%20this%20concentrated%20in%20Africa.
-
         for i in 0..size {
-            let age = rng.gen_range(-36500..=32485);
+            // Generate realistic age distribution for 1930-2035 timeline (105 years = 38,325 days)
+            // Age in days: -37,595 (born 2035) to +32,485 (born 1841, age 89 in 1930)
+            // Most people have negative ages representing future births due to population growth
+            let age = generate_realistic_age_by_region(&mut rng);
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
+            
+            // Assign region based on 1930 demographics + realistic growth to 2035
+            let region = assign_region_with_growth_model(&mut rng, age);
+            
             let mut individual = Individual::new(i, age, sex);
+            individual.region_living = region;
+            individual.region_cur_in = region;
+            
             // Randomly set 0.005% to be hospitalized at start
             if rng.gen_bool(0.00005) {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
             // Set severely immunosuppressed 
             if rng.gen_bool(0.05) {
-                individual.is_severely_immunosuppressed = true;
+                // Randomly assign chronic or temporary (simplified for initial setup)
+                if rng.gen_bool(0.5) {
+                    individual.immunodeficiency_type = Some(ImmunodeficiencyType::Chronic);
+                } else {
+                    individual.immunodeficiency_type = Some(ImmunodeficiencyType::Temporary);
+                }
             }
             individuals.push(individual);
         }
         Population { individuals }
+    }
+}
+
+/// Generate realistic age distribution for 1930-2035 simulation
+/// Timeline: 1930 start, 2035 end = 105 years = 38,325 days
+/// Most people have negative ages (future births) due to massive population growth
+fn generate_realistic_age(rng: &mut impl rand::Rng) -> i32 {
+    // Timeline: 1930 (day 0) to 2035 (day 38,325)
+    // Age distribution heavily skewed toward future births (negative ages)
+    // Population grows from ~2B (1930) to ~8.9B (2035) = 4.45x growth
+    
+    if rng.gen_bool(0.75) {
+        // 75% have negative ages (future births 1930-2035)
+        // Distribution: more births later in timeline (accelerating growth)
+        let birth_year_offset = rng.gen_range(0..38325); // 0 = born in 1930, 38325 = born in 2035
+        -birth_year_offset
+    } else {
+        // 25% already alive in 1930 
+        // Age distribution: realistic 1930 demographics (younger than today due to high mortality)
+        // Max age ~90 years = 32,850 days
+        let age_years = if rng.gen_bool(0.4) {
+            // 40% children/young adults (0-25 years)
+            rng.gen_range(0..25)
+        } else if rng.gen_bool(0.5) {
+            // 30% adults (25-55 years) 
+            rng.gen_range(25..55)
+        } else {
+            // 30% older adults (55-90 years)
+            rng.gen_range(55..90)
+        };
+        age_years * 365
+    }
+}
+
+/// Assign region based on realistic 1930 population + growth to 2035
+/// Accounts for different regional demographic transitions and growth rates
+fn assign_realistic_region(rng: &mut impl rand::Rng, age: i32) -> Region {
+    // 1930 Population (approximate %)
+    // Asia: ~55% (dominated by China/India even then)
+    // Europe: ~25% (much higher than today)
+    // Africa: ~8% (much lower than today due to high mortality)
+    // North America: ~7%
+    // South America: ~4%
+    // Oceania: ~1%
+    
+    // But age matters! Negative ages (future births) follow different patterns
+    // due to demographic transition: Africa/Asia fastest growth, Europe slowest
+    
+    if age < 0 {
+        // Future births (1930-2035): follows growth patterns
+        // Africa and Asia have much faster population growth
+        let r = rng.gen::<f64>();
+        if r < 0.62 {
+            Region::Asia  // 62% of future births (demographic explosion)
+        } else if r < 0.82 {
+            Region::Africa  // 20% of future births (highest growth rate)
+        } else if r < 0.90 {
+            Region::Europe  // 8% of future births (demographic transition complete)
+        } else if r < 0.95 {
+            Region::NorthAmerica  // 5% of future births
+        } else if r < 0.99 {
+            Region::SouthAmerica  // 4% of future births
+        } else {
+            Region::Oceania  // 1% of future births
+        }
+    } else {
+        // Already alive in 1930: follows 1930 distribution
+        let r = rng.gen::<f64>();
+        if r < 0.55 {
+            Region::Asia  // 55% in 1930
+        } else if r < 0.80 {
+            Region::Europe  // 25% in 1930 (much higher than today)
+        } else if r < 0.88 {
+            Region::Africa  // 8% in 1930 (much lower than today)
+        } else if r < 0.95 {
+            Region::NorthAmerica  // 7% in 1930
+        } else if r < 0.99 {
+            Region::SouthAmerica  // 4% in 1930
+        } else {
+            Region::Oceania  // 1% in 1930
+        }
     }
 }
 

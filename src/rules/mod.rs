@@ -13,7 +13,7 @@
 
 
 use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, HospitalStatus, Region, 
-                                   InfectionResolutionType}; 
+                                   InfectionResolutionType, ImmunodeficiencyType}; 
 use crate::config::{
     get_global_param,
     get_bacteria_param,
@@ -42,6 +42,7 @@ pub struct ParameterKeyCache {
     region_sepsis_multiplier_keys: HashMap<String, String>,
     region_bacteria_acquisition_keys: HashMap<(String, String), String>,
     region_bacteria_default_keys: HashMap<String, String>,
+    region_testing_keys: HashMap<String, String>,
     
     // Other frequently used keys
     syndrome_sepsis_keys: HashMap<String, String>,
@@ -64,6 +65,7 @@ impl ParameterKeyCache {
             region_sepsis_multiplier_keys: HashMap::new(),
             region_bacteria_acquisition_keys: HashMap::new(),
             region_bacteria_default_keys: HashMap::new(),
+            region_testing_keys: HashMap::new(),
             syndrome_sepsis_keys: HashMap::new(),
             vaccine_age_keys: HashMap::new(),
             syndrome_initiation_keys: HashMap::new(),
@@ -109,6 +111,10 @@ impl ParameterKeyCache {
             cache.region_bacteria_default_keys.insert(
                 region.to_string(),
                 format!("{}_acquisition_log_odds_default", region)
+            );
+            cache.region_testing_keys.insert(
+                region.to_string(),
+                format!("{}_testing_multiplier", region)
             );
             
             // Pre-compute region/bacteria combinations
@@ -306,19 +312,49 @@ pub fn apply_rules(
 
 
 
-    //  update 'is_severely_immunosuppressed' status based on onset/recovery rates
-    let onset_rate = get_global_param("immunosuppression_onset_rate_per_day").unwrap_or(0.0001);
-    let recovery_rate = get_global_param("immunosuppression_recovery_rate_per_day").unwrap_or(0.0005);
+    //  update immunodeficiency status based on onset/recovery rates and type
+    
+    // Get rates for both types
+    let temp_onset_rate = get_global_param("temporary_immunosuppression_onset_rate_per_day").unwrap_or(0.0002);
+    let temp_recovery_rate = get_global_param("temporary_immunosuppression_recovery_rate_per_day").unwrap_or(0.01);
+    let chronic_onset_rate = get_global_param("chronic_immunosuppression_onset_rate_per_day").unwrap_or(0.0001);
+    let chronic_recovery_rate = get_global_param("chronic_immunosuppression_recovery_rate_per_day").unwrap_or(0.0005);
+    
+    // Get age-based probability for chronic vs temporary assignment
+    let chronic_probability = if individual.age <= 365 { // 0-1 years (365 days)
+        get_global_param("chronic_immunodeficiency_probability_age_0_1").unwrap_or(0.3)
+    } else if individual.age <= 6570 { // 1-18 years (18*365 days)
+        get_global_param("chronic_immunodeficiency_probability_age_1_18").unwrap_or(0.2)
+    } else if individual.age <= 23725 { // 18-65 years (65*365 days)
+        get_global_param("chronic_immunodeficiency_probability_age_18_65").unwrap_or(0.4)
+    } else { // 65+ years
+        get_global_param("chronic_immunodeficiency_probability_age_65_plus").unwrap_or(0.6)
+    };
 
-    if individual.is_severely_immunosuppressed {
-        // If currently immunosuppressed, check for recovery
-        if rng.gen_bool(recovery_rate) {
-            individual.is_severely_immunosuppressed = false;
-        }
-    } else { 
-        // If not immunosuppressed, check for onset
-        if rng.gen_bool(onset_rate) {
-            individual.is_severely_immunosuppressed = true;
+    match individual.immunodeficiency_type {
+        Some(ImmunodeficiencyType::Temporary) => {
+            // Currently has temporary immunodeficiency, check for recovery
+            if rng.gen_bool(temp_recovery_rate) {
+                individual.immunodeficiency_type = None;
+            }
+        },
+        Some(ImmunodeficiencyType::Chronic) => {
+            // Currently has chronic immunodeficiency, check for recovery  
+            if rng.gen_bool(chronic_recovery_rate) {
+                individual.immunodeficiency_type = None;
+            }
+        },
+        None => {
+            // Not currently immunodeficient, check for onset
+            let total_onset_rate = temp_onset_rate + chronic_onset_rate;
+            if rng.gen_bool(total_onset_rate) {
+                // Determine type based on age
+                if rng.gen_bool(chronic_probability) {
+                    individual.immunodeficiency_type = Some(ImmunodeficiencyType::Chronic);
+                } else {
+                    individual.immunodeficiency_type = Some(ImmunodeficiencyType::Temporary);
+                }
+            }
         }
     }
 
@@ -336,10 +372,22 @@ pub fn apply_rules(
         .expect("Missing hospitalization_recovery_rate_per_day in config");
     let max_days_in_hospital = get_global_param("hospitalization_max_days")
         .expect("Missing hospitalization_max_days in config");
+    let sepsis_admission_multiplier = get_global_param("hospitalization_sepsis_admission_multiplier")
+        .expect("Missing hospitalization_sepsis_admission_multiplier in config");
+    let prevent_discharge_with_sepsis = get_global_param("hospitalization_prevent_discharge_with_sepsis")
+        .expect("Missing hospitalization_prevent_discharge_with_sepsis in config");
+
+    // Check if individual has any active sepsis
+    let has_sepsis = individual.sepsis.iter().any(|&s| s);
 
     // Potentially get hospitalized (if not currently hospitalized)
     if !individual.hospital_status.is_hospitalized() { 
-        let prob_hospitalization_today = baseline_rate + (individual.age as f64 * age_multiplier_hosp);
+        let mut prob_hospitalization_today = baseline_rate + (individual.age as f64 * age_multiplier_hosp);
+        
+        // Strong sepsis admission effect - sepsis patients are very likely to be hospitalized
+        if has_sepsis {
+            prob_hospitalization_today *= sepsis_admission_multiplier;
+        }
 
         if rng.gen::<f64>() < prob_hospitalization_today {
             individual.hospital_status = HospitalStatus::InHospital; 
@@ -348,14 +396,21 @@ pub fn apply_rules(
     } else { // If already hospitalized, consider recovery or max days limit
         individual.days_hospitalized += 1; // Increment days hospitalized
 
-        // Potentially recover from hospitalization
-        if rng.gen::<f64>() < recovery_rate {
+        // Determine if discharge is allowed
+        let can_discharge = if prevent_discharge_with_sepsis > 0.5 {
+            !has_sepsis // Cannot discharge if patient has sepsis
+        } else {
+            true // Can always discharge (old behavior)
+        };
+
+        // Potentially recover from hospitalization (only if discharge is allowed)
+        if can_discharge && rng.gen::<f64>() < recovery_rate {
             individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
             individual.days_hospitalized = 0;
             // println!("individual {} recovered from hospitalization.", individual.id);             
         }
-        // discharge after max_days_in_hospital
-        else if individual.days_hospitalized >= max_days_in_hospital as u32 {
+        // discharge after max_days_in_hospital (only if discharge is allowed)
+        else if can_discharge && individual.days_hospitalized >= max_days_in_hospital as u32 {
             individual.hospital_status = HospitalStatus::NotInHospital; // Assign enum variant
             individual.days_hospitalized = 0;
          }
@@ -383,8 +438,75 @@ pub fn apply_rules(
             // Initiate travel: select a random new region different from their living region
             let mut new_region: Region;
             loop {
-                // rng.gen() for Region will give one of the 6 geographic regions (not Home)
-                new_region = rng.gen();
+                // Select destination based on economic development level (main determinant of travel patterns)
+                // Higher-income regions have more global travel; lower-income regions travel more regionally
+                let destinations = match individual.region_living {
+                    Region::NorthAmerica | Region::Europe | Region::Oceania => {
+                        // High-income regions: global travel with preference for other developed regions
+                        vec![
+                            (Region::Europe, 0.35),       // Strong developed-to-developed flow
+                            (Region::Asia, 0.25),         // Major business/tourism destination
+                            (Region::NorthAmerica, 0.15), // Cross-Atlantic travel
+                            (Region::Oceania, 0.10),      // Tourism/business
+                            (Region::SouthAmerica, 0.10), // Tourism/business
+                            (Region::Africa, 0.05),       // Lower but still significant
+                        ]
+                    },
+                    Region::Asia => {
+                        // Mixed income: regional preference with some global reach
+                        vec![
+                            (Region::Asia, 0.40),         // Strong regional travel
+                            (Region::Europe, 0.20),       // Business/education
+                            (Region::NorthAmerica, 0.15), // Business/education
+                            (Region::Oceania, 0.10),      // Regional proximity
+                            (Region::Africa, 0.08),       // Growing connections
+                            (Region::SouthAmerica, 0.07), // Limited
+                        ]
+                    },
+                    Region::SouthAmerica => {
+                        // Middle income: regional focus with some international travel
+                        vec![
+                            (Region::SouthAmerica, 0.40), // Strong regional travel
+                            (Region::NorthAmerica, 0.25), // Geographic proximity
+                            (Region::Europe, 0.15),       // Historical ties
+                            (Region::Asia, 0.10),         // Growing connections
+                            (Region::Africa, 0.05),       // Limited
+                            (Region::Oceania, 0.05),      // Limited
+                        ]
+                    },
+                    Region::Africa => {
+                        // Lower income: primarily regional travel
+                        vec![
+                            (Region::Africa, 0.50),       // Strong regional travel
+                            (Region::Europe, 0.20),       // Historical/economic ties
+                            (Region::Asia, 0.15),         // Growing connections
+                            (Region::NorthAmerica, 0.08), // Limited
+                            (Region::SouthAmerica, 0.04), // Very limited
+                            (Region::Oceania, 0.03),      // Very limited
+                        ]
+                    },
+                    Region::Home => {
+                        // Should not reach here, but default to global uniform if it does
+                        vec![
+                            (Region::Asia, 0.167), (Region::Africa, 0.167), (Region::Europe, 0.166),
+                            (Region::NorthAmerica, 0.167), (Region::SouthAmerica, 0.166), (Region::Oceania, 0.167),
+                        ]
+                    },
+                };
+                
+                // Sample from the economic-based destination distribution
+                let rand_val = rng.gen::<f64>();
+                let mut cumulative_prob = 0.0;
+                new_region = Region::Asia; // Default fallback
+                
+                for (region, prob) in destinations {
+                    cumulative_prob += prob;
+                    if rand_val < cumulative_prob {
+                        new_region = region;
+                        break;
+                    }
+                }
+                
                 // Ensure the individual doesn't 'travel' to their own living region
                 if new_region != individual.region_living {
                     break; // Found a suitable new region to visit
@@ -638,6 +760,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
             start_any_antibiotic_prob *= already_on_drug_initiation_multiplier;
         }
+        // Immunocompromised patients more likely to receive prophylactic antibiotics
+        if individual.immunodeficiency_type.is_some() {
+            let prophylactic_multiplier = get_global_param("immunodeficiency_prophylactic_drug_multiplier").unwrap_or(8.0);
+            start_any_antibiotic_prob *= prophylactic_multiplier;
+        }
         start_any_antibiotic_prob *= syndrome_administration_multiplier;
         start_any_antibiotic_prob = start_any_antibiotic_prob.clamp(0.0, 1.0);
 
@@ -810,7 +937,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         total_log_odds += get_global_param(sex_log_odds_key).unwrap_or(0.0);
 
         // Immunosuppression effect
-        if individual.is_severely_immunosuppressed {
+        if individual.immunodeficiency_type.is_some() {
             total_log_odds += get_global_param("log_odds_mortality_immunosuppressed").unwrap_or(0.0);
         }
 
@@ -854,7 +981,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             sepsis_death_risk *= region_sepsis_multiplier;
             
             // Apply immunosuppression multiplier
-            if individual.is_severely_immunosuppressed {
+            if individual.immunodeficiency_type.is_some() {
                 let immunosuppressed_multiplier = get_global_param("sepsis_immunosuppressed_multiplier").unwrap_or(3.0);
                 sepsis_death_risk *= immunosuppressed_multiplier;
             }
@@ -958,7 +1085,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     total_log_odds += age_coefficient;
                     
                     // (4) Severe immunosuppression effect
-                    if individual.is_severely_immunosuppressed {
+                    if individual.immunodeficiency_type.is_some() {
                         let immunosuppressed_coefficient = get_global_param("sepsis_log_odds_immunosuppressed")
                             .expect("Missing sepsis_log_odds_immunosuppressed");
                         total_log_odds += immunosuppressed_coefficient;
@@ -1256,14 +1383,46 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             }
 
             if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
-                let initial_level = get_bacteria_param(bacteria, "initial_infection_level").unwrap_or(0.01);
-                individual.level[b_idx] = initial_level;
-                individual.date_last_infected[b_idx] = time_step as i32;
-                individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
+                // Check if existing antibiotic therapy prevents this infection
+                let mut infection_prevented = false;
+                let prevention_efficacy = get_global_param("antibiotic_infection_prevention_efficacy").unwrap_or(0.85);
+                
+                // Check each drug the person is currently taking
+                for (drug_idx, &is_taking_drug) in individual.cur_use_drug.iter().enumerate() {
+                    if is_taking_drug {
+                        let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                        
+                        // Check if this drug has activity against the bacteria they're being exposed to
+                        let activity_key = format!("drug_{}_activity_{}", drug_name, bacteria);
+                        if let Some(drug_activity) = get_global_param(&activity_key) {
+                            if drug_activity > 0.0 {
+                                // Check if the bacteria is susceptible (not resistant) to this drug
+                                let resistance_level = individual.resistances[b_idx][drug_idx].any_r;
+                                let mic_ratio = 1.0 + resistance_level * get_global_param("max_mic_ratio").unwrap_or(64.0);
+                                let effective_activity = drug_activity / mic_ratio;
+                                
+                                // If drug has effective activity, it can prevent infection
+                                if effective_activity > 0.5 { // Threshold for effective prevention
+                                    if rng.gen_bool(prevention_efficacy) {
+                                        infection_prevented = true;
+                                        break; // One effective drug is enough
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Only proceed with infection if not prevented by existing antibiotics
+                if !infection_prevented {
+                    let initial_level = get_bacteria_param(bacteria, "initial_infection_level").unwrap_or(0.01);
+                    individual.level[b_idx] = initial_level;
+                    individual.date_last_infected[b_idx] = time_step as i32;
+                    individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
 
-                // --- probabilistic syndrome assignment ---
-                let syndrome_id = assign_syndrome_for_bacteria(bacteria, &mut rng);
-                individual.infectious_syndrome[b_idx] = syndrome_id as i32;
+                    // --- probabilistic syndrome assignment ---
+                    let syndrome_id = assign_syndrome_for_bacteria(bacteria, &mut rng);
+                    individual.infectious_syndrome[b_idx] = syndrome_id as i32;
 
                 let env_acquisition_chance = get_bacteria_param(bacteria, "environmental_acquisition_proportion").unwrap_or(0.1);
                 individual.cur_infection_from_environment[b_idx] = rng.gen::<f64>() < env_acquisition_chance;
@@ -1385,6 +1544,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     }
                 }
                 // --- end generalized any_r and majority_r setting logic ---
+                } // End if !infection_prevented block
             } 
         } else { // Bacteria is already present (infection progression)
             // --- majority_r evolution ---
@@ -1737,24 +1897,30 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             }
         }
 
-        // testing and diagnosis
+        // testing and diagnosis - Enhanced testing framework
         let last_infected_time = individual.date_last_infected[b_idx];
-        let current_test_status_entry = &mut individual.test_identified_infection[b_idx];
         let test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
-        let test_rate_per_day = get_global_param("test_rate_per_day").unwrap_or(0.15);
         
         // Check if bacterial testing is available yet (historically realistic dates)
         let bacterial_testing_available_from_day = get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32;
         let bacterial_testing_available = time_step >= bacterial_testing_available_from_day as usize;
         
-        if is_infected && !*current_test_status_entry && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) && bacterial_testing_available {
-            if rng.gen_bool(test_rate_per_day.clamp(0.0, 1.0)) {
-                *current_test_status_entry = true;
+        if is_infected && !individual.test_identified_infection[b_idx] && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) && bacterial_testing_available {
+            // Calculate comprehensive testing probability
+            let testing_probability = calculate_testing_probability(
+                individual, 
+                time_step, 
+                bacterial_testing_available_from_day as usize, 
+                param_cache, 
+                true // is_bacterial_testing
+            );
+            
+            if rng.gen_bool(testing_probability.clamp(0.0, 1.0)) {
+                individual.test_identified_infection[b_idx] = true;
             }
         }
 
         // --- test_r assignment logic ---
-        let prob_test_r_done = get_global_param("prob_test_r_done").unwrap_or(0.95);
         let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
         let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
         let resistance_test_result_delay_days = get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32;
@@ -1763,10 +1929,19 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let resistance_testing_available_from_day = get_global_param("resistance_testing_available_from_day").unwrap_or(9131.0) as i32;
         let resistance_testing_available = time_step >= resistance_testing_available_from_day as usize;
 
-        if *current_test_status_entry && resistance_testing_available {
+        if individual.test_identified_infection[b_idx] && resistance_testing_available {
             // Check if we should initiate resistance testing (if not already initiated)
             if individual.resistance_test_initiated_day[b_idx] == -1 {
-                if rng.gen_bool(prob_test_r_done) {
+                // Calculate comprehensive resistance testing probability
+                let resistance_testing_probability = calculate_testing_probability(
+                    individual, 
+                    time_step, 
+                    resistance_testing_available_from_day as usize, 
+                    param_cache, 
+                    false // is_bacterial_testing
+                );
+                
+                if rng.gen_bool(resistance_testing_probability.clamp(0.0, 1.0)) {
                     // Set the flag indicating resistance testing was initiated
                     individual.test_for_resistance[b_idx] = true;
                     individual.resistance_test_initiated_day[b_idx] = time_step as i32;
@@ -1957,7 +2132,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let age_modifier = get_bacteria_param(bacteria, "immunity_age_modifier").unwrap_or(1.0);
             immune_increase *= age_modifier.powf((age as f64 / 365.0) / 50.0);
             let immunodeficient_modifier = get_bacteria_param(bacteria, "immunity_immunodeficiency_modifier").unwrap_or(0.1);
-            if individual.is_severely_immunosuppressed {
+            if individual.immunodeficiency_type.is_some() {
                 immune_increase *= immunodeficient_modifier;
             }
             let max_immune_response = get_bacteria_param(bacteria, "max_immune_response").unwrap_or(10.0);
@@ -2029,6 +2204,79 @@ fn apply_cross_resistance(
             }
         }
     }
+}
+
+/// Calculate comprehensive testing probability based on multiple factors
+fn calculate_testing_probability(
+    individual: &Individual, 
+    time_step: usize, 
+    testing_available_from_day: usize, 
+    param_cache: &ParameterKeyCache,
+    is_bacterial_testing: bool
+) -> f64 {
+    // Get base parameters
+    let base_rate = if is_bacterial_testing {
+        get_global_param("bacterial_testing_base_rate_per_day").unwrap_or(0.15)
+    } else {
+        get_global_param("resistance_testing_base_rate_per_day").unwrap_or(0.95)
+    };
+    
+    // Calculate temporal multiplier (testing adoption over time)
+    let years_since_availability = (time_step - testing_available_from_day) as f64 / 365.0;
+    let (initial_rate, adoption_rate, max_multiplier) = if is_bacterial_testing {
+        (
+            get_global_param("bacterial_testing_initial_adoption_rate").unwrap_or(0.1),
+            get_global_param("bacterial_testing_adoption_rate_per_year").unwrap_or(0.025),
+            get_global_param("bacterial_testing_max_temporal_multiplier").unwrap_or(1.0)
+        )
+    } else {
+        (
+            get_global_param("resistance_testing_initial_adoption_rate").unwrap_or(0.05),
+            get_global_param("resistance_testing_adoption_rate_per_year").unwrap_or(0.015),
+            get_global_param("resistance_testing_max_temporal_multiplier").unwrap_or(1.0)
+        )
+    };
+    
+    let temporal_multiplier = (initial_rate + years_since_availability * adoption_rate).min(max_multiplier);
+    
+    // Hospital status multiplier
+    let hospital_multiplier = if individual.hospital_status.is_hospitalized() {
+        if is_bacterial_testing {
+            get_global_param("bacterial_testing_hospital_multiplier").unwrap_or(8.0)
+        } else {
+            get_global_param("resistance_testing_hospital_multiplier").unwrap_or(5.0)
+        }
+    } else {
+        1.0
+    };
+    
+    // Regional resource multiplier
+    let region_name = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
+    let region_multiplier = if let Some(key) = param_cache.region_testing_keys.get(&region_name) {
+        get_global_param(key).unwrap_or(1.0)
+    } else {
+        1.0 // Default if region not found
+    };
+    
+    // Immunosuppression multiplier
+    let immunosuppression_multiplier = if individual.immunodeficiency_type.is_some() {
+        get_global_param("testing_immunosuppressed_multiplier").unwrap_or(2.5)
+    } else {
+        1.0
+    };
+    
+    // Sepsis multiplier
+    let sepsis_multiplier = if individual.sepsis.iter().any(|&s| s) {
+        get_global_param("testing_sepsis_multiplier").unwrap_or(4.0)
+    } else {
+        1.0
+    };
+    
+    // Calculate final probability
+    let final_probability = base_rate * temporal_multiplier * hospital_multiplier * region_multiplier * immunosuppression_multiplier * sepsis_multiplier;
+    
+    // Cap at 1.0 (100% probability)
+    final_probability.min(1.0)
 }
 
 /// Helper function to probabilistically assign a syndrome for a given bacteria.
