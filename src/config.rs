@@ -1453,6 +1453,9 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
 
 
 
+
+/*
+
 // Drug introduction dates - 
 // FOR CODE DEVELOPMENT DIVIDING TIMES TO INTRODUCTION BY 10
 
@@ -1545,6 +1548,104 @@ lazy_static! {
         map
     };
 }
+
+*/
+
+
+
+
+// Drug introduction dates (as time steps from start of 1930)
+// Each time step = 1 day, so multiply years by 365
+lazy_static! {
+    pub static ref DRUG_INTRODUCTION_DATES: HashMap<&'static str, usize> = {
+        let mut map = HashMap::new();
+        
+        // Sulfonamides (first antibiotics)
+        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
+
+        // Beta-lactams (Penicillins)
+        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
+        map.insert("ampicillin", 11315);     // 11315 // 1961 (31 years after 1930)
+        map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
+        map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
+        map.insert("ticarcillin", 14600);    // 1977 (47 years after 1930)
+        
+        // Beta-lactam/beta-lactamase inhibitor combinations
+        map.insert("amoxicillin_clavulanate", 16425); // 1985 (55 years after 1930)
+        map.insert("ampicillin_sulbactam", 18250);    // 1990 (60 years after 1930)
+        map.insert("piperacillin_tazobactam", 19715); // 1984 (54 years after 1930)
+        map.insert("ticarcillin_clavulanate", 18250); // 1990 (60 years after 1930)
+        map.insert("meropenem_vaborbactam", 32045);   // 2018 (88 years after 1930)
+        map.insert("ceftazidime_avibactam", 27740);   // 2006 (76 years after 1930)
+
+        // Cephalosporins
+        map.insert("cephalexin", 14605);     // 1970 (40 years after 1930)
+        map.insert("cefazolin", 15700);      // 1973 (43 years after 1930)
+        map.insert("cefuroxime", 17525);     // 1978 (48 years after 1930)
+        map.insert("ceftriaxone", 19715);    // 1984 (54 years after 1930)
+        map.insert("ceftazidime", 20080);    // 1985 (55 years after 1930)
+        map.insert("cefepime", 24195);       // 1996 (66 years after 1930)
+        map.insert("ceftaroline", 29305);    // 2010 (80 years after 1930)
+
+        // Carbapenems
+        map.insert("meropenem", 24195);      // 1996 (66 years after 1930)
+        map.insert("imipenem_c", 20080);     // 1985 (55 years after 1930)
+        map.insert("ertapenem", 25920);      // 2001 (71 years after 1930)
+
+        // Monobactams
+        map.insert("aztreonam", 20445);      // 1986 (56 years after 1930)
+
+        // Macrolides
+        map.insert("erythromycin", 8025);    // 1952 (22 years after 1930)
+        map.insert("azithromycin", 22260);   // 1991 (61 years after 1930)
+        map.insert("clarithromycin", 21895); // 1990 (60 years after 1930)
+
+        // Lincosamides
+        map.insert("clindamycin", 13870);    // 1968 (38 years after 1930)
+
+        // Aminoglycosides
+        map.insert("gentamicin", 12045);      // 1963 (33 years after 1930)
+        map.insert("tobramycin", 16325);     // 1975 (45 years after 1930)
+        map.insert("amikacin", 16690);       // 1976 (46 years after 1930)
+
+        // Fluoroquinolones
+        map.insert("ciprofloxacin", 20805);  // 1987 (57 years after 1930)
+        map.insert("levofloxacin", 24195);   // 1996 (66 years after 1930)
+        map.insert("moxifloxacin", 25290);   // 1999 (69 years after 1930)
+        map.insert("ofloxacin", 21895);      // 1990 (60 years after 1930)
+
+        // Tetracyclines
+        map.insert("tetracycline", 6575);    // 1948 (18 years after 1930)
+        map.insert("doxyclycline", 13505);   // 1967 (37 years after 1930)
+        map.insert("minocycline", 14965);    // 1971 (41 years after 1930)
+
+        // Glycopeptides
+        map.insert("vancomycin", 10215);      // 1958 (28 years after 1930)
+        map.insert("teicoplanin", 21170);    // 1988 (58 years after 1930)
+
+        // Oxazolidinones
+        map.insert("linezolid", 25550);      // 2000 (70 years after 1930)
+        map.insert("tedizolid", 30660);      // 2014 (84 years after 1930)
+
+        // Folate antagonists
+        map.insert("trim_sulf", 13870);      // 1968 (38 years after 1930) - trimethoprim-sulfamethoxazole
+
+        // Other antibiotics
+        map.insert("quinu_dalfo", 25290);    // 1999 (69 years after 1930) - quinupristin/dalfopristin
+        map.insert("chlorampheni", 6935);    // 1949 (19 years after 1930) - chloramphenicol
+        map.insert("nitrofurantoin", 8395);  // 1953 (23 years after 1930)
+        map.insert("retapamulin", 28405);    // 2007 (77 years after 1930) - topical antibiotic
+        map.insert("fusidic_a", 11680);       // 1962 (32 years after 1930) - fusidic acid
+        map.insert("metronidazole", 10965);   // 1960 (30 years after 1930)
+        map.insert("furazolidone", 9125);    // 1955 (25 years after 1930)
+        
+        // Polymyxins  
+        map.insert("colistin", 7300);        // 1950 (20 years after 1930)
+        
+        map
+    };
+}
+
 
 
 

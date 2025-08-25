@@ -23,7 +23,8 @@ except ImportError:
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 91
+SMOOTHING_WINDOW_DAYS = 91   
+
 
 # =============================================================================
 # TOGGLE: Set to True to generate output_graphs plots, False to skip them
@@ -947,6 +948,118 @@ def create_grouped_plots(df):
     plt.savefig('output_graphs/grouped_figure_7.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     plt.close()
     print("✓ Grouped figure 7 saved as 'grouped_figure_7.png'")
+
+    # --- Grouped Figure 8: Infectious Syndrome Tracking ---
+    fig8, axes8 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes8 = axes8.flatten()
+    fig8.suptitle('Figure 8: Infectious Syndrome Distribution Over Time', fontsize=16, fontweight='bold')
+    
+    # Find syndrome columns
+    syndrome_cols = [col for col in df.columns if col.startswith('syndrome_') and col.endswith('_infected')]
+    
+    if syndrome_cols:
+        print(f"Processing syndrome data for {len(syndrome_cols)} syndromes")
+        
+        # 1. Stacked Bar Chart of Syndrome Proportions Over Time (top-left)
+        syndrome_data = df[syndrome_cols].values
+        total_infected = syndrome_data.sum(axis=1)
+        
+        # Calculate proportions (avoid division by zero)
+        syndrome_proportions = np.zeros_like(syndrome_data, dtype=float)
+        nonzero_mask = total_infected > 0
+        syndrome_proportions[nonzero_mask] = syndrome_data[nonzero_mask] / total_infected[nonzero_mask, np.newaxis]
+        
+        # Create time series with smoothing
+        syndrome_props_smooth = np.zeros_like(syndrome_proportions)
+        for i in range(len(syndrome_cols)):
+            syndrome_props_smooth[:, i] = pd.Series(syndrome_proportions[:, i]).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(syndrome_proportions)), 
+                min_periods=1, center=True
+            ).mean()
+        
+        # Create stacked area plot
+        syndrome_colors = plt.cm.tab10(np.linspace(0, 1, len(syndrome_cols)))
+        
+        # Use every 100th point to reduce density for better visualization
+        step = max(1, len(df) // 500)  # Show ~500 points maximum
+        time_subset = df['time_in_years'].iloc[::step]
+        props_subset = syndrome_props_smooth[::step]
+        
+        bottom = np.zeros(len(time_subset))
+        
+        # Create meaningful syndrome labels based on medical definitions from config.rs
+        syndrome_names = {
+            1: 'uti_genitourinary',
+            2: 'skin_soft_tissue', 
+            3: 'respiratory',
+            4: 'bloodstream_bacteremia',
+            5: 'intra_abdominal',
+            6: 'central_nervous_system',
+            7: 'gastrointestinal',
+            8: 'genital',
+            9: 'bone_joint',
+            10: 'other_syndrome'  # Not explicitly defined in config
+        }
+        
+        syndrome_labels = []
+        for i in range(len(syndrome_cols)):
+            syndrome_num = i + 1
+            syndrome_name = syndrome_names.get(syndrome_num, f'syndrome_{syndrome_num}')
+            syndrome_labels.append(f'S{syndrome_num}: {syndrome_name}')
+        
+        for i, (color, label) in enumerate(zip(syndrome_colors, syndrome_labels)):
+            axes8[0].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                                color=color, alpha=0.7, label=label)
+            bottom += props_subset[:, i]
+        
+        axes8[0].set_title('Infectious Syndrome Distribution Over Time\n(Stacked Proportions, 0-1 Scale)')
+        axes8[0].set_xlabel('Time (Years)')
+        axes8[0].set_ylabel('Proportion')
+        axes8[0].set_ylim(0, 1)
+        axes8[0].grid(True, alpha=0.3)
+        axes8[0].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+        
+        # Add summary statistics
+        total_syndrome_infections = syndrome_data.sum()
+        if total_syndrome_infections > 0:
+            syndrome_percentages = (syndrome_data.sum(axis=0) / total_syndrome_infections * 100)
+            most_common_idx = np.argmax(syndrome_percentages)
+            most_common_name = syndrome_names.get(most_common_idx + 1, f'syndrome_{most_common_idx + 1}')
+            textstr = f'Total infections: {int(total_syndrome_infections):,}\nMost common: S{most_common_idx+1} ({most_common_name})\n{syndrome_percentages[most_common_idx]:.1f}% of infections'
+            props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+            axes8[0].text(0.02, 0.98, textstr, transform=axes8[0].transAxes, 
+                        fontsize=9, verticalalignment='top', bbox=props)
+        
+        # 2. Empty subplot (top-right) - reserved for future use
+        axes8[1].text(0.5, 0.5, 'Reserved for\nAdditional Analysis', 
+                    ha='center', va='center', fontsize=14, color='gray')
+        axes8[1].set_axis_off()
+        
+        # 3. Empty subplot (bottom-left) - reserved for future use  
+        axes8[2].text(0.5, 0.5, 'Reserved for\nAdditional Analysis', 
+                    ha='center', va='center', fontsize=14, color='gray')
+        axes8[2].set_axis_off()
+        
+        # 4. Empty subplot (bottom-right) - reserved for future use
+        axes8[3].text(0.5, 0.5, 'Reserved for\nAdditional Analysis', 
+                    ha='center', va='center', fontsize=14, color='gray')
+        axes8[3].set_axis_off()
+        
+    else:
+        # No syndrome data found
+        for i in range(4):
+            if i == 0:
+                axes8[i].text(0.5, 0.5, f'No syndrome data found\nExpected columns: syndrome_1_infected, ..., syndrome_10_infected\nFound columns: {len(syndrome_cols)}', 
+                            ha='center', va='center', fontsize=12, color='gray')
+            else:
+                axes8[i].text(0.5, 0.5, 'Syndrome data\nnot available', 
+                            ha='center', va='center', fontsize=12, color='gray')
+            axes8[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_8.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 8 saved as 'grouped_figure_8.png'")
 
 
 def create_proportion_plots(df):

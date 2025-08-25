@@ -135,6 +135,9 @@ pub struct TimeStepSummary {
     // day-7 drug initiation tracking: counts by bacteria
     pub day_7_evaluations_by_bacteria: Vec<usize>,        // [bacteria_idx] = number of post-infection evaluations (configurable timing)
     pub day_7_drug_used_by_bacteria: Vec<usize>,          // [bacteria_idx] = number where drug was used by day 7
+    
+    // syndrome tracking: counts by syndrome (1-10)
+    pub infected_by_syndrome: Vec<usize>,                 // [syndrome_idx] = number of infected individuals with this syndrome (first infection only)
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -344,6 +347,8 @@ impl Simulation {
                 infection_resolution_death_from_sepsis_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_background_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
+                /// counts of infected individuals by syndrome (1-10)
+                infected_by_syndrome: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -398,6 +403,7 @@ impl Simulation {
                         infection_resolution_death_from_sepsis_by_bacteria: vec![0; num_bacteria],
                         infection_resolution_death_from_background_by_bacteria: vec![0; num_bacteria],
                         infection_resolution_death_from_toxicity_by_bacteria: vec![0; num_bacteria],
+                        infected_by_syndrome: vec![0; 10], // Syndromes 1-10
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -451,6 +457,7 @@ impl Simulation {
                     for (a,b) in self.infection_resolution_death_from_sepsis_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_sepsis_by_bacteria) { *a += b; }
                     for (a,b) in self.infection_resolution_death_from_background_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_background_by_bacteria) { *a += b; }
                     for (a,b) in self.infection_resolution_death_from_toxicity_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_toxicity_by_bacteria) { *a += b; }
+                    for (a,b) in self.infected_by_syndrome.iter_mut().zip(other.infected_by_syndrome) { *a += b; }
                 }
             }
 
@@ -590,6 +597,7 @@ impl Simulation {
                             let mut individual_has_any_r_positive = false;
                             let mut was_newly_infected = false;
                             let mut was_newly_infected_with_resistance = false;
+                            let mut individual_has_any_infection_counted_for_syndrome = false;
                             let is_currently_infected_any;
                             {
                                 let mut infected_any_tmp = false;
@@ -598,6 +606,16 @@ impl Simulation {
                                         infected_any_tmp = true;
                                         individual_has_any_infection = true;
                                         lt.infections_by_bacteria[b_idx] += 1;
+                                        
+                                        // Count syndrome for this infected individual (take first one if multiple infections)
+                                        if !individual_has_any_infection_counted_for_syndrome {
+                                            let syndrome_id = individual.infectious_syndrome[b_idx];
+                                            if syndrome_id >= 1 && syndrome_id <= 10 {
+                                                lt.infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
+                                                individual_has_any_infection_counted_for_syndrome = true;
+                                            }
+                                        }
+                                        
                                         // sum activity_r for this bacteria, ONLY for individuals on drug
                                         let mut activity_r_sum = 0.0;
                                         let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
@@ -741,6 +759,7 @@ impl Simulation {
                     infection_resolution_death_from_sepsis_by_bacteria: _,
                     infection_resolution_death_from_background_by_bacteria: _,
                     infection_resolution_death_from_toxicity_by_bacteria: _,
+                    infected_by_syndrome,
                 } = totals;
 
                 // Use the separately collected infection resolution data
@@ -931,6 +950,7 @@ impl Simulation {
             
             day_7_used
         },
+        infected_by_syndrome,
             };
 
 
@@ -1353,6 +1373,12 @@ impl Simulation {
             header.push_str("_day_7_drug_used");
         }
         
+        // Add syndrome columns to header  
+        for syndrome_id in 1..=10 {
+            header.push(',');
+            header.push_str(&format!("syndrome_{}_infected", syndrome_id));
+        }
+        
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
@@ -1423,6 +1449,9 @@ impl Simulation {
             // Add day-7 drug initiation data
             for value in &summary.day_7_evaluations_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.day_7_drug_used_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            
+            // Add syndrome infection data
+            for value in &summary.infected_by_syndrome { row.push(','); row.push_str(&value.to_string()); }
             
             row.push('\n');
             writer.write_all(row.as_bytes())?;

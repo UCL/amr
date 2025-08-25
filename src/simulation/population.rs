@@ -432,6 +432,7 @@ impl Population {
         let mut individuals = Vec::with_capacity(size);
         let mut rng = rand::thread_rng();
 
+        // https://www.statista.com/statistics/997040/world-population-by-continent-1950-2020/#:~:text=Similarly%2C%20the%20population%20of%20the,of%20this%20concentrated%20in%20Africa.
 
         for i in 0..size {
             let age = rng.gen_range(-36500..=32485);

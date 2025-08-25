@@ -23,27 +23,42 @@ mod rules;
 mod config;
 
 
+// ? discontinuity in drug use after about 38 years (figure 3) and 20 years (figure 5) (effect at 20 years seems
+// to be about initiation (see figure 7))
+//
 //
 // // model structure developments to consider //
 //
 // effect of region and calendar time on testing
+//
+// think about structure of distribution of age at start of simulation - project to 2035 or beyond ?
 //
 // need some variability in immunosuppression_recovery_rate_per_day
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
 //
+// some people with (at least temporary) immunodeficiency will be on drug ? if so bacteria acquisition immediately
+// reversed ? 
+//
 // review incidence of immunodeficiency and resolution
 // need to separately model incidence of high sepsis death risk - or are existing variables ok ?
 // also think about whether hospitalization modelling is ok - e.g. being in hospital a contributory cause of sepsis ? 
+// research parameter values for hospitalization 
 //
-// 
+// laura to review model ? 
+//
+// consider inviting people (initially at ucl / lshtm) to be point person for a given bacteria ?
+//
+//
 // 
 // // additional output graphs
 //
 // time from infection that drug is started (in those in whom drug is started)
 //
+// graphs to show effects of all relevant variables
 //
+// 
 //
 //
 // // parameter values (recognising there will be many changes) //
@@ -52,9 +67,9 @@ mod config;
 //
 //    update infection site distribution per bacteria
 //
-//
+//    rate of acquisition per bacteria (and different predictors)
 //  
-//
+//    completion of potency per bacteria drug combination
 //
 //
 // calibration data: approx drug usage per 100_000 per calendar year 
@@ -64,7 +79,7 @@ mod config;
 //
 // https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
 //
-//
+// get data put on graphs ?
 //
 //
 // set up automated testing for the simulation (probably not yet though)
@@ -94,7 +109,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size = 3_000; 
-    let time_steps =   1800;
+    let time_steps =   1_000;
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
