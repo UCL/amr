@@ -138,6 +138,9 @@ pub struct TimeStepSummary {
     
     // syndrome tracking: counts by syndrome (1-10)
     pub infected_by_syndrome: Vec<usize>,                 // [syndrome_idx] = number of infected individuals with this syndrome (first infection only)
+    
+    // regional population tracking: counts by region (6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania)
+    pub living_population_by_region: Vec<usize>,          // [region_idx] = number of living individuals currently in this region
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -216,7 +219,6 @@ impl Simulation {
         println!("airborne_contact_level_with_adults: {:.2}", population.individuals[0].airborne_contact_level_with_adults);
         println!("airborne_contact_level_with_children: {:.2}", population.individuals[0].airborne_contact_level_with_children);
         println!("oral_exposure_level: {:.2}", population.individuals[0].oral_exposure_level);
-        println!("mosquito_exposure_level: {:.2}", population.individuals[0].mosquito_exposure_level);
         println!("current_toxicity: {:.2}", population.individuals[0].current_toxicity);
         println!("mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
         println!(" ");
@@ -349,6 +351,8 @@ impl Simulation {
                 infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
                 /// counts of infected individuals by syndrome (1-10)
                 infected_by_syndrome: Vec<usize>,
+                /// living population count by region (6 regions)
+                living_population_by_region: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -404,6 +408,7 @@ impl Simulation {
                         infection_resolution_death_from_background_by_bacteria: vec![0; num_bacteria],
                         infection_resolution_death_from_toxicity_by_bacteria: vec![0; num_bacteria],
                         infected_by_syndrome: vec![0; 10], // Syndromes 1-10
+                        living_population_by_region: vec![0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -458,6 +463,7 @@ impl Simulation {
                     for (a,b) in self.infection_resolution_death_from_background_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_background_by_bacteria) { *a += b; }
                     for (a,b) in self.infection_resolution_death_from_toxicity_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_toxicity_by_bacteria) { *a += b; }
                     for (a,b) in self.infected_by_syndrome.iter_mut().zip(other.infected_by_syndrome) { *a += b; }
+                    for (a,b) in self.living_population_by_region.iter_mut().zip(other.living_population_by_region) { *a += b; }
                 }
             }
 
@@ -569,6 +575,12 @@ impl Simulation {
                         if individual.date_of_death.is_none() && individual.age >= 0 {
                             // Integrated living population & age groups (only count individuals who have been born)
                             lt.living_population += 1;
+                            
+                            // Count living population by region
+                            let effective_region = get_effective_region(individual);
+                            let region_idx = region_to_index(effective_region);
+                            lt.living_population_by_region[region_idx] += 1;
+                            
                             let age_years = individual.age as f64 / 365.0;
                             if (0.0..6.0).contains(&age_years) { lt.num_age_0_5 += 1; }
                             else if (6.0..15.0).contains(&age_years) { lt.num_age_6_14 += 1; }
@@ -760,6 +772,7 @@ impl Simulation {
                     infection_resolution_death_from_background_by_bacteria: _,
                     infection_resolution_death_from_toxicity_by_bacteria: _,
                     infected_by_syndrome,
+                    living_population_by_region,
                 } = totals;
 
                 // Use the separately collected infection resolution data
@@ -951,6 +964,7 @@ impl Simulation {
             day_7_used
         },
         infected_by_syndrome,
+        living_population_by_region,
             };
 
 
@@ -969,7 +983,6 @@ impl Simulation {
             // println!("airborne_contact_level_with_adults: {:.4}", individual_0.airborne_contact_level_with_adults);
             // println!("airborne_contact_level_with_children: {:.4}", individual_0.airborne_contact_level_with_children);
             // println!("oral_exposure_level: {:.4}", individual_0.oral_exposure_level);
-            // println!("mosquito_exposure_level: {:.4}", individual_0.mosquito_exposure_level);
             // println!("current_toxicity: {:.4}", individual_0.current_toxicity);
             // println!("mortality_risk_current_toxicity: {:.4}", individual_0.mortality_risk_current_toxicity);
             // println!("hospital_status: {:?}", individual_0.hospital_status);
@@ -1024,7 +1037,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,mosquito_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -1092,7 +1105,7 @@ impl Simulation {
                         .collect::<Vec<_>>()
                         .join(";");
 
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{}",
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{}",
                         t,
                         i,
                         ind.id,
@@ -1106,7 +1119,6 @@ impl Simulation {
                         ind.airborne_contact_level_with_adults,
                         ind.airborne_contact_level_with_children,
                         ind.oral_exposure_level,
-                        ind.mosquito_exposure_level,
                         ind.current_toxicity,
                         ind.mortality_risk_current_toxicity,
                         format!("{:?}", ind.hospital_status),
@@ -1379,6 +1391,13 @@ impl Simulation {
             header.push_str(&format!("syndrome_{}_infected", syndrome_id));
         }
         
+        // Add region population columns to header
+        let region_names = ["north_america", "south_america", "africa", "asia", "europe", "oceania"];
+        for region_name in &region_names {
+            header.push(',');
+            header.push_str(&format!("{}_population", region_name));
+        }
+        
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
@@ -1452,6 +1471,9 @@ impl Simulation {
             
             // Add syndrome infection data
             for value in &summary.infected_by_syndrome { row.push(','); row.push_str(&value.to_string()); }
+            
+            // Add region population data
+            for value in &summary.living_population_by_region { row.push(','); row.push_str(&value.to_string()); }
             
             row.push('\n');
             writer.write_all(row.as_bytes())?;

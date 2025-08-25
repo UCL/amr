@@ -36,7 +36,6 @@ pub struct ParameterKeyCache {
     drug_bacteria_initiation_keys: HashMap<(usize, usize), String>,
     
     // Region-based keys
-    region_mosquito_keys: HashMap<String, String>,
     region_travel_keys: HashMap<String, String>,
     region_mortality_keys: HashMap<String, String>,
     region_sepsis_keys: HashMap<String, String>,
@@ -59,7 +58,6 @@ impl ParameterKeyCache {
         let mut cache = ParameterKeyCache {
             drug_bacteria_potency_keys: HashMap::new(),
             drug_bacteria_initiation_keys: HashMap::new(),
-            region_mosquito_keys: HashMap::new(),
             region_travel_keys: HashMap::new(),
             region_mortality_keys: HashMap::new(),
             region_sepsis_keys: HashMap::new(),
@@ -92,10 +90,6 @@ impl ParameterKeyCache {
         // Pre-compute region-based keys
         let regions = ["north_america", "europe", "asia", "africa", "south_america", "oceania", "home"];
         for region in &regions {
-            cache.region_mosquito_keys.insert(
-                region.to_string(),
-                format!("{}_mosquito_exposure_multiplier", region)
-            );
             cache.region_travel_keys.insert(
                 region.to_string(),
                 format!("{}_travel_multiplier", region)
@@ -307,24 +301,6 @@ pub fn apply_rules(
         base_oral_level *= oral_exposure_in_hospital_multiplier;
     }
     update_contact_level(&mut individual.oral_exposure_level, base_oral_level);
-
-
-    // Mosquito Exposure Level
-    let mosquito_exposure_baseline = get_global_param("mosquito_exposure_baseline").unwrap_or(1.0);
-    let mosquito_exposure_in_hospital_multiplier = get_global_param("mosquito_exposure_in_hospital_multiplier").unwrap_or(0.2); // Usually lower indoors/hospitals
-
-    let mut base_mosquito_level = mosquito_exposure_baseline;
-
-    // Apply region-specific multiplier
-    let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-    let region_multiplier_key = &param_cache.region_mosquito_keys[&region_name_for_param];
-    let region_multiplier = get_global_param(region_multiplier_key).unwrap_or(1.0); // Default to 1.0 if region not specified
-    base_mosquito_level *= region_multiplier;
-
-    if individual.hospital_status.is_hospitalized() {
-        base_mosquito_level *= mosquito_exposure_in_hospital_multiplier;
-    }
-    update_contact_level(&mut individual.mosquito_exposure_level, base_mosquito_level);
 
     // --- end update contact and exposure levels ---
 
@@ -1022,13 +998,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let log_odds_airborne_adult = get_bacteria_param(bacteria, "log_odds_airborne_adult_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_adult_contact_per_unit").unwrap_or(0.0));
             let log_odds_airborne_child = get_bacteria_param(bacteria, "log_odds_airborne_child_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_child_contact_per_unit").unwrap_or(0.0));
             let log_odds_oral_exposure = get_bacteria_param(bacteria, "log_odds_oral_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_oral_exposure_per_unit").unwrap_or(0.0));
-            let log_odds_mosquito_exposure = get_bacteria_param(bacteria, "log_odds_mosquito_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_mosquito_exposure_per_unit").unwrap_or(0.0));
 
             log_odds += individual.sexual_contact_level * log_odds_sexual_contact;
             log_odds += individual.airborne_contact_level_with_adults * log_odds_airborne_adult;
             log_odds += individual.airborne_contact_level_with_children * log_odds_airborne_child;
             log_odds += individual.oral_exposure_level * log_odds_oral_exposure;
-            log_odds += individual.mosquito_exposure_level * log_odds_mosquito_exposure;
 
             // Vaccination status (binary effect)
             if individual.vaccination_status[b_idx] {
@@ -1076,13 +1050,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let log_odds_airborne_adult = get_bacteria_param(bacteria, "log_odds_airborne_adult_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_adult_contact_per_unit").unwrap_or(0.0));
                 let log_odds_airborne_child = get_bacteria_param(bacteria, "log_odds_airborne_child_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_child_contact_per_unit").unwrap_or(0.0));
                 let log_odds_oral_exposure = get_bacteria_param(bacteria, "log_odds_oral_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_oral_exposure_per_unit").unwrap_or(0.0));
-                let log_odds_mosquito_exposure = get_bacteria_param(bacteria, "log_odds_mosquito_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_mosquito_exposure_per_unit").unwrap_or(0.0));
 
                 log_odds += individual.sexual_contact_level * log_odds_sexual_contact;
                 log_odds += individual.airborne_contact_level_with_adults * log_odds_airborne_adult;
                 log_odds += individual.airborne_contact_level_with_children * log_odds_airborne_child;
                 log_odds += individual.oral_exposure_level * log_odds_oral_exposure;
-                log_odds += individual.mosquito_exposure_level * log_odds_mosquito_exposure;
 
                 // Vaccination status (binary effect)
                 if individual.vaccination_status[b_idx] {

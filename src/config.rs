@@ -5,7 +5,6 @@
         map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 1945 (15 years after 1930) - Bacterial culture/identification becomes available
         map.insert("resistance_testing_available_from_day".to_string(), 9131.0); // 1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
 
-
         map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
 
@@ -592,7 +591,6 @@ lazy_static! {
         map.insert("log_odds_airborne_adult_contact_per_unit".to_string(), 0.08); // Per unit airborne adult contact
         map.insert("log_odds_airborne_child_contact_per_unit".to_string(), 0.08); // Per unit airborne child contact
         map.insert("log_odds_oral_exposure_per_unit".to_string(), 0.06); // Per unit oral exposure
-        map.insert("log_odds_mosquito_exposure_per_unit".to_string(), 0.12); // Per unit mosquito exposure
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -702,8 +700,8 @@ lazy_static! {
         map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
 
         // Testing Parameters
-        map.insert("bacterial_testing_available_from_day".to_string(), 548.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available
-        map.insert("resistance_testing_available_from_day".to_string(), 913.0); // 9131.0  1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
+        map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available
+        map.insert("resistance_testing_available_from_day".to_string(), 9131.0); // 9131.0  1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
         map.insert("test_delay_days".to_string(), 3.0);
         map.insert("test_rate_per_day".to_string(), 0.2);  // 0.15
 
@@ -893,18 +891,6 @@ lazy_static! {
         map.insert("oral_exposure_child_multiplier".to_string(), 3.0); // Higher for young children
         map.insert("oral_exposure_in_hospital_multiplier".to_string(), 0.8); // Slightly reduced due to hospital hygiene
 
-        // Mosquito Exposure Parameters
-        map.insert("mosquito_exposure_baseline".to_string(), 1.0);
-        map.insert("mosquito_exposure_in_hospital_multiplier".to_string(), 0.2); // Significantly reduced indoors/hospital
-        
-        // Region-specific multipliers for mosquito exposure (example values, adjust as needed based on actual epidemiology)
-        map.insert("north_america_mosquito_exposure_multiplier".to_string(), 0.5);
-        map.insert("south_america_mosquito_exposure_multiplier".to_string(), 5.0);
-        map.insert("africa_mosquito_exposure_multiplier".to_string(), 8.0);
-        map.insert("asia_mosquito_exposure_multiplier".to_string(), 6.0);
-        map.insert("europe_mosquito_exposure_multiplier".to_string(), 0.2);
-        map.insert("oceania_mosquito_exposure_multiplier".to_string(), 3.0);
-        
         // Region-specific bacterial infection risk multipliers
         // Based on real-world epidemiological patterns and regional prevalence
         // Format: "{region}_{bacteria_name}_infection_risk_multiplier"
@@ -1270,7 +1256,6 @@ lazy_static! {
         m.insert("urogenital", vec![1.2, 0.8, 0.9, 1.0, 1.4, 2.2]);          // Moderate elderly risk (UTIs)
         m.insert("skin_soft_tissue", vec![1.5, 1.3, 1.1, 1.0, 1.2, 1.8]);    // Mild age gradient
         m.insert("bloodstream", vec![4.0, 2.0, 0.7, 1.0, 1.5, 3.0]);         // Very high infant/elderly risk (sepsis)
-        m.insert("vector_borne", vec![1.8, 1.5, 1.0, 1.0, 1.1, 1.4]);        // Moderate child/elderly risk (mosquito-borne)
         m.insert("sexually_transmitted", vec![0.1, 0.2, 0.8, 1.0, 0.8, 0.3]); // Peak in young adults
         m.insert("flat", vec![1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);               // No age effect
         
@@ -1569,7 +1554,7 @@ lazy_static! {
         map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
         map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
         map.insert("ticarcillin", 14600);    // 1977 (47 years after 1930)
-        
+
         // Beta-lactam/beta-lactamase inhibitor combinations
         map.insert("amoxicillin_clavulanate", 16425); // 1985 (55 years after 1930)
         map.insert("ampicillin_sulbactam", 18250);    // 1990 (60 years after 1930)
