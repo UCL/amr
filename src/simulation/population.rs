@@ -427,81 +427,7 @@ impl Individual {
     }
 }
 
-/// Generate realistic age for 1930-2035 simulation based on historical demographics
-/// Returns age in days: -37,595 (born 2035) to +32,485 (born 1841, age 89 in 1930)
-fn generate_realistic_age_by_region(rng: &mut impl rand::Rng) -> i32 {
-    // Population growth from ~2.07B (1930) to ~8.9B (2035) = 4.3x growth
-    // Most people (75%+) will have negative ages representing future births
-    
-    let rand_val = rng.gen::<f64>();
-    
-    // Age distribution reflecting massive population growth 1930-2035
-    if rand_val < 0.78 {
-        // 78% future births (negative ages) - weighted toward later births to match continued growth to 2035
-        let birth_year_offset = rng.gen_range(0.0..1.0_f64).powf(0.6); // Skew toward recent births (lower power = more recent)
-        let days_after_1930 = (birth_year_offset * 105.0 * 365.0) as i32; // 0 to 38,325 days
-        -(days_after_1930) // Negative age = born after 1930
-    } else if rand_val < 0.95 {
-        // 17% people alive in 1930 (ages 0-70 in 1930)
-        let age_in_1930_years = rng.gen_range(0.0..70.0_f64).powf(0.8); // Younger skew
-        (age_in_1930_years * 365.0) as i32
-    } else {
-        // 5% elderly in 1930 (ages 70-89)
-        let age_in_1930_years = rng.gen_range(70.0..89.0);
-        (age_in_1930_years * 365.0) as i32
-    }
-}
 
-/// Assign region based on 1930 demographics + realistic growth projections to 2035
-/// Based on historical chart data showing different regional growth patterns
-fn assign_region_with_growth_model(rng: &mut impl rand::Rng, age: i32) -> Region {
-    // Age determines which population cohort this person belongs to
-    let birth_year = 1930.0 + (age as f64 / 365.0);
-    
-    // 1930 base proportions (from historical data)
-    let (asia_base, europe_base, africa_base, n_america_base, s_america_base, oceania_base) = 
-        (0.55, 0.25, 0.08, 0.07, 0.04, 0.01);
-    
-    // Adjust regional weights based on differential growth patterns from chart
-    let years_since_1930 = (birth_year - 1930.0).max(0.0);
-    let africa_multiplier = 1.0 + years_since_1930 / 105.0 * 8.0; // 8x growth advantage (African demographic boom)
-    let asia_multiplier = 1.0 + years_since_1930 / 105.0 * 2.0;   // 2x growth advantage  
-    let europe_multiplier = 1.0 + years_since_1930 / 105.0 * (-0.2); // Declining share (less severe)
-    let others_multiplier = 1.0 + years_since_1930 / 105.0 * 1.0;  // Moderate growth
-    
-    // Calculate adjusted probabilities
-    let asia_prob = asia_base * asia_multiplier;
-    let africa_prob = africa_base * africa_multiplier;
-    let europe_prob = europe_base * europe_multiplier;
-    let n_america_prob = n_america_base * others_multiplier;
-    let s_america_prob = s_america_base * others_multiplier;
-    let oceania_prob = oceania_base * others_multiplier;
-    
-    // Normalize probabilities
-    let total = asia_prob + africa_prob + europe_prob + n_america_prob + s_america_prob + oceania_prob;
-    let norm_asia = asia_prob / total;
-    let norm_africa = africa_prob / total;
-    let norm_europe = europe_prob / total;
-    let norm_n_america = n_america_prob / total;
-    let norm_s_america = s_america_prob / total;
-    
-    // Sample from weighted distribution
-    let rand_val = rng.gen::<f64>();
-    
-    if rand_val < norm_asia {
-        Region::Asia
-    } else if rand_val < norm_asia + norm_africa {
-        Region::Africa
-    } else if rand_val < norm_asia + norm_africa + norm_europe {
-        Region::Europe
-    } else if rand_val < norm_asia + norm_africa + norm_europe + norm_n_america {
-        Region::NorthAmerica
-    } else if rand_val < norm_asia + norm_africa + norm_europe + norm_n_america + norm_s_america {
-        Region::SouthAmerica
-    } else {
-        Region::Oceania
-    }
-}
 
 pub struct Population {
     pub individuals: Vec<Individual>,
@@ -514,14 +440,9 @@ impl Population {
         let mut rng = rand::thread_rng();
 
         for i in 0..size {
-            // Generate realistic age distribution for 1930-2035 timeline (105 years = 38,325 days)
-            // Age in days: -37,595 (born 2035) to +32,485 (born 1841, age 89 in 1930)
-            // Most people have negative ages representing future births due to population growth
-            let age = generate_realistic_age_by_region(&mut rng);
+            // Use new simplified demographic distribution
+            let (region, age) = crate::config::sample_age_and_region_from_distribution(&mut rng);
             let sex = if rng.gen_bool(0.5) { "male".to_string() } else { "female".to_string() };
-            
-            // Assign region based on 1930 demographics + realistic growth to 2035
-            let region = assign_region_with_growth_model(&mut rng, age);
             
             let mut individual = Individual::new(i, age, sex);
             individual.region_living = region;
@@ -546,86 +467,7 @@ impl Population {
     }
 }
 
-/// Generate realistic age distribution for 1930-2035 simulation
-/// Timeline: 1930 start, 2035 end = 105 years = 38,325 days
-/// Most people have negative ages (future births) due to massive population growth
-fn generate_realistic_age(rng: &mut impl rand::Rng) -> i32 {
-    // Timeline: 1930 (day 0) to 2035 (day 38,325)
-    // Age distribution heavily skewed toward future births (negative ages)
-    // Population grows from ~2B (1930) to ~8.9B (2035) = 4.45x growth
-    
-    if rng.gen_bool(0.75) {
-        // 75% have negative ages (future births 1930-2035)
-        // Distribution: more births later in timeline (accelerating growth)
-        let birth_year_offset = rng.gen_range(0..38325); // 0 = born in 1930, 38325 = born in 2035
-        -birth_year_offset
-    } else {
-        // 25% already alive in 1930 
-        // Age distribution: realistic 1930 demographics (younger than today due to high mortality)
-        // Max age ~90 years = 32,850 days
-        let age_years = if rng.gen_bool(0.4) {
-            // 40% children/young adults (0-25 years)
-            rng.gen_range(0..25)
-        } else if rng.gen_bool(0.5) {
-            // 30% adults (25-55 years) 
-            rng.gen_range(25..55)
-        } else {
-            // 30% older adults (55-90 years)
-            rng.gen_range(55..90)
-        };
-        age_years * 365
-    }
-}
 
-/// Assign region based on realistic 1930 population + growth to 2035
-/// Accounts for different regional demographic transitions and growth rates
-fn assign_realistic_region(rng: &mut impl rand::Rng, age: i32) -> Region {
-    // 1930 Population (approximate %)
-    // Asia: ~55% (dominated by China/India even then)
-    // Europe: ~25% (much higher than today)
-    // Africa: ~8% (much lower than today due to high mortality)
-    // North America: ~7%
-    // South America: ~4%
-    // Oceania: ~1%
-    
-    // But age matters! Negative ages (future births) follow different patterns
-    // due to demographic transition: Africa/Asia fastest growth, Europe slowest
-    
-    if age < 0 {
-        // Future births (1930-2035): follows growth patterns
-        // Africa and Asia have much faster population growth
-        let r = rng.gen::<f64>();
-        if r < 0.62 {
-            Region::Asia  // 62% of future births (demographic explosion)
-        } else if r < 0.82 {
-            Region::Africa  // 20% of future births (highest growth rate)
-        } else if r < 0.90 {
-            Region::Europe  // 8% of future births (demographic transition complete)
-        } else if r < 0.95 {
-            Region::NorthAmerica  // 5% of future births
-        } else if r < 0.99 {
-            Region::SouthAmerica  // 4% of future births
-        } else {
-            Region::Oceania  // 1% of future births
-        }
-    } else {
-        // Already alive in 1930: follows 1930 distribution
-        let r = rng.gen::<f64>();
-        if r < 0.55 {
-            Region::Asia  // 55% in 1930
-        } else if r < 0.80 {
-            Region::Europe  // 25% in 1930 (much higher than today)
-        } else if r < 0.88 {
-            Region::Africa  // 8% in 1930 (much lower than today)
-        } else if r < 0.95 {
-            Region::NorthAmerica  // 7% in 1930
-        } else if r < 0.99 {
-            Region::SouthAmerica  // 4% in 1930
-        } else {
-            Region::Oceania  // 1% in 1930
-        }
-    }
-}
 
 
 

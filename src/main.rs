@@ -31,19 +31,8 @@ mod config;
 //
 // // model structure developments to consider //
 //
-// code for cancellation of infection if on drug already needs review
-// search here in mod.rs: et activity_key = format!("drug_{}_activity_{}", drug_name, bacteria);
-//
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
-//
-// some people with (at least temporary) immunodeficiency will be on drug ? if so, bacteria acquisition immediately
-// reversed ? 
-//
-// review incidence of immunodeficiency and resolution
-// need to separately model incidence of high sepsis death risk - or are existing variables ok ?
-// also think about whether hospitalization modelling is ok - e.g. being in hospital a contributory cause of sepsis ? 
-// research parameter values for hospitalization 
 //
 // bear in mind that strep pneu for example has a vaccine against it but this has resulted in
 // growth of non-vaccine-covered serotypes
@@ -113,8 +102,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 500; 
-    let time_steps =   4000 ;  // 38_325
+    let population_size = 2_000; 
+    let time_steps =   25_000 ;  // 38_325
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

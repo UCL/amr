@@ -23,7 +23,7 @@ except ImportError:
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 365   
+SMOOTHING_WINDOW_DAYS = 1095   
 
 
 # =============================================================================
@@ -48,6 +48,7 @@ source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
 age_distribution_by_region = True  # NEW: Age distribution plots by region 
 death_rate_by_region = False  # NEW: Death rate plots by region
+age_specific_death_rate_by_region = True  # NEW: Age-specific death rate plots by region
 
 # =============================================================================
 # CONFIGURATION
@@ -2660,6 +2661,120 @@ def create_death_rate_by_region_plots(df):
         print(f"✓ Created {plots_created} death rate plots by region")
 
 
+def create_age_specific_death_rate_by_region_plots(df):
+    """Create age-specific death rate plots for each region."""
+    print("=== CREATING AGE-SPECIFIC DEATH RATE BY REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/age_specific_death_rate_by_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and age groups
+    regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    age_groups = ['prop_age_0_5', 'prop_age_6_14', 'prop_age_15_49', 'prop_age_50_79', 'prop_age_80plus']
+    age_labels = ['0-5 years', '6-14 years', '15-49 years', '50-79 years', '80+ years']
+    death_types = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    death_labels = ['Background Mortality', 'Sepsis Deaths', 'Drug Toxicity Deaths']
+    
+    plots_created = 0
+    
+    # Create plots for each region
+    for region in regions:
+        # Check if we have population data for this region
+        pop_col = f"{region}_population"
+        if pop_col not in df.columns:
+            print(f"  ⚠ Missing population data for {region}")
+            continue
+        
+        # Check if we have age-specific death data
+        age_death_data_available = False
+        for age_group in age_groups:
+            for death_type in death_types:
+                death_col = f"{region}_{age_group}_{death_type}"
+                if death_col in df.columns:
+                    age_death_data_available = True
+                    break
+            if age_death_data_available:
+                break
+        
+        if not age_death_data_available:
+            print(f"  ⚠ Missing age-specific death data for {region}")
+            continue
+        
+        # Create subplot grid: one subplot for each age group
+        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        axes = axes.flatten()
+        
+        for age_idx, (age_group, age_label) in enumerate(zip(age_groups, age_labels)):
+            ax = axes[age_idx]
+            
+            # Get age-specific population data for this region and age group
+            age_pop_col = f"{region}_{age_group}"
+            if age_pop_col not in df.columns:
+                ax.text(0.5, 0.5, f'No population data\nfor {age_label}', 
+                       transform=ax.transAxes, ha='center', va='center')
+                ax.set_title(f'{age_label}')
+                continue
+            
+            # Calculate age-specific population count
+            region_pop = df[pop_col].replace(0, 1)  # Avoid division by zero
+            age_proportion = df[age_pop_col]
+            age_population = region_pop * age_proportion
+            
+            # Plot death rates for each death type
+            colors = ['gray', 'orange', 'purple']
+            for death_idx, (death_type, death_label, color) in enumerate(zip(death_types, death_labels, colors)):
+                death_col = f"{region}_{age_group}_{death_type}"
+                
+                if death_col in df.columns:
+                    # Calculate death rate (deaths per age-specific population)
+                    death_rate = df[death_col] / age_population.replace(0, 1)
+                    
+                    # Apply smoothing
+                    smoothed_rate = pd.Series(death_rate).rolling(
+                        window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                    ).mean()
+                    
+                    ax.plot(df['time_in_years'], smoothed_rate, 
+                           label=death_label, linewidth=2, color=color, alpha=0.8)
+            
+            # Formatting
+            ax.set_title(f'{age_label}')
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Death Rate')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            
+            # Set reasonable y-axis limits
+            ax.set_ylim(bottom=0)
+        
+        # Hide the last subplot if we have 5 age groups (2x3 grid)
+        if len(age_groups) == 5:
+            axes[5].set_visible(False)
+        
+        # Overall title
+        region_title = region.replace('_', ' ').title()
+        fig.suptitle(f'Age-Specific Death Rates Over Time - {region_title}', fontsize=16)
+        
+        # Tight layout
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"{region}_age_specific_death_rates.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        plots_created += 1
+        print(f"  ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No age-specific death rate plots created - missing required data columns")
+        print("  Expected columns like: north_america_prop_age_0_5_deaths_background, etc.")
+    else:
+        print(f"✓ Created {plots_created} age-specific death rate plots by region")
+
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -2759,6 +2874,12 @@ def main():
         create_death_rate_by_region_plots(df)
     else:
         print("\n=== SKIPPING death_rate_by_region plots (set death_rate_by_region = True to enable) ===")
+    
+    # Age-specific death rate by region plots
+    if age_specific_death_rate_by_region:
+        create_age_specific_death_rate_by_region_plots(df)
+    else:
+        print("\n=== SKIPPING age_specific_death_rate_by_region plots (set age_specific_death_rate_by_region = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)

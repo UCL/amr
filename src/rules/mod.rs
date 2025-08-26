@@ -913,6 +913,18 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
        
         let mut total_log_odds = baseline_log_odds;
 
+        // Time-varying mortality component (1930-2035): reflects historical mortality decline
+        let years_since_1930 = time_step as f64 / 365.0;
+        let start_multiplier = get_global_param("mortality_baseline_1930_multiplier").unwrap_or(3.0);
+        let end_multiplier = get_global_param("mortality_baseline_2035_multiplier").unwrap_or(1.0);
+        let half_life_years = get_global_param("mortality_improvement_half_life_years").unwrap_or(35.0);
+        
+        // Exponential decay from start_multiplier to end_multiplier
+        let decay_rate = (2.0_f64).ln() / half_life_years; // ln(2) / half_life
+        let time_multiplier = end_multiplier + (start_multiplier - end_multiplier) * (-decay_rate * years_since_1930).exp();
+        let time_log_odds_adjustment = time_multiplier.ln();
+        total_log_odds += time_log_odds_adjustment;
+
         let age_years = individual.age as f64 / 365.0;
 
         // Age effects

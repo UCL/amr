@@ -149,6 +149,10 @@ pub struct TimeStepSummary {
     // regional death tracking: counts by region and death type (6 regions * 3 death types = 18 values)
     // [region_idx * 3 + death_type_idx] where death_type_idx: 0=background, 1=sepsis, 2=drug_toxicity
     pub deaths_by_region: Vec<usize>,                     // [region][death_type] = number of deaths in this region by cause
+    
+    // age-specific death tracking by region: counts by region, age group, and death type (6 regions * 5 age groups * 3 death types = 90 values)
+    // [region_idx * 15 + age_group_idx * 3 + death_type_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
+    pub deaths_by_region_age: Vec<usize>,                 // [region][age_group][death_type] = number of deaths
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -365,6 +369,8 @@ impl Simulation {
                 age_distribution_by_region: Vec<usize>,
                 /// death tracking by region (6 regions * 3 death types = 18 values)
                 deaths_by_region: Vec<usize>,
+                /// age-specific death tracking by region (6 regions * 5 age groups * 3 death types = 90 values)
+                deaths_by_region_age: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -423,6 +429,7 @@ impl Simulation {
                         living_population_by_region: vec![0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania
                         age_distribution_by_region: vec![0; 6 * 5], // 6 regions * 5 age groups = 30 values
                         deaths_by_region: vec![0; 6 * 3], // 6 regions * 3 death types = 18 values
+                        deaths_by_region_age: vec![0; 6 * 5 * 3], // 6 regions * 5 age groups * 3 death types = 90 values
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -480,6 +487,7 @@ impl Simulation {
                     for (a,b) in self.living_population_by_region.iter_mut().zip(other.living_population_by_region) { *a += b; }
                     for (a,b) in self.age_distribution_by_region.iter_mut().zip(other.age_distribution_by_region) { *a += b; }
                     for (a,b) in self.deaths_by_region.iter_mut().zip(other.deaths_by_region) { *a += b; }
+                    for (a,b) in self.deaths_by_region_age.iter_mut().zip(other.deaths_by_region_age) { *a += b; }
                 }
             }
 
@@ -576,28 +584,47 @@ impl Simulation {
                                 let effective_region = get_effective_region(individual);
                                 let region_idx = region_to_index(effective_region);
                                 
+                                // Get age group for this death (ages in days, convert to years)
+                                let age_years = individual.age as f64 / 365.0;
+                                let age_group_idx = if (0.0..6.0).contains(&age_years) { 
+                                    0 // 0-5 years
+                                } else if (6.0..15.0).contains(&age_years) { 
+                                    1 // 6-14 years
+                                } else if (15.0..50.0).contains(&age_years) { 
+                                    2 // 15-49 years
+                                } else if (50.0..80.0).contains(&age_years) { 
+                                    3 // 50-79 years
+                                } else { 
+                                    4 // 80+ years
+                                };
+                                
                                 if let Some(ref cause) = individual.cause_of_death {
                                     match cause.as_str() {
                                         "background_mortality" => {
                                             lt.deaths_background += 1;
                                             lt.deaths_by_region[region_idx * 3 + 0] += 1; // background death
+                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // background death by age
                                         },
                                         "sepsis_related" => {
                                             lt.deaths_sepsis += 1;
                                             lt.deaths_by_region[region_idx * 3 + 1] += 1; // sepsis death
+                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 1] += 1; // sepsis death by age
                                         },
                                         "drug_toxicity_related" => {
                                             lt.deaths_drug_toxicity += 1;
                                             lt.deaths_by_region[region_idx * 3 + 2] += 1; // toxicity death
+                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 2] += 1; // toxicity death by age
                                         },
                                         _ => {
                                             lt.deaths_background += 1;
                                             lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
+                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
                                         },
                                     }
                                 } else { 
                                     lt.deaths_background += 1; 
                                     lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
+                                    lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
                                 }
                                 // Count deaths by bacteria
                                 for b_idx in 0..num_bacteria {
@@ -826,6 +853,7 @@ impl Simulation {
                     living_population_by_region,
                     age_distribution_by_region,
                     deaths_by_region,
+                    deaths_by_region_age,
                 } = totals;
 
                 // Use the separately collected infection resolution data
@@ -1020,6 +1048,7 @@ impl Simulation {
         living_population_by_region,
         age_distribution_by_region,
         deaths_by_region,
+        deaths_by_region_age,
             };
 
 
@@ -1471,6 +1500,16 @@ impl Simulation {
             }
         }
         
+        // Add age-specific death columns to header (region x age_group x death_type)
+        for region_name in &region_names {
+            for age_group_name in &age_group_names {
+                for death_type_name in &death_type_names {
+                    header.push(',');
+                    header.push_str(&format!("{}_{}_{}", region_name, age_group_name, death_type_name));
+                }
+            }
+        }
+        
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
@@ -1565,6 +1604,17 @@ impl Simulation {
                     let death_count = summary.deaths_by_region[region_idx * 3 + death_type_idx];
                     row.push(',');
                     row.push_str(&death_count.to_string());
+                }
+            }
+            
+            // Add age-specific death data by region (as counts)
+            for region_idx in 0..6 { // 6 regions
+                for age_group_idx in 0..5 { // 5 age groups
+                    for death_type_idx in 0..3 { // 3 death types: background, sepsis, drug_toxicity
+                        let death_count = summary.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + death_type_idx];
+                        row.push(',');
+                        row.push_str(&death_count.to_string());
+                    }
                 }
             }
             

@@ -822,12 +822,18 @@ lazy_static! {
         map.insert("log_odds_mortality_per_year_of_age".to_string(), 0.04); // 0.04  Odds of dying increase by ~4% per year (exp(0.04) ≈ 1.04)
         map.insert("log_odds_mortality_per_year_of_age_squared".to_string(), 0.05); // 0.05  Additional non-linear effect for elderly
 
+        // Time-varying background mortality (1930-2035): reflects dramatic mortality improvements over 105 years
+        // Based on historical life expectancy trends showing ~3x mortality decline from 1930 to 2035
+        map.insert("mortality_baseline_1930_multiplier".to_string(), 3.0);  // 3x higher mortality in 1930 (life expectancy ~35-45 years)
+        map.insert("mortality_baseline_2035_multiplier".to_string(), 1.0);  // Modern baseline by 2035 (life expectancy ~70-80 years)
+        map.insert("mortality_improvement_half_life_years".to_string(), 35.0); // Half-life of mortality improvement (exponential decay)
+
         // Region-specific log-odds adjustments. ln(1.0) = 0.
         map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
-        map.insert("log_odds_mortality_region_south_america".to_string(), 0.18);     // ln(1.2)
-        map.insert("log_odds_mortality_region_africa".to_string(), 0.18);            // ln(1.2)
-        map.insert("log_odds_mortality_region_asia".to_string(), 0.095);             // ln(1.1)
-        map.insert("log_odds_mortality_region_europe".to_string(), -0.105);          // ln(0.9)
+        map.insert("log_odds_mortality_region_south_america".to_string(), 0.26);     // ln(1.3) - increased from 1.2
+        map.insert("log_odds_mortality_region_africa".to_string(), 0.41);            // ln(1.5) - increased from 1.2 to reflect TB, malaria, parasitic diseases
+        map.insert("log_odds_mortality_region_asia".to_string(), 0.18);              // ln(1.2) - increased from 1.1 
+        map.insert("log_odds_mortality_region_europe".to_string(), -0.105);          // ln(0.9) - kept same
         map.insert("log_odds_mortality_region_oceania".to_string(), 0.0);           // Reference
 
         // Sex-specific log-odds adjustments.
@@ -1227,6 +1233,143 @@ lazy_static! {
         // or add a default handling in the `mod.rs` if a region param isn't found.
         // If `Region::Home` refers to a generic home location not tied to a specific geographical region,
         // you might need to reconsider its role or default it to 1.0 or an average.
+        
+        // Demographic distribution parameters (108 total: 6 regions × 18 age bands)
+        // Each parameter represents probability of being in that region-age combination
+        // All 108 parameters should sum to 1.0
+        // Age bands span from -40000 to +32000 in 4000-year intervals
+        
+        // Asia demographic distribution (18 age bands of 4000 years each)
+        // 55% of global population based on 1930-2035 timeframe
+        // Massive growth: ~90% at negative ages (future births), only ~10% alive in 1930
+        map.insert("demo_asia_age_neg40000_neg36000".to_string(), 0.120); // Heavy weighting on future births
+        map.insert("demo_asia_age_neg36000_neg32000".to_string(), 0.110);
+        map.insert("demo_asia_age_neg32000_neg28000".to_string(), 0.100);
+        map.insert("demo_asia_age_neg28000_neg24000".to_string(), 0.090);
+        map.insert("demo_asia_age_neg24000_neg20000".to_string(), 0.080);
+        map.insert("demo_asia_age_neg20000_neg16000".to_string(), 0.070);
+        map.insert("demo_asia_age_neg16000_neg12000".to_string(), 0.060);
+        map.insert("demo_asia_age_neg12000_neg8000".to_string(), 0.050);
+        map.insert("demo_asia_age_neg8000_neg4000".to_string(), 0.040);
+        map.insert("demo_asia_age_neg4000_0".to_string(), 0.030);          // Future births tapering
+        map.insert("demo_asia_age_0_4000".to_string(), 0.008);             // Very small portion alive in 1930
+        map.insert("demo_asia_age_4000_8000".to_string(), 0.006);
+        map.insert("demo_asia_age_8000_12000".to_string(), 0.005);
+        map.insert("demo_asia_age_12000_16000".to_string(), 0.004);
+        map.insert("demo_asia_age_16000_20000".to_string(), 0.003);
+        map.insert("demo_asia_age_20000_24000".to_string(), 0.002);
+        map.insert("demo_asia_age_24000_28000".to_string(), 0.001);
+        map.insert("demo_asia_age_28000_32000".to_string(), 0.001);        // Very few survive to old ages
+        
+        // Africa demographic distribution
+        // 12% of global population based on 1930-2035 timeframe
+        // Explosive growth: ~90% at negative ages (future births), only ~10% alive in 1930
+        map.insert("demo_africa_age_neg40000_neg36000".to_string(), 0.026); // Heavy weighting on future births
+        map.insert("demo_africa_age_neg36000_neg32000".to_string(), 0.024);
+        map.insert("demo_africa_age_neg32000_neg28000".to_string(), 0.022);
+        map.insert("demo_africa_age_neg28000_neg24000".to_string(), 0.020);
+        map.insert("demo_africa_age_neg24000_neg20000".to_string(), 0.018);
+        map.insert("demo_africa_age_neg20000_neg16000".to_string(), 0.016);
+        map.insert("demo_africa_age_neg16000_neg12000".to_string(), 0.014);
+        map.insert("demo_africa_age_neg12000_neg8000".to_string(), 0.012);
+        map.insert("demo_africa_age_neg8000_neg4000".to_string(), 0.010);
+        map.insert("demo_africa_age_neg4000_0".to_string(), 0.008);          // Future births tapering
+        map.insert("demo_africa_age_0_4000".to_string(), 0.002);             // Very small portion alive in 1930
+        map.insert("demo_africa_age_4000_8000".to_string(), 0.002);
+        map.insert("demo_africa_age_8000_12000".to_string(), 0.001);
+        map.insert("demo_africa_age_12000_16000".to_string(), 0.001);
+        map.insert("demo_africa_age_16000_20000".to_string(), 0.001);
+        map.insert("demo_africa_age_20000_24000".to_string(), 0.001);
+        map.insert("demo_africa_age_24000_28000".to_string(), 0.001);
+        map.insert("demo_africa_age_28000_32000".to_string(), 0.001);
+        
+        // Europe demographic distribution
+        // 15% of global population based on 1930-2035 timeframe
+        // Moderate growth: ~70% at negative ages (future births), ~30% alive in 1930
+        map.insert("demo_europe_age_neg40000_neg36000".to_string(), 0.020); // Moderate weighting on future births
+        map.insert("demo_europe_age_neg36000_neg32000".to_string(), 0.018);
+        map.insert("demo_europe_age_neg32000_neg28000".to_string(), 0.016);
+        map.insert("demo_europe_age_neg28000_neg24000".to_string(), 0.015);
+        map.insert("demo_europe_age_neg24000_neg20000".to_string(), 0.014);
+        map.insert("demo_europe_age_neg20000_neg16000".to_string(), 0.013);
+        map.insert("demo_europe_age_neg16000_neg12000".to_string(), 0.012);
+        map.insert("demo_europe_age_neg12000_neg8000".to_string(), 0.011);
+        map.insert("demo_europe_age_neg8000_neg4000".to_string(), 0.010);
+        map.insert("demo_europe_age_neg4000_0".to_string(), 0.009);          // Future births tapering
+        map.insert("demo_europe_age_0_4000".to_string(), 0.008);             // Larger portion alive in 1930
+        map.insert("demo_europe_age_4000_8000".to_string(), 0.007);
+        map.insert("demo_europe_age_8000_12000".to_string(), 0.006);
+        map.insert("demo_europe_age_12000_16000".to_string(), 0.005);
+        map.insert("demo_europe_age_16000_20000".to_string(), 0.004);
+        map.insert("demo_europe_age_20000_24000".to_string(), 0.003);
+        map.insert("demo_europe_age_24000_28000".to_string(), 0.002);
+        map.insert("demo_europe_age_28000_32000".to_string(), 0.002);
+        
+        // North America demographic distribution
+        // 9% of global population based on 1930-2035 timeframe
+        // Significant growth: ~75% at negative ages (future births), ~25% alive in 1930
+        map.insert("demo_north_america_age_neg40000_neg36000".to_string(), 0.012);
+        map.insert("demo_north_america_age_neg36000_neg32000".to_string(), 0.011);
+        map.insert("demo_north_america_age_neg32000_neg28000".to_string(), 0.010);
+        map.insert("demo_north_america_age_neg28000_neg24000".to_string(), 0.009);
+        map.insert("demo_north_america_age_neg24000_neg20000".to_string(), 0.008);
+        map.insert("demo_north_america_age_neg20000_neg16000".to_string(), 0.007);
+        map.insert("demo_north_america_age_neg16000_neg12000".to_string(), 0.006);
+        map.insert("demo_north_america_age_neg12000_neg8000".to_string(), 0.005);
+        map.insert("demo_north_america_age_neg8000_neg4000".to_string(), 0.004);
+        map.insert("demo_north_america_age_neg4000_0".to_string(), 0.003);
+        map.insert("demo_north_america_age_0_4000".to_string(), 0.003);
+        map.insert("demo_north_america_age_4000_8000".to_string(), 0.003);
+        map.insert("demo_north_america_age_8000_12000".to_string(), 0.002);
+        map.insert("demo_north_america_age_12000_16000".to_string(), 0.002);
+        map.insert("demo_north_america_age_16000_20000".to_string(), 0.002);
+        map.insert("demo_north_america_age_20000_24000".to_string(), 0.002);
+        map.insert("demo_north_america_age_24000_28000".to_string(), 0.001);
+        map.insert("demo_north_america_age_28000_32000".to_string(), 0.001);
+        
+        // South America demographic distribution
+        // 6% of global population based on 1930-2035 timeframe
+        // Strong growth: ~80% at negative ages (future births), ~20% alive in 1930
+        map.insert("demo_south_america_age_neg40000_neg36000".to_string(), 0.010);
+        map.insert("demo_south_america_age_neg36000_neg32000".to_string(), 0.009);
+        map.insert("demo_south_america_age_neg32000_neg28000".to_string(), 0.008);
+        map.insert("demo_south_america_age_neg28000_neg24000".to_string(), 0.007);
+        map.insert("demo_south_america_age_neg24000_neg20000".to_string(), 0.006);
+        map.insert("demo_south_america_age_neg20000_neg16000".to_string(), 0.005);
+        map.insert("demo_south_america_age_neg16000_neg12000".to_string(), 0.004);
+        map.insert("demo_south_america_age_neg12000_neg8000".to_string(), 0.004);
+        map.insert("demo_south_america_age_neg8000_neg4000".to_string(), 0.003);
+        map.insert("demo_south_america_age_neg4000_0".to_string(), 0.002);
+        map.insert("demo_south_america_age_0_4000".to_string(), 0.002);
+        map.insert("demo_south_america_age_4000_8000".to_string(), 0.002);
+        map.insert("demo_south_america_age_8000_12000".to_string(), 0.001);
+        map.insert("demo_south_america_age_12000_16000".to_string(), 0.001);
+        map.insert("demo_south_america_age_16000_20000".to_string(), 0.001);
+        map.insert("demo_south_america_age_20000_24000".to_string(), 0.001);
+        map.insert("demo_south_america_age_24000_28000".to_string(), 0.001);
+        map.insert("demo_south_america_age_28000_32000".to_string(), 0.001);
+        
+        // Oceania demographic distribution
+        // 3% of global population based on 1930-2035 timeframe
+        // Moderate growth: ~65% at negative ages (future births), ~35% alive in 1930
+        map.insert("demo_oceania_age_neg40000_neg36000".to_string(), 0.004);
+        map.insert("demo_oceania_age_neg36000_neg32000".to_string(), 0.004);
+        map.insert("demo_oceania_age_neg32000_neg28000".to_string(), 0.003);
+        map.insert("demo_oceania_age_neg28000_neg24000".to_string(), 0.003);
+        map.insert("demo_oceania_age_neg24000_neg20000".to_string(), 0.003);
+        map.insert("demo_oceania_age_neg20000_neg16000".to_string(), 0.003);
+        map.insert("demo_oceania_age_neg16000_neg12000".to_string(), 0.002);
+        map.insert("demo_oceania_age_neg12000_neg8000".to_string(), 0.002);
+        map.insert("demo_oceania_age_neg8000_neg4000".to_string(), 0.002);
+        map.insert("demo_oceania_age_neg4000_0".to_string(), 0.001);
+        map.insert("demo_oceania_age_0_4000".to_string(), 0.002);
+        map.insert("demo_oceania_age_4000_8000".to_string(), 0.002);
+        map.insert("demo_oceania_age_8000_12000".to_string(), 0.002);
+        map.insert("demo_oceania_age_12000_16000".to_string(), 0.001);
+        map.insert("demo_oceania_age_16000_20000".to_string(), 0.001);
+        map.insert("demo_oceania_age_20000_24000".to_string(), 0.001);
+        map.insert("demo_oceania_age_24000_28000".to_string(), 0.001);
+        map.insert("demo_oceania_age_28000_32000".to_string(), 0.001);
         
         map
     };
@@ -1691,5 +1834,72 @@ lazy_static! {
 /// Returns the time step if found, None otherwise
 pub fn get_drug_introduction_time_step(drug_name: &str) -> Option<usize> {
     DRUG_INTRODUCTION_DATES.get(drug_name).copied()
+}
+
+/// Samples an age and region from the 120-parameter demographic distribution
+/// Returns (region, age_in_years)
+pub fn sample_age_and_region_from_distribution(rng: &mut impl rand::Rng) -> (crate::simulation::population::Region, i32) {
+    use crate::simulation::population::Region;
+    
+    // Build cumulative probability distribution
+    let mut cumulative_probs = Vec::new();
+    let mut running_total = 0.0;
+    
+    // Define regions and age bands (-40000 to +32000 in 4000-year bands)
+    let regions = [
+        Region::Asia,
+        Region::Africa, 
+        Region::Europe,
+        Region::NorthAmerica,
+        Region::SouthAmerica,
+        Region::Oceania,
+    ];
+    
+    let age_bands = [
+        (-40000, -36000), (-36000, -32000), (-32000, -28000), (-28000, -24000), (-24000, -20000),
+        (-20000, -16000), (-16000, -12000), (-12000, -8000), (-8000, -4000), (-4000, 0),
+        (0, 4000), (4000, 8000), (8000, 12000), (12000, 16000), (16000, 20000),
+        (20000, 24000), (24000, 28000), (28000, 32000)
+    ];
+    
+    // Build distribution
+    for region in &regions {
+        let region_name = match region {
+            Region::Asia => "asia",
+            Region::Africa => "africa",
+            Region::Europe => "europe", 
+            Region::NorthAmerica => "north_america",
+            Region::SouthAmerica => "south_america",
+            Region::Oceania => "oceania",
+            Region::Home => "north_america", // Default fallback
+        };
+        
+        for (age_min, age_max) in &age_bands {
+            let param_name = if *age_min < 0 && *age_max <= 0 {
+                format!("demo_{}_age_neg{}_neg{}", region_name, (*age_min as i32).abs(), (*age_max as i32).abs())
+            } else if *age_min < 0 && *age_max > 0 {
+                format!("demo_{}_age_neg{}_0", region_name, (*age_min as i32).abs())
+            } else {
+                format!("demo_{}_age_{}_{}", region_name, age_min, age_max)
+            };
+            let prob = get_global_param(&param_name).unwrap_or(0.0);
+            running_total += prob;
+            cumulative_probs.push((running_total, *region, *age_min, *age_max));
+        }
+    }
+    
+    // Sample from distribution
+    let random_value = rng.gen::<f64>() * running_total;
+    
+    for (cumulative_prob, region, age_min, age_max) in cumulative_probs {
+        if random_value <= cumulative_prob {
+            // Sample a random age within the band
+            let age = rng.gen_range(age_min..=age_max);
+            return (region, age);
+        }
+    }
+    
+    // Fallback (should rarely be reached)
+    (Region::Asia, 0)
 }
 
