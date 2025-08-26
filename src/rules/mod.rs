@@ -1390,24 +1390,20 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 // Check each drug the person is currently taking
                 for (drug_idx, &is_taking_drug) in individual.cur_use_drug.iter().enumerate() {
                     if is_taking_drug {
-                        let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                        // Calculate effective activity using the same method as activity_r calculation
+                        let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                        let base_potency = get_global_param(potency_param_key).unwrap_or(0.05);
+                        let drug_current_level = individual.cur_level_drug[drug_idx];
+                        let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                        let resistance_level = individual.resistances[b_idx][drug_idx].any_r;
+                        let normalized_any_r = resistance_level / max_resistance_level;
+                        let effective_activity = base_potency * drug_current_level * (1.0 - normalized_any_r);
                         
-                        // Check if this drug has activity against the bacteria they're being exposed to
-                        let activity_key = format!("drug_{}_activity_{}", drug_name, bacteria);
-                        if let Some(drug_activity) = get_global_param(&activity_key) {
-                            if drug_activity > 0.0 {
-                                // Check if the bacteria is susceptible (not resistant) to this drug
-                                let resistance_level = individual.resistances[b_idx][drug_idx].any_r;
-                                let mic_ratio = 1.0 + resistance_level * get_global_param("max_mic_ratio").unwrap_or(64.0);
-                                let effective_activity = drug_activity / mic_ratio;
-                                
-                                // If drug has effective activity, it can prevent infection
-                                if effective_activity > 0.5 { // Threshold for effective prevention
-                                    if rng.gen_bool(prevention_efficacy) {
-                                        infection_prevented = true;
-                                        break; // One effective drug is enough
-                                    }
-                                }
+                        // If drug has effective activity, it can prevent infection
+                        if effective_activity > 0.5 { // Threshold for effective prevention
+                            if rng.gen_bool(prevention_efficacy) {
+                                infection_prevented = true;
+                                break; // One effective drug is enough
                             }
                         }
                     }

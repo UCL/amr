@@ -23,7 +23,7 @@ except ImportError:
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 91   
+SMOOTHING_WINDOW_DAYS = 365   
 
 
 # =============================================================================
@@ -46,6 +46,8 @@ mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
+age_distribution_by_region = True  # NEW: Age distribution plots by region 
+death_rate_by_region = False  # NEW: Death rate plots by region
 
 # =============================================================================
 # CONFIGURATION
@@ -1040,16 +1042,11 @@ def create_grouped_plots(df):
             region_data = df[region_cols].values
             total_population = region_data.sum(axis=1)
             
-            # Calculate proportions (avoid division by zero)
-            region_proportions = np.zeros_like(region_data, dtype=float)
-            nonzero_mask = total_population > 0
-            region_proportions[nonzero_mask] = region_data[nonzero_mask] / total_population[nonzero_mask, np.newaxis]
-            
-            # Create time series with smoothing
-            region_props_smooth = np.zeros_like(region_proportions)
+            # Create time series with smoothing (absolute numbers, not proportions)
+            region_data_smooth = np.zeros_like(region_data, dtype=float)
             for i in range(len(region_cols)):
-                region_props_smooth[:, i] = pd.Series(region_proportions[:, i]).rolling(
-                    window=min(SMOOTHING_WINDOW_DAYS, len(region_proportions)), 
+                region_data_smooth[:, i] = pd.Series(region_data[:, i]).rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(region_data)), 
                     min_periods=1, center=True
                 ).mean()
             
@@ -1059,7 +1056,7 @@ def create_grouped_plots(df):
             # Use every 100th point to reduce density for better visualization
             step = max(1, len(df) // 500)  # Show ~500 points maximum
             time_subset = df['time_in_years'].iloc[::step]
-            props_subset = region_props_smooth[::step]
+            data_subset = region_data_smooth[::step]
             
             bottom = np.zeros(len(time_subset))
             
@@ -1070,22 +1067,27 @@ def create_grouped_plots(df):
                 region_labels.append(region_name)
             
             for i, (color, label) in enumerate(zip(region_colors, region_labels)):
-                axes8[1].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                axes8[1].fill_between(time_subset, bottom, bottom + data_subset[:, i], 
                                     color=color, alpha=0.7, label=label)
-                bottom += props_subset[:, i]
+                bottom += data_subset[:, i]
             
-            axes8[1].set_title('Regional Population Distribution Over Time\n(Stacked Proportions, 0-1 Scale)')
+            axes8[1].set_title('Regional Population Distribution Over Time\n(Absolute Numbers)')
             axes8[1].set_xlabel('Time (Years)')
-            axes8[1].set_ylabel('Proportion')
-            axes8[1].set_ylim(0, 1)
+            axes8[1].set_ylabel('Population Count')
+            axes8[1].set_ylim(0, None)  # Auto-scale to maximum population
             axes8[1].grid(True, alpha=0.3)
             axes8[1].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
             
+            # Format y-axis with thousands separators
+            axes8[1].ticklabel_format(style='plain', axis='y')
+            axes8[1].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x):,}'))
+            
             # Add summary statistics
             if total_population.sum() > 0:
-                region_percentages = (region_data.sum(axis=0) / region_data.sum() * 100)
-                most_populous_idx = np.argmax(region_percentages)
-                textstr = f'Total population: {int(total_population.mean()):,}\nLargest region: {region_labels[most_populous_idx]}\n({region_percentages[most_populous_idx]:.1f}% of population)'
+                final_populations = region_data[-1]  # Final time point populations
+                most_populous_idx = np.argmax(final_populations)
+                final_total = total_population[-1]
+                textstr = f'Final total: {int(final_total):,}\nLargest: {region_labels[most_populous_idx]}\n({int(final_populations[most_populous_idx]):,} people)'
                 props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
                 axes8[1].text(0.02, 0.98, textstr, transform=axes8[1].transAxes, 
                             fontsize=9, verticalalignment='top', bbox=props)
@@ -2444,6 +2446,220 @@ def create_infection_resolution_by_bacteria_plots(df):
     
     print(f"✓ Completed {len(bacteria_with_resolution_data)} infection resolution plots.")
 
+
+def create_age_distribution_by_region_plots(df):
+    """Create age distribution plots for each region separately."""
+    print("=== CREATING AGE DISTRIBUTION BY REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/age_distribution_by_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define age groups and regions
+    age_group_cols = [
+        ('prop_age_0_5', '0-5 years'),
+        ('prop_age_6_14', '6-14 years'), 
+        ('prop_age_15_49', '15-49 years'),
+        ('prop_age_50_79', '50-79 years'),
+        ('prop_age_80plus', '80+ years')
+    ]
+    
+    regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    
+    # Check if we have age data columns
+    age_cols_exist = all(col in df.columns for col, _ in age_group_cols)
+    if not age_cols_exist:
+        print("  ⚠ Missing age distribution columns - skipping age distribution by region plots")
+        return
+    
+    # Check if we have regional age data (these would be named like north_america_prop_age_0_5)
+    regional_age_data = {}
+    for region in regions:
+        regional_age_data[region] = []
+        for age_col, age_label in age_group_cols:
+            regional_col = f"{region}_{age_col}"
+            if regional_col in df.columns:
+                regional_age_data[region].append((regional_col, age_label))
+        
+        if len(regional_age_data[region]) == 0:
+            print(f"  ⚠ No regional age data found for {region}")
+        else:
+            print(f"  ✓ Found {len(regional_age_data[region])} age groups for {region}")
+    
+    # Create plots for each region that has data
+    plots_created = 0
+    for region in regions:
+        if len(regional_age_data[region]) == 0:
+            continue
+            
+        # Create the plot
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        
+        # Plot age groups for this region
+        colors = plt.cm.tab10(np.linspace(0, 1, len(regional_age_data[region])))
+        
+        for (col, label), color in zip(regional_age_data[region], colors):
+            # Apply smoothing
+            smoothed_data = pd.Series(df[col]).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            
+            ax.plot(df['time_in_years'], smoothed_data, 
+                   label=label, linewidth=2, color=color)
+        
+        # Formatting
+        region_title = region.replace('_', ' ').title()
+        ax.set_title(f'Age Distribution Over Time - {region_title}')
+        ax.set_xlabel('Time (Years)')
+        ax.set_ylabel('Proportion of Living Population')
+        ax.set_ylim(0, 1)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add summary statistics
+        if len(regional_age_data[region]) > 0:
+            # Find the most populous age group at the end of simulation
+            final_proportions = []
+            age_labels = []
+            for col, label in regional_age_data[region]:
+                final_prop = df[col].iloc[-1] if len(df) > 0 else 0
+                final_proportions.append(final_prop)
+                age_labels.append(label)
+            
+            if final_proportions:
+                max_idx = np.argmax(final_proportions)
+                max_prop = final_proportions[max_idx]
+                max_age_group = age_labels[max_idx]
+                
+                # Get final total population for this region
+                pop_col = f"{region}_population"
+                final_pop = df[pop_col].iloc[-1] if pop_col in df.columns and len(df) > 0 else 0
+                
+                textstr = f'Final population: {int(final_pop):,}\nLargest age group: {max_age_group}\n({max_prop:.1%} of {region_title})'
+                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+                ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+                       verticalalignment='top', bbox=props)
+        
+        # Save the plot
+        filename = f"{region}_age_distribution.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        plots_created += 1
+        print(f"  ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No age distribution plots created - missing regional age data columns")
+        print("  Expected columns like: north_america_prop_age_0_5, asia_prop_age_15_49, etc.")
+    else:
+        print(f"✓ Created {plots_created} age distribution plots by region")
+
+
+def create_death_rate_by_region_plots(df):
+    """Create death rate plots for each region separately (like Figure 2 bottom-right)."""
+    print("=== CREATING DEATH RATE BY REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/death_rate_by_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    
+    # Check if we have regional death and population data
+    required_cols = []
+    for region in regions:
+        required_cols.extend([
+            f"{region}_population",
+            f"{region}_deaths_background", 
+            f"{region}_deaths_sepsis",
+            f"{region}_deaths_drug_toxicity"
+        ])
+    
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        print(f"  ⚠ Missing regional death data columns: {missing_cols[:5]}...")
+        print("  Expected columns like: north_america_deaths_background, asia_deaths_sepsis, etc.")
+        return
+    
+    plots_created = 0
+    for region in regions:
+        # Get population and death data for this region
+        pop_col = f"{region}_population"
+        death_bg_col = f"{region}_deaths_background"
+        death_sepsis_col = f"{region}_deaths_sepsis"
+        death_tox_col = f"{region}_deaths_drug_toxicity"
+        
+        if all(col in df.columns for col in [pop_col, death_bg_col, death_sepsis_col, death_tox_col]):
+            # Create the plot
+            fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+            
+            # Calculate total deaths for this region
+            total_deaths = df[death_bg_col] + df[death_sepsis_col] + df[death_tox_col]
+            
+            # Calculate death proportion (deaths per population)
+            death_proportion = total_deaths / df[pop_col].replace(0, 1)  # Avoid division by zero
+            
+            # Apply smoothing
+            smoothed_death_prop = pd.Series(death_proportion).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            
+            # Plot death proportion over time
+            ax.plot(df['time_in_years'], smoothed_death_prop, 
+                   label='Total Death Rate', linewidth=2, color='red')
+            
+            # Optional: Plot death causes separately
+            death_bg_prop = df[death_bg_col] / df[pop_col].replace(0, 1)
+            death_sepsis_prop = df[death_sepsis_col] / df[pop_col].replace(0, 1)
+            death_tox_prop = df[death_tox_col] / df[pop_col].replace(0, 1)
+            
+            # Smooth individual death types
+            smooth_bg = pd.Series(death_bg_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smooth_sepsis = pd.Series(death_sepsis_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smooth_tox = pd.Series(death_tox_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            ax.plot(df['time_in_years'], smooth_bg, label='Background Mortality', linewidth=1, color='gray', alpha=0.7)
+            ax.plot(df['time_in_years'], smooth_sepsis, label='Sepsis Deaths', linewidth=1, color='orange', alpha=0.7)
+            ax.plot(df['time_in_years'], smooth_tox, label='Drug Toxicity Deaths', linewidth=1, color='purple', alpha=0.7)
+            
+            # Formatting
+            region_title = region.replace('_', ' ').title()
+            ax.set_title(f'Death Rate Over Time - {region_title}')
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Proportion of Population Dying')
+            ax.set_ylim(0, None)  # Start from 0, auto-scale maximum
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            # Add summary statistics
+            final_pop = df[pop_col].iloc[-1] if len(df) > 0 else 0
+            total_deaths_final = total_deaths.sum()
+            max_death_rate = smoothed_death_prop.max()
+            
+            textstr = f'Final population: {int(final_pop):,}\nTotal deaths: {int(total_deaths_final):,}\nPeak death rate: {max_death_rate:.4f}'
+            props = dict(boxstyle='round', facecolor='lightcoral', alpha=0.8)
+            ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+                   verticalalignment='top', bbox=props)
+            
+            # Save the plot
+            filename = f"{region}_death_rate.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            print(f"  ⚠ Missing death data for {region}")
+    
+    if plots_created == 0:
+        print("  ⚠ No death rate plots created - missing regional death data columns")
+        print("  Expected columns like: north_america_deaths_background, asia_deaths_sepsis, etc.")
+    else:
+        print(f"✓ Created {plots_created} death rate plots by region")
+
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -2531,6 +2747,18 @@ def main():
         create_infection_resolution_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING infection_resolution_by_bacteria plots (set infection_resolution_by_bacteria = True to enable) ===")
+    
+    # Age distribution by region plots  
+    if age_distribution_by_region:
+        create_age_distribution_by_region_plots(df)
+    else:
+        print("\n=== SKIPPING age_distribution_by_region plots (set age_distribution_by_region = True to enable) ===")
+    
+    # Death rate by region plots
+    if death_rate_by_region:
+        create_death_rate_by_region_plots(df)
+    else:
+        print("\n=== SKIPPING death_rate_by_region plots (set death_rate_by_region = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)

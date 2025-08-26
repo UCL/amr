@@ -437,8 +437,8 @@ fn generate_realistic_age_by_region(rng: &mut impl rand::Rng) -> i32 {
     
     // Age distribution reflecting massive population growth 1930-2035
     if rand_val < 0.78 {
-        // 78% future births (negative ages) - weighted toward more recent births
-        let birth_year_offset = rng.gen_range(0.0..1.0_f64).powf(1.5); // Skew toward recent
+        // 78% future births (negative ages) - weighted toward later births to match continued growth to 2035
+        let birth_year_offset = rng.gen_range(0.0..1.0_f64).powf(0.6); // Skew toward recent births (lower power = more recent)
         let days_after_1930 = (birth_year_offset * 105.0 * 365.0) as i32; // 0 to 38,325 days
         -(days_after_1930) // Negative age = born after 1930
     } else if rand_val < 0.95 {
@@ -464,10 +464,10 @@ fn assign_region_with_growth_model(rng: &mut impl rand::Rng, age: i32) -> Region
     
     // Adjust regional weights based on differential growth patterns from chart
     let years_since_1930 = (birth_year - 1930.0).max(0.0);
-    let africa_multiplier = 1.0 + years_since_1930 / 105.0 * 4.0; // 4x growth advantage
-    let asia_multiplier = 1.0 + years_since_1930 / 105.0 * 1.5;   // 1.5x growth advantage  
-    let europe_multiplier = 1.0 + years_since_1930 / 105.0 * (-0.3); // Declining share
-    let others_multiplier = 1.0 + years_since_1930 / 105.0 * 0.8;  // Moderate growth
+    let africa_multiplier = 1.0 + years_since_1930 / 105.0 * 8.0; // 8x growth advantage (African demographic boom)
+    let asia_multiplier = 1.0 + years_since_1930 / 105.0 * 2.0;   // 2x growth advantage  
+    let europe_multiplier = 1.0 + years_since_1930 / 105.0 * (-0.2); // Declining share (less severe)
+    let others_multiplier = 1.0 + years_since_1930 / 105.0 * 1.0;  // Moderate growth
     
     // Calculate adjusted probabilities
     let asia_prob = asia_base * asia_multiplier;

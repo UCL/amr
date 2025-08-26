@@ -25,10 +25,14 @@ mod config;
 
 // ? discontinuity in drug use after about 38 years (figure 3) and 20 years (figure 5) (effect at 20 years seems
 // to be about initiation (see figure 7))
-//
+// background death rate changes at 20 years and 60 years - rise at 60 years in each region
+// change in age structure over time (by region) - looks very wrong and does not seem to differ by region
+// 
 //
 // // model structure developments to consider //
 //
+// code for cancellation of infection if on drug already needs review
+// search here in mod.rs: et activity_key = format!("drug_{}_activity_{}", drug_name, bacteria);
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
@@ -40,6 +44,12 @@ mod config;
 // need to separately model incidence of high sepsis death risk - or are existing variables ok ?
 // also think about whether hospitalization modelling is ok - e.g. being in hospital a contributory cause of sepsis ? 
 // research parameter values for hospitalization 
+//
+// bear in mind that strep pneu for example has a vaccine against it but this has resulted in
+// growth of non-vaccine-covered serotypes
+//
+// ? need to have a variable to indicate severity of infection - this can determine which drugs to use 
+// - or is infectious syndrome sufficient ?
 //
 // laura to review model ? 
 //
@@ -103,8 +113,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 3_000; 
-    let time_steps =   38_325;  // 38_325
+    let population_size = 500; 
+    let time_steps =   4000 ;  // 38_325
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
