@@ -2,9 +2,6 @@
 
         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
 
-        map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 1945 (15 years after 1930) - Bacterial culture/identification becomes available
-        map.insert("resistance_testing_available_from_day".to_string(), 9131.0); // 1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
-
         map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
 
@@ -19,101 +16,6 @@
         map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
         map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
         map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
-
-
-
-// Drug introduction dates (as time steps from start of 1930)
-// Each time step = 1 day, so multiply years by 365
-lazy_static! {
-    pub static ref DRUG_INTRODUCTION_DATES: HashMap<&'static str, usize> = {
-        let mut map = HashMap::new();
-        
-        // Sulfonamides (first antibiotics)
-        map.insert("sulfanilamide", 2555);   // 2555 // 1937 (simulation start, 7 years after 1930)
-
-        // Beta-lactams (Penicillins)
-        map.insert("penicilling", 3555);     // 3555 // 1942 (12 years after 1930)
-        map.insert("ampicillin", 11315);     // 11315 // 1961 (31 years after 1930)
-        map.insert("amoxicillin", 13780);    // 1972 (42 years after 1930)
-        map.insert("piperacillin", 16065);   // 1981 (51 years after 1930)
-        map.insert("ticarcillin", 14600);    // 1977 (47 years after 1930)
-        // Beta-lactam/beta-lactamase inhibitor combinations
-        map.insert("amoxicillin_clavulanate", 16425); // 1985 (55 years after 1930)
-        map.insert("ampicillin_sulbactam", 18250);    // 1990 (60 years after 1930)
-        map.insert("piperacillin_tazobactam", 19715); // 1984 (54 years after 1930)
-        map.insert("ticarcillin_clavulanate", 18250); // 1990 (60 years after 1930)
-        map.insert("meropenem_vaborbactam", 32045);   // 2018 (88 years after 1930)
-        map.insert("ceftazidime_avibactam", 27740);   // 2006 (76 years after 1930)
-
-        // Cephalosporins
-        map.insert("cephalexin", 14605);     // 1970 (40 years after 1930)
-        map.insert("cefazolin", 15700);      // 1973 (43 years after 1930)
-        map.insert("cefuroxime", 17525);     // 1978 (48 years after 1930)
-        map.insert("ceftriaxone", 19715);    // 1984 (54 years after 1930)
-        map.insert("ceftazidime", 20080);    // 1985 (55 years after 1930)
-        map.insert("cefepime", 24195);       // 1996 (66 years after 1930)
-        map.insert("ceftaroline", 29305);    // 2010 (80 years after 1930)
-
-        // Carbapenems
-        map.insert("meropenem", 24195);      // 1996 (66 years after 1930)
-        map.insert("imipenem_c", 20080);     // 1985 (55 years after 1930)
-        map.insert("ertapenem", 25920);      // 2001 (71 years after 1930)
-
-        // Monobactams
-        map.insert("aztreonam", 20445);      // 1986 (56 years after 1930)
-
-        // Macrolides
-        map.insert("erythromycin", 8025);    // 1952 (22 years after 1930)
-        map.insert("azithromycin", 22260);   // 1991 (61 years after 1930)
-        map.insert("clarithromycin", 21895); // 1990 (60 years after 1930)
-
-        // Lincosamides
-        map.insert("clindamycin", 13870);    // 1968 (38 years after 1930)
-
-        // Aminoglycosides
-        map.insert("gentamicin", 12045);      // 1963 (33 years after 1930)
-        map.insert("tobramycin", 16325);     // 1975 (45 years after 1930)
-        map.insert("amikacin", 16690);       // 1976 (46 years after 1930)
-
-        // Fluoroquinolones
-        map.insert("ciprofloxacin", 20805);  // 1987 (57 years after 1930)
-        map.insert("levofloxacin", 24195);   // 1996 (66 years after 1930)
-        map.insert("moxifloxacin", 25290);   // 1999 (69 years after 1930)
-        map.insert("ofloxacin", 21895);      // 1990 (60 years after 1930)
-
-        // Tetracyclines
-        map.insert("tetracycline", 6575);    // 1948 (18 years after 1930)
-        map.insert("doxyclycline", 13505);   // 1967 (37 years after 1930)
-        map.insert("minocycline", 14965);    // 1971 (41 years after 1930)
-
-        // Glycopeptides
-        map.insert("vancomycin", 10215);      // 1958 (28 years after 1930)
-        map.insert("teicoplanin", 21170);    // 1988 (58 years after 1930)
-
-        // Oxazolidinones
-        map.insert("linezolid", 25550);      // 2000 (70 years after 1930)
-        map.insert("tedizolid", 30660);      // 2014 (84 years after 1930)
-
-        // Folate antagonists
-        map.insert("trim_sulf", 13870);      // 1968 (38 years after 1930) - trimethoprim-sulfamethoxazole
-
-        // Other antibiotics
-        map.insert("quinu_dalfo", 25290);    // 1999 (69 years after 1930) - quinupristin/dalfopristin
-        map.insert("chlorampheni", 6935);    // 1949 (19 years after 1930) - chloramphenicol
-        map.insert("nitrofurantoin", 8395);  // 1953 (23 years after 1930)
-        map.insert("retapamulin", 28405);    // 2007 (77 years after 1930) - topical antibiotic
-        map.insert("fusidic_a", 11680);       // 1962 (32 years after 1930) - fusidic acid
-        map.insert("metronidazole", 10965);   // 1960 (30 years after 1930)
-        map.insert("furazolidone", 9125);    // 1955 (25 years after 1930)
-        
-        // Polymyxins  
-        map.insert("colistin", 7300);        // 1950 (20 years after 1930)
-        
-        map
-    };
-}
-
-
 
 
 */
@@ -160,15 +62,23 @@ lazy_static! {
             // Age-related bactera-specific infection risk parameters
             map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
 
-            // --- Age-specific daily vaccination probability parameters for each vaccine ---
+            // --- Age-specific daily vaccination probability parameters for bacterial vaccines only ---
+            // Only vaccines targeting bacteria in our BACTERIA_LIST
             // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
-            let vaccines = vec!["pneumococcal", "meningococcal", "hib", "bcg", "rotavirus", "measles", "influenza", "covid19"];
+            let bacterial_vaccines = vec![
+                ("pneumococcal", 1977), // PCV first licensed in 1977 (earlier polysaccharide vaccines)
+                ("meningococcal", 1981), // First meningococcal vaccine licensed in 1981
+                ("hib", 1985),           // Haemophilus influenzae type b vaccine licensed in 1985
+            ];
             let age_groups = vec!["0_1", "1_5", "5_18", "18_50", "50_70", "70plus"];
-            for vaccine in &vaccines {
+            
+            for (vaccine, availability_year) in &bacterial_vaccines {
                 for age in &age_groups {
                     // Default: 0.0, user should override as needed
                     map.insert(format!("vaccine_{}_daily_prob_age_{}", vaccine, age), 0.0);
                 }
+                // Store vaccine availability year for historical modeling
+                map.insert(format!("vaccine_{}_availability_year", vaccine), *availability_year as f64);
             }
         }
 
@@ -457,15 +367,26 @@ lazy_static! {
                         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.05);
                     }
                 }
-                // Polymyxins (Colistin) - high potency for most Gram-negatives
+                // Polymyxins (Colistin) - only active against Gram-negatives
                 for &drug in polymyxins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = match bacteria {
-                            // Intrinsic resistance
+                            // Gram-positive bacteria - intrinsically resistant (colistin doesn't penetrate Gram-positive cell walls)
+                            "enterococcus faecalis" | "enterococcus faecium" | "staphylococcus aureus" | 
+                            "streptococcus pneumoniae" | "streptococcus pyogenes" | "streptococcus agalactiae" |
+                            "listeria_monocytogenes" | "clostridioides_difficile" => 0.0,
+                            
+                            // Gram-negative intrinsic resistance
                             "morganella spp." | "proteus spp." | "serratia spp." => 0.0,
-                            // Partial activity
-                            "salmonella enterica serovar typhi" | "salmonella enterica serovar paratyphi a" | "invasive non-typhoidal salmonella spp." | "shigella spp." | "vibrio cholerae" | "yersinia_enterocolitica" => 0.5,
-                            // Most other Gram-negatives
+                            
+                            // Gram-negative with variable/reduced susceptibility
+                            "salmonella enterica serovar typhi" | "salmonella enterica serovar paratyphi a" | 
+                            "invasive non-typhoidal salmonella spp." | "shigella spp." => 0.5,
+                            
+                            // Gram-negative normally susceptible
+                            "vibrio cholerae" | "yersinia_enterocolitica" => 1.0,
+                            
+                            // Most other Gram-negatives (E. coli, Klebsiella, Pseudomonas, Acinetobacter, etc.)
                             _ => 1.0,
                         };
                         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
@@ -778,6 +699,7 @@ lazy_static! {
 
         // Bacterial Identification Effect Parameters
         map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 2.0); // Multiplier for broad-spectrum drugs when no bacteria identified
+        map.insert("empiric_therapy_ineffective_drug_penalty".to_string(), 0.05); // Heavy penalty for drugs ineffective against actual pathogens (empirical)
         map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 3.0); // Multiplier for narrow-spectrum drugs when bacteria identified  
         map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.4); // Penalty for broad-spectrum drugs when bacteria identified
         map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.1); // Strong penalty for drugs ineffective against identified bacteria
@@ -1422,6 +1344,7 @@ pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
 /// Checks if a drug is available in a given region.
 /// Returns the availability multiplier (0.0 = not available, 1.0 = fully available).
 /// For Home region, uses the individual's region_living.
+/// Special handling for colistin's historical discontinuation period.
 pub fn get_drug_availability(drug_name: &str, region: &str, region_living: Option<&str>) -> f64 {
     // Handle Home region by using region_living
     let effective_region = if region == "home" {
@@ -1432,6 +1355,37 @@ pub fn get_drug_availability(drug_name: &str, region: &str, region_living: Optio
     
     let availability_key = format!("{}_drug_{}_availability", effective_region, drug_name);
     PARAMETERS.get(&availability_key).copied().unwrap_or(1.0) // Default to available if not specified
+}
+
+/// Time-aware drug availability that accounts for historical discontinuation periods.
+/// Currently handles colistin's abandonment (1970-1995) and reintroduction.
+pub fn get_drug_availability_time_aware(drug_name: &str, region: &str, region_living: Option<&str>, time_step: usize) -> f64 {
+    // Calculate simulation year (assuming time_step 0 = year 1930, one step per day)
+    let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+    
+    // Special case for colistin's historical discontinuation
+    if drug_name == "colistin" {
+        // Colistin timeline:
+        // 1952-1970: Active use (18 years)
+        // 1970-1995: Largely abandoned due to toxicity (25 years)  
+        // 1995+: Reintroduced as last resort for MDR infections
+        
+        if simulation_year < 1952.0 {
+            return 0.0; // Not yet introduced
+        } else if simulation_year >= 1952.0 && simulation_year < 1970.0 {
+            // Active use period - full availability
+            return get_drug_availability(drug_name, region, region_living);
+        } else if simulation_year >= 1970.0 && simulation_year < 1995.0 {
+            // Discontinuation period - very limited availability (research/compassionate use only)
+            return get_drug_availability(drug_name, region, region_living) * 0.05; // 5% of normal availability
+        } else {
+            // Reintroduction period - available but as last resort
+            return get_drug_availability(drug_name, region, region_living);
+        }
+    }
+    
+    // For all other drugs, use standard availability
+    get_drug_availability(drug_name, region, region_living)
 }
 
 // --- Age Risk Templates Configuration ---
@@ -1720,7 +1674,7 @@ lazy_static! {
         map.insert("furazolidone", 912);    // 1955 (25 years after 1930)
         
         // Polymyxins  
-        map.insert("colistin", 730);        // 1950 (20 years after 1930)
+        map.insert("colistin", 802);        // 1952 (22 years after 1930) - clinical introduction
         
         map
     };
@@ -1817,7 +1771,7 @@ lazy_static! {
         map.insert("furazolidone", 9125);    // 1955 (25 years after 1930)
         
         // Polymyxins  
-        map.insert("colistin", 7300);        // 1950 (20 years after 1930)
+        map.insert("colistin", 8020);        // 1952 (22 years after 1930) - clinical introduction
         
         map
     };

@@ -360,7 +360,7 @@ def create_grouped_plots(df):
         axes3[3].plot(df['time_in_years'], pd.Series(df['any_microbiome_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='purple', linewidth=2)
         axes3[3].set_xlabel('Time (Years)')
         axes3[3].set_ylabel('Proportion of Population')
-        axes3[3].set_title('Proportion with Any Potentially Pathogenic Bacteriain Microbiome')
+        axes3[3].set_title('Proportion with Any Potentially Pathogenic Bacteria in Microbiome')
         axes3[3].set_ylim(0, 1)
         axes3[3].grid(True, alpha=0.3)
     else:

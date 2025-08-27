@@ -19,7 +19,7 @@ use crate::config::{
     get_bacteria_param,
     get_drug_param,
     get_age_infection_multiplier,
-    get_drug_availability,
+    get_drug_availability_time_aware,
     get_bacteria_sepsis_risk_multiplier,
     get_drug_introduction_time_step,
 };
@@ -147,10 +147,10 @@ impl ParameterKeyCache {
             );
         }
         
-        // Pre-compute vaccine/age combinations
-        let vaccines = vec!["pneumococcal", "meningococcal", "hib", "bcg", "rotavirus", "measles", "influenza", "covid19"];
+        // Pre-compute vaccine/age combinations - only bacterial vaccines
+        let bacterial_vaccines = vec!["pneumococcal", "meningococcal", "hib"];
         let age_groups = vec!["0_1", "1_5", "5_18", "18_50", "50_70", "70plus"];
-        for vaccine in &vaccines {
+        for vaccine in &bacterial_vaccines {
             for age_group in &age_groups {
                 cache.vaccine_age_keys.insert(
                     (vaccine.to_string(), age_group.to_string()),
@@ -606,8 +606,9 @@ pub fn apply_rules(
 
 
 
-    // loop through all bacteria to update vaccination status dynamically
-    // Age-specific daily vaccination probability for each vaccine
+    // Update vaccination status dynamically based on age-appropriate schedules
+    // Only bacterial vaccines with historical availability checking
+    // Vaccines: pneumococcal (1977+), meningococcal (1981+), hib (1985+)
     // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
     let age_years = individual.age as f64 / 365.0;
     let age_group = if age_years < 1.0 {
@@ -624,20 +625,24 @@ pub fn apply_rules(
         "70plus"
     };
 
-    let vaccines = vec!["pneumococcal", "meningococcal", "hib", "bcg", "rotavirus", "measles", "influenza", "covid19"];
+    // Calculate simulation year (assuming time_step 0 = year 1950, one step per day)
+    let simulation_year = 1950.0 + (time_step as f64 / 365.0);
+
+    let bacterial_vaccines = vec!["pneumococcal", "meningococcal", "hib"];
     for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
-        // For each vaccine, check if this bacteria is targeted by the vaccine
-        for vaccine in &vaccines {
-            // Example: pneumococcal vaccine targets Streptococcus pneumoniae
+        // For each bacterial vaccine, check if this bacteria is targeted by the vaccine
+        for vaccine in &bacterial_vaccines {
+            // Check vaccine availability date first
+            let availability_year = get_global_param(&format!("vaccine_{}_availability_year", vaccine)).unwrap_or(2100.0); // Default to future if not set
+            if simulation_year < availability_year {
+                continue; // Vaccine not yet available
+            }
+
+            // Correct bacteria name matching (fixing underscore vs space issues)
             let targets_bacteria = match (*vaccine, *bacteria) {
                 ("pneumococcal", "streptococcus pneumoniae") => true,
-                ("meningococcal", "neisseria meningitidis") => true,
+                ("meningococcal", "neisseria_meningitidis") => true,  // Fixed: using underscore version
                 ("hib", "haemophilus influenzae") => true,
-                ("bcg", "mycobacterium tuberculosis") => true,
-                ("rotavirus", "rotavirus") => true,
-                ("measles", "measles virus") => true,
-                ("influenza", "influenza virus") => true,
-                ("covid19", "sars-cov-2") => true,
                 _ => false,
             };
             if targets_bacteria && !individual.vaccination_status[b_idx] {
@@ -729,10 +734,11 @@ let drugs_initiated_this_time_step: usize = 0;
     // Stage 1: Decide whether to start any antibiotic
 let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
     .filter(|(_, &name)| {
-            let avail = get_drug_availability(
+            let avail = get_drug_availability_time_aware(
                 name,
                 &individual.region_cur_in.to_string(),
-                Some(&individual.region_living.to_string())
+                Some(&individual.region_living.to_string()),
+                time_step
             );
             let intro_ok = match get_drug_introduction_time_step(name) {
                 Some(intro_step) => time_step >= intro_step,
@@ -825,20 +831,42 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         score *= ineffective_drug_penalty;
                     }
                 } else if has_any_infection {
+                    // Empirical therapy: check potency against actual infecting bacteria
+                    // Even in empirical therapy, shouldn't choose drugs ineffective against the pathogen
                     let empiric_broad_bonus = get_global_param("empiric_therapy_broad_spectrum_bonus").unwrap_or(2.0);
-                    if drug_spectrum >= 3.5 {
-                        score *= empiric_broad_bonus;
-                    } else if drug_spectrum <= 2.0 {
-                        score *= 0.6;
+                    let empiric_ineffective_penalty = get_global_param("empiric_therapy_ineffective_drug_penalty").unwrap_or(0.05);
+                    
+                    let mut has_any_activity = false;
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        if individual.level[b_idx] > 0.001 {
+                            let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                            let potency = get_global_param(potency_param_key).unwrap_or(0.0);
+                            if potency > 0.02 {
+                                has_any_activity = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if has_any_activity {
+                        if drug_spectrum >= 3.5 {
+                            score *= empiric_broad_bonus;
+                        } else if drug_spectrum <= 2.0 {
+                            score *= 0.6;
+                        }
+                    } else {
+                        // Drug has no activity against any infecting bacteria - heavily penalize
+                        score *= empiric_ineffective_penalty;
                     }
                 }
                 // Apply drug availability multiplier
                 let current_region_str = individual.region_cur_in.to_string();
                 let living_region_str = individual.region_living.to_string();
-                let drug_availability = get_drug_availability(
+                let drug_availability = get_drug_availability_time_aware(
                     drug_name, 
                     &current_region_str, 
-                    Some(&living_region_str)
+                    Some(&living_region_str),
+                    time_step
                 );
                 
                 // Check if drug has been introduced yet

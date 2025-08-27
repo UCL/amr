@@ -267,6 +267,9 @@ pub struct Individual {
     pub sepsis_onset_day: Vec<i32>,               
     pub presence_microbiome: Vec<bool>,            
     pub vaccination_status: Vec<bool>,             
+    /// Per-bacteria vaccination status: true if vaccinated against that pathogen
+    /// Initialized as false (unvaccinated) and updated dynamically based on age-appropriate schedules
+    /// Only covers bacterial vaccines: pneumococcal, meningococcal, hib             
     pub cur_infection_from_environment: Vec<bool>, 
     pub test_identified_infection: Vec<bool>,      
     /// Tracks if resistance test has been performed for each bacteria
@@ -335,7 +338,7 @@ impl Individual {
         let test_identified_infection = vec![false; num_bacteria];
         let test_for_resistance = vec![false; num_bacteria]; // NEW: initialize all to false
         let resistance_test_initiated_day = vec![-1; num_bacteria]; // NEW: initialize all to -1 (never initiated)
-        let vaccination_status = (0..num_bacteria).map(|_| rng.gen_bool(0.5)).collect();
+        let vaccination_status = vec![false; num_bacteria]; // Initialize all as unvaccinated at birth
 
         let mut resistances = Vec::with_capacity(num_bacteria);
         for _ in 0..num_bacteria {
