@@ -46,7 +46,7 @@ mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
-age_distribution_by_region = True  # NEW: Age distribution plots by region 
+age_distribution_by_region = False  # NEW: Age distribution plots by region 
 death_rate_by_region = False  # NEW: Death rate plots by region
 age_specific_death_rate_by_region = True  # NEW: Age-specific death rate plots by region
 
@@ -188,24 +188,28 @@ def create_grouped_plots(df):
     # --- Group 1 ---
     fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes1 = axes1.flatten()
-    fig1.suptitle('Grouped Figure 1: Population, Resistance, Hospitalization, New Infections', fontsize=16)
+    fig1.suptitle('Grouped Figure 1: Population, Resistance Proportion, Hospitalization Proportion, Resistance Among Infected', fontsize=16)
     # 1. Living Population Over Time
     axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
     axes1[0].set_title('Living Population Over Time')
-    axes1[0].set_ylabel('Population')
+    axes1[0].set_ylabel('Count')
     axes1[0].set_ylim(bottom=0)
     axes1[0].grid(True, alpha=0.3)
-    # 2. Individuals with Resistance Over Time
-    axes1[1].plot(df['time_in_years'], pd.Series(df['total_with_resistance']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'orange', linewidth=2)
-    axes1[1].set_title('Individuals with Resistance Over Time')
-    axes1[1].set_ylabel('Count')
+    # 2. Individuals with Resistance Over Time (as Proportion)
+    resistance_proportion = pd.Series(df['total_with_resistance'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+    axes1[1].plot(df['time_in_years'], resistance_proportion, 'orange', linewidth=2)
+    axes1[1].set_title('Individuals with Resistance (Proportion of Living Population)')
+    axes1[1].set_ylabel('Proportion of Population')
     axes1[1].set_ylim(bottom=0)
     axes1[1].grid(True, alpha=0.3)
-    # 3. Hospitalized & Immunosuppressed
-    axes1[2].plot(df['time_in_years'], pd.Series(df['number_in_hospital']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'navy', linewidth=2, label='In Hospital')
-    axes1[2].plot(df['time_in_years'], pd.Series(df['number_severely_immunosuppressed']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'crimson', linewidth=2, label='Severely Immunosuppressed')
-    axes1[2].set_title('Hospitalized & Immunosuppressed Individuals')
-    axes1[2].set_ylabel('Count')
+    # 3. Hospitalized & Immunosuppressed as Proportions
+    hospital_proportion = pd.Series(df['number_in_hospital'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+    immunosuppressed_proportion = pd.Series(df['number_severely_immunosuppressed'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+    
+    axes1[2].plot(df['time_in_years'], hospital_proportion, 'navy', linewidth=2, label='In Hospital')
+    axes1[2].plot(df['time_in_years'], immunosuppressed_proportion, 'crimson', linewidth=2, label='Severely Immunosuppressed')
+    axes1[2].set_title('Hospitalized & Immunosuppressed (Proportion of Living Population)')
+    axes1[2].set_ylabel('Proportion of Population')
     axes1[2].set_ylim(bottom=0)
     axes1[2].legend()
     axes1[2].grid(True, alpha=0.3)
@@ -701,7 +705,7 @@ def create_grouped_plots(df):
                 total_infected_and_on_drug += df[infected_and_on_drug_col].fillna(0)
         
         # 1. Overall Activity R Ratio (top-left)
-        overall_ratio = safe_divide(total_activity_r_sum, total_infected_and_on_drug)
+        overall_ratio = safe_divide(total_activity_r_sum, total_infected_and_on_drug, default=np.nan)
         overall_ratio = pd.Series(overall_ratio, index=df.index)  # Convert back to pandas Series
         overall_ratio_smooth = overall_ratio.rolling(
             window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
@@ -2666,7 +2670,7 @@ def create_age_specific_death_rate_by_region_plots(df):
     print("=== CREATING AGE-SPECIFIC DEATH RATE BY REGION PLOTS ===")
     
     # Create output directory
-    output_dir = Path("output_graphs/age_specific_death_rate_by_region")
+    output_dir = Path("output_graphs/age specific death rates")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Define regions and age groups
@@ -2675,6 +2679,10 @@ def create_age_specific_death_rate_by_region_plots(df):
     age_labels = ['0-5 years', '6-14 years', '15-49 years', '50-79 years', '80+ years']
     death_types = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
     death_labels = ['Background Mortality', 'Sepsis Deaths', 'Drug Toxicity Deaths']
+    
+    # Colors matching Figure 2 exactly
+    death_colors = ['gray', 'red', 'orange']  # Background, Sepsis, Drug Toxicity
+    total_color = 'black'  # All-cause deaths
     
     plots_created = 0
     
@@ -2705,6 +2713,36 @@ def create_age_specific_death_rate_by_region_plots(df):
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
         axes = axes.flatten()
         
+        # First pass: calculate maximum death rate across age groups for consistent y-axis
+        # Separate scaling for 80+ vs younger age groups
+        max_death_rate_young = 0  # For ages 0-79
+        max_death_rate_elderly = 0  # For ages 80+
+        
+        for age_group in age_groups:
+            age_pop_col = f"{region}_{age_group}"
+            if age_pop_col in df.columns:
+                region_pop = df[pop_col].replace(0, 1)
+                age_proportion = df[age_pop_col]
+                age_population = region_pop * age_proportion
+                
+                for death_type in death_types:
+                    death_col = f"{region}_{age_group}_{death_type}"
+                    if death_col in df.columns:
+                        death_rate = df[death_col] / age_population.replace(0, 1)
+                        smoothed_rate = pd.Series(death_rate).rolling(
+                            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                        ).mean()
+                        max_rate = smoothed_rate.max()
+                        if not pd.isna(max_rate):
+                            if age_group == 'prop_age_80plus':
+                                max_death_rate_elderly = max(max_death_rate_elderly, max_rate)
+                            else:
+                                max_death_rate_young = max(max_death_rate_young, max_rate)
+        
+        # Set y-axis limits with padding
+        y_max_young = max_death_rate_young * 1.1 if max_death_rate_young > 0 else 0.01
+        y_max_elderly = max_death_rate_elderly * 1.1 if max_death_rate_elderly > 0 else 0.01
+        
         for age_idx, (age_group, age_label) in enumerate(zip(age_groups, age_labels)):
             ax = axes[age_idx]
             
@@ -2722,8 +2760,9 @@ def create_age_specific_death_rate_by_region_plots(df):
             age_population = region_pop * age_proportion
             
             # Plot death rates for each death type
-            colors = ['gray', 'orange', 'purple']
-            for death_idx, (death_type, death_label, color) in enumerate(zip(death_types, death_labels, colors)):
+            death_rates = {}  # Store death rates to calculate total
+            
+            for death_idx, (death_type, death_label, color) in enumerate(zip(death_types, death_labels, death_colors)):
                 death_col = f"{region}_{age_group}_{death_type}"
                 
                 if death_col in df.columns:
@@ -2735,8 +2774,17 @@ def create_age_specific_death_rate_by_region_plots(df):
                         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
                     ).mean()
                     
+                    # Store for total calculation
+                    death_rates[death_type] = smoothed_rate
+                    
                     ax.plot(df['time_in_years'], smoothed_rate, 
                            label=death_label, linewidth=2, color=color, alpha=0.8)
+            
+            # Calculate and plot total deaths (all-cause)
+            if death_rates:
+                total_deaths = sum(death_rates.values())
+                ax.plot(df['time_in_years'], total_deaths, 
+                       label='All-cause', linewidth=2, color=total_color, alpha=0.9)
             
             # Formatting
             ax.set_title(f'{age_label}')
@@ -2745,8 +2793,11 @@ def create_age_specific_death_rate_by_region_plots(df):
             ax.grid(True, alpha=0.3)
             ax.legend()
             
-            # Set reasonable y-axis limits
-            ax.set_ylim(bottom=0)
+            # Set y-axis limits: different scales for 80+ vs younger groups
+            if age_group == 'prop_age_80plus':
+                ax.set_ylim(0, y_max_elderly)
+            else:
+                ax.set_ylim(0, y_max_young)
         
         # Hide the last subplot if we have 5 age groups (2x3 grid)
         if len(age_groups) == 5:
@@ -2768,11 +2819,131 @@ def create_age_specific_death_rate_by_region_plots(df):
         plots_created += 1
         print(f"  ✓ {filename} saved")
     
+    # Create combined plot for all regions
+    if plots_created > 0:
+        print("  Creating combined plot for all regions...")
+        
+        # Create subplot grid for combined plot
+        fig_combined, axes_combined = plt.subplots(2, 3, figsize=(18, 12))
+        axes_combined = axes_combined.flatten()
+        
+        # Calculate global maximum death rate across all regions for separate y-axis scaling
+        global_max_death_rate_young = 0  # For ages 0-79
+        global_max_death_rate_elderly = 0  # For ages 80+
+        total_death_rates_by_age = {age_group: {'background': None, 'sepsis': None, 'toxicity': None} for age_group in age_groups}
+        
+        for age_idx, age_group in enumerate(age_groups):
+            # Initialize totals for this age group
+            total_background = pd.Series(0, index=df.index)
+            total_sepsis = pd.Series(0, index=df.index)
+            total_toxicity = pd.Series(0, index=df.index)
+            total_population = pd.Series(0, index=df.index)
+            
+            # Sum across all regions
+            for region in regions:
+                pop_col = f"{region}_population"
+                age_pop_col = f"{region}_{age_group}"
+                
+                if pop_col in df.columns and age_pop_col in df.columns:
+                    region_pop = df[pop_col].replace(0, 1)
+                    age_proportion = df[age_pop_col]
+                    age_population = region_pop * age_proportion
+                    total_population += age_population
+                    
+                    # Add deaths from this region
+                    for death_type in death_types:
+                        death_col = f"{region}_{age_group}_{death_type}"
+                        if death_col in df.columns:
+                            if death_type == 'deaths_background':
+                                total_background += df[death_col]
+                            elif death_type == 'deaths_sepsis':
+                                total_sepsis += df[death_col]
+                            elif death_type == 'deaths_drug_toxicity':
+                                total_toxicity += df[death_col]
+            
+            # Calculate death rates for combined data
+            if total_population.sum() > 0:
+                background_rate = total_background / total_population.replace(0, 1)
+                sepsis_rate = total_sepsis / total_population.replace(0, 1)
+                toxicity_rate = total_toxicity / total_population.replace(0, 1)
+                
+                # Apply smoothing
+                background_smooth = pd.Series(background_rate).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                sepsis_smooth = pd.Series(sepsis_rate).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                toxicity_smooth = pd.Series(toxicity_rate).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Store for plotting
+                total_death_rates_by_age[age_group]['background'] = background_smooth
+                total_death_rates_by_age[age_group]['sepsis'] = sepsis_smooth
+                total_death_rates_by_age[age_group]['toxicity'] = toxicity_smooth
+                
+                # Update global max for appropriate age group
+                for rate in [background_smooth, sepsis_smooth, toxicity_smooth]:
+                    max_rate = rate.max()
+                    if not pd.isna(max_rate):
+                        if age_group == 'prop_age_80plus':
+                            global_max_death_rate_elderly = max(global_max_death_rate_elderly, max_rate)
+                        else:
+                            global_max_death_rate_young = max(global_max_death_rate_young, max_rate)
+        
+        # Set global y-axis limits with padding
+        global_y_max_young = global_max_death_rate_young * 1.1 if global_max_death_rate_young > 0 else 0.01
+        global_y_max_elderly = global_max_death_rate_elderly * 1.1 if global_max_death_rate_elderly > 0 else 0.01
+        
+        # Plot each age group
+        for age_idx, (age_group, age_label) in enumerate(zip(age_groups, age_labels)):
+            ax = axes_combined[age_idx]
+            
+            rates = total_death_rates_by_age[age_group]
+            
+            # Plot individual death types
+            if rates['background'] is not None:
+                ax.plot(df['time_in_years'], rates['background'], label='Background Mortality', linewidth=2, color='gray', alpha=0.8)
+            if rates['sepsis'] is not None:
+                ax.plot(df['time_in_years'], rates['sepsis'], label='Sepsis Deaths', linewidth=2, color='red', alpha=0.8)
+            if rates['toxicity'] is not None:
+                ax.plot(df['time_in_years'], rates['toxicity'], label='Drug Toxicity Deaths', linewidth=2, color='orange', alpha=0.8)
+            
+            # Plot total deaths
+            if all(rates[key] is not None for key in rates.keys()):
+                total_combined = rates['background'] + rates['sepsis'] + rates['toxicity']
+                ax.plot(df['time_in_years'], total_combined, label='All-cause', linewidth=2, color='black', alpha=0.9)
+            
+            # Formatting
+            ax.set_title(f'{age_label}')
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Death Rate')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            
+            # Set y-axis limits: different scales for 80+ vs younger groups
+            if age_group == 'prop_age_80plus':
+                ax.set_ylim(0, global_y_max_elderly)
+            else:
+                ax.set_ylim(0, global_y_max_young)
+        
+        # Hide the last subplot if we have 5 age groups
+        if len(age_groups) == 5:
+            axes_combined[5].set_visible(False)
+        
+        # Overall title
+        fig_combined.suptitle('Age-Specific Death Rates Over Time - All Regions Combined', fontsize=16)
+        
+        # Tight layout and save
+        plt.tight_layout()
+        combined_filename = "all_regions_combined_age_specific_death_rates.png"
+        combined_filepath = output_dir / combined_filename
+        plt.savefig(combined_filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        print(f"  ✓ {combined_filename} saved")
+    
     if plots_created == 0:
         print("  ⚠ No age-specific death rate plots created - missing required data columns")
         print("  Expected columns like: north_america_prop_age_0_5_deaths_background, etc.")
     else:
         print(f"✓ Created {plots_created} age-specific death rate plots by region")
+        print(f"✓ Created 1 combined plot for all regions")
 
 
 # =============================================================================
