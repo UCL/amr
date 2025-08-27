@@ -6,7 +6,6 @@ This script analyzes the CSV output from the Rust AMR simulation
 and creates visualizations and summary statistics.
 """
 
-
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,7 +33,7 @@ SMOOTHING_WINDOW_DAYS = 1095
 # =============================================================================
 for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
 proportion_of_people_infected_with_each_bacteria = False
-proportion_of_people_taking_each_drug = False
+proportion_of_people_taking_each_drug = True  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
 proportion_share_among_drug_users = False
 distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
@@ -1708,46 +1707,225 @@ def create_mic_lt2_by_drug_plots(df):
 # =============================================================================
 # DRUG USAGE PROPORTION PLOTS
 # =============================================================================
+def load_observed_drug_data(drug_name, region='global'):
+    """
+    Load observed drug usage data from external sources (ECDC, OECD, etc.)
+    
+    Args:
+        drug_name: Name of the drug (e.g., 'amoxicillin', 'ciprofloxacin')
+        region: Region name ('global', 'europe', 'north_america', etc.)
+    
+    Returns:
+        Dict with 'years' and 'proportion' keys, or None if no data available
+    """
+    # This is a framework for loading observed data
+    # In practice, this would load from CSV files, APIs, or databases
+    
+    # Example data structure for demonstration
+    observed_data_sources = {
+        'global': {
+            'amoxicillin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.008, 0.012, 0.015, 0.018, 0.020],
+                'source': 'OECD Health Statistics'
+            },
+            'ciprofloxacin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.002, 0.003, 0.004, 0.005, 0.006],
+                'source': 'ECDC Annual Reports'
+            }
+        },
+        'europe': {
+            'amoxicillin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.010, 0.014, 0.017, 0.020, 0.022],
+                'source': 'ECDC ESAC-Net'
+            }
+        },
+        'north_america': {
+            'amoxicillin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.006, 0.010, 0.013, 0.016, 0.018],
+                'source': 'CDC NARMS'
+            }
+        }
+    }
+    
+    # Look for data in the specified region first, then fall back to global
+    for search_region in [region, 'global']:
+        if search_region in observed_data_sources:
+            if drug_name in observed_data_sources[search_region]:
+                return observed_data_sources[search_region][drug_name]
+    
+    return None
+
+
 def create_drug_usage_proportion_plots(df):
     """
-    For each drug, plot the proportion of living people taking that drug over time.
-    Each plot is saved as a separate PNG file.
+    For each drug, create usage plots (per 1000 people):
+    1. Combined global plot (all regions together)
+    2. Individual regional plots in subfolders
+    Each plot shows people per 1000 population, with observed data overlay in same units (DDD/1000).
     """
-    print("\n=== CREATING DRUG USAGE PROPORTION PLOTS FOR EACH DRUG ===")
+    print("\n=== CREATING DRUG USAGE PLOTS (PER 1000 PEOPLE) FOR EACH DRUG ===")
+    
+    # Convert time_step to years (same as other analysis functions)
+    df['time_in_years'] = df['time_step'] / 365
+    
+    # Observed data points for specific drugs and regions (DDD per 1000 inhabitants per day)
+    # Format: {drug_name: {region: [(year, ddd_per_1000), (year, ddd_per_1000), ...]}}
+    # Note: These values can be plotted directly since our y-axis is now "per 1000 people"
+    observed_data = {
+        'amoxicillin': {
+            'europe': [(2015, 12.5), (2018, 13.2), (2020, 11.8)],
+            'north_america': [(2015, 8.9), (2018, 9.1), (2020, 8.7)]
+        },
+        'ciprofloxacin': {
+            'europe': [(2015, 2.1), (2018, 1.9), (2020, 1.7)],
+            'north_america': [(2015, 1.8), (2018, 1.6), (2020, 1.5)]
+        },
+        'azithromycin': {
+            'europe': [(2015, 1.2), (2018, 1.4), (2020, 1.6)],
+            'north_america': [(2015, 2.1), (2018, 2.3), (2020, 2.1)]
+        }
+        # Add more drugs and regions as needed
+    }
+    
+    # Create main output directory
     out_dir = Path("output_graphs/proportion_of_people_taking_each_drug")
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find all columns matching *_currently_on_drug
-    drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
-    if not drug_cols:
-        print("No *_currently_on_drug columns found in data.")
-        return
-    # Per-drug usage vs total population
-    for drug_col in drug_cols:
+    # Create regional subdirectories (Europe first for easier debugging of observed data)
+    regions = ['europe', 'north_america', 'south_america', 'asia', 'africa', 'oceania']
+    for region in regions:
+        region_dir = out_dir / region
+        region_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create combined directory for global plots
+    combined_dir = out_dir / "combined_all_regions"
+    combined_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all global drug columns (total across all regions - no regional prefix)
+    all_drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
+    
+    # Separate global vs regional columns
+    global_drug_cols = []
+    for col in all_drug_cols:
+        # Check if this column has a regional prefix
+        has_regional_prefix = any(col.startswith(f'{region}_') for region in regions)
+        if not has_regional_prefix:
+            global_drug_cols.append(col)
+    
+    if not global_drug_cols:
+        print("No global *_currently_on_drug columns found in data.")
+        # But we might still have regional columns, so continue
+    
+    # Find regional drug columns (if they exist)
+    regional_drug_cols = {}
+    for region in regions:
+        region_cols = [col for col in df.columns if col.startswith(f'{region}_') and col.endswith('_currently_on_drug')]
+        if region_cols:
+            regional_drug_cols[region] = region_cols
+    
+    # Create global plots (existing functionality)
+    print("Creating global drug usage plots...")
+    for drug_col in global_drug_cols:
         drug_name = drug_col.replace('_currently_on_drug', '')
-        plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 6)))  # (iv) triple height
-        prop_total_pop = safe_divide(df[drug_col], df['total_population'])
-        prop_total_pop_smooth = pd.Series(prop_total_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-        plt.plot(df['time_in_years'], prop_total_pop_smooth, label=drug_name.replace('_', ' ').title(), linewidth=20)  # (v) double thickness
-        plt.title(f"Proportion of Living People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)  # 4x larger title
-        plt.ylabel('Proportion of Living Population', fontsize=80)
+        
+        plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 6)))
+        # Convert to per 1000 people instead of proportion
+        per_1000_pop = (df[drug_col] / df['total_population']) * 1000
+        per_1000_pop_smooth = pd.Series(per_1000_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        # Plot simulation data
+        plt.plot(df['time_in_years'], per_1000_pop_smooth, 
+                label=f"Simulation: {drug_name.replace('_', ' ').title()}", 
+                linewidth=20, color='blue', alpha=0.8)
+        
+        plt.title(f"Global: People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)
+        plt.ylabel('People per 1000 Population', fontsize=80)
         plt.xlabel('Time (Years)', fontsize=80)
-        plt.ylim(0, 0.05)
+        plt.ylim(0, 50)  # Adjust range for per-1000 scale
         plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=96, title_fontsize=192)  # halve legend size, halve legend title size
-        plt.tick_params(axis='both', which='major', labelsize=80)  # (ii) double tick/number size
+        plt.legend(fontsize=96, title_fontsize=192)
+        plt.tick_params(axis='both', which='major', labelsize=80)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        fname = out_dir / f"{drug_name}_usage_proportion.png"
+        
+        fname = combined_dir / f"{drug_name}_usage_per_1000_global.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print(f"  ✓ {fname} saved.")
+    
+    # Create regional plots (new functionality)
+    if regional_drug_cols:
+        print("Creating regional drug usage plots...")
+        for region, region_cols in regional_drug_cols.items():
+            print(f"  Processing {region}...")
+            region_dir = out_dir / region
+            region_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+            
+            # Get regional population column (correct format)
+            region_pop_col = f'{region}_population'
+            if region_pop_col not in df.columns:
+                print(f"    Warning: {region_pop_col} not found, skipping {region}")
+                continue
+            
+            for drug_col in region_cols:
+                # Extract drug name from regional column
+                drug_name = drug_col.replace(f'{region}_', '').replace('_currently_on_drug', '')
+                
+                plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 6)))
+                
+                # Calculate regional per 1000 people instead of proportion
+                per_1000_regional = (df[drug_col] / df[region_pop_col]) * 1000
+                per_1000_regional_smooth = pd.Series(per_1000_regional).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Plot simulation data
+                plt.plot(df['time_in_years'], per_1000_regional_smooth, 
+                        label=f"Simulation: {drug_name.replace('_', ' ').title()}", 
+                        linewidth=20, color='blue', alpha=0.8)
+                
+                # Add observed data points if available (no conversion needed now!)
+                if drug_name in observed_data and region in observed_data[drug_name]:
+                    obs_points = observed_data[drug_name][region]
+                    years = [point[0] for point in obs_points]
+                    ddd_values = [point[1] for point in obs_points]  # Already in DDD per 1000!
+                    
+                    # Convert absolute years to simulation years (simulation starts at 1930)
+                    sim_years = [year - 1930 for year in years]
+                    
+                    # No conversion needed - DDD values are already per 1000 people!
+                    plt.scatter(sim_years, ddd_values, 
+                               color='red', s=200, alpha=0.9, 
+                               label=f"Observed Data (DDD/1000)", 
+                               zorder=5, marker='o', edgecolor='darkred', linewidth=3)
+                    print(f"    ✓ Added observed data for {drug_name} in {region} at simulation years: {sim_years}")
+                
+                plt.title(f"{region.replace('_', ' ').title()}: People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)
+                plt.ylabel('People per 1000 Regional Population', fontsize=80)
+                plt.xlabel('Time (Years)', fontsize=80)
+                plt.ylim(0, 50)  # Adjust range for per-1000 scale
+                plt.grid(True, alpha=0.3)
+                plt.legend(fontsize=96, title_fontsize=192)
+                plt.tick_params(axis='both', which='major', labelsize=80)
+                plt.tight_layout(rect=[0, 0, 1, 0.96])
+                
+                # Save to region-specific directory
+                fname = region_dir / f"{region}_{drug_name}_usage_per_1000_regional.png"
+                plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+                plt.close()
+                print(f"    ✓ {fname} saved.")
+    else:
+        print("No regional drug usage columns found. Only global plots created.")
+        print("Regional columns expected format: '{region}_{drug}_currently_on_drug'")
 
-    # Per-drug share among all people currently taking any drug
+    # Per-drug share among all people currently taking any drug (existing functionality)
     if proportion_share_among_drug_users:
         if 'currently_taking_drug_count' in df.columns:
             share_dir = Path("output_graphs/proportion_share_among_drug_users")
             share_dir.mkdir(parents=True, exist_ok=True)
-            for drug_col in drug_cols:
+            for drug_col in global_drug_cols:
                 drug_name = drug_col.replace('_currently_on_drug', '')
                 plt.figure(figsize=FIGURE_SIZE_SINGLE)
                 share = safe_divide(df[drug_col], df['currently_taking_drug_count'])

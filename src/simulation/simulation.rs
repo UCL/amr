@@ -153,6 +153,10 @@ pub struct TimeStepSummary {
     // age-specific death tracking by region: counts by region, age group, and death type (6 regions * 5 age groups * 3 death types = 90 values)
     // [region_idx * 15 + age_group_idx * 3 + death_type_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
     pub deaths_by_region_age: Vec<usize>,                 // [region][age_group][death_type] = number of deaths
+    
+    // regional drug usage tracking: counts by region and drug (6 regions * num_drugs values)
+    // [region_idx * num_drugs + drug_idx] = number of people currently taking this drug in this region
+    pub currently_on_drug_by_region_drug: Vec<usize>,     // [region][drug] = number of people currently on drug in region
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -371,6 +375,8 @@ impl Simulation {
                 deaths_by_region: Vec<usize>,
                 /// age-specific death tracking by region (6 regions * 5 age groups * 3 death types = 90 values)
                 deaths_by_region_age: Vec<usize>,
+                /// drug usage by region (6 regions * num_drugs)
+                currently_on_drug_by_region_drug: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -430,6 +436,7 @@ impl Simulation {
                         age_distribution_by_region: vec![0; 6 * 5], // 6 regions * 5 age groups = 30 values
                         deaths_by_region: vec![0; 6 * 3], // 6 regions * 3 death types = 18 values
                         deaths_by_region_age: vec![0; 6 * 5 * 3], // 6 regions * 5 age groups * 3 death types = 90 values
+                        currently_on_drug_by_region_drug: vec![0; 6 * num_drugs], // 6 regions * num_drugs
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -488,6 +495,7 @@ impl Simulation {
                     for (a,b) in self.age_distribution_by_region.iter_mut().zip(other.age_distribution_by_region) { *a += b; }
                     for (a,b) in self.deaths_by_region.iter_mut().zip(other.deaths_by_region) { *a += b; }
                     for (a,b) in self.deaths_by_region_age.iter_mut().zip(other.deaths_by_region_age) { *a += b; }
+                    for (a,b) in self.currently_on_drug_by_region_drug.iter_mut().zip(other.currently_on_drug_by_region_drug) { *a += b; }
                 }
             }
 
@@ -668,7 +676,13 @@ impl Simulation {
                             // Drug usage post-rules
                             let mut on_any_drug = false;
                             for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
-                                if is_using { lt.currently_on_drug_by_drug[d_idx] += 1; on_any_drug = true; }
+                                if is_using { 
+                                    lt.currently_on_drug_by_drug[d_idx] += 1; 
+                                    // Count drug usage by region
+                                    let idx = region_idx * DRUG_SHORT_NAMES.len() + d_idx;
+                                    lt.currently_on_drug_by_region_drug[idx] += 1;
+                                    on_any_drug = true; 
+                                }
                             }
                             if on_any_drug { lt.currently_taking_drug_count += 1; }
 
@@ -854,6 +868,7 @@ impl Simulation {
                     age_distribution_by_region,
                     deaths_by_region,
                     deaths_by_region_age,
+                    currently_on_drug_by_region_drug,
                 } = totals;
 
                 // Use the separately collected infection resolution data
@@ -1049,6 +1064,7 @@ impl Simulation {
         age_distribution_by_region,
         deaths_by_region,
         deaths_by_region_age,
+        currently_on_drug_by_region_drug,
             };
 
 
@@ -1377,6 +1393,16 @@ impl Simulation {
             header.push_str(region);
             header.push_str("_infected_count");
         }
+        // Add per-region, per-drug currently on drug columns
+        for region in region_names.iter() {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                header.push(',');
+                header.push_str(region);
+                header.push('_');
+                header.push_str(drug);
+                header.push_str("_currently_on_drug");
+            }
+        }
         // Add per-bacteria infected and on any drug columns to header (after other per-bacteria columns)
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -1510,6 +1536,14 @@ impl Simulation {
             }
         }
         
+        // Add regional drug usage columns to header (region x drug)
+        for region_name in &region_names {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                header.push(',');
+                header.push_str(&format!("{}_currently_on_drug_{}", region_name, drug.replace(" ", "_")));
+            }
+        }
+        
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
@@ -1565,6 +1599,7 @@ impl Simulation {
             for value in &summary.any_r_sum_by_bacteria_drug_hospital { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.any_r_sum_by_region { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_count_by_region { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.currently_on_drug_by_region_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_and_on_any_drug_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_bacteria_and_mechanism { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.new_resistance_at_infection_community_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
