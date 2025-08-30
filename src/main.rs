@@ -48,7 +48,21 @@ mod config;
 //
 // graphs to show effects of all relevant variables
 //
-// 
+// incidence new infections by bacteria and region
+// first save n new infections for each bacteria per region each time step in .csv
+// can smooth in .py - no need for the past_year counts I think
+//
+// be aware of possible issue with .csv that column headings number differnt
+// to data row entries by n = 300 
+//
+// more realistic incidence of infection and microbiome presence
+// need graph of proportion with each bacteria present in microbiome by region
+//
+// graphs of death rate by bacteria and region (for some might be able to restrict 
+// to death rate in young children ?)
+//                  
+// resistance distribution for each used drug for each bacteria by region  
+//
 //
 //
 // // parameter values (recognising there will be many changes) //
@@ -98,7 +112,7 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 3_000; 
+    let population_size = 30_000; 
     let time_steps = 38_325;  // 38_325
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
