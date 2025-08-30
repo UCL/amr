@@ -48,7 +48,8 @@ infection_resolution_by_bacteria = False
 age_distribution_by_region = False  # NEW: Age distribution plots by region 
 death_rate_by_region = False  # NEW: Death rate plots by region
 age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
-incidence_of_infection = True  # NEW: Incidence of infection plots by bacteria and region
+incidence_of_infection = False  # NEW: Incidence of infection plots by bacteria and region
+death_rate_by_bacteria_region = True  # NEW: Death rate plots by bacteria and region
 
 # =============================================================================
 # CONFIGURATION
@@ -3253,6 +3254,134 @@ def create_incidence_of_infection_plots(df):
         print(f"✓ Created {plots_created} incidence of infection plots")
 
 
+def create_death_rate_by_bacteria_region_plots(df):
+    """Create death rate plots by bacteria and region.
+    
+    Creates one plot per bacteria showing death rate (deaths of infected / population)
+    for each region over time.
+    """
+    print("\n=== Creating death rate by bacteria and region plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'death_rate_by_bacteria_region'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and their population columns
+    regions = {
+        'North America': 'north_america_population',
+        'South America': 'south_america_population', 
+        'Africa': 'africa_population',
+        'Asia': 'asia_population',
+        'Europe': 'europe_population',
+        'Oceania': 'oceania_population'
+    }
+    
+    # Define region colors
+    region_colors = {
+        'North America': '#1f77b4',  # blue
+        'South America': '#ff7f0e',  # orange
+        'Africa': '#2ca02c',         # green
+        'Asia': '#d62728',           # red
+        'Europe': '#9467bd',         # purple
+        'Oceania': '#8c564b'         # brown
+    }
+    
+    # Extract bacteria names from deaths infected columns
+    deaths_infected_cols = [col for col in df.columns if '_deaths_infected_' in col and 
+                           any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    
+    bacteria_set = set()
+    for col in deaths_infected_cols:
+        # Extract bacteria name (everything before '_deaths_infected_')
+        bacteria = col.split('_deaths_infected_')[0]
+        bacteria_set.add(bacteria)
+    
+    bacteria_list = sorted(bacteria_set)
+    
+    if not bacteria_list:
+        print("  ⚠ No bacteria found with deaths infected data")
+        return
+    
+    print(f"  Found {len(bacteria_list)} bacteria with deaths infected data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        for region_name, pop_col in regions.items():
+            # Check if population column exists
+            if pop_col not in df.columns:
+                continue
+                
+            # Construct deaths infected column name
+            region_suffix = region_name.lower().replace(' ', '_')
+            deaths_infected_col = f"{bacteria}_deaths_infected_{region_suffix}"
+            
+            if deaths_infected_col not in df.columns:
+                continue
+            
+            # Calculate death rate (avoid division by zero)
+            population = df[pop_col]
+            deaths_infected = df[deaths_infected_col]
+            
+            # Only calculate where population > 0
+            mask = population > 0
+            death_rate = pd.Series(0.0, index=df.index)
+            death_rate[mask] = deaths_infected[mask] / population[mask]
+            
+            # Apply smoothing if there are enough data points
+            if len(death_rate) > SMOOTHING_WINDOW_DAYS:
+                death_rate_smooth = death_rate.rolling(window=SMOOTHING_WINDOW_DAYS, center=True).mean()
+            else:
+                death_rate_smooth = death_rate
+            
+            # Plot the line
+            color = region_colors.get(region_name, '#000000')
+            ax.plot(df['time_step'], death_rate_smooth, 
+                   label=region_name, color=color, linewidth=2)
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time Step')
+            ax.set_ylabel('Death Rate (Deaths of Infected / Population)')
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Death Rate in {bacteria_title} Infected Individuals by Region')
+            
+            ax.legend(loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            # Set y-axis to start at 0
+            ax.set_ylim(bottom=0)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{bacteria}_death_rate_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No death rate plots created - missing required data columns")
+        print("  Expected columns like: bacteria_deaths_infected_north_america and region population columns")
+    else:
+        print(f"✓ Created {plots_created} death rate by bacteria and region plots")
+
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -3364,6 +3493,12 @@ def main():
         create_incidence_of_infection_plots(df)
     else:
         print("\n=== SKIPPING incidence_of_infection plots (set incidence_of_infection = True to enable) ===")
+    
+    # Death rate by bacteria and region plots
+    if death_rate_by_bacteria_region:
+        create_death_rate_by_bacteria_region_plots(df)
+    else:
+        print("\n=== SKIPPING death_rate_by_bacteria_region plots (set death_rate_by_bacteria_region = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)

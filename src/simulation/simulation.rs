@@ -78,6 +78,7 @@ pub struct TimeStepSummary {
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
     pub newly_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = new active infections this timestep by bacteria and home region
+    pub deaths_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = deaths this timestep of people currently infected with bacteria by home region
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
     pub currently_infected_and_on_drug_count: usize, // intersection of currently infected AND on any drug
     pub num_age_0_5: usize,
@@ -330,6 +331,7 @@ impl Simulation {
                 newly_infected_count: usize,
                 newly_infected_with_resistance_count: usize,
                 newly_infected_by_bacteria_region: Vec<usize>,
+                deaths_infected_by_bacteria_region: Vec<usize>,
                 total_currently_infected: usize,
                 total_with_resistance: usize,
                 currently_infected_and_on_drug_count: usize,
@@ -406,6 +408,7 @@ impl Simulation {
                         newly_infected_count: 0,
                         newly_infected_with_resistance_count: 0,
                         newly_infected_by_bacteria_region: vec![0; num_bacteria * 6], // bacteria * regions
+                        deaths_infected_by_bacteria_region: vec![0; num_bacteria * 6], // bacteria * regions
                         total_currently_infected: 0,
                         total_with_resistance: 0,
                         currently_infected_and_on_drug_count: 0,
@@ -467,6 +470,9 @@ impl Simulation {
                     self.newly_infected_with_resistance_count += other.newly_infected_with_resistance_count;
                     for i in 0..self.newly_infected_by_bacteria_region.len() {
                         self.newly_infected_by_bacteria_region[i] += other.newly_infected_by_bacteria_region[i];
+                    }
+                    for i in 0..self.deaths_infected_by_bacteria_region.len() {
+                        self.deaths_infected_by_bacteria_region[i] += other.deaths_infected_by_bacteria_region[i];
                     }
                     self.total_currently_infected += other.total_currently_infected;
                     self.total_with_resistance += other.total_with_resistance;
@@ -644,6 +650,14 @@ impl Simulation {
                                 for b_idx in 0..num_bacteria {
                                     if individual.level[b_idx] > 0.001 {
                                         lt.deaths_by_bacteria[b_idx] += 1;
+                                    }
+                                }
+                                
+                                // Count deaths by bacteria and home region for currently infected individuals
+                                let home_region_idx = region_to_index(individual.region_living);
+                                for b_idx in 0..num_bacteria {
+                                    if individual.level[b_idx] > 0.001 {
+                                        lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
                                     }
                                 }
                             }
@@ -848,6 +862,7 @@ impl Simulation {
                     newly_infected_count,
                     newly_infected_with_resistance_count,
                     newly_infected_by_bacteria_region,
+                    deaths_infected_by_bacteria_region,
                     total_currently_infected,
                     total_with_resistance,
                     currently_infected_and_on_drug_count,
@@ -949,6 +964,7 @@ impl Simulation {
                 newly_infected_count,
                 newly_infected_with_resistance_count,
                 newly_infected_by_bacteria_region,
+                deaths_infected_by_bacteria_region,
                 total_currently_infected,
                 total_with_resistance,
                 infected_10_days_count: infected_10_count,
@@ -1354,6 +1370,16 @@ impl Simulation {
                 header.push_str(region);
             }
         }
+        
+        // Add per-bacteria, per-region deaths (currently infected) columns
+        for bacteria in BACTERIA_LIST.iter() {
+            for region in &regions {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_deaths_infected_");
+                header.push_str(region);
+            }
+        }
         // Add per-drug currently on drug columns
         for drug in DRUG_SHORT_NAMES.iter() {
             header.push(',');
@@ -1617,6 +1643,7 @@ impl Simulation {
             for value in &summary.infected_with_test_identified_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_test_for_resistance_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.newly_infected_by_bacteria_region { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.deaths_infected_by_bacteria_region { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.currently_on_drug_by_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_and_standardized_mic_lt2_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.currently_on_drug_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
