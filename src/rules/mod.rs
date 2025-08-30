@@ -7,6 +7,7 @@
 //   - Helper functions for parameter lookup and stochastic events
 //
 // src/rules/mod.rs\
+//
 
 
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
