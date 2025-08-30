@@ -44,16 +44,7 @@ mod config;
 // 
 // // additional output graphs
 //
-// time from infection that drug is started (in those in whom drug is started)
-//
 // graphs to show effects of all relevant variables
-//
-// incidence new infections by bacteria and region
-// first save n new infections for each bacteria per region each time step in .csv
-// can smooth in .py - no need for the past_year counts I think
-//
-// be aware of possible issue with .csv that column headings number differnt
-// to data row entries by n = 300 
 //
 // more realistic incidence of infection and microbiome presence
 // need graph of proportion with each bacteria present in microbiome by region
@@ -78,7 +69,7 @@ mod config;
 //
 // calibration data: approx drug usage per 100_000 per calendar year 
 //                   incidence of infection with each bacteria by age and calendar year
-//                   deaths from each bacteria per 100_000 by age and calendar year
+//                   deaths from each bacteria per 100_000 by region and calendar year
 //                   resistance distribution for each used drug for each bacteria by calendar year  
 //
 // https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
@@ -112,8 +103,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 30_000; 
-    let time_steps = 38_325;  // 38_325
+    let population_size = 10_000; 
+    let time_steps = 3000 ;  // 38_325
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

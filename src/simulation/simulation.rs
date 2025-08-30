@@ -77,6 +77,7 @@ pub struct TimeStepSummary {
     pub activity_r_sum_by_bacteria: Vec<f64>,
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
+    pub newly_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = new active infections this timestep by bacteria and home region
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
     pub currently_infected_and_on_drug_count: usize, // intersection of currently infected AND on any drug
     pub num_age_0_5: usize,
@@ -328,6 +329,7 @@ impl Simulation {
                 number_with_sepsis: usize,
                 newly_infected_count: usize,
                 newly_infected_with_resistance_count: usize,
+                newly_infected_by_bacteria_region: Vec<usize>,
                 total_currently_infected: usize,
                 total_with_resistance: usize,
                 currently_infected_and_on_drug_count: usize,
@@ -403,6 +405,7 @@ impl Simulation {
                         number_with_sepsis: 0,
                         newly_infected_count: 0,
                         newly_infected_with_resistance_count: 0,
+                        newly_infected_by_bacteria_region: vec![0; num_bacteria * 6], // bacteria * regions
                         total_currently_infected: 0,
                         total_with_resistance: 0,
                         currently_infected_and_on_drug_count: 0,
@@ -462,6 +465,9 @@ impl Simulation {
                     self.number_with_sepsis += other.number_with_sepsis;
                     self.newly_infected_count += other.newly_infected_count;
                     self.newly_infected_with_resistance_count += other.newly_infected_with_resistance_count;
+                    for i in 0..self.newly_infected_by_bacteria_region.len() {
+                        self.newly_infected_by_bacteria_region[i] += other.newly_infected_by_bacteria_region[i];
+                    }
                     self.total_currently_infected += other.total_currently_infected;
                     self.total_with_resistance += other.total_with_resistance;
                     self.currently_infected_and_on_drug_count += other.currently_infected_and_on_drug_count;
@@ -724,7 +730,13 @@ impl Simulation {
                                         let mut activity_r_sum = 0.0;
                                         let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
                                         if days_since_infection > individual_max_infection_duration { individual_max_infection_duration = days_since_infection; }
-                                        if individual.date_last_infected[b_idx] == t as i32 { was_newly_infected = true; }
+                                        if individual.date_last_infected[b_idx] == t as i32 { 
+                                            was_newly_infected = true; 
+                                            // Count new active infections by bacteria and home region
+                                            let home_region_idx = region_to_index(individual.region_living);
+                                            let flat_idx = b_idx * 6 + home_region_idx;
+                                            lt.newly_infected_by_bacteria_region[flat_idx] += 1;
+                                        }
                                         let base = b_idx * num_drugs;
                                         for d_idx in 0..num_drugs {
                                             let resistance_data = &individual.resistances[b_idx][d_idx];
@@ -835,6 +847,7 @@ impl Simulation {
                     number_with_sepsis,
                     newly_infected_count,
                     newly_infected_with_resistance_count,
+                    newly_infected_by_bacteria_region,
                     total_currently_infected,
                     total_with_resistance,
                     currently_infected_and_on_drug_count,
@@ -935,6 +948,7 @@ impl Simulation {
                 number_with_sepsis,
                 newly_infected_count,
                 newly_infected_with_resistance_count,
+                newly_infected_by_bacteria_region,
                 total_currently_infected,
                 total_with_resistance,
                 infected_10_days_count: infected_10_count,
@@ -1329,6 +1343,17 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_infected_with_test_for_resistance");
         }
+        
+        // Add per-bacteria, per-region newly infected columns
+        let regions = ["north_america", "south_america", "africa", "asia", "europe", "oceania"];
+        for bacteria in BACTERIA_LIST.iter() {
+            for region in &regions {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_newly_infected_");
+                header.push_str(region);
+            }
+        }
         // Add per-drug currently on drug columns
         for drug in DRUG_SHORT_NAMES.iter() {
             header.push(',');
@@ -1591,6 +1616,7 @@ impl Simulation {
             for value in &summary.presence_microbiome_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_test_identified_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_test_for_resistance_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.newly_infected_by_bacteria_region { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.currently_on_drug_by_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_and_standardized_mic_lt2_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.currently_on_drug_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }

@@ -31,23 +31,24 @@ SMOOTHING_WINDOW_DAYS = 1095
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True
-proportion_of_people_infected_with_each_bacteria = True
-proportion_of_people_taking_each_drug = True  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
-proportion_share_among_drug_users = True
-distribution_drug_use_by_bacteria = True
-death_rate_by_bacteria = True
-mean_activity_r_by_bacteria = True 
-resistance_mechanism_by_bacteria = True
-proportion_of_population_with_microbiome_presence_bacteria = True
-proportion_of_microbiome_presence_with_resistance_by_drug = True
-mean_any_r_by_drug_for_each_bacteria = True
-mean_any_r_by_drug_for_each_bacteria_hospital = True
-source_of_new_resistance_by_drug_bacteria = True
-infection_resolution_by_bacteria = True 
-age_distribution_by_region = True  # NEW: Age distribution plots by region 
-death_rate_by_region = True  # NEW: Death rate plots by region
-age_specific_death_rate_by_region = True  # NEW: Age-specific death rate plots by region
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
+proportion_of_people_infected_with_each_bacteria = False
+proportion_of_people_taking_each_drug = False  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
+proportion_share_among_drug_users = False
+distribution_drug_use_by_bacteria = False
+death_rate_by_bacteria = False
+mean_activity_r_by_bacteria = False 
+resistance_mechanism_by_bacteria = False
+proportion_of_population_with_microbiome_presence_bacteria = False
+proportion_of_microbiome_presence_with_resistance_by_drug = False
+mean_any_r_by_drug_for_each_bacteria = False
+mean_any_r_by_drug_for_each_bacteria_hospital = False
+source_of_new_resistance_by_drug_bacteria = False
+infection_resolution_by_bacteria = False 
+age_distribution_by_region = False  # NEW: Age distribution plots by region 
+death_rate_by_region = False  # NEW: Death rate plots by region
+age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
+incidence_of_infection = True  # NEW: Incidence of infection plots by bacteria and region
 
 # =============================================================================
 # CONFIGURATION
@@ -3124,6 +3125,134 @@ def create_age_specific_death_rate_by_region_plots(df):
         print(f"✓ Created 1 combined plot for all regions")
 
 
+def create_incidence_of_infection_plots(df):
+    """Create incidence of infection plots by bacteria and region.
+    
+    Creates one plot per bacteria showing incidence rate (newly infected / population)
+    for each region over time.
+    """
+    print("\n=== Creating incidence of infection plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'incidence_of_infection'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and their population columns
+    regions = {
+        'North America': 'north_america_population',
+        'South America': 'south_america_population', 
+        'Africa': 'africa_population',
+        'Asia': 'asia_population',
+        'Europe': 'europe_population',
+        'Oceania': 'oceania_population'
+    }
+    
+    # Define region colors
+    region_colors = {
+        'North America': '#1f77b4',  # blue
+        'South America': '#ff7f0e',  # orange
+        'Africa': '#2ca02c',         # green
+        'Asia': '#d62728',           # red
+        'Europe': '#9467bd',         # purple
+        'Oceania': '#8c564b'         # brown
+    }
+    
+    # Extract bacteria names from newly infected columns
+    newly_infected_cols = [col for col in df.columns if '_newly_infected_' in col and 
+                          any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    
+    bacteria_set = set()
+    for col in newly_infected_cols:
+        # Extract bacteria name (everything before '_newly_infected_')
+        bacteria = col.split('_newly_infected_')[0]
+        bacteria_set.add(bacteria)
+    
+    bacteria_list = sorted(bacteria_set)
+    
+    if not bacteria_list:
+        print("  ⚠ No bacteria found with newly infected data")
+        return
+    
+    print(f"  Found {len(bacteria_list)} bacteria with newly infected data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        for region_name, pop_col in regions.items():
+            # Check if population column exists
+            if pop_col not in df.columns:
+                continue
+                
+            # Construct newly infected column name
+            region_suffix = region_name.lower().replace(' ', '_')
+            newly_infected_col = f"{bacteria}_newly_infected_{region_suffix}"
+            
+            if newly_infected_col not in df.columns:
+                continue
+            
+            # Calculate incidence rate (avoid division by zero)
+            population = df[pop_col]
+            newly_infected = df[newly_infected_col]
+            
+            # Only calculate where population > 0
+            mask = population > 0
+            incidence_rate = pd.Series(0.0, index=df.index)
+            incidence_rate[mask] = newly_infected[mask] / population[mask]
+            
+            # Apply smoothing if there are enough data points
+            if len(incidence_rate) > SMOOTHING_WINDOW_DAYS:
+                incidence_rate_smooth = incidence_rate.rolling(window=SMOOTHING_WINDOW_DAYS, center=True).mean()
+            else:
+                incidence_rate_smooth = incidence_rate
+            
+            # Plot the line
+            color = region_colors.get(region_name, '#000000')
+            ax.plot(df['time_step'], incidence_rate_smooth, 
+                   label=region_name, color=color, linewidth=2)
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time Step')
+            ax.set_ylabel('Incidence Rate (New Infections / Population)')
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Incidence of {bacteria_title} Infection by Region')
+            
+            ax.legend(loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            # Set y-axis to start at 0
+            ax.set_ylim(bottom=0)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{bacteria}_incidence_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No incidence plots created - missing required data columns")
+        print("  Expected columns like: bacteria_newly_infected_north_america and region population columns")
+    else:
+        print(f"✓ Created {plots_created} incidence of infection plots")
+
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -3229,6 +3358,12 @@ def main():
         create_age_specific_death_rate_by_region_plots(df)
     else:
         print("\n=== SKIPPING age_specific_death_rate_by_region plots (set age_specific_death_rate_by_region = True to enable) ===")
+    
+    # Incidence of infection plots by bacteria and region
+    if incidence_of_infection:
+        create_incidence_of_infection_plots(df)
+    else:
+        print("\n=== SKIPPING incidence_of_infection plots (set incidence_of_infection = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)
