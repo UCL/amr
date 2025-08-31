@@ -1252,8 +1252,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     });
                 log_odds += region_bacteria_log_odds;
 
-                // Add the extra log-odds for microbiome vs infection
-                let log_odds_microbiome_vs_infection = get_global_param("log_odds_microbiome_vs_infection").unwrap_or(-6.0);
+                // Add the extra log-odds for microbiome vs infection (bacteria-specific)
+                let bacteria_clean = bacteria.replace(" ", "_");
+                let microbiome_vs_infection_key = format!("{}_log_odds_microbiome_vs_infection", bacteria_clean);
+                let log_odds_microbiome_vs_infection = get_global_param(&microbiome_vs_infection_key)
+                    .unwrap_or_else(|| get_global_param("log_odds_microbiome_vs_infection").unwrap_or(-6.0)); // Fallback to old global param if bacteria-specific not found
                 log_odds += log_odds_microbiome_vs_infection;
 
                 // Convert log-odds to probability

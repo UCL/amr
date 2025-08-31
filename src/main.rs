@@ -23,12 +23,24 @@ mod rules;
 mod config;
 
 
+//
+//    // parameter values (recognising there will be many changes) //
+//
+//    get the choice of drugs more realistic (with no tests, broad spectrum covering most common bacteria,
+//    with bacteria identified high chance of drugs with highest mean actvity_r (or mic ?))
+//    oral first (but if we have variable for severity maybe will occasionally go straight to iv)
+//
+//    get a bit closer to realistic calibration of incidence of bacterial infection (and different predictors)
+//    and bacterial prevalence in microbiome
+//
+//    update infection site distribution per bacteria
+//  
+//    completion of potency per bacteria drug combination
 // 
 //
-// 
+//
 //
 // // model structure developments to consider //
-//
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
@@ -38,33 +50,38 @@ mod config;
 //
 // ? need to have a variable to indicate severity of infection - this can determine which drugs to use 
 // - or is infectious syndrome sufficient ?
-//
-//
+//     
 //
 // 
-// // additional output graphs
+// // additional output graphs 
+/* 
+
+to consider:
+
+   plots showing community vs hospital-acquired infections by bacteria
+   microbiome composition changes over time and by region
+   clinical outcomes by syndrome
+   regional syndrome distribution
+   proportion with each bacteria present in microbiome by region
+
+-- when realistic drug use being added:
+
+treatment patterns by syndrome
+
+-- when resistance rates switched on:
+
+   mic distribution evolution
+   treatment failure rates
+   resistance transfer from microbiome to infection
+   environmental vs community vs hospital resistance acquisition
+   resistance mechanism evolution by bacteria type
+   resistance distribution for each used drug for each bacteria by region 
+   source of new resistance (if not already done)
+
+*/
+
 //
-// graphs to show effects of all relevant variables
 //
-// more realistic incidence of infection and microbiome presence
-// need graph of proportion with each bacteria present in microbiome by region
-//
-// graphs of death rate by bacteria and region (for some might be able to restrict 
-// to death rate in young children ?)
-//                  
-// resistance distribution for each used drug for each bacteria by region  
-//
-//
-//
-// // parameter values (recognising there will be many changes) //
-//
-//    e coli seems likely to be present in the microbiome of all individuals
-//
-//    update infection site distribution per bacteria
-//
-//    rate of acquisition per bacteria (and different predictors)
-//  
-//    completion of potency per bacteria drug combination
 //
 //
 // calibration data: approx drug usage per 100_000 per calendar year 
@@ -103,8 +120,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 10_000; 
-    let time_steps = 3000 ;  // 38_325
+    let population_size = 2_000; 
+    let time_steps = 2_000 ;  // 38_325
     let log_individuals = true ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
