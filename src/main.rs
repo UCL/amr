@@ -48,7 +48,7 @@ mod config;
 // ? need to have a variable to indicate severity of infection - this can determine which drugs to use 
 // - or is infectious syndrome sufficient ?
 //     
-// ? need to acount directly for 
+// should syndrome influence sepsis risk independent of bacteria ?
 //
 //
 // 
@@ -119,7 +119,7 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 30_000; 
+    let population_size = 5_000; 
     let time_steps = 1000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 

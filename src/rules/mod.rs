@@ -2377,21 +2377,57 @@ fn calculate_testing_probability(
 
 /// Helper function to probabilistically assign a syndrome for a given bacteria.
 fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
-    // Define syndrome probabilities for each bacteria.
+    // Define syndrome probabilities for each bacteria based on clinical epidemiology.
     // Each entry: (syndrome_id, probability)
+    // Syndromes: 1=UTI, 2=Skin/soft tissue, 3=Respiratory, 4=Bloodstream, 5=Intra-abdominal, 
+    //           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
     let syndrome_probs: &[(u32, f64)] = match bacteria {
-        "strep_pneu" => &[(3, 0.9), (7, 0.1)], // 90% respiratory, 10% GI
-        "haem_infl" => &[(3, 1.0)],
-        "kleb_pneu" => &[(3, 0.8), (7, 0.2)],
-        "salm_typhi" => &[(7, 1.0)],
-        "salm_parat_a" => &[(7, 1.0)],
-        "inv_nt_salm" => &[(7, 1.0)],
-        "shig_spec" => &[(7, 1.0)],
-        "esch_coli" => &[(7, 0.7), (8, 0.3)],
-        "n_gonorrhoeae" => &[(8, 1.0)],
-        "group_a_strep" => &[(9, 1.0)],
-        "group_b_strep" => &[(10, 1.0)],
-        // Add more bacteria as needed
+        // Gram-positive cocci
+        "staphylococcus aureus" => &[(2, 0.35), (4, 0.25), (9, 0.15), (3, 0.10), (5, 0.08), (1, 0.05), (6, 0.02)],
+        "streptococcus pneumoniae" => &[(3, 0.70), (6, 0.15), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
+        "streptococcus pyogenes" => &[(2, 0.50), (3, 0.25), (4, 0.15), (9, 0.05), (5, 0.03), (1, 0.02)],
+        "streptococcus agalactiae" => &[(4, 0.40), (6, 0.25), (1, 0.15), (2, 0.10), (3, 0.05), (5, 0.05)],
+        "enterococcus faecalis" => &[(1, 0.50), (4, 0.25), (5, 0.15), (2, 0.05), (3, 0.03), (9, 0.02)],
+        "enterococcus faecium" => &[(1, 0.45), (4, 0.30), (5, 0.15), (2, 0.05), (3, 0.03), (9, 0.02)],
+        
+        // Gram-negative Enterobacteriaceae
+        "escherichia coli" => &[(1, 0.55), (4, 0.20), (5, 0.12), (7, 0.08), (2, 0.03), (3, 0.02)],
+        "klebsiella pneumoniae" => &[(3, 0.40), (1, 0.25), (4, 0.20), (5, 0.10), (2, 0.03), (7, 0.02)],
+        "enterobacter spp." => &[(1, 0.35), (3, 0.25), (4, 0.20), (5, 0.10), (7, 0.05), (2, 0.05)],
+        "enterobacter_cloacae" => &[(4, 0.30), (3, 0.25), (1, 0.25), (5, 0.12), (7, 0.05), (2, 0.03)],
+        "citrobacter spp." => &[(1, 0.30), (3, 0.25), (4, 0.20), (5, 0.15), (7, 0.05), (2, 0.05)],
+        "serratia spp." => &[(3, 0.35), (1, 0.25), (4, 0.20), (5, 0.10), (2, 0.05), (7, 0.05)],
+        "proteus spp." => &[(1, 0.60), (4, 0.15), (3, 0.10), (5, 0.08), (2, 0.04), (7, 0.03)],
+        "morganella spp." => &[(1, 0.50), (4, 0.20), (3, 0.15), (5, 0.08), (2, 0.04), (7, 0.03)],
+        
+        // Non-fermenting Gram-negatives
+        "pseudomonas aeruginosa" => &[(3, 0.45), (4, 0.25), (1, 0.15), (2, 0.08), (5, 0.05), (9, 0.02)],
+        "acinetobacter baumannii" => &[(3, 0.40), (4, 0.25), (1, 0.15), (5, 0.10), (2, 0.05), (7, 0.05)],
+        
+        // Gastrointestinal pathogens
+        "salmonella enterica serovar typhi" => &[(7, 0.80), (4, 0.15), (5, 0.03), (3, 0.01), (10, 0.01)],
+        "salmonella enterica serovar paratyphi a" => &[(7, 0.85), (4, 0.10), (5, 0.03), (3, 0.01), (10, 0.01)],
+        "invasive non-typhoidal salmonella spp." => &[(7, 0.70), (4, 0.20), (5, 0.05), (3, 0.03), (1, 0.02)],
+        "shigella spp." => &[(7, 0.95), (4, 0.03), (5, 0.01), (10, 0.01)],
+        "vibrio cholerae" => &[(7, 0.98), (5, 0.01), (10, 0.01)],
+        "campylobacter_jejuni" => &[(7, 0.70), (9, 0.15), (4, 0.08), (5, 0.05), (3, 0.02)],
+        "yersinia_enterocolitica" => &[(7, 0.75), (5, 0.15), (4, 0.05), (9, 0.03), (3, 0.02)],
+        "clostridioides_difficile" => &[(7, 0.90), (5, 0.08), (4, 0.01), (10, 0.01)],
+        
+        // Sexually transmitted pathogens
+        "neisseria gonorrhoeae" => &[(8, 0.85), (1, 0.10), (5, 0.03), (4, 0.01), (10, 0.01)],
+        "chlamydia trachomatis" => &[(8, 0.70), (1, 0.20), (5, 0.05), (6, 0.03), (10, 0.02)],
+        "treponema pallidum" => &[(8, 0.60), (2, 0.20), (6, 0.10), (4, 0.05), (10, 0.05)],
+        
+        // Respiratory pathogens
+        "haemophilus influenzae" => &[(3, 0.70), (6, 0.15), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
+        "moraxella_catarrhalis" => &[(3, 0.85), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
+        "neisseria_meningitidis" => &[(6, 0.60), (4, 0.25), (3, 0.10), (2, 0.03), (1, 0.02)],
+        
+        // Foodborne/systemic pathogens  
+        "listeria_monocytogenes" => &[(6, 0.50), (4, 0.30), (7, 0.10), (5, 0.05), (3, 0.03), (1, 0.02)],
+        
+        // Fallback for any unmatched bacteria (should not occur with complete list above)
         _ => &[(1, 0.1), (2, 0.1), (3, 0.1), (4, 0.1), (5, 0.1), (6, 0.1), (7, 0.1), (8, 0.1), (9, 0.1), (10, 0.1)],
     };
 
