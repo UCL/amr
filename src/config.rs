@@ -532,6 +532,60 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
 
 
+        // --- TARGETED RESISTANCE EMERGENCE RATE FIXES ---
+        // Based on analysis of resistance patterns, certain bacteria-drug combinations
+        // need adjusted baseline emergence rates for clinical realism
+        
+        // NEVER-RESISTANT COMBINATIONS (should never develop resistance)
+        // S. pyogenes has never developed penicillin resistance in >80 years of use
+        map.insert("drug_penicilling_for_bacteria_streptococcus_pyogenes_resistance_emergence_rate_per_day_baseline".to_string(), 0.0);
+        
+        // VERY RARE RESISTANCE (extremely slow emergence)
+        // Linezolid resistance in enterococci should remain very rare
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.0001);
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.0001);
+        
+        // PROBLEMATIC HIGH-RESISTANCE BACTERIA (reduce from 0.005 to 0.001)
+        // Acinetobacter baumannii - showed excessive synchronized resistance
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.001);
+        }
+        
+        // E. coli - showed excessive resistance levels across multiple drugs
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.001);
+        }
+        
+        // Pseudomonas aeruginosa - reduce slightly for more realistic patterns
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.002);
+        }
+        
+        // SPECIFIC DRUG-BACTERIA COMBINATIONS WITH CLINICAL CONSTRAINTS
+        // Colistin resistance should remain very rare across all Gram-negative bacteria
+        let gram_negative_bacteria = vec![
+            "acinetobacter_baumannii", "pseudomonas_aeruginosa", "escherichia_coli", 
+            "klebsiella_pneumoniae", "enterobacter_spp.", "citrobacter_spp.", 
+            "serratia_spp.", "proteus_spp.", "morganella_spp.", "enterobacter_cloacae"
+        ];
+        for &bacteria in gram_negative_bacteria.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.0002);
+            }
+        }
+        
+        // Nitrofurantoin resistance in E. coli should remain low (important for UTI treatment)
+        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.0005);
+        
+        // Vancomycin resistance should be impossible in Gram-negative bacteria (intrinsic resistance handled by potency)
+        for &bacteria in gram_negative_bacteria.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                map.insert(format!("drug_vancomycin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.0);
+                map.insert(format!("drug_teicoplanin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.0);
+            }
+        }
+
+
         // for each drug-bacteria combination will need a specific multiplier for initiation rate
         // will need changes also in mod.rs 
 

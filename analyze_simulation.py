@@ -48,8 +48,9 @@ infection_resolution_by_bacteria = False
 age_distribution_by_region = False  # NEW: Age distribution plots by region 
 death_rate_by_region = False  # NEW: Death rate plots by region
 age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
-incidence_of_infection = True   # NEW: Incidence of infection plots by bacteria and region
+incidence_of_infection = False  # NEW: Incidence of infection plots by bacteria and region
 death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
+syndrome_distribution_by_bacteria = True  # NEW: Syndrome distribution plots by bacteria
 
 # =============================================================================
 # CONFIGURATION
@@ -3382,6 +3383,179 @@ def create_death_rate_by_bacteria_region_plots(df):
         print(f"✓ Created {plots_created} death rate by bacteria and region plots")
 
 
+def create_syndrome_distribution_by_bacteria_plots(df):
+    """Create syndrome distribution plots by bacteria.
+    
+    Creates one plot per bacteria showing how infectious syndromes are distributed
+    over time for that specific bacteria.
+    """
+    print("\n=== Creating syndrome distribution by bacteria plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'syndrome_distribution_by_bacteria'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define syndrome names based on medical definitions from config.rs
+    syndrome_names = {
+        1: 'uti_genitourinary',
+        2: 'skin_soft_tissue', 
+        3: 'respiratory',
+        4: 'bloodstream_bacteremia',
+        5: 'intra_abdominal',
+        6: 'central_nervous_system',
+        7: 'gastrointestinal',
+        8: 'genital',
+        9: 'bone_joint',
+        10: 'other_syndrome'
+    }
+    
+    # Find bacteria-syndrome columns (should be named like: bacteria_syndrome_1, bacteria_syndrome_2, etc.)
+    bacteria_syndrome_cols = [col for col in df.columns if '_syndrome_' in col and col.endswith('_infected')]
+    
+    if not bacteria_syndrome_cols:
+        print("  ⚠ No bacteria-syndrome columns found")
+        print("  Expected columns like: bacteria_syndrome_1_infected, bacteria_syndrome_2_infected, etc.")
+        return
+    
+    # Extract bacteria names and group by bacteria
+    bacteria_syndromes = {}
+    for col in bacteria_syndrome_cols:
+        # Parse column name: bacteria_syndrome_N_infected
+        parts = col.split('_syndrome_')
+        if len(parts) == 2:
+            bacteria = parts[0]
+            syndrome_part = parts[1].replace('_infected', '')
+            try:
+                syndrome_num = int(syndrome_part)
+                if syndrome_num >= 1 and syndrome_num <= 10:
+                    if bacteria not in bacteria_syndromes:
+                        bacteria_syndromes[bacteria] = {}
+                    bacteria_syndromes[bacteria][syndrome_num] = col
+            except ValueError:
+                continue
+    
+    if not bacteria_syndromes:
+        print("  ⚠ No valid bacteria-syndrome columns found")
+        return
+    
+    bacteria_list = sorted(bacteria_syndromes.keys())
+    print(f"  Found {len(bacteria_list)} bacteria with syndrome data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        syndrome_data_for_bacteria = bacteria_syndromes[bacteria]
+        
+        # Check if we have data for this bacteria
+        syndrome_cols = []
+        for syndrome_num in range(1, 11):
+            if syndrome_num in syndrome_data_for_bacteria:
+                syndrome_cols.append(syndrome_data_for_bacteria[syndrome_num])
+        
+        if not syndrome_cols:
+            continue
+        
+        # Extract data for this bacteria
+        syndrome_data = df[syndrome_cols].values
+        total_infected = syndrome_data.sum(axis=1)
+        
+        # Skip if no infections for this bacteria
+        if total_infected.sum() == 0:
+            print(f"  ⚠ No infections found for {bacteria}")
+            continue
+        
+        # Calculate proportions (avoid division by zero)
+        syndrome_proportions = np.zeros_like(syndrome_data, dtype=float)
+        nonzero_mask = total_infected > 0
+        syndrome_proportions[nonzero_mask] = syndrome_data[nonzero_mask] / total_infected[nonzero_mask, np.newaxis]
+        
+        # Create time series with smoothing
+        syndrome_props_smooth = np.zeros_like(syndrome_proportions)
+        for i in range(len(syndrome_cols)):
+            syndrome_props_smooth[:, i] = pd.Series(syndrome_proportions[:, i]).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(syndrome_proportions)), 
+                min_periods=1, center=True
+            ).mean()
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Create stacked area plot
+        syndrome_colors = plt.cm.tab10(np.linspace(0, 1, len(syndrome_cols)))
+        
+        # Use every 100th point to reduce density for better visualization
+        step = max(1, len(df) // 500)  # Show ~500 points maximum
+        time_subset = df['time_in_years'].iloc[::step]
+        props_subset = syndrome_props_smooth[::step]
+        
+        bottom = np.zeros(len(time_subset))
+        
+        # Create syndrome labels
+        syndrome_labels = []
+        for i, col in enumerate(syndrome_cols):
+            # Extract syndrome number from column name
+            syndrome_num = None
+            for num in range(1, 11):
+                if f'_syndrome_{num}_' in col:
+                    syndrome_num = num
+                    break
+            
+            if syndrome_num:
+                syndrome_name = syndrome_names.get(syndrome_num, f'syndrome_{syndrome_num}')
+                syndrome_labels.append(f'S{syndrome_num}: {syndrome_name}')
+            else:
+                syndrome_labels.append(f'Syndrome {i+1}')
+        
+        for i, (color, label) in enumerate(zip(syndrome_colors, syndrome_labels)):
+            ax.fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                          color=color, alpha=0.7, label=label)
+            bottom += props_subset[:, i]
+        
+        # Format the plot
+        bacteria_title = bacteria.replace('_', ' ').title()
+        ax.set_title(f'Syndrome Distribution for {bacteria_title} Over Time\n(Stacked Proportions, 0-1 Scale)')
+        ax.set_xlabel('Time (Years)')
+        ax.set_ylabel('Proportion')
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
+        
+        # Add summary statistics
+        total_syndrome_infections = syndrome_data.sum()
+        if total_syndrome_infections > 0:
+            syndrome_percentages = (syndrome_data.sum(axis=0) / total_syndrome_infections * 100)
+            most_common_idx = np.argmax(syndrome_percentages)
+            most_common_syndrome_num = None
+            for num in range(1, 11):
+                if f'_syndrome_{num}_' in syndrome_cols[most_common_idx]:
+                    most_common_syndrome_num = num
+                    break
+            
+            if most_common_syndrome_num:
+                most_common_name = syndrome_names.get(most_common_syndrome_num, f'syndrome_{most_common_syndrome_num}')
+                textstr = f'Total infections: {int(total_syndrome_infections):,}\nMost common: S{most_common_syndrome_num} ({most_common_name})\n{syndrome_percentages[most_common_idx]:.1f}% of infections'
+                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+                ax.text(0.02, 0.98, textstr, transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='top', bbox=props)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"{bacteria}_syndrome_distribution.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        plots_created += 1
+        print(f"  ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No syndrome distribution plots created - missing required data columns")
+        print("  Expected columns like: bacteria_syndrome_1_infected, bacteria_syndrome_2_infected, etc.")
+    else:
+        print(f"✓ Created {plots_created} syndrome distribution by bacteria plots")
+
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -3499,6 +3673,12 @@ def main():
         create_death_rate_by_bacteria_region_plots(df)
     else:
         print("\n=== SKIPPING death_rate_by_bacteria_region plots (set death_rate_by_bacteria_region = True to enable) ===")
+    
+    # Syndrome distribution by bacteria plots
+    if syndrome_distribution_by_bacteria:
+        create_syndrome_distribution_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING syndrome_distribution_by_bacteria plots (set syndrome_distribution_by_bacteria = True to enable) ===")
     
     # Export data and statistics
     export_data_files(df)

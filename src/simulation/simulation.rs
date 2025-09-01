@@ -141,6 +141,10 @@ pub struct TimeStepSummary {
     // syndrome tracking: counts by syndrome (1-10)
     pub infected_by_syndrome: Vec<usize>,                 // [syndrome_idx] = number of infected individuals with this syndrome (first infection only)
     
+    // bacteria-specific syndrome tracking: counts by bacteria and syndrome (bacteria * 10 syndromes)
+    // [bacteria_idx * 10 + syndrome_idx] = number of infected individuals with this bacteria and syndrome
+    pub infected_by_syndrome_by_bacteria: Vec<usize>,     // [bacteria][syndrome] = number of infected individuals with this bacteria and syndrome
+    
     // regional population tracking: counts by region (6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania)
     pub living_population_by_region: Vec<usize>,          // [region_idx] = number of living individuals currently in this region
     
@@ -371,6 +375,8 @@ impl Simulation {
                 infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
                 /// counts of infected individuals by syndrome (1-10)
                 infected_by_syndrome: Vec<usize>,
+                /// counts of infected individuals by bacteria and syndrome (bacteria * 10 syndromes)
+                infected_by_syndrome_by_bacteria: Vec<usize>,
                 /// living population count by region (6 regions)
                 living_population_by_region: Vec<usize>,
                 /// age distribution by region (6 regions * 5 age groups = 30 values)
@@ -438,6 +444,7 @@ impl Simulation {
                         infection_resolution_death_from_background_by_bacteria: vec![0; num_bacteria],
                         infection_resolution_death_from_toxicity_by_bacteria: vec![0; num_bacteria],
                         infected_by_syndrome: vec![0; 10], // Syndromes 1-10
+                        infected_by_syndrome_by_bacteria: vec![0; num_bacteria * 10], // bacteria * syndromes
                         living_population_by_region: vec![0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania
                         age_distribution_by_region: vec![0; 6 * 5], // 6 regions * 5 age groups = 30 values
                         deaths_by_region: vec![0; 6 * 3], // 6 regions * 3 death types = 18 values
@@ -503,6 +510,7 @@ impl Simulation {
                     for (a,b) in self.infection_resolution_death_from_background_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_background_by_bacteria) { *a += b; }
                     for (a,b) in self.infection_resolution_death_from_toxicity_by_bacteria.iter_mut().zip(other.infection_resolution_death_from_toxicity_by_bacteria) { *a += b; }
                     for (a,b) in self.infected_by_syndrome.iter_mut().zip(other.infected_by_syndrome) { *a += b; }
+                    for (a,b) in self.infected_by_syndrome_by_bacteria.iter_mut().zip(other.infected_by_syndrome_by_bacteria) { *a += b; }
                     for (a,b) in self.living_population_by_region.iter_mut().zip(other.living_population_by_region) { *a += b; }
                     for (a,b) in self.age_distribution_by_region.iter_mut().zip(other.age_distribution_by_region) { *a += b; }
                     for (a,b) in self.deaths_by_region.iter_mut().zip(other.deaths_by_region) { *a += b; }
@@ -740,6 +748,13 @@ impl Simulation {
                                             }
                                         }
                                         
+                                        // Count syndrome for this bacteria specifically (all infections, not just first)
+                                        let syndrome_id = individual.infectious_syndrome[b_idx];
+                                        if syndrome_id >= 1 && syndrome_id <= 10 {
+                                            let flat_idx = b_idx * 10 + (syndrome_id - 1) as usize;
+                                            lt.infected_by_syndrome_by_bacteria[flat_idx] += 1;
+                                        }
+                                        
                                         // sum activity_r for this bacteria, ONLY for individuals on drug
                                         let mut activity_r_sum = 0.0;
                                         let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
@@ -892,6 +907,7 @@ impl Simulation {
                     infection_resolution_death_from_background_by_bacteria: _,
                     infection_resolution_death_from_toxicity_by_bacteria: _,
                     infected_by_syndrome,
+                    infected_by_syndrome_by_bacteria,
                     living_population_by_region,
                     age_distribution_by_region,
                     deaths_by_region,
@@ -1090,6 +1106,7 @@ impl Simulation {
             day_7_used
         },
         infected_by_syndrome,
+        infected_by_syndrome_by_bacteria,
         living_population_by_region,
         age_distribution_by_region,
         deaths_by_region,
@@ -1552,6 +1569,15 @@ impl Simulation {
             header.push_str(&format!("syndrome_{}_infected", syndrome_id));
         }
         
+        // Add bacteria-specific syndrome columns to header
+        for bacteria in BACTERIA_LIST.iter() {
+            for syndrome_id in 1..=10 {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str(&format!("_syndrome_{}_infected", syndrome_id));
+            }
+        }
+        
         // Add region population columns to header
         let region_names = ["north_america", "south_america", "africa", "asia", "europe", "oceania"];
         for region_name in &region_names {
@@ -1671,6 +1697,9 @@ impl Simulation {
             
             // Add syndrome infection data
             for value in &summary.infected_by_syndrome { row.push(','); row.push_str(&value.to_string()); }
+            
+            // Add bacteria-specific syndrome infection data
+            for value in &summary.infected_by_syndrome_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             
             // Add region population data
             for value in &summary.living_population_by_region { row.push(','); row.push_str(&value.to_string()); }

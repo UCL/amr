@@ -29,12 +29,6 @@ mod config;
 //
 //    // parameter values (recognising there will be many changes) //
 //
-//    get the choice of drugs more realistic (with no tests, broad spectrum covering most common bacteria,
-//    with bacteria identified high chance of drugs with highest mean actvity_r (or mic ?))
-//    oral first (but if we have variable for severity maybe will occasionally go straight to iv)
-//
-//    get a bit closer to realistic calibration of incidence of bacterial infection (and different predictors)
-//    and bacterial prevalence in microbiome
 //
 //    update infection site distribution per bacteria
 //  
@@ -54,6 +48,8 @@ mod config;
 // ? need to have a variable to indicate severity of infection - this can determine which drugs to use 
 // - or is infectious syndrome sufficient ?
 //     
+// ? need to acount directly for 
+//
 //
 // 
 // // additional output graphs 
@@ -123,8 +119,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 1_000; 
-    let time_steps = 7000 ;  // 38_325
+    let population_size = 30_000; 
+    let time_steps = 1000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
