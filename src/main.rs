@@ -24,6 +24,9 @@ mod config;
 
 
 //
+//    another graph: proportion of drug initiations that are in a person with an infection 
+//
+//
 //    // parameter values (recognising there will be many changes) //
 //
 //    get the choice of drugs more realistic (with no tests, broad spectrum covering most common bacteria,
@@ -120,9 +123,9 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 2_000; 
-    let time_steps = 2_000 ;  // 38_325
-    let log_individuals = true ; // Set to false to disable detailed individual logging
+    let population_size = 1_000; 
+    let time_steps = 7000 ;  // 38_325
+    let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
 

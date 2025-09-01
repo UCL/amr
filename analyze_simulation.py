@@ -31,25 +31,25 @@ SMOOTHING_WINDOW_DAYS = 1095
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True
-proportion_of_people_infected_with_each_bacteria = True
-proportion_of_people_taking_each_drug = True  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
-proportion_share_among_drug_users = True
-distribution_drug_use_by_bacteria = True
-death_rate_by_bacteria = True
-mean_activity_r_by_bacteria = True 
-resistance_mechanism_by_bacteria = True
-proportion_of_population_with_microbiome_presence_bacteria = True
-proportion_of_microbiome_presence_with_resistance_by_drug = True
-mean_any_r_by_drug_for_each_bacteria = True
-mean_any_r_by_drug_for_each_bacteria_hospital = True
-source_of_new_resistance_by_drug_bacteria = True
-infection_resolution_by_bacteria = True 
-age_distribution_by_region = True  # NEW: Age distribution plots by region 
-death_rate_by_region = True  # NEW: Death rate plots by region
-age_specific_death_rate_by_region = True  # NEW: Age-specific death rate plots by region
-incidence_of_infection = True  # NEW: Incidence of infection plots by bacteria and region
-death_rate_by_bacteria_region = True  # NEW: Death rate plots by bacteria and region
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
+proportion_of_people_infected_with_each_bacteria = False
+proportion_of_people_taking_each_drug = False  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
+proportion_share_among_drug_users = False
+distribution_drug_use_by_bacteria = False
+death_rate_by_bacteria = False
+mean_activity_r_by_bacteria = False 
+resistance_mechanism_by_bacteria = False
+proportion_of_population_with_microbiome_presence_bacteria = False
+proportion_of_microbiome_presence_with_resistance_by_drug = False
+mean_any_r_by_drug_for_each_bacteria = False
+mean_any_r_by_drug_for_each_bacteria_hospital = False
+source_of_new_resistance_by_drug_bacteria = False
+infection_resolution_by_bacteria = False 
+age_distribution_by_region = False  # NEW: Age distribution plots by region 
+death_rate_by_region = False  # NEW: Death rate plots by region
+age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
+incidence_of_infection = True   # NEW: Incidence of infection plots by bacteria and region
+death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
 
 # =============================================================================
 # CONFIGURATION

@@ -1,6 +1,6 @@
 /* 
 
-
+        map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -13.5 Default baseline log-odds for infection acquisition
 
 */
 
@@ -491,7 +491,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -13.5 Default baseline log-odds for infection acquisition
+        map.insert("acquisition_log_odds_baseline".to_string(), -9.5); // -13.5 Default baseline log-odds for infection acquisition
         map.insert("log_odds_sexual_contact_per_unit".to_string(), 0.10); // Per unit sexual contact
         map.insert("log_odds_airborne_adult_contact_per_unit".to_string(), 0.08); // Per unit airborne adult contact
         map.insert("log_odds_airborne_child_contact_per_unit".to_string(), 0.08); // Per unit airborne child contact
@@ -949,6 +949,15 @@ lazy_static! {
         map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 3.0); // Multiplier for narrow-spectrum drugs when bacteria identified  
         map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.4); // Penalty for broad-spectrum drugs when bacteria identified
         map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.1); // Strong penalty for drugs ineffective against identified bacteria
+
+        // Regional Resistance Surveillance Parameters for Drug Choice
+        // Penalties applied during empirical therapy based on local resistance rates
+        map.insert("regional_resistance_penalty_very_high".to_string(), 0.2); // Penalty when >50% regional resistance
+        map.insert("regional_resistance_penalty_high".to_string(), 0.4); // Penalty when 30-50% regional resistance  
+        map.insert("regional_resistance_penalty_moderate".to_string(), 0.7); // Penalty when 10-30% regional resistance
+        map.insert("regional_resistance_threshold_very_high".to_string(), 0.5); // Threshold for very high resistance (50%)
+        map.insert("regional_resistance_threshold_high".to_string(), 0.3); // Threshold for high resistance (30%)
+        map.insert("regional_resistance_threshold_moderate".to_string(), 0.1); // Threshold for moderate resistance (10%)
 
         // Drug Spectrum Classifications (1.0=narrow, 5.0=very broad)
         map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
