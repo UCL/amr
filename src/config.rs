@@ -482,6 +482,56 @@ lazy_static! {
 
 
 
+        // --- TARGETED CLINICAL FIXES FOR SPECIFIC BACTERIA ---
+        // Conservative adjustments for clear clinical issues while preserving regional resistance surveillance
+        
+        // VIBRIO CHOLERAE - Fix cholera treatment (should be tetracyclines + fluoroquinolones)
+        // Boost first-line drugs moderately 
+        map.insert("drug_doxycycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.9);  // Excellent activity
+        map.insert("drug_tetracycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.85); // Excellent activity
+        map.insert("drug_ciprofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.8); // Very good activity
+        map.insert("drug_levofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.8);  // Very good activity
+        // Reduce inappropriate drugs slightly (regional resistance surveillance will handle local patterns)
+        map.insert("drug_penicillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);  // Poor activity
+        map.insert("drug_ampicillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);  // Poor activity
+        
+        // HAEMOPHILUS INFLUENZAE - Address beta-lactamase resistance (intrinsic in many strains)
+        // Reduce basic penicillins (H. flu commonly produces beta-lactamase)
+        map.insert("drug_penicillin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.03); // Poor due to beta-lactamase
+        map.insert("drug_ampicillin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.15);  // Reduced due to beta-lactamase resistance
+        // Boost appropriate alternatives modestly
+        map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.75); // Good activity with beta-lactamase inhibitor
+        map.insert("drug_cefuroxime_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.7);   // Good 2nd gen cephalosporin
+        map.insert("drug_azithromycin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.65); // Good macrolide activity
+        
+        // YERSINIA ENTEROCOLITICA - Address intrinsic penicillin resistance
+        // Reduce penicillins (intrinsic resistance)
+        map.insert("drug_penicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02); // Intrinsic resistance
+        map.insert("drug_ampicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02);  // Intrinsic resistance
+        // Boost appropriate drugs modestly
+        map.insert("drug_doxycycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.75); // Good activity
+        map.insert("drug_ciprofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.7); // Good activity
+        map.insert("drug_trim_sulf_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.65);    // Good activity
+        
+        // STREPTOCOCCUS PYOGENES - Ensure penicillin remains preferred (no resistance ever develops)
+        // S. pyogenes has never developed penicillin resistance - boost slightly to counter any drift
+        map.insert("drug_penicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95); // Excellent and consistent activity
+        
+        // ENTERIC PATHOGENS - Modest fluoroquinolone boost for appropriate cases
+        // Salmonella - boost fluoroquinolones for invasive disease (conservative increase)
+        map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
+        map.insert("drug_levofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 0.8);
+        map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 0.75);
+        
+        // Shigella - boost fluoroquinolones modestly (first-line for severe cases)
+        map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
+        map.insert("drug_levofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 0.75);
+        
+        // Campylobacter - ensure fluoroquinolones are recognized as first-line
+        map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
+        map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
+
+
         // for each drug-bacteria combination will need a specific multiplier for initiation rate
         // will need changes also in mod.rs 
 
