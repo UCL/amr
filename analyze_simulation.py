@@ -50,7 +50,7 @@ death_rate_by_region = False  # NEW: Death rate plots by region
 age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
 incidence_of_infection = False  # NEW: Incidence of infection plots by bacteria and region
 death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
-syndrome_distribution_by_bacteria = True  # NEW: Syndrome distribution plots by bacteria
+syndrome_distribution_by_bacteria = False  # NEW: Syndrome distribution plots by bacteria
 
 # =============================================================================
 # CONFIGURATION
@@ -1275,6 +1275,72 @@ def create_grouped_plots(df):
     plt.savefig('output_graphs/grouped_figure_8.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
     plt.close()
     print("✓ Grouped figure 8 saved as 'grouped_figure_8.png'")
+
+    # --- Grouped Figure 9: New Drug Initiations Over Time ---
+    fig9, axes9 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes9 = axes9.flatten()
+    fig9.suptitle('Figure 9: Drug Initiation Patterns Over Time', fontsize=16, fontweight='bold')
+    
+    # Check if new_drug_initiations_count columns exist
+    if 'new_drug_initiations_count' in df.columns:
+        print("Processing new drug initiations data")
+        
+        # 1. New Drug Initiations Over Time (top-left)
+        drug_initiations_smooth = pd.Series(df['new_drug_initiations_count']).rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes9[0].plot(df['time_in_years'], drug_initiations_smooth, linewidth=2, color='darkgreen', 
+                     label='All New Drug Initiations')
+        
+        # Plot infected drug initiations if available
+        if 'new_drug_initiations_count_infected' in df.columns:
+            drug_initiations_infected_smooth = pd.Series(df['new_drug_initiations_count_infected']).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+                min_periods=1, center=True
+            ).mean()
+            
+            axes9[0].plot(df['time_in_years'], drug_initiations_infected_smooth, linewidth=2, color='red', 
+                         label='New Drug Initiations (Infected)')
+        
+        axes9[0].set_title('Daily New Drug Initiations Over Time')
+        axes9[0].set_xlabel('Time (Years)')
+        axes9[0].set_ylabel('Number of People Starting Drugs')
+        axes9[0].set_ylim(bottom=0)
+        axes9[0].grid(True, alpha=0.3)
+        axes9[0].legend()
+        
+        # Add summary statistics
+        mean_initiations = df['new_drug_initiations_count'].mean()
+        max_initiations = df['new_drug_initiations_count'].max()
+        total_initiations = df['new_drug_initiations_count'].sum()
+        
+        textstr = f'All: Mean {mean_initiations:.1f}/day, Total {total_initiations:,}'
+        
+        if 'new_drug_initiations_count_infected' in df.columns:
+            mean_infected = df['new_drug_initiations_count_infected'].mean()
+            total_infected = df['new_drug_initiations_count_infected'].sum()
+            textstr += f'\nInfected: Mean {mean_infected:.1f}/day, Total {total_infected:,}'
+        
+        props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+        axes9[0].text(0.02, 0.98, textstr, transform=axes9[0].transAxes, 
+                     fontsize=9, verticalalignment='top', bbox=props)
+    else:
+        axes9[0].text(0.5, 0.5, 'New drug initiations data\nnot available', 
+                     ha='center', va='center', fontsize=12, color='gray')
+        axes9[0].set_axis_off()
+    
+    # 2-4. Leave other panels blank for now
+    for i in range(1, 4):
+        axes9[i].text(0.5, 0.5, f'Panel {i+1}\n(Reserved for future use)', 
+                     ha='center', va='center', fontsize=12, color='lightgray')
+        axes9[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_9.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 9 saved as 'grouped_figure_9.png'")
 
 
 def create_proportion_plots(df):
@@ -3689,7 +3755,7 @@ def main():
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', f'grouped_figure_7.png', f'grouped_figure_8.png']:
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', f'grouped_figure_7.png', f'grouped_figure_8.png', f'grouped_figure_9.png']:
         out_path = Path('output_graphs') / fname
         if out_path.exists():
             print(f"  ✓ output_graphs/{fname}")

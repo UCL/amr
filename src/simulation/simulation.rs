@@ -77,6 +77,8 @@ pub struct TimeStepSummary {
     pub activity_r_sum_by_bacteria: Vec<f64>,
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
+    pub new_drug_initiations_count: usize, // Number of people who started any new drug this time step
+    pub new_drug_initiations_count_infected: usize, // Number of currently infected people who started any new drug this time step
     pub newly_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = new active infections this timestep by bacteria and home region
     pub deaths_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = deaths this timestep of people currently infected with bacteria by home region
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
@@ -334,6 +336,8 @@ impl Simulation {
                 number_with_sepsis: usize,
                 newly_infected_count: usize,
                 newly_infected_with_resistance_count: usize,
+                new_drug_initiations_count: usize,
+                new_drug_initiations_count_infected: usize,
                 newly_infected_by_bacteria_region: Vec<usize>,
                 deaths_infected_by_bacteria_region: Vec<usize>,
                 total_currently_infected: usize,
@@ -413,6 +417,8 @@ impl Simulation {
                         number_with_sepsis: 0,
                         newly_infected_count: 0,
                         newly_infected_with_resistance_count: 0,
+                        new_drug_initiations_count: 0,
+                        new_drug_initiations_count_infected: 0,
                         newly_infected_by_bacteria_region: vec![0; num_bacteria * 6], // bacteria * regions
                         deaths_infected_by_bacteria_region: vec![0; num_bacteria * 6], // bacteria * regions
                         total_currently_infected: 0,
@@ -475,6 +481,8 @@ impl Simulation {
                     self.number_with_sepsis += other.number_with_sepsis;
                     self.newly_infected_count += other.newly_infected_count;
                     self.newly_infected_with_resistance_count += other.newly_infected_with_resistance_count;
+                    self.new_drug_initiations_count += other.new_drug_initiations_count;
+                    self.new_drug_initiations_count_infected += other.new_drug_initiations_count_infected;
                     for i in 0..self.newly_infected_by_bacteria_region.len() {
                         self.newly_infected_by_bacteria_region[i] += other.newly_infected_by_bacteria_region[i];
                     }
@@ -714,6 +722,24 @@ impl Simulation {
                             }
                             if on_any_drug { lt.currently_taking_drug_count += 1; }
 
+                            // Check if this person started any drug today
+                            let mut started_drug_today = false;
+                            for &initiation_date in individual.date_drug_initiated.iter() {
+                                if initiation_date == t as i32 {
+                                    started_drug_today = true;
+                                    break;
+                                }
+                            }
+                            if started_drug_today {
+                                lt.new_drug_initiations_count += 1;
+                                
+                                // Check if this person is currently infected (any level > 0)
+                                let is_currently_infected = individual.level.iter().any(|&level| level > 0.0);
+                                if is_currently_infected {
+                                    lt.new_drug_initiations_count_infected += 1;
+                                }
+                            }
+
                             if individual.presence_microbiome.iter().any(|&x| x) { lt.num_with_any_bacteria_microbiome += 1; }
                             
                             // Count presence_microbiome by individual bacteria
@@ -876,6 +902,8 @@ impl Simulation {
                     number_with_sepsis,
                     newly_infected_count,
                     newly_infected_with_resistance_count,
+                    new_drug_initiations_count,
+                    new_drug_initiations_count_infected,
                     newly_infected_by_bacteria_region,
                     deaths_infected_by_bacteria_region,
                     total_currently_infected,
@@ -979,6 +1007,8 @@ impl Simulation {
                 number_with_sepsis,
                 newly_infected_count,
                 newly_infected_with_resistance_count,
+                new_drug_initiations_count,
+                new_drug_initiations_count_infected,
                 newly_infected_by_bacteria_region,
                 deaths_infected_by_bacteria_region,
                 total_currently_infected,
@@ -1338,7 +1368,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome");
+        header.push_str("time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome");
         
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -1629,7 +1659,7 @@ impl Simulation {
             let mut row = String::with_capacity(20000); // Pre-allocate for each row
             
             // Write basic summary data
-            row.push_str(&format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            row.push_str(&format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -1644,6 +1674,8 @@ impl Simulation {
                 summary.taking_two_drugs_count,
                 summary.newly_infected_count,
                 summary.newly_infected_with_resistance_count,
+                summary.new_drug_initiations_count,
+                summary.new_drug_initiations_count_infected,
                 summary.newly_infected_past_year,
                 summary.total_deaths,
                 summary.deaths_background,
