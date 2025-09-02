@@ -596,10 +596,6 @@ lazy_static! {
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
         map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -13.5 Default baseline log-odds for infection acquisition
-        map.insert("log_odds_sexual_contact_per_unit".to_string(), 0.10); // Per unit sexual contact
-        map.insert("log_odds_airborne_adult_contact_per_unit".to_string(), 0.08); // Per unit airborne adult contact
-        map.insert("log_odds_airborne_child_contact_per_unit".to_string(), 0.08); // Per unit airborne child contact
-        map.insert("log_odds_oral_exposure_per_unit".to_string(), 0.06); // Per unit oral exposure
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -1195,37 +1191,337 @@ lazy_static! {
         //  You can tune this value to make drug toxicity more or less lethal.
         map.insert("drug_toxicity_death_risk_per_day".to_string(), 0.0003); 
 
+        // --- Age Category Effects on Infection Acquisition ---
+        // Default age category log-odds adjustments (applied to all bacteria unless overridden)
+        // Age categories: infant (0-2y), preschool (3-5y), school (6-17y), young_adult (18-29y), middle_age (30-64y), elderly (65-79y), very_elderly (80+y)
+        map.insert("default_log_odds_infant".to_string(), 1.5);       // Infants: higher susceptibility due to immature immune system
+        map.insert("default_log_odds_preschool".to_string(), 0.8);    // Preschoolers: moderately higher susceptibility  
+        map.insert("default_log_odds_school".to_string(), 0.3);       // School age: slightly higher susceptibility
+        map.insert("default_log_odds_young_adult".to_string(), 0.0);  // Young adults: reference category
+        map.insert("default_log_odds_middle_age".to_string(), 0.2);   // Middle age: slightly higher susceptibility
+        map.insert("default_log_odds_elderly".to_string(), 0.7);      // Elderly: higher susceptibility due to immunosenescence
+        map.insert("default_log_odds_very_elderly".to_string(), 1.2); // Very elderly: highest susceptibility
 
+        // --- Age-Region Interaction Effects ---
+        // General age-region interactions (applied when bacteria-specific interactions not available)
+        // Format: {region}_log_odds_{age_category}
+        
+        // Africa: Higher infectious disease burden across all ages, especially in vulnerable populations
+        map.insert("africa_log_odds_infant".to_string(), 2.0);       // Very high infant susceptibility (malnutrition, poor healthcare access)
+        map.insert("africa_log_odds_preschool".to_string(), 1.2);    // High preschooler susceptibility
+        map.insert("africa_log_odds_school".to_string(), 0.6);       // Moderate school age susceptibility
+        map.insert("africa_log_odds_young_adult".to_string(), 0.3);  // Slightly higher young adult susceptibility
+        map.insert("africa_log_odds_middle_age".to_string(), 0.4);   // Higher middle age susceptibility
+        map.insert("africa_log_odds_elderly".to_string(), 1.0);      // High elderly susceptibility  
+        map.insert("africa_log_odds_very_elderly".to_string(), 1.5); // Very high very elderly susceptibility
 
-        //  Contact and Exposure Level Parameters
-        map.insert("contact_level_daily_fluctuation_range".to_string(), 0.5); // Amount of random daily fluctuation
-        map.insert("min_contact_level".to_string(), 0.0); // Minimum possible contact/exposure level
-        map.insert("max_contact_level".to_string(), 10.0); // Maximum possible contact/exposure level
+        // Asia: Variable healthcare quality, high population density effects
+        map.insert("asia_log_odds_infant".to_string(), 1.0);         // Moderately high infant susceptibility
+        map.insert("asia_log_odds_preschool".to_string(), 0.5);      // Moderate preschooler susceptibility
+        map.insert("asia_log_odds_school".to_string(), 0.2);         // Slight school age susceptibility increase
+        map.insert("asia_log_odds_young_adult".to_string(), 0.1);    // Slight young adult susceptibility increase
+        map.insert("asia_log_odds_middle_age".to_string(), 0.2);     // Slight middle age susceptibility increase
+        map.insert("asia_log_odds_elderly".to_string(), 0.5);        // Moderate elderly susceptibility increase
+        map.insert("asia_log_odds_very_elderly".to_string(), 0.8);   // High very elderly susceptibility
 
-        // Sexual Contact Parameters
-        map.insert("sexual_contact_baseline".to_string(), 5.0); // Baseline level for a young adult
-        map.insert("sexual_contact_age_peak_days".to_string(), 25.0 * 365.0); // Age in days (25 years)
-        map.insert("sexual_contact_age_rise_exponent".to_string(), 2.0); // Controls how fast contact rises with age before peak (higher = steeper)
-        map.insert("sexual_contact_age_decline_rate".to_string(), 0.00005); // Rate of decline per day after peak age (e.g., 0.00005 means ~1.8% drop per year)
-        map.insert("sexual_contact_hospital_multiplier".to_string(), 0.0); 
+        // Europe: Generally good healthcare, lower infectious disease burden
+        map.insert("europe_log_odds_infant".to_string(), -0.2);      // Slightly lower infant susceptibility
+        map.insert("europe_log_odds_preschool".to_string(), -0.1);   // Slightly lower preschooler susceptibility
+        map.insert("europe_log_odds_school".to_string(), 0.0);       // Neutral school age
+        map.insert("europe_log_odds_young_adult".to_string(), 0.0);  // Neutral young adult
+        map.insert("europe_log_odds_middle_age".to_string(), 0.0);   // Neutral middle age
+        map.insert("europe_log_odds_elderly".to_string(), -0.1);     // Slightly lower elderly susceptibility (good healthcare)
+        map.insert("europe_log_odds_very_elderly".to_string(), 0.2); // Moderate very elderly susceptibility
 
-        // Airborne Contact (Adults) Parameters
-        map.insert("airborne_contact_adult_baseline".to_string(), 5.0);
-        map.insert("airborne_contact_adult_age_breakpoint_days".to_string(), 18.0 * 365.0); // Age in days (18 years)
-        map.insert("airborne_contact_adult_child_multiplier".to_string(), 0.2); // How much less children contact adults (vs. adult-adult baseline)
-        map.insert("airborne_contact_in_hospital_multiplier".to_string(), 1.5); // May increase due to healthcare staff contact
+        // North America: Reference region (all zeros)
+        map.insert("north_america_log_odds_infant".to_string(), 0.0);       // Reference
+        map.insert("north_america_log_odds_preschool".to_string(), 0.0);    // Reference
+        map.insert("north_america_log_odds_school".to_string(), 0.0);       // Reference
+        map.insert("north_america_log_odds_young_adult".to_string(), 0.0);  // Reference
+        map.insert("north_america_log_odds_middle_age".to_string(), 0.0);   // Reference
+        map.insert("north_america_log_odds_elderly".to_string(), 0.0);      // Reference
+        map.insert("north_america_log_odds_very_elderly".to_string(), 0.0); // Reference
 
-        // Airborne Contact (Children) Parameters
-        map.insert("airborne_contact_child_baseline".to_string(), 3.0);
-        map.insert("airborne_contact_child_age_breakpoint_days".to_string(), 12.0 * 365.0); // Age in days (12 years)
-        map.insert("airborne_contact_child_child_multiplier".to_string(), 1.5); // How much more children contact children (vs. child baseline)
-        map.insert("airborne_contact_child_adult_multiplier".to_string(), 0.5); // How much less adults contact children (vs. child baseline)
+        // South America: Moderate infectious disease burden, variable healthcare access
+        map.insert("south_america_log_odds_infant".to_string(), 1.2);       // High infant susceptibility
+        map.insert("south_america_log_odds_preschool".to_string(), 0.7);    // Moderate preschooler susceptibility
+        map.insert("south_america_log_odds_school".to_string(), 0.3);       // Slight school age susceptibility increase
+        map.insert("south_america_log_odds_young_adult".to_string(), 0.2);  // Slight young adult susceptibility increase
+        map.insert("south_america_log_odds_middle_age".to_string(), 0.3);   // Moderate middle age susceptibility increase
+        map.insert("south_america_log_odds_elderly".to_string(), 0.6);      // Moderate elderly susceptibility increase
+        map.insert("south_america_log_odds_very_elderly".to_string(), 0.9); // High very elderly susceptibility
 
-        // Oral Exposure Parameters
-        map.insert("oral_exposure_baseline".to_string(), 2.0);
-        map.insert("oral_exposure_child_age_breakpoint_days".to_string(), 5.0 * 365.0); // Age in days (5 years)
-        map.insert("oral_exposure_child_multiplier".to_string(), 3.0); // Higher for young children
-        map.insert("oral_exposure_in_hospital_multiplier".to_string(), 0.8); // Slightly reduced due to hospital hygiene
+        // Oceania: Generally good healthcare, similar to North America but smaller healthcare systems
+        map.insert("oceania_log_odds_infant".to_string(), 0.1);       // Slightly higher infant susceptibility
+        map.insert("oceania_log_odds_preschool".to_string(), 0.0);    // Neutral preschooler
+        map.insert("oceania_log_odds_school".to_string(), 0.0);       // Neutral school age
+        map.insert("oceania_log_odds_young_adult".to_string(), 0.0);  // Neutral young adult
+        map.insert("oceania_log_odds_middle_age".to_string(), 0.0);   // Neutral middle age
+        map.insert("oceania_log_odds_elderly".to_string(), 0.1);      // Slightly higher elderly susceptibility
+        map.insert("oceania_log_odds_very_elderly".to_string(), 0.3); // Moderate very elderly susceptibility
+
+        // --- Bacteria-Specific Age Category Effects ---
+        // These override the default age category effects for specific bacteria
+        // Format: {bacteria_clean}_log_odds_{age_category}
+
+        // === SEXUALLY TRANSMITTED BACTERIA ===
+        // Chlamydia trachomatis - Peak in sexually active young adults
+        map.insert("chlamydia_trachomatis_log_odds_infant".to_string(), -3.0);      // Very low risk (vertical transmission only)
+        map.insert("chlamydia_trachomatis_log_odds_preschool".to_string(), -4.0);   // Extremely low risk
+        map.insert("chlamydia_trachomatis_log_odds_school".to_string(), -2.0);      // Very low risk (early sexual activity)
+        map.insert("chlamydia_trachomatis_log_odds_young_adult".to_string(), 1.5);  // HIGH risk - peak sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_middle_age".to_string(), 0.5);   // Moderate risk - continued sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_elderly".to_string(), -1.5);     // Low risk - reduced sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_very_elderly".to_string(), -2.5); // Very low risk
+
+        // Neisseria gonorrhoeae - Similar pattern to chlamydia
+        map.insert("neisseria_gonorrhoeae_log_odds_infant".to_string(), -2.5);      // Very low risk (vertical transmission)
+        map.insert("neisseria_gonorrhoeae_log_odds_preschool".to_string(), -4.0);   // Extremely low risk
+        map.insert("neisseria_gonorrhoeae_log_odds_school".to_string(), -1.5);      // Very low risk
+        map.insert("neisseria_gonorrhoeae_log_odds_young_adult".to_string(), 1.8);  // VERY HIGH risk - peak sexual activity
+        map.insert("neisseria_gonorrhoeae_log_odds_middle_age".to_string(), 0.7);   // Moderate risk
+        map.insert("neisseria_gonorrhoeae_log_odds_elderly".to_string(), -1.2);     // Low risk
+        map.insert("neisseria_gonorrhoeae_log_odds_very_elderly".to_string(), -2.0); // Very low risk
+
+        // Treponema pallidum (Syphilis) - Similar pattern to other STIs
+        map.insert("treponema_pallidum_log_odds_infant".to_string(), -2.0);         // Low risk (congenital syphilis)
+        map.insert("treponema_pallidum_log_odds_preschool".to_string(), -4.0);      // Extremely low risk
+        map.insert("treponema_pallidum_log_odds_school".to_string(), -2.0);         // Very low risk
+        map.insert("treponema_pallidum_log_odds_young_adult".to_string(), 1.6);     // HIGH risk - peak sexual activity
+        map.insert("treponema_pallidum_log_odds_middle_age".to_string(), 0.4);      // Moderate risk
+        map.insert("treponema_pallidum_log_odds_elderly".to_string(), -1.8);        // Low risk
+        map.insert("treponema_pallidum_log_odds_very_elderly".to_string(), -2.5);   // Very low risk
+
+        // === RESPIRATORY BACTERIA ===
+        // Streptococcus pneumoniae - Classic U-shaped age distribution (high in infants and elderly)
+        map.insert("streptococcus_pneumoniae_log_odds_infant".to_string(), 2.0);         // VERY HIGH risk - immature immunity
+        map.insert("streptococcus_pneumoniae_log_odds_preschool".to_string(), 1.2);      // HIGH risk - daycare exposure
+        map.insert("streptococcus_pneumoniae_log_odds_school".to_string(), 0.5);         // Moderate risk - school exposure
+        map.insert("streptococcus_pneumoniae_log_odds_young_adult".to_string(), -0.3);   // Low risk - strong immunity
+        map.insert("streptococcus_pneumoniae_log_odds_middle_age".to_string(), 0.0);     // Baseline risk
+        map.insert("streptococcus_pneumoniae_log_odds_elderly".to_string(), 1.5);        // HIGH risk - immunosenescence
+        map.insert("streptococcus_pneumoniae_log_odds_very_elderly".to_string(), 2.2);   // VERY HIGH risk
+
+        // Haemophilus influenzae - Similar to pneumococcus but more pediatric
+        map.insert("haemophilus_influenzae_log_odds_infant".to_string(), 2.5);           // VERY HIGH risk - major infant pathogen
+        map.insert("haemophilus_influenzae_log_odds_preschool".to_string(), 1.5);        // HIGH risk
+        map.insert("haemophilus_influenzae_log_odds_school".to_string(), 0.8);           // Moderate risk
+        map.insert("haemophilus_influenzae_log_odds_young_adult".to_string(), -0.5);     // Low risk
+        map.insert("haemophilus_influenzae_log_odds_middle_age".to_string(), -0.2);      // Low risk
+        map.insert("haemophilus_influenzae_log_odds_elderly".to_string(), 1.0);          // High risk (COPD patients)
+        map.insert("haemophilus_influenzae_log_odds_very_elderly".to_string(), 1.8);     // VERY HIGH risk
+
+        // Moraxella catarrhalis - Primarily pediatric and elderly (COPD)
+        map.insert("moraxella_catarrhalis_log_odds_infant".to_string(), 1.8);            // VERY HIGH risk
+        map.insert("moraxella_catarrhalis_log_odds_preschool".to_string(), 1.0);         // HIGH risk
+        map.insert("moraxella_catarrhalis_log_odds_school".to_string(), 0.3);            // Moderate risk
+        map.insert("moraxella_catarrhalis_log_odds_young_adult".to_string(), -0.8);      // Low risk
+        map.insert("moraxella_catarrhalis_log_odds_middle_age".to_string(), -0.3);       // Low risk
+        map.insert("moraxella_catarrhalis_log_odds_elderly".to_string(), 1.2);           // HIGH risk (COPD)
+        map.insert("moraxella_catarrhalis_log_odds_very_elderly".to_string(), 1.6);      // VERY HIGH risk
+
+        // === ENTERIC/FOODBORNE BACTERIA ===
+        // Salmonella species - Higher in children and elderly
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_infant".to_string(), 1.0);      // High risk - severe disease
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_preschool".to_string(), 0.8);   // High risk
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_school".to_string(), 0.5);      // Moderate risk
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_young_adult".to_string(), 0.0); // Baseline (travel-related)
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_middle_age".to_string(), 0.2);  // Moderate risk
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_elderly".to_string(), 0.8);     // High risk - severe disease
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_very_elderly".to_string(), 1.2); // Very high risk
+
+        // Shigella spp. - Higher in children (daycare transmission)
+        map.insert("shigella_spp._log_odds_infant".to_string(), 1.5);            // VERY HIGH risk
+        map.insert("shigella_spp._log_odds_preschool".to_string(), 2.0);         // EXTREMELY HIGH risk - daycare outbreaks
+        map.insert("shigella_spp._log_odds_school".to_string(), 1.2);            // HIGH risk - school transmission
+        map.insert("shigella_spp._log_odds_young_adult".to_string(), 0.3);       // Moderate risk
+        map.insert("shigella_spp._log_odds_middle_age".to_string(), 0.0);        // Baseline risk
+        map.insert("shigella_spp._log_odds_elderly".to_string(), 0.5);           // Moderate risk
+        map.insert("shigella_spp._log_odds_very_elderly".to_string(), 0.8);      // High risk
+
+        // Campylobacter jejuni - All ages but higher in young children
+        map.insert("campylobacter_jejuni_log_odds_infant".to_string(), 1.2);          // HIGH risk - severe dehydration
+        map.insert("campylobacter_jejuni_log_odds_preschool".to_string(), 0.8);       // HIGH risk
+        map.insert("campylobacter_jejuni_log_odds_school".to_string(), 0.3);          // Moderate risk
+        map.insert("campylobacter_jejuni_log_odds_young_adult".to_string(), 0.0);     // Baseline risk
+        map.insert("campylobacter_jejuni_log_odds_middle_age".to_string(), 0.0);      // Baseline risk
+        map.insert("campylobacter_jejuni_log_odds_elderly".to_string(), 0.4);         // Moderate risk
+        map.insert("campylobacter_jejuni_log_odds_very_elderly".to_string(), 0.7);    // High risk
+
+        // === HEALTHCARE-ASSOCIATED BACTERIA ===
+        // Acinetobacter baumannii - Higher in critically ill (middle-aged to elderly)
+        map.insert("acinetobacter_baumannii_log_odds_infant".to_string(), 0.5);       // Moderate risk (NICU)
+        map.insert("acinetobacter_baumannii_log_odds_preschool".to_string(), -0.5);   // Low risk
+        map.insert("acinetobacter_baumannii_log_odds_school".to_string(), -0.8);      // Low risk
+        map.insert("acinetobacter_baumannii_log_odds_young_adult".to_string(), 0.2);  // Moderate risk (trauma patients)
+        map.insert("acinetobacter_baumannii_log_odds_middle_age".to_string(), 0.8);   // HIGH risk (ICU patients)
+        map.insert("acinetobacter_baumannii_log_odds_elderly".to_string(), 1.5);      // VERY HIGH risk
+        map.insert("acinetobacter_baumannii_log_odds_very_elderly".to_string(), 1.8); // EXTREMELY HIGH risk
+
+        // Clostridioides difficile - Strongly age-associated (elderly)
+        map.insert("clostridioides_difficile_log_odds_infant".to_string(), -1.0);     // Low risk (protective microbiome)
+        map.insert("clostridioides_difficile_log_odds_preschool".to_string(), -1.5);  // Very low risk
+        map.insert("clostridioides_difficile_log_odds_school".to_string(), -2.0);     // Very low risk
+        map.insert("clostridioides_difficile_log_odds_young_adult".to_string(), -0.5); // Low risk
+        map.insert("clostridioides_difficile_log_odds_middle_age".to_string(), 0.5);  // Moderate risk
+        map.insert("clostridioides_difficile_log_odds_elderly".to_string(), 2.0);     // VERY HIGH risk - major pathogen
+        map.insert("clostridioides_difficile_log_odds_very_elderly".to_string(), 2.8); // EXTREMELY HIGH risk
+
+        // === UROGENITAL BACTERIA ===
+        // Escherichia coli (UTI) - Higher in infants, young women, and elderly
+        map.insert("escherichia_coli_log_odds_infant".to_string(), 1.2);             // HIGH risk - anatomical factors
+        map.insert("escherichia_coli_log_odds_preschool".to_string(), 0.3);          // Moderate risk
+        map.insert("escherichia_coli_log_odds_school".to_string(), 0.0);             // Baseline risk
+        map.insert("escherichia_coli_log_odds_young_adult".to_string(), 0.8);        // HIGH risk - sexual activity, pregnancy
+        map.insert("escherichia_coli_log_odds_middle_age".to_string(), 0.6);         // High risk - continued risk factors
+        map.insert("escherichia_coli_log_odds_elderly".to_string(), 1.5);            // VERY HIGH risk - multiple factors
+        map.insert("escherichia_coli_log_odds_very_elderly".to_string(), 2.0);       // EXTREMELY HIGH risk
+
+        // === INVASIVE/SYSTEMIC BACTERIA ===
+        // Neisseria meningitidis - Bimodal distribution (infants and adolescents/young adults)
+        map.insert("neisseria_meningitidis_log_odds_infant".to_string(), 2.5);           // EXTREMELY HIGH risk
+        map.insert("neisseria_meningitidis_log_odds_preschool".to_string(), 0.8);        // HIGH risk
+        map.insert("neisseria_meningitidis_log_odds_school".to_string(), 1.2);           // VERY HIGH risk
+        map.insert("neisseria_meningitidis_log_odds_young_adult".to_string(), 1.5);      // VERY HIGH risk - dormitories, military
+        map.insert("neisseria_meningitidis_log_odds_middle_age".to_string(), -0.5);      // Low risk
+        map.insert("neisseria_meningitidis_log_odds_elderly".to_string(), 0.0);          // Baseline risk
+        map.insert("neisseria_meningitidis_log_odds_very_elderly".to_string(), 0.3);     // Moderate risk
+
+        // Listeria monocytogenes - Mainly immunocompromised, pregnant women, elderly
+        map.insert("listeria_monocytogenes_log_odds_infant".to_string(), 1.8);          // VERY HIGH risk (neonatal)
+        map.insert("listeria_monocytogenes_log_odds_preschool".to_string(), -0.5);      // Low risk
+        map.insert("listeria_monocytogenes_log_odds_school".to_string(), -1.0);         // Very low risk
+        map.insert("listeria_monocytogenes_log_odds_young_adult".to_string(), 0.5);     // Moderate risk (pregnancy)
+        map.insert("listeria_monocytogenes_log_odds_middle_age".to_string(), 0.0);      // Baseline risk
+        map.insert("listeria_monocytogenes_log_odds_elderly".to_string(), 1.5);         // VERY HIGH risk
+        map.insert("listeria_monocytogenes_log_odds_very_elderly".to_string(), 2.2);    // EXTREMELY HIGH risk
+
+        // --- Bacteria-Specific Age-Region Interaction Overrides ---
+        // These override the general age-region interactions for specific bacteria where there's strong evidence
+        // Format: {bacteria_clean}_{region}_log_odds_{age_category}
+
+        // === SHIGELLA SPP. - STRONG AGE-REGION INTERACTIONS ===
+        // Much higher burden in developing regions, especially in children due to poor sanitation
+        
+        // Africa - Very high burden, especially in children (poor sanitation, malnutrition)
+        map.insert("shigella_spp._africa_log_odds_infant".to_string(), 3.0);        // EXTREMELY HIGH - severe dehydration risk
+        map.insert("shigella_spp._africa_log_odds_preschool".to_string(), 3.5);     // HIGHEST RISK - daycare equivalent settings
+        map.insert("shigella_spp._africa_log_odds_school".to_string(), 2.8);        // VERY HIGH - school crowding
+        map.insert("shigella_spp._africa_log_odds_young_adult".to_string(), 1.0);   // HIGH - caregivers
+        map.insert("shigella_spp._africa_log_odds_middle_age".to_string(), 0.8);    // MODERATE-HIGH
+        map.insert("shigella_spp._africa_log_odds_elderly".to_string(), 1.2);       // HIGH - vulnerability
+        map.insert("shigella_spp._africa_log_odds_very_elderly".to_string(), 1.5);  // VERY HIGH
+
+        // Asia - High burden in children, variable by subregion
+        map.insert("shigella_spp._asia_log_odds_infant".to_string(), 2.5);          // VERY HIGH
+        map.insert("shigella_spp._asia_log_odds_preschool".to_string(), 3.0);       // EXTREMELY HIGH
+        map.insert("shigella_spp._asia_log_odds_school".to_string(), 2.2);          // VERY HIGH
+        map.insert("shigella_spp._asia_log_odds_young_adult".to_string(), 0.8);     // HIGH
+        map.insert("shigella_spp._asia_log_odds_middle_age".to_string(), 0.5);      // MODERATE
+        map.insert("shigella_spp._asia_log_odds_elderly".to_string(), 0.8);         // HIGH
+        map.insert("shigella_spp._asia_log_odds_very_elderly".to_string(), 1.0);    // HIGH
+
+        // Europe - Much lower burden, mainly travel-related
+        map.insert("shigella_spp._europe_log_odds_infant".to_string(), -0.5);       // Low
+        map.insert("shigella_spp._europe_log_odds_preschool".to_string(), 0.2);     // Slight increase (daycare)
+        map.insert("shigella_spp._europe_log_odds_school".to_string(), -0.2);       // Low
+        map.insert("shigella_spp._europe_log_odds_young_adult".to_string(), 0.5);   // Moderate (travel)
+        map.insert("shigella_spp._europe_log_odds_middle_age".to_string(), 0.3);    // Moderate (travel)
+
+        // === SALMONELLA TYPHI - STRONG REGIONAL AND AGE PATTERNS ===
+        // Endemic in South Asia, Sub-Saharan Africa; severe in children
+        
+        // Africa - High burden, especially severe in children
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_infant".to_string(), 2.5);      // EXTREMELY HIGH - very severe
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_preschool".to_string(), 2.2);   // VERY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_school".to_string(), 1.8);      // VERY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_young_adult".to_string(), 1.2); // HIGH
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_middle_age".to_string(), 1.0);  // HIGH
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_elderly".to_string(), 1.5);     // VERY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_africa_log_odds_very_elderly".to_string(), 2.0); // EXTREMELY HIGH
+
+        // Asia - Endemic regions (South Asia), very high burden
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_infant".to_string(), 3.0);        // EXTREMELY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_preschool".to_string(), 2.8);     // EXTREMELY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_school".to_string(), 2.5);        // EXTREMELY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_young_adult".to_string(), 1.8);   // VERY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_middle_age".to_string(), 1.5);    // VERY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_elderly".to_string(), 2.0);       // EXTREMELY HIGH
+        map.insert("salmonella_enterica_serovar_typhi_asia_log_odds_very_elderly".to_string(), 2.5);  // EXTREMELY HIGH
+
+        // Europe/North America - Mainly travel-related, much lower endemic burden
+        map.insert("salmonella_enterica_serovar_typhi_europe_log_odds_young_adult".to_string(), 0.8); // Moderate (travel)
+        map.insert("salmonella_enterica_serovar_typhi_europe_log_odds_middle_age".to_string(), 0.6);  // Moderate (travel)
+        map.insert("salmonella_enterica_serovar_typhi_north_america_log_odds_young_adult".to_string(), 0.5); // Moderate (travel)
+        map.insert("salmonella_enterica_serovar_typhi_north_america_log_odds_middle_age".to_string(), 0.3);  // Moderate (travel)
+
+        // === VIBRIO CHOLERAE - HIGHLY REGION AND AGE SPECIFIC ===
+        // Endemic in specific regions, severe in children and elderly
+        
+        // Africa - High burden in certain regions, water-related
+        map.insert("vibrio_cholerae_africa_log_odds_infant".to_string(), 2.8);       // EXTREMELY HIGH - severe dehydration
+        map.insert("vibrio_cholerae_africa_log_odds_preschool".to_string(), 2.5);    // EXTREMELY HIGH
+        map.insert("vibrio_cholerae_africa_log_odds_school".to_string(), 2.0);       // VERY HIGH
+        map.insert("vibrio_cholerae_africa_log_odds_young_adult".to_string(), 1.2);  // HIGH
+        map.insert("vibrio_cholerae_africa_log_odds_middle_age".to_string(), 1.0);   // HIGH
+        map.insert("vibrio_cholerae_africa_log_odds_elderly".to_string(), 2.0);      // EXTREMELY HIGH
+        map.insert("vibrio_cholerae_africa_log_odds_very_elderly".to_string(), 2.5); // EXTREMELY HIGH
+
+        // Asia - Endemic regions, high burden
+        map.insert("vibrio_cholerae_asia_log_odds_infant".to_string(), 3.2);         // EXTREMELY HIGH
+        map.insert("vibrio_cholerae_asia_log_odds_preschool".to_string(), 2.8);      // EXTREMELY HIGH
+        map.insert("vibrio_cholerae_asia_log_odds_school".to_string(), 2.2);         // VERY HIGH
+        map.insert("vibrio_cholerae_asia_log_odds_young_adult".to_string(), 1.5);    // VERY HIGH
+        map.insert("vibrio_cholerae_asia_log_odds_middle_age".to_string(), 1.3);     // HIGH
+        map.insert("vibrio_cholerae_asia_log_odds_elderly".to_string(), 2.2);        // EXTREMELY HIGH
+        map.insert("vibrio_cholerae_asia_log_odds_very_elderly".to_string(), 2.8);   // EXTREMELY HIGH
+
+        // Europe/North America - Very rare, mainly travel-related
+        map.insert("vibrio_cholerae_europe_log_odds_young_adult".to_string(), -1.0); // Low (travel)
+        map.insert("vibrio_cholerae_europe_log_odds_middle_age".to_string(), -0.8);  // Low (travel)
+        map.insert("vibrio_cholerae_north_america_log_odds_young_adult".to_string(), -1.2); // Very low
+        map.insert("vibrio_cholerae_north_america_log_odds_middle_age".to_string(), -1.0);  // Very low
+
+        // === NEISSERIA MENINGITIDIS - SPECIFIC HIGH-RISK COMBINATIONS ===
+        // Higher burden in "meningitis belt" of Africa, specific age patterns
+        
+        // Africa - "Meningitis belt", extremely high infant and adolescent/young adult risk
+        map.insert("neisseria_meningitidis_africa_log_odds_infant".to_string(), 3.5);      // EXTREMELY HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_preschool".to_string(), 1.5);   // HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_school".to_string(), 2.0);      // VERY HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_young_adult".to_string(), 2.2); // EXTREMELY HIGH - "meningitis belt"
+        map.insert("neisseria_meningitidis_africa_log_odds_middle_age".to_string(), 0.5);  // Moderate
+        map.insert("neisseria_meningitidis_africa_log_odds_elderly".to_string(), 0.8);     // HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_very_elderly".to_string(), 1.0); // HIGH
+
+        // Europe/North America - Much lower overall burden, but maintain age pattern
+        map.insert("neisseria_meningitidis_europe_log_odds_infant".to_string(), 1.8);      // Still high in infants
+        map.insert("neisseria_meningitidis_europe_log_odds_young_adult".to_string(), 0.8); // Moderate (university outbreaks)
+        map.insert("neisseria_meningitidis_north_america_log_odds_infant".to_string(), 2.0);     // High in infants
+        map.insert("neisseria_meningitidis_north_america_log_odds_young_adult".to_string(), 0.6); // Moderate (dormitories)
+
+        // === HAEMOPHILUS INFLUENZAE - VACCINATION IMPACT VARIES BY REGION ===
+        // Lower burden in regions with good Hib vaccination coverage
+        
+        // Africa - Higher burden due to limited vaccination coverage
+        map.insert("haemophilus_influenzae_africa_log_odds_infant".to_string(), 3.5);      // EXTREMELY HIGH
+        map.insert("haemophilus_influenzae_africa_log_odds_preschool".to_string(), 2.5);   // EXTREMELY HIGH
+        map.insert("haemophilus_influenzae_africa_log_odds_school".to_string(), 1.5);      // VERY HIGH
+        
+        // Asia - Variable vaccination coverage
+        map.insert("haemophilus_influenzae_asia_log_odds_infant".to_string(), 3.0);        // EXTREMELY HIGH
+        map.insert("haemophilus_influenzae_asia_log_odds_preschool".to_string(), 2.0);     // VERY HIGH
+        map.insert("haemophilus_influenzae_asia_log_odds_school".to_string(), 1.2);        // HIGH
+
+        // Europe - Good vaccination coverage, lower pediatric burden
+        map.insert("haemophilus_influenzae_europe_log_odds_infant".to_string(), 1.5);      // Still elevated but lower
+        map.insert("haemophilus_influenzae_europe_log_odds_preschool".to_string(), 0.8);   // Moderate
+        map.insert("haemophilus_influenzae_europe_log_odds_school".to_string(), 0.3);      // Lower
+
+        // North America - Excellent vaccination coverage
+        map.insert("haemophilus_influenzae_north_america_log_odds_infant".to_string(), 1.2); // Lower due to vaccination
+        map.insert("haemophilus_influenzae_north_america_log_odds_preschool".to_string(), 0.5); // Much lower
+        map.insert("haemophilus_influenzae_north_america_log_odds_school".to_string(), 0.1);    // Very low
 
         // Region-specific bacterial infection risk multipliers
         // Based on real-world epidemiological patterns and regional prevalence

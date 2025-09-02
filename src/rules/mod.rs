@@ -227,92 +227,6 @@ pub fn apply_rules(
 
 
     // ---  Update Contact and Exposure Levels ---
-    // get general parameters for fluctuations and bounds
-    let daily_fluctuation = get_global_param("contact_level_daily_fluctuation_range").unwrap_or(0.5);
-    let min_contact_level = get_global_param("min_contact_level").unwrap_or(0.0);
-    let max_contact_level = get_global_param("max_contact_level").unwrap_or(10.0);
-
-    // helper closure for applying fluctuation and clamping
-    // this calculates a 'target' or 'base' level, then adds noise and clamps it.
-    let mut update_contact_level = |current_level: &mut f64, base_level: f64| {
-        *current_level = base_level + rng.gen_range(-daily_fluctuation..=daily_fluctuation);
-        *current_level = current_level.clamp(min_contact_level, max_contact_level);
-    };
-
-    //  sexual contact level
-    let sexual_contact_age_peak_days = get_global_param("sexual_contact_age_peak_days").unwrap_or(25.0 * 365.0);
-    let sexual_contact_age_decline_rate = get_global_param("sexual_contact_age_decline_rate").unwrap_or(0.00005);
-    let sexual_contact_hospital_multiplier = get_global_param("sexual_contact_hospital_multiplier").unwrap_or(0.0); // Typically very low in hospital
-
-    let mut base_sexual_level = get_global_param("sexual_contact_baseline").unwrap_or(5.0);
-    if (individual.age as f64) < sexual_contact_age_peak_days {
-    // Increase towards peak, but don't exceed baseline before peak
-        base_sexual_level *= ((individual.age as f64 / sexual_contact_age_peak_days).min(1.0)).powf(get_global_param("sexual_contact_age_rise_exponent").unwrap_or(2.0));
-    } else {
-    // decline after peak
-        base_sexual_level *= (1.0 - (individual.age as f64 - sexual_contact_age_peak_days) * sexual_contact_age_decline_rate).max(0.0);
-    }
-
-    if individual.hospital_status.is_hospitalized() {
-        base_sexual_level *= sexual_contact_hospital_multiplier;
-    }
-    update_contact_level(&mut individual.sexual_contact_level, base_sexual_level);
-
-
-    // airborne contact level with adults
-    let airborne_adult_baseline = get_global_param("airborne_contact_adult_baseline").unwrap_or(5.0);
-    let airborne_adult_age_breakpoint_days = get_global_param("airborne_contact_adult_age_breakpoint_days").unwrap_or(18.0 * 365.0); // 18 years old
-    let airborne_in_hospital_multiplier = get_global_param("airborne_contact_in_hospital_multiplier").unwrap_or(1.5); // Might increase in hospital (e.g., healthcare workers)
-    let airborne_adult_child_multiplier = get_global_param("airborne_contact_adult_child_multiplier").unwrap_or(0.2); // How much less children contact adults
-
-    let mut base_airborne_adult_level = airborne_adult_baseline;
-    if (individual.age as f64) < airborne_adult_age_breakpoint_days {
-        base_airborne_adult_level *= airborne_adult_child_multiplier; // Children have less adult contact
-    }
-    if individual.hospital_status.is_hospitalized() {
-        base_airborne_adult_level *= airborne_in_hospital_multiplier;
-    }
-    update_contact_level(&mut individual.airborne_contact_level_with_adults, base_airborne_adult_level);
-
-
-    // Airborne Contact Level with Children
-    let airborne_child_baseline = get_global_param("airborne_contact_child_baseline").unwrap_or(3.0);
-    let airborne_child_age_breakpoint_days = get_global_param("airborne_contact_child_age_breakpoint_days").unwrap_or(12.0 * 365.0); // 12 years old
-    let airborne_child_adult_multiplier = get_global_param("airborne_contact_child_adult_multiplier").unwrap_or(0.5); // How much less adults contact children (than children contact children)
-
-    let mut base_airborne_child_level = airborne_child_baseline;
-    if (individual.age as f64) < airborne_child_age_breakpoint_days {
-        // Higher for children interacting with children
-        base_airborne_child_level *= get_global_param("airborne_contact_child_child_multiplier").unwrap_or(1.5);
-    } else {
-        // Lower for adults interacting with children (e.g., parents/teachers)
-        base_airborne_child_level *= airborne_child_adult_multiplier;
-    }
-    if individual.hospital_status.is_hospitalized() {
-        base_airborne_child_level *= airborne_in_hospital_multiplier; // Same multiplier for simplicity
-    }
-    update_contact_level(&mut individual.airborne_contact_level_with_children, base_airborne_child_level);
-
-
-    // Oral Exposure Level
-    let oral_exposure_baseline = get_global_param("oral_exposure_baseline").unwrap_or(2.0);
-    let oral_exposure_child_age_breakpoint_days = get_global_param("oral_exposure_child_age_breakpoint_days").unwrap_or(5.0 * 365.0); // 5 years old
-    let oral_exposure_child_multiplier = get_global_param("oral_exposure_child_multiplier").unwrap_or(3.0);
-    let oral_exposure_in_hospital_multiplier = get_global_param("oral_exposure_in_hospital_multiplier").unwrap_or(0.8); // Might decrease in hospital due to hygiene
-
-    let mut base_oral_level = oral_exposure_baseline;
-    if (individual.age as f64) < oral_exposure_child_age_breakpoint_days {
-        base_oral_level *= oral_exposure_child_multiplier;
-    }
-    if individual.hospital_status.is_hospitalized() {
-        base_oral_level *= oral_exposure_in_hospital_multiplier;
-    }
-    update_contact_level(&mut individual.oral_exposure_level, base_oral_level);
-
-    // --- end update contact and exposure levels ---
-
-
-
     //  update immunodeficiency status based on onset/recovery rates and type
     
     // Get rates for both types
@@ -1217,16 +1131,19 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             // All risk factors contribute additively to log-odds, then logistic function is applied.
             let mut log_odds = get_bacteria_param(bacteria, "acquisition_log_odds_baseline").unwrap_or_else(|| get_global_param("acquisition_log_odds_baseline").unwrap_or(-4.0));
 
-            // Contact/exposure log-odds coefficients (per unit contact)
-            let log_odds_sexual_contact = get_bacteria_param(bacteria, "log_odds_sexual_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_sexual_contact_per_unit").unwrap_or(0.0));
-            let log_odds_airborne_adult = get_bacteria_param(bacteria, "log_odds_airborne_adult_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_adult_contact_per_unit").unwrap_or(0.0));
-            let log_odds_airborne_child = get_bacteria_param(bacteria, "log_odds_airborne_child_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_child_contact_per_unit").unwrap_or(0.0));
-            let log_odds_oral_exposure = get_bacteria_param(bacteria, "log_odds_oral_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_oral_exposure_per_unit").unwrap_or(0.0));
+            // Get age category and clean bacteria name (used multiple times)
+            let age_category_str = crate::simulation::population::get_age_category_str(individual.age);
+            let bacteria_clean = bacteria.replace(" ", "_");
+            let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
 
-            log_odds += individual.sexual_contact_level * log_odds_sexual_contact;
-            log_odds += individual.airborne_contact_level_with_adults * log_odds_airborne_adult;
-            log_odds += individual.airborne_contact_level_with_children * log_odds_airborne_child;
-            log_odds += individual.oral_exposure_level * log_odds_oral_exposure;
+            // Age category effect (bacteria-specific with fallback to default)
+            let age_bacteria_key = format!("{}_log_odds_{}", bacteria_clean, age_category_str);
+            let log_odds_age_category = get_global_param(&age_bacteria_key)
+                .unwrap_or_else(|| {
+                    let default_age_key = format!("default_log_odds_{}", age_category_str);
+                    get_global_param(&default_age_key).unwrap_or(0.0)
+                });
+            log_odds += log_odds_age_category;
 
             // Vaccination status (binary effect)
             if individual.vaccination_status[b_idx] {
@@ -1250,16 +1167,24 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let log_odds_age = get_age_infection_multiplier(bacteria, individual.age); // If this returns log-odds, otherwise replace with appropriate function
             log_odds += log_odds_age;
 
-            // Region-specific effect
-            let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-            let bacteria_clean = bacteria.replace(" ", "_");
-            let region_bacteria_log_odds_key = &param_cache.region_bacteria_acquisition_keys[&(region_name_for_param.clone(), bacteria_clean)];
+            // Region-specific effect (bacteria-specific with fallback to general region effect)
+            let region_bacteria_log_odds_key = &param_cache.region_bacteria_acquisition_keys[&(region_name_for_param.clone(), bacteria_clean.clone())];
             let region_bacteria_log_odds = get_global_param(region_bacteria_log_odds_key)
                 .unwrap_or_else(|| {
                     let default_region_key = &param_cache.region_bacteria_default_keys[&region_name_for_param];
                     get_global_param(default_region_key).unwrap_or(0.0)
                 });
             log_odds += region_bacteria_log_odds;
+
+            // Age-Region interaction effect (bacteria-specific with fallback to general age-region)
+            let age_region_bacteria_key = format!("{}_{}_log_odds_{}", bacteria_clean, region_name_for_param, age_category_str);
+            let log_odds_age_region_bacteria = get_global_param(&age_region_bacteria_key)
+                .unwrap_or_else(|| {
+                    // Fallback to general age-region interaction (not bacteria-specific)
+                    let age_region_key = format!("{}_log_odds_{}", region_name_for_param, age_category_str);
+                    get_global_param(&age_region_key).unwrap_or(0.0)
+                });
+            log_odds += log_odds_age_region_bacteria;
 
             // Convert log-odds to probability
             let acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
@@ -1269,23 +1194,19 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 // Use the same log-odds formula as infection acquisition, with an extra microbiome-vs-infection log-odds parameter
                 let mut log_odds = get_bacteria_param(bacteria, "acquisition_log_odds_baseline").unwrap_or_else(|| get_global_param("acquisition_log_odds_baseline").unwrap_or(-4.0));
 
-                // Contact/exposure log-odds coefficients (per unit contact)
-                let log_odds_sexual_contact = get_bacteria_param(bacteria, "log_odds_sexual_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_sexual_contact_per_unit").unwrap_or(0.0));
-                let log_odds_airborne_adult = get_bacteria_param(bacteria, "log_odds_airborne_adult_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_adult_contact_per_unit").unwrap_or(0.0));
-                let log_odds_airborne_child = get_bacteria_param(bacteria, "log_odds_airborne_child_contact_per_unit").unwrap_or_else(|| get_global_param("log_odds_airborne_child_contact_per_unit").unwrap_or(0.0));
-                let log_odds_oral_exposure = get_bacteria_param(bacteria, "log_odds_oral_exposure_per_unit").unwrap_or_else(|| get_global_param("log_odds_oral_exposure_per_unit").unwrap_or(0.0));
-
-                log_odds += individual.sexual_contact_level * log_odds_sexual_contact;
-                log_odds += individual.airborne_contact_level_with_adults * log_odds_airborne_adult;
-                log_odds += individual.airborne_contact_level_with_children * log_odds_airborne_child;
-                log_odds += individual.oral_exposure_level * log_odds_oral_exposure;
+                // Age category effect (reuse variables from above)
+                let log_odds_age_category = get_global_param(&age_bacteria_key)
+                    .unwrap_or_else(|| {
+                        let default_age_key = format!("default_log_odds_{}", age_category_str);
+                        get_global_param(&default_age_key).unwrap_or(0.0)
+                    });
+                log_odds += log_odds_age_category;
 
                 // Vaccination status (binary effect)
                 if individual.vaccination_status[b_idx] {
                     let log_odds_vaccinated = get_bacteria_param(bacteria, "log_odds_vaccinated").unwrap_or_else(|| get_global_param("log_odds_vaccinated").unwrap_or(0.0));
                     log_odds += log_odds_vaccinated;
                 }
-
 
                 // Hospital-acquired effect
                 if individual.hospital_status.is_hospitalized() {
@@ -1297,10 +1218,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let log_odds_age = get_age_infection_multiplier(bacteria, individual.age);
                 log_odds += log_odds_age;
 
-                // Region-specific effect
-                let region_name_for_param = individual.region_cur_in.to_string().to_lowercase().replace(" ", "_");
-                let bacteria_clean = bacteria.replace(" ", "_");
-                let region_bacteria_log_odds_key = &param_cache.region_bacteria_acquisition_keys[&(region_name_for_param.clone(), bacteria_clean)];
+                // Region-specific effect (reuse variables from above)
+                let region_bacteria_log_odds_key = &param_cache.region_bacteria_acquisition_keys[&(region_name_for_param.clone(), bacteria_clean.clone())];
                 let region_bacteria_log_odds = get_global_param(region_bacteria_log_odds_key)
                     .unwrap_or_else(|| {
                         let default_region_key = &param_cache.region_bacteria_default_keys[&region_name_for_param];
@@ -1308,8 +1227,16 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     });
                 log_odds += region_bacteria_log_odds;
 
+                // Age-Region interaction effect (reuse variables from above)
+                let log_odds_age_region_bacteria = get_global_param(&age_region_bacteria_key)
+                    .unwrap_or_else(|| {
+                        // Fallback to general age-region interaction (not bacteria-specific)
+                        let age_region_key = format!("{}_log_odds_{}", region_name_for_param, age_category_str);
+                        get_global_param(&age_region_key).unwrap_or(0.0)
+                    });
+                log_odds += log_odds_age_region_bacteria;
+
                 // Add the extra log-odds for microbiome vs infection (bacteria-specific)
-                let bacteria_clean = bacteria.replace(" ", "_");
                 let microbiome_vs_infection_key = format!("{}_log_odds_microbiome_vs_infection", bacteria_clean);
                 let log_odds_microbiome_vs_infection = get_global_param(&microbiome_vs_infection_key)
                     .unwrap_or_else(|| get_global_param("log_odds_microbiome_vs_infection").unwrap_or(-6.0)); // Fallback to old global param if bacteria-specific not found

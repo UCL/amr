@@ -132,6 +132,19 @@ pub enum ImmunodeficiencyType {
     Chronic,
 }
 
+/// Helper function to get age category string for parameter lookups
+pub fn get_age_category_str(age_days: i32) -> &'static str {
+    match age_days {
+        0..=730 => "infant",           // 0-2 years
+        731..=2190 => "preschool",     // 3-5 years  
+        2191..=6574 => "school",       // 6-17 years
+        6575..=10949 => "young_adult", // 18-29 years
+        10950..=23359 => "middle_age", // 30-64 years
+        23360..=28854 => "elderly",    // 65-79 years
+        _ => "very_elderly",           // 80+ years
+    }
+}
+
 impl ImmunodeficiencyType {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -286,10 +299,6 @@ pub struct Individual {
     pub ever_taken_drug: Vec<bool>,
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,  
-    pub sexual_contact_level: f64,
-    pub airborne_contact_level_with_adults: f64,
-    pub airborne_contact_level_with_children: f64,
-    pub oral_exposure_level: f64,
     pub infection_hospital_acquired: Vec<bool>,    
     pub current_toxicity: f64,
     pub mortality_risk_current_toxicity: f64, 
@@ -407,10 +416,6 @@ impl Individual {
             ever_taken_drug: vec![false; num_drugs],
             current_infection_related_death_risk: 0.0,
             background_all_cause_mortality_rate,  
-            sexual_contact_level: rng.gen_range(0.0..=10.0),
-            airborne_contact_level_with_adults: rng.gen_range(0.0..=10.0),
-            airborne_contact_level_with_children: rng.gen_range(0.0..=10.0),
-            oral_exposure_level: rng.gen_range(0.0..=10.0),
             infection_hospital_acquired,
             cur_infection_from_environment,
             test_identified_infection,

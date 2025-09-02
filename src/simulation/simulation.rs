@@ -239,10 +239,6 @@ impl Simulation {
         println!("region currently in: {:?}", population.individuals[0].region_cur_in);
         println!("current_infection_related_death_risk: {:.2}", population.individuals[0].current_infection_related_death_risk);
         println!("background_all_cause_mortality_rate: {:.4}", population.individuals[0].background_all_cause_mortality_rate);
-        println!("sexual_contact_level: {:.2}", population.individuals[0].sexual_contact_level);
-        println!("airborne_contact_level_with_adults: {:.2}", population.individuals[0].airborne_contact_level_with_adults);
-        println!("airborne_contact_level_with_children: {:.2}", population.individuals[0].airborne_contact_level_with_children);
-        println!("oral_exposure_level: {:.2}", population.individuals[0].oral_exposure_level);
         println!("current_toxicity: {:.2}", population.individuals[0].current_toxicity);
         println!("mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
         println!(" ");
@@ -1214,7 +1210,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,sexual_contact_level,airborne_contact_level_with_adults,airborne_contact_level_with_children,oral_exposure_level,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -1282,7 +1278,7 @@ impl Simulation {
                         .collect::<Vec<_>>()
                         .join(";");
 
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{}",
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{}",
                         t,
                         i,
                         ind.id,
@@ -1292,10 +1288,6 @@ impl Simulation {
                         ind.region_cur_in,
                         ind.current_infection_related_death_risk,
                         ind.background_all_cause_mortality_rate,
-                        ind.sexual_contact_level,
-                        ind.airborne_contact_level_with_adults,
-                        ind.airborne_contact_level_with_children,
-                        ind.oral_exposure_level,
                         ind.current_toxicity,
                         ind.mortality_risk_current_toxicity,
                         format!("{:?}", ind.hospital_status),
