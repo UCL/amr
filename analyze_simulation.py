@@ -51,6 +51,8 @@ age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots 
 incidence_of_infection = False  # NEW: Incidence of infection plots by bacteria and region
 death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
 syndrome_distribution_by_bacteria = False  # NEW: Syndrome distribution plots by bacteria
+proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = True  # NEW: Proportion with any_r > 0 by drug for each bacteria
+mean_mic_by_drug_for_each_bacteria = True  # NEW: Mean MIC by drug for each bacteria plots
 
 # =============================================================================
 # CONFIGURATION
@@ -190,20 +192,15 @@ def create_grouped_plots(df):
     # --- Group 1 ---
     fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes1 = axes1.flatten()
-    fig1.suptitle('Grouped Figure 1: Population, Resistance Proportion, Hospitalization Proportion, Resistance Among Infected', fontsize=16)
+    fig1.suptitle('Grouped Figure 1: Population, Hospitalization Proportion, Resistance Among Infected', fontsize=16)
     # 1. Living Population Over Time
     axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
     axes1[0].set_title('Living Population Over Time')
     axes1[0].set_ylabel('Count')
     axes1[0].set_ylim(bottom=0)
     axes1[0].grid(True, alpha=0.3)
-    # 2. Individuals with Resistance Over Time (as Proportion)
-    resistance_proportion = pd.Series(df['total_with_resistance'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-    axes1[1].plot(df['time_in_years'], resistance_proportion, 'orange', linewidth=2)
-    axes1[1].set_title('Individuals with Resistance (Proportion of Living Population)')
-    axes1[1].set_ylabel('Proportion of Population')
-    axes1[1].set_ylim(bottom=0)
-    axes1[1].grid(True, alpha=0.3)
+    # 2. Empty plot (plot b removed)
+    axes1[1].set_axis_off()
     # 3. Hospitalized & Immunosuppressed as Proportions
     hospital_proportion = pd.Series(df['number_in_hospital'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
     immunosuppressed_proportion = pd.Series(df['number_severely_immunosuppressed'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
@@ -218,13 +215,13 @@ def create_grouped_plots(df):
     # 4. Proportion with Resistance Among Currently Infected
     if 'resistance_among_infected' in df.columns:
         axes1[3].plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'purple', linewidth=2)
-        axes1[3].set_title('Proportion with Resistance Among Currently Infected')
+        axes1[3].set_title('Proportion with bacteria that has resistance to any drug\n(whether that drug is being taken or not)')
         axes1[3].set_ylabel('Proportion')
         axes1[3].set_ylim(bottom=0)
         axes1[3].grid(True, alpha=0.3)
     else:
         axes1[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-        axes1[3].set_title('Proportion with Resistance Among Currently Infected')
+        axes1[3].set_title('Proportion with bacteria that has resistance to any drug\n(whether that drug is being taken or not)')
         axes1[3].set_axis_off()
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig('output_graphs/grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
@@ -501,10 +498,10 @@ def create_grouped_plots(df):
             found_region_data = True
     
     if found_region_data:
-        axes4[3].set_title('Mean Any-R Resistance Level by Region\n(All Bacteria & Drugs Pooled)', fontsize=12)
+        axes4[3].set_title('Mean Total Resistance Burden Per Infected Person by Region\n(Sum of any_r values across all bacteria-drug combinations\ndivided by number of infected people)', fontsize=11)
         axes4[3].set_xlabel('Time (Years)', fontsize=10)
-        axes4[3].set_ylabel('Mean Any-R Level (0-1)', fontsize=10)
-        axes4[3].set_ylim(0, 1)
+        axes4[3].set_ylabel('Mean Resistance Sum Per Person', fontsize=10)
+        axes4[3].set_ylim(bottom=0)  # Let matplotlib auto-scale the top
         axes4[3].grid(True, alpha=0.3)
         axes4[3].legend(fontsize=8, loc='upper left')
         axes4[3].tick_params(axis='both', which='major', labelsize=9)
@@ -3623,6 +3620,335 @@ def create_syndrome_distribution_by_bacteria_plots(df):
 
 
 # =============================================================================
+# PROPORTION WITH ANY RESISTANCE BY DRUG FOR EACH BACTERIA PLOTS
+# =============================================================================
+def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(df):
+    """
+    Create plots showing proportion of people infected with each bacteria who have any_r > 0 for each drug.
+    One plot per bacteria, with multiple drug lines on each plot.
+    Saves plots to: output_graphs/proportion_of_people_with_any_resistance_by_drug_for_each_bacteria/
+    """
+    print("\n=== CREATING PROPORTION WITH ANY RESISTANCE BY DRUG FOR EACH BACTERIA PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/proportion_of_people_with_any_resistance_by_drug_for_each_bacteria")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Extract bacteria names from currently infected columns
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("  ⚠ No bacteria infection columns found (*_currently_infected)")
+        return
+    
+    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
+    print(f"  Found {len(bacteria_names)} bacteria: {bacteria_names}")
+    
+    # Extract drug names from columns
+    drug_names = []
+    for col in df.columns:
+        if '_infected_with_any_r_positive_' in col:
+            parts = col.split('_infected_with_any_r_positive_')
+            if len(parts) == 2:
+                drug = parts[1]
+                if drug not in drug_names:
+                    drug_names.append(drug)
+    
+    print(f"  Found {len(drug_names)} drugs with resistance data: {drug_names}")
+    
+    if not drug_names:
+        print("  ⚠ No resistance columns found (*_infected_with_any_r_positive_*)")
+        print("  Make sure the Rust simulation has been run with the updated code to generate these columns")
+        return
+    
+    plots_created = 0
+    
+    # Create one plot per bacteria
+    for bacteria in bacteria_names:
+        print(f"  Creating plot for {bacteria}...")
+        
+        # Check if this bacteria has infection data
+        infection_col = f"{bacteria}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"    ⚠ Missing infection column: {infection_col}")
+            continue
+        
+        # Debug: Check infection levels
+        max_infected = df[infection_col].max()
+        print(f"    Max infected with {bacteria}: {max_infected}")
+        if max_infected == 0:
+            print(f"    ⚠ No infections found for {bacteria}")
+            continue
+            
+        # Find relevant drugs for this bacteria (those with resistance columns and non-zero infections)
+        relevant_drugs = []
+        for drug in drug_names:
+            resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+            if resistance_col in df.columns:
+                # Check if there's ever any infections with this bacteria to avoid empty plots
+                if df[infection_col].max() > 0:
+                    relevant_drugs.append(drug)
+        
+        if not relevant_drugs:
+            print(f"    ⚠ No relevant drugs found for {bacteria}")
+            continue
+            
+        print(f"    Relevant drugs: {relevant_drugs}")
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        colors = plt.cm.Set1(np.linspace(0, 1, len(relevant_drugs)))
+        lines_plotted = 0
+        
+        for i, drug in enumerate(relevant_drugs):
+            resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+            
+            if resistance_col not in df.columns:
+                print(f"      ⚠ Missing resistance column: {resistance_col}")
+                continue
+                
+            # Debug: Check resistance data
+            resistance_counts = df[resistance_col]
+            total_infected = df[infection_col]
+            max_resistance = resistance_counts.max()
+            print(f"      {drug}: max resistance count = {max_resistance}")
+            
+            # Calculate proportion: (infected with any_r > 0) / (total infected)
+            proportion = np.where(total_infected > 0, resistance_counts / total_infected, 0)
+            max_proportion = proportion.max()
+            print(f"      {drug}: max proportion = {max_proportion:.3f}")
+            
+            # Plot the line with thicker lines for better visibility
+            ax.plot(df['time_in_years'], proportion, 
+                   color=colors[i], linewidth=3, label=drug, alpha=0.9)
+            lines_plotted += 1
+        
+        if lines_plotted == 0:
+            print(f"    ⚠ No data to plot for {bacteria}")
+            plt.close(fig)
+            continue
+            
+        # Format the plot
+        ax.set_xlabel('Time (years)', fontsize=12)
+        ax.set_ylabel('Proportion with Resistance (any_r > 0)', fontsize=12)
+        ax.set_title(f'Proportion of {bacteria.replace("_", " ").title()} Infections\nwith Resistance by Drug', 
+                    fontsize=14, fontweight='bold')
+        
+        # Set y-axis to 0-1 range, but if all data is very small, adjust the range
+        max_prop_in_plot = 0
+        for i, drug in enumerate(relevant_drugs):
+            resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+            if resistance_col in df.columns:
+                resistance_counts = df[resistance_col]
+                total_infected = df[infection_col]
+                proportion = np.where(total_infected > 0, resistance_counts / total_infected, 0)
+                max_prop_in_plot = max(max_prop_in_plot, proportion.max())
+        
+        if max_prop_in_plot > 0:
+            if max_prop_in_plot < 0.01:  # If max is less than 1%, adjust y-axis
+                ax.set_ylim(0, min(0.05, max_prop_in_plot * 1.2))
+            else:
+                ax.set_ylim(0, 1)
+        else:
+            ax.set_ylim(0, 1)
+        
+        # Add grid
+        ax.grid(True, alpha=0.3)
+        
+        # Add legend - always show it to see what drugs are included
+        if lines_plotted > 0:
+            if lines_plotted <= 15:  # Show legend if not too many drugs
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+            else:
+                ax.text(0.02, 0.02, f"{lines_plotted} drugs plotted", transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='bottom')
+        
+        # Add summary statistics as text
+        if lines_plotted > 0:
+            # Calculate final proportions
+            final_props = []
+            for drug in relevant_drugs:
+                resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+                if resistance_col in df.columns and len(df) > 0:
+                    final_resistance = df[resistance_col].iloc[-1]
+                    final_infected = df[infection_col].iloc[-1]
+                    if final_infected > 0:
+                        final_prop = final_resistance / final_infected
+                        final_props.append(f"{drug}: {final_prop:.1%}")
+            
+            if final_props:
+                props_text = "Final proportions:\n" + "\n".join(final_props[:5])  # Show max 5
+                ax.text(0.02, 0.98, props_text, transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='top', 
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor="wheat", alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"bacteria_{bacteria}_proportion_with_any_resistance_by_drug.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        plots_created += 1
+        print(f"    ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No plots created - check that resistance data columns exist in CSV")
+        print("  Expected columns like: bacteria_infected_with_any_r_positive_drug")
+        print("  Make sure to run the updated Rust simulation first")
+    else:
+        print(f"✓ Created {plots_created} proportion with any resistance plots")
+
+
+# =============================================================================
+# MEAN MIC BY DRUG FOR EACH BACTERIA PLOTS
+# =============================================================================
+def create_mean_mic_by_drug_for_each_bacteria_plots(df):
+    """
+    Create plots showing mean MIC for each drug amongst people infected with each bacteria.
+    One plot per bacteria, with multiple drug lines on each plot.
+    Saves plots to: output_graphs/mean_mic_by_drug_per_bacteria/
+    """
+    print("\n=== CREATING MEAN MIC BY DRUG FOR EACH BACTERIA PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/mean_mic_by_drug_per_bacteria")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Extract bacteria names from currently infected columns
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("  ⚠ No bacteria infection columns found (*_currently_infected)")
+        return
+    
+    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
+    print(f"  📊 Found {len(bacteria_names)} bacteria to analyze")
+    
+    # Extract all available drugs from MIC sum columns
+    mic_sum_cols = [col for col in df.columns if '_sum_mic_' in col]
+    if not mic_sum_cols:
+        print("  ⚠ No MIC sum columns found (*_sum_mic_*)")
+        print("  Make sure to run the updated Rust simulation first")
+        return
+    
+    # Extract drug names from MIC sum columns
+    all_drugs = set()
+    for col in mic_sum_cols:
+        if '_sum_mic_' in col:
+            drug = col.split('_sum_mic_')[1]
+            all_drugs.add(drug)
+    
+    all_drugs = sorted(list(all_drugs))
+    print(f"  💊 Found {len(all_drugs)} drugs to analyze: {all_drugs[:5]}{'...' if len(all_drugs) > 5 else ''}")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_names:
+        print(f"\n  Processing bacteria: {bacteria}")
+        
+        # Get the infection count column for this bacteria
+        infection_col = f"{bacteria}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"    ⚠ Skipping {bacteria} - no infection data column")
+            continue
+        
+        # Find relevant drugs for this bacteria (those with MIC sum data)
+        relevant_drugs = []
+        for drug in all_drugs:
+            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+            if mic_sum_col in df.columns:
+                relevant_drugs.append(drug)
+        
+        if not relevant_drugs:
+            print(f"    ⚠ Skipping {bacteria} - no MIC sum data found")
+            continue
+        
+        print(f"    Found {len(relevant_drugs)} drugs with MIC sum data")
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        lines_plotted = 0
+        
+        for drug in relevant_drugs:
+            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+            
+            # Calculate mean MIC over time
+            mean_mic_values = []
+            for _, row in df.iterrows():
+                infected_count = row[infection_col]
+                mic_sum = row[mic_sum_col]
+                
+                if infected_count > 0:
+                    mean_mic = mic_sum / infected_count
+                    mean_mic_values.append(mean_mic)
+                else:
+                    mean_mic_values.append(0)  # No infections means MIC is undefined, use 0
+            
+            # Only plot if there's meaningful data (non-zero values)
+            if any(val > 0 for val in mean_mic_values):
+                plt.plot(df['time_in_years'], mean_mic_values, 
+                        label=drug, linewidth=1.5, alpha=0.8)
+                lines_plotted += 1
+        
+        # Customize the plot
+        bacteria_clean = bacteria.replace('_', ' ').title()
+        plt.title(f'Mean MIC by Drug - {bacteria_clean}', fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('Mean MIC', fontsize=12)
+        
+        # Set y-axis to start at 0 and use appropriate scaling
+        plt.ylim(bottom=0)
+        
+        # Add grid
+        plt.grid(True, alpha=0.3)
+        
+        # Add legend - always show it to see what drugs are included
+        if lines_plotted > 0:
+            # Always show legend, just adjust font size based on number of drugs
+            fontsize = max(6, min(9, 12 - lines_plotted // 10))
+            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=fontsize)
+        
+        # Add summary statistics as text
+        if lines_plotted > 0:
+            # Calculate final mean MICs
+            final_mics = []
+            for drug in relevant_drugs:
+                mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+                if mic_sum_col in df.columns and len(df) > 0:
+                    final_infected = df[infection_col].iloc[-1]
+                    final_mic_sum = df[mic_sum_col].iloc[-1]
+                    if final_infected > 0:
+                        final_mean_mic = final_mic_sum / final_infected
+                        final_mics.append(f"{drug}: {final_mean_mic:.2f}")
+            
+            if final_mics:
+                mics_text = "Final mean MICs:\n" + "\n".join(final_mics[:5])  # Show max 5
+                plt.gca().text(0.02, 0.98, mics_text, transform=plt.gca().transAxes, 
+                              fontsize=9, verticalalignment='top', 
+                              bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"bacteria_{bacteria}_mean_mic_by_drug.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        plots_created += 1
+        print(f"    ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No plots created - check that MIC sum data columns exist in CSV")
+        print("  Expected columns like: bacteria_sum_mic_drug")
+        print("  Make sure to run the updated Rust simulation first")
+    else:
+        print(f"✓ Created {plots_created} mean MIC by drug plots")
+
+
+# =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
 
@@ -3746,6 +4072,18 @@ def main():
     else:
         print("\n=== SKIPPING syndrome_distribution_by_bacteria plots (set syndrome_distribution_by_bacteria = True to enable) ===")
     
+    # Proportion with any resistance by drug for each bacteria plots
+    if proportion_of_people_with_any_resistance_by_drug_for_each_bacteria:
+        create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING proportion_of_people_with_any_resistance_by_drug_for_each_bacteria plots (set proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = True to enable) ===")
+    
+    # Mean MIC by drug for each bacteria plots
+    if mean_mic_by_drug_for_each_bacteria:
+        create_mean_mic_by_drug_for_each_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING mean_mic_by_drug_for_each_bacteria plots (set mean_mic_by_drug_for_each_bacteria = True to enable) ===")
+    
     # Export data and statistics
     export_data_files(df)
     # export_txt_data_file(df)
@@ -3755,7 +4093,7 @@ def main():
     print("\n" + "=" * 50)
     print("ANALYSIS COMPLETE!")
     print("Generated files:")
-    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_6.png', f'grouped_figure_7.png', f'grouped_figure_8.png', f'grouped_figure_9.png']:
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_5.png', f'grouped_figure_6.png', f'grouped_figure_7.png', f'grouped_figure_8.png', f'grouped_figure_9.png']:
         out_path = Path('output_graphs') / fname
         if out_path.exists():
             print(f"  ✓ output_graphs/{fname}")

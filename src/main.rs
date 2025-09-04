@@ -23,6 +23,9 @@ mod rules;
 mod config;
 
 
+//    for each bacteria the mean mic for each drug amongst people infected with that bacteria 
+//    for each bacteria the proportion of people infected with that bacteria who have any_r > 0
+//    separately for each drug
 //
 //    another graph: proportion of drug initiations that are in a person with an infection 
 //
@@ -39,6 +42,16 @@ mod config;
 //
 // // model structure developments to consider //
 //
+// make sure risk of emergence of resistance mechanisms is bacteria and
+// drug (class) specific 
+//
+// risk of resistance emergence, hgt, and transfer from microbiome make  
+// dependent on drug class x bacteria class (initially maybe on gram +/-) 
+//
+// do we need parameters like multi_drug_penalty_for_partial_cross_resistance given the 
+// way we are calculating a total activity r which is supposed to be able to consider 2 drugs
+// being taken
+//
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
 //
@@ -49,6 +62,8 @@ mod config;
 // - or is infectious syndrome sufficient ?
 //     
 // should syndrome influence sepsis risk independent of bacteria ?
+//
+// when people on two drugs account for drug drug interactions in determining final drug level of each drug
 //
 //
 // 
@@ -119,8 +134,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 3_000; 
-    let time_steps = 38_325 ;  // 38_325
+    let population_size = 500; 
+    let time_steps = 30_000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
