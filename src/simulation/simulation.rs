@@ -156,6 +156,12 @@ pub struct TimeStepSummary {
     // regional population tracking: counts by region (6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania)
     pub living_population_by_region: Vec<usize>,          // [region_idx] = number of living individuals currently in this region
     
+    // regional hospital population tracking: counts by region (6 regions)
+    pub hospital_population_by_region: Vec<usize>,        // [region_idx] = number of individuals currently in hospital in this region
+    
+    // hospital-acquired new infection tracking: counts by bacteria and region (bacteria * 6 regions)
+    pub newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize>, // (bacteria_idx, region_idx) = count of new hospital infections
+    
     // regional age distribution tracking: counts by region and age group (6 regions * 5 age groups = 30 values)
     // [region_idx * 5 + age_group_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
     pub age_distribution_by_region: Vec<usize>,           // [region][age_group] = number of living individuals in this region and age group
@@ -167,6 +173,14 @@ pub struct TimeStepSummary {
     // age-specific death tracking by region: counts by region, age group, and death type (6 regions * 5 age groups * 3 death types = 90 values)
     // [region_idx * 15 + age_group_idx * 3 + death_type_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
     pub deaths_by_region_age: Vec<usize>,                 // [region][age_group][death_type] = number of deaths
+    
+    // syndrome population by region: counts by syndrome and region (10 syndromes * 6 regions = 60 values)
+    // [syndrome_idx * 6 + region_idx] where syndrome_idx: 0-9 (syndromes 1-10), region_idx: 0-5
+    pub syndrome_population_by_region: Vec<usize>,        // [syndrome][region] = number of individuals with this syndrome in this region
+    
+    // syndrome deaths from sepsis by region: counts by syndrome and region (10 syndromes * 6 regions = 60 values)
+    // [syndrome_idx * 6 + region_idx] where syndrome_idx: 0-9 (syndromes 1-10), region_idx: 0-5
+    pub syndrome_deaths_sepsis_by_region: Vec<usize>,     // [syndrome][region] = number of sepsis deaths with this syndrome in this region
     
     // regional drug usage tracking: counts by region and drug (6 regions * num_drugs values)
     // [region_idx * num_drugs + drug_idx] = number of people currently taking this drug in this region
@@ -397,6 +411,8 @@ impl Simulation {
                 deaths_by_region_age: Vec<usize>,
                 /// drug usage by region (6 regions * num_drugs)
                 currently_on_drug_by_region_drug: Vec<usize>,
+                /// syndrome deaths from sepsis by region (10 syndromes * 6 regions = 60 values)
+                syndrome_deaths_sepsis_by_region: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
@@ -464,6 +480,7 @@ impl Simulation {
                         deaths_by_region: vec![0; 6 * 3], // 6 regions * 3 death types = 18 values
                         deaths_by_region_age: vec![0; 6 * 5 * 3], // 6 regions * 5 age groups * 3 death types = 90 values
                         currently_on_drug_by_region_drug: vec![0; 6 * num_drugs], // 6 regions * num_drugs
+                        syndrome_deaths_sepsis_by_region: vec![0; 10 * 6], // 10 syndromes * 6 regions = 60 values
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -534,6 +551,7 @@ impl Simulation {
                     for (a,b) in self.deaths_by_region.iter_mut().zip(other.deaths_by_region) { *a += b; }
                     for (a,b) in self.deaths_by_region_age.iter_mut().zip(other.deaths_by_region_age) { *a += b; }
                     for (a,b) in self.currently_on_drug_by_region_drug.iter_mut().zip(other.currently_on_drug_by_region_drug) { *a += b; }
+                    for (a,b) in self.syndrome_deaths_sepsis_by_region.iter_mut().zip(other.syndrome_deaths_sepsis_by_region) { *a += b; }
                 }
             }
 
@@ -664,6 +682,14 @@ impl Simulation {
                                             lt.deaths_sepsis += 1;
                                             lt.deaths_by_region[region_idx * 3 + 1] += 1; // sepsis death
                                             lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 1] += 1; // sepsis death by age
+                                            
+                                            // Track sepsis deaths by syndrome and region
+                                            for syndrome_idx in 0..10 { // syndromes 1-10 -> indices 0-9
+                                                if individual.sepsis[syndrome_idx] {
+                                                    let index = syndrome_idx * 6 + region_idx;
+                                                    lt.syndrome_deaths_sepsis_by_region[index] += 1;
+                                                }
+                                            }
                                         },
                                         "drug_toxicity_related" => {
                                             lt.deaths_drug_toxicity += 1;
@@ -962,6 +988,7 @@ impl Simulation {
                     deaths_by_region,
                     deaths_by_region_age,
                     currently_on_drug_by_region_drug,
+                    syndrome_deaths_sepsis_by_region,
                 } = totals;
 
                 // Use the separately collected infection resolution data
@@ -1161,9 +1188,59 @@ impl Simulation {
         infected_by_syndrome,
         infected_by_syndrome_by_bacteria,
         living_population_by_region,
+        hospital_population_by_region: {
+            let mut hospital_pop_by_region = vec![0; 6]; // 6 regions
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                if individual.hospital_status.is_hospitalized() {
+                    let region_idx = get_effective_region(individual) as usize;
+                    hospital_pop_by_region[region_idx] += 1;
+                }
+            }
+            hospital_pop_by_region
+        },
+        newly_infected_hospital_by_bacteria_region: {
+            let mut hospital_infections = HashMap::new();
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                if individual.hospital_status.is_hospitalized() {
+                    let region_idx = get_effective_region(individual) as usize;
+                    
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        if individual.date_last_infected_keep[b_idx] == t as i32 {
+                            // This is a new infection that occurred today in hospital
+                            *hospital_infections.entry((b_idx, region_idx)).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+            hospital_infections
+        },
         age_distribution_by_region,
         deaths_by_region,
         deaths_by_region_age,
+        syndrome_population_by_region: {
+            let mut syndrome_pop_by_region = vec![0; 60]; // 10 syndromes * 6 regions
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                let region_idx = get_effective_region(individual) as usize;
+                
+                // Count individuals with active infections by syndrome
+                for syndrome_idx in 0..10 { // syndromes 1-10 -> indices 0-9
+                    if individual.sepsis[syndrome_idx] {
+                        let index = syndrome_idx * 6 + region_idx;
+                        syndrome_pop_by_region[index] += 1;
+                    }
+                }
+            }
+            syndrome_pop_by_region
+        },
+        syndrome_deaths_sepsis_by_region: {
+            syndrome_deaths_sepsis_by_region
+        },
         currently_on_drug_by_region_drug,
             };
 
@@ -1652,6 +1729,22 @@ impl Simulation {
             header.push_str(&format!("{}_population", region_name));
         }
         
+        // Add regional hospital population columns to header
+        for region_name in &region_names {
+            header.push(',');
+            header.push_str(&format!("{}_hospital_population", region_name));
+        }
+        
+        // Add per-bacteria, per-region hospital newly infected columns to header
+        for bacteria in BACTERIA_LIST.iter() {
+            for region in &region_names {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_newly_infected_hospital_");
+                header.push_str(region);
+            }
+        }
+        
         // Add regional age distribution columns to header
         let age_group_names = ["prop_age_0_5", "prop_age_6_14", "prop_age_15_49", "prop_age_50_79", "prop_age_80plus"];
         for region_name in &region_names {
@@ -1677,6 +1770,22 @@ impl Simulation {
                     header.push(',');
                     header.push_str(&format!("{}_{}_{}", region_name, age_group_name, death_type_name));
                 }
+            }
+        }
+        
+        // Add syndrome population by region columns to header
+        for syndrome_id in 1..=10 { // syndromes 1-10
+            for region_name in &region_names {
+                header.push(',');
+                header.push_str(&format!("syndrome_{}_population_{}", syndrome_id, region_name));
+            }
+        }
+        
+        // Add syndrome deaths from sepsis by region columns to header
+        for syndrome_id in 1..=10 { // syndromes 1-10
+            for region_name in &region_names {
+                header.push(',');
+                header.push_str(&format!("syndrome_{}_deaths_sepsis_{}", syndrome_id, region_name));
             }
         }
         
@@ -1775,6 +1884,18 @@ impl Simulation {
             // Add region population data
             for value in &summary.living_population_by_region { row.push(','); row.push_str(&value.to_string()); }
             
+            // Add regional hospital population data
+            for value in &summary.hospital_population_by_region { row.push(','); row.push_str(&value.to_string()); }
+            
+            // Add per-bacteria, per-region hospital newly infected data
+            for bacteria_idx in 0..BACTERIA_LIST.len() {
+                for region_idx in 0..6 { // 6 regions
+                    let count = summary.newly_infected_hospital_by_bacteria_region.get(&(bacteria_idx, region_idx)).unwrap_or(&0);
+                    row.push(',');
+                    row.push_str(&count.to_string());
+                }
+            }
+            
             // Add regional age distribution data (as proportions)
             for region_idx in 0..6 { // 6 regions
                 let region_pop = summary.living_population_by_region[region_idx];
@@ -1803,6 +1924,24 @@ impl Simulation {
                         row.push(',');
                         row.push_str(&death_count.to_string());
                     }
+                }
+            }
+            
+            // Add syndrome population by region data
+            for syndrome_idx in 0..10 { // syndromes 1-10 -> indices 0-9
+                for region_idx in 0..6 { // 6 regions
+                    let population_count = summary.syndrome_population_by_region[syndrome_idx * 6 + region_idx];
+                    row.push(',');
+                    row.push_str(&population_count.to_string());
+                }
+            }
+            
+            // Add syndrome deaths from sepsis by region data
+            for syndrome_idx in 0..10 { // syndromes 1-10 -> indices 0-9
+                for region_idx in 0..6 { // 6 regions
+                    let death_count = summary.syndrome_deaths_sepsis_by_region[syndrome_idx * 6 + region_idx];
+                    row.push(',');
+                    row.push_str(&death_count.to_string());
                 }
             }
             

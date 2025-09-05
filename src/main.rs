@@ -10,43 +10,22 @@
 // to run on less cores type this in before running: $env:RAYON_NUM_THREADS = "4"
 //
 //
-// note: (may no longer be relevant - consier deleting)
-// when need to follow variable values over time steps for individual 0 
-// make the change shown at the top of simulation.rs and rules/mod.rs    
-// make the change in population.rs to restrict to small number of bacteria and drugs
-// decide which variable values to print out from the list in simulation.rs
-// run up to a certain point and should be able to see the previous e.g. 10 time step values
 //
  
 mod simulation;
 mod rules;
 mod config;
 
-
-//    for each bacteria the mean mic for each drug amongst people infected with that bacteria 
-//    for each bacteria the proportion of people infected with that bacteria who have any_r > 0
-//    separately for each drug
-//
-//    another graph: proportion of drug initiations that are in a person with an infection 
-//
-//
-//    // parameter values (recognising there will be many changes) //
-//
-//
-//    update infection site distribution per bacteria
-//  
-//    completion of potency per bacteria drug combination
 // 
+// -- additional output graphs ---------------------------------------------------------------------------------
+//
+// proportion with microbiome presence by region (6 lines on existing graphs)
+//
+// treatment failure rates (on treatment 5 days and infection present still)
 //
 //
 //
-// // model structure developments to consider //
-//
-// make sure risk of emergence of resistance mechanisms is bacteria and
-// drug (class) specific 
-//
-// risk of resistance emergence, hgt, and transfer from microbiome make  
-// dependent on drug class x bacteria class (initially maybe on gram +/-) 
+// -- model structure developments to consider ------------------------------------------------------------
 //
 // do we need parameters like multi_drug_penalty_for_partial_cross_resistance given the 
 // way we are calculating a total activity r which is supposed to be able to consider 2 drugs
@@ -64,36 +43,6 @@ mod config;
 // should syndrome influence sepsis risk independent of bacteria ?
 //
 // when people on two drugs account for drug drug interactions in determining final drug level of each drug
-//
-//
-// 
-// // additional output graphs 
-/* 
-
-to consider:
-
-   plots showing community vs hospital-acquired infections by bacteria
-   microbiome composition changes over time and by region
-   clinical outcomes by syndrome
-   regional syndrome distribution
-   proportion with each bacteria present in microbiome by region
-
--- when realistic drug use being added:
-
-treatment patterns by syndrome
-
--- when resistance rates switched on:
-
-   mic distribution evolution
-   treatment failure rates
-   resistance transfer from microbiome to infection
-   environmental vs community vs hospital resistance acquisition
-   resistance mechanism evolution by bacteria type
-   resistance distribution for each used drug for each bacteria by region 
-   source of new resistance (if not already done)
-
-*/
-
 //
 //
 //
@@ -134,8 +83,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 500; 
-    let time_steps = 30_000 ;  // 38_325
+    let population_size = 300_000; 
+    let time_steps = 300 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

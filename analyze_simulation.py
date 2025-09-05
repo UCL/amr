@@ -22,7 +22,7 @@ except ImportError:
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 1095   
+SMOOTHING_WINDOW_DAYS = 50   
 
 
 # =============================================================================
@@ -39,8 +39,8 @@ distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
-proportion_of_population_with_microbiome_presence_bacteria = False
-proportion_of_microbiome_presence_with_resistance_by_drug = False
+proportion_of_population_with_microbiome_presence_bacteria = True
+proportion_of_microbiome_presence_with_resistance_by_drug = True
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
@@ -48,11 +48,13 @@ infection_resolution_by_bacteria = False
 age_distribution_by_region = False  # NEW: Age distribution plots by region 
 death_rate_by_region = False  # NEW: Death rate plots by region
 age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
-incidence_of_infection = False  # NEW: Incidence of infection plots by bacteria and region
+incidence_of_infection = True  # NEW: Incidence of infection plots by bacteria and region
+incidence_of_infection_hospital = True  # NEW: Hospital incidence of infection plots by bacteria and region
 death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
+death_rate_by_syndrome_region = True  # NEW: Death rate plots by syndrome and region
 syndrome_distribution_by_bacteria = False  # NEW: Syndrome distribution plots by bacteria
-proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = True  # NEW: Proportion with any_r > 0 by drug for each bacteria
-mean_mic_by_drug_for_each_bacteria = True  # NEW: Mean MIC by drug for each bacteria plots
+proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  # NEW: Proportion with any_r > 0 by drug for each bacteria
+mean_mic_by_drug_for_each_bacteria = False  # NEW: Mean MIC by drug for each bacteria plots
 
 # =============================================================================
 # CONFIGURATION
@@ -3318,6 +3320,134 @@ def create_incidence_of_infection_plots(df):
         print(f"✓ Created {plots_created} incidence of infection plots")
 
 
+def create_incidence_of_infection_hospital_plots(df):
+    """Create hospital incidence of infection plots by bacteria and region.
+    
+    Creates one plot per bacteria showing hospital-acquired incidence rate 
+    (newly infected in hospital / hospital population) for each region over time.
+    """
+    print("\n=== Creating hospital incidence of infection plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'incidence_of_infection_hospital'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and their hospital population columns
+    regions = {
+        'North America': 'north_america_hospital_population',
+        'South America': 'south_america_hospital_population', 
+        'Africa': 'africa_hospital_population',
+        'Asia': 'asia_hospital_population',
+        'Europe': 'europe_hospital_population',
+        'Oceania': 'oceania_hospital_population'
+    }
+    
+    # Define region colors (same as regular incidence plots)
+    region_colors = {
+        'North America': '#1f77b4',  # blue
+        'South America': '#ff7f0e',  # orange
+        'Africa': '#2ca02c',         # green
+        'Asia': '#d62728',           # red
+        'Europe': '#9467bd',         # purple
+        'Oceania': '#8c564b'         # brown
+    }
+    
+    # Extract bacteria names from hospital newly infected columns
+    hospital_newly_infected_cols = [col for col in df.columns if '_newly_infected_hospital_' in col and 
+                                   any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    
+    bacteria_set = set()
+    for col in hospital_newly_infected_cols:
+        # Extract bacteria name (everything before '_newly_infected_hospital_')
+        bacteria = col.split('_newly_infected_hospital_')[0]
+        bacteria_set.add(bacteria)
+    
+    bacteria_list = sorted(bacteria_set)
+    
+    if not bacteria_list:
+        print("  ⚠ No bacteria found with hospital newly infected data")
+        return
+    
+    print(f"  Found {len(bacteria_list)} bacteria with hospital newly infected data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        for region_name, hospital_pop_col in regions.items():
+            # Check if hospital population column exists
+            if hospital_pop_col not in df.columns:
+                continue
+                
+            # Construct hospital newly infected column name
+            region_suffix = region_name.lower().replace(' ', '_')
+            hospital_newly_infected_col = f"{bacteria}_newly_infected_hospital_{region_suffix}"
+            
+            if hospital_newly_infected_col not in df.columns:
+                continue
+            
+            # Calculate hospital incidence rate (avoid division by zero)
+            hospital_population = df[hospital_pop_col]
+            newly_infected_hospital = df[hospital_newly_infected_col]
+            
+            # Only calculate where hospital population > 0
+            mask = hospital_population > 0
+            incidence_rate = pd.Series(0.0, index=df.index)
+            incidence_rate[mask] = newly_infected_hospital[mask] / hospital_population[mask]
+            
+            # Apply smoothing if there are enough data points
+            if len(incidence_rate) > SMOOTHING_WINDOW_DAYS:
+                incidence_rate_smooth = incidence_rate.rolling(window=SMOOTHING_WINDOW_DAYS, center=True).mean()
+            else:
+                incidence_rate_smooth = incidence_rate
+            
+            # Plot the line
+            color = region_colors.get(region_name, '#000000')
+            ax.plot(df['time_step'], incidence_rate_smooth, 
+                   label=region_name, color=color, linewidth=2)
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time Step')
+            ax.set_ylabel('Hospital Incidence Rate (New Hospital Infections / Hospital Population)')
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Hospital-Acquired Incidence of {bacteria_title} Infection by Region')
+            
+            ax.legend(loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            # Set y-axis to start at 0
+            ax.set_ylim(bottom=0)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{bacteria}_hospital_incidence_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No hospital data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No hospital incidence plots created - missing required data columns")
+        print("  Expected columns like: bacteria_newly_infected_hospital_north_america and regional hospital population columns")
+    else:
+        print(f"✓ Created {plots_created} hospital incidence of infection plots")
+
+
 def create_death_rate_by_bacteria_region_plots(df):
     """Create death rate plots by bacteria and region.
     
@@ -3617,6 +3747,142 @@ def create_syndrome_distribution_by_bacteria_plots(df):
         print("  Expected columns like: bacteria_syndrome_1_infected, bacteria_syndrome_2_infected, etc.")
     else:
         print(f"✓ Created {plots_created} syndrome distribution by bacteria plots")
+
+
+def create_death_rate_by_syndrome_region_plots(df):
+    """Create death rate plots by syndrome for each region.
+    
+    Creates one plot per region showing death rates for all 10 syndromes.
+    Death rate = syndrome sepsis deaths / syndrome population
+    Files: {region}_death_rate_by_syndrome.png
+    """
+    print("\n=== Creating death rate by syndrome and region plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'death_rate_by_syndrome_region'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Check if we have time_in_years column
+    if 'time_in_years' not in df.columns:
+        print("  ⚠ Missing time_in_years column - cannot create plots")
+        return
+    
+    # Define regions
+    region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_display_names = ['North America', 'South America', 'Africa', 'Asia', 'Europe', 'Oceania']
+    
+    # Define syndrome names
+    syndrome_names = {
+        1: 'uti_genitourinary',
+        2: 'skin_soft_tissue', 
+        3: 'respiratory',
+        4: 'bloodstream_bacteremia',
+        5: 'intra_abdominal',
+        6: 'central_nervous_system',
+        7: 'gastrointestinal',
+        8: 'genital',
+        9: 'bone_joint',
+        10: 'other_syndrome'
+    }
+    
+    # Define colors for syndromes (10 distinct colors)
+    syndrome_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                      '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    
+    plots_created = 0
+    all_death_rates = []  # For calculating fixed Y-axis scale
+    
+    # First pass: collect all death rates to determine fixed Y-axis scale
+    for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
+        for syndrome_id in range(1, 11):  # syndromes 1-10
+            pop_col = f"syndrome_{syndrome_id}_population_{region}"
+            death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
+            
+            if pop_col in df.columns and death_col in df.columns:
+                population = df[pop_col]
+                deaths = df[death_col]
+                
+                # Calculate death rate where population > 0
+                mask = population > 0
+                if mask.any():
+                    death_rates = deaths[mask] / population[mask]
+                    all_death_rates.extend(death_rates.values)
+    
+    # Determine fixed Y-axis scale
+    if all_death_rates:
+        max_death_rate = max(all_death_rates)
+        y_max = max_death_rate * 1.1  # Add 10% padding
+    else:
+        y_max = 0.1  # Default scale
+    
+    # Second pass: create plots
+    for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        for syndrome_id in range(1, 11):  # syndromes 1-10
+            pop_col = f"syndrome_{syndrome_id}_population_{region}"
+            death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
+            
+            if pop_col not in df.columns or death_col not in df.columns:
+                continue
+            
+            population = df[pop_col]
+            deaths = df[death_col]
+            
+            # Calculate death rate (skip where population = 0)
+            death_rate = pd.Series(index=df.index, dtype=float)
+            mask = population > 0
+            death_rate[mask] = deaths[mask] / population[mask]
+            death_rate[~mask] = float('nan')  # Missing data points where population = 0
+            
+            # Apply smoothing if there are enough data points
+            if len(death_rate.dropna()) > SMOOTHING_WINDOW_DAYS:
+                death_rate_smooth = death_rate.rolling(window=SMOOTHING_WINDOW_DAYS, center=True).mean()
+            else:
+                death_rate_smooth = death_rate
+            
+            # Plot the line
+            syndrome_name = syndrome_names.get(syndrome_id, f'syndrome_{syndrome_id}')
+            color = syndrome_colors[(syndrome_id - 1) % len(syndrome_colors)]
+            ax.plot(df['time_in_years'], death_rate_smooth, 
+                   label=syndrome_name, color=color, linewidth=2)
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Death Rate (Sepsis Deaths / Syndrome Population)')
+            ax.set_title(f'Death Rate by Syndrome - {region_display}')
+            
+            ax.legend(loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            # Set fixed Y-axis scale across all regions
+            ax.set_ylim(0, y_max)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{region}_death_rate_by_syndrome.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No syndrome data found for {region_display}")
+    
+    if plots_created == 0:
+        print("  ⚠ No syndrome death rate plots created - missing required data columns")
+        print("  Expected columns like: syndrome_1_population_north_america and syndrome_1_deaths_sepsis_north_america")
+    else:
+        print(f"✓ Created {plots_created} syndrome death rate by region plots")
 
 
 # =============================================================================
@@ -4060,6 +4326,12 @@ def main():
     else:
         print("\n=== SKIPPING incidence_of_infection plots (set incidence_of_infection = True to enable) ===")
     
+    # Hospital incidence of infection plots by bacteria and region
+    if incidence_of_infection_hospital:
+        create_incidence_of_infection_hospital_plots(df)
+    else:
+        print("\n=== SKIPPING incidence_of_infection_hospital plots (set incidence_of_infection_hospital = True to enable) ===")
+    
     # Death rate by bacteria and region plots
     if death_rate_by_bacteria_region:
         create_death_rate_by_bacteria_region_plots(df)
@@ -4071,6 +4343,12 @@ def main():
         create_syndrome_distribution_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING syndrome_distribution_by_bacteria plots (set syndrome_distribution_by_bacteria = True to enable) ===")
+    
+    # Death rate by syndrome and region plots
+    if death_rate_by_syndrome_region:
+        create_death_rate_by_syndrome_region_plots(df)
+    else:
+        print("\n=== SKIPPING death_rate_by_syndrome_region plots (set death_rate_by_syndrome_region = True to enable) ===")
     
     # Proportion with any resistance by drug for each bacteria plots
     if proportion_of_people_with_any_resistance_by_drug_for_each_bacteria:
