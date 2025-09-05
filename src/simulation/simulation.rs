@@ -93,6 +93,10 @@ pub struct TimeStepSummary {
     pub presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>, // [bacteria][region] counts of people with bacteria in microbiome by region
     pub infected_with_test_identified_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_identified_infection = true
     pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_for_resistance = true
+    
+    // Drug failure tracking: day 5 post-drug-initiation events by bacteria and region
+    pub drug_failure_events_by_bacteria_region: Vec<Vec<usize>>, // [bacteria][region] - numerator: day 5, on drug, still infected
+    pub drug_treatment_day5_events_by_bacteria_region: Vec<Vec<usize>>, // [bacteria][region] - denominator: day 5 post-drug-initiation
 
     // per-bacteria, per-drug infection and resistance counts (flat, len = bacteria * drugs)
     pub infected_and_standardized_mic_lt2_by_bacteria_drug: Vec<usize>,
@@ -363,6 +367,8 @@ impl Simulation {
                 num_with_any_bacteria_microbiome: usize,
                 presence_microbiome_by_bacteria: Vec<usize>,
                 presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>,
+                drug_failure_events_by_bacteria_region: Vec<Vec<usize>>,
+                drug_treatment_day5_events_by_bacteria_region: Vec<Vec<usize>>,
                 infected_with_test_identified_by_bacteria: Vec<usize>,
                 infected_with_test_for_resistance_by_bacteria: Vec<usize>,
                 // Integrated previously sequential counts:
@@ -451,6 +457,8 @@ impl Simulation {
                         num_with_any_bacteria_microbiome: 0,
                         presence_microbiome_by_bacteria: vec![0; num_bacteria],
                         presence_microbiome_by_bacteria_by_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
+                        drug_failure_events_by_bacteria_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
+                        drug_treatment_day5_events_by_bacteria_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
                         infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
                         living_population: 0,
@@ -524,6 +532,12 @@ impl Simulation {
                     for (a,b) in self.presence_microbiome_by_bacteria.iter_mut().zip(other.presence_microbiome_by_bacteria) { *a += b; }
                     for (a_bact,b_bact) in self.presence_microbiome_by_bacteria_by_region.iter_mut().zip(other.presence_microbiome_by_bacteria_by_region) { 
                         for (a_reg,b_reg) in a_bact.iter_mut().zip(b_bact) { *a_reg += b_reg; } 
+                    }
+                    for (a_bact,b_bact) in self.drug_failure_events_by_bacteria_region.iter_mut().zip(other.drug_failure_events_by_bacteria_region) {
+                        for (a_reg,b_reg) in a_bact.iter_mut().zip(b_bact) { *a_reg += b_reg; }
+                    }
+                    for (a_bact,b_bact) in self.drug_treatment_day5_events_by_bacteria_region.iter_mut().zip(other.drug_treatment_day5_events_by_bacteria_region) {
+                        for (a_reg,b_reg) in a_bact.iter_mut().zip(b_bact) { *a_reg += b_reg; }
                     }
                     for (a,b) in self.infected_with_test_identified_by_bacteria.iter_mut().zip(other.infected_with_test_identified_by_bacteria) { *a += b; }
                     for (a,b) in self.infected_with_test_for_resistance_by_bacteria.iter_mut().zip(other.infected_with_test_for_resistance_by_bacteria) { *a += b; }
@@ -803,6 +817,23 @@ impl Simulation {
                                 }
                             }
 
+                            // Track drug failure events: check for day 5 post-drug-initiation
+                            let region_idx = individual.region_living as usize;
+                            for (d_idx, &drug_init_day) in individual.date_drug_initiated.iter().enumerate() {
+                                if drug_init_day != i32::MIN && t as i32 - drug_init_day == 5 {
+                                    // This is day 5 post-drug-initiation for this drug
+                                    // Check all bacteria for infection status
+                                    for b_idx in 0..individual.level.len() {
+                                        lt.drug_treatment_day5_events_by_bacteria_region[b_idx][region_idx] += 1;
+                                        
+                                        // Check if this is a failure: still on drug AND still infected
+                                        if individual.cur_use_drug[d_idx] && individual.level[b_idx] > 0.0 {
+                                            lt.drug_failure_events_by_bacteria_region[b_idx][region_idx] += 1;
+                                        }
+                                    }
+                                }
+                            }
+
                             // Infection & resistance
                             let mut individual_max_infection_duration = 0;
                             let mut individual_has_any_infection = false;
@@ -966,6 +997,8 @@ impl Simulation {
                     num_with_any_bacteria_microbiome,
                     presence_microbiome_by_bacteria,
                     presence_microbiome_by_bacteria_by_region,
+                    drug_failure_events_by_bacteria_region,
+                    drug_treatment_day5_events_by_bacteria_region,
                     infected_with_test_identified_by_bacteria,
                     infected_with_test_for_resistance_by_bacteria,
                     living_population,
@@ -1059,6 +1092,8 @@ impl Simulation {
                 num_with_any_bacteria_microbiome,
                 presence_microbiome_by_bacteria,
                 presence_microbiome_by_bacteria_by_region,
+                drug_failure_events_by_bacteria_region,
+                drug_treatment_day5_events_by_bacteria_region,
                 infected_with_test_identified_by_bacteria,
                 infected_with_test_for_resistance_by_bacteria,
                 time_step: t,
@@ -1510,6 +1545,24 @@ impl Simulation {
                 header.push_str(region);
             }
         }
+        // Add per-bacteria per-region drug failure events columns
+        for bacteria in BACTERIA_LIST.iter() {
+            for region in &["north_america", "south_america", "africa", "asia", "europe", "oceania"] {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_drug_failure_events_");
+                header.push_str(region);
+            }
+        }
+        // Add per-bacteria per-region drug treatment day5 events columns  
+        for bacteria in BACTERIA_LIST.iter() {
+            for region in &["north_america", "south_america", "africa", "asia", "europe", "oceania"] {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_drug_treatment_day5_events_");
+                header.push_str(region);
+            }
+        }
         // Add per-bacteria infected with test_identified_infection columns
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -1866,6 +1919,14 @@ impl Simulation {
             for value in &summary.presence_microbiome_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             // Add regional presence_microbiome data
             for bacteria_vec in &summary.presence_microbiome_by_bacteria_by_region {
+                for value in bacteria_vec { row.push(','); row.push_str(&value.to_string()); }
+            }
+            // Add regional drug failure events data
+            for bacteria_vec in &summary.drug_failure_events_by_bacteria_region {
+                for value in bacteria_vec { row.push(','); row.push_str(&value.to_string()); }
+            }
+            // Add regional drug treatment day5 events data
+            for bacteria_vec in &summary.drug_treatment_day5_events_by_bacteria_region {
                 for value in bacteria_vec { row.push(','); row.push_str(&value.to_string()); }
             }
             for value in &summary.infected_with_test_identified_by_bacteria { row.push(','); row.push_str(&value.to_string()); }

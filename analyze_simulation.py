@@ -39,8 +39,9 @@ distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
-proportion_of_population_with_microbiome_presence_bacteria = True
+proportion_of_population_with_microbiome_presence_bacteria = False
 proportion_of_microbiome_presence_with_resistance_by_drug = False
+drug_failure_rate_by_bacteria_region = True  # NEW: Drug failure rate plots by bacteria and region
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
@@ -3922,6 +3923,142 @@ def create_death_rate_by_syndrome_region_plots(df):
 
 
 # =============================================================================
+# DRUG FAILURE RATE BY BACTERIA AND REGION PLOTS
+# =============================================================================
+def create_drug_failure_rate_by_bacteria_region_plots(df):
+    """
+    Create plots showing drug failure rates by bacteria and region over time.
+    
+    Drug failure rate = (day 5 failures) / (day 5 treatment events)
+    where:
+    - Day 5 failures: day 5 post-drug-initiation, on drug, still infected
+    - Day 5 treatment events: day 5 post-drug-initiation (any outcome)
+    
+    One plot per bacteria with 6 regional lines.
+    
+    Clinical interpretation footnotes:
+    - Multi-drug scenarios: Counted as failure if ANY drug was initiated 5 days ago and patient still infected
+    - Infection persistence: Any active infection at day 5 counted as failure (new or persistent)
+    
+    Saves plots to: output_graphs/drug_failure_rate_by_bacteria_region/
+    """
+    print("\n=== CREATING DRUG FAILURE RATE BY BACTERIA AND REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/drug_failure_rate_by_bacteria_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Regional configuration
+    region_suffixes = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown']
+    
+    # Find all bacteria names from failure event columns
+    bacteria_set = set()
+    for col in df.columns:
+        if '_drug_failure_events_' in col:
+            for suffix in region_suffixes:
+                if col.endswith(f'_drug_failure_events_{suffix}'):
+                    bacteria_name = col.replace(f'_drug_failure_events_{suffix}', '')
+                    bacteria_set.add(bacteria_name)
+    
+    if not bacteria_set:
+        print("  ⚠ No drug failure event columns found in data.")
+        print("  Expected columns like: escherichia_coli_drug_failure_events_north_america")
+        return
+    
+    print(f"Found {len(bacteria_set)} bacteria with drug failure rate data")
+    
+    # Track global max failure rate for consistent Y-axis scaling
+    global_max_rate = 0.0
+    
+    # Create one plot per bacteria with 6 regional lines
+    plots_created = 0
+    for bacteria_name in sorted(bacteria_set):
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        
+        has_any_data = False
+        local_max_rate = 0.0
+        
+        for region_idx, region_name in enumerate(region_suffixes):
+            failure_col = f"{bacteria_name}_drug_failure_events_{region_name}"
+            day5_events_col = f"{bacteria_name}_drug_treatment_day5_events_{region_name}"
+            
+            if failure_col in df.columns and day5_events_col in df.columns:
+                failures = df[failure_col]
+                day5_events = df[day5_events_col]
+                
+                # Calculate failure rate (skip where day5_events = 0)
+                failure_rate = pd.Series(index=df.index, dtype=float)
+                mask = day5_events > 0
+                failure_rate[mask] = failures[mask] / day5_events[mask]
+                failure_rate[~mask] = float('nan')  # Missing data points where no day5 events
+                
+                # Only plot if we have some data
+                if not failure_rate.isna().all():
+                    has_any_data = True
+                    
+                    # Apply smoothing if there are enough data points
+                    if len(failure_rate.dropna()) > SMOOTHING_WINDOW_DAYS:
+                        failure_rate_smooth = failure_rate.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                    else:
+                        failure_rate_smooth = failure_rate
+                    
+                    # Track maximum for scaling
+                    if not failure_rate_smooth.isna().all():
+                        local_max_rate = max(local_max_rate, failure_rate_smooth.max())
+                    
+                    plt.plot(df['time_in_years'], failure_rate_smooth, 
+                            label=region_name.replace('_', ' ').title(), 
+                            linewidth=7, 
+                            color=region_colors[region_idx])
+                else:
+                    print(f"    ⚠ No failure rate data for {bacteria_name} in {region_name}")
+        
+        if has_any_data:
+            # Format bacteria name for display
+            bacteria_display = bacteria_name.replace('_', ' ').title()
+            
+            plt.title(f"Drug Failure Rate for {bacteria_display} by Region (Smoothed)", 
+                     fontsize=50)
+            plt.ylabel('Drug Failure Rate', fontsize=50)
+            plt.xlabel('Time (Years)', fontsize=50)
+            
+            # Set Y-axis scale (0 to 1.0 for failure rates)
+            plt.ylim(0, min(1.0, max(0.1, local_max_rate * 1.1)))  # At least 0.1 for visibility
+            
+            plt.grid(True, alpha=0.3)
+            plt.legend(fontsize=30, loc='upper right')
+            plt.tick_params(axis='both', which='major', labelsize=40)
+            plt.tight_layout(rect=[0, 0, 1, 0.96])
+            
+            # Add footnotes as small text at bottom
+            footnote_text = ("Note: Multi-drug cases counted as failure if ANY drug initiated 5 days ago + still infected. "
+                           "Any active infection at day 5 = failure (new or persistent).")
+            plt.figtext(0.1, 0.02, footnote_text, fontsize=20, style='italic', wrap=True)
+            
+            filename = f"{bacteria_name}_drug_failure_rate_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+            
+            # Track global max for reporting
+            global_max_rate = max(global_max_rate, local_max_rate)
+        else:
+            plt.close()
+            print(f"  ⚠ No drug failure rate data found for {bacteria_name}")
+    
+    if plots_created == 0:
+        print("  ⚠ No drug failure rate plots created - missing required data columns")
+        print("  Expected columns like: escherichia_coli_drug_failure_events_north_america and escherichia_coli_drug_treatment_day5_events_north_america")
+    else:
+        print(f"✓ Created {plots_created} drug failure rate by region plots")
+        print(f"  Maximum failure rate observed: {global_max_rate:.3f}")
+
+
+# =============================================================================
 # PROPORTION WITH ANY RESISTANCE BY DRUG FOR EACH BACTERIA PLOTS
 # =============================================================================
 def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(df):
@@ -4385,6 +4522,12 @@ def main():
         create_death_rate_by_syndrome_region_plots(df)
     else:
         print("\n=== SKIPPING death_rate_by_syndrome_region plots (set death_rate_by_syndrome_region = True to enable) ===")
+    
+    # Drug failure rate by bacteria and region plots
+    if drug_failure_rate_by_bacteria_region:
+        create_drug_failure_rate_by_bacteria_region_plots(df)
+    else:
+        print("\n=== SKIPPING drug_failure_rate_by_bacteria_region plots (set drug_failure_rate_by_bacteria_region = True to enable) ===")
     
     # Proportion with any resistance by drug for each bacteria plots
     if proportion_of_people_with_any_resistance_by_drug_for_each_bacteria:

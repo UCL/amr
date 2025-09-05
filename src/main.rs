@@ -19,9 +19,8 @@ mod config;
 // 
 // -- additional output graphs ---------------------------------------------------------------------------------
 //
-// proportion with microbiome presence by region (6 lines on existing graphs)
-//
-// treatment failure rates (on treatment 5 days and infection present still)
+// treatment failure rates (on treatment 5 days and infection
+// present still)
 //
 //
 //
@@ -83,7 +82,7 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 3_000; 
+    let population_size = 5_000; 
     let time_steps = 10_000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
