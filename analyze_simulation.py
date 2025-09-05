@@ -40,7 +40,7 @@ death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = True
-proportion_of_microbiome_presence_with_resistance_by_drug = True
+proportion_of_microbiome_presence_with_resistance_by_drug = False
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
@@ -48,10 +48,10 @@ infection_resolution_by_bacteria = False
 age_distribution_by_region = False  # NEW: Age distribution plots by region 
 death_rate_by_region = False  # NEW: Death rate plots by region
 age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
-incidence_of_infection = True  # NEW: Incidence of infection plots by bacteria and region
-incidence_of_infection_hospital = True  # NEW: Hospital incidence of infection plots by bacteria and region
+incidence_of_infection = False # NEW: Incidence of infection plots by bacteria and region
+incidence_of_infection_hospital = False # NEW: Hospital incidence of infection plots by bacteria and region
 death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
-death_rate_by_syndrome_region = True  # NEW: Death rate plots by syndrome and region
+death_rate_by_syndrome_region = False # NEW: Death rate plots by syndrome and region
 syndrome_distribution_by_bacteria = False  # NEW: Syndrome distribution plots by bacteria
 proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  # NEW: Proportion with any_r > 0 by drug for each bacteria
 mean_mic_by_drug_for_each_bacteria = False  # NEW: Mean MIC by drug for each bacteria plots
@@ -2113,47 +2113,83 @@ def generate_summary_statistics(df):
 # =============================================================================
 def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df):
     """
-    For each bacteria, plot the proportion of the population with presence_microbiome = true.
+    For each bacteria, plot the proportion of the population with presence_microbiome = true by region.
+    Each plot shows 6 regional lines for comparison.
     Each plot is saved as output_graphs/proportion_of_population_with_microbiome_presence_bacteria/bacteria_x_presence_proportion.png
     """
-    print("\n=== CREATING PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS ===")
+    print("\n=== CREATING PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS BY REGION ===")
     out_dir = Path("output_graphs/proportion_of_population_with_microbiome_presence_bacteria")
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find all columns matching *_presence_microbiome
-    presence_cols = [col for col in df.columns if col.endswith('_presence_microbiome')]
-    if not presence_cols:
-        print("No *_presence_microbiome columns found in data.")
+    # Regional configuration
+    region_suffixes = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown']
+    
+    # Find all bacteria names from regional columns
+    bacteria_set = set()
+    for col in df.columns:
+        if '_presence_microbiome_' in col:
+            for suffix in region_suffixes:
+                if col.endswith(f'_presence_microbiome_{suffix}'):
+                    bacteria_name = col.replace(f'_presence_microbiome_{suffix}', '')
+                    bacteria_set.add(bacteria_name)
+    
+    if not bacteria_set:
+        print("No regional *_presence_microbiome_* columns found in data.")
         return
     
-    for presence_col in presence_cols:
-        bacteria_name = presence_col.replace('_presence_microbiome', '')
+    print(f"Found {len(bacteria_set)} bacteria with regional microbiome presence data")
+    
+    # Create one plot per bacteria with 6 regional lines
+    for bacteria_name in sorted(bacteria_set):
         plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
         
-        # Proportion: people with this bacteria in microbiome / total population
-        prop = safe_divide(df[presence_col], df['total_population'])
+        max_prop = 0  # Track maximum for consistent y-axis scaling
         
-        # Apply rolling mean smoothing
-        window = SMOOTHING_WINDOW_DAYS
-        prop_smooth = pd.Series(prop).rolling(window=window, min_periods=1, center=True).mean()
+        for region_idx, region_name in enumerate(region_suffixes):
+            presence_col = f"{bacteria_name}_presence_microbiome_{region_name}"
+            population_col = f"{region_name}_population"  # Fixed: region_name comes first
+            
+            if presence_col in df.columns and population_col in df.columns:
+                # Proportion: people with this bacteria in microbiome / regional population
+                prop = safe_divide(df[presence_col], df[population_col])
+                
+                # Apply rolling mean smoothing
+                window = SMOOTHING_WINDOW_DAYS
+                prop_smooth = pd.Series(prop).rolling(window=window, min_periods=1, center=True).mean()
+                
+                # Track maximum for scaling
+                if not prop_smooth.isna().all():
+                    max_prop = max(max_prop, prop_smooth.max())
+                
+                plt.plot(df['time_in_years'], prop_smooth, 
+                        label=region_name.replace('_', ' ').title(), 
+                        linewidth=7, 
+                        color=region_colors[region_idx])
+            else:
+                print(f"  Warning: Missing columns for {bacteria_name} in {region_name}")
         
-        plt.plot(df['time_in_years'], prop_smooth, 
-                label=f"{bacteria_name.replace('_', ' ').title()} (Smoothed)", 
-                linewidth=7, color='green')
+        # Format bacteria name for display
+        bacteria_display = bacteria_name.replace('_', ' ').title()
         
-        plt.title(f"Proportion of Population with {bacteria_name.replace('_', ' ').title()} in Microbiome (Smoothed)", 
+        plt.title(f"Proportion of Population with {bacteria_display} in Microbiome by Region (Smoothed)", 
                  fontsize=50)
-        plt.ylabel('Proportion of Living Population', fontsize=50)
+        plt.ylabel('Proportion of Regional Population', fontsize=50)
         plt.xlabel('Time (Years)', fontsize=50)
+        
+        # Set consistent y-axis scaling with some padding
+        if max_prop > 0:
+            plt.ylim(0, max_prop * 1.1)
+        
         plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=30)
+        plt.legend(fontsize=30, loc='upper right')
         plt.tick_params(axis='both', which='major', labelsize=40)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         
         fname = out_dir / f"{bacteria_name}_presence_proportion.png"
         plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print(f"  ✓ {fname} saved.")
+        print(f"  ✓ {fname} saved with regional comparison")
 
 # =============================================================================
 # PROPORTION OF MICROBIOME PRESENCE WITH RESISTANCE BY DRUG PLOTS

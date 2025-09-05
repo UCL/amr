@@ -90,6 +90,7 @@ pub struct TimeStepSummary {
     pub num_age_80plus: usize,
     pub num_with_any_bacteria_microbiome: usize, // number of people with any presence_microbiome=true
     pub presence_microbiome_by_bacteria: Vec<usize>, // per-bacteria counts of people with this bacteria in microbiome
+    pub presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>, // [bacteria][region] counts of people with bacteria in microbiome by region
     pub infected_with_test_identified_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_identified_infection = true
     pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_for_resistance = true
 
@@ -361,6 +362,7 @@ impl Simulation {
                 currently_infected_and_on_drug_count: usize,
                 num_with_any_bacteria_microbiome: usize,
                 presence_microbiome_by_bacteria: Vec<usize>,
+                presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>,
                 infected_with_test_identified_by_bacteria: Vec<usize>,
                 infected_with_test_for_resistance_by_bacteria: Vec<usize>,
                 // Integrated previously sequential counts:
@@ -448,6 +450,7 @@ impl Simulation {
                         currently_infected_and_on_drug_count: 0,
                         num_with_any_bacteria_microbiome: 0,
                         presence_microbiome_by_bacteria: vec![0; num_bacteria],
+                        presence_microbiome_by_bacteria_by_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
                         infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
                         living_population: 0,
@@ -519,6 +522,9 @@ impl Simulation {
                     self.currently_infected_and_on_drug_count += other.currently_infected_and_on_drug_count;
                     self.num_with_any_bacteria_microbiome += other.num_with_any_bacteria_microbiome;
                     for (a,b) in self.presence_microbiome_by_bacteria.iter_mut().zip(other.presence_microbiome_by_bacteria) { *a += b; }
+                    for (a_bact,b_bact) in self.presence_microbiome_by_bacteria_by_region.iter_mut().zip(other.presence_microbiome_by_bacteria_by_region) { 
+                        for (a_reg,b_reg) in a_bact.iter_mut().zip(b_bact) { *a_reg += b_reg; } 
+                    }
                     for (a,b) in self.infected_with_test_identified_by_bacteria.iter_mut().zip(other.infected_with_test_identified_by_bacteria) { *a += b; }
                     for (a,b) in self.infected_with_test_for_resistance_by_bacteria.iter_mut().zip(other.infected_with_test_for_resistance_by_bacteria) { *a += b; }
                     self.living_population += other.living_population;
@@ -791,6 +797,9 @@ impl Simulation {
                             for (b_idx, &has_bacteria) in individual.presence_microbiome.iter().enumerate() {
                                 if has_bacteria {
                                     lt.presence_microbiome_by_bacteria[b_idx] += 1;
+                                    // Also count by region
+                                    let region_idx = individual.region_living as usize;
+                                    lt.presence_microbiome_by_bacteria_by_region[b_idx][region_idx] += 1;
                                 }
                             }
 
@@ -956,6 +965,7 @@ impl Simulation {
                     currently_infected_and_on_drug_count,
                     num_with_any_bacteria_microbiome,
                     presence_microbiome_by_bacteria,
+                    presence_microbiome_by_bacteria_by_region,
                     infected_with_test_identified_by_bacteria,
                     infected_with_test_for_resistance_by_bacteria,
                     living_population,
@@ -1048,6 +1058,7 @@ impl Simulation {
                 num_age_80plus,
                 num_with_any_bacteria_microbiome,
                 presence_microbiome_by_bacteria,
+                presence_microbiome_by_bacteria_by_region,
                 infected_with_test_identified_by_bacteria,
                 infected_with_test_for_resistance_by_bacteria,
                 time_step: t,
@@ -1490,6 +1501,15 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_presence_microbiome");
         }
+        // Add per-bacteria per-region presence_microbiome columns
+        for bacteria in BACTERIA_LIST.iter() {
+            for region in &["north_america", "south_america", "africa", "asia", "europe", "oceania"] {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_presence_microbiome_");
+                header.push_str(region);
+            }
+        }
         // Add per-bacteria infected with test_identified_infection columns
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -1844,6 +1864,10 @@ impl Simulation {
             for value in &summary.deaths_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.activity_r_sum_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.presence_microbiome_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            // Add regional presence_microbiome data
+            for bacteria_vec in &summary.presence_microbiome_by_bacteria_by_region {
+                for value in bacteria_vec { row.push(','); row.push_str(&value.to_string()); }
+            }
             for value in &summary.infected_with_test_identified_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_test_for_resistance_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.newly_infected_by_bacteria_region { row.push(','); row.push_str(&value.to_string()); }
