@@ -35,27 +35,27 @@ for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = Fa
 proportion_of_people_infected_with_each_bacteria = False
 proportion_of_people_taking_each_drug = False  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
 proportion_share_among_drug_users = False
-distribution_drug_use_by_bacteria = False
+distribution_drug_use_by_bacteria = False 
 death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = False
 proportion_of_microbiome_presence_with_resistance_by_drug = False
-drug_failure_rate_by_bacteria_region = True  # NEW: Drug failure rate plots by bacteria and region
+drug_failure_rate_by_bacteria_region = False  #  Drug failure rate plots by bacteria and region
 mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
-age_distribution_by_region = False  # NEW: Age distribution plots by region 
-death_rate_by_region = False  # NEW: Death rate plots by region
-age_specific_death_rate_by_region = False  # NEW: Age-specific death rate plots by region
-incidence_of_infection = False # NEW: Incidence of infection plots by bacteria and region
-incidence_of_infection_hospital = False # NEW: Hospital incidence of infection plots by bacteria and region
-death_rate_by_bacteria_region = False  # NEW: Death rate plots by bacteria and region
-death_rate_by_syndrome_region = False # NEW: Death rate plots by syndrome and region
-syndrome_distribution_by_bacteria = False  # NEW: Syndrome distribution plots by bacteria
-proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  # NEW: Proportion with any_r > 0 by drug for each bacteria
-mean_mic_by_drug_for_each_bacteria = False  # NEW: Mean MIC by drug for each bacteria plots
+age_distribution_by_region = False  #  Age distribution plots by region 
+death_rate_by_region = False  #  Death rate plots by region
+age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
+incidence_of_infection = False #  Incidence of infection plots by bacteria and region
+incidence_of_infection_hospital = False #  Hospital incidence of infection plots by bacteria and region
+death_rate_by_bacteria_region = False  #  Death rate plots by bacteria and region
+death_rate_by_syndrome_region = False #  Death rate plots by syndrome and region
+syndrome_distribution_by_bacteria = False  #  Syndrome distribution plots by bacteria
+proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  #  Proportion with any_r > 0 by drug for each bacteria
+mean_mic_by_drug_for_each_bacteria = False #  Mean MIC by drug for each bacteria plots
 
 # =============================================================================
 # CONFIGURATION
@@ -195,15 +195,78 @@ def create_grouped_plots(df):
     # --- Group 1 ---
     fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
     axes1 = axes1.flatten()
-    fig1.suptitle('Grouped Figure 1: Population, Hospitalization Proportion, Resistance Among Infected', fontsize=16)
+    fig1.suptitle('Grouped Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16)
     # 1. Living Population Over Time
     axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
     axes1[0].set_title('Living Population Over Time')
     axes1[0].set_ylabel('Count')
     axes1[0].set_ylim(bottom=0)
     axes1[0].grid(True, alpha=0.3)
-    # 2. Empty plot (plot b removed)
-    axes1[1].set_axis_off()
+    # 2. Daily Sepsis Incidence Rate (separate lines for each bacteria)
+    sepsis_cols = [col for col in df.columns if col.endswith('_new_sepsis_cases')]
+    if sepsis_cols:
+        # Get all bacteria with their total new sepsis cases
+        bacteria_totals = []
+        for col in sepsis_cols:
+            bacteria_name = col.replace('_new_sepsis_cases', '')
+            total_cases = df[col].sum()
+            bacteria_totals.append((bacteria_name, total_cases, col))
+        
+        # Sort by total cases (highest first)
+        bacteria_totals.sort(key=lambda x: x[1], reverse=True)
+        
+        # Generate enough colors for all bacteria using matplotlib colormap
+        import matplotlib.cm as cm
+        n_bacteria = len(bacteria_totals)
+        colors = cm.tab20(np.linspace(0, 1, min(20, n_bacteria)))  # Use tab20 colormap
+        if n_bacteria > 20:
+            # Add more colors from other colormaps for bacteria beyond 20
+            extra_colors = cm.tab20b(np.linspace(0, 1, min(20, n_bacteria-20)))
+            colors = np.vstack([colors, extra_colors])
+        if n_bacteria > 40:
+            # Add even more colors if needed
+            extra_colors2 = cm.tab20c(np.linspace(0, 1, n_bacteria-40))
+            colors = np.vstack([colors, extra_colors2])
+        
+        # Plot separate line for each bacteria (all of them)
+        plotted_count = 0
+        for i, (bacteria_name, total_cases, col) in enumerate(bacteria_totals):
+            current_infected_col = f"{bacteria_name}_currently_infected"
+            current_sepsis_col = f"{bacteria_name}_number_with_sepsis"
+            
+            if all(c in df.columns for c in [current_infected_col, current_sepsis_col]):
+                # Calculate at-risk population and incidence rate for this bacteria
+                at_risk = df[current_infected_col] - df[current_sepsis_col]
+                incidence_rate = safe_divide(df[col], at_risk)
+                
+                # Plot smoothed incidence rate
+                smoothed_incidence = pd.Series(incidence_rate).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Clean bacteria name for legend
+                clean_name = bacteria_name.replace('_', ' ').title()
+                axes1[1].plot(df['time_in_years'], smoothed_incidence, 
+                            color=colors[i % len(colors)], linewidth=1.5, 
+                            label=f"{clean_name} ({total_cases})", alpha=0.7)
+                plotted_count += 1
+        
+        axes1[1].set_title('Daily Sepsis Incidence Rate\n(all bacteria)')
+        axes1[1].set_ylabel('New sepsis cases per person-day\n(among infected without sepsis)')
+        axes1[1].set_ylim(bottom=0)  # Start y-axis at 0
+        axes1[1].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
+        
+        # Use smaller font and put legend outside plot area to handle many lines
+        axes1[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=6, 
+                       ncol=1, framealpha=0.9)
+        axes1[1].grid(True, alpha=0.3)
+        
+        total_new_sepsis = sum(df[col].sum() for _, _, col in bacteria_totals)
+        print(f"Total new sepsis cases across all bacteria: {total_new_sepsis}")
+        print(f"Showing all {plotted_count} bacteria with sepsis cases")
+    else:
+        axes1[1].text(0.5, 0.5, 'Sepsis incidence data not available', ha='center', va='center')
+        axes1[1].set_title('Daily Sepsis Incidence Rate\n(by bacteria)')
+        axes1[1].set_axis_off()
     # 3. Hospitalized & Immunosuppressed as Proportions
     hospital_proportion = pd.Series(df['number_in_hospital'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
     immunosuppressed_proportion = pd.Series(df['number_severely_immunosuppressed'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
@@ -480,19 +543,16 @@ def create_grouped_plots(df):
         infected_col = f"{region}_infected_count"
         
         if any_r_col in df.columns and infected_col in df.columns:
-            # Calculate mean any_r = sum / infected_count
+            # Calculate mean any_r = sum / infected_count using vectorized operations
             any_r_sum = df[any_r_col]
             infected_count = df[infected_col]
             
-            # Calculate mean resistance, handling division by zero
-            mean_any_r = []
-            for j in range(len(df)):
-                if infected_count.iloc[j] > 0:
-                    mean_any_r.append(any_r_sum.iloc[j] / infected_count.iloc[j])
-                else:
-                    mean_any_r.append(0.0)  # No infections = no resistance
+            # Calculate mean resistance using pandas vectorization, handling division by zero
+            mean_any_r = pd.Series(index=df.index, dtype=float)
+            mask = infected_count > 0
+            mean_any_r[mask] = any_r_sum[mask] / infected_count[mask]
+            mean_any_r[~mask] = float('nan')  # Use NaN instead of 0 for no infections
             
-            mean_any_r = pd.Series(mean_any_r)
             # Apply smoothing
             mean_any_r_smooth = mean_any_r.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
             
@@ -2327,19 +2387,15 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df):
         for col in sum_any_r_columns:
             drug_name = col.replace(f"{bacteria_name}_sum_any_r_", "")
             
-            # Calculate mean any_r = sum_any_r / currently_infected
+            # Calculate mean any_r = sum_any_r / currently_infected using vectorized operations
             sum_any_r = df[col]
             currently_infected = df[infection_col]
             
-            # Calculate mean resistance, handling division by zero
-            mean_any_r = []
-            for i in range(len(df)):
-                if currently_infected.iloc[i] > 0:
-                    mean_any_r.append(sum_any_r.iloc[i] / currently_infected.iloc[i])
-                else:
-                    mean_any_r.append(0.0)  # No infections = no resistance
-            
-            mean_any_r = pd.Series(mean_any_r)
+            # Calculate mean resistance using pandas vectorization, handling division by zero
+            mean_any_r = pd.Series(index=df.index, dtype=float)
+            mask = currently_infected > 0
+            mean_any_r[mask] = sum_any_r[mask] / currently_infected[mask]
+            mean_any_r[~mask] = float('nan')  # Use NaN instead of 0 for no infections
             
             # Apply smoothing
             mean_any_r_smooth = mean_any_r.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
@@ -2421,15 +2477,15 @@ def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(df):
             sum_any_r_hospital = df[col]
             currently_infected = df[infection_col]
             
-            # Calculate mean resistance, handling division by zero
-            mean_any_r_hospital = []
-            for i in range(len(df)):
-                if currently_infected.iloc[i] > 0:
-                    mean_any_r_hospital.append(sum_any_r_hospital.iloc[i] / currently_infected.iloc[i])
-                else:
-                    mean_any_r_hospital.append(0.0)  # No infections = no resistance
+            # Calculate mean any_r = sum_any_r_hospital / currently_infected using vectorized operations
+            sum_any_r_hospital = df[col]
+            currently_infected = df[infection_col]
             
-            mean_any_r_hospital = pd.Series(mean_any_r_hospital)
+            # Calculate mean resistance using pandas vectorization, handling division by zero
+            mean_any_r_hospital = pd.Series(index=df.index, dtype=float)
+            mask = currently_infected > 0
+            mean_any_r_hospital[mask] = sum_any_r_hospital[mask] / currently_infected[mask]
+            mean_any_r_hospital[~mask] = float('nan')  # Use NaN instead of 0 for no infections
             
             # Apply smoothing
             mean_any_r_hospital_smooth = mean_any_r_hospital.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
@@ -4313,21 +4369,25 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df):
         for drug in relevant_drugs:
             mic_sum_col = f"{bacteria}_sum_mic_{drug}"
             
-            # Calculate mean MIC over time
-            mean_mic_values = []
-            for _, row in df.iterrows():
-                infected_count = row[infection_col]
-                mic_sum = row[mic_sum_col]
-                
-                if infected_count > 0:
-                    mean_mic = mic_sum / infected_count
-                    mean_mic_values.append(mean_mic)
-                else:
-                    mean_mic_values.append(0)  # No infections means MIC is undefined, use 0
+            # Vectorized calculation (efficient approach like other successful plots)
+            infected_counts = df[infection_col]
+            mic_sums = df[mic_sum_col]
             
-            # Only plot if there's meaningful data (non-zero values)
-            if any(val > 0 for val in mean_mic_values):
-                plt.plot(df['time_in_years'], mean_mic_values, 
+            # Calculate mean MIC using pandas vectorization
+            mean_mic_values = pd.Series(index=df.index, dtype=float)
+            mask = infected_counts > 0
+            mean_mic_values[mask] = mic_sums[mask] / infected_counts[mask]
+            mean_mic_values[~mask] = float('nan')  # Use NaN instead of 0 for no infections
+            
+            # Apply smoothing like other successful plots
+            if len(mean_mic_values.dropna()) > SMOOTHING_WINDOW_DAYS:
+                mean_mic_smooth = mean_mic_values.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            else:
+                mean_mic_smooth = mean_mic_values
+            
+            # Only plot if there's meaningful data
+            if not mean_mic_smooth.isna().all() and mean_mic_smooth.max() > 0:
+                plt.plot(df['time_in_years'], mean_mic_smooth, 
                         label=drug, linewidth=1.5, alpha=0.8)
                 lines_plotted += 1
         
@@ -4409,6 +4469,7 @@ def main():
         print("\n=== SKIPPING distribution_drug_use_by_bacteria plots (set distribution_drug_use_by_bacteria = True to enable) ===")
     df = preprocess_data(df)
     print(f"Data preprocessing complete. Dataset shape: {df.shape}")
+    
     # Always create grouped visualizations (figures 1-4)
     print("\n=== CREATING GROUPED VISUALIZATIONS ===")
     create_grouped_plots(df)

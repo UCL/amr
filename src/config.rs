@@ -1,6 +1,6 @@
 /* 
 
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005);  // 0.005
+    
 
 */
 
@@ -83,6 +83,9 @@ lazy_static! {
         map.insert("drug_infection_present_multiplier".to_string(), 300.0); // 1000
         map.insert("drug_test_identified_multiplier".to_string(), 2.0);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
+        
+        // Drug Selection Algorithm Parameters
+        map.insert("drug_selection_temperature".to_string(), 1.5); // ADJUSTED: Controls randomness in drug selection: 1.0=raw scores, >1.0=more random, <1.0=more deterministic
         
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -243,7 +246,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.01 );  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005 );  // 0.005
             } 
         }
 
@@ -531,6 +534,66 @@ lazy_static! {
         map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
         map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
 
+        // --- CLINICALLY APPROPRIATE DRUG-BACTERIA INITIATION MULTIPLIER OVERRIDES ---
+        // Based on analysis of drug usage patterns, boost initiation probability for clinically appropriate combinations
+        // Higher values = more likely to be selected as first-line therapy
+        
+        // ANTI-MRSA AGENTS FOR STAPHYLOCOCCUS AUREUS
+        map.insert("drug_vancomycin_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 5.0); // First-line for MRSA
+        map.insert("drug_linezolid_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 4.0); // Alternative for MRSA
+        map.insert("drug_teicoplanin_for_bacteria_staphylococcus_aureus_initiation_multiplier".to_string(), 4.0); // Alternative for MRSA
+        
+        // ANTI-PSEUDOMONAL AGENTS FOR PSEUDOMONAS AERUGINOSA
+        map.insert("drug_piperacillin_tazobactam_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.0); // First-line anti-pseudomonal
+        map.insert("drug_ceftazidime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.5); // Good anti-pseudomonal activity
+        map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.5); // Good anti-pseudomonal activity
+        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.0); // Anti-pseudomonal carbapenem
+        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.0); // Anti-pseudomonal carbapenem
+        map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 3.5); // Last resort for MDR Pseudomonas
+        
+        // MACROLIDES FOR RESPIRATORY PATHOGENS
+        map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 5.0); // First-line for Campylobacter
+        map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 4.5); // Alternative for Campylobacter
+        map.insert("drug_erythromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 4.0); // Good for H. influenzae
+        map.insert("drug_azithromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 4.0); // Good for H. influenzae
+        map.insert("drug_clarithromycin_for_bacteria_haemophilus_influenzae_initiation_multiplier".to_string(), 4.0); // Good for H. influenzae
+        
+        // ANTI-VRE AGENTS FOR ENTEROCOCCI
+        map.insert("drug_vancomycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 4.0); // First-line for Enterococcus
+        map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 3.5); // E. faecium more resistant
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 3.5); // Alternative for VRE
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 4.0); // Better for E. faecium
+        
+        // C. DIFFICILE SPECIFIC AGENTS
+        map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 6.0); // First-line for C. diff
+        map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_initiation_multiplier".to_string(), 5.0); // Oral vancomycin for severe C. diff
+        
+        // INTRACELLULAR PATHOGENS (tetracyclines, macrolides)
+        map.insert("drug_doxyclycline_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 5.0); // First-line for Chlamydia
+        map.insert("drug_tetracycline_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 4.5); // Alternative for Chlamydia
+        map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 4.0); // Alternative for Chlamydia
+        
+        // CARBAPENEMS FOR ESBL PRODUCERS
+        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0); // For ESBL Klebsiella
+        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0); // For ESBL Klebsiella
+        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0); // For ESBL Klebsiella
+        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 3.5); // For ESBL E. coli
+        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 3.5); // For ESBL E. coli
+        
+        // REDUCE INAPPROPRIATE COMBINATIONS
+        // Penicillins should not be used for intrinsically resistant gram-negatives
+        map.insert("drug_penicilling_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_penicilling_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_ampicillin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_ampicillin_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_amoxicillin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_amoxicillin_for_bacteria_acinetobacter_baumannii_initiation_multiplier".to_string(), 0.01);
+        
+        // Macrolides should not be used for Enterococcus (intrinsically resistant)
+        map.insert("drug_erythromycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_erythromycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_azithromycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_azithromycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 0.01);
 
         // --- TARGETED RESISTANCE EMERGENCE RATE FIXES ---
         // Based on analysis of resistance patterns, certain bacteria-drug combinations
@@ -1045,10 +1108,10 @@ lazy_static! {
 
         // Bacterial Identification Effect Parameters
         map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 2.0); // Multiplier for broad-spectrum drugs when no bacteria identified
-        map.insert("empiric_therapy_ineffective_drug_penalty".to_string(), 0.05); // Heavy penalty for drugs ineffective against actual pathogens (empirical)
+        map.insert("empiric_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Heavy penalty for drugs ineffective against actual pathogens (empirical)
         map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 3.0); // Multiplier for narrow-spectrum drugs when bacteria identified  
         map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.4); // Penalty for broad-spectrum drugs when bacteria identified
-        map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.1); // Strong penalty for drugs ineffective against identified bacteria
+        map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Strong penalty for drugs ineffective against identified bacteria
 
         // Regional Resistance Surveillance Parameters for Drug Choice
         // Penalties applied during empirical therapy based on local resistance rates
@@ -1080,6 +1143,144 @@ lazy_static! {
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
         map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
         map.insert("log_odds_bacteria_with_low_sepsis_risk".to_string(), -1.2); // Log odds for low-risk bacteria (e.g., exp(-1.2) = 0.3x odds ratio)
+
+        // --- BACTERIA-SPECIFIC SEPSIS RISK MULTIPLIERS (fixes critical configuration bug) ---
+        map.insert("high_sepsis_risk_multiplier".to_string(), 2.0); // High-risk bacteria: 2x baseline sepsis risk
+        map.insert("moderate_sepsis_risk_multiplier".to_string(), 1.0); // Moderate-risk bacteria: baseline sepsis risk
+        map.insert("low_sepsis_risk_multiplier".to_string(), 0.3); // Low-risk bacteria: 0.3x baseline sepsis risk
+
+        // --- ENHANCED INDIVIDUAL BACTERIA SEPSIS RISK OVERRIDES ---
+        // These override the general high/medium/low categories for specific clinical scenarios
+        
+        // EXTREMELY HIGH SEPSIS RISK (beyond standard "high" category)
+        map.insert("staphylococcus_aureus_sepsis_risk_multiplier".to_string(), 3.5); // MRSA bacteremia particularly deadly
+        map.insert("streptococcus_pneumoniae_sepsis_risk_multiplier".to_string(), 2.8); // Pneumococcal sepsis very severe
+        map.insert("neisseria_meningitidis_sepsis_risk_multiplier".to_string(), 4.0); // Meningococcal sepsis extremely rapid/severe
+        
+        // HIGH SEPSIS RISK (standard category, but specific values)
+        map.insert("pseudomonas_aeruginosa_sepsis_risk_multiplier".to_string(), 2.5); // Pseudomonal sepsis severe, often MDR
+        map.insert("acinetobacter_baumannii_sepsis_risk_multiplier".to_string(), 2.3); // Often MDR, ICU-associated severe sepsis
+        map.insert("klebsiella_pneumoniae_sepsis_risk_multiplier".to_string(), 2.2); // ESBL/carbapenem resistance increases severity
+        map.insert("enterococcus_faecium_sepsis_risk_multiplier".to_string(), 2.0); // VRE bacteremia significant mortality
+        map.insert("enterobacter_spp._sepsis_risk_multiplier".to_string(), 1.8); // AmpC resistance, healthcare-associated
+        
+        // MODERATE-HIGH SEPSIS RISK
+        map.insert("escherichia_coli_sepsis_risk_multiplier".to_string(), 1.6); // Common but variable by syndrome
+        map.insert("enterococcus_faecalis_sepsis_risk_multiplier".to_string(), 1.4); // Less virulent than faecium
+        map.insert("streptococcus_agalactiae_sepsis_risk_multiplier".to_string(), 1.5); // GBS can cause severe sepsis
+        map.insert("listeria_monocytogenes_sepsis_risk_multiplier".to_string(), 1.7); // CNS invasion, immunocompromised hosts
+        
+        // MODERATE SEPSIS RISK (baseline category)
+        map.insert("salmonella_enterica_serovar_typhi_sepsis_risk_multiplier".to_string(), 1.2); // Typhoid fever systemic
+        map.insert("vibrio_cholerae_sepsis_risk_multiplier".to_string(), 1.0); // Usually gastroenteritis, rare sepsis
+        map.insert("yersinia_enterocolitica_sepsis_risk_multiplier".to_string(), 0.8); // Usually localized
+        
+        // LOW SEPSIS RISK (standard category, but specific values)
+        map.insert("campylobacter_jejuni_sepsis_risk_multiplier".to_string(), 0.2); // Almost always gastroenteritis only
+        map.insert("chlamydia_trachomatis_sepsis_risk_multiplier".to_string(), 0.1); // Intracellular, rarely causes sepsis
+        map.insert("neisseria_gonorrhoeae_sepsis_risk_multiplier".to_string(), 0.3); // Usually localized genital infection
+        map.insert("haemophilus_influenzae_sepsis_risk_multiplier".to_string(), 0.4); // Post-vaccine era, usually respiratory
+        map.insert("moraxella_catarrhalis_sepsis_risk_multiplier".to_string(), 0.2); // Usually upper respiratory, low virulence
+        map.insert("treponema_pallidum_sepsis_risk_multiplier".to_string(), 0.1); // Chronic infection, not acute sepsis
+        map.insert("shigella_spp._sepsis_risk_multiplier".to_string(), 0.3); // Usually limited to GI tract
+
+        // --- AGE-DEPENDENT BACTERIA SEPSIS RISK INTERACTIONS ---
+        // These modify bacteria sepsis risk based on age groups for clinically important interactions
+        
+        // NEONATAL (0-28 days) HIGH RISK BACTERIA - dramatically higher sepsis risk in neonates
+        map.insert("streptococcus_agalactiae_neonatal_sepsis_multiplier".to_string(), 8.0); // GBS leading cause neonatal sepsis
+        map.insert("escherichia_coli_neonatal_sepsis_multiplier".to_string(), 5.0); // E. coli major neonatal pathogen
+        map.insert("listeria_monocytogenes_neonatal_sepsis_multiplier".to_string(), 6.0); // Listeriosis devastating in neonates
+        map.insert("enterococcus_faecalis_neonatal_sepsis_multiplier".to_string(), 3.0); // Enterococcal sepsis more severe in neonates
+        map.insert("staphylococcus_aureus_neonatal_sepsis_multiplier".to_string(), 4.0); // Staph sepsis particularly severe
+        
+        // PEDIATRIC (1 month - 18 years) RISK MODIFICATIONS
+        map.insert("streptococcus_pneumoniae_pediatric_sepsis_multiplier".to_string(), 3.0); // Pneumococcal disease severe in children
+        map.insert("haemophilus_influenzae_pediatric_sepsis_multiplier".to_string(), 2.5); // Hib historically major pediatric pathogen
+        map.insert("neisseria_meningitidis_pediatric_sepsis_multiplier".to_string(), 5.0); // Meningococcal disease peak in children/adolescents
+        map.insert("staphylococcus_aureus_pediatric_sepsis_multiplier".to_string(), 2.0); // MRSA skin/soft tissue -> sepsis
+        
+        // ELDERLY (65+ years) HIGH RISK BACTERIA - age-related immunosenescence increases risk
+        map.insert("streptococcus_pneumoniae_elderly_sepsis_multiplier".to_string(), 4.0); // Pneumococcal sepsis devastating in elderly
+        map.insert("escherichia_coli_elderly_sepsis_multiplier".to_string(), 2.5); // UTI -> urosepsis common in elderly
+        map.insert("klebsiella_pneumoniae_elderly_sepsis_multiplier".to_string(), 3.0); // Healthcare-associated, frail elderly
+        map.insert("pseudomonas_aeruginosa_elderly_sepsis_multiplier".to_string(), 3.5); // Pseudomonal sepsis high mortality in elderly
+        map.insert("acinetobacter_baumannii_elderly_sepsis_multiplier".to_string(), 3.0); // ICU-associated, elderly more vulnerable
+        map.insert("enterococcus_faecium_elderly_sepsis_multiplier".to_string(), 2.8); // VRE sepsis higher mortality in elderly
+        map.insert("staphylococcus_aureus_elderly_sepsis_multiplier".to_string(), 3.2); // MRSA bacteremia high mortality in elderly
+        
+        // YOUNG ADULT (18-65 years) - generally baseline risk, but some specific high-risk scenarios
+        map.insert("neisseria_meningitidis_young_adult_sepsis_multiplier".to_string(), 3.5); // College outbreaks, military barracks
+        map.insert("staphylococcus_aureus_young_adult_sepsis_multiplier".to_string(), 1.8); // IVDU, sports-related infections
+        
+        // AGE-INDEPENDENT BASELINE MULTIPLIERS (used when no age-specific override exists)
+        map.insert("neonatal_baseline_sepsis_risk_multiplier".to_string(), 3.0); // Immature immune system
+        map.insert("pediatric_baseline_sepsis_risk_multiplier".to_string(), 1.2); // Generally good immune response
+        map.insert("young_adult_baseline_sepsis_risk_multiplier".to_string(), 1.0); // Peak immune function
+        map.insert("elderly_baseline_sepsis_risk_multiplier".to_string(), 2.0); // Immunosenescence
+
+        // --- SYNDROME-SPECIFIC SEPSIS RISK REFINEMENTS ---
+        // These capture how infection site/syndrome affects sepsis probability
+        
+        // VERY HIGH SEPSIS RISK SYNDROMES - direct bloodstream or CNS involvement
+        map.insert("log_odds_sepsis_syndrome_primary_bacteremia".to_string(), 2.5); // Already in bloodstream
+        map.insert("log_odds_sepsis_syndrome_secondary_bacteremia".to_string(), 2.2); // Bloodstream from other source
+        map.insert("log_odds_sepsis_syndrome_infective_endocarditis".to_string(), 2.8); // Heart valve infection
+        map.insert("log_odds_sepsis_syndrome_meningitis".to_string(), 2.6); // CNS invasion
+        map.insert("log_odds_sepsis_syndrome_brain_abscess".to_string(), 2.4); // CNS focal infection
+        map.insert("log_odds_sepsis_syndrome_epidural_abscess".to_string(), 2.3); // CNS/spinal involvement
+        
+        // HIGH SEPSIS RISK SYNDROMES - deep tissue, healthcare-associated
+        map.insert("log_odds_sepsis_syndrome_necrotizing_fasciitis".to_string(), 2.0); // Rapidly spreading deep tissue
+        map.insert("log_odds_sepsis_syndrome_osteomyelitis".to_string(), 1.8); // Bone/joint infection
+        map.insert("log_odds_sepsis_syndrome_septic_arthritis".to_string(), 1.7); // Joint space infection
+        map.insert("log_odds_sepsis_syndrome_device_associated_infection".to_string(), 1.9); // Catheter/device-related
+        map.insert("log_odds_sepsis_syndrome_surgical_site_infection_deep".to_string(), 1.6); // Deep surgical site
+        map.insert("log_odds_sepsis_syndrome_intra_abdominal_infection".to_string(), 1.5); // Peritonitis, abscess
+        
+        // MODERATE-HIGH SEPSIS RISK SYNDROMES - systemic potential
+        map.insert("log_odds_sepsis_syndrome_pneumonia_severe".to_string(), 1.4); // Severe/complicated pneumonia
+        map.insert("log_odds_sepsis_syndrome_pyelonephritis".to_string(), 1.3); // Upper urinary tract
+        map.insert("log_odds_sepsis_syndrome_cellulitis_severe".to_string(), 1.2); // Severe soft tissue infection
+        map.insert("log_odds_sepsis_syndrome_postpartum_endometritis".to_string(), 1.3); // Post-delivery infection
+        map.insert("log_odds_sepsis_syndrome_pelvic_inflammatory_disease".to_string(), 1.1); // Upper genital tract
+        
+        // MODERATE SEPSIS RISK SYNDROMES - baseline risk
+        map.insert("log_odds_sepsis_syndrome_pneumonia_community".to_string(), 0.8); // Community-acquired pneumonia
+        map.insert("log_odds_sepsis_syndrome_gastroenteritis_severe".to_string(), 0.6); // Severe diarrheal illness
+        map.insert("log_odds_sepsis_syndrome_urinary_tract_infection".to_string(), 0.4); // Lower UTI
+        map.insert("log_odds_sepsis_syndrome_surgical_site_infection_superficial".to_string(), 0.3); // Superficial wound
+        
+        // LOW SEPSIS RISK SYNDROMES - usually localized
+        map.insert("log_odds_sepsis_syndrome_pharyngitis".to_string(), -0.5); // Throat infection
+        map.insert("log_odds_sepsis_syndrome_sinusitis".to_string(), -0.4); // Sinus infection  
+        map.insert("log_odds_sepsis_syndrome_otitis_media".to_string(), -0.6); // Middle ear infection
+        map.insert("log_odds_sepsis_syndrome_conjunctivitis".to_string(), -1.0); // Eye infection
+        map.insert("log_odds_sepsis_syndrome_gastroenteritis_mild".to_string(), -0.8); // Mild diarrhea
+        map.insert("log_odds_sepsis_syndrome_urethritis".to_string(), -0.9); // Urethral infection
+        map.insert("log_odds_sepsis_syndrome_cervicitis".to_string(), -0.8); // Cervical infection
+        map.insert("log_odds_sepsis_syndrome_vaginitis".to_string(), -1.0); // Vaginal infection
+        
+        // VERY LOW SEPSIS RISK SYNDROMES - superficial/mucosal only
+        map.insert("log_odds_sepsis_syndrome_impetigo".to_string(), -1.2); // Superficial skin infection
+        map.insert("log_odds_sepsis_syndrome_folliculitis".to_string(), -1.3); // Hair follicle infection
+        map.insert("log_odds_sepsis_syndrome_oral_thrush".to_string(), -1.5); // Oral candidiasis
+        map.insert("log_odds_sepsis_syndrome_superficial_dermatitis".to_string(), -1.4); // Skin surface only
+
+        // --- REGIONAL SEPSIS RISK FACTORS ---
+        // Account for healthcare infrastructure, population density, socioeconomic factors
+        
+        // HEALTHCARE ACCESS AND QUALITY MODIFIERS
+        map.insert("log_odds_sepsis_region_a".to_string(), -0.3); // Higher resource region - better sepsis recognition/treatment
+        map.insert("log_odds_sepsis_region_b".to_string(), 0.2);  // Lower resource region - delayed recognition/limited resources
+        
+        // POPULATION DENSITY AND TRANSMISSION RISK MODIFIERS  
+        map.insert("urban_sepsis_risk_modifier".to_string(), 0.1); // Urban: higher MDR rates but better healthcare access
+        map.insert("rural_sepsis_risk_modifier".to_string(), 0.2); // Rural: delayed care access, transportation barriers
+        
+        // SOCIOECONOMIC STATUS MODIFIERS (if implemented in future)
+        map.insert("low_ses_sepsis_risk_modifier".to_string(), 0.3); // Lower SES: delayed care-seeking, comorbidities
+        map.insert("high_ses_sepsis_risk_modifier".to_string(), -0.2); // Higher SES: earlier care-seeking, better baseline health
 
         // Syndrome-specific sepsis risk parameters (infectious site effects)
         map.insert("log_odds_syndrome_1_sepsis".to_string(), -2.0); // UTI/Genitourinary: Much lower sepsis risk
@@ -2202,38 +2403,102 @@ pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
 }
 
 /// Gets the sepsis risk category multiplier for a bacteria.
-/// Categorizes bacteria into high/moderate/low sepsis risk groups.
-/// Returns the appropriate risk multiplier.
+/// Supports both enhanced granular bacteria-specific risks and fallback categories.
+/// Returns the appropriate risk multiplier based on clinical evidence.
 pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
-    // High sepsis risk: bloodstream pathogens, highly virulent
+    // First try to get bacteria-specific override multiplier (enhanced granular risks)
+    let bacteria_key = format!("{}_sepsis_risk_multiplier", bacteria_name.to_lowercase().replace(" ", "_"));
+    if let Some(specific_multiplier) = get_global_param(&bacteria_key) {
+        return specific_multiplier;
+    }
+    
+    // Fall back to clinical risk category groupings if no specific override exists
+    
+    // EXTREMELY HIGH SEPSIS RISK - these should have specific overrides above
+    let extremely_high_risk_bacteria = [
+        "neisseria meningitidis",     // Meningococcal sepsis extremely rapid/severe
+        "staphylococcus aureus",      // MRSA bacteremia particularly deadly  
+        "streptococcus pneumoniae",   // Pneumococcal sepsis very severe
+    ];
+    
+    // HIGH SEPSIS RISK - often MDR, ICU-associated, high mortality
     let high_risk_bacteria = [
-        "staphylococcus aureus",
-        "pseudomonas aeruginosa", 
-        "acinetobacter baumannii",
-        "enterococcus faecium",
-        "streptococcus pneumoniae",
-        "enterobacter spp.",
-        "klebsiella pneumoniae"
+        "pseudomonas aeruginosa",     // Pseudomonal sepsis severe, often MDR
+        "acinetobacter baumannii",    // Often MDR, ICU-associated severe sepsis
+        "klebsiella pneumoniae",      // ESBL/carbapenem resistance increases severity
+        "enterococcus faecium",       // VRE bacteremia significant mortality
+        "enterobacter spp.",          // AmpC resistance, healthcare-associated
     ];
     
-    // Low sepsis risk: less invasive, more localized infections
+    // MODERATE-HIGH SEPSIS RISK - variable clinical severity
+    let moderate_high_risk_bacteria = [
+        "escherichia coli",           // Common but variable by syndrome
+        "enterococcus faecalis",      // Less virulent than faecium
+        "streptococcus agalactiae",   // GBS can cause severe sepsis
+        "listeria monocytogenes",     // CNS invasion, immunocompromised hosts
+    ];
+    
+    // MODERATE SEPSIS RISK - baseline risk
+    let moderate_risk_bacteria = [
+        "salmonella enterica serovar typhi",  // Typhoid fever systemic
+        "vibrio cholerae",                    // Usually gastroenteritis, rare sepsis
+        "yersinia enterocolitica",            // Usually localized
+    ];
+    
+    // LOW SEPSIS RISK - usually localized infections, rarely cause sepsis
     let low_risk_bacteria = [
-        "chlamydia trachomatis",
-        "neisseria gonorrhoeae",
-        "campylobacter_jejuni",
-        "shigella spp.",
-        "moraxella_catarrhalis",
-        "haemophilus influenzae"
+        "campylobacter jejuni",       // Almost always gastroenteritis only
+        "chlamydia trachomatis",      // Intracellular, rarely causes sepsis
+        "neisseria gonorrhoeae",      // Usually localized genital infection
+        "haemophilus influenzae",     // Post-vaccine era, usually respiratory
+        "moraxella catarrhalis",      // Usually upper respiratory, low virulence
+        "treponema pallidum",         // Chronic infection, not acute sepsis
+        "shigella spp.",              // Usually limited to GI tract
     ];
     
-    if high_risk_bacteria.contains(&bacteria_name) {
+    // Return appropriate multiplier based on risk category
+    if extremely_high_risk_bacteria.contains(&bacteria_name) {
+        get_global_param("high_sepsis_risk_multiplier").unwrap_or(3.0)  // Higher than standard high
+    } else if high_risk_bacteria.contains(&bacteria_name) {
         get_global_param("high_sepsis_risk_multiplier").unwrap_or(2.0)
+    } else if moderate_high_risk_bacteria.contains(&bacteria_name) {
+        1.5  // Between moderate and high
+    } else if moderate_risk_bacteria.contains(&bacteria_name) {
+        get_global_param("moderate_sepsis_risk_multiplier").unwrap_or(1.0)
     } else if low_risk_bacteria.contains(&bacteria_name) {
         get_global_param("low_sepsis_risk_multiplier").unwrap_or(0.3)
     } else {
-        // Default to moderate risk for all other bacteria
+        // Default to moderate risk for any bacteria not explicitly categorized
         get_global_param("moderate_sepsis_risk_multiplier").unwrap_or(1.0)
     }
+}
+
+/// Gets age-dependent sepsis risk multiplier for a specific bacteria and age.
+/// Accounts for clinically important age-bacteria interactions (e.g., GBS in neonates, pneumococcus in elderly).
+/// Returns multiplier that modifies the base bacteria sepsis risk.
+pub fn get_age_dependent_bacteria_sepsis_risk_multiplier(bacteria_name: &str, age_days: u32) -> f64 {
+    // Define age categories
+    let age_category = if age_days <= 28 {
+        "neonatal"
+    } else if age_days <= 365 * 18 {
+        "pediatric" 
+    } else if age_days <= 365 * 65 {
+        "young_adult"
+    } else {
+        "elderly"
+    };
+    
+    // First try to get bacteria-age-specific multiplier
+    let bacteria_age_key = format!("{}_{}_sepsis_multiplier", 
+                                   bacteria_name.to_lowercase().replace(" ", "_"), 
+                                   age_category);
+    if let Some(specific_multiplier) = get_global_param(&bacteria_age_key) {
+        return specific_multiplier;
+    }
+    
+    // Fall back to age-category baseline multiplier
+    let age_baseline_key = format!("{}_baseline_sepsis_risk_multiplier", age_category);
+    get_global_param(&age_baseline_key).unwrap_or(1.0)
 }
 
 

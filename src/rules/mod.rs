@@ -22,6 +22,7 @@ use crate::config::{
     get_age_infection_multiplier,
     get_drug_availability_time_aware,
     get_bacteria_sepsis_risk_multiplier,
+    get_age_dependent_bacteria_sepsis_risk_multiplier,
     get_drug_introduction_time_step,
 };
 use rand::Rng;
@@ -465,16 +466,30 @@ pub fn apply_rules(
                 let log_odds_infection_duration = get_bacteria_param(bacteria, "log_odds_sepsis_infection_duration")
                     .unwrap_or_else(|| get_global_param("log_odds_sepsis_infection_duration").expect("Missing log_odds_sepsis_infection_duration"));
 
-                // Determine bacteria risk category and get corresponding log odds
-                let bacteria_log_odds = if get_bacteria_sepsis_risk_multiplier(bacteria) > 1.5 {
-                    // High risk bacteria
+                // ENHANCED BACTERIA SEPSIS RISK CALCULATION
+                // Combines: 1) Enhanced bacteria-specific risk, 2) Age-dependent interactions, 3) Clinical risk categories
+                let bacteria_sepsis_risk = get_bacteria_sepsis_risk_multiplier(bacteria);
+                let age_bacteria_sepsis_risk = get_age_dependent_bacteria_sepsis_risk_multiplier(bacteria, individual.age as u32);
+                
+                // Combined bacteria risk multiplier (bacteria-specific × age-dependent interaction)
+                let combined_bacteria_risk = bacteria_sepsis_risk * age_bacteria_sepsis_risk;
+                
+                // Map combined risk to log odds categories for logistic regression
+                let bacteria_log_odds = if combined_bacteria_risk >= 3.0 {
+                    // Very high combined risk (e.g., MRSA in elderly, GBS in neonates)
+                    get_global_param("log_odds_bacteria_with_high_sepsis_risk").expect("Missing log_odds_bacteria_with_high_sepsis_risk") * 1.5
+                } else if combined_bacteria_risk >= 1.8 {
+                    // High combined risk 
                     get_global_param("log_odds_bacteria_with_high_sepsis_risk").expect("Missing log_odds_bacteria_with_high_sepsis_risk")
-                } else if get_bacteria_sepsis_risk_multiplier(bacteria) < 0.5 {
-                    // Low risk bacteria
+                } else if combined_bacteria_risk >= 0.7 && combined_bacteria_risk <= 1.3 {
+                    // Medium combined risk (reference category)
+                    get_global_param("log_odds_bacteria_with_medium_sepsis_risk").expect("Missing log_odds_bacteria_with_medium_sepsis_risk")
+                } else if combined_bacteria_risk >= 0.3 {
+                    // Low combined risk
                     get_global_param("log_odds_bacteria_with_low_sepsis_risk").expect("Missing log_odds_bacteria_with_low_sepsis_risk")
                 } else {
-                    // Medium risk bacteria (reference category)
-                    get_global_param("log_odds_bacteria_with_medium_sepsis_risk").expect("Missing log_odds_bacteria_with_medium_sepsis_risk")
+                    // Very low combined risk (e.g., Chlamydia, localized infections)
+                    get_global_param("log_odds_bacteria_with_low_sepsis_risk").expect("Missing log_odds_bacteria_with_low_sepsis_risk") * 0.5
                 };
 
                 // Add syndrome-specific sepsis risk (infection site effect)
@@ -492,12 +507,22 @@ pub fn apply_rules(
                     0.0 // No syndrome specified, no effect
                 };
                 
-                // Calculate log odds of sepsis
+                // Add regional sepsis risk factors (healthcare access, population density, resources)
+                let region_log_odds = match individual.region_living {
+                    Region::Africa | Region::Asia => get_global_param("log_odds_sepsis_region_b").unwrap_or(0.2),  // Lower resource regions
+                    Region::NorthAmerica | Region::Europe | Region::Oceania => get_global_param("log_odds_sepsis_region_a").unwrap_or(-0.3), // Higher resource regions
+                    Region::SouthAmerica => get_global_param("log_odds_sepsis_region_b").unwrap_or(0.1),  // Mixed resource region
+                    Region::Home => 0.0, // Neutral/no effect for home region
+                };
+                
+                // COMPREHENSIVE SEPSIS RISK CALCULATION
+                // Integrates: bacteria risk, age interactions, syndrome site, regional factors
                 let log_odds_sepsis = sepsis_baseline_odds
                                     + (current_level * log_odds_infection_level)
                                     + (duration_of_infection as f64 * log_odds_infection_duration)
                                     + bacteria_log_odds
-                                    + syndrome_log_odds;
+                                    + syndrome_log_odds
+                                    + region_log_odds;
 
                 // Convert log odds to probability using logistic function
                 let prob_sepsis_today = 1.0 / (1.0 + (-log_odds_sepsis).exp());
@@ -690,10 +715,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         start_any_antibiotic_prob = start_any_antibiotic_prob.clamp(0.0, 1.0);
 
         if rng.gen_bool(start_any_antibiotic_prob) {
-            // Stage 2: Choose the most appropriate drug
-            // Score each available drug
-            let mut best_drug_idx: Option<usize> = None;
-            let mut best_score: f64 = -1.0;
+            // Stage 2: Choose the most appropriate drug using weighted probabilistic selection
+            // Score each available drug and collect scores for probabilistic selection
+            let mut drug_scores: Vec<(usize, f64)> = Vec::new();
             for &drug_idx in &available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
                 // Restriction: do not start drug if resistance test has been performed and resistance detected for any bacteria
@@ -855,37 +879,54 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     score = 0.0; // Drug not yet introduced, can't be prescribed
                 }
 
-                if score > best_score {
-                    best_score = score;
-                    best_drug_idx = Some(drug_idx);
+                // Only include drugs with positive scores for selection
+                if score > 0.0 {
+                    drug_scores.push((drug_idx, score));
                 }
             }
-            // If a suitable drug is found, initiate it
-            if let Some(drug_idx) = best_drug_idx {
-                let drug_name = DRUG_SHORT_NAMES[drug_idx];
-                individual.cur_use_drug[drug_idx] = true;
-                individual.date_drug_initiated[drug_idx] = time_step as i32;
-                individual.date_drug_initiated_keep[drug_idx] = time_step as i32; // Persistent record
-                individual.ever_taken_drug[drug_idx] = true;
-                if individual.id == 1000001  {
-                    println!(
-                        "mod.rs   started {} - two-stage rate of starting was {:.4}",
-                        drug_name,
-                        start_any_antibiotic_prob,
-                    );
+
+            // Weighted probabilistic selection from scored drugs
+            if !drug_scores.is_empty() {
+                // Add stochasticity parameter to control randomness vs determinism
+                let selection_temperature = get_global_param("drug_selection_temperature").unwrap_or(2.0);
+                
+                // Apply temperature scaling: higher temp = more random, lower temp = more deterministic
+                // Temperature of 1.0 = use raw scores, >1.0 = more random, <1.0 = more deterministic
+                let weights: Vec<f64> = drug_scores.iter()
+                    .map(|(_, score)| (score / selection_temperature).exp())
+                    .collect();
+                
+                // Handle edge case where all weights are zero or infinite
+                let total_weight: f64 = weights.iter().sum();
+                if total_weight > 0.0 && total_weight.is_finite() {
+                    let dist = WeightedIndex::new(&weights).unwrap();
+                    let chosen_idx = dist.sample(&mut rng);
+                    let chosen_drug_idx = drug_scores[chosen_idx].0;
+                    
+                    // Initiate the selected drug
+                    let drug_name = DRUG_SHORT_NAMES[chosen_drug_idx];
+                    individual.cur_use_drug[chosen_drug_idx] = true;
+                    individual.date_drug_initiated[chosen_drug_idx] = time_step as i32;
+                    individual.date_drug_initiated_keep[chosen_drug_idx] = time_step as i32; // Persistent record
+                    individual.ever_taken_drug[chosen_drug_idx] = true;
+                    if individual.id == 1000001  {
+                        println!(
+                            "mod.rs   started {} - two-stage rate of starting was {:.4} (score: {:.3})",
+                            drug_name,
+                            start_any_antibiotic_prob,
+                            drug_scores[chosen_idx].1
+                        );
+                    }
+                    let mut chosen_initial_level = get_drug_param(drug_name, "initial_level").unwrap_or(10.0);
+                    if has_any_identified_infection && rng.gen_bool(double_dose_probability) {
+                        let double_dose_multiplier = get_drug_param(drug_name, "double_dose_multiplier").unwrap_or(2.0);
+                        chosen_initial_level *= double_dose_multiplier;
+                    }
+                    individual.cur_level_drug[chosen_drug_idx] = chosen_initial_level;
                 }
-                let mut chosen_initial_level = get_drug_param(drug_name, "initial_level").unwrap_or(10.0);
-                if has_any_identified_infection && rng.gen_bool(double_dose_probability) {
-                    let double_dose_multiplier = get_drug_param(drug_name, "double_dose_multiplier").unwrap_or(2.0);
-                    chosen_initial_level *= double_dose_multiplier;
-                }
-                individual.cur_level_drug[drug_idx] = chosen_initial_level;
-                // drugs_initiated_this_time_step += 1; // No longer needed in two-stage logic
             }
         }
     }
-
-
 
     // drug-specific toxicity
     let mut daily_drug_toxicity_increase = 0.0;

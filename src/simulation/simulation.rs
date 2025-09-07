@@ -70,6 +70,8 @@ pub struct TimeStepSummary {
     pub number_in_hospital: usize,         
     pub number_severely_immunosuppressed: usize, 
     pub number_with_sepsis: usize,         
+    pub number_with_sepsis_by_bacteria: Vec<usize>, // per-bacteria counts of people with sepsis
+    pub new_sepsis_cases_by_bacteria: Vec<usize>, // per-bacteria counts of people who developed sepsis this timestep
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub deaths_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
@@ -355,6 +357,8 @@ impl Simulation {
                 number_in_hospital: usize,
                 number_severely_immunosuppressed: usize,
                 number_with_sepsis: usize,
+                number_with_sepsis_by_bacteria: Vec<usize>,
+                new_sepsis_cases_by_bacteria: Vec<usize>,
                 newly_infected_count: usize,
                 newly_infected_with_resistance_count: usize,
                 new_drug_initiations_count: usize,
@@ -445,6 +449,8 @@ impl Simulation {
                         number_in_hospital: 0,
                         number_severely_immunosuppressed: 0,
                         number_with_sepsis: 0,
+                        number_with_sepsis_by_bacteria: vec![0; num_bacteria],
+                        new_sepsis_cases_by_bacteria: vec![0; num_bacteria],
                         newly_infected_count: 0,
                         newly_infected_with_resistance_count: 0,
                         new_drug_initiations_count: 0,
@@ -515,6 +521,8 @@ impl Simulation {
                     self.number_in_hospital += other.number_in_hospital;
                     self.number_severely_immunosuppressed += other.number_severely_immunosuppressed;
                     self.number_with_sepsis += other.number_with_sepsis;
+                    for (a,b) in self.number_with_sepsis_by_bacteria.iter_mut().zip(other.number_with_sepsis_by_bacteria) { *a += b; }
+                    for (a,b) in self.new_sepsis_cases_by_bacteria.iter_mut().zip(other.new_sepsis_cases_by_bacteria) { *a += b; }
                     self.newly_infected_count += other.newly_infected_count;
                     self.newly_infected_with_resistance_count += other.newly_infected_with_resistance_count;
                     self.new_drug_initiations_count += other.new_drug_initiations_count;
@@ -923,6 +931,19 @@ impl Simulation {
                             if individual.hospital_status.is_hospitalized() { lt.number_in_hospital += 1; }
                             if individual.immunodeficiency_type.is_some() { lt.number_severely_immunosuppressed += 1; }
                             if individual.sepsis.iter().any(|&s| s) { lt.number_with_sepsis += 1; }
+                            
+                            // Track sepsis by bacteria and new sepsis cases
+                            for b_idx in 0..num_bacteria {
+                                if individual.sepsis[b_idx] {
+                                    // Current sepsis with this bacteria
+                                    lt.number_with_sepsis_by_bacteria[b_idx] += 1;
+                                    
+                                    // Count as new sepsis case if sepsis started today and person is currently infected
+                                    if individual.level[b_idx] > 0.001 && individual.sepsis_onset_day[b_idx] == t as i32 {
+                                        lt.new_sepsis_cases_by_bacteria[b_idx] += 1;
+                                    }
+                                }
+                            }
                         }
                         lt
                     })
@@ -985,6 +1006,8 @@ impl Simulation {
                     number_in_hospital,
                     number_severely_immunosuppressed,
                     number_with_sepsis,
+                    number_with_sepsis_by_bacteria,
+                    new_sepsis_cases_by_bacteria,
                     newly_infected_count,
                     newly_infected_with_resistance_count,
                     new_drug_initiations_count,
@@ -1101,6 +1124,8 @@ impl Simulation {
                 number_in_hospital,
                 number_severely_immunosuppressed,
                 number_with_sepsis,
+                number_with_sepsis_by_bacteria,
+                new_sepsis_cases_by_bacteria,
                 newly_infected_count,
                 newly_infected_with_resistance_count,
                 new_drug_initiations_count,
@@ -1524,6 +1549,18 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_deaths");
         }
+        // Add per-bacteria sepsis prevalence columns
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_number_with_sepsis");
+        }
+        // Add per-bacteria sepsis incidence columns
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_new_sepsis_cases");
+        }
         // Add per-bacteria activity_r sum columns
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -1915,6 +1952,8 @@ impl Simulation {
             // Append all array data efficiently
             for value in &summary.infections_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.deaths_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.number_with_sepsis_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.new_sepsis_cases_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.activity_r_sum_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.presence_microbiome_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             // Add regional presence_microbiome data

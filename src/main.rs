@@ -18,13 +18,29 @@ mod config;
 
 // 
 // -- additional output graphs ---------------------------------------------------------------------------------
+//  
+//  sepsis incidence by bacteria
 //
-// treatment failure rates (on treatment 5 days and infection
-// present still)
+//
 //
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
+//
+// add age and region-specific all cause death rates and try to subtract bacterial  
+// infection rates so they are background death rates
+//
+// need to better account for how death rate can be high in some infections despite treatment
+// (and I think this means despite treatment with a non resistant drug)
+//
+// need to add fidaxomicin as a drug ?
+//
+// make sure risk of c diff with use of many antibiotics is accounted for
+// including its risk of recurrence
+//
+//
+// do we need a variable for whether under care for infection, as a prerequisite 
+// for drug initiation even if no tests done
 //
 // do we need parameters like multi_drug_penalty_for_partial_cross_resistance given the 
 // way we are calculating a total activity r which is supposed to be able to consider 2 drugs
@@ -43,7 +59,7 @@ mod config;
 //
 // when people on two drugs account for drug drug interactions in determining final drug level of each drug
 //
-//
+// 
 //
 //
 // calibration data: approx drug usage per 100_000 per calendar year 
@@ -68,6 +84,9 @@ mod config;
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
 //
+// mda with azithromycin is to reduce community incidence as well as treat existing
+// infection
+//
 // for mda project can base in africa with an "other" region all groued together
 //
 // to(maybe)do: perhaps introduce an effect whereby drug treatment leads to an increase in risk of microbiome_r > 0 due to   
@@ -82,8 +101,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 5_000; 
-    let time_steps = 10_000 ;  // 38_325
+    let population_size = 300_000; 
+    let time_steps =  200 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
