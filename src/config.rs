@@ -85,7 +85,7 @@ lazy_static! {
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
         
         // Drug Selection Algorithm Parameters
-        map.insert("drug_selection_temperature".to_string(), 1.5); // ADJUSTED: Controls randomness in drug selection: 1.0=raw scores, >1.0=more random, <1.0=more deterministic
+        map.insert("drug_selection_temperature".to_string(), 0.3); // MUCH more deterministic: strongly favor best choices
         
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -186,13 +186,30 @@ lazy_static! {
         map.insert("drug_metronidazole_half_life_days".to_string(), 0.33); // ~8 hours
         map.insert("drug_furazolidone_half_life_days".to_string(), 0.25); // ~6 hours
         map.insert("already_on_drug_initiation_multiplier".to_string(), 1.000); // 0.0001
-        map.insert("double_dose_probability_if_identified_infection".to_string(), 0.1); // Probability for double dose
+        map.insert("double_dose_probability_if_identified_infection".to_string(), 0.25); // Increased from 0.1 to 0.25 for more aggressive dosing
+        
+        // Clinical Decision-Making Potency Thresholds
+        map.insert("minimal_potency_threshold_for_drug_selection".to_string(), 0.10); // Minimum potency to consider drug (blocks ineffective drugs)
+        map.insert("effective_potency_threshold_for_targeted_therapy".to_string(), 0.10); // Threshold for "good activity" in targeted therapy
+        map.insert("effective_potency_threshold_for_empirical_therapy".to_string(), 0.10); // Threshold for "effective activity" in empirical therapy
         
         // Global Immune System Parameters
         map.insert("immune_decay_rate_per_day".to_string(), 0.02); // Rate at which immunity decays when not actively fighting infection
         
         // Drug Evaluation Timing Parameters
         map.insert("drug_evaluation_days_post_infection".to_string(), 7.0); // Number of days after infection to evaluate drug initiation
+        
+        // Treatment Failure Assessment Parameters
+        map.insert("treatment_failure_assessment_day".to_string(), 4.0); // Days to wait before assessing treatment failure
+        map.insert("enable_treatment_failure_assessment".to_string(), 1.0); // Enable/disable treatment failure assessment (1.0=enabled, 0.0=disabled)
+        map.insert("drug_failure_memory_days".to_string(), 30.0); // Days to remember a drug failure when selecting alternatives
+        
+        // Restart Window Parameters (for patients who stop drugs early while still infected)
+        map.insert("restart_window_days".to_string(), 5.0); // Days after drug cessation to allow "restart" treatment
+        map.insert("restart_window_probability".to_string(), 0.3); // Probability that patient returns to care during restart window
+        map.insert("restart_bacteria_level_threshold".to_string(), 1.5); // Bacteria level multiplier to trigger restart (current >= cessation * threshold)
+        map.insert("previously_effective_drug_bonus".to_string(), 2.0); // Score multiplier for drug that was working before cessation
+        map.insert("enable_restart_window".to_string(), 1.0); // Enable/disable restart window system (1.0=enabled, 0.0=disabled)
       
 
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---

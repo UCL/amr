@@ -31,6 +31,382 @@ use std::collections::HashMap;
 use rand::distributions::WeightedIndex;
 use rand::distributions::Distribution; 
 
+/// Assess treatment failure and switch drugs if necessary
+/// Returns true if a drug switch occurred
+fn assess_treatment_failure(
+    individual: &mut Individual,
+    time_step: usize,
+    bacteria_idx: usize,
+    bacteria_indices: &HashMap<&'static str, usize>,
+    _drug_indices: &HashMap<&'static str, usize>,
+    _cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
+    param_cache: &ParameterKeyCache,
+) -> bool {
+    let mut rng = rand::thread_rng();
+    
+    // Check if treatment failure assessment is enabled
+    let assessment_enabled = get_global_param("enable_treatment_failure_assessment").unwrap_or(1.0) > 0.5;
+    if !assessment_enabled {
+        return false;
+    }
+    
+    // Check if we're on the assessment day
+    let assessment_day = get_global_param("treatment_failure_assessment_day").unwrap_or(4.0) as i32;
+    if individual.days_on_current_treatment[bacteria_idx] != assessment_day {
+        return false;
+    }
+    
+    // Check if we've already assessed this treatment course
+    if individual.treatment_failure_assessed[bacteria_idx] {
+        return false;
+    }
+    
+    // Check if there's a current infection and bacteria level recorded at drug start
+    if individual.level[bacteria_idx] <= 0.0 || individual.bacteria_level_at_drug_start[bacteria_idx].is_none() {
+        return false;
+    }
+    
+    let initial_level = individual.bacteria_level_at_drug_start[bacteria_idx].unwrap();
+    let current_level = individual.level[bacteria_idx];
+    
+    // Treatment failure criterion: current bacteria level >= initial level
+    let treatment_failed = current_level >= initial_level;
+    
+    // Mark assessment as completed for this treatment course
+    individual.treatment_failure_assessed[bacteria_idx] = true;
+    
+    if !treatment_failed {
+        return false; // Treatment is working, no switch needed
+    }
+    
+    // Find current drugs being used for this bacteria
+    let current_drugs: Vec<usize> = individual.cur_use_drug.iter().enumerate()
+        .filter(|(_, &is_taking)| is_taking)
+        .map(|(drug_idx, _)| drug_idx)
+        .collect();
+    
+    if current_drugs.is_empty() {
+        return false; // No current drugs to switch from
+    }
+    
+    // Try to find an alternative drug using the same selection logic as initial prescription
+    // but excluding recently failed drugs
+    let bacteria_name = BACTERIA_LIST[bacteria_idx];
+    let failure_memory_days = get_global_param("drug_failure_memory_days").unwrap_or(30.0) as i32;
+    
+    // Build list of available alternative drugs
+    let mut alternative_scores = Vec::new();
+    
+    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+        // Skip if currently taking this drug
+        if current_drugs.contains(&drug_idx) {
+            continue;
+        }
+        
+        // Skip if this drug failed recently (within memory period)
+        if individual.date_drug_initiated_keep[drug_idx] != i32::MIN {
+            let days_since_last_use = (time_step as i32) - individual.date_drug_initiated_keep[drug_idx];
+            if days_since_last_use >= 0 && days_since_last_use < failure_memory_days {
+                // This is a recently used drug, skip it for now (simple approach)
+                continue;
+            }
+        }
+        
+        // Check if drug is available (using same logic as original selection)
+        let avail = get_drug_availability_time_aware(
+            drug_name,
+            &individual.region_cur_in.to_string(),
+            Some(&individual.region_living.to_string()),
+            time_step
+        );
+        
+        if avail < 0.01 { // Drug not sufficiently available
+            continue;
+        }
+        
+        // Calculate drug score using same logic as original selection
+        let mut score = 0.0;
+        
+        // Base potency score
+        let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
+        if let Some(potency_param_key) = param_cache.drug_bacteria_potency_keys.get(&(drug_idx, *bacteria_idx_for_cache)) {
+            if let Some(potency) = get_global_param(potency_param_key) {
+                if potency >= get_global_param("minimal_potency_threshold_for_drug_selection").unwrap_or(0.10) {
+                    score += potency;
+                }
+            }
+        }
+        
+        // Apply clinical multipliers (same as original logic)
+        // Add pathogen-specific preference multipliers
+        let bacteria_drug_key = format!("{}_{}_clinical_preference_multiplier", bacteria_name.replace(" ", "_"), drug_name);
+        if let Some(preference_multiplier) = get_global_param(&bacteria_drug_key) {
+            score *= preference_multiplier;
+        }
+        
+        if score > 0.0 {
+            alternative_scores.push((drug_idx, score));
+        }
+    }
+    
+    // If we found alternatives, select one and switch
+    if !alternative_scores.is_empty() {
+        // Use same weighted selection as original logic
+        let selection_temperature = get_global_param("drug_selection_temperature").unwrap_or(0.5);
+        let weights: Vec<f64> = alternative_scores.iter()
+            .map(|(_, score)| (score / selection_temperature).exp())
+            .collect();
+        
+        let total_weight: f64 = weights.iter().sum();
+        if total_weight > 0.0 && total_weight.is_finite() {
+            let dist = WeightedIndex::new(&weights).unwrap();
+            let chosen_idx = dist.sample(&mut rng);
+            let new_drug_idx = alternative_scores[chosen_idx].0;
+            
+            // Stop current drugs
+            for &current_drug_idx in &current_drugs {
+                individual.cur_use_drug[current_drug_idx] = false;
+                individual.date_drug_initiated[current_drug_idx] = i32::MIN;
+            }
+            
+            // Start new drug
+            let new_drug_name = DRUG_SHORT_NAMES[new_drug_idx];
+            individual.cur_use_drug[new_drug_idx] = true;
+            individual.date_drug_initiated[new_drug_idx] = time_step as i32;
+            individual.date_drug_initiated_keep[new_drug_idx] = time_step as i32;
+            individual.ever_taken_drug[new_drug_idx] = true;
+            
+            // Set drug level
+            let initial_level = get_drug_param(new_drug_name, "initial_level").unwrap_or(10.0);
+            individual.cur_level_drug[new_drug_idx] = initial_level;
+            
+            // Reset treatment failure tracking for this bacteria
+            individual.bacteria_level_at_drug_start[bacteria_idx] = Some(current_level);
+            individual.days_on_current_treatment[bacteria_idx] = 0;
+            individual.treatment_failure_assessed[bacteria_idx] = false;
+            
+            return true; // Drug switch occurred
+        }
+    }
+    
+    false // No switch occurred
+}
+
+/// Assess restart window for patients who stopped drugs while still infected
+/// Returns true if restart treatment was initiated
+fn assess_restart_window(
+    individual: &mut Individual,
+    time_step: usize,
+    bacteria_idx: usize,
+    bacteria_indices: &HashMap<&'static str, usize>,
+    param_cache: &ParameterKeyCache,
+) -> bool {
+    let mut rng = rand::thread_rng();
+    
+    // Check if restart window is enabled
+    if get_global_param("enable_restart_window").unwrap_or(1.0) < 0.5 {
+        return false;
+    }
+    
+    // Check if there's a cessation to assess
+    if let Some(cessation_day) = individual.drug_stopped_with_infection_day[bacteria_idx] {
+        let restart_window_days = get_global_param("restart_window_days").unwrap_or(5.0) as i32;
+        let days_since_cessation = (time_step as i32) - cessation_day;
+        
+        // Within restart window?
+        if days_since_cessation >= 1 && days_since_cessation <= restart_window_days {
+            
+            // Haven't assessed yet?
+            if !individual.restart_window_assessed[bacteria_idx] {
+                individual.restart_window_assessed[bacteria_idx] = true;
+                
+                // Check if bacteria level has worsened enough to trigger restart
+                if let Some(cessation_level) = individual.bacteria_level_at_drug_cessation[bacteria_idx] {
+                    let current_level = individual.level[bacteria_idx];
+                    let threshold_multiplier = get_global_param("restart_bacteria_level_threshold").unwrap_or(1.5);
+                    
+                    // Restart criteria: bacteria level increased significantly OR still very high
+                    let bacteria_worsened = current_level >= (cessation_level * threshold_multiplier);
+                    let bacteria_still_high = current_level > 2.0; // Arbitrary high threshold for severe infection
+                    
+                    if (bacteria_worsened || bacteria_still_high) && individual.level[bacteria_idx] > 0.1 {
+                        // Patient decides to return to care?
+                        let return_probability = get_global_param("restart_window_probability").unwrap_or(0.3);
+                        
+                        if rng.gen_bool(return_probability) {
+                            // Clear restart tracking
+                            individual.drug_stopped_with_infection_day[bacteria_idx] = None;
+                            individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
+                            let stopped_drug_idx = individual.stopped_drug_index[bacteria_idx];
+                            individual.stopped_drug_index[bacteria_idx] = None;
+                            
+                            // Start restart treatment, preferring the previously effective drug
+                            return start_restart_treatment(individual, time_step, bacteria_idx, stopped_drug_idx, bacteria_indices, param_cache);
+                        }
+                    }
+                }
+            }
+        } else if days_since_cessation > restart_window_days {
+            // Restart window expired - clear tracking
+            individual.drug_stopped_with_infection_day[bacteria_idx] = None;
+            individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
+            individual.stopped_drug_index[bacteria_idx] = None;
+            individual.restart_window_assessed[bacteria_idx] = false;
+        }
+    }
+    
+    false
+}
+
+/// Start restart treatment for a patient who returns to care after stopping drugs early
+/// Prefers the previously effective drug that was stopped
+fn start_restart_treatment(
+    individual: &mut Individual,
+    time_step: usize,
+    bacteria_idx: usize,
+    stopped_drug_idx: Option<usize>,
+    bacteria_indices: &HashMap<&'static str, usize>,
+    param_cache: &ParameterKeyCache,
+) -> bool {
+    let mut rng = rand::thread_rng();
+    
+    let bacteria_name = BACTERIA_LIST[bacteria_idx];
+    
+    // Check if we can restart the previously effective drug
+    if let Some(prev_drug_idx) = stopped_drug_idx {
+        let prev_drug_name = DRUG_SHORT_NAMES[prev_drug_idx];
+        
+        // Check if previously effective drug is still available
+        let avail = get_drug_availability_time_aware(
+            prev_drug_name,
+            &individual.region_cur_in.to_string(),
+            Some(&individual.region_living.to_string()),
+            time_step
+        );
+        
+        if avail >= 0.01 && !individual.cur_use_drug[prev_drug_idx] {
+            // Check if drug has adequate potency (basic safety check)
+            let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
+            if let Some(potency_param_key) = param_cache.drug_bacteria_potency_keys.get(&(prev_drug_idx, *bacteria_idx_for_cache)) {
+                if let Some(potency) = get_global_param(potency_param_key) {
+                    if potency >= get_global_param("minimal_potency_threshold_for_drug_selection").unwrap_or(0.10) {
+                        // Restart the previously effective drug!
+                        individual.cur_use_drug[prev_drug_idx] = true;
+                        individual.date_drug_initiated[prev_drug_idx] = time_step as i32;
+                        individual.date_drug_initiated_keep[prev_drug_idx] = time_step as i32;
+                        individual.ever_taken_drug[prev_drug_idx] = true;
+                        
+                        // Set drug level
+                        let initial_level = get_drug_param(prev_drug_name, "initial_level").unwrap_or(10.0);
+                        individual.cur_level_drug[prev_drug_idx] = initial_level;
+                        
+                        // Reset treatment failure tracking for new treatment
+                        individual.bacteria_level_at_drug_start[bacteria_idx] = Some(individual.level[bacteria_idx]);
+                        individual.days_on_current_treatment[bacteria_idx] = 0;
+                        individual.treatment_failure_assessed[bacteria_idx] = false;
+                        
+                        return true; // Successfully restarted previously effective drug
+                    }
+                }
+            }
+        }
+    }
+    
+    // If we can't restart the previous drug, use standard drug selection with preference bonus
+    
+    // Build list of available drugs for restart treatment
+    let mut drug_scores = Vec::new();
+    
+    for (drug_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+        // Skip if currently taking this drug
+        if individual.cur_use_drug[drug_idx] {
+            continue;
+        }
+        
+        // Only avoid drugs that actually failed (not drugs that were stopped due to adherence)
+        // We'll identify failed drugs by checking against treatment failure history
+        // For now, we don't avoid any recently used drugs since stopped ≠ failed
+        
+        // Check if drug is available
+        let avail = get_drug_availability_time_aware(
+            drug_name,
+            &individual.region_cur_in.to_string(),
+            Some(&individual.region_living.to_string()),
+            time_step
+        );
+        
+        if avail < 0.01 {
+            continue;
+        }
+        
+        // Calculate drug score
+        let mut score = 0.0;
+        
+        // Base potency score
+        let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
+        if let Some(potency_param_key) = param_cache.drug_bacteria_potency_keys.get(&(drug_idx, *bacteria_idx_for_cache)) {
+            if let Some(potency) = get_global_param(potency_param_key) {
+                if potency >= get_global_param("minimal_potency_threshold_for_drug_selection").unwrap_or(0.10) {
+                    score += potency;
+                }
+            }
+        }
+        
+        // Apply clinical preference multipliers
+        let bacteria_drug_key = format!("{}_{}_clinical_preference_multiplier", bacteria_name.replace(" ", "_"), drug_name);
+        if let Some(preference_multiplier) = get_global_param(&bacteria_drug_key) {
+            score *= preference_multiplier;
+        }
+        
+        // BONUS: If this was the previously effective drug, give it preference
+        if let Some(prev_drug_idx) = stopped_drug_idx {
+            if drug_idx == prev_drug_idx {
+                let effectiveness_bonus = get_global_param("previously_effective_drug_bonus").unwrap_or(2.0);
+                score *= effectiveness_bonus;
+            }
+        }
+        
+        if score > 0.0 {
+            drug_scores.push((drug_idx, score));
+        }
+    }
+    
+    // Select and start restart treatment
+    if !drug_scores.is_empty() {
+        let selection_temperature = get_global_param("drug_selection_temperature").unwrap_or(0.5);
+        let weights: Vec<f64> = drug_scores.iter()
+            .map(|(_, score)| (score / selection_temperature).exp())
+            .collect();
+        
+        let total_weight: f64 = weights.iter().sum();
+        if total_weight > 0.0 && total_weight.is_finite() {
+            let dist = WeightedIndex::new(&weights).unwrap();
+            let chosen_idx = dist.sample(&mut rng);
+            let new_drug_idx = drug_scores[chosen_idx].0;
+            
+            // Start restart treatment
+            let new_drug_name = DRUG_SHORT_NAMES[new_drug_idx];
+            individual.cur_use_drug[new_drug_idx] = true;
+            individual.date_drug_initiated[new_drug_idx] = time_step as i32;
+            individual.date_drug_initiated_keep[new_drug_idx] = time_step as i32;
+            individual.ever_taken_drug[new_drug_idx] = true;
+            
+            // Set drug level
+            let initial_level = get_drug_param(new_drug_name, "initial_level").unwrap_or(10.0);
+            individual.cur_level_drug[new_drug_idx] = initial_level;
+            
+            // Reset treatment failure tracking for new treatment
+            individual.bacteria_level_at_drug_start[bacteria_idx] = Some(individual.level[bacteria_idx]);
+            individual.days_on_current_treatment[bacteria_idx] = 0;
+            individual.treatment_failure_assessed[bacteria_idx] = false;
+            
+            return true; // Restart treatment started
+        }
+    }
+    
+    false // No restart treatment started
+}
+
 /// Pre-computed parameter keys to avoid string allocation during simulation
 pub struct ParameterKeyCache {
     // Most frequently used keys - drug/bacteria combinations
@@ -649,6 +1025,26 @@ let drugs_initiated_this_time_step: usize = 0;
             if stop_drug {
                 individual.cur_use_drug[drug_idx] = false;
                 individual.date_drug_initiated[drug_idx] = i32::MIN;
+                
+                // Check if stopping while infection persists (restart window logic)
+                for bacteria_idx in 0..BACTERIA_LIST.len() {
+                    if individual.level[bacteria_idx] > 0.1 && // Still infected (threshold for meaningful infection)
+                       individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
+                        
+                        // Record cessation for restart window tracking
+                        individual.drug_stopped_with_infection_day[bacteria_idx] = Some(time_step as i32);
+                        individual.bacteria_level_at_drug_cessation[bacteria_idx] = Some(individual.level[bacteria_idx]);
+                        individual.stopped_drug_index[bacteria_idx] = Some(drug_idx); // Track which drug was stopped
+                        individual.restart_window_assessed[bacteria_idx] = false;
+                    }
+                    
+                    // Reset treatment failure tracking when drug is stopped naturally
+                    if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
+                        individual.bacteria_level_at_drug_start[bacteria_idx] = None;
+                        individual.days_on_current_treatment[bacteria_idx] = -1;
+                        individual.treatment_failure_assessed[bacteria_idx] = false;
+                    }
+                }
             }
         }
     }
@@ -694,8 +1090,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         (min_available_drugs as f64) / (available_drugs_count as f64)
     } else { 1.0 };
 
-    // Restriction: if already using two or more drugs, cannot start another
-    if num_drugs_currently_used + drugs_initiated_this_time_step < 2 && available_drugs_count > 0 {
+    // Restriction: if already using three or more drugs, cannot start another (allow up to 3 drugs for severe infections)
+    if num_drugs_currently_used + drugs_initiated_this_time_step < 3 && available_drugs_count > 0 {
         // Stage 1: Calculate probability to start any antibiotic
         let mut start_any_antibiotic_prob = drug_base_initiation_rate * scaling_factor;
         let infection_acquired_this_step = individual.date_last_infected.iter().any(|&d| d == time_step as i32);
@@ -732,6 +1128,224 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                 // Score drug based on spectrum, activity, and clinical scenario
                 let mut score = 1.0;
+                
+                // INTRINSIC ACTIVITY GATE: Block drugs with no meaningful activity against current infections
+                let minimal_potency_threshold = get_global_param("minimal_potency_threshold_for_drug_selection").unwrap_or(0.10);
+                let mut has_meaningful_activity = false;
+                let mut max_potency_against_infections: f64 = 0.0;
+                
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.level[b_idx] > 0.001 {
+                        let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
+                        let potency = get_global_param(potency_param_key).unwrap_or(0.0);
+                        max_potency_against_infections = max_potency_against_infections.max(potency);
+                        if potency >= minimal_potency_threshold {
+                            has_meaningful_activity = true;
+                        }
+                    }
+                }
+                
+                // Block drugs with insufficient activity against any current infection
+                if !has_meaningful_activity && has_any_infection {
+                    continue; // Skip this drug entirely - no meaningful activity
+                }
+                
+                // PATHOGEN-SPECIFIC CLINICAL GUIDELINES: Boost appropriate drugs, block inappropriate ones
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.level[b_idx] > 0.001 {
+                        let bacteria_name = BACTERIA_LIST[b_idx];
+                        match (bacteria_name, drug_name) {
+                            // Pseudomonas aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
+                            ("Pseudomonas aeruginosa", "piperacillin_tazobactam") => score *= 25.0,
+                            ("Pseudomonas aeruginosa", "ceftazidime") => score *= 20.0,
+                            ("Pseudomonas aeruginosa", "cefepime") => score *= 22.0,
+                            ("Pseudomonas aeruginosa", "meropenem") => score *= 25.0,
+                            ("Pseudomonas aeruginosa", "imipenem") => score *= 20.0,
+                            ("Pseudomonas aeruginosa", "ciprofloxacin") => score *= 18.0,
+                            ("Pseudomonas aeruginosa", "tobramycin") => score *= 15.0,
+                            ("Pseudomonas aeruginosa", "colistin") => score *= 12.0,
+                            ("Pseudomonas aeruginosa", "penicillin" | "ampicillin" | "amoxicillin" | "cephalexin" | "ceftriaxone" | "vancomycin") => {
+                                score = 0.0; // Completely block - no intrinsic activity
+                                break;
+                            },
+                            
+                            // Staphylococcus aureus - DRAMATICALLY strengthen MSSA vs MRSA logic
+                            ("Staphylococcus aureus", "penicillin") => {
+                                // Early periods: penicillin should dominate (MSSA era)
+                                if time_step < 7300 { // First ~20 years
+                                    score *= 50.0; // MASSIVE boost for MSSA
+                                } else {
+                                    score *= 2.0; // Minimal in MRSA era
+                                }
+                            },
+                            ("Staphylococcus aureus", "methicillin" | "flucloxacillin") => {
+                                if time_step < 10950 { // First ~30 years
+                                    score *= 40.0; // Major boost before MRSA dominance
+                                } else {
+                                    score *= 3.0; // Reduced in MRSA era
+                                }
+                            },
+                            ("Staphylococcus aureus", "vancomycin") => {
+                                if time_step < 7300 { // Early years
+                                    score *= 2.0; // Minimal early use
+                                } else { // MRSA era
+                                    score *= 35.0; // MASSIVE boost for MRSA
+                                }
+                            },
+                            ("Staphylococcus aureus", "linezolid" | "daptomycin") => {
+                                if time_step >= 10950 { // Late period only
+                                    score *= 25.0; // Strong alternatives to vancomycin
+                                } else {
+                                    score *= 0.5; // Minimal early use
+                                }
+                            },
+                            ("Staphylococcus aureus", "clindamycin") => score *= 8.0,
+                            
+                            // E. coli - MASSIVELY strengthen first-line agents
+                            ("Escherichia coli", "ciprofloxacin") => score *= 35.0, // Major UTI drug
+                            ("Escherichia coli", "nitrofurantoin") => score *= 30.0, // Cystitis first-line
+                            ("Escherichia coli", "trimethoprim_sulfamethoxazole") => score *= 25.0,
+                            ("Escherichia coli", "ceftriaxone") => score *= 20.0, // Serious infections
+                            ("Escherichia coli", "ampicillin") => {
+                                if time_step < 7300 { // Early susceptible era
+                                    score *= 25.0;
+                                } else {
+                                    score *= 3.0; // Resistance emerged
+                                }
+                            },
+                            ("Escherichia coli", "meropenem" | "imipenem") => {
+                                // Carbapenems should be rare for E. coli except ESBL era
+                                if time_step >= 14600 { // Later periods for ESBL
+                                    score *= 8.0;
+                                } else {
+                                    score *= 0.2; // Minimal early use
+                                }
+                            },
+                            
+                            // Klebsiella pneumoniae - strengthen appropriate agents
+                            ("Klebsiella pneumoniae", "ceftriaxone") => {
+                                if time_step < 10950 { // Before ESBL dominance
+                                    score *= 25.0;
+                                } else {
+                                    score *= 8.0;
+                                }
+                            },
+                            ("Klebsiella pneumoniae", "meropenem" | "imipenem") => {
+                                if time_step >= 10950 { // ESBL era
+                                    score *= 30.0;
+                                } else {
+                                    score *= 3.0;
+                                }
+                            },
+                            ("Klebsiella pneumoniae", "ciprofloxacin") => score *= 15.0,
+                            ("Klebsiella pneumoniae", "piperacillin_tazobactam") => score *= 18.0,
+                            
+                            // Enterococcus faecalis - strengthen appropriate agents
+                            ("Enterococcus faecalis", "ampicillin") => score *= 40.0, // First-line
+                            ("Enterococcus faecalis", "vancomycin") => {
+                                if time_step >= 10950 { // VRE era
+                                    score *= 30.0;
+                                } else {
+                                    score *= 8.0;
+                                }
+                            },
+                            ("Enterococcus faecalis", "linezolid") => {
+                                if time_step >= 14600 { // Late VRE era
+                                    score *= 25.0;
+                                } else {
+                                    score *= 2.0;
+                                }
+                            },
+                            
+                            // Enterococcus faecium - more resistant, different pattern
+                            ("Enterococcus faecium", "ampicillin") => score *= 5.0, // Less effective than faecalis
+                            ("Enterococcus faecium", "vancomycin") => {
+                                if time_step >= 10950 {
+                                    score *= 35.0;
+                                } else {
+                                    score *= 15.0;
+                                }
+                            },
+                            ("Enterococcus faecium", "linezolid") => {
+                                if time_step >= 14600 {
+                                    score *= 30.0;
+                                } else {
+                                    score *= 3.0;
+                                }
+                            },
+                            ("Enterococcus faecium", "quinupristin_dalfopristin") => {
+                                if time_step >= 16425 { // Very late introduction
+                                    score *= 20.0;
+                                }
+                            },
+                            
+                            // Acinetobacter baumannii - highly resistant pathogen
+                            ("Acinetobacter baumannii", "meropenem" | "imipenem") => {
+                                if time_step < 18250 { // Before extensive carbapenem resistance
+                                    score *= 40.0;
+                                } else {
+                                    score *= 15.0;
+                                }
+                            },
+                            ("Acinetobacter baumannii", "colistin") => {
+                                if time_step >= 14600 { // Later periods for MDR
+                                    score *= 35.0;
+                                } else {
+                                    score *= 8.0;
+                                }
+                            },
+                            ("Acinetobacter baumannii", "ampicillin_sulbactam") => score *= 25.0, // Intrinsic activity
+                            
+                            _ => {} // No specific guideline
+                        }
+                    }
+                }
+                
+                // If drug was blocked by pathogen-specific guidelines, skip it
+                if score <= 0.0 {
+                    continue;
+                }
+                
+                // CLINICAL CONCENTRATION FORCE: Heavily penalize drugs that aren't first/second-line
+                // This creates realistic clinical concentration patterns
+                let mut is_first_or_second_line = false;
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.level[b_idx] > 0.001 {
+                        let bacteria_name = BACTERIA_LIST[b_idx];
+                        let first_second_line_drugs = match bacteria_name {
+                            "Pseudomonas aeruginosa" => vec!["piperacillin_tazobactam", "meropenem", "ceftazidime", "cefepime", "ciprofloxacin", "tobramycin"],
+                            "Staphylococcus aureus" => vec!["penicillin", "methicillin", "flucloxacillin", "vancomycin", "linezolid", "daptomycin", "clindamycin"],
+                            "Escherichia coli" => vec!["ciprofloxacin", "nitrofurantoin", "trimethoprim_sulfamethoxazole", "ceftriaxone", "ampicillin", "cefuroxime"],
+                            "Klebsiella pneumoniae" => vec!["ceftriaxone", "meropenem", "imipenem", "ciprofloxacin", "piperacillin_tazobactam", "ertapenem"],
+                            "Enterococcus faecalis" => vec!["ampicillin", "vancomycin", "linezolid", "daptomycin"],
+                            "Enterococcus faecium" => vec!["vancomycin", "linezolid", "daptomycin", "quinupristin_dalfopristin"],
+                            "Acinetobacter baumannii" => vec!["meropenem", "imipenem", "colistin", "ampicillin_sulbactam", "tigecycline"],
+                            _ => vec![], // For other bacteria, no specific restriction
+                        };
+                        
+                        if first_second_line_drugs.contains(&drug_name) {
+                            is_first_or_second_line = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // Heavily penalize drugs that aren't first/second-line for current infections
+                if has_any_infection && !is_first_or_second_line {
+                    score *= 0.05; // 95% penalty for non-standard choices
+                }
+                
+                // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (MUCH STRONGER)
+                if max_potency_against_infections >= 0.5 {
+                    score *= 15.0; // Very high potency - MASSIVE boost
+                } else if max_potency_against_infections >= 0.3 {
+                    score *= 10.0; // High potency - major boost
+                } else if max_potency_against_infections >= 0.15 {
+                    score *= 6.0; // Moderate potency - significant boost
+                } else if max_potency_against_infections >= minimal_potency_threshold {
+                    score *= 2.0; // Minimal acceptable potency
+                }
+                
                 let mut max_bacteria_specific_multiplier: f64 = 1.0;
                 for b_idx in 0..BACTERIA_LIST.len() {
                     if individual.level[b_idx] > 0.001 {
@@ -804,6 +1418,8 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     let targeted_narrow_bonus = get_global_param("targeted_therapy_narrow_spectrum_bonus").unwrap_or(3.0);
                     let targeted_broad_penalty = get_global_param("targeted_therapy_broad_spectrum_penalty").unwrap_or(0.4);
                     let ineffective_drug_penalty = get_global_param("targeted_therapy_ineffective_drug_penalty").unwrap_or(0.1);
+                    let effective_potency_threshold = get_global_param("effective_potency_threshold_for_targeted_therapy").unwrap_or(0.10);
+                    
                     let mut has_good_activity = false;
                     let mut best_potency: f64 = 0.0;
                     for b_idx in 0..BACTERIA_LIST.len() {
@@ -811,7 +1427,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
                             let potency = get_global_param(potency_param_key).unwrap_or(0.0);
                             best_potency = best_potency.max(potency);
-                            if potency > 0.02 {
+                            if potency > effective_potency_threshold {
                                 has_good_activity = true;
                             }
                         }
@@ -830,13 +1446,14 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     // Even in empirical therapy, shouldn't choose drugs ineffective against the pathogen
                     let empiric_broad_bonus = get_global_param("empiric_therapy_broad_spectrum_bonus").unwrap_or(2.0);
                     let empiric_ineffective_penalty = get_global_param("empiric_therapy_ineffective_drug_penalty").unwrap_or(0.05);
+                    let effective_potency_threshold = get_global_param("effective_potency_threshold_for_empirical_therapy").unwrap_or(0.10);
                     
                     let mut has_any_activity = false;
                     for b_idx in 0..BACTERIA_LIST.len() {
                         if individual.level[b_idx] > 0.001 {
                             let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
                             let potency = get_global_param(potency_param_key).unwrap_or(0.0);
-                            if potency > 0.02 {
+                            if potency > effective_potency_threshold {
                                 has_any_activity = true;
                                 break;
                             }
@@ -888,10 +1505,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             // Weighted probabilistic selection from scored drugs
             if !drug_scores.is_empty() {
                 // Add stochasticity parameter to control randomness vs determinism
-                let selection_temperature = get_global_param("drug_selection_temperature").unwrap_or(2.0);
+                let selection_temperature = get_global_param("drug_selection_temperature").unwrap_or(0.5); // MUCH more deterministic
                 
-                // Apply temperature scaling: higher temp = more random, lower temp = more deterministic
-                // Temperature of 1.0 = use raw scores, >1.0 = more random, <1.0 = more deterministic
+                // Apply temperature scaling: lower temp = more deterministic (clinically realistic)
+                // Temperature of 0.5 = strongly favor best drugs, 1.0 = moderate, 2.0+ = random
                 let weights: Vec<f64> = drug_scores.iter()
                     .map(|(_, score)| (score / selection_temperature).exp())
                     .collect();
@@ -923,6 +1540,16 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         chosen_initial_level *= double_dose_multiplier;
                     }
                     individual.cur_level_drug[chosen_drug_idx] = chosen_initial_level;
+                    
+                    // Update treatment failure tracking for all infected bacteria
+                    for bacteria_idx in 0..BACTERIA_LIST.len() {
+                        if individual.level[bacteria_idx] > 0.0 {
+                            // Record bacteria level at drug start and reset tracking
+                            individual.bacteria_level_at_drug_start[bacteria_idx] = Some(individual.level[bacteria_idx]);
+                            individual.days_on_current_treatment[bacteria_idx] = 0;
+                            individual.treatment_failure_assessed[bacteria_idx] = false;
+                        }
+                    }
                 }
             }
         }
@@ -940,6 +1567,49 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         }
     }
     individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase).max(0.0);
+
+    // --- Treatment failure tracking and assessment ---
+    // Update treatment days counter and assess treatment failure
+    for bacteria_idx in 0..BACTERIA_LIST.len() {
+        // Only track treatment days if there's an active infection
+        if individual.level[bacteria_idx] > 0.0 {
+            // Increment treatment days if we have recorded a drug start
+            if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
+                individual.days_on_current_treatment[bacteria_idx] += 1;
+                
+                // Assess treatment failure if conditions are met
+                assess_treatment_failure(
+                    individual,
+                    time_step,
+                    bacteria_idx,
+                    bacteria_indices,
+                    drug_indices,
+                    cross_resistance_groups,
+                    param_cache,
+                );
+            }
+        } else {
+            // No active infection - reset all tracking
+            individual.bacteria_level_at_drug_start[bacteria_idx] = None;
+            individual.days_on_current_treatment[bacteria_idx] = -1;
+            individual.treatment_failure_assessed[bacteria_idx] = false;
+            
+            // Also clear restart window tracking since infection has resolved
+            individual.drug_stopped_with_infection_day[bacteria_idx] = None;
+            individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
+            individual.stopped_drug_index[bacteria_idx] = None;
+            individual.restart_window_assessed[bacteria_idx] = false;
+        }
+        
+        // Assess restart window (independent of current infection status)
+        assess_restart_window(
+            individual,
+            time_step,
+            bacteria_idx,
+            bacteria_indices,
+            param_cache,
+        );
+    }
 
     // --- death     
 

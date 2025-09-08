@@ -19,7 +19,7 @@ mod config;
 // 
 // -- additional output graphs ---------------------------------------------------------------------------------
 //  
-//  sepsis incidence by bacteria
+// 
 //
 //
 //
@@ -27,8 +27,10 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// add age and region-specific all cause death rates and try to subtract bacterial  
+// add age and region-specific all cause death rates from wpp/who and try to subtract bacterial  
 // infection rates so they are background death rates
+//
+// consider if need to have non-sepsis death risks with specific bacterial infections
 //
 // need to better account for how death rate can be high in some infections despite treatment
 // (and I think this means despite treatment with a non resistant drug)
@@ -38,6 +40,7 @@ mod config;
 // make sure risk of c diff with use of many antibiotics is accounted for
 // including its risk of recurrence
 //
+// consider higher doses and longer courses
 //
 // do we need a variable for whether under care for infection, as a prerequisite 
 // for drug initiation even if no tests done
@@ -101,8 +104,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 300_000; 
-    let time_steps =  200 ;  // 38_325
+    let population_size = 2_000; 
+    let time_steps =  10_000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

@@ -318,6 +318,20 @@ pub struct Individual {
     pub cause_of_death: Option<String>,
     /// Type of severe immunodeficiency (None = not immunosuppressed)
     pub immunodeficiency_type: Option<ImmunodeficiencyType>,
+    /// Bacteria level when current drug was started for each bacteria (None if no current drug)
+    pub bacteria_level_at_drug_start: Vec<Option<f64>>,
+    /// Days since current drug treatment started for each bacteria (-1 if no current treatment)
+    pub days_on_current_treatment: Vec<i32>,
+    /// Track if treatment failure assessment has been performed for current treatment
+    pub treatment_failure_assessed: Vec<bool>,
+    /// Tracks when drugs were stopped while infection was still present (None if not applicable)
+    pub drug_stopped_with_infection_day: Vec<Option<i32>>,
+    /// Bacteria level when drug was stopped due to non-adherence (None if not applicable)  
+    pub bacteria_level_at_drug_cessation: Vec<Option<f64>>,
+    /// Which specific drug was stopped while infection was present (None if not applicable)
+    pub stopped_drug_index: Vec<Option<usize>>,
+    /// Track if restart window assessment has been performed for current cessation
+    pub restart_window_assessed: Vec<bool>,
 
 }
 
@@ -384,6 +398,17 @@ impl Individual {
         // Initialize day_7_since_last_infection_drug_used (all None initially)
         let day_7_since_last_infection_drug_used = vec![None; num_bacteria];
 
+        // Initialize treatment failure tracking variables
+        let bacteria_level_at_drug_start = vec![None; num_bacteria];
+        let days_on_current_treatment = vec![-1; num_bacteria]; // -1 means no current treatment
+        let treatment_failure_assessed = vec![false; num_bacteria];
+        
+        // Initialize rescue window tracking variables
+        let drug_stopped_with_infection_day = vec![None; num_bacteria];
+        let bacteria_level_at_drug_cessation = vec![None; num_bacteria];
+        let stopped_drug_index = vec![None; num_bacteria];
+        let restart_window_assessed = vec![false; num_bacteria];
+
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
         } else {
@@ -431,6 +456,13 @@ impl Individual {
             date_of_death: None,
             cause_of_death: None,
             immunodeficiency_type: None, 
+            bacteria_level_at_drug_start,
+            days_on_current_treatment,
+            treatment_failure_assessed,
+            drug_stopped_with_infection_day,
+            bacteria_level_at_drug_cessation,
+            stopped_drug_index,
+            restart_window_assessed, 
         }
     }
 }

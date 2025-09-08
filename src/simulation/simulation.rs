@@ -192,6 +192,14 @@ pub struct TimeStepSummary {
     // regional drug usage tracking: counts by region and drug (6 regions * num_drugs values)
     // [region_idx * num_drugs + drug_idx] = number of people currently taking this drug in this region
     pub currently_on_drug_by_region_drug: Vec<usize>,     // [region][drug] = number of people currently on drug in region
+    
+    // polypharmacy tracking: counts of people taking 1, 2, or ≥3 drugs simultaneously
+    pub people_on_1_drug: usize,                         // number of people taking exactly 1 drug
+    pub people_on_2_drugs: usize,                        // number of people taking exactly 2 drugs  
+    pub people_on_3plus_drugs: usize,                    // number of people taking 3 or more drugs
+    
+    // treatment failure tracking: people currently on drug + infected + previously failed treatment
+    pub infected_on_drug_with_previous_failure: usize,   // numerator: people currently infected, on drug, with previous treatment failure
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -1313,7 +1321,69 @@ impl Simulation {
             syndrome_deaths_sepsis_by_region
         },
         currently_on_drug_by_region_drug,
-            };
+        
+        // Calculate polypharmacy distribution (1, 2, or ≥3 drugs)
+        people_on_1_drug: {
+            let mut count = 0;
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                let drug_count = individual.cur_use_drug.iter().filter(|&&x| x).count();
+                if drug_count == 1 {
+                    count += 1;
+                }
+            }
+
+            count
+        },
+        people_on_2_drugs: {
+            let mut count = 0;
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                let drug_count = individual.cur_use_drug.iter().filter(|&&x| x).count();
+                if drug_count == 2 {
+                    count += 1;
+                }
+            }
+            count
+        },
+        people_on_3plus_drugs: {
+            let mut count = 0;
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                let drug_count = individual.cur_use_drug.iter().filter(|&&x| x).count();
+                if drug_count >= 3 {
+                    count += 1;
+                }
+            }
+            count
+        },
+        
+        // Calculate infected people on drug with previous treatment failure
+        infected_on_drug_with_previous_failure: {
+            let mut count = 0;
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                // Check if person is currently infected
+                let currently_infected = individual.level.iter().any(|&level| level > 0.0);
+                if !currently_infected { continue; }
+                
+                // Check if person is currently on any drug
+                let on_any_drug = individual.cur_use_drug.iter().any(|&is_on| is_on);
+                if !on_any_drug { continue; }
+                
+                // Check if person has had treatment failure assessed (has previous failure experience)
+                let has_previous_failure = individual.treatment_failure_assessed.iter().any(|&assessed| assessed);
+                if has_previous_failure {
+                    count += 1;
+                }
+            }
+            count
+        }
+        };
 
 
 
@@ -1907,6 +1977,9 @@ impl Simulation {
             }
         }
         
+        // Add polypharmacy columns to header
+        header.push_str(",people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
@@ -1979,10 +2052,16 @@ impl Simulation {
             for value in &summary.any_r_sum_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.any_r_sum_by_bacteria_drug_hospital { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_any_r_positive_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
+            
+
+            
             for value in &summary.mic_sum_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.any_r_sum_by_region { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_count_by_region { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.currently_on_drug_by_region_drug { row.push(','); row.push_str(&value.to_string()); }
+            
+
+            
             for value in &summary.infected_and_on_any_drug_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infected_with_bacteria_and_mechanism { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.new_resistance_at_infection_community_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
@@ -2068,6 +2147,18 @@ impl Simulation {
                     row.push_str(&death_count.to_string());
                 }
             }
+            
+
+            
+            // Add polypharmacy data
+            row.push(',');
+            row.push_str(&summary.people_on_1_drug.to_string());
+            row.push(',');
+            row.push_str(&summary.people_on_2_drugs.to_string());
+            row.push(',');
+            row.push_str(&summary.people_on_3plus_drugs.to_string());
+            row.push(',');
+            row.push_str(&summary.infected_on_drug_with_previous_failure.to_string());
             
             row.push('\n');
             writer.write_all(row.as_bytes())?;

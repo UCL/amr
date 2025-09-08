@@ -22,7 +22,7 @@ except ImportError:
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 50   
+SMOOTHING_WINDOW_DAYS = 730   
 
 
 # =============================================================================
@@ -35,7 +35,7 @@ for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = Fa
 proportion_of_people_infected_with_each_bacteria = False
 proportion_of_people_taking_each_drug = False  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
 proportion_share_among_drug_users = False
-distribution_drug_use_by_bacteria = False 
+distribution_drug_use_by_bacteria = True 
 death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
@@ -1391,8 +1391,96 @@ def create_grouped_plots(df):
                      ha='center', va='center', fontsize=12, color='gray')
         axes9[0].set_axis_off()
     
-    # 2-4. Leave other panels blank for now
-    for i in range(1, 4):
+    # 2. Polypharmacy Distribution Over Time (top-right, panel 9b)
+    polypharmacy_cols = ['people_on_1_drug', 'people_on_2_drugs', 'people_on_3plus_drugs']
+    if all(col in df.columns for col in polypharmacy_cols):
+        print("Processing polypharmacy data")
+        
+        # Create stacked area plot showing polypharmacy distribution
+        axes9[1].stackplot(df['time_in_years'], 
+                          df['people_on_1_drug'], 
+                          df['people_on_2_drugs'], 
+                          df['people_on_3plus_drugs'],
+                          labels=['1 Drug', '2 Drugs', '≥3 Drugs'],
+                          colors=['lightblue', 'orange', 'red'],
+                          alpha=0.8)
+        
+        axes9[1].set_title('Polypharmacy Distribution Over Time')
+        axes9[1].set_xlabel('Time (Years)')
+        axes9[1].set_ylabel('Number of People')
+        axes9[1].set_ylim(bottom=0)
+        axes9[1].grid(True, alpha=0.3)
+        axes9[1].legend(loc='upper right')
+        
+        # Add summary statistics
+        total_on_drugs = df[polypharmacy_cols].sum(axis=1)
+        recent_data = df[df['time_in_years'] >= 80]  # Last 20 years
+        if len(recent_data) > 0:
+            recent_total = recent_data[polypharmacy_cols].sum(axis=1)
+            recent_mean_total = recent_total.mean()
+            recent_mean_1 = recent_data['people_on_1_drug'].mean()
+            recent_mean_2 = recent_data['people_on_2_drugs'].mean()  
+            recent_mean_3plus = recent_data['people_on_3plus_drugs'].mean()
+            
+            if recent_mean_total > 0:
+                pct_1 = (recent_mean_1 / recent_mean_total) * 100
+                pct_2 = (recent_mean_2 / recent_mean_total) * 100
+                pct_3plus = (recent_mean_3plus / recent_mean_total) * 100
+                
+                textstr = f'Recent Years (80-100):\n1 drug: {pct_1:.1f}%\n2 drugs: {pct_2:.1f}%\n≥3 drugs: {pct_3plus:.1f}%'
+                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+                axes9[1].text(0.02, 0.98, textstr, transform=axes9[1].transAxes, 
+                             fontsize=9, verticalalignment='top', bbox=props)
+    else:
+        axes9[1].text(0.5, 0.5, 'Polypharmacy data\nnot available', 
+                     ha='center', va='center', fontsize=12, color='gray')
+        axes9[1].set_axis_off()
+    
+    # 3. Treatment Failure Proportion Over Time (bottom-left, panel 9c)
+    failure_cols = ['infected_on_drug_with_previous_failure', 'currently_infected_and_on_drug_count']
+    if all(col in df.columns for col in failure_cols):
+        print("Processing treatment failure data")
+        
+        # Calculate proportion of infected people on drug who have previously failed
+        failure_proportion = df['infected_on_drug_with_previous_failure'] / df['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+        failure_proportion_smooth = pd.Series(failure_proportion).rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes9[2].plot(df['time_in_years'], failure_proportion_smooth * 100, linewidth=2, color='darkred', 
+                     label='Previous Treatment Failure %')
+        
+        axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure')
+        axes9[2].set_xlabel('Time (Years)')
+        axes9[2].set_ylabel('Percentage (%)')
+        axes9[2].set_ylim(bottom=0)
+        axes9[2].grid(True, alpha=0.3)
+        axes9[2].legend()
+        
+        # Add summary statistics
+        recent_data = df[df['time_in_years'] >= 80]  # Last 20 years
+        if len(recent_data) > 0:
+            recent_failure_prop = recent_data['infected_on_drug_with_previous_failure'] / recent_data['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+            recent_mean = recent_failure_prop.mean() * 100
+            recent_max = recent_failure_prop.max() * 100
+            
+            # Also show absolute numbers
+            recent_mean_numerator = recent_data['infected_on_drug_with_previous_failure'].mean()
+            recent_mean_denominator = recent_data['currently_infected_and_on_drug_count'].mean()
+            
+            textstr = f'Recent Years (80-100):\nMean: {recent_mean:.1f}%\nMax: {recent_max:.1f}%\nTypical: {recent_mean_numerator:.0f}/{recent_mean_denominator:.0f}'
+            props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
+            axes9[2].text(0.02, 0.98, textstr, transform=axes9[2].transAxes, 
+                         fontsize=9, verticalalignment='top', bbox=props)
+    else:
+        axes9[2].text(0.5, 0.5, 'Treatment failure data\nnot available', 
+                     ha='center', va='center', fontsize=12, color='gray')
+        axes9[2].set_axis_off()
+    
+    # 4. Leave remaining panel blank for now
+    # 4. Leave remaining panel blank for now
+    for i in range(3, 4):
         axes9[i].text(0.5, 0.5, f'Panel {i+1}\n(Reserved for future use)', 
                      ha='center', va='center', fontsize=12, color='lightgray')
         axes9[i].set_axis_off()
