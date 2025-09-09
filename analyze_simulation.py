@@ -46,6 +46,7 @@ mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
+drug_score_analysis_by_bacteria = True  # Drug score analysis for debugging clinical guidelines (ENABLED FOR TESTING)
 age_distribution_by_region = False  #  Age distribution plots by region 
 death_rate_by_region = False  #  Death rate plots by region
 age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
@@ -4535,6 +4536,283 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df):
         print(f"✓ Created {plots_created} mean MIC by drug plots")
 
 
+def create_drug_score_analysis_by_bacteria():
+    """
+    Analyze and visualize drug scores from the simulation_summary.csv file.
+    Creates plots showing drug scores by bacteria to debug clinical guidelines.
+    Uses the new aggregate drug score tracking data.
+    """
+    print("\n=== CREATING DRUG SCORE ANALYSIS BY BACTERIA ===")
+    
+    # Load the simulation summary data (contains our drug score columns)
+    try:
+        data = pd.read_csv('simulation_summary.csv')
+        print(f"Loaded simulation summary data: {len(data)} time steps, {len(data.columns)} columns")
+    except FileNotFoundError:
+        print("ERROR: simulation_summary.csv not found! Make sure the simulation has been run.")
+        return
+    except Exception as e:
+        print(f"ERROR loading simulation_summary.csv: {e}")
+        return
+    
+    # Find drug score columns
+    selection_count_cols = [col for col in data.columns if '_drug_selection_count' in col]
+    score_sum_cols = [col for col in data.columns if '_drug_score_sum_' in col]
+    
+    print(f"Found {len(selection_count_cols)} bacteria with drug selection counts")
+    print(f"Found {len(score_sum_cols)} bacteria-drug score combinations")
+    
+    if len(selection_count_cols) == 0 or len(score_sum_cols) == 0:
+        print("WARNING: No drug score data found in simulation_summary.csv!")
+        return
+    
+    # Use recent data for analysis (last 5000 time steps)
+    recent_data = data[data['time_step'] >= len(data) - 5000].copy()
+    print(f"Analyzing recent period: {len(recent_data)} time steps")
+    
+    # Extract bacteria names from column headers and their selection counts
+    bacteria_with_selections = []
+    for col in selection_count_cols:
+        bacteria_name = col.replace('_drug_selection_count', '').replace('_', ' ')
+        total_selections = recent_data[col].sum()
+        if total_selections > 0:
+            bacteria_with_selections.append((bacteria_name, total_selections, col))
+    
+    # Sort by frequency
+    bacteria_with_selections.sort(key=lambda x: x[1], reverse=True)
+    print(f"Found {len(bacteria_with_selections)} bacteria with drug selections")
+    
+    # Focus on top 8 bacteria for visualization
+    top_bacteria = bacteria_with_selections[:8]
+    
+    # Create individual time-series plots
+    create_drug_score_summary_plots(recent_data, top_bacteria)
+    create_clinical_guideline_analysis_plots(recent_data, top_bacteria)
+    
+    print("✓ Drug score analysis plots created")
+
+def create_drug_score_summary_plots(recent_data, top_bacteria):
+    """Create individual time-series plots for each bacteria showing drug scores over time."""
+    
+    # Create output directory
+    output_dir = Path('output_graphs/drug_score_analysis')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Load full dataset for time series (not just recent data)
+    full_data = pd.read_csv('simulation_summary.csv')
+    print(f"Creating time-series plots for {len(top_bacteria)} bacteria...")
+    
+    # Create individual plots for each bacteria
+    for bacteria_name, total_selections, selection_col in top_bacteria:
+        print(f"  Creating plot for {bacteria_name}...")
+        
+        # Find all drug score columns for this bacteria
+        bacteria_col_prefix = bacteria_name.replace(' ', '_')
+        score_cols = [col for col in full_data.columns if col.startswith(f"{bacteria_col_prefix}_drug_score_sum_")]
+        
+        if not score_cols:
+            print(f"    No drug score columns found for {bacteria_name}")
+            continue
+            
+        # Calculate years from 1930
+        full_data['years_from_1930'] = 1930 + (full_data['time_step'] / 365.25)
+        
+        # For each time step, calculate mean drug scores (total_score / selection_count)
+        drug_data = {}
+        
+        for col in score_cols:
+            drug_name = col.replace(f"{bacteria_col_prefix}_drug_score_sum_", "")
+            
+            # Calculate mean scores: sum_score / selection_count for each time step
+            # Only include time steps where selections > 0
+            mask = full_data[selection_col] > 0
+            if mask.sum() == 0:
+                continue
+                
+            mean_scores = full_data.loc[mask, col] / full_data.loc[mask, selection_col]
+            mean_scores = mean_scores.fillna(0)
+            
+            # Only include drugs with meaningful activity (some non-zero scores)
+            if mean_scores.sum() > 0.01:  # threshold to avoid noise
+                drug_data[drug_name] = {
+                    'years': full_data.loc[mask, 'years_from_1930'].values,
+                    'scores': mean_scores.values
+                }
+        
+        if not drug_data:
+            print(f"    No meaningful drug score data for {bacteria_name}")
+            continue
+            
+        # Create the plot
+        plt.figure(figsize=(14, 8))
+        
+        # Sort drugs by maximum score to prioritize important ones
+        drug_scores_max = {drug: max(data['scores']) for drug, data in drug_data.items()}
+        sorted_drugs = sorted(drug_scores_max.items(), key=lambda x: x[1], reverse=True)
+        
+        # Plot top 15 drugs to avoid overcrowding
+        top_drugs = [drug for drug, _ in sorted_drugs[:15]]
+        
+        # Color palette
+        colors = plt.cm.tab20(np.linspace(0, 1, len(top_drugs)))
+        
+        # Plot each drug's time series
+        for i, drug in enumerate(top_drugs):
+            if drug in drug_data:
+                data = drug_data[drug]
+                plt.plot(data['years'], data['scores'], 
+                        color=colors[i], linewidth=2, alpha=0.8,
+                        label=drug.replace('_', ' ').title(), marker='o', markersize=3)
+        
+        # Formatting
+        plt.title(f'Drug Score Evolution: {bacteria_name.title()}\n(Higher scores = more likely to be selected)', 
+                 fontsize=14, fontweight='bold', pad=20)
+        plt.xlabel('Year', fontsize=12, fontweight='bold')
+        plt.ylabel('Mean Drug Score per Selection Event', fontsize=12, fontweight='bold')
+        
+        # Set y-axis to log scale if there are large differences
+        max_score = max([max(data['scores']) for data in drug_data.values() if len(data['scores']) > 0])
+        min_score = min([min([s for s in data['scores'] if s > 0] + [max_score]) 
+                        for data in drug_data.values() if len(data['scores']) > 0])
+        
+        if max_score / max(min_score, 0.001) > 10:  # Use log scale if range > 10x
+            plt.yscale('log')
+            plt.ylabel('Mean Drug Score per Selection Event (log scale)', fontsize=12, fontweight='bold')
+        
+        # Grid and legend
+        plt.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+        
+        # Add clinical guidance annotation
+        clinical_info = get_clinical_guidance_info(bacteria_name)
+        if clinical_info:
+            plt.text(0.02, 0.98, clinical_info, transform=plt.gca().transAxes, 
+                    fontsize=9, verticalalignment='top', bbox=dict(boxstyle='round', 
+                    facecolor='lightyellow', alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        safe_bacteria_name = bacteria_name.replace(' ', '_').replace('.', '')
+        output_file = output_dir / f'{safe_bacteria_name}_drug_scores_timeseries.png'
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"    ✓ Saved {output_file}")
+    
+    print(f"✓ All drug score time-series plots created in {output_dir}")
+
+def get_clinical_guidance_info(bacteria_name):
+    """Return clinical guidance text for annotation."""
+    guidance = {
+        'escherichia coli': 'Expected: Ciprofloxacin, Ceftriaxone, Nitrofurantoin should dominate\nActual guidelines: 35x, 20x, 30x multipliers',
+        'staphylococcus aureus': 'Expected: Penicillin (MSSA), Vancomycin (MRSA), Cephalexin\nActual guidelines: Variable multipliers based on resistance',
+        'pseudomonas aeruginosa': 'Expected: Meropenem, Ceftazidime, Piperacillin-Tazobactam only\nActual guidelines: 25x, 20x, 25x multipliers',
+        'klebsiella pneumoniae': 'Expected: Ceftriaxone (early), Meropenem (ESBL era)\nActual guidelines: 25x early, 8x later periods'
+    }
+    return guidance.get(bacteria_name, None)
+
+def analyze_bacteria_drug_scores(recent_data, bacteria_name):
+    """Analyze drug scores for a specific bacteria."""
+    bacteria_col_prefix = bacteria_name.replace(' ', '_')
+    
+    # Find selection count
+    selection_col = f"{bacteria_col_prefix}_drug_selection_count"
+    if selection_col not in recent_data.columns:
+        return None
+    
+    total_selections = recent_data[selection_col].sum()
+    if total_selections == 0:
+        return None
+    
+    # Find all drug score columns for this bacteria
+    score_cols = [col for col in recent_data.columns if col.startswith(f"{bacteria_col_prefix}_drug_score_sum_")]
+    
+    drug_scores = {}
+    for col in score_cols:
+        drug_name = col.replace(f"{bacteria_col_prefix}_drug_score_sum_", "")
+        total_score = recent_data[col].sum()
+        avg_score = total_score / total_selections if total_selections > 0 else 0
+        if avg_score > 0:
+            drug_scores[drug_name] = avg_score
+    
+    # Sort by average score
+    return dict(sorted(drug_scores.items(), key=lambda x: x[1], reverse=True))
+
+def analyze_clinical_guideline_effectiveness(recent_data, top_bacteria):
+    """Calculate a simple effectiveness score for clinical guidelines."""
+    effectiveness = {}
+    
+    # Define clinically appropriate drugs for key bacteria
+    clinical_preferences = {
+        'escherichia coli': ['ciprofloxacin', 'ceftriaxone', 'nitrofurantoin'],
+        'staphylococcus aureus': ['vancomycin', 'penicillin', 'cephalexin'],
+        'pseudomonas aeruginosa': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam'],
+        'klebsiella pneumoniae': ['ceftriaxone', 'meropenem', 'ciprofloxacin']
+    }
+    
+    for bacteria_name, _, _ in top_bacteria:
+        if bacteria_name in clinical_preferences:
+            bacteria_analysis = analyze_bacteria_drug_scores(recent_data, bacteria_name)
+            if bacteria_analysis and len(bacteria_analysis) > 0:
+                # Check if appropriate drugs are in top 3
+                top_3_drugs = list(bacteria_analysis.keys())[:3]
+                appropriate_in_top_3 = sum(1 for drug in top_3_drugs 
+                                         if any(pref in drug for pref in clinical_preferences[bacteria_name]))
+                inappropriate_in_top_3 = 3 - appropriate_in_top_3
+                
+                # Simple effectiveness score: +1 for appropriate, -1 for inappropriate in top 3
+                effectiveness[bacteria_name] = appropriate_in_top_3 - inappropriate_in_top_3
+            else:
+                effectiveness[bacteria_name] = 0
+    
+    return effectiveness
+
+def create_clinical_guideline_analysis_plots(recent_data, top_bacteria):
+    """Create detailed clinical guideline analysis plots."""
+    output_dir = Path('output_graphs/drug_score_analysis')
+    
+    # Print detailed clinical guideline analysis to console
+    print("\n=== DETAILED CLINICAL GUIDELINE ANALYSIS ===")
+    for bacteria_name, selections, _ in top_bacteria[:4]:
+        print(f"\n{bacteria_name.upper()} ({selections:.1f} selections):")
+        bacteria_analysis = analyze_bacteria_drug_scores(recent_data, bacteria_name)
+        if bacteria_analysis:
+            print("  Top drugs by average score:")
+            for i, (drug, score) in enumerate(list(bacteria_analysis.items())[:8]):
+                clinical_status = get_clinical_appropriateness(bacteria_name, drug)
+                print(f"    {i+1}. {drug}: {score:.2f} {clinical_status}")
+        else:
+            print("  No drug score data available")
+
+def get_clinical_appropriateness(bacteria_name, drug_name):
+    """Return clinical appropriateness indicator."""
+    clinical_map = {
+        'escherichia coli': {
+            'appropriate': ['ciprofloxacin', 'ceftriaxone', 'nitrofurantoin', 'trim_sulf', 'ampicillin'],
+            'inappropriate': ['vancomycin', 'penicillin']
+        },
+        'staphylococcus aureus': {
+            'appropriate': ['vancomycin', 'penicillin', 'cephalexin', 'clindamycin'],
+            'inappropriate': ['ciprofloxacin', 'meropenem']
+        },
+        'pseudomonas aeruginosa': {
+            'appropriate': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam', 'colistin'],
+            'inappropriate': ['vancomycin', 'penicillin', 'ampicillin']
+        }
+    }
+    
+    if bacteria_name in clinical_map:
+        for drug in clinical_map[bacteria_name]['appropriate']:
+            if drug in drug_name:
+                return "(✓ appropriate)"
+        for drug in clinical_map[bacteria_name]['inappropriate']:
+            if drug in drug_name:
+                return "(✗ inappropriate)"
+    
+    return "(? unclear)"
+
+
 # =============================================================================
 # MAIN ANALYSIS WORKFLOW
 # =============================================================================
@@ -4623,6 +4901,12 @@ def main():
         create_infection_resolution_by_bacteria_plots(df)
     else:
         print("\n=== SKIPPING infection_resolution_by_bacteria plots (set infection_resolution_by_bacteria = True to enable) ===")
+    
+    # Drug score analysis by bacteria plots
+    if drug_score_analysis_by_bacteria:
+        create_drug_score_analysis_by_bacteria()
+    else:
+        print("\n=== SKIPPING drug_score_analysis_by_bacteria plots (set drug_score_analysis_by_bacteria = True to enable) ===")
     
     # Age distribution by region plots  
     if age_distribution_by_region:

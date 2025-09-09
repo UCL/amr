@@ -1,6 +1,5 @@
 /* 
 
-    
 
 */
 
@@ -203,6 +202,7 @@ lazy_static! {
         map.insert("treatment_failure_assessment_day".to_string(), 4.0); // Days to wait before assessing treatment failure
         map.insert("enable_treatment_failure_assessment".to_string(), 1.0); // Enable/disable treatment failure assessment (1.0=enabled, 0.0=disabled)
         map.insert("drug_failure_memory_days".to_string(), 30.0); // Days to remember a drug failure when selecting alternatives
+        map.insert("treatment_failure_threshold".to_string(), 0.5); // Threshold for treatment failure (0.5 = failure if bacteria level >= 50% of initial)
         
         // Restart Window Parameters (for patients who stop drugs early while still infected)
         map.insert("restart_window_days".to_string(), 5.0); // Days after drug cessation to allow "restart" treatment
@@ -662,6 +662,24 @@ lazy_static! {
             if BACTERIA_LIST.contains(&bacteria) {
                 map.insert(format!("drug_vancomycin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.0);
                 map.insert(format!("drug_teicoplanin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.0);
+                // Set potency to zero - glycopeptides have no activity against gram-negative bacteria
+                map.insert(format!("drug_vancomycin_for_bacteria_{}_potency_when_no_r", bacteria), 0.0);
+                map.insert(format!("drug_teicoplanin_for_bacteria_{}_potency_when_no_r", bacteria), 0.0);
+                // Linezolid and daptomycin also have minimal/no activity against gram-negatives
+                map.insert(format!("drug_linezolid_for_bacteria_{}_potency_when_no_r", bacteria), 0.0);
+                map.insert(format!("drug_daptomycin_for_bacteria_{}_potency_when_no_r", bacteria), 0.0);
+            }
+        }
+
+        // Colistin has no activity against gram-positive bacteria (intrinsic resistance)
+        let gram_positive_bacteria = vec![
+            "staphylococcus_aureus", "streptococcus_pneumoniae", "streptococcus_pyogenes", 
+            "streptococcus_agalactiae", "enterococcus_faecalis", "enterococcus_faecium",
+            "staphylococcus_epidermidis", "streptococcus_viridans"
+        ];
+        for &bacteria in gram_positive_bacteria.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                map.insert(format!("drug_colistin_for_bacteria_{}_potency_when_no_r", bacteria), 0.0);
             }
         }
 

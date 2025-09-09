@@ -69,8 +69,12 @@ fn assess_treatment_failure(
     let initial_level = individual.bacteria_level_at_drug_start[bacteria_idx].unwrap();
     let current_level = individual.level[bacteria_idx];
     
-    // Treatment failure criterion: current bacteria level >= initial level
-    let treatment_failed = current_level >= initial_level;
+    // Get failure threshold (default 0.5 = 50% of initial level)
+    let failure_threshold = get_global_param("treatment_failure_threshold").unwrap_or(0.5);
+    let threshold_level = initial_level * failure_threshold;
+    
+    // Treatment failure criterion: current bacteria level >= threshold × initial level
+    let treatment_failed = current_level >= threshold_level;
     
     // Mark assessment as completed for this treatment course
     individual.treatment_failure_assessed[bacteria_idx] = true;
@@ -1111,6 +1115,19 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         start_any_antibiotic_prob = start_any_antibiotic_prob.clamp(0.0, 1.0);
 
         if rng.gen_bool(start_any_antibiotic_prob) {
+            // Identify primary bacteria for drug score tracking (highest level among infected bacteria)
+            let mut primary_bacteria_idx = -1i32;
+            let mut highest_bacteria_level = 0.0;
+            for b_idx in 0..BACTERIA_LIST.len() {
+                if individual.level[b_idx] > 0.001 && individual.level[b_idx] > highest_bacteria_level {
+                    highest_bacteria_level = individual.level[b_idx];
+                    primary_bacteria_idx = b_idx as i32;
+                }
+            }
+            
+            // Store primary bacteria index for this drug selection event
+            individual.bacteria_on_selection_day = primary_bacteria_idx;
+            
             // Stage 2: Choose the most appropriate drug using weighted probabilistic selection
             // Score each available drug and collect scores for probabilistic selection
             let mut drug_scores: Vec<(usize, f64)> = Vec::new();
@@ -1494,6 +1511,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 score *= drug_availability;
                 if !drug_introduced {
                     score = 0.0; // Drug not yet introduced, can't be prescribed
+                }
+
+                // Store drug score for the primary bacteria
+                if primary_bacteria_idx >= 0 {
+                    individual.drug_score_on_selection_day[drug_idx] = score;
                 }
 
                 // Only include drugs with positive scores for selection

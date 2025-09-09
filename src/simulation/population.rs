@@ -155,20 +155,8 @@ impl ImmunodeficiencyType {
 }
 
 
-/* 
 
-pub const BACTERIA_LIST: &[&str] = &[
-    "acinetobacter baumannii" 
-];
 
- 
-
-pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
-    "penicilling"
-];
-
-*/
-  
 
 pub const BACTERIA_LIST: &[&str] = &[
     "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
@@ -182,6 +170,8 @@ pub const BACTERIA_LIST: &[&str] = &[
     "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis",
     "treponema pallidum",
 ];
+
+
 
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
@@ -328,6 +318,10 @@ pub struct Individual {
     pub drug_stopped_with_infection_day: Vec<Option<i32>>,
     /// Bacteria level when drug was stopped due to non-adherence (None if not applicable)  
     pub bacteria_level_at_drug_cessation: Vec<Option<f64>>,
+    /// Bacteria index that triggered drug selection on this day (-1 if no drug selection)
+    pub bacteria_on_selection_day: i32,
+    /// Drug scores for the bacteria that triggered selection (-1.0 if no drug selection)
+    pub drug_score_on_selection_day: Vec<f64>,
     /// Which specific drug was stopped while infection was present (None if not applicable)
     pub stopped_drug_index: Vec<Option<usize>>,
     /// Track if restart window assessment has been performed for current cessation
@@ -406,6 +400,10 @@ impl Individual {
         // Initialize rescue window tracking variables
         let drug_stopped_with_infection_day = vec![None; num_bacteria];
         let bacteria_level_at_drug_cessation = vec![None; num_bacteria];
+        
+        // Initialize drug score tracking (single bacteria focus, -1 indicates no drug selection)
+        let bacteria_on_selection_day = -1;
+        let drug_score_on_selection_day = vec![-1.0; num_drugs];
         let stopped_drug_index = vec![None; num_bacteria];
         let restart_window_assessed = vec![false; num_bacteria];
 
@@ -461,6 +459,8 @@ impl Individual {
             treatment_failure_assessed,
             drug_stopped_with_infection_day,
             bacteria_level_at_drug_cessation,
+            bacteria_on_selection_day,
+            drug_score_on_selection_day,
             stopped_drug_index,
             restart_window_assessed, 
         }

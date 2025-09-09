@@ -27,6 +27,9 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
+// I think would like things like drug failure and number of drugs on (and probably 
+// several others to be variables in the "individual" struct
+//
 // add age and region-specific all cause death rates from wpp/who and try to subtract bacterial  
 // infection rates so they are background death rates
 //
@@ -104,8 +107,8 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 2_000; 
-    let time_steps =  10_000 ;  // 38_325
+    let population_size = 100_000; 
+    let time_steps =  35_000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

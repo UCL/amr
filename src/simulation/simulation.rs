@@ -200,6 +200,10 @@ pub struct TimeStepSummary {
     
     // treatment failure tracking: people currently on drug + infected + previously failed treatment
     pub infected_on_drug_with_previous_failure: usize,   // numerator: people currently infected, on drug, with previous treatment failure
+    
+    // drug score tracking: aggregate statistics for clinical guideline debugging
+    pub drug_selection_count_by_bacteria: Vec<usize>,    // [bacteria_idx] = number of drug selections for this bacteria this timestep
+    pub drug_score_sums_by_bacteria_drug: Vec<f64>,      // [bacteria_idx * num_drugs + drug_idx] = sum of drug scores for this bacteria-drug combo this timestep
 } 
 
 // Main simulation struct: holds population, time steps, and lookup tables.
@@ -671,6 +675,12 @@ impl Simulation {
                                     }
                                 }
                             }
+                        }
+
+                        // Reset drug scores for this time step (initialize to -1 indicating no drug selection)
+                        individual.bacteria_on_selection_day = -1;
+                        for d_idx in 0..num_drugs {
+                            individual.drug_score_on_selection_day[d_idx] = -1.0;
                         }
 
                         // Apply rules
@@ -1382,6 +1392,40 @@ impl Simulation {
                 }
             }
             count
+        },
+        
+        // Drug score tracking for clinical guideline debugging
+        drug_selection_count_by_bacteria: {
+            let mut counts = vec![0; BACTERIA_LIST.len()];
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                // Count if drug selection occurred for this individual today (bacteria_on_selection_day >= 0)
+                if individual.bacteria_on_selection_day >= 0 && (individual.bacteria_on_selection_day as usize) < BACTERIA_LIST.len() {
+                    counts[individual.bacteria_on_selection_day as usize] += 1;
+                }
+            }
+            counts
+        },
+        
+        drug_score_sums_by_bacteria_drug: {
+            let mut sums = vec![0.0; BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len()];
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; } // Skip dead individuals
+                
+                // Add drug scores if drug selection occurred today
+                if individual.bacteria_on_selection_day >= 0 && (individual.bacteria_on_selection_day as usize) < BACTERIA_LIST.len() {
+                    let bacteria_idx = individual.bacteria_on_selection_day as usize;
+                    
+                    for (drug_idx, &score) in individual.drug_score_on_selection_day.iter().enumerate() {
+                        if drug_idx < DRUG_SHORT_NAMES.len() && score >= 0.0 { // Valid score
+                            let flat_idx = bacteria_idx * DRUG_SHORT_NAMES.len() + drug_idx;
+                            sums[flat_idx] += score;
+                        }
+                    }
+                }
+            }
+            sums
         }
         };
 
@@ -1455,7 +1499,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -1523,7 +1567,7 @@ impl Simulation {
                         .collect::<Vec<_>>()
                         .join(";");
 
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{}",
+                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{},{},{}",
                         t,
                         i,
                         ind.id,
@@ -1557,7 +1601,9 @@ impl Simulation {
                         fmt_vec(&activity_r),
                         fmt_vec(&any_r),
                         fmt_vec(&majority_r),
-                        mechanisms.join(";")
+                        mechanisms.join(";"),
+                        ind.bacteria_on_selection_day,
+                        fmt_vec(&ind.drug_score_on_selection_day)
                     ).unwrap();
                 }
             }
@@ -1977,6 +2023,21 @@ impl Simulation {
             }
         }
         
+        // Add drug score tracking columns to header
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_drug_selection_count");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push_str("_drug_score_sum_");
+                header.push_str(drug);
+            }
+        }
+        
         // Add polypharmacy columns to header
         header.push_str(",people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
         
@@ -2148,6 +2209,9 @@ impl Simulation {
                 }
             }
             
+            // Add drug score tracking data
+            for value in &summary.drug_selection_count_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.drug_score_sums_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
 
             
             // Add polypharmacy data
