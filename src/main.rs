@@ -19,7 +19,9 @@ mod config;
 // 
 // -- additional output graphs ---------------------------------------------------------------------------------
 //  
-// 
+// graphs showing for each bacteria proportion of infections with each drug resistance mechanism present 
+//
+// there must be more things ...................
 //
 //
 //
@@ -27,11 +29,8 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// I think would like things like drug failure and number of drugs on (and probably 
-// several others to be variables in the "individual" struct
-//
-// add age and region-specific all cause death rates from wpp/who and try to subtract bacterial  
-// infection rates so they are background death rates
+// fix fig 9 plots of failure and number of drugs - consider including drug failure date (bacteria x drug) in 
+// the "individual" struct
 //
 // consider if need to have non-sepsis death risks with specific bacterial infections
 //
@@ -40,8 +39,7 @@ mod config;
 //
 // need to add fidaxomicin as a drug ?
 //
-// make sure risk of c diff with use of many antibiotics is accounted for
-// including its risk of recurrence
+// make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
 //
 // consider higher doses and longer courses
 //
@@ -51,6 +49,8 @@ mod config;
 // do we need parameters like multi_drug_penalty_for_partial_cross_resistance given the 
 // way we are calculating a total activity r which is supposed to be able to consider 2 drugs
 // being taken
+//
+// investigate this "normalized current drug level as a proxy for 'activity_r' when any_r is 0" in mod.rs
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
@@ -65,7 +65,9 @@ mod config;
 //
 // when people on two drugs account for drug drug interactions in determining final drug level of each drug
 //
-// 
+//
+//
+//
 //
 //
 // calibration data: approx drug usage per 100_000 per calendar year 
@@ -75,7 +77,10 @@ mod config;
 //
 // https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
 //
-// get data put on graphs ?
+// add age and region-specific all cause death rates from wpp/who and try to subtract bacterial  
+// infection rates so they are background death rates
+//
+//
 //
 //
 // set up automated testing for the simulation (probably not yet though)
@@ -107,7 +112,7 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size = 100_000; 
+    let population_size =  5_000; 
     let time_steps =  35_000 ;  // 38_325
     let log_individuals = false ; // Set to false to disable detailed individual logging
 

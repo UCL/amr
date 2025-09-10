@@ -4582,16 +4582,19 @@ def create_drug_score_analysis_by_bacteria():
     bacteria_with_selections.sort(key=lambda x: x[1], reverse=True)
     print(f"Found {len(bacteria_with_selections)} bacteria with drug selections")
     
-    # Focus on top 8 bacteria for visualization
-    top_bacteria = bacteria_with_selections[:8]
+    # Create plots for ALL bacteria with meaningful drug selections (not just top 8)
+    # Set minimum threshold for meaningful analysis
+    min_selections_threshold = 10  # Only bacteria with at least 10 drug selections
+    all_bacteria = [(name, count, col) for name, count, col in bacteria_with_selections if count >= min_selections_threshold]
+    
+    print(f"Creating plots for {len(all_bacteria)} bacteria (with ≥{min_selections_threshold} selections)...")
     
     # Create individual time-series plots
-    create_drug_score_summary_plots(recent_data, top_bacteria)
-    create_clinical_guideline_analysis_plots(recent_data, top_bacteria)
+    create_drug_score_summary_plots(recent_data, all_bacteria)
     
     print("✓ Drug score analysis plots created")
 
-def create_drug_score_summary_plots(recent_data, top_bacteria):
+def create_drug_score_summary_plots(recent_data, all_bacteria):
     """Create individual time-series plots for each bacteria showing drug scores over time."""
     
     # Create output directory
@@ -4600,10 +4603,10 @@ def create_drug_score_summary_plots(recent_data, top_bacteria):
     
     # Load full dataset for time series (not just recent data)
     full_data = pd.read_csv('simulation_summary.csv')
-    print(f"Creating time-series plots for {len(top_bacteria)} bacteria...")
+    print(f"Creating time-series plots for {len(all_bacteria)} bacteria...")
     
     # Create individual plots for each bacteria
-    for bacteria_name, total_selections, selection_col in top_bacteria:
+    for bacteria_name, total_selections, selection_col in all_bacteria:
         print(f"  Creating plot for {bacteria_name}...")
         
         # Find all drug score columns for this bacteria
@@ -4768,13 +4771,13 @@ def analyze_clinical_guideline_effectiveness(recent_data, top_bacteria):
     
     return effectiveness
 
-def create_clinical_guideline_analysis_plots(recent_data, top_bacteria):
+def create_clinical_guideline_analysis_plots(recent_data, all_bacteria):
     """Create detailed clinical guideline analysis plots."""
     output_dir = Path('output_graphs/drug_score_analysis')
     
     # Print detailed clinical guideline analysis to console
     print("\n=== DETAILED CLINICAL GUIDELINE ANALYSIS ===")
-    for bacteria_name, selections, _ in top_bacteria[:4]:
+    for bacteria_name, selections, _ in all_bacteria[:8]:  # Show top 8 for console analysis
         print(f"\n{bacteria_name.upper()} ({selections:.1f} selections):")
         bacteria_analysis = analyze_bacteria_drug_scores(recent_data, bacteria_name)
         if bacteria_analysis:
