@@ -29,8 +29,6 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// fix fig 9 plots of failure and number of drugs - consider including drug failure date (bacteria x drug) in 
-// the "individual" struct
 //
 // consider if need to have non-sepsis death risks with specific bacterial infections
 //
@@ -41,10 +39,10 @@ mod config;
 //
 // make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
 //
-// consider higher doses and longer courses
+// consider moving to higher doses at failure as well as switching options
 //
 // do we need a variable for whether under care for infection, as a prerequisite 
-// for drug initiation even if no tests done
+// for drug initiation even if no tests done - or is drug start sufficient ?
 //
 // do we need parameters like multi_drug_penalty_for_partial_cross_resistance given the 
 // way we are calculating a total activity r which is supposed to be able to consider 2 drugs
@@ -112,9 +110,9 @@ use crate::simulation::simulation::Simulation;
  
 fn main() {
     // Create and run the simulation
-    let population_size =  5_000; 
-    let time_steps =  35_000 ;  // 38_325
-    let log_individuals = false ; // Set to false to disable detailed individual logging
+    let population_size =  500; 
+    let time_steps =  10_000 ;  // 38_325
+    let log_individuals = true  ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
 

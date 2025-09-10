@@ -46,7 +46,7 @@ BACTERIA INDEX REFERENCE (from population.rs BACTERIA_LIST):
 '''
 
 # Set this to the index of the individual you want to print (1 = first individual after header, 2 = second, etc.)
-INDIVIDUAL_INDEX = 4 
+INDIVIDUAL_INDEX = 1 
 BACTERIUM_INDEX = -1  # Set to -1 to show all bacteria, or 0-30 for specific bacteria
 
 OUTPUT_FILENAME = 'individual_output.txt'
@@ -221,8 +221,8 @@ def print_aligned_csv(filename, max_rows=30):
                                 formatted_val = f"{val_float:.3f}"  # 3 decimal places for normal values
                             results.append(f"{item_name} {var_name}: {formatted_val}")
                     except ValueError:
-                        # Non-numeric, non-boolean value, show as is if non-empty
-                        if value_stripped:
+                        # Non-numeric, non-boolean value, show as is if non-empty and not null
+                        if value_stripped and value_stripped != 'null':
                             results.append(f"{item_name} {var_name}: {value_stripped}")
         
         # If no results found, show a summary based on variable type

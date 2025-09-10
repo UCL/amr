@@ -28,6 +28,11 @@ use crate::config::{
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
+
+/// Helper function to update the current number of drugs counter
+fn update_drug_counter(individual: &mut Individual) {
+    individual.current_number_of_drugs = individual.cur_use_drug.iter().filter(|&&on| on).count() as i32;
+}
 use rand::distributions::WeightedIndex;
 use rand::distributions::Distribution; 
 
@@ -82,6 +87,9 @@ fn assess_treatment_failure(
     if !treatment_failed {
         return false; // Treatment is working, no switch needed
     }
+    
+    // Record drug failure date for this bacteria
+    individual.date_last_drug_failure[bacteria_idx] = time_step as i32;
     
     // Find current drugs being used for this bacteria
     let current_drugs: Vec<usize> = individual.cur_use_drug.iter().enumerate()
@@ -179,6 +187,9 @@ fn assess_treatment_failure(
             individual.date_drug_initiated[new_drug_idx] = time_step as i32;
             individual.date_drug_initiated_keep[new_drug_idx] = time_step as i32;
             individual.ever_taken_drug[new_drug_idx] = true;
+            
+            // Update drug counter
+            update_drug_counter(individual);
             
             // Set drug level
             let initial_level = get_drug_param(new_drug_name, "initial_level").unwrap_or(10.0);
@@ -300,6 +311,9 @@ fn start_restart_treatment(
                         individual.date_drug_initiated_keep[prev_drug_idx] = time_step as i32;
                         individual.ever_taken_drug[prev_drug_idx] = true;
                         
+                        // Update drug counter
+                        update_drug_counter(individual);
+                        
                         // Set drug level
                         let initial_level = get_drug_param(prev_drug_name, "initial_level").unwrap_or(10.0);
                         individual.cur_level_drug[prev_drug_idx] = initial_level;
@@ -394,6 +408,9 @@ fn start_restart_treatment(
             individual.date_drug_initiated[new_drug_idx] = time_step as i32;
             individual.date_drug_initiated_keep[new_drug_idx] = time_step as i32;
             individual.ever_taken_drug[new_drug_idx] = true;
+            
+            // Update drug counter
+            update_drug_counter(individual);
             
             // Set drug level
             let initial_level = get_drug_param(new_drug_name, "initial_level").unwrap_or(10.0);
@@ -1030,6 +1047,9 @@ let drugs_initiated_this_time_step: usize = 0;
                 individual.cur_use_drug[drug_idx] = false;
                 individual.date_drug_initiated[drug_idx] = i32::MIN;
                 
+                // Update drug counter
+                update_drug_counter(individual);
+                
                 // Check if stopping while infection persists (restart window logic)
                 for bacteria_idx in 0..BACTERIA_LIST.len() {
                     if individual.level[bacteria_idx] > 0.1 && // Still infected (threshold for meaningful infection)
@@ -1548,6 +1568,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     individual.date_drug_initiated[chosen_drug_idx] = time_step as i32;
                     individual.date_drug_initiated_keep[chosen_drug_idx] = time_step as i32; // Persistent record
                     individual.ever_taken_drug[chosen_drug_idx] = true;
+                    
+                    // Update drug counter
+                    update_drug_counter(individual);
                     if individual.id == 1000001  {
                         println!(
                             "mod.rs   started {} - two-stage rate of starting was {:.4} (score: {:.3})",
@@ -2929,6 +2952,9 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
     // Note: We do NOT reset day_7_since_last_infection_drug_used values here because 
     // the summary statistics need to capture them during this timestep. 
     // They will be reset when a new infection occurs or when the infection clears.
+    
+    // Update the current number of drugs counter at the end of each timestep
+    update_drug_counter(individual);
 }
 
 /// New helper function to apply cross-resistance within drug groups for a specific bacteria.

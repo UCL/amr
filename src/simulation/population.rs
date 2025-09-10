@@ -326,6 +326,10 @@ pub struct Individual {
     pub stopped_drug_index: Vec<Option<usize>>,
     /// Track if restart window assessment has been performed for current cessation
     pub restart_window_assessed: Vec<bool>,
+    /// Track last drug failure date for each bacteria (-1 if never failed)
+    pub date_last_drug_failure: Vec<i32>,
+    /// Current number of drugs being taken by this individual
+    pub current_number_of_drugs: i32,
 
 }
 
@@ -406,6 +410,12 @@ impl Individual {
         let drug_score_on_selection_day = vec![-1.0; num_drugs];
         let stopped_drug_index = vec![None; num_bacteria];
         let restart_window_assessed = vec![false; num_bacteria];
+        
+        // Initialize drug failure tracking
+        let date_last_drug_failure = vec![-1; num_bacteria]; // -1 means never failed
+        
+        // Initialize current number of drugs
+        let current_number_of_drugs = 0; // Start with no drugs
 
         let background_all_cause_mortality_rate = if age_days < 0 {
             0.0
@@ -463,6 +473,8 @@ impl Individual {
             drug_score_on_selection_day,
             stopped_drug_index,
             restart_window_assessed, 
+            date_last_drug_failure,
+            current_number_of_drugs,
         }
     }
 }

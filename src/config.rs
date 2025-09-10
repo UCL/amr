@@ -1,6 +1,7 @@
 /* 
 
         map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -13.5 Default baseline log-odds for infection acquisition
+        map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005 );  // 0.005
 
 */
 
@@ -264,7 +265,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1 
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.005 );  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.1  );  // 0.005
             } 
         }
 

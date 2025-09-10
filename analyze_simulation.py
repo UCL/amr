@@ -35,7 +35,7 @@ for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = Fa
 proportion_of_people_infected_with_each_bacteria = False
 proportion_of_people_taking_each_drug = False  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
 proportion_share_among_drug_users = False
-distribution_drug_use_by_bacteria = True 
+distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False
 mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
@@ -46,7 +46,7 @@ mean_any_r_by_drug_for_each_bacteria = False
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
-drug_score_analysis_by_bacteria = True  # Drug score analysis for debugging clinical guidelines (ENABLED FOR TESTING)
+drug_score_analysis_by_bacteria = False # Drug score analysis for debugging clinical guidelines (ENABLED FOR TESTING)
 age_distribution_by_region = False  #  Age distribution plots by region 
 death_rate_by_region = False  #  Death rate plots by region
 age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
@@ -1397,11 +1397,16 @@ def create_grouped_plots(df):
     if all(col in df.columns for col in polypharmacy_cols):
         print("Processing polypharmacy data")
         
+        # Apply smoothing to polypharmacy data like other plots
+        people_1_smooth = pd.Series(df['people_on_1_drug']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        people_2_smooth = pd.Series(df['people_on_2_drugs']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        people_3plus_smooth = pd.Series(df['people_on_3plus_drugs']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
         # Create stacked area plot showing polypharmacy distribution
         axes9[1].stackplot(df['time_in_years'], 
-                          df['people_on_1_drug'], 
-                          df['people_on_2_drugs'], 
-                          df['people_on_3plus_drugs'],
+                          people_1_smooth, 
+                          people_2_smooth, 
+                          people_3plus_smooth,
                           labels=['1 Drug', '2 Drugs', '≥3 Drugs'],
                           colors=['lightblue', 'orange', 'red'],
                           alpha=0.8)
@@ -1415,7 +1420,7 @@ def create_grouped_plots(df):
         
         # Add summary statistics
         total_on_drugs = df[polypharmacy_cols].sum(axis=1)
-        recent_data = df[df['time_in_years'] >= 80]  # Last 20 years
+        recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
         if len(recent_data) > 0:
             recent_total = recent_data[polypharmacy_cols].sum(axis=1)
             recent_mean_total = recent_total.mean()
@@ -1428,7 +1433,7 @@ def create_grouped_plots(df):
                 pct_2 = (recent_mean_2 / recent_mean_total) * 100
                 pct_3plus = (recent_mean_3plus / recent_mean_total) * 100
                 
-                textstr = f'Recent Years (80-100):\n1 drug: {pct_1:.1f}%\n2 drugs: {pct_2:.1f}%\n≥3 drugs: {pct_3plus:.1f}%'
+                textstr = f'Recent Years (20-41):\n1 drug: {pct_1:.1f}%\n2 drugs: {pct_2:.1f}%\n≥3 drugs: {pct_3plus:.1f}%'
                 props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
                 axes9[1].text(0.02, 0.98, textstr, transform=axes9[1].transAxes, 
                              fontsize=9, verticalalignment='top', bbox=props)
@@ -1460,7 +1465,7 @@ def create_grouped_plots(df):
         axes9[2].legend()
         
         # Add summary statistics
-        recent_data = df[df['time_in_years'] >= 80]  # Last 20 years
+        recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
         if len(recent_data) > 0:
             recent_failure_prop = recent_data['infected_on_drug_with_previous_failure'] / recent_data['currently_infected_and_on_drug_count'].replace(0, float('nan'))
             recent_mean = recent_failure_prop.mean() * 100
@@ -1470,7 +1475,7 @@ def create_grouped_plots(df):
             recent_mean_numerator = recent_data['infected_on_drug_with_previous_failure'].mean()
             recent_mean_denominator = recent_data['currently_infected_and_on_drug_count'].mean()
             
-            textstr = f'Recent Years (80-100):\nMean: {recent_mean:.1f}%\nMax: {recent_max:.1f}%\nTypical: {recent_mean_numerator:.0f}/{recent_mean_denominator:.0f}'
+            textstr = f'Recent Years (20-41):\nMean: {recent_mean:.1f}%\nMax: {recent_max:.1f}%\nTypical: {recent_mean_numerator:.0f}/{recent_mean_denominator:.0f}'
             props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
             axes9[2].text(0.02, 0.98, textstr, transform=axes9[2].transAxes, 
                          fontsize=9, verticalalignment='top', bbox=props)
