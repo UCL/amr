@@ -29,37 +29,18 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-//
-// consider if need to have non-sepsis death risks with specific bacterial infections
-//
-// need to better account for how death rate can be high in some infections despite treatment
+// need to better account for how death rate can be high in some infections despite treatment ?
 // (and I think this means despite treatment with a non resistant drug)
 //
 // need to add fidaxomicin as a drug ?
 //
 // make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
 //
-// consider moving to higher doses at failure as well as switching options
-//
-// do we need a variable for whether under care for infection, as a prerequisite 
-// for drug initiation even if no tests done - or is drug start sufficient ?
-//
-// do we need parameters like multi_drug_penalty_for_partial_cross_resistance given the 
-// way we are calculating a total activity r which is supposed to be able to consider 2 drugs
-// being taken
-//
-// investigate this "normalized current drug level as a proxy for 'activity_r' when any_r is 0" in mod.rs
-//
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
 //
 // bear in mind that strep pneu for example has a vaccine against it but this has resulted in
 // growth of non-vaccine-covered serotypes
-//
-// ? need to have a variable to indicate severity of infection - this can determine which drugs to use 
-// - or is infectious syndrome sufficient ?
-//     
-// should syndrome influence sepsis risk independent of bacteria ?
 //
 // when people on two drugs account for drug drug interactions in determining final drug level of each drug
 //
@@ -111,7 +92,7 @@ use crate::simulation::simulation::Simulation;
 fn main() {
     // Create and run the simulation
     let population_size =  500; 
-    let time_steps =  10_000 ;  // 38_325
+    let time_steps =  3_000 ;  // 38_325
     let log_individuals = true  ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);

@@ -2061,7 +2061,7 @@ impl Simulation {
             let mut row = String::with_capacity(20000); // Pre-allocate for each row
             
             // Write basic summary data
-            row.push_str(&format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            row.push_str(&format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step, 
                 summary.total_population,
                 summary.number_in_hospital,
@@ -2093,17 +2093,14 @@ impl Simulation {
                 summary.num_age_50_79,
                 summary.num_age_80plus,
                 summary.num_with_any_bacteria_microbiome,
+                summary.people_on_1_drug,
+                summary.people_on_2_drugs,
+                summary.people_on_3plus_drugs,
+                summary.infected_on_drug_with_previous_failure,
             ));
             
-            // Add polypharmacy data EARLY in the CSV (moved from end to avoid truncation)
-            row.push(',');
-            row.push_str(&summary.people_on_1_drug.to_string());
-            row.push(',');
-            row.push_str(&summary.people_on_2_drugs.to_string());
-            row.push(',');
-            row.push_str(&summary.people_on_3plus_drugs.to_string());
-            row.push(',');
-            row.push_str(&summary.infected_on_drug_with_previous_failure.to_string());
+            // Remove the duplicate polypharmacy data that was causing mismatch
+            // (these values are now included in the main format string above)
             
             // Append all array data efficiently
             for value in &summary.infections_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
@@ -2151,7 +2148,9 @@ impl Simulation {
             for value in &summary.new_resistance_at_infection_env_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.new_resistance_hgt_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.new_resistance_from_microbiome_r_by_bacteria_drug { row.push(','); row.push_str(&value.to_string()); }
+            
             for value in &summary.infection_resolution_immune_clearance_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            
             for value in &summary.infection_resolution_drug_assisted_clearance_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infection_resolution_death_from_sepsis_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.infection_resolution_death_from_background_by_bacteria { row.push(','); row.push_str(&value.to_string()); }

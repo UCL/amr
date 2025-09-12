@@ -174,7 +174,7 @@ pub const BACTERIA_LIST: &[&str] = &[
 
 
 
-pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-classes
+pub const DRUG_SHORT_NAMES: &[&str] = &[  
     "sulfanilamide", "penicilling", "ampicillin", "amoxicillin",
     "piperacillin", "ticarcillin", "cephalexin", "cefazolin",
     "cefuroxime", "ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "meropenem", "imipenem_c",
@@ -183,19 +183,17 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[  // see below for classes and sub-class
     "ofloxacin", "tetracycline", "doxyclycline", "minocycline", "vancomycin", "teicoplanin",
     "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
     "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
-    // Beta-lactam/beta-lactamase inhibitor combinations
     "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
-    "ceftazidime_avibactam", "meropenem_vaborbactam",
-    // Polymyxins
-    "colistin"
+    "ceftazidime_avibactam", "meropenem_vaborbactam", "colistin"
 ];
 
 
 
 // HospitalStatus: models healthcare-associated risk of acquiring resistant bacteria (not hospitalization due to infection/comorbidities).
-// REMAOVE ?: note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
-// REMAOVE ?: resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection 
-// REMAOVE ?: or what underlying other conditions they may have that would affect risk of hospitalization 
+// note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with 
+// resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection 
+// or what underlying other conditions they may have that would affect risk of hospitalization 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HospitalStatus {
     InHospital,  // consider in future whether to have a variable for whether in icu
@@ -264,7 +262,8 @@ pub struct Individual {
     pub infectious_syndrome: Vec<i32>,             
     pub level: Vec<f64>,
 
-    pub immune_resp: Vec<f64>,                     
+    pub immune_resp: Vec<f64>,        
+    // note we say sepsis but we mean sepsis or other life threatening condition directly caused by the infection             
     pub sepsis: Vec<bool>,                         
     /// Day when sepsis started for each bacteria (-1 if never had sepsis)
     pub sepsis_onset_day: Vec<i32>,               

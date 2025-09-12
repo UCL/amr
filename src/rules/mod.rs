@@ -2386,17 +2386,17 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             let bacteria_level_factor = (current_bacteria_level / max_bacteria_level).clamp(0.0, 1.0) * bacteria_level_effect_multiplier;
                             
                             // activity_r dependency: Bell-shaped curve
-                            // Use the drug's initial level for normalization to get a comparable 'activity' scale (0-10)
+                            // Use the drug's initial level for normalization to get a comparable drug concentration scale (0-10)
                             let drug_initial_level_for_normalization = get_drug_param(DRUG_SHORT_NAMES[drug_index], "initial_level").unwrap_or(10.0);
                             
-                            // normalized current drug level as a proxy for 'activity_r' when any_r is 0.
+                            // Normalize current drug level for bell-shaped emergence probability curve
                             let mut norm_drug_level = drug_current_level / drug_initial_level_for_normalization;
                             norm_drug_level = norm_drug_level.clamp(0.0, 10.0); 
                             
                             // resistance emergence probability
                             // bell-shaped curve: 0.02 * x * (10 - x). Peaks at 5.0, is 0.1 at 0 and 10.
-                            let activity_r_bell_curve_factor = 0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
-                            let final_activity_r_factor = activity_r_bell_curve_factor.clamp(0.0, 1.0);  
+                            let emergence_drug_concentration_factor = 0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
+                            let emergence_drug_factor = emergence_drug_concentration_factor.clamp(0.0, 1.0);  
 
                             // Calculate multi-drug penalty if multiple drugs are active
                             let active_drug_count = individual.cur_level_drug.iter()
@@ -2446,10 +2446,10 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     // Resistance doesn't affect all active drugs
                                     if drugs_affected_by_this_resistance == 1 {
                                         // Single drug resistance among multiple active drugs
-                                        multi_drug_penalty_factor = get_global_param("multi_drug_penalty_for_single_drug_resistance").unwrap_or(0.05);
+                                        multi_drug_penalty_factor = get_global_param("resistance_development_inhibition_single_drug").unwrap_or(0.05);
                                     } else {
                                         // Partial cross-resistance among multiple active drugs
-                                        multi_drug_penalty_factor = get_global_param("multi_drug_penalty_for_partial_cross_resistance").unwrap_or(0.3);
+                                        multi_drug_penalty_factor = get_global_param("resistance_development_inhibition_partial_cross").unwrap_or(0.3);
                                     }
                                 }
                                 // If drugs_affected_by_this_resistance >= active_drug_count, no penalty (full cross-resistance)
@@ -2457,7 +2457,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                             // total emergence probability with multi-drug penalty
                             // adding 1.0 to bacteria_level_factor ensures a base contribution even if multiplier is low
-                            let total_emergence_prob = emergence_rate_baseline * (1.0 + bacteria_level_factor) * final_activity_r_factor * multi_drug_penalty_factor;
+                            let total_emergence_prob = emergence_rate_baseline * (1.0 + bacteria_level_factor) * emergence_drug_factor * multi_drug_penalty_factor;
 
                             if rng.gen_bool(total_emergence_prob.clamp(0.0, 1.0)) {
                                 resistance_data.any_r = any_r_emergence_level_on_first_emergence;
