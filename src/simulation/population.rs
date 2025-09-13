@@ -185,7 +185,7 @@ pub const BACTERIA_LIST: &[&str] = &[
     "haemophilus influenzae", "chlamydia trachomatis", "vibrio cholerae",
     "neisseria_meningitidis", "listeria_monocytogenes", "clostridioides_difficile",
     "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis",
-    "treponema pallidum",
+    "treponema pallidum", "bordetella pertussis", "helicobacter pylori",
 ];
 
 

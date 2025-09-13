@@ -980,6 +980,7 @@ pub fn apply_rules(
                 ("pneumococcal", "streptococcus pneumoniae") => true,
                 ("meningococcal", "neisseria_meningitidis") => true,  // Fixed: using underscore version
                 ("hib", "haemophilus influenzae") => true,
+                ("pertussis", "bordetella pertussis") => true,  // DTaP/Tdap vaccines
                 _ => false,
             };
             if targets_bacteria && !individual.vaccination_status[b_idx] {
@@ -3109,6 +3110,10 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         "haemophilus influenzae" => &[(3, 0.70), (6, 0.15), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
         "moraxella_catarrhalis" => &[(3, 0.85), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
         "neisseria_meningitidis" => &[(6, 0.60), (4, 0.25), (3, 0.10), (2, 0.03), (1, 0.02)],
+        "bordetella pertussis" => &[(3, 0.95), (6, 0.03), (4, 0.01), (10, 0.01)], // Primarily respiratory (whooping cough)
+        
+        // Gastrointestinal pathogens
+        "helicobacter pylori" => &[(7, 0.85), (5, 0.10), (4, 0.03), (10, 0.02)], // Primarily GI (peptic ulcer disease)
         
         // Foodborne/systemic pathogens  
         "listeria_monocytogenes" => &[(6, 0.50), (4, 0.30), (7, 0.10), (5, 0.05), (3, 0.03), (1, 0.02)],

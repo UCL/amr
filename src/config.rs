@@ -52,6 +52,7 @@ lazy_static! {
                 ("pneumococcal", 1977), // PCV first licensed in 1977 (earlier polysaccharide vaccines)
                 ("meningococcal", 1981), // First meningococcal vaccine licensed in 1981
                 ("hib", 1985),           // Haemophilus influenzae type b vaccine licensed in 1985
+                ("pertussis", 1948),     // DTP vaccine first licensed in 1948
             ];
             let age_groups = vec!["0_1", "1_5", "5_18", "18_50", "50_70", "70plus"];
             
@@ -243,7 +244,7 @@ lazy_static! {
         let _lincosamides = vec!["clindamycin"];
         let aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
         let fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
-        let _tetracyclines = vec!["tetracycline", "doxyclycline", "minocycline"];
+        let tetracyclines = vec!["tetracycline", "doxyclycline", "minocycline"];
         let glycopeptides = vec!["vancomycin", "teicoplanin"];
         let oxazolidinones = vec!["linezolid", "tedizolid"];
         let _folate_antagonists = vec!["trim_sulf"];
@@ -253,11 +254,12 @@ lazy_static! {
         let gram_pos_cocci = vec!["staphylococcus aureus", "streptococcus pneumoniae", "streptococcus pyogenes", "streptococcus agalactiae", "enterococcus faecalis", "enterococcus faecium"];
         let gram_neg_enterobacteria = vec!["escherichia coli", "klebsiella pneumoniae", "enterobacter spp.", "citrobacter spp.", "serratia spp.", "proteus spp.", "morganella spp.", "enterobacter_cloacae"];
         let gram_neg_non_fermenting = vec!["pseudomonas aeruginosa", "acinetobacter baumannii"];
-        let _fastidious_gram_neg = vec!["haemophilus influenzae", "moraxella_catarrhalis", "neisseria gonorrhoeae", "neisseria_meningitidis"];
-        let _enteric_pathogens = vec!["salmonella enterica serovar typhi", "salmonella enterica serovar paratyphi a", "invasive non-typhoidal salmonella spp.", "shigella spp.", "vibrio cholerae", "campylobacter_jejuni", "yersinia_enterocolitica"];
-        let _atypical_pathogens = vec!["chlamydia trachomatis"];
-        let _anaerobes_spore_formers = vec!["clostridioides_difficile"];
-        let _gram_pos_rods = vec!["listeria_monocytogenes"];
+        let fastidious_gram_neg = vec!["haemophilus influenzae", "moraxella_catarrhalis", "neisseria gonorrhoeae", "neisseria_meningitidis", "bordetella pertussis"];
+        let enteric_pathogens = vec!["salmonella enterica serovar typhi", "salmonella enterica serovar paratyphi a", "invasive non-typhoidal salmonella spp.", "shigella spp.", "vibrio cholerae", "campylobacter_jejuni", "yersinia_enterocolitica"];
+        let atypical_pathogens = vec!["chlamydia trachomatis"];
+        let anaerobes_spore_formers = vec!["clostridioides_difficile"];
+        let gram_pos_rods = vec!["listeria_monocytogenes"];
+        let gastric_pathogens = vec!["helicobacter pylori"]; // Unique microaerophilic Gram-negative
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
@@ -472,6 +474,180 @@ lazy_static! {
             }
         }
 
+        // FASTIDIOUS GRAM-NEGATIVE (H. flu, Moraxella, Neisseria, Bordetella)
+        for &bacteria in fastidious_gram_neg.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Penicillins - poor due to beta-lactamase (except amoxicillin-clavulanate)
+                for &drug in penicillins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if drug == "amoxicillin" { 0.20 } else { 0.05 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Beta-lactam/beta-lactamase inhibitor combinations - excellent
+                if DRUG_SHORT_NAMES.contains(&"amoxicillin_clavulanate") {
+                    map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{}_potency_when_no_r", bacteria), 0.85);
+                }
+                
+                // Cephalosporins - 2nd/3rd gen good, 1st gen poor
+                for &drug in cephalosporins_1_2.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if drug == "cephalexin" || drug == "cefazolin" { 0.15 } else { 0.75 };
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                for &drug in cephalosporins_3_4.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                    }
+                }
+                
+                // Macrolides - excellent for respiratory pathogens
+                for &drug in macrolides.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.75);
+                    }
+                }
+                
+                // Fluoroquinolones - good activity
+                for &drug in fluoroquinolones.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
+                    }
+                }
+            }
+        }
+
+        // ENTERIC PATHOGENS (Salmonella, Shigella, Vibrio, Campylobacter, Yersinia)
+        for &bacteria in enteric_pathogens.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Penicillins - poor (intrinsic resistance in many)
+                for &drug in penicillins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                    }
+                }
+                
+                // Cephalosporins - good for most
+                for &drug in cephalosporins_3_4.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.75);
+                    }
+                }
+                
+                // Fluoroquinolones - excellent for enteric pathogens
+                for &drug in fluoroquinolones.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85);
+                    }
+                }
+                
+                // Tetracyclines - good for many enteric pathogens
+                for &drug in tetracyclines.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
+                    }
+                }
+            }
+        }
+
+        // ATYPICAL PATHOGENS (Chlamydia)
+        for &bacteria in atypical_pathogens.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Beta-lactams - no activity (no cell wall)
+                for &drug in penicillins.iter().chain(cephalosporins_1_2.iter()).chain(cephalosporins_3_4.iter()).chain(carbapenems.iter()) {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01);
+                    }
+                }
+                
+                // Macrolides - excellent (first-line)
+                for &drug in macrolides.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.90);
+                    }
+                }
+                
+                // Tetracyclines - excellent alternative
+                for &drug in tetracyclines.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85);
+                    }
+                }
+                
+                // Fluoroquinolones - good alternative
+                for &drug in fluoroquinolones.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                    }
+                }
+            }
+        }
+
+        // ANAEROBES/SPORE FORMERS (C. difficile)
+        for &bacteria in anaerobes_spore_formers.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Most antibiotics - poor (anaerobic environment)
+                for &drug in penicillins.iter().chain(cephalosporins_1_2.iter()).chain(cephalosporins_3_4.iter()).chain(aminoglycosides.iter()) {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                    }
+                }
+                
+                // Vancomycin - first-line for C. diff
+                if DRUG_SHORT_NAMES.contains(&"vancomycin") {
+                    map.insert(format!("drug_vancomycin_for_bacteria_{}_potency_when_no_r", bacteria), 0.90);
+                }
+                
+                // Metronidazole - good for anaerobes
+                if DRUG_SHORT_NAMES.contains(&"metronidazole") {
+                    map.insert(format!("drug_metronidazole_for_bacteria_{}_potency_when_no_r", bacteria), 0.80);
+                }
+            }
+        }
+
+        // GRAM-POSITIVE RODS (Listeria)
+        for &bacteria in gram_pos_rods.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Penicillins - excellent (first-line)
+                for &drug in penicillins.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.90);
+                    }
+                }
+                
+                // Cephalosporins - poor (intrinsic resistance)
+                for &drug in cephalosporins_1_2.iter().chain(cephalosporins_3_4.iter()) {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                    }
+                }
+                
+                // Carbapenems - good
+                for &drug in carbapenems.iter() {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                    }
+                }
+            }
+        }
+
+        // GASTRIC PATHOGENS (H. pylori)
+        for &bacteria in gastric_pathogens.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                // Most antibiotics - poor in gastric environment
+                for &drug in penicillins.iter().chain(cephalosporins_1_2.iter()).chain(cephalosporins_3_4.iter()) {
+                    if DRUG_SHORT_NAMES.contains(&drug) {
+                        let potency = if drug == "amoxicillin" { 0.70 } else { 0.05 }; // Amoxicillin exception for H. pylori
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    }
+                }
+                
+                // Specific H. pylori drugs handled in individual overrides below
+            }
+        }
+
 
 
 
@@ -523,6 +699,27 @@ lazy_static! {
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.75); // Good activity with beta-lactamase inhibitor
         map.insert("drug_cefuroxime_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.7);   // Good 2nd gen cephalosporin
         map.insert("drug_azithromycin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.65); // Good macrolide activity
+        
+        // BORDETELLA PERTUSSIS - Macrolide-first treatment (azithromycin, clarithromycin, erythromycin)
+        // Boost macrolides (first-line treatment for pertussis)
+        map.insert("drug_azithromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.9);   // Excellent activity, first-line
+        map.insert("drug_clarithromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.85); // Excellent activity, first-line
+        map.insert("drug_erythromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.8);    // Good activity, traditional first-line
+        map.insert("drug_trim_sulf_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.7);       // Alternative for macrolide-allergic patients
+        // Reduce inappropriate antibiotics
+        map.insert("drug_penicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.05);     // Poor activity
+        map.insert("drug_ampicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.05);     // Poor activity
+        
+        // HELICOBACTER PYLORI - Triple/quadruple therapy drugs (clarithromycin + amoxicillin + metronidazole)
+        // Boost first-line eradication therapy drugs
+        map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.85);   // Key component of triple therapy
+        map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.8);       // Key component of triple therapy  
+        map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.75);    // Alternative/quadruple therapy
+        map.insert("drug_tetracycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.7);      // Bismuth quadruple therapy
+        map.insert("drug_levofloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.75);     // Rescue therapy
+        // Reduce inappropriate antibiotics
+        map.insert("drug_penicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
+        map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not effective
         
         // YERSINIA ENTEROCOLITICA - Address intrinsic penicillin resistance
         // Reduce penicillins (intrinsic resistance)
