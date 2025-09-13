@@ -19,28 +19,6 @@ mod config;
 //
 // mdr/xdr tb
 //
-// bacterial clearance kinetics should be bacteria-specific
-/*
-Fast clearance (current 0.5 might be appropriate):
-
-Most acute bacterial infections (E. coli UTI, Strep throat)
-3-7 day treatments
-Intermediate clearance (need slower rate):
-
-Pneumonia pathogens (10-14 days)
-Skin/soft tissue infections
-Very slow clearance (need much slower rate):
-
-Tuberculosis: 6-24 months treatment!
-Helicobacter pylori: 7-14 days triple therapy, often requires retreatment
-Chlamydia: 7-21 days treatment
-Bordetella pertussis: 5-14 days, but bacterial shedding continues
-*/
-/*
-Remove the _ prefixes
-Add systematic drug potency loops for these groups
-Clean up redundant individual overrides 
-*/ 
 //
 //
 //

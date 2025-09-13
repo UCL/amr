@@ -41,6 +41,7 @@ lazy_static! {
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0); // effect of age on immune response
             map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1); // effect of being immunodeficient on immune response 
             map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level (arbitrary scale)
+            map.insert(format!("{}_treatment_response_modifier", bacteria), 1.0); // Default: standard treatment response (multiplies antibiotic effectiveness)
              
         // --- Evidence-Based Bacteria-Specific Immune Clearance Effectiveness ---
         // Based on natural history studies, pre-antibiotic era mortality data, and known biological mechanisms
@@ -93,6 +94,69 @@ lazy_static! {
         // Haemophilus influenzae: Turk DC. J Med Microbiol 1984; Murphy et al. Rev Infect Dis 1987
         // Generally well-cleared by competent immune system; encapsulated strains more persistent
         map.insert("haemophilus influenzae_immunity_effect_on_level_change".to_string(), 0.13);
+
+        // --- Evidence-Based Bacteria-Specific Treatment Response Effectiveness ---
+        // Multiplies total_reduction_due_to_antibiotic to account for differential treatment response
+        // Based on clinical treatment outcome studies and required treatment durations
+        
+        // POOR TREATMENT RESPONSE (Slow clearance even with appropriate antibiotics)
+        // Helicobacter pylori: Graham DY et al. Gastroenterology 2007; Malfertheiner P et al. Gut 2017
+        // Triple therapy failure rates 15-40%; requires 10-14 days minimum; biofilm formation
+        map.insert("helicobacter pylori_treatment_response_modifier".to_string(), 0.4);
+        
+        // Pseudomonas aeruginosa: Bassetti M et al. Clin Microbiol Rev 2018; Tamma PD et al. Clin Microbiol Rev 2012
+        // Biofilm formation, efflux pumps; often requires combination therapy and extended courses
+        map.insert("pseudomonas aeruginosa_treatment_response_modifier".to_string(), 0.6);
+        
+        // Staphylococcus aureus: Liu C et al. Clin Infect Dis 2011; Tong SY et al. Lancet 2015
+        // Biofilm infections, intracellular persistence; MRSA particularly challenging
+        map.insert("staphylococcus aureus_treatment_response_modifier".to_string(), 0.7);
+        
+        // Acinetobacter baumannii: Peleg AY et al. Clin Microbiol Rev 2008; Wong D et al. Clin Microbiol Rev 2017
+        // Extensively drug-resistant isolates common; biofilm formation; limited therapeutic options
+        map.insert("acinetobacter baumannii_treatment_response_modifier".to_string(), 0.6);
+        
+        // Bordetella pertussis: Mattoo S & Cherry JD. Clin Microbiol Rev 2005; Langley JM et al. Pediatr Infect Dis J 2004
+        // Antibiotic treatment minimally affects course if started after catarrhal stage (>7-10 days)
+        map.insert("bordetella pertussis_treatment_response_modifier".to_string(), 0.5);
+        
+        // MODERATE TREATMENT RESPONSE
+        // Enterococcus faecium: Arias CA & Murray BE. Nat Rev Microbiol 2012; Hollenbeck BL & Rice LB. Virulence 2012
+        // VRE strains particularly challenging; limited therapeutic options
+        map.insert("enterococcus faecium_treatment_response_modifier".to_string(), 0.8);
+        
+        // Klebsiella pneumoniae: Paczosa MK & Mecsas J. Microbiol Mol Biol Rev 2016; Wyres KL & Holt KE. Nat Rev Microbiol 2018
+        // Carbapenem-resistant strains difficult to treat; capsule provides some protection
+        map.insert("klebsiella pneumoniae_treatment_response_modifier".to_string(), 0.8);
+        
+        // Enterococcus faecalis: Murray BE. N Engl J Med 2000; Gilmore MS et al. N Engl J Med 2013
+        // Generally more susceptible than E. faecium but can form biofilms
+        map.insert("enterococcus faecalis_treatment_response_modifier".to_string(), 0.9);
+        
+        // GOOD TREATMENT RESPONSE (Rapid clearance with appropriate antibiotics)
+        // Streptococcus pneumoniae: Musher DM. Clin Microbiol Rev 1992; File TM et al. Clin Infect Dis 2003
+        // Usually responds rapidly to appropriate therapy; clinical improvement within 48-72 hours
+        map.insert("streptococcus pneumoniae_treatment_response_modifier".to_string(), 1.3);
+        
+        // Escherichia coli: Gupta K et al. Clin Infect Dis 2011; Foxman B. Nat Rev Urol 2010
+        // UTI typically clears within 1-3 days with appropriate antibiotics
+        map.insert("escherichia coli_treatment_response_modifier".to_string(), 1.2);
+        
+        // Haemophilus influenzae: Murphy TF et al. Am Rev Respir Dis 1987; Slack MP. Expert Rev Anti Infect Ther 2015
+        // Generally responds well to appropriate antibiotics; rapid clearance typical
+        map.insert("haemophilus influenzae_treatment_response_modifier".to_string(), 1.2);
+        
+        // Streptococcus pyogenes: Stevens DL. N Engl J Med 1996; Lamagni T et al. Emerg Infect Dis 2008
+        // Remains uniformly susceptible to penicillin; rapid response to treatment
+        map.insert("streptococcus pyogenes_treatment_response_modifier".to_string(), 1.3);
+        
+        // Neisseria meningitidis: Stephens DS et al. Lancet 2007; Pace D & Pollard AJ. Vaccine 2012
+        // Rapid response to appropriate antibiotics; typically clears quickly
+        map.insert("neisseria meningitidis_treatment_response_modifier".to_string(), 1.2);
+        
+        // Streptococcus agalactiae: Verani JR et al. MMWR Recomm Rep 2010; Phares CR et al. Clin Infect Dis 2008
+        // Generally responds well to penicillin and ampicillin; rapid clearance
+        map.insert("streptococcus agalactiae_treatment_response_modifier".to_string(), 1.2);
 
             // Age-related bactera-specific infection risk parameters
             map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)

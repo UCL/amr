@@ -2812,13 +2812,20 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         );
                     }
                         
+            }
+            }
+            
+            // Apply bacteria-specific treatment response modifier to antibiotic effectiveness
+            let treatment_response_modifier = get_bacteria_param(bacteria, "treatment_response_modifier").unwrap_or(1.0);
+            let adjusted_antibiotic_effect = total_reduction_due_to_antibiotic * treatment_response_modifier;
 
              if individual.id == 1000001 {
                 println!("mod.rs  total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
+                println!("mod.rs  treatment response modifier: {:.4}", treatment_response_modifier);
+                println!("mod.rs  adjusted antibiotic effect: {:.4}", adjusted_antibiotic_effect);
             }   
-            }
-            }
-            let decay = baseline_change - (immunity_level * reduction_due_to_immune_resp) - total_reduction_due_to_antibiotic;
+            
+            let decay = baseline_change - (immunity_level * reduction_due_to_immune_resp) - adjusted_antibiotic_effect;
 
             let max_level = get_bacteria_param(bacteria, "max_level").unwrap_or(100.0);
             let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
