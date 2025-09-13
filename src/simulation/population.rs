@@ -154,12 +154,29 @@ impl ImmunodeficiencyType {
     }
 }
 
-
-
-
-
+/// **CONFIGURABLE BACTERIA LIST**
+/// 
+/// To customize which bacteria are included in your simulation, simply edit this list.
+/// The model will automatically adapt to any number of bacteria (1-50+ supported).
+/// 
+/// **Single-bacteria runs are scientifically valid for:**
+/// - Pathogen-specific resistance studies (e.g., E. coli UTI resistance)
+/// - Drug development against specific organisms
+/// - Mechanism research (e.g., ESBL in Klebsiella)
+/// - Educational/training scenarios
+/// - Computational efficiency for parameter sweeps
+/// 
+/// **Multi-bacteria runs provide:**
+/// - Cross-resistance transfer via HGT
+/// - Microbiome competition dynamics
+/// - Realistic syndromic treatment scenarios
+/// - Population-level ecosystem effects
+/// 
+/// **Usage:** Simply add/remove bacteria names, recompile, and run!
 pub const BACTERIA_LIST: &[&str] = &[
-    "acinetobacter baumannii", "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
+
+    "acinetobacter baumannii",
+    "citrobacter spp.", "enterobacter spp.", "enterococcus faecalis", 
     "enterococcus faecium", "escherichia coli", "klebsiella pneumoniae", "morganella spp.", 
     "proteus spp.", "serratia spp.", "pseudomonas aeruginosa", "staphylococcus aureus", 
     "streptococcus pneumoniae", "salmonella enterica serovar typhi", 

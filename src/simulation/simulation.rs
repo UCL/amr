@@ -733,10 +733,14 @@ impl Simulation {
                                             lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 1] += 1; // sepsis death by age
                                             
                                             // Track sepsis deaths by syndrome and region
-                                            for syndrome_idx in 0..10 { // syndromes 1-10 -> indices 0-9
-                                                if individual.sepsis[syndrome_idx] {
-                                                    let index = syndrome_idx * 6 + region_idx;
-                                                    lt.syndrome_deaths_sepsis_by_region[index] += 1;
+                                            for b_idx in 0..BACTERIA_LIST.len() {
+                                                if individual.sepsis[b_idx] {
+                                                    let syndrome_id = individual.infectious_syndrome[b_idx];
+                                                    if syndrome_id >= 1 && syndrome_id <= 10 {
+                                                        let syndrome_idx = (syndrome_id - 1) as usize;
+                                                        let index = syndrome_idx * 6 + region_idx;
+                                                        lt.syndrome_deaths_sepsis_by_region[index] += 1;
+                                                    }
                                                 }
                                             }
                                         },
@@ -1321,10 +1325,15 @@ impl Simulation {
                 let region_idx = get_effective_region(individual) as usize;
                 
                 // Count individuals with active infections by syndrome
-                for syndrome_idx in 0..10 { // syndromes 1-10 -> indices 0-9
-                    if individual.sepsis[syndrome_idx] {
-                        let index = syndrome_idx * 6 + region_idx;
-                        syndrome_pop_by_region[index] += 1;
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.sepsis[b_idx] {
+                        // Map bacteria to syndrome - for now, use bacteria syndrome mapping
+                        let syndrome_id = individual.infectious_syndrome[b_idx];
+                        if syndrome_id >= 1 && syndrome_id <= 10 {
+                            let syndrome_idx = (syndrome_id - 1) as usize; // Convert 1-10 to 0-9
+                            let index = syndrome_idx * 6 + region_idx;
+                            syndrome_pop_by_region[index] += 1;
+                        }
                     }
                 }
             }

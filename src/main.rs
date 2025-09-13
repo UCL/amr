@@ -19,10 +19,6 @@ mod config;
 // 
 // -- additional output graphs ---------------------------------------------------------------------------------
 //  
-// graphs showing for each bacteria proportion of infections with each drug resistance mechanism present 
-//
-// there must be more things ...................
-//
 //
 //
 //
@@ -88,12 +84,17 @@ mod config;
 // 
 
 use crate::simulation::simulation::Simulation;
- 
+use crate::simulation::population::BACTERIA_LIST;
+use crate::config::get_global_param;
+
 fn main() {
+    // Validate bacteria configuration
+    validate_bacteria_configuration();
+    
     // Create and run the simulation
-    let population_size =  500; 
-    let time_steps =  3_000 ;  // 38_325
-    let log_individuals = true  ; // Set to false to disable detailed individual logging
+    let population_size =  5_000; 
+    let time_steps =  38_325 ;  // 38_325
+    let log_individuals = false  ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
 
@@ -181,4 +182,53 @@ fn log_simulation_run(population_size: usize, time_steps: usize, duration_secs: 
     println!("Simulation run logged to {}", log_path);
     
     Ok(())
+}
+
+/// Validates the current bacteria configuration and provides helpful warnings
+fn validate_bacteria_configuration() {
+    let num_bacteria = BACTERIA_LIST.len();
+    
+    println!("=== BACTERIA CONFIGURATION VALIDATION ===");
+    println!("Number of bacteria in simulation: {}", num_bacteria);
+    
+    if num_bacteria == 0 {
+        panic!("ERROR: BACTERIA_LIST cannot be empty!");
+    }
+    
+    if num_bacteria == 1 {
+        println!("⚠️  SINGLE-BACTERIA MODE: This limits biological realism but is valid for:");
+        println!("   • Pathogen-specific resistance studies");
+        println!("   • Drug development against specific organisms");
+        println!("   • Educational/training scenarios");
+        println!("   • Computational efficiency");
+        println!("   Note: HGT, microbiome competition, and syndromic treatment are disabled.");
+    } else if num_bacteria < 5 {
+        println!("⚠️  LIMITED-BACTERIA MODE: Some ecosystem effects may be reduced");
+        println!("   Consider if your research question needs more bacterial diversity");
+    } else {
+        println!("✓ MULTI-BACTERIA MODE: Full ecosystem modeling enabled");
+    }
+    
+    // Check for potential HGT configuration issues
+    if num_bacteria == 1 {
+        for bacteria in BACTERIA_LIST.iter() {
+            for other in BACTERIA_LIST.iter() {
+                if bacteria != other {
+                    let hgt_param_name = format!("hgt_prob_{}_to_{}", bacteria, other);
+                    if let Some(hgt_prob) = get_global_param(&hgt_param_name) {
+                        if hgt_prob > 0.0 {
+                            println!("⚠️  HGT parameters configured but only 1 bacteria present - HGT will not occur");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    println!("Bacteria included:");
+    for (i, bacteria) in BACTERIA_LIST.iter().enumerate() {
+        println!("   {}. {}", i + 1, bacteria);
+    }
+    println!("=====================================\n");
 }

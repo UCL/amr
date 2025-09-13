@@ -22,7 +22,7 @@ except ImportError:
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
 # Number of days for rolling mean smoothing (used in all time series plots)
-SMOOTHING_WINDOW_DAYS = 730   
+SMOOTHING_WINDOW_DAYS = 1095   
 
 
 # =============================================================================
@@ -31,32 +31,32 @@ SMOOTHING_WINDOW_DAYS = 730
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
-for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
-proportion_of_people_infected_with_each_bacteria = False
-proportion_of_people_taking_each_drug = False  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
-proportion_share_among_drug_users = False
-distribution_drug_use_by_bacteria = False
-death_rate_by_bacteria = False
-mean_activity_r_by_bacteria = False 
-resistance_mechanism_by_bacteria = False
-proportion_of_population_with_microbiome_presence_bacteria = False
-proportion_of_microbiome_presence_with_resistance_by_drug = False
-drug_failure_rate_by_bacteria_region = False  #  Drug failure rate plots by bacteria and region
-mean_any_r_by_drug_for_each_bacteria = False
-mean_any_r_by_drug_for_each_bacteria_hospital = False
-source_of_new_resistance_by_drug_bacteria = False
-infection_resolution_by_bacteria = False 
-drug_score_analysis_by_bacteria = False # Drug score analysis for debugging clinical guidelines (ENABLED FOR TESTING)
-age_distribution_by_region = False  #  Age distribution plots by region 
-death_rate_by_region = False  #  Death rate plots by region
-age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
-incidence_of_infection = False #  Incidence of infection plots by bacteria and region
-incidence_of_infection_hospital = False #  Hospital incidence of infection plots by bacteria and region
-death_rate_by_bacteria_region = False  #  Death rate plots by bacteria and region
-death_rate_by_syndrome_region = False #  Death rate plots by syndrome and region
-syndrome_distribution_by_bacteria = False  #  Syndrome distribution plots by bacteria
-proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  #  Proportion with any_r > 0 by drug for each bacteria
-mean_mic_by_drug_for_each_bacteria = False #  Mean MIC by drug for each bacteria plots
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True
+proportion_of_people_infected_with_each_bacteria = True
+proportion_of_people_taking_each_drug = True  # <- SET TO TRUE FOR DRUG USAGE PLOTS WITH OBSERVED DATA
+proportion_share_among_drug_users = True
+distribution_drug_use_by_bacteria = True
+death_rate_by_bacteria = True
+mean_activity_r_by_bacteria = True 
+resistance_mechanism_by_bacteria = True
+proportion_of_population_with_microbiome_presence_bacteria = True
+proportion_of_microbiome_presence_with_resistance_by_drug = True
+drug_failure_rate_by_bacteria_region = True  #  Drug failure rate plots by bacteria and region
+mean_any_r_by_drug_for_each_bacteria = True
+mean_any_r_by_drug_for_each_bacteria_hospital = True
+source_of_new_resistance_by_drug_bacteria = True
+infection_resolution_by_bacteria = True 
+drug_score_analysis_by_bacteria = True # Drug score analysis for debugging clinical guidelines (ENABLED FOR TESTING)
+age_distribution_by_region = True  #  Age distribution plots by region 
+death_rate_by_region = True  #  Death rate plots by region
+age_specific_death_rate_by_region = True  #  Age-specific death rate plots by region
+incidence_of_infection = True #  Incidence of infection plots by bacteria and region
+incidence_of_infection_hospital = True #  Hospital incidence of infection plots by bacteria and region
+death_rate_by_bacteria_region = True  #  Death rate plots by bacteria and region
+death_rate_by_syndrome_region = True #  Death rate plots by syndrome and region
+syndrome_distribution_by_bacteria = True  #  Syndrome distribution plots by bacteria
+proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = True  #  Proportion with any_r > 0 by drug for each bacteria
+mean_mic_by_drug_for_each_bacteria = True #  Mean MIC by drug for each bacteria plots
 
 # =============================================================================
 # CONFIGURATION
@@ -117,6 +117,55 @@ def save_and_show_plot(filename, title=None):
 def safe_divide(numerator, denominator, default=0):
     """Safe division avoiding division by zero."""
     return np.where(denominator > 0, numerator / denominator, default)
+
+def extract_bacteria_list_from_csv(df):
+    """
+    Dynamically extract the list of bacteria from CSV column headers.
+    This replaces hardcoded bacteria lists and automatically adapts to any BACTERIA_LIST configuration.
+    """
+    bacteria_list = []
+    for col in df.columns:
+        if col.endswith('_currently_infected'):
+            bacteria_name = col.replace('_currently_infected', '')
+            bacteria_list.append(bacteria_name)
+    
+    bacteria_list.sort()  # For consistent ordering
+    print(f"Detected {len(bacteria_list)} bacteria from CSV headers:")
+    for i, bacteria in enumerate(bacteria_list, 1):
+        print(f"   {i}. {bacteria}")
+    
+    return bacteria_list
+
+def extract_resistance_mechanisms_from_csv(df):
+    """
+    Dynamically extract resistance mechanisms from CSV column headers.
+    """
+    mechanisms = set()
+    for col in df.columns:
+        if '_infected_with_' in col:
+            # Extract mechanism name from column like "escherichia_coli_infected_with_esbl"
+            parts = col.split('_infected_with_')
+            if len(parts) == 2:
+                mechanism = parts[1]
+                mechanisms.add(mechanism)
+    
+    mechanism_list = sorted(list(mechanisms))
+    print(f"Detected {len(mechanism_list)} resistance mechanisms: {', '.join(mechanism_list)}")
+    return mechanism_list
+
+def extract_drug_list_from_csv(df):
+    """
+    Dynamically extract the list of drugs from CSV column headers.
+    """
+    drugs = []
+    for col in df.columns:
+        if col.endswith('_currently_on_drug'):
+            drug_name = col.replace('_currently_on_drug', '')
+            drugs.append(drug_name)
+    
+    drugs.sort()  # For consistent ordering
+    print(f"Detected {len(drugs)} drugs from CSV headers")
+    return drugs
 
 # =============================================================================
 # DATA LOADING AND PREPROCESSING
@@ -4834,6 +4883,20 @@ def main():
     df = load_simulation_data()
     if df is None:
         return
+    
+    # Extract dynamic bacteria, drug, and mechanism lists from CSV
+    print("\n=== DETECTING SIMULATION CONFIGURATION ===")
+    bacteria_list = extract_bacteria_list_from_csv(df)
+    drug_list = extract_drug_list_from_csv(df)
+    resistance_mechanisms = extract_resistance_mechanisms_from_csv(df)
+    print("=" * 50)
+    
+    # Store in global variables for plotting functions to use
+    # (Alternative: pass as parameters to each function)
+    globals()['DETECTED_BACTERIA_LIST'] = bacteria_list
+    globals()['DETECTED_DRUG_LIST'] = drug_list
+    globals()['DETECTED_RESISTANCE_MECHANISMS'] = resistance_mechanisms
+    
     # Preprocess data (adds time_in_years and other columns)
     df = preprocess_data(df)
     # Per-bacteria stacked drug use plots
