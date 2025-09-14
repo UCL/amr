@@ -47,9 +47,10 @@ lazy_static! {
         // References provided in comments
         
         // VERY PERSISTENT BACTERIA (Minimal immune clearance - historical evidence of persistence without treatment)
-        // Mycobacterium tuberculosis: Tiemersma et al. Bull WHO 2011; Daniel TM. Respirology 2006
+        // MDR Mycobacterium tuberculosis: Tiemersma et al. Bull WHO 2011; Daniel TM. Respirology 2006
         // Pre-chemotherapy: ~70% mortality over 10 years, <5% spontaneous clearance
-        map.insert("mycobacterium tuberculosis_immunity_effect_on_level_change".to_string(), 0.01);
+        // MDR-TB represents established drug-resistant strains with guaranteed rifampicin resistance
+        map.insert("mdr mycobacterium tuberculosis_immunity_effect_on_level_change".to_string(), 0.01);
         
         // Helicobacter pylori: Kusters et al. Clin Microbiol Rev 2006; Brown LM. Cancer Epidemiol Biomarkers Prev 2000
         // Virtually never clears spontaneously - lifetime persistence in >90% of untreated individuals
@@ -269,6 +270,18 @@ lazy_static! {
         map.insert("restart_bacteria_level_threshold".to_string(), 1.5); // Bacteria level multiplier to trigger restart (current >= cessation * threshold)
         map.insert("previously_effective_drug_bonus".to_string(), 2.0); // Score multiplier for drug that was working before cessation
         map.insert("enable_restart_window".to_string(), 1.0); // Enable/disable restart window system (1.0=enabled, 0.0=disabled)
+        
+        // TB Multi-Drug Synergy Parameters
+        // WHY TB NEEDS THESE (and other bacteria don't):
+        // 1. TB biology: Intracellular location + thick cell wall + slow metabolism require sustained multi-drug pressure
+        // 2. Clinical requirement: WHO guidelines mandate multi-drug therapy; monotherapy = guaranteed treatment failure
+        // 3. Pharmacology: TB drugs work synergistically through different mechanisms (cell wall, RNA polymerase, protein synthesis)
+        // 4. Resistance prevention: Single drugs lead to rapid resistance; only combination therapy prevents resistance emergence
+        // Other bacteria don't have this absolute biological requirement - many can be successfully treated with monotherapy
+        map.insert("mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold".to_string(), 2.0); // Minimum number of active TB drugs for synergy
+        map.insert("mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier".to_string(), 2.5); // Effectiveness multiplier when ≥2 TB drugs active
+        map.insert("mdr_mycobacterium_tuberculosis_background_drug_effectiveness".to_string(), 0.8); // Additional effectiveness from unmodeled TB-specific drugs
+        map.insert("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance".to_string(), 0.90); // Rifampicin resistance level at MDR-TB acquisition
       
 
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
@@ -908,6 +921,41 @@ lazy_static! {
         map.insert("drug_azithromycin_for_bacteria_enterococcus_faecalis_initiation_multiplier".to_string(), 0.01);
         map.insert("drug_azithromycin_for_bacteria_enterococcus_faecium_initiation_multiplier".to_string(), 0.01);
 
+        // --- TB-SPECIFIC DRUG POTENCIES ---
+        // MDR Mycobacterium tuberculosis has unique characteristics: thick cell wall, intracellular location, slow metabolism
+        // Most standard antibiotics have poor activity against TB; only specific drugs are effective
+        // MDR-TB represents established drug-resistant strains with guaranteed rifampicin resistance
+        
+        // FIRST-LINE TB DRUGS (high potency despite resistance)
+        map.insert("drug_rifampicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.6); // Primary first-line TB drug
+        
+        // SECOND-LINE TB DRUGS (moderate potency)
+        map.insert("drug_levofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.4);  // Good FQ for TB
+        map.insert("drug_moxifloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.5);  // Best FQ for TB
+        map.insert("drug_amikacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);     // Injectable second-line
+        map.insert("drug_linezolid_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3);    // Oral second-line
+        
+        // OTHER FLUOROQUINOLONES (lower potency)
+        map.insert("drug_ciprofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.3); // Less active than newer FQs
+        map.insert("drug_ofloxacin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.35);    // Moderate activity
+        
+        // OTHER AMINOGLYCOSIDES (limited activity)
+        map.insert("drug_gentamicin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);   // Poor TB activity
+        map.insert("drug_tobramycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.15);   // Poor TB activity
+        
+        // STANDARD ANTIBIOTICS (poor TB activity - thick cell wall barrier)
+        map.insert("drug_penicilling_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);  // No TB activity
+        map.insert("drug_ampicillin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);   // No TB activity
+        map.insert("drug_vancomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.08);   // Minimal TB activity
+        map.insert("drug_ceftriaxone_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);  // No TB activity
+        map.insert("drug_meropenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.06);    // Minimal TB activity
+        
+        // RIFAMPICIN POTENCIES FOR OTHER BACTERIA (occasional use for severe staph infections)
+        map.insert("drug_rifampicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.4);         // Good anti-staph activity
+        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 0.2);         // Limited activity
+        map.insert("drug_rifampicin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 0.2);          // Limited activity
+        // Most other bacteria: rifampicin has minimal activity (default 0.1 will apply)
+
         // --- TARGETED RESISTANCE EMERGENCE RATE FIXES ---
         // Based on analysis of resistance patterns, certain bacteria-drug combinations
         // need adjusted baseline emergence rates for clinical realism
@@ -1007,6 +1055,24 @@ lazy_static! {
         // Lower-income regions with significant healthcare challenges
         map.insert("africa_cessation_multiplier".to_string(), 1.40); // Economic barriers, limited infrastructure
         
+        // TB-SPECIFIC REGIONAL ADHERENCE MODIFIERS (applied in addition to general regional multipliers)
+        // These capture DOT (Directly Observed Therapy) program effectiveness and TB-specific healthcare infrastructure
+        // Applied as: final_tb_cessation_rate = base_tb_rate × regional_multiplier × tb_adherence_modifier
+        // 
+        // WHY TB HAS UNIQUE ADHERENCE MODIFIERS (and other bacteria don't):
+        // 1. DOT programs: TB has specific Directly Observed Therapy programs that don't exist for other infections
+        // 2. Long treatment duration: 6-24 months vs. days/weeks for other infections creates unique challenges
+        // 3. Public health priority: TB control programs are disease-specific with dedicated infrastructure
+        // 4. Social support systems: Contact tracing, case management, nutritional support specific to TB
+        // 5. Regulatory framework: International TB control standards (WHO, CDC) create region-specific adherence differences
+        // Other bacteria use general regional cessation multipliers but don't have disease-specific adherence programs
+        map.insert("mdr_mycobacterium_tuberculosis_north_america_adherence_modifier".to_string(), 0.4); // Excellent TB programs → 60% better adherence
+        map.insert("mdr_mycobacterium_tuberculosis_europe_adherence_modifier".to_string(), 0.3);        // Best TB programs globally → 70% better adherence
+        map.insert("mdr_mycobacterium_tuberculosis_oceania_adherence_modifier".to_string(), 0.4);       // Similar to North America
+        map.insert("mdr_mycobacterium_tuberculosis_asia_adherence_modifier".to_string(), 0.6);          // Good but variable DOT programs → 40% better adherence
+        map.insert("mdr_mycobacterium_tuberculosis_south_america_adherence_modifier".to_string(), 0.7); // Moderate DOT programs → 30% better adherence
+        map.insert("mdr_mycobacterium_tuberculosis_africa_adherence_modifier".to_string(), 0.8);        // Resource constraints limit DOT effectiveness → 20% better adherence
+        
         // DEFAULT CESSATION RATES (for bacteria without specific overrides)
         map.insert("random_drug_cessation_probability".to_string(), 0.0075); // 0.75% daily = 90% complete 14-day course
         map.insert("random_drug_cessation_probability_if_no_active_infection".to_string(), 0.2); // Higher probability if no active infection
@@ -1033,7 +1099,7 @@ lazy_static! {
         
         // CHRONIC/PERSISTENT INFECTIONS (weeks to months)
         // Very low cessation rates for infections requiring prolonged treatment
-        map.insert("mycobacterium_tuberculosis_drug_cessation_probability".to_string(), 0.0006); // TB: 6-24 months (0.06% daily = 90% complete 180 days)
+        map.insert("mdr_mycobacterium_tuberculosis_drug_cessation_probability".to_string(), 0.0006); // MDR-TB: 6-24 months (0.06% daily = 90% complete 180 days)
         map.insert("chlamydia_trachomatis_drug_cessation_probability".to_string(), 0.007); // Chlamydia: 7-21 days depending on regimen
         
         // ENTERIC PATHOGENS (variable courses 3-14 days)
@@ -2736,6 +2802,19 @@ lazy_static! {
             vec!["ceftriaxone", "ceftazidime", "cefepime"],
             // Fluoroquinolone resistance
             vec!["ciprofloxacin", "levofloxacin"],
+        ]);
+
+        // MDR Mycobacterium tuberculosis resistance patterns
+        // MDR-TB is defined by resistance to at least rifampicin + isoniazid, with guaranteed rifampicin resistance
+        m.insert("mdr mycobacterium tuberculosis", vec![
+            // Fluoroquinolone resistance (gyrA/gyrB mutations commonly affect all FQs)
+            vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
+            // Aminoglycoside resistance (16S rRNA mutations can affect multiple AGs)
+            vec!["gentamicin", "tobramycin", "amikacin"],
+            // Rifampicin resistance (rpoB mutations - single drug class)
+            vec!["rifampicin"],
+            // Linezolid resistance (rrl gene mutations - single drug currently)
+            vec!["linezolid"],
         ]);
 
         // Add more bacteria as needed...

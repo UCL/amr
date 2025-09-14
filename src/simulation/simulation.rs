@@ -931,6 +931,7 @@ impl Simulation {
                                                     match acq_type {
                                                         ResistanceAcquisitionType::AtInfectionCommunity => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1,
                                                         ResistanceAcquisitionType::AtInfectionEnv => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1,
+                                                        ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1, // Count TB-specific resistance with environmental
                                                         ResistanceAcquisitionType::Hgt => lt.new_resistance_hgt_by_bacteria_drug[index] += 1,
                                                         ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
                                                     }

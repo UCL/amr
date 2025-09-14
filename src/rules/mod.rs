@@ -1194,6 +1194,12 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             
             // Stage 2: Choose the most appropriate drug using weighted probabilistic selection
             // Score each available drug and collect scores for probabilistic selection
+            // NOTE: TB-specific multi-drug selection logic is not implemented here because:
+            // 1. Current potency-based scoring already favors effective TB drugs (rifampicin=0.6, FQs=0.4-0.5)
+            // 2. Multi-drug synergy system activates automatically when ≥2 TB drugs are selected
+            // 3. Implementing TB-specific simultaneous multi-drug initiation would require substantial 
+            //    modification to this single-drug selection framework
+            // 4. Clinical TB programs often start with sequential drug addition anyway due to tolerance testing
             let mut drug_scores: Vec<(usize, f64)> = Vec::new();
             for &drug_idx in &available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
@@ -2256,6 +2262,13 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                 let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
 
+                // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
+                let is_tb = bacteria == "mdr mycobacterium tuberculosis";
+                let guaranteed_rifampicin_resistance = if is_tb {
+                    get_global_param("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance").unwrap_or(0.90)
+                } else {
+                    0.0
+                };
 
                 let is_from_environment = individual.cur_infection_from_environment[b_idx];
                 let is_hospital_acquired = individual.infection_hospital_acquired[b_idx];
@@ -2366,6 +2379,33 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         }
                     }
                 }
+                
+                // --- TB-specific guaranteed rifampicin resistance ---
+                if is_tb && guaranteed_rifampicin_resistance > 0.0 {
+                    if let Some(&rifampicin_idx) = drug_indices.get("rifampicin") {
+                        let resistance_data = &mut individual.resistances[b_idx][rifampicin_idx];
+                        let current_resistance = resistance_data.majority_r.max(resistance_data.any_r);
+                        if current_resistance < guaranteed_rifampicin_resistance {
+                            resistance_data.majority_r = guaranteed_rifampicin_resistance;
+                            resistance_data.any_r = guaranteed_rifampicin_resistance;
+                            
+                            // Add resistance mechanism for rifampicin resistance
+                            use crate::simulation::population::ResistanceMechanism;
+                            let mechanism_prob = get_global_param("mechanism_assignment_probability_on_any_r_gain").unwrap_or(0.8);
+                            for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                let mechanism_str = mechanism.as_str();
+                                let enhancement = get_global_param(&param_cache.resistance_mechanism_enhancement_keys[mechanism_str]).unwrap_or(0.0);
+                                if enhancement <= resistance_data.any_r {
+                                    if rng.gen_bool(mechanism_prob) {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                    }
+                                }
+                            }
+                            individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
+                        }
+                    }
+                }
+                
                 // --- end generalized any_r and majority_r setting logic ---
                 } // End if !infection_prevented block
             } 
@@ -2858,9 +2898,50 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             }
             }
             
+            // --- TB-specific multi-drug synergy logic ---
+            // WHY TB IS SPECIAL: Unlike other bacteria, TB has an absolute biological requirement for multi-drug therapy.
+            // Single-drug TB treatment always fails due to rapid resistance development (~10^-6 mutation rate).
+            // Other bacteria can often be treated with monotherapy, but TB biology (intracellular location, 
+            // thick cell wall, slow metabolism) requires sustained multi-drug pressure through different mechanisms.
+            // This synergy bonus captures the mechanistic requirement that TB treatment guidelines mandate 
+            // ≥4 drugs initially, ≥2 for continuation - reflecting clinical reality, not just preference.
+            let mut tb_synergy_bonus = 0.0;
+            if bacteria == "mdr mycobacterium tuberculosis" {
+                // Count active TB drugs with meaningful potency
+                let active_tb_drugs: Vec<_> = DRUG_SHORT_NAMES.iter().enumerate()
+                    .filter(|(drug_idx, _drug_name)| {
+                        if individual.cur_level_drug[*drug_idx] <= 0.0 { return false; }
+                        
+                        let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(*drug_idx, b_idx)];
+                        let potency = get_global_param(potency_param_key).unwrap_or(0.0);
+                        potency >= 0.1 // Only count drugs with meaningful TB potency
+                    })
+                    .collect();
+                
+                let synergy_threshold = get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold").unwrap_or(2.0) as usize;
+                
+                if active_tb_drugs.len() >= synergy_threshold {
+                    let synergy_multiplier = get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier").unwrap_or(2.5);
+                    // Background effectiveness represents unmodeled TB-specific drugs (bedaquiline, pretomanid, delamanid, 
+                    // cycloserine, ethionamide, p-aminosalicylic acid) that are critical for MDR-TB treatment but not 
+                    // explicitly tracked in this general AMR model. Value reflects their collective contribution when 
+                    // proper multi-drug TB regimens are used.
+                    let background_effectiveness = get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness").unwrap_or(0.8);
+                    
+                    // Apply synergy: multiply existing drug effects + add background effectiveness
+                    tb_synergy_bonus = (total_reduction_due_to_antibiotic * (synergy_multiplier - 1.0)) + background_effectiveness;
+                    
+                    if individual.id == 1000001 {
+                        println!("mod.rs  TB synergy: {} active drugs, bonus = {:.4}", active_tb_drugs.len(), tb_synergy_bonus);
+                    }
+                }
+            }
+            
             // Antibiotic effectiveness is now determined through bacteria-drug specific potency values
             // rather than a universal treatment response modifier
-            let adjusted_antibiotic_effect = total_reduction_due_to_antibiotic;
+            // TB synergy bonus is added here because multi-drug synergy is fundamental to TB treatment effectiveness -
+            // it's not an optional enhancement but a biological requirement for meaningful bacterial killing
+            let adjusted_antibiotic_effect = total_reduction_due_to_antibiotic + tb_synergy_bonus;
 
              if individual.id == 1000001 {
                 println!("mod.rs  total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);

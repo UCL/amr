@@ -2722,7 +2722,7 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df):
     
     # Identify bacteria and drugs from new resistance acquisition columns
     bacteria_drug_pairs = []
-    acquisition_types = ['at_infection_community', 'at_infection_env', 'hgt', 'from_microbiome_r']
+    acquisition_types = ['at_infection_community', 'at_infection_env', 'at_infection_tb', 'hgt', 'from_microbiome_r']
     
     for col in df.columns:
         if col.endswith("_new_resistance_at_infection_community"):
@@ -2734,10 +2734,11 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df):
     
     print(f"Found {len(bacteria_drug_pairs)} bacteria-drug combinations to analyze...")
     
-    # Color scheme for the 4 acquisition types
+    # Color scheme for the 5 acquisition types (added TB-specific)
     colors = {
         'at_infection_community': '#1f77b4',  # blue
         'at_infection_env': '#ff7f0e',        # orange  
+        'at_infection_tb': '#9467bd',         # purple (new for TB-specific acquisition)
         'hgt': '#2ca02c',                     # green
         'from_microbiome_r': '#d62728'        # red
     }
@@ -2745,6 +2746,7 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df):
     labels = {
         'at_infection_community': 'Community Infection',
         'at_infection_env': 'Environmental Infection',
+        'at_infection_tb': 'TB-Specific Acquisition',
         'hgt': 'Horizontal Gene Transfer',
         'from_microbiome_r': 'From Microbiome'
     }
@@ -4765,7 +4767,8 @@ def get_clinical_guidance_info(bacteria_name):
         'escherichia coli': 'Expected: Ciprofloxacin, Ceftriaxone, Nitrofurantoin should dominate\nActual guidelines: 35x, 20x, 30x multipliers',
         'staphylococcus aureus': 'Expected: Penicillin (MSSA), Vancomycin (MRSA), Cephalexin\nActual guidelines: Variable multipliers based on resistance',
         'pseudomonas aeruginosa': 'Expected: Meropenem, Ceftazidime, Piperacillin-Tazobactam only\nActual guidelines: 25x, 20x, 25x multipliers',
-        'klebsiella pneumoniae': 'Expected: Ceftriaxone (early), Meropenem (ESBL era)\nActual guidelines: 25x early, 8x later periods'
+        'klebsiella pneumoniae': 'Expected: Ceftriaxone (early), Meropenem (ESBL era)\nActual guidelines: 25x early, 8x later periods',
+        'mdr mycobacterium tuberculosis': 'Expected: Multi-drug therapy required - Rifampicin + FQs (Levofloxacin/Moxifloxacin) + Injectable (Amikacin)\nActual: MDR-TB has guaranteed rifampicin resistance, synergy when ≥2 drugs active'
     }
     return guidance.get(bacteria_name, None)
 
@@ -4805,7 +4808,8 @@ def analyze_clinical_guideline_effectiveness(recent_data, top_bacteria):
         'escherichia coli': ['ciprofloxacin', 'ceftriaxone', 'nitrofurantoin'],
         'staphylococcus aureus': ['vancomycin', 'penicillin', 'cephalexin'],
         'pseudomonas aeruginosa': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam'],
-        'klebsiella pneumoniae': ['ceftriaxone', 'meropenem', 'ciprofloxacin']
+        'klebsiella pneumoniae': ['ceftriaxone', 'meropenem', 'ciprofloxacin'],
+        'mdr mycobacterium tuberculosis': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid']
     }
     
     for bacteria_name, _, _ in top_bacteria:
@@ -4856,6 +4860,10 @@ def get_clinical_appropriateness(bacteria_name, drug_name):
         'pseudomonas aeruginosa': {
             'appropriate': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam', 'colistin'],
             'inappropriate': ['vancomycin', 'penicillin', 'ampicillin']
+        },
+        'mdr mycobacterium tuberculosis': {
+            'appropriate': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid', 'ofloxacin'],
+            'inappropriate': ['penicillin', 'ampicillin', 'ceftriaxone', 'vancomycin', 'meropenem']
         }
     }
     

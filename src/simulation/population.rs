@@ -68,6 +68,7 @@ impl ResistanceMechanism {
 pub enum ResistanceAcquisitionType {
     AtInfectionCommunity,
     AtInfectionEnv,
+    AtInfectionTB,
     Hgt,
     FromMicrobiomeR,
 }
@@ -77,6 +78,7 @@ impl ResistanceAcquisitionType {
         match self {
             ResistanceAcquisitionType::AtInfectionCommunity => "at_infection_community",
             ResistanceAcquisitionType::AtInfectionEnv => "at_infection_env",
+            ResistanceAcquisitionType::AtInfectionTB => "at_infection_tb",
             ResistanceAcquisitionType::Hgt => "hgt",
             ResistanceAcquisitionType::FromMicrobiomeR => "from_microbiome_r",
         }
@@ -186,6 +188,7 @@ pub const BACTERIA_LIST: &[&str] = &[
     "neisseria_meningitidis", "listeria_monocytogenes", "clostridioides_difficile",
     "campylobacter_jejuni", "enterobacter_cloacae", "yersinia_enterocolitica", "moraxella_catarrhalis",
     "treponema pallidum", "bordetella pertussis", "helicobacter pylori",
+    "mdr mycobacterium tuberculosis",
 ];
 
 
@@ -199,7 +202,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "gentamicin", "tobramycin", "amikacin", "ciprofloxacin", "levofloxacin", "moxifloxacin",
     "ofloxacin", "tetracycline", "doxyclycline", "minocycline", "vancomycin", "teicoplanin",
     "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
-    "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
+    "retapamulin", "fusidic_a", "metronidazole", "furazolidone", "rifampicin",
     "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
     "ceftazidime_avibactam", "meropenem_vaborbactam", "colistin"
 ];

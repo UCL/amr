@@ -17,7 +17,6 @@ mod rules;
 mod config;
 
 //
-// mdr/xdr tb
 //
 //
 //
@@ -97,8 +96,8 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size =  1_000; 
-    let time_steps =  3000 ;  // 38_325
+    let population_size =  5_000; 
+    let time_steps =  38_325 ;  // 38_325
     let log_individuals = false  ; // Set to false to disable detailed individual logging
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
