@@ -2858,13 +2858,12 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             }
             }
             
-            // Apply bacteria-specific treatment response modifier to antibiotic effectiveness
-            let treatment_response_modifier = get_bacteria_param(bacteria, "treatment_response_modifier").unwrap_or(1.0);
-            let adjusted_antibiotic_effect = total_reduction_due_to_antibiotic * treatment_response_modifier;
+            // Antibiotic effectiveness is now determined through bacteria-drug specific potency values
+            // rather than a universal treatment response modifier
+            let adjusted_antibiotic_effect = total_reduction_due_to_antibiotic;
 
              if individual.id == 1000001 {
                 println!("mod.rs  total reduction due to antibiotic: {:.4}", total_reduction_due_to_antibiotic);
-                println!("mod.rs  treatment response modifier: {:.4}", treatment_response_modifier);
                 println!("mod.rs  adjusted antibiotic effect: {:.4}", adjusted_antibiotic_effect);
             }   
             

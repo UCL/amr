@@ -41,7 +41,6 @@ lazy_static! {
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0); // effect of age on immune response
             map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1); // effect of being immunodeficient on immune response 
             map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level (arbitrary scale)
-            map.insert(format!("{}_treatment_response_modifier", bacteria), 1.0); // Default: standard treatment response (multiplies antibiotic effectiveness)
              
         // --- Evidence-Based Bacteria-Specific Immune Clearance Effectiveness ---
         // Based on natural history studies, pre-antibiotic era mortality data, and known biological mechanisms
@@ -98,66 +97,9 @@ lazy_static! {
         // --- Evidence-Based Bacteria-Specific Treatment Response Effectiveness ---
         // Multiplies total_reduction_due_to_antibiotic to account for differential treatment response
         // Based on clinical treatment outcome studies and required treatment durations
+        // NOTE: Treatment response differences are now handled through bacteria-drug specific potency adjustments
+        // rather than universal modifiers, providing more mechanistic accuracy
         
-        // POOR TREATMENT RESPONSE (Slow clearance even with appropriate antibiotics)
-        // Helicobacter pylori: Graham DY et al. Gastroenterology 2007; Malfertheiner P et al. Gut 2017
-        // Triple therapy failure rates 15-40%; requires 10-14 days minimum; biofilm formation
-        map.insert("helicobacter pylori_treatment_response_modifier".to_string(), 0.4);
-        
-        // Pseudomonas aeruginosa: Bassetti M et al. Clin Microbiol Rev 2018; Tamma PD et al. Clin Microbiol Rev 2012
-        // Biofilm formation, efflux pumps; often requires combination therapy and extended courses
-        map.insert("pseudomonas aeruginosa_treatment_response_modifier".to_string(), 0.6);
-        
-        // Staphylococcus aureus: Liu C et al. Clin Infect Dis 2011; Tong SY et al. Lancet 2015
-        // Biofilm infections, intracellular persistence; MRSA particularly challenging
-        map.insert("staphylococcus aureus_treatment_response_modifier".to_string(), 0.7);
-        
-        // Acinetobacter baumannii: Peleg AY et al. Clin Microbiol Rev 2008; Wong D et al. Clin Microbiol Rev 2017
-        // Extensively drug-resistant isolates common; biofilm formation; limited therapeutic options
-        map.insert("acinetobacter baumannii_treatment_response_modifier".to_string(), 0.6);
-        
-        // Bordetella pertussis: Mattoo S & Cherry JD. Clin Microbiol Rev 2005; Langley JM et al. Pediatr Infect Dis J 2004
-        // Antibiotic treatment minimally affects course if started after catarrhal stage (>7-10 days)
-        map.insert("bordetella pertussis_treatment_response_modifier".to_string(), 0.5);
-        
-        // MODERATE TREATMENT RESPONSE
-        // Enterococcus faecium: Arias CA & Murray BE. Nat Rev Microbiol 2012; Hollenbeck BL & Rice LB. Virulence 2012
-        // VRE strains particularly challenging; limited therapeutic options
-        map.insert("enterococcus faecium_treatment_response_modifier".to_string(), 0.8);
-        
-        // Klebsiella pneumoniae: Paczosa MK & Mecsas J. Microbiol Mol Biol Rev 2016; Wyres KL & Holt KE. Nat Rev Microbiol 2018
-        // Carbapenem-resistant strains difficult to treat; capsule provides some protection
-        map.insert("klebsiella pneumoniae_treatment_response_modifier".to_string(), 0.8);
-        
-        // Enterococcus faecalis: Murray BE. N Engl J Med 2000; Gilmore MS et al. N Engl J Med 2013
-        // Generally more susceptible than E. faecium but can form biofilms
-        map.insert("enterococcus faecalis_treatment_response_modifier".to_string(), 0.9);
-        
-        // GOOD TREATMENT RESPONSE (Rapid clearance with appropriate antibiotics)
-        // Streptococcus pneumoniae: Musher DM. Clin Microbiol Rev 1992; File TM et al. Clin Infect Dis 2003
-        // Usually responds rapidly to appropriate therapy; clinical improvement within 48-72 hours
-        map.insert("streptococcus pneumoniae_treatment_response_modifier".to_string(), 1.3);
-        
-        // Escherichia coli: Gupta K et al. Clin Infect Dis 2011; Foxman B. Nat Rev Urol 2010
-        // UTI typically clears within 1-3 days with appropriate antibiotics
-        map.insert("escherichia coli_treatment_response_modifier".to_string(), 1.2);
-        
-        // Haemophilus influenzae: Murphy TF et al. Am Rev Respir Dis 1987; Slack MP. Expert Rev Anti Infect Ther 2015
-        // Generally responds well to appropriate antibiotics; rapid clearance typical
-        map.insert("haemophilus influenzae_treatment_response_modifier".to_string(), 1.2);
-        
-        // Streptococcus pyogenes: Stevens DL. N Engl J Med 1996; Lamagni T et al. Emerg Infect Dis 2008
-        // Remains uniformly susceptible to penicillin; rapid response to treatment
-        map.insert("streptococcus pyogenes_treatment_response_modifier".to_string(), 1.3);
-        
-        // Neisseria meningitidis: Stephens DS et al. Lancet 2007; Pace D & Pollard AJ. Vaccine 2012
-        // Rapid response to appropriate antibiotics; typically clears quickly
-        map.insert("neisseria meningitidis_treatment_response_modifier".to_string(), 1.2);
-        
-        // Streptococcus agalactiae: Verani JR et al. MMWR Recomm Rep 2010; Phares CR et al. Clin Infect Dis 2008
-        // Generally responds well to penicillin and ampicillin; rapid clearance
-        map.insert("streptococcus agalactiae_treatment_response_modifier".to_string(), 1.2);
-
             // Age-related bactera-specific infection risk parameters
             map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
 
@@ -863,6 +805,47 @@ lazy_static! {
         // Campylobacter - ensure fluoroquinolones are recognized as first-line
         map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
         map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
+
+        // --- BACTERIA-SPECIFIC TREATMENT RESPONSE ADJUSTMENTS ---
+        // Apply clinical treatment response modifiers to existing drug potencies
+        // Replaces the previous universal treatment_response_modifier system with drug-specific adjustments
+        // Based on clinical outcome studies, biofilm formation, intracellular persistence, etc.
+        
+        // Define treatment response multipliers (formerly treatment_response_modifier values)
+        let treatment_response_multipliers: HashMap<&str, f64> = [
+            // POOR TREATMENT RESPONSE (Slow clearance even with appropriate antibiotics)
+            ("helicobacter pylori", 0.4),       // Triple therapy failure, biofilm formation
+            ("pseudomonas aeruginosa", 0.6),    // Biofilm formation, efflux pumps
+            ("staphylococcus aureus", 0.7),     // Biofilm infections, intracellular persistence
+            ("acinetobacter baumannii", 0.6),   // MDR common, biofilm formation
+            ("bordetella pertussis", 0.5),      // Limited effect if started after catarrhal stage
+            
+            // MODERATE TREATMENT RESPONSE
+            ("enterococcus faecium", 0.8),      // VRE strains challenging
+            ("klebsiella pneumoniae", 0.8),     // Carbapenem resistance, capsule protection
+            ("enterococcus faecalis", 0.9),     // More susceptible than E. faecium
+            
+            // GOOD TREATMENT RESPONSE (Rapid clearance with appropriate antibiotics)
+            ("streptococcus pneumoniae", 1.3),  // Rapid response to appropriate therapy
+            ("escherichia coli", 1.2),          // UTI clears rapidly with appropriate antibiotics
+            ("haemophilus influenzae", 1.2),    // Generally responds well
+            ("streptococcus pyogenes", 1.3),    // Rapid response, uniformly penicillin susceptible
+            ("neisseria meningitidis", 1.2),    // Rapid response to appropriate antibiotics
+            ("streptococcus agalactiae", 1.2),  // Good response to penicillin/ampicillin
+        ].iter().cloned().collect();
+        
+        // Apply treatment response multipliers to all drug-bacteria combinations
+        for (&bacteria, &multiplier) in treatment_response_multipliers.iter() {
+            if BACTERIA_LIST.contains(&bacteria) {
+                for &drug in DRUG_SHORT_NAMES.iter() {
+                    let potency_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria);
+                    if let Some(&current_potency) = map.get(&potency_key) {
+                        let adjusted_potency = current_potency * multiplier;
+                        map.insert(potency_key, adjusted_potency);
+                    }
+                }
+            }
+        }
 
         // --- CLINICALLY APPROPRIATE DRUG-BACTERIA INITIATION MULTIPLIER OVERRIDES ---
         // Based on analysis of drug usage patterns, boost initiation probability for clinically appropriate combinations
