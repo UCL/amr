@@ -1018,6 +1018,10 @@ let drugs_initiated_this_time_step: usize = 0;
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
         if individual.cur_use_drug[drug_idx] {
             let mut relevant_infection_active_for_this_drug = false;
+            let mut primary_bacteria_idx: Option<usize> = None;
+            let mut highest_bacteria_level = 0.0;
+            
+            // Find the most significant bacteria infection relevant to this drug
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
                     // Use potency_when_no_r to determine if drug is relevant for this bacteria
@@ -1025,22 +1029,61 @@ let drugs_initiated_this_time_step: usize = 0;
                     let drug_potency = get_global_param(potency_param_key).unwrap_or(0.0);
                     if drug_potency > 0.0 {
                         relevant_infection_active_for_this_drug = true;
-                        break;
+                        // Track the bacteria with highest level (most significant infection)
+                        if individual.level[b_idx] > highest_bacteria_level {
+                            highest_bacteria_level = individual.level[b_idx];
+                            primary_bacteria_idx = Some(b_idx);
+                        }
                     }
                 }
             }
+            
             let mut stop_drug = false;
-                // Use different cessation probabilities depending on infection status
+            
+            if !relevant_infection_active_for_this_drug {
+                // No relevant infection - use higher cessation rate
                 let random_cessation_if_no_infection = get_global_param("random_drug_cessation_probability_if_no_active_infection").unwrap_or(0.25);
-                if !relevant_infection_active_for_this_drug {
-                    if rng.gen_bool(random_cessation_if_no_infection) {
-                        stop_drug = true;
-                    }
-                } else {
-                    if rng.gen_bool(random_drug_cessation_prob) {
-                        stop_drug = true;
-                    }
+                if rng.gen_bool(random_cessation_if_no_infection) {
+                    stop_drug = true;
                 }
+            } else {
+                // Calculate bacteria-specific and region-specific cessation probability
+                let base_cessation_prob = if let Some(bacteria_idx) = primary_bacteria_idx {
+                    let bacteria_name = BACTERIA_LIST[bacteria_idx];
+                    let bacteria_cessation_key = format!("{}_drug_cessation_probability", bacteria_name.to_lowercase().replace(' ', "_"));
+                    get_global_param(&bacteria_cessation_key).unwrap_or(random_drug_cessation_prob)
+                } else {
+                    random_drug_cessation_prob
+                };
+                
+                // Apply regional multiplier based on individual's current region
+                let region_multiplier = match individual.region_cur_in {
+                    Region::NorthAmerica => get_global_param("north_america_cessation_multiplier").unwrap_or(1.0),
+                    Region::SouthAmerica => get_global_param("south_america_cessation_multiplier").unwrap_or(1.0),
+                    Region::Africa => get_global_param("africa_cessation_multiplier").unwrap_or(1.0),
+                    Region::Asia => get_global_param("asia_cessation_multiplier").unwrap_or(1.0),
+                    Region::Europe => get_global_param("europe_cessation_multiplier").unwrap_or(1.0),
+                    Region::Oceania => get_global_param("oceania_cessation_multiplier").unwrap_or(1.0),
+                    Region::Home => {
+                        // Use home region multiplier (region_living is their home region)
+                        match individual.region_living {
+                            Region::NorthAmerica => get_global_param("north_america_cessation_multiplier").unwrap_or(1.0),
+                            Region::SouthAmerica => get_global_param("south_america_cessation_multiplier").unwrap_or(1.0),
+                            Region::Africa => get_global_param("africa_cessation_multiplier").unwrap_or(1.0),
+                            Region::Asia => get_global_param("asia_cessation_multiplier").unwrap_or(1.0),
+                            Region::Europe => get_global_param("europe_cessation_multiplier").unwrap_or(1.0),
+                            Region::Oceania => get_global_param("oceania_cessation_multiplier").unwrap_or(1.0),
+                            Region::Home => 1.0, // Fallback if nested Home
+                        }
+                    }
+                };
+                
+                let final_cessation_prob = (base_cessation_prob * region_multiplier).min(0.99); // Cap at 99%
+                
+                if rng.gen_bool(final_cessation_prob) {
+                    stop_drug = true;
+                }
+            }
             if individual.date_drug_initiated[drug_idx] == (time_step as i32) - 1 {
                 stop_drug = false;
             }
