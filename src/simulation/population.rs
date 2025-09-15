@@ -524,7 +524,7 @@ impl Population {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
             // Set severely immunosuppressed 
-            if rng.gen_bool(0.05) {
+            if rng.gen_bool(0.10) {
                 // Randomly assign chronic or temporary (simplified for initial setup)
                 if rng.gen_bool(0.5) {
                     individual.immunodeficiency_type = Some(ImmunodeficiencyType::Chronic);
