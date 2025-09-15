@@ -1533,15 +1533,16 @@ lazy_static! {
         map.insert("testing_sepsis_multiplier".to_string(), 4.0); // Sepsis patients get urgent testing
         
         // Temporal adoption parameters (testing evolution over time)
+        // Using S-curve (sigmoid) model for realistic technology adoption
         // Bacterial testing temporal evolution
         map.insert("bacterial_testing_initial_adoption_rate".to_string(), 0.1); // 1945: 10% of modern rates
-        map.insert("bacterial_testing_adoption_rate_per_year".to_string(), 0.025); // 2.5% improvement per year
-        map.insert("bacterial_testing_max_temporal_multiplier".to_string(), 1.0); // Cap at modern rates
+        map.insert("bacterial_testing_adoption_rate_per_year".to_string(), 0.025); // DEPRECATED: kept for backward compatibility
+        map.insert("bacterial_testing_max_temporal_multiplier".to_string(), 1.0); // Cap at modern rates (100%)
         
         // Resistance testing temporal evolution (slower adoption)
         map.insert("resistance_testing_initial_adoption_rate".to_string(), 0.05); // 1955: 5% of modern rates
-        map.insert("resistance_testing_adoption_rate_per_year".to_string(), 0.015); // 1.5% improvement per year
-        map.insert("resistance_testing_max_temporal_multiplier".to_string(), 1.0); // Cap at modern rates
+        map.insert("resistance_testing_adoption_rate_per_year".to_string(), 0.015); // DEPRECATED: kept for backward compatibility
+        map.insert("resistance_testing_max_temporal_multiplier".to_string(), 1.0); // Cap at modern rates (100%)
 
         // initiate travel
         map.insert("travel_probability_per_day".to_string(), 0.00005);
@@ -1595,7 +1596,7 @@ lazy_static! {
 
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
-        map.insert("sepsis_baseline_odds".to_string(), -10.0); // -10.0 Baseline log odds (very low baseline probability)
+        map.insert("sepsis_baseline_odds".to_string(), -11.0); // -10.0 Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
@@ -3153,6 +3154,7 @@ lazy_static! {
         map.insert("trim_sulf", 13870);      // 1968 (38 years after 1930) - trimethoprim-sulfamethoxazole
 
         // Other antibiotics
+        map.insert("rifampicin", 13140);     // 1966 (36 years after 1930) - critical for TB treatment
         map.insert("quinu_dalfo", 25290);    // 1999 (69 years after 1930) - quinupristin/dalfopristin
         map.insert("chlorampheni", 6935);    // 1949 (19 years after 1930) - chloramphenicol
         map.insert("nitrofurantoin", 8395);  // 1953 (23 years after 1930)

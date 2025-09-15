@@ -3150,7 +3150,14 @@ fn calculate_testing_probability(
         )
     };
     
-    let temporal_multiplier = (initial_rate + years_since_availability * adoption_rate).min(max_multiplier);
+    // Use sigmoid (S-curve) model for more realistic technology adoption
+    // Formula: initial_rate + (max_multiplier - initial_rate) * (1 / (1 + e^(-steepness * (years - midpoint))))
+    let adoption_years = if is_bacterial_testing { 40.0 } else { 50.0 }; // Years to reach ~95% adoption
+    let midpoint = adoption_years / 2.0; // Inflection point (fastest growth)
+    let steepness = 6.0 / adoption_years; // Controls how steep the S-curve is
+    
+    let sigmoid_factor = 1.0 / (1.0 + (-steepness * (years_since_availability - midpoint)).exp());
+    let temporal_multiplier = initial_rate + (max_multiplier - initial_rate) * sigmoid_factor;
     
     // Hospital status multiplier
     let hospital_multiplier = if individual.hospital_status.is_hospitalized() {
