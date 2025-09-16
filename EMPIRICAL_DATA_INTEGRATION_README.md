@@ -2,7 +2,7 @@
 
 ## Overview
 
-The system now includes **comprehensive empirical data integration** that can incorporate real surveillance data from major global sources. This addresses your request to modify the generation approach to use actual empirical values from:
+The system now includes **comprehensive empirical data integration** that can incorporate real surveillance data from major global sources. 
 
 - ✅ **ECDC surveillance reports**
 - ✅ **WHO GLASS resistance percentages** 
@@ -112,31 +112,6 @@ year,region,drug,mean,std,p5,p25,p50,p75,p95,source_quality,notes
 2022,europe,penicillin,153.3,23.0,117.0,137.4,153.3,169.2,189.6,ecdc_empirical,ecdc_germany_ddd_converted
 ```
 
-## 🎯 Key Advantages
-
-### **1. Real-World Accuracy**
-- Uses actual surveillance data instead of synthetic estimates
-- Incorporates real geographic and temporal variation
-- Accounts for actual sample sizes and data quality
-
-### **2. Uncertainty Quantification**
-- Sample size-based confidence intervals
-- Regional development adjustments
-- Temporal trend extrapolation
-- Data quality indicators
-
-### **3. Source Traceability**
-- Each record tagged with original data source
-- Quality indicators for data provenance
-- Notes field with specific details (country, sample size, etc.)
-
-### **4. Comprehensive Coverage**
-- Fills gaps with principled extrapolation
-- Regional multipliers based on development levels
-- Temporal interpolation for missing years
-- All drug-bacteria combinations covered
-
-## 🚀 Usage Instructions
 
 ### **Setup (One-time)**
 1. Create `./data/` directory
@@ -148,12 +123,6 @@ year,region,drug,mean,std,p5,p25,p50,p75,p95,source_quality,notes
 ```bash
 python generate_empirical_calibration.py
 ```
-
-### **Use in Simulation**
-Replace synthetic calibration files with empirical versions:
-- `calibration_resistance.csv` → `calibration_resistance_empirical.csv`
-- `calibration_drug_usage.csv` → `calibration_drug_usage_empirical.csv`
-- `calibration_deaths.csv` → `calibration_deaths_empirical.csv`
 
 ## 📋 Data Source Requirements
 
@@ -175,17 +144,6 @@ The system includes built-in quality checks:
 - Temporal continuity validation
 - Cross-source consistency checks
 
-## 🎯 Impact on Calibration
-
-Using empirical data provides:
-- **Higher fidelity**: Real-world resistance patterns
-- **Regional accuracy**: Actual geographic variation  
-- **Temporal precision**: Historical trends and trajectories
-- **Uncertainty bounds**: Data-driven confidence intervals
-
-This significantly improves model validation and prediction accuracy compared to synthetic calibration data.
-
----
 
 ## Next Steps
 
@@ -195,4 +153,4 @@ This significantly improves model validation and prediction accuracy compared to
 4. **Validate outputs** against known epidemiological patterns
 5. **Use empirical files** for simulation calibration
 
-The system is now ready to incorporate real surveillance data from all major AMR monitoring sources worldwide.
+
