@@ -39,7 +39,7 @@ proportion_of_people_taking_each_drug = False  # <- DISABLED
 proportion_share_among_drug_users = False
 distribution_drug_use_by_bacteria = False
 death_rate_by_bacteria = False  # <- DISABLED for testing incidence only
-mean_activity_r_by_bacteria = False 
+mean_activity_r_by_bacteria = True 
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = False
 proportion_of_microbiome_presence_with_resistance_by_drug = False
@@ -54,7 +54,7 @@ death_rate_by_region = False  #  Death rate plots by region
 age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
 incidence_of_infection = False #  <- DISABLED FOR TESTING OTHER PLOTS
 incidence_of_infection_hospital = False #  Hospital incidence of infection plots by bacteria and region
-death_rate_by_bacteria_region = True  #  <- ENABLED FOR TESTING DEATH RATES
+death_rate_by_bacteria_region = False  #  <- ENABLED FOR TESTING DEATH RATES
 death_rate_by_syndrome_region = False #  Death rate plots by syndrome and region
 syndrome_distribution_by_bacteria = False  #  Syndrome distribution plots by bacteria
 proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  #  <- DISABLED, already tested
@@ -539,10 +539,14 @@ def calculate_global_y_scales(df, plot_type, entities=None, regions=None):
     else:
         padding = 0.05
     
-    # For proportions, ensure we don't go below 0 or above 1
-    if plot_type in ['proportion_infected', 'drug_usage', 'mic_lt2', 'microbiome_presence', 'microbiome_resistance']:
+    # For proportions, ensure we don't go below 0 
+    # Note: drug_usage can exceed 1.0 (>1000 per 1000 people in high usage scenarios)
+    if plot_type in ['proportion_infected', 'mic_lt2', 'microbiome_presence', 'microbiome_resistance']:
         y_min = max(0, y_min - padding)
-        y_max = min(1, y_max + padding)
+        y_max = min(1, y_max + padding)  # These are true proportions (0-1)
+    elif plot_type == 'drug_usage':
+        y_min = max(0, y_min - padding)
+        y_max = y_max + padding  # Allow drug usage to exceed 1.0
     else:
         y_min = max(0, y_min - padding)  # Most metrics shouldn't go below 0
         y_max = y_max + padding

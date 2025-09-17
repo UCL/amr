@@ -12,12 +12,12 @@ import requests
 import json
 import os
 from pathlib import Path
-from empirical_data_config import DataSourceConfig, SETUP_INSTRUCTIONS
+from enhanced_empirical_data_config import EnhancedDataSourceConfig
 
 class ECDCParser:
     """Parser for ECDC surveillance and consumption data"""
     
-    def __init__(self, config: DataSourceConfig):
+    def __init__(self, config: EnhancedDataSourceConfig):
         self.config = config
         
     def parse_resistance_data(self, file_path: str) -> pd.DataFrame:
@@ -110,7 +110,7 @@ class ECDCParser:
 class WHOGLASSParser:
     """Parser for WHO GLASS resistance data"""
     
-    def __init__(self, config: DataSourceConfig):
+    def __init__(self, config: EnhancedDataSourceConfig):
         self.config = config
         
     def parse_glass_excel(self, file_path: str) -> pd.DataFrame:
@@ -153,7 +153,7 @@ class WHOGLASSParser:
 class IQVIAParser:
     """Parser for IQVIA pharmaceutical sales data"""
     
-    def __init__(self, config: DataSourceConfig):
+    def __init__(self, config: EnhancedDataSourceConfig):
         self.config = config
         
     def parse_sales_data(self, file_path: str) -> pd.DataFrame:
@@ -194,7 +194,7 @@ class IQVIAParser:
 class CDCParser:
     """Parser for CDC surveillance data"""
     
-    def __init__(self, config: DataSourceConfig):
+    def __init__(self, config: EnhancedDataSourceConfig):
         self.config = config
         
     def parse_ar_threats_report(self, file_path: str) -> pd.DataFrame:
@@ -223,7 +223,7 @@ class CDCParser:
 class NationalStatsParser:
     """Parser for national mortality statistics"""
     
-    def __init__(self, config: DataSourceConfig):
+    def __init__(self, config: EnhancedDataSourceConfig):
         self.config = config
         
     def parse_mortality_data(self, file_path: str, country: str) -> pd.DataFrame:
@@ -272,7 +272,7 @@ class EmpiricalDataLoader:
     """Main class to coordinate all data source parsers"""
     
     def __init__(self):
-        self.config = DataSourceConfig()
+        self.config = EnhancedDataSourceConfig()
         self.ecdc_parser = ECDCParser(self.config)
         self.who_parser = WHOGLASSParser(self.config)
         self.iqvia_parser = IQVIAParser(self.config)
@@ -359,8 +359,9 @@ class EmpiricalDataLoader:
         # Show setup instructions if no data was loaded
         if not loaded_data:
             print("\n⚠️  No empirical data files found.")
-            print("📋 Please set up data sources according to these instructions:")
-            print(SETUP_INSTRUCTIONS)
+            print("📋 Please run the enhanced data collection strategy:")
+            print("   python implementation_guide.py")
+            print("   python enhanced_empirical_data_collection.py")
         
         return loaded_data
 
