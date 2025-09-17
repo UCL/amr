@@ -23,7 +23,7 @@ mod config;
 //
 // -- additional output graphs ---------------------------------------------------------------------------------
 //  
-//
+// check on generation of empirical calibration and on comparison plots
 //
 //
 //
