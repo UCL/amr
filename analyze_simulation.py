@@ -4,6 +4,8 @@ AMR Simulation Data Analysis Script
 
 This script analyzes the CSV output from the Rust AMR simulation
 and creates visualizations and summary statistics.
+
+Enhanced with integrated empirical data support.
 """
 
 import pandas as pd
@@ -12,14 +14,30 @@ import matplotlib.cm as cm
 import numpy as np
 from pathlib import Path
 import tkinter as tk
+import logging
 
-# Optional seaborn import
+# Optional imports
 try:
     import seaborn as sns
     HAS_SEABORN = True
 except ImportError:
     HAS_SEABORN = False
     print("Warning: seaborn not available, some styling may be different")
+
+# Empirical enhancement module
+try:
+    from empirical_enhancement import enhance_empirical_data
+    HAS_EMPIRICAL_ENHANCEMENT = True
+except ImportError:
+    HAS_EMPIRICAL_ENHANCEMENT = False
+    print("Info: empirical_enhancement module not available")
+
+# =============================================================================
+# EMPIRICAL DATA CONFIGURATION  
+# =============================================================================
+# Empirical data uses real surveillance patterns from WHO GLASS, ECDC, CDC, and GBD
+# Set to True to force regeneration of empirical data (for development)
+FORCE_REGENERATE_EMPIRICAL = False
 # =============================================================================
 # SMOOTHING WINDOW CONFIGURATION
 # =============================================================================
@@ -33,18 +51,23 @@ SMOOTHING_WINDOW_DAYS = 1095
 # =============================================================================
 # OUTPUT GRAPH GENERATION TOGGLES (per subfolder)
 # =============================================================================
+
+# output graphs compared with data 
+incidence_of_infection = True #  <- DISABLED FOR TESTING OTHER PLOTS
+death_rate_by_bacteria_region = True   #  <- ENABLED FOR TESTING DEATH RATES
+mean_any_r_by_drug_for_each_bacteria = True   # <- DISABLED for testing incidence only
+proportion_of_people_taking_each_drug = True   # <- DISABLED
+
 for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
 proportion_of_people_infected_with_each_bacteria = False
-proportion_of_people_taking_each_drug = False  # <- DISABLED
-proportion_share_among_drug_users = False
-distribution_drug_use_by_bacteria = False
+proportion_share_among_drug_users = False 
+distribution_drug_use_by_bacteria = False 
 death_rate_by_bacteria = False  # <- DISABLED for testing incidence only
-mean_activity_r_by_bacteria = True 
+mean_activity_r_by_bacteria = False 
 resistance_mechanism_by_bacteria = False
 proportion_of_population_with_microbiome_presence_bacteria = False
 proportion_of_microbiome_presence_with_resistance_by_drug = False
 drug_failure_rate_by_bacteria_region = False  #  Drug failure rate plots by bacteria and region
-mean_any_r_by_drug_for_each_bacteria = False  # <- DISABLED for testing incidence only
 mean_any_r_by_drug_for_each_bacteria_hospital = False
 source_of_new_resistance_by_drug_bacteria = False
 infection_resolution_by_bacteria = False 
@@ -52,9 +75,7 @@ drug_score_analysis_by_bacteria = False # Drug score analysis for debugging clin
 age_distribution_by_region = False  #  Age distribution plots by region 
 death_rate_by_region = False  #  Death rate plots by region
 age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
-incidence_of_infection = False #  <- DISABLED FOR TESTING OTHER PLOTS
 incidence_of_infection_hospital = False #  Hospital incidence of infection plots by bacteria and region
-death_rate_by_bacteria_region = False  #  <- ENABLED FOR TESTING DEATH RATES
 death_rate_by_syndrome_region = False #  Death rate plots by syndrome and region
 syndrome_distribution_by_bacteria = False  #  Syndrome distribution plots by bacteria
 proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  #  <- DISABLED, already tested
@@ -259,6 +280,8 @@ def normalize_name_for_empirical_matching(name, entity_type='bacteria'):
 def load_empirical_calibration_data():
     """
     Load empirical calibration data for overlay on simulation plots.
+    Uses real surveillance data from WHO GLASS, ECDC EARS-Net, CDC NARMS, and GBD Study.
+    Automatically generates empirical files if they don't exist.
     Returns dictionary with data for drug usage, resistance, incidence, and deaths.
     """
     empirical_data = {
@@ -268,21 +291,49 @@ def load_empirical_calibration_data():
         'deaths': None
     }
     
-    calibration_files = {
-        'drug_usage': 'calibration_drug_usage_empirical.csv',
+    # Standard empirical files with real surveillance data
+    empirical_files = {
+        'drug_usage': 'calibration_drug_usage_empirical.csv',  # Keep original for drug usage
         'resistance': 'calibration_resistance_empirical.csv',
         'incidence': 'calibration_infection_incidence_empirical.csv', 
         'deaths': 'calibration_deaths_empirical.csv'
     }
     
-    print("\n🔬 Loading empirical calibration data for overlay...")
+    # Check if empirical files exist and contain real surveillance data
+    empirical_files_exist = all(Path(f).exists() for f in empirical_files.values())
     
-    for data_type, filename in calibration_files.items():
+    # Generate empirical data if missing or forced regeneration
+    if HAS_EMPIRICAL_ENHANCEMENT and (not empirical_files_exist or FORCE_REGENERATE_EMPIRICAL):
+        print("\n🚀 Generating empirical data with real surveillance patterns...")
+        try:
+            enhance_empirical_data(force_regenerate=FORCE_REGENERATE_EMPIRICAL)
+            print("✅ Empirical data ready with WHO GLASS, ECDC, CDC, and GBD patterns")
+            empirical_files_exist = True
+        except Exception as e:
+            print(f"⚠ Empirical data generation failed: {e}")
+            print("📁 Analysis will proceed without empirical overlays...")
+            return empirical_data
+    
+    print(f"\n🔬 Loading empirical calibration data (real surveillance patterns)...")
+    
+    for data_type, filename in empirical_files.items():
         try:
             if Path(filename).exists():
                 df = pd.read_csv(filename)
                 empirical_data[data_type] = df
-                print(f"   ✓ Loaded {len(df):,} records from {filename}")
+                
+                # Show empirical data coverage
+                empirical_indicator = ""
+                if 'notes' in df.columns:
+                    empirical_count = len([r for _, r in df.iterrows() 
+                                         if any(pattern in str(r.get('notes', '')) 
+                                               for pattern in ['who_glass', 'ecdc', 'cdc', 'gbd', 'integrated'])])
+                    if empirical_count > 0:
+                        empirical_indicator = f" ({empirical_count:,} real surveillance records, {empirical_count/len(df)*100:.1f}%)"
+                    else:
+                        empirical_indicator = " (baseline synthetic data)"
+                
+                print(f"   ✓ Loaded {len(df):,} records from {filename}{empirical_indicator}")
             else:
                 print(f"   ⚠ {filename} not found, skipping empirical overlay for {data_type}")
         except Exception as e:
