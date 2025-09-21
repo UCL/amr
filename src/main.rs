@@ -23,11 +23,21 @@ mod config;
 //
 // -- additional output graphs ---------------------------------------------------------------------------------
 //  
-// check on generation of empirical calibration and on comparison plots
+// maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
+// 
+// add gbd estimates as calibration data to the plots (at least for incidence and mortality)
+//
 //
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
+//
+// think carefully about standardized drug levels and mic - do I need to make drug levels realistic ? 
+//
+// use gbd super regions instead of continents ?
+// High-income  Latin America and Caribbean  Sub-Saharan Africa
+// North Africa and Middle East  South Asia  Southeast Asia, East Asia, and Oceania
+// Central Europe, Eastern Europe, and Central Asia
 //
 // need to better account for how death rate can be high in some infections despite treatment ?
 // (and I think this means despite treatment with a non resistant drug)
