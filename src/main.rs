@@ -128,7 +128,7 @@ fn main() {
     // let mut rng = rand::thread_rng();
     // let random_id: u32 = rng.gen_range(1_000_000..10_000_000);
     // let csv_filename = format!("simulation_summary_{}.csv", random_id);
-    let csv_filename = "simulation_summary_1.csv".to_string();
+    let csv_filename = "simulation_summary.csv".to_string();
 
     // Export to CSV for analysis
     if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {

@@ -34,61 +34,176 @@ Other variables include whether the person is hospitalized, with consequences fo
 Mortality risk is separated by (i) background mortality risk, which is age and region-specific (noting that region can be re-coded such that home is a given single country); (ii) mortality risk given sepsis (and possibly according to infection in a person with severe immunosuppression) and (iii) mortality risk specifically due to adverse antibiotic drug effects.
 
 
-# Rust AMR Simulation Model
+# AMR Simulation and Analysis Project
 
-This project simulates the spread and treatment of antimicrobial resistance (AMR) in a population using an agent-based model written in Rust.
+This project simulates the spread and treatment of antimicrobial resistance (AMR) in a population using an agent-based model written in Rust, with comprehensive Python-based analysis and visualization tools.
 
-## Model Overview
+## Project Structure
 
-- **Population:** Each individual is modeled with attributes such as age, sex, region, infection status, resistance levels, drug usage, and more.
-- **Bacteria & Drugs:** The model supports multiple bacteria and drug types, with customizable parameters for acquisition, resistance, and treatment.
-- **Time Steps:** The simulation proceeds in discrete time steps, updating each individual's state according to biological and treatment rules.
+### Rust Simulation Model (`src/`)
+The core simulation engine written in Rust for high-performance modeling of large populations.
 
-## Main Components
+**Key Components:**
+- `simulation/`: Orchestrates the simulation, manages populations, and aggregates statistics
+- `population.rs`: Defines Individual and Population structs with comprehensive attributes
+- `rules/`: Core logic for updating individuals each time step (infection, resistance, drug initiation)
+- `config/`: Model parameters and lookup functions
 
-- `simulation/`  
-  - `simulation.rs`: Orchestrates the simulation, manages the population, and aggregates statistics.
-  - `population.rs`: Defines the `Individual` and `Population` structs and their attributes.
-- `rules/`  
-  - `mod.rs`: Contains the core logic for updating individuals each time step (infection, resistance, drug initiation, etc.).
-- `config/`  
-  - `config.rs`: Stores all model parameters and provides lookup functions.
+### Python Analysis System (`amr_simulation_output_analysis/`)
+Modular analysis and visualization system for processing simulation outputs.
 
-## Key Processes
+**Architecture:**
+```
+amr_simulation_output_analysis/
+├── __init__.py
+├── config.py              # Configuration management with granular plot controls
+├── data_loader.py         # Centralized data loading and caching
+├── utils.py              # Common utilities and helper functions
+├── plotting/
+│   ├── __init__.py
+│   ├── grouped_plots.py   # Main grouped figures (Figures 1-9)
+│   ├── detail_plots.py    # Individual detailed visualizations
+│   └── utils.py          # Plotting utilities and styling
+└── empirical/
+    ├── __init__.py
+    ├── data_config.py     # Empirical data source configuration
+    └── parsers.py         # Data parsing and integration functions
+```
 
-- **Infection Acquisition:** Probability-based, influenced by contact/exposure, vaccination, microbiome, and region.
-- **Resistance Emergence:** Modeled for both infection site and microbiome, with parameters for baseline and drug/bacteria-specific rates.
-- **Drug Initiation/Stopping:** Drugs are started/stopped based on infection status, resistance test results, and other rules.
-- **Testing:** Simulates lab identification of bacteria and resistance, with delays and error probabilities.
-- **Hospitalization & Travel:** Individuals may be hospitalized or travel between regions, affecting exposure and risk.
-- **Mortality:** Death risk is calculated from background, sepsis, and drug toxicity.
+## Quick Start
 
-## Running the Simulation
-
-```sh
+### Running the Simulation
+```bash
 cargo run --release
 ```
 
-population size and number of time steps is detrmined in `main.rs`:
-
+Configure population size and time steps in `main.rs`:
 ```rust
 let population_size = 100_000;
 let time_steps = 20;
 ```
 
-## Example Output
+### Analyzing Results
+```python
+from amr_simulation_output_analysis import create_all_plots, PlotConfig
 
-The simulation prints detailed information for individual 0 at each time step, as well as summary statistics.
+# Generate all plots with default configuration
+create_all_plots()
 
-## Customization
+# Generate specific plot categories
+config = PlotConfig(
+    grouped_plots=True,
+    detail_plots=False,
+    age_specific_plots=True,
+    drug_failure_plots=True
+)
+create_all_plots(config)
+```
 
-- **Parameters:**  
-  Edit `src/config.rs` to change model parameters (infection rates, resistance emergence, drug properties, etc.).
-- **Bacteria/Drugs:**  
-  Add or remove bacteria/drugs by editing the lists in `population.rs` and updating parameters in `config.rs`.
-- **Rules:**  
-  Modify `src/rules/mod.rs` to change the biological or treatment logic.
+For complete usage examples, see `amr_analysis_examples.py`.
 
+## Analysis Capabilities
 
-This project is for research and educational use. 
+### Grouped Visualizations (Figures 1-9)
+- **Figure 1**: Infection resolution patterns by bacteria
+- **Figure 2**: Mean activity R analysis by bacteria
+- **Figure 3**: Day-7 drug initiation patterns
+- **Figure 4**: Syndrome distribution patterns  
+- **Figure 5**: Population dynamics tracking
+- **Figure 6**: Drug initiation timing analysis
+- **Figure 7**: Regional syndrome patterns
+- **Figure 8**: Comprehensive resistance tracking
+- **Figure 9**: Treatment outcome analysis
+
+### Detailed Analysis Categories
+- **Age-specific death rates** (7 visualizations)
+- **Regional analysis** (age distribution, death rates, drug failure)
+- **Bacteria-specific analysis** (death rates, drug failure, infection resolution)
+- **Drug analysis** (usage patterns, resistance emergence, MIC analysis)
+- **Resistance mechanisms** (source tracking, emergence patterns)
+- **Population health metrics** (mortality, syndrome distribution)
+
+### Configuration Options
+The system provides granular control over plot generation:
+
+```python
+config = PlotConfig(
+    # Main categories
+    grouped_plots=True,
+    detail_plots=True,
+    
+    # Specific plot types
+    drug_failure_rate_by_bacteria_region=True,
+    mean_mic_by_drug_for_each_bacteria=True,
+    incidence_of_infection_hospital=True,
+    proportion_of_people_taking_each_drug=True,
+    # ... 20+ additional granular controls
+)
+```
+
+## Model Features
+
+### Biological Processes
+- **Infection Acquisition**: Contact-based transmission with regional, age, and exposure factors
+- **Resistance Emergence**: Dynamic resistance development in infections and microbiomes
+- **Drug Pharmacodynamics**: Multi-drug interactions with realistic decay and efficacy
+- **Testing and Diagnosis**: Laboratory delays, identification accuracy, resistance testing
+- **Immunity Development**: Bacteria-specific immunity acquisition and maintenance
+
+### Population Dynamics
+- **Demographics**: Age, sex, region with realistic population structures
+- **Healthcare**: Hospitalization, healthcare access, treatment protocols
+- **Mobility**: Inter-regional travel affecting exposure and transmission
+- **Mortality**: Background, sepsis-related, and drug toxicity mortality
+
+### Drug and Resistance Modeling
+- **Multi-drug Support**: 357 drugs across major antibiotic classes
+- **Resistance Mechanisms**: Genetic and phenotypic resistance evolution
+- **Treatment Protocols**: Empirical and targeted therapy based on testing
+- **Microbiome Effects**: Commensal bacteria resistance affecting treatment
+
+## Data Integration
+
+The analysis system integrates multiple empirical data sources:
+- **CDC AR Threats 2019**: US antimicrobial resistance surveillance
+- **ECDC Data 2023**: European resistance and consumption data
+- **IQVIA Sales 2023**: Global antibiotic usage patterns
+- **WHO Global Data**: International resistance surveillance
+- **GBD Study Data**: Global burden of disease metrics
+
+## Output and Visualization
+
+The system generates comprehensive visualizations:
+- **2,000+ individual plots** across all analysis categories
+- **Multi-format support**: PNG, PDF, SVG output options
+- **Publication-ready figures** with consistent styling
+- **Interactive dashboards** (planned enhancement)
+- **Statistical summaries** with empirical data overlays
+
+## Development and Customization
+
+### Adding New Analysis
+1. Implement new functions in `detail_plots.py`
+2. Add configuration flags in `config.py`
+3. Update plot dispatcher in `detail_plots.py`
+4. Add empirical data sources as needed
+
+### Extending the Simulation
+- **Parameters**: Edit `src/config.rs` for model parameters
+- **Bacteria/Drugs**: Modify lists in `population.rs` and update `config.rs`
+- **Rules**: Update `src/rules/mod.rs` for biological or treatment logic
+- **Output**: Extend CSV output in simulation for new metrics
+
+## Archive and Legacy
+Previous monolithic analysis scripts have been archived in `archive/legacy_scripts/`:
+- `analyze_simulation.py` (6,623-line original script)
+- `empirical_enhancement.py` (legacy enhancement tools)
+- Development and migration scripts in `archive/development_scripts/`
+
+## Requirements
+
+**Rust**: Latest stable version
+**Python**: 3.8+ with packages listed in `requirements.txt`
+
+This project is for research and educational use in antimicrobial resistance modeling. 
 
