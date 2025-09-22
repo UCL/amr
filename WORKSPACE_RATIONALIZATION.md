@@ -29,7 +29,7 @@ Successfully rationalized and organized the workspace following the completion o
 ├── src/                               # Rust simulation engine
 ├── data/                              # Empirical data sources
 ├── output_graphs/                     # Generated visualizations
-└── amr_analysis_examples.py           # Usage examples and demos
+└── amr_analysis.py                    # Main comprehensive analysis script
 ```
 
 ### Documentation

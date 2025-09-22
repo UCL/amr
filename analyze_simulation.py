@@ -1,0 +1,6623 @@
+#!/usr/bin/env python3
+"""
+AMR Simulation Data Analysis Script
+
+This script analyzes the CSV output from the Rust AMR simulation
+and creates visualizations and summary statistics.
+
+Enhanced with integrated empirical data support.
+"""
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
+from pathlib import Path
+import tkinter as tk
+import logging
+
+# Optional imports
+try:
+    import seaborn as sns
+    HAS_SEABORN = True
+except ImportError:
+    HAS_SEABORN = False
+    print("Warning: seaborn not available, some styling may be different")
+
+# Empirical enhancement module
+try:
+    from empirical_enhancement import enhance_empirical_data
+    HAS_EMPIRICAL_ENHANCEMENT = True
+except ImportError:
+    HAS_EMPIRICAL_ENHANCEMENT = False
+    print("Info: empirical_enhancement module not available")
+
+# =============================================================================
+# EMPIRICAL DATA CONFIGURATION  
+# =============================================================================
+# Empirical data uses real surveillance patterns from WHO GLASS, ECDC, CDC, and GBD
+# Set to True to force regeneration of empirical data (for development)
+FORCE_REGENERATE_EMPIRICAL = False
+
+# =============================================================================
+# SMOOTHING WINDOW CONFIGURATION
+# =============================================================================
+# Number of days for rolling mean smoothing (used in all time series plots)
+SMOOTHING_WINDOW_DAYS = 1095   
+
+
+# ==========================
+# =============================================================================
+# PLOT TOGGLES - Enable/disable specific plot types
+# =============================================================================
+
+drug_failure_rate_by_bacteria_region = True    #  Treatment failure rates (clinical outcomes)
+mean_mic_by_drug_for_each_bacteria = True     #  MIC values (resistance gold standard)
+incidence_of_infection_hospital = True         #  Hospital-acquired infections (HAI surveillance)
+
+incidence_of_infection = True                 #  Community infection incidence
+death_rate_by_bacteria_region = True          #  Mortality by bacteria and region
+population_mortality_by_bacteria_region = True   #  Population mortality by bacteria and region (to compare with empirical data)
+mean_any_r_by_drug_for_each_bacteria = True   #  Resistance levels by drug
+proportion_of_people_taking_each_drug = True   #  Drug usage patterns
+
+for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = False
+proportion_of_people_infected_with_each_bacteria = False
+proportion_share_among_drug_users = False 
+distribution_drug_use_by_bacteria = False 
+death_rate_by_bacteria = False  
+mean_activity_r_by_bacteria = False 
+resistance_mechanism_by_bacteria = False
+proportion_of_population_with_microbiome_presence_bacteria = False
+proportion_of_microbiome_presence_with_resistance_by_drug = False
+mean_any_r_by_drug_for_each_bacteria_hospital = False
+source_of_new_resistance_by_drug_bacteria = False
+infection_resolution_by_bacteria = False 
+drug_score_analysis_by_bacteria = False # Drug score analysis for debugging clinical guidelines (ENABLED FOR TESTING)
+age_distribution_by_region = False  #  Age distribution plots by region 
+death_rate_by_region = False  #  Death rate plots by region
+age_specific_death_rate_by_region = False  #  Age-specific death rate plots by region
+death_rate_by_syndrome_region = False #  Death rate plots by syndrome and region
+syndrome_distribution_by_bacteria = False  #  Syndrome distribution plots by bacteria
+proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = False  
+
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+# Plot settings
+PLOT_STYLE = 'seaborn-v0_8'
+PLOT_DPI = 300
+PLOT_BBOX = 'tight'
+FIGURE_SIZE_SINGLE = (12, 6)
+FIGURE_SIZE_DOUBLE = (12, 10)
+FIGURE_SIZE_OVERVIEW = (12, 12)
+
+# Dynamically determine screen size ONCE for all figures
+try:
+    root = tk.Tk()
+    root.withdraw()
+    SCREEN_W = root.winfo_screenwidth()
+    SCREEN_H = root.winfo_screenheight()
+    root.destroy()
+    FIG_W = int(SCREEN_W * 0.8 / 96)  # inches (assuming 96 dpi)
+    FIG_H = int(SCREEN_H * 0.8 / 96)
+except Exception:
+    FIG_W, FIG_H = 16, 10  # fallback
+
+# File settings
+CSV_INPUT = "simulation_summary.csv"
+FLOAT_PRECISION = '%.6f'
+
+# Output files
+OUTPUT_FILES = {
+    'overview': 'simulation_overview.png',
+    'infection_prop': 'infection_proportion_over_time.png',
+    'death_prop': 'death_proportion_over_time.png',
+    'death_causes': 'death_causes_over_time.png',
+    'infection_duration': 'infection_duration_proportions.png',
+    'sepsis_prop': 'sepsis_among_infected_proportion.png',
+    'resistance_prop': 'resistance_among_infected.png',
+    'summary_stats': 'summary_statistics.csv'
+}
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+def setup_plot_style():
+    """Configure matplotlib plot style."""
+    plt.style.use(PLOT_STYLE)
+
+def save_and_show_plot(filename, title=None):
+    """Standardized plot saving and display."""
+    plt.tight_layout()
+    plt.savefig(filename, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.show()
+    print(f"✓ {title or 'Plot'} saved as '{filename}'")
+
+def safe_divide(numerator, denominator, default=0):
+    """Safe division avoiding division by zero."""
+    return np.where(denominator > 0, numerator / denominator, default)
+
+def extract_bacteria_list_from_csv(df):
+    """
+    Dynamically extract the list of bacteria from CSV column headers.
+    This replaces hardcoded bacteria lists and automatically adapts to any BACTERIA_LIST configuration.
+    """
+    bacteria_list = []
+    for col in df.columns:
+        if col.endswith('_currently_infected'):
+            bacteria_name = col.replace('_currently_infected', '')
+            bacteria_list.append(bacteria_name)
+    
+    bacteria_list.sort()  # For consistent ordering
+    print(f"Detected {len(bacteria_list)} bacteria from CSV headers:")
+    for i, bacteria in enumerate(bacteria_list, 1):
+        print(f"   {i}. {bacteria}")
+    
+    return bacteria_list
+
+def extract_resistance_mechanisms_from_csv(df):
+    """
+    Dynamically extract resistance mechanisms from CSV column headers.
+    """
+    mechanisms = set()
+    for col in df.columns:
+        if '_infected_with_' in col:
+            # Extract mechanism name from column like "escherichia_coli_infected_with_esbl"
+            parts = col.split('_infected_with_')
+            if len(parts) == 2:
+                mechanism = parts[1]
+                mechanisms.add(mechanism)
+
+def get_consistent_color_for_drug(drug_name, drug_list):
+    """
+    Generate a consistent color for a drug based on its position in the sorted drug list.
+    This ensures the same drug always gets the same color across all plots.
+    """
+    try:
+        drug_index = drug_list.index(drug_name)
+        # Use matplotlib's tab20 colormap for up to 20 drugs, then extend with other colormaps
+        if drug_index < 20:
+            colors = plt.cm.tab20(np.linspace(0, 1, 20))
+            return colors[drug_index]
+        elif drug_index < 40:
+            colors = plt.cm.tab20b(np.linspace(0, 1, 20))
+            return colors[drug_index - 20]
+        else:
+            colors = plt.cm.tab20c(np.linspace(0, 1, 20))
+            return colors[(drug_index - 40) % 20]
+    except ValueError:
+        # Fallback to default color if drug not in list
+        return 'blue'
+
+def normalize_name_for_empirical_matching(name, entity_type='bacteria', data_source=None):
+    """
+    Normalize bacteria/drug names for matching between simulation and empirical data.
+    
+    Args:
+        name: The name to normalize
+        entity_type: 'bacteria' or 'drug' - determines normalization strategy
+        data_source: 'drug_failure', 'mic_values', 'resistance', etc. - specific empirical data type
+    
+    For bacteria: Handle mixed underscore/space usage in empirical data
+    For drugs: Both simulation and empirical use underscores for combination drugs.
+    """
+    if name is None:
+        return None
+    
+    if entity_type == 'drug':
+        # For drugs, keep underscores as empirical data uses them for combinations
+        normalized = name  # Keep original format
+        
+        # Handle specific drug name variations if needed
+        drug_mappings = {
+            # Add any specific drug name mappings here if needed
+        }
+        
+        if normalized in drug_mappings:
+            return drug_mappings[normalized]
+        
+        return normalized
+    
+    else:  # bacteria
+        # 🔧 CONTEXT-AWARE BACTERIA NORMALIZATION
+        # Different empirical datasets use different naming conventions
+        
+        if data_source == 'drug_failure':
+            # Drug failure data uses abbreviated names (s_aureus, e_coli, etc.)
+            simulation_to_drug_failure_bacteria = {
+                'staphylococcus_aureus': 's_aureus',
+                'escherichia_coli': 'e_coli',
+                'klebsiella_pneumoniae': 'k_pneumoniae', 
+                'pseudomonas_aeruginosa': 'p_aeruginosa',
+                'streptococcus_pneumoniae': 's_pneumoniae',
+                'acinetobacter_baumannii': 'a_baumannii',
+                'enterococcus_faecalis': 'enterococcus_faecalis',  # These stay full
+                'enterococcus_faecium': 'enterococcus_faecium'
+            }
+            
+            if name in simulation_to_drug_failure_bacteria:
+                return simulation_to_drug_failure_bacteria[name]
+            else:
+                return name  # Return as-is if no mapping found
+                
+        else:
+            # For other data sources (MIC, resistance, etc.) - use space/underscore mappings
+            simulation_to_empirical_bacteria = {
+                # Space/underscore mappings for resistance empirical data
+                'treponema_pallidum': 'treponema pallidum',
+                'acinetobacter_baumannii': 'acinetobacter baumannii',
+                'haemophilus_influenzae': 'haemophilus influenzae',
+                'chlamydia_trachomatis': 'chlamydia trachomatis',
+                'enterococcus_faecalis': 'enterococcus faecalis',
+                'enterococcus_faecium': 'enterococcus faecium',
+                'escherichia_coli': 'escherichia coli',
+                'klebsiella_pneumoniae': 'klebsiella pneumoniae',
+                'mdr_mycobacterium_tuberculosis': 'mdr mycobacterium tuberculosis',
+                'neisseria_gonorrhoeae': 'neisseria gonorrhoeae',
+                'neisseria_meningitidis': 'neisseria_meningitidis',
+                'pseudomonas_aeruginosa': 'pseudomonas aeruginosa',
+                'salmonella_enterica_serovar_paratyphi_a': 'salmonella enterica serovar paratyphi a',
+                'salmonella_enterica_serovar_typhi': 'salmonella enterica serovar typhi',
+                'staphylococcus_aureus': 'staphylococcus aureus',
+                'streptococcus_agalactiae': 'streptococcus agalactiae',
+                'streptococcus_pneumoniae': 'streptococcus pneumoniae',
+                'streptococcus_pyogenes': 'streptococcus pyogenes',
+                'vibrio_cholerae': 'vibrio cholerae',
+                'yersinia_enterocolitica': 'yersinia_enterocolitica'
+            }
+            
+            # Check if we have a direct mapping
+            if name in simulation_to_empirical_bacteria:
+                return simulation_to_empirical_bacteria[name]
+            
+            # For most cases, empirical data uses same format as simulation (underscores)
+            return name
+        normalized = name.replace('_', ' ')
+        if normalized.endswith(' spp'):
+            normalized += '.'
+            
+        return normalized
+
+def load_empirical_calibration_data():
+    """
+    Load empirical calibration data for overlay on simulation plots.
+    Uses real surveillance data from WHO GLASS, ECDC EARS-Net, CDC NARMS, and GBD Study.
+    Automatically generates empirical files if they don't exist.
+    Returns dictionary with data for drug usage, resistance, incidence, and deaths.
+    """
+    empirical_data = {
+        'drug_usage': None,
+        'resistance': None, 
+        'incidence': None,
+        'deaths': None,
+        # 🔥 NEW TIER 1 CLINICAL METRICS
+        'drug_failure': None,
+        'mic_values': None,
+        'hospital_incidence': None
+    }
+    
+    # Standard empirical files with real surveillance data
+    empirical_files = {
+        'drug_usage': 'calibration_drug_usage_empirical.csv',  # Keep original for drug usage
+        'resistance': 'calibration_resistance_empirical.csv',
+        'incidence': 'calibration_infection_incidence_empirical.csv', 
+        'deaths': 'calibration_deaths_empirical.csv',
+        # 🔥 NEW TIER 1 CLINICAL FILES
+        'drug_failure': 'calibration_drug_failure_empirical.csv',
+        'mic_values': 'calibration_mic_empirical.csv',
+        'hospital_incidence': 'calibration_hospital_incidence_empirical.csv'
+    }
+    
+    # Check if empirical files exist and contain real surveillance data
+    empirical_files_exist = all(Path(f).exists() for f in empirical_files.values())
+    
+    # Generate empirical data if missing or forced regeneration
+    if HAS_EMPIRICAL_ENHANCEMENT and (not empirical_files_exist or FORCE_REGENERATE_EMPIRICAL):
+        print("\n🚀 Generating empirical data with real surveillance patterns...")
+        try:
+            enhance_empirical_data(force_regenerate=FORCE_REGENERATE_EMPIRICAL)
+            print("✅ Empirical data ready with WHO GLASS, ECDC, CDC, and GBD patterns")
+            empirical_files_exist = True
+        except Exception as e:
+            print(f"⚠ Empirical data generation failed: {e}")
+            print("📁 Analysis will proceed without empirical overlays...")
+            return empirical_data
+    
+    print(f"\n🔬 Loading empirical calibration data (real surveillance patterns)...")
+    
+    for data_type, filename in empirical_files.items():
+        try:
+            if Path(filename).exists():
+                df = pd.read_csv(filename)
+                
+                # 🔧 FIX: Drug failure data has bacteria/drug columns swapped
+                if data_type == 'drug_failure' and 'bacteria' in df.columns and 'drug' in df.columns:
+                    # Check if swap is needed (if bacteria column contains drug names)
+                    sample_bacteria = df['bacteria'].iloc[0] if len(df) > 0 else ""
+                    if any(drug_name in sample_bacteria for drug_name in ['amoxicillin', 'ciprofloxacin', 'vancomycin']):
+                        print(f"   🔧 Fixing swapped bacteria/drug columns in {filename}")
+                        df['bacteria'], df['drug'] = df['drug'], df['bacteria']
+                
+                empirical_data[data_type] = df
+                
+                # Show empirical data coverage
+                empirical_indicator = ""
+                if 'notes' in df.columns:
+                    empirical_count = len([r for _, r in df.iterrows() 
+                                         if any(pattern in str(r.get('notes', '')) 
+                                               for pattern in ['who_glass', 'ecdc', 'cdc', 'gbd', 'integrated'])])
+                    if empirical_count > 0:
+                        empirical_indicator = f" ({empirical_count:,} real surveillance records, {empirical_count/len(df)*100:.1f}%)"
+                    else:
+                        empirical_indicator = " (baseline synthetic data)"
+                
+                print(f"   ✓ Loaded {len(df):,} records from {filename}{empirical_indicator}")
+            else:
+                print(f"   ⚠ {filename} not found, skipping empirical overlay for {data_type}")
+        except Exception as e:
+            print(f"   ✗ Error loading {filename}: {e}")
+    
+    return empirical_data
+
+def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=None, metric_type=None, data_source=None):
+    """
+    Extract empirical data points for a specific drug/bacteria/region combination.
+    If region=None, averages across all regions for global plots.
+    Returns (years, means, p5, p95) for plotting.
+    
+    Args:
+        empirical_df: The empirical data DataFrame
+        drug: Drug name to filter by
+        bacteria: Bacteria name to filter by  
+        region: Region name to filter by
+        metric_type: Metric type to filter by
+        data_source: Source of empirical data ('drug_failure', 'mic_values', etc.) for context-aware name normalization
+    """
+    if empirical_df is None:
+        return None, None, None, None
+    
+    # Filter data based on parameters
+    filtered_df = empirical_df.copy()
+    
+    if drug is not None:
+        # Normalize drug name for matching
+        normalized_drug = normalize_name_for_empirical_matching(drug, entity_type='drug', data_source=data_source)
+        filtered_df = filtered_df[filtered_df['drug'] == normalized_drug]
+    if bacteria is not None:
+        # Normalize bacteria name for matching (context-aware)
+        normalized_bacteria = normalize_name_for_empirical_matching(bacteria, entity_type='bacteria', data_source=data_source)
+        filtered_df = filtered_df[filtered_df['bacteria'] == normalized_bacteria]
+    if metric_type is not None:
+        if 'metric' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['metric'] == metric_type]
+    
+    if len(filtered_df) == 0:
+        return None, None, None, None
+    
+    # Handle regional filtering or averaging
+    if region is not None:
+        # Filter for specific region
+        filtered_df = filtered_df[filtered_df['region'] == region]
+        if len(filtered_df) == 0:
+            return None, None, None, None
+    else:
+        # Average across all regions for global plots
+        # Determine which columns to aggregate based on data type
+        agg_dict = {}
+        if 'mean' in filtered_df.columns:
+            agg_dict['mean'] = 'mean'
+        elif 'failure_rate' in filtered_df.columns:
+            agg_dict['failure_rate'] = 'mean'
+        elif metric_type and metric_type in filtered_df.columns:
+            agg_dict[metric_type] = 'mean'
+        
+        # Add confidence interval columns if available
+        if 'p5' in filtered_df.columns:
+            agg_dict['p5'] = 'mean'
+        if 'p95' in filtered_df.columns:
+            agg_dict['p95'] = 'mean'
+        
+        if agg_dict:
+            grouped = filtered_df.groupby('year').agg(agg_dict).reset_index()
+            filtered_df = grouped
+        else:
+            return None, None, None, None
+    
+    # Sort by year and extract plotting data
+    filtered_df = filtered_df.sort_values('year')
+    
+    # Convert absolute years to simulation years (simulation starts at 1930)
+    sim_years = filtered_df['year'] - 1930
+    
+    # Handle different column names for different data types
+    if 'mean' in filtered_df.columns:
+        means = filtered_df['mean'].values
+    elif 'failure_rate' in filtered_df.columns:
+        means = filtered_df['failure_rate'].values
+    elif metric_type and metric_type in filtered_df.columns:
+        means = filtered_df[metric_type].values
+    else:
+        # Fallback: try to find a main value column
+        value_cols = ['mean', 'failure_rate', 'mic50', 'incidence_per_1000_days']
+        means = None
+        for col in value_cols:
+            if col in filtered_df.columns:
+                means = filtered_df[col].values
+                break
+        if means is None:
+            return None, None, None, None
+    
+    p5 = filtered_df['p5'].values if 'p5' in filtered_df.columns else None
+    p95 = filtered_df['p95'].values if 'p95' in filtered_df.columns else None
+    
+    return sim_years, means, p5, p95
+    
+    mechanism_list = sorted(list(mechanisms))
+    print(f"Detected {len(mechanism_list)} resistance mechanisms: {', '.join(mechanism_list)}")
+    return mechanism_list
+
+def extract_drug_list_from_csv(df):
+    """
+    Dynamically extract the list of drugs from CSV column headers.
+    """
+    drugs = []
+    for col in df.columns:
+        if col.endswith('_currently_on_drug'):
+            drug_name = col.replace('_currently_on_drug', '')
+            drugs.append(drug_name)
+    
+    drugs.sort()  # For consistent ordering
+    print(f"Detected {len(drugs)} drugs from CSV headers")
+    return drugs
+
+# =============================================================================
+# Y-AXIS SCALING UTILITIES
+# =============================================================================
+
+def calculate_global_y_scales(df, plot_type, entities=None, regions=None):
+    """
+    Calculate global min/max values for consistent y-axis scaling across all plots of the same type.
+    
+    Args:
+        df: DataFrame with simulation data
+        plot_type: Type of plot ('proportion', 'death_rate', 'resistance', 'drug_usage', 'incidence', etc.)
+        entities: List of bacteria/drugs to calculate scales for (if None, auto-detect)
+        regions: List of regions to include (if None, uses global data)
+    
+    Returns:
+        dict: {'y_min': float, 'y_max': float, 'y_padding': float}
+    """
+    all_values = []
+    
+    if plot_type == 'proportion_infected':
+        # For bacteria infection proportion plots
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        for bacteria in bacteria_list:
+            col = f'{bacteria}_currently_infected'
+            if col in df.columns:
+                proportions = safe_divide(df[col], df['total_population'])
+                smoothed = pd.Series(proportions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                all_values.extend(smoothed.dropna().values)
+    
+    elif plot_type == 'death_rate':
+        # For death rate plots - case fatality rate (deaths among infected / currently infected)
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+        
+        for bacteria in bacteria_list:
+            for region in regions:
+                deaths_infected_col = f'{bacteria}_deaths_infected_{region}'
+                currently_infected_col = f'{bacteria}_currently_infected'
+                
+                if deaths_infected_col in df.columns and currently_infected_col in df.columns:
+                    # Create annual aggregation for case fatality rate
+                    sim_df = pd.DataFrame({
+                        'year': df['time_in_years'].astype(int),  # Convert to integer year
+                        'currently_infected': df[currently_infected_col],
+                        'deaths_infected': df[deaths_infected_col]
+                    })
+                    
+                    # Group by year and sum deaths and average infected population
+                    annual_data = sim_df.groupby('year').agg({
+                        'currently_infected': 'mean', # Average infected population for the year
+                        'deaths_infected': 'sum'      # Sum all deaths in the year
+                    }).reset_index()
+                    
+                    # Calculate annual case fatality rate
+                    mask = annual_data['currently_infected'] > 0
+                    death_rates = annual_data['deaths_infected'][mask] / annual_data['currently_infected'][mask]
+                    all_values.extend(death_rates.dropna().values)
+    
+    elif plot_type == 'population_mortality':
+        # For population mortality rate plots (deaths per 100k population per year)
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+        
+        for bacteria in bacteria_list:
+            for region in regions:
+                deaths_infected_col = f'{bacteria}_deaths_infected_{region}'
+                pop_col = f'{region}_population'
+                
+                if deaths_infected_col in df.columns and pop_col in df.columns:
+                    # Create annual aggregation for population mortality rate
+                    sim_df = pd.DataFrame({
+                        'year': df['time_in_years'].astype(int),  # Convert to integer year
+                        'population': df[pop_col],
+                        'deaths_infected': df[deaths_infected_col]
+                    })
+                    
+                    # Group by year and sum deaths
+                    annual_data = sim_df.groupby('year').agg({
+                        'population': 'mean',     # Average population for the year
+                        'deaths_infected': 'sum'  # Sum all deaths in the year
+                    }).reset_index()
+                    
+                    # Calculate annual population mortality rate per 100,000 population
+                    mask = annual_data['population'] > 0
+                    mortality_rates = (annual_data['deaths_infected'][mask] / annual_data['population'][mask]) * 100000
+                    all_values.extend(mortality_rates.dropna().values)
+    
+    elif plot_type == 'drug_usage':
+        # For drug usage proportion plots (per 1000 people)
+        drug_list = entities or extract_drug_list_from_csv(df)
+        for drug in drug_list:
+            col = f'{drug}_currently_on_drug'
+            if col in df.columns:
+                # Convert to per 1000 people
+                per_1000_pop = (df[col] / df['total_population']) * 1000
+                smoothed = pd.Series(per_1000_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                all_values.extend(smoothed.dropna().values)
+        
+        # Also include regional data if available
+        regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+        for region in regions:
+            region_pop_col = f'{region}_population'
+            if region_pop_col in df.columns:
+                for drug in drug_list:
+                    regional_col = f'{region}_{drug}_currently_on_drug'
+                    if regional_col in df.columns:
+                        per_1000_regional = (df[regional_col] / df[region_pop_col]) * 1000
+                        smoothed = pd.Series(per_1000_regional).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                        all_values.extend(smoothed.dropna().values)
+        
+        # 🔧 INCLUDE EMPIRICAL DATA RANGES FOR DRUG USAGE
+        empirical_drug_usage_df = load_empirical_calibration_data()['drug_usage']
+        if empirical_drug_usage_df is not None:
+            for drug in drug_list:
+                # Get empirical data for this drug across all regions and years
+                empirical_data = get_empirical_data_for_plot(
+                    empirical_drug_usage_df, 
+                    drug=drug, 
+                    bacteria=None, 
+                    region=None  # Include all regions
+                )
+                if empirical_data[0] is not None:  # if years is not None
+                    years, means, p5, p95 = empirical_data
+                    # Include empirical mean values
+                    if means is not None:
+                        all_values.extend(means[~np.isnan(means)])
+                    # Include empirical confidence intervals (p5 and p95)
+                    if p5 is not None:
+                        all_values.extend(p5[~np.isnan(p5)])
+                    if p95 is not None:
+                        all_values.extend(p95[~np.isnan(p95)])
+    
+    elif plot_type == 'resistance':
+        # For resistance plots (any_r by drug for each bacteria)
+        # Use the actual column naming pattern: {bacteria}_sum_any_r_{drug}
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        drug_list = extract_drug_list_from_csv(df)
+        for bacteria in bacteria_list:
+            for drug in drug_list:
+                any_r_col = f'{bacteria}_sum_any_r_{drug}'  # Fixed column name pattern
+                infected_col = f'{bacteria}_currently_infected'
+                if any_r_col in df.columns and infected_col in df.columns:
+                    mean_any_r = safe_divide(df[any_r_col], df[infected_col])
+                    smoothed = pd.Series(mean_any_r).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                    all_values.extend(smoothed.dropna().values)
+    
+    elif plot_type == 'incidence':
+        # For infection incidence plots - aggregate to annual rates to match empirical data
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+        
+        for bacteria in bacteria_list:
+            for region in regions:
+                newly_infected_col = f'{bacteria}_newly_infected_{region}'
+                pop_col = f'{region}_population'
+                
+                if newly_infected_col in df.columns and pop_col in df.columns:
+                    # Create annual aggregation to match empirical data time scale
+                    sim_df = pd.DataFrame({
+                        'year': df['time_in_years'].astype(int),  # Convert to integer year
+                        'population': df[pop_col],
+                        'newly_infected': df[newly_infected_col]
+                    })
+                    
+                    # Group by year and sum newly infected cases
+                    annual_data = sim_df.groupby('year').agg({
+                        'population': 'mean',     # Average population for the year
+                        'newly_infected': 'sum'   # Sum all new infections in the year
+                    }).reset_index()
+                    
+                    # Calculate annual incidence rate per 100,000 population
+                    mask = annual_data['population'] > 0
+                    incidence_rates = (annual_data['newly_infected'][mask] / annual_data['population'][mask]) * 100000
+                    all_values.extend(incidence_rates.dropna().values)
+    
+    elif plot_type == 'activity_r':
+        # For mean activity R plots
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        for bacteria in bacteria_list:
+            activity_col = f'{bacteria}_activity_r_sum'
+            infected_col = f'{bacteria}_infected_and_on_any_drug'
+            if activity_col in df.columns and infected_col in df.columns:
+                mean_activity_r = safe_divide(df[activity_col], df[infected_col])
+                smoothed = pd.Series(mean_activity_r).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                all_values.extend(smoothed.dropna().values)
+    
+    elif plot_type == 'mic_lt2':
+        # For MIC < 2 proportion plots
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        drug_list = extract_drug_list_from_csv(df)
+        for bacteria in bacteria_list:
+            for drug in drug_list:
+                mic_col = f'{bacteria}_{drug}_mic_lt_2_count'
+                infected_col = f'{bacteria}_currently_infected'
+                if mic_col in df.columns and infected_col in df.columns:
+                    proportions = safe_divide(df[mic_col], df[infected_col])
+                    smoothed = pd.Series(proportions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                    all_values.extend(smoothed.dropna().values)
+    
+    elif plot_type == 'microbiome_presence':
+        # For microbiome presence plots
+        bacteria_list = entities or extract_bacteria_list_from_csv(df)
+        for bacteria in bacteria_list:
+            col = f'{bacteria}_microbiome_presence_count'
+            if col in df.columns:
+                proportions = safe_divide(df[col], df['total_population'])
+                smoothed = pd.Series(proportions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                all_values.extend(smoothed.dropna().values)
+    
+    elif plot_type == 'microbiome_resistance':
+        # For microbiome resistance plots
+        drug_list = entities or extract_drug_list_from_csv(df)
+        for drug in drug_list:
+            resistance_col = f'microbiome_resistance_{drug}_count'
+            presence_col = f'microbiome_total_presence_count'
+            if resistance_col in df.columns and presence_col in df.columns:
+                proportions = safe_divide(df[resistance_col], df[presence_col])
+                smoothed = pd.Series(proportions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                all_values.extend(smoothed.dropna().values)
+    
+    # Calculate global scale
+    if not all_values:
+        return {'y_min': 0, 'y_max': 1, 'y_padding': 0.05}
+    
+    all_values = np.array(all_values)
+    all_values = all_values[~np.isnan(all_values)]  # Remove NaN values
+    
+    if len(all_values) == 0:
+        return {'y_min': 0, 'y_max': 1, 'y_padding': 0.05}
+    
+    # Use percentiles to avoid outliers dominating the scale
+    # Use 99th percentile instead of max to handle outliers better
+    y_min = np.percentile(all_values, 1)  # 1st percentile instead of min
+    y_max = np.percentile(all_values, 99)  # 99th percentile instead of max
+    
+    # Debug output for drug usage plots
+    if plot_type == 'drug_usage':
+        print(f"📊 Drug usage y-scale calculation:")
+        print(f"   Total values: {len(all_values)}")
+        print(f"   Min value: {np.min(all_values):.2f}")
+        print(f"   Max value: {np.max(all_values):.2f}")
+        print(f"   1st percentile: {y_min:.2f}")
+        print(f"   99th percentile: {y_max:.2f}")
+        print(f"   Mean: {np.mean(all_values):.2f}")
+        print(f"   Median: {np.median(all_values):.2f}")
+    elif plot_type == 'incidence':
+        print(f"📊 Incidence y-scale calculation:")
+        print(f"   Total values: {len(all_values)}")
+        print(f"   Min value: {np.min(all_values):.6f}")
+        print(f"   Max value: {np.max(all_values):.6f}")
+        print(f"   1st percentile: {y_min:.6f}")
+        print(f"   99th percentile: {y_max:.6f}")
+        print(f"   Mean: {np.mean(all_values):.6f}")
+        print(f"   Median: {np.median(all_values):.6f}")
+    elif plot_type == 'death_rate':
+        print(f"📊 Death rate y-scale calculation:")
+        print(f"   Total values: {len(all_values)}")
+        print(f"   Min value: {np.min(all_values):.8f}")
+        print(f"   Max value: {np.max(all_values):.8f}")
+        print(f"   1st percentile: {y_min:.8f}")
+        print(f"   99th percentile: {y_max:.8f}")
+        print(f"   Mean: {np.mean(all_values):.8f}")
+        print(f"   Median: {np.median(all_values):.8f}")
+    
+    # Ensure y_min is not negative for plots that shouldn't have negative values
+    if plot_type in ['drug_usage', 'proportion_infected', 'death_rate', 'incidence', 'population_mortality']:
+        y_min = max(0, y_min)
+    
+    # Add padding (5% of range, or 0.05 if range is 0)
+    y_range = y_max - y_min
+    if y_range > 0:
+        padding = y_range * 0.05
+    else:
+        padding = 0.05
+    
+    # For proportions, ensure we don't go below 0 
+    # Note: drug_usage can exceed 1.0 (>1000 per 1000 people in high usage scenarios)
+    if plot_type in ['proportion_infected', 'mic_lt2', 'microbiome_presence', 'microbiome_resistance']:
+        y_min = max(0, y_min - padding)
+        y_max = min(1, y_max + padding)  # These are true proportions (0-1)
+    elif plot_type == 'drug_usage':
+        y_min = max(0, y_min - padding)
+        # Set a more appropriate upper bound for drug usage (around 50 per 1000 people)
+        y_max = max(y_max + padding, 50.0)  # Ensure minimum scale goes to 50
+    else:
+        y_min = max(0, y_min - padding)  # Most metrics shouldn't go below 0
+        y_max = y_max + padding
+    
+    return {'y_min': y_min, 'y_max': y_max, 'y_padding': padding}
+
+def apply_consistent_y_scale(ax, y_scales):
+    """
+    Apply consistent y-axis scaling to a matplotlib axis.
+    
+    Args:
+        ax: matplotlib axis object
+        y_scales: dict from calculate_global_y_scales()
+    """
+    ax.set_ylim(y_scales['y_min'], y_scales['y_max'])
+
+# =============================================================================
+# DATA LOADING AND PREPROCESSING
+# =============================================================================
+
+def load_simulation_data(csv_file=CSV_INPUT):
+    """Load the simulation data from CSV file."""
+    if not Path(csv_file).exists():
+        print(f"Error: {csv_file} not found. Run the Rust simulation first.")
+        return None
+    
+    df = pd.read_csv(csv_file)
+    print(f"Loaded {len(df)} time steps of simulation data")
+    # print(f"Columns: {list(df.columns)}")  # Removed to avoid overwhelming output
+    return df
+
+def preprocess_data(df):
+    """Add calculated columns and prepare data for analysis."""
+    # Age group proportions
+    if 'num_age_0_5' in df.columns and 'total_population' in df.columns:
+        df['prop_age_0_5'] = safe_divide(df['num_age_0_5'], df['total_population'])
+        df['prop_age_6_14'] = safe_divide(df['num_age_6_14'], df['total_population'])
+        df['prop_age_15_49'] = safe_divide(df['num_age_15_49'], df['total_population'])
+        df['prop_age_50_79'] = safe_divide(df['num_age_50_79'], df['total_population'])
+        df['prop_age_80plus'] = safe_divide(df['num_age_80plus'], df['total_population'])
+    # Proportion of currently infected who are on drug
+    if 'currently_infected_and_on_drug_count' in df.columns and 'total_currently_infected' in df.columns:
+        df['infected_and_on_drug_proportion'] = safe_divide(df['currently_infected_and_on_drug_count'], df['total_currently_infected'])
+    # Calculate rolling past-year newly infected proportion
+    if 'newly_infected_past_year' in df.columns and 'total_population' in df.columns:
+        df['newly_infected_past_year_proportion'] = safe_divide(df['newly_infected_past_year'], df['total_population'])
+    # Calculate rolling past-year death proportions
+    if 'deaths_past_year' in df.columns and 'total_population' in df.columns:
+        df['deaths_past_year_proportion'] = safe_divide(df['deaths_past_year'], df['total_population'])
+    if 'deaths_background_past_year' in df.columns and 'total_population' in df.columns:
+        df['deaths_background_past_year_proportion'] = safe_divide(df['deaths_background_past_year'], df['total_population'])
+    if 'deaths_sepsis_past_year' in df.columns and 'total_population' in df.columns:
+        df['deaths_sepsis_past_year_proportion'] = safe_divide(df['deaths_sepsis_past_year'], df['total_population'])
+    if 'deaths_drug_toxicity_past_year' in df.columns and 'total_population' in df.columns:
+        df['deaths_drug_toxicity_past_year_proportion'] = safe_divide(df['deaths_drug_toxicity_past_year'], df['total_population'])
+
+    # Convert time step to years
+    df['time_in_years'] = df['time_step'] / 365
+    
+    # Calculate basic proportions
+    df['infection_proportion'] = safe_divide(df['total_currently_infected'], df['total_population'])
+    df['death_proportion'] = safe_divide(df['total_deaths'], df['total_population'])
+    
+    # Calculate resistance proportion among infected
+    df['resistance_among_infected'] = safe_divide(df['total_with_resistance'], df['total_currently_infected'])
+    
+    # Calculate infection duration proportions
+    df['infected_10_days_proportion'] = safe_divide(df['infected_10_days_count'], df['total_currently_infected'])
+    df['infected_30_days_proportion'] = safe_divide(df['infected_30_days_count'], df['total_currently_infected'])
+    
+    # Calculate sepsis proportion among infected
+    if 'number_with_sepsis' in df.columns:
+        df['sepsis_among_infected_proportion'] = safe_divide(df['number_with_sepsis'], df['total_currently_infected'])
+    
+    # Calculate death cause proportions (if available)
+    death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    if all(col in df.columns for col in death_cause_cols):
+        df['prop_deaths_background'] = safe_divide(df['deaths_background'], df['total_deaths'])
+        df['prop_deaths_sepsis'] = safe_divide(df['deaths_sepsis'], df['total_deaths']) 
+        df['prop_deaths_drug_toxicity'] = safe_divide(df['deaths_drug_toxicity'], df['total_deaths'])
+    
+    return df
+
+# =============================================================================
+# VISUALIZATION FUNCTIONS
+# =============================================================================
+
+def create_grouped_plots(df):
+    """Create grouped plots, each file containing 4 subplots."""
+    setup_plot_style()
+
+    # --- Group 1 ---
+    fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes1 = axes1.flatten()
+    fig1.suptitle('Grouped Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16)
+    # 1. Living Population Over Time
+    axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
+    axes1[0].set_title('Living Population Over Time')
+    axes1[0].set_ylabel('Count')
+    axes1[0].set_ylim(bottom=0)
+    axes1[0].grid(True, alpha=0.3)
+    # 2. Daily Sepsis Incidence Rate (separate lines for each bacteria)
+    sepsis_cols = [col for col in df.columns if col.endswith('_new_sepsis_cases')]
+    if sepsis_cols:
+        # Get all bacteria with their total new sepsis cases
+        bacteria_totals = []
+        for col in sepsis_cols:
+            bacteria_name = col.replace('_new_sepsis_cases', '')
+            total_cases = df[col].sum()
+            bacteria_totals.append((bacteria_name, total_cases, col))
+        
+        # Sort by total cases (highest first)
+        bacteria_totals.sort(key=lambda x: x[1], reverse=True)
+        
+        # Generate enough colors for all bacteria using matplotlib colormap
+        import matplotlib.cm as cm
+        n_bacteria = len(bacteria_totals)
+        colors = cm.tab20(np.linspace(0, 1, min(20, n_bacteria)))  # Use tab20 colormap
+        if n_bacteria > 20:
+            # Add more colors from other colormaps for bacteria beyond 20
+            extra_colors = cm.tab20b(np.linspace(0, 1, min(20, n_bacteria-20)))
+            colors = np.vstack([colors, extra_colors])
+        if n_bacteria > 40:
+            # Add even more colors if needed
+            extra_colors2 = cm.tab20c(np.linspace(0, 1, n_bacteria-40))
+            colors = np.vstack([colors, extra_colors2])
+        
+        # Plot separate line for each bacteria (all of them)
+        plotted_count = 0
+        for i, (bacteria_name, total_cases, col) in enumerate(bacteria_totals):
+            current_infected_col = f"{bacteria_name}_currently_infected"
+            current_sepsis_col = f"{bacteria_name}_number_with_sepsis"
+            
+            if all(c in df.columns for c in [current_infected_col, current_sepsis_col]):
+                # Calculate at-risk population and incidence rate for this bacteria
+                at_risk = df[current_infected_col] - df[current_sepsis_col]
+                incidence_rate = safe_divide(df[col], at_risk)
+                
+                # Plot smoothed incidence rate
+                smoothed_incidence = pd.Series(incidence_rate).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Clean bacteria name for legend
+                clean_name = bacteria_name.replace('_', ' ').title()
+                axes1[1].plot(df['time_in_years'], smoothed_incidence, 
+                            color=colors[i % len(colors)], linewidth=1.5, 
+                            label=f"{clean_name} ({total_cases})", alpha=0.7)
+                plotted_count += 1
+        
+        axes1[1].set_title('Daily Sepsis Incidence Rate\n(all bacteria)')
+        axes1[1].set_ylabel('New sepsis cases per person-day\n(among infected without sepsis)')
+        axes1[1].set_ylim(bottom=0)  # Start y-axis at 0
+        axes1[1].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
+        
+        # Use smaller font and put legend outside plot area to handle many lines
+        axes1[1].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=6, 
+                       ncol=1, framealpha=0.9)
+        axes1[1].grid(True, alpha=0.3)
+        
+        total_new_sepsis = sum(df[col].sum() for _, _, col in bacteria_totals)
+        print(f"Total new sepsis cases across all bacteria: {total_new_sepsis}")
+        print(f"Showing all {plotted_count} bacteria with sepsis cases")
+    else:
+        axes1[1].text(0.5, 0.5, 'Sepsis incidence data not available', ha='center', va='center')
+        axes1[1].set_title('Daily Sepsis Incidence Rate\n(by bacteria)')
+        axes1[1].set_axis_off()
+    # 3. Hospitalized & Immunosuppressed as Proportions
+    hospital_proportion = pd.Series(df['number_in_hospital'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+    immunosuppressed_proportion = pd.Series(df['number_severely_immunosuppressed'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+    
+    axes1[2].plot(df['time_in_years'], hospital_proportion, 'navy', linewidth=2, label='In Hospital')
+    axes1[2].plot(df['time_in_years'], immunosuppressed_proportion, 'crimson', linewidth=2, label='Severely Immunosuppressed')
+    axes1[2].set_title('Hospitalized & Immunosuppressed (Proportion of Living Population)')
+    axes1[2].set_ylabel('Proportion of Population')
+    axes1[2].set_ylim(bottom=0)
+    axes1[2].legend()
+    axes1[2].grid(True, alpha=0.3)
+    # 4. Proportion with Resistance Among Currently Infected
+    if 'resistance_among_infected' in df.columns:
+        axes1[3].plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'purple', linewidth=2)
+        axes1[3].set_title('Proportion with bacteria that has resistance to any drug\n(whether that drug is being taken or not)')
+        axes1[3].set_ylabel('Proportion')
+        axes1[3].set_ylim(bottom=0)
+        axes1[3].grid(True, alpha=0.3)
+    else:
+        axes1[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes1[3].set_title('Proportion with bacteria that has resistance to any drug\n(whether that drug is being taken or not)')
+        axes1[3].set_axis_off()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close() # Close the figure to free memory
+    print("✓ Grouped figure 1 saved as 'grouped_figure_1.png'")
+
+    # --- Group 2 ---
+    fig2, axes2 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes2 = axes2.flatten()
+    fig2.suptitle('Grouped Figure 2: New Infections, Durations, Sepsis, Past-Year Deaths', fontsize=16)
+    # 1. Newly Infected in the Past Year as Proportion of Living Population
+    if 'newly_infected_past_year_proportion' in df.columns:
+        mask = df['time_in_years'] >= 1.0
+        axes2[0].plot(df['time_in_years'][mask], pd.Series(df['newly_infected_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='teal', linewidth=2)
+        axes2[0].set_title('Newly Infected in the Past Year (as Proportion of Living Population)')
+        axes2[0].set_ylabel('Proportion of Population')
+        axes2[0].set_ylim(bottom=0)
+        axes2[0].set_xlim(left=0)
+        axes2[0].grid(True, alpha=0.3)
+    else:
+        axes2[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[0].set_title('Newly Infected in the Past Year (as Proportion of Living Population)')
+        axes2[0].set_axis_off()
+    # 2. Proportion of Population Currently Infected
+    if 'infection_proportion' in df.columns:
+        axes2[1].plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='darkgreen', linewidth=2)
+        axes2[1].set_xlabel('Time (Years)')
+        axes2[1].set_ylabel('Proportion of Population')
+        axes2[1].set_title('Proportion of Population Currently Infected')
+        axes2[1].set_ylim(bottom=0)
+        axes2[1].grid(True, alpha=0.3)
+    else:
+        axes2[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[1].set_title('Proportion of Population Currently Infected')
+        axes2[1].set_axis_off()
+    # 3. Sepsis Proportion (if available)
+    if 'sepsis_among_infected_proportion' in df.columns:
+        axes2[2].plot(df['time_in_years'], pd.Series(df['sepsis_among_infected_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='red', linewidth=2)
+        axes2[2].set_title('Proportion of Infected Individuals with Sepsis')
+        axes2[2].set_xlabel('Time (Years)')
+        axes2[2].set_ylabel('Proportion with Sepsis')
+        axes2[2].set_ylim(0, 1)
+        axes2[2].grid(True, alpha=0.3)
+    else:
+        axes2[2].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[2].set_title('Proportion of Infected Individuals with Sepsis')
+        axes2[2].set_axis_off()
+    # 4. Deaths in the Past Year (Rolling 365 Days)
+    required_cols = [
+        'deaths_past_year',
+        'deaths_background_past_year',
+        'deaths_sepsis_past_year',
+        'deaths_drug_toxicity_past_year',
+    ]
+    if all(col in df.columns for col in required_cols):
+        mask = df['time_in_years'] >= 1.0
+        deaths_all = pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        deaths_bg = pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        deaths_sepsis = pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        deaths_tox = pd.Series(df['deaths_drug_toxicity_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        axes2[3].plot(df['time_in_years'][mask], deaths_all, label='All-cause', color='black', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], deaths_bg, label='Background', color='gray', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], deaths_sepsis, label='Sepsis', color='red', linewidth=2)
+        axes2[3].plot(df['time_in_years'][mask], deaths_tox, label='Drug Toxicity', color='orange', linewidth=2)
+        axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
+        axes2[3].set_xlabel('Time (Years)')
+        axes2[3].set_ylabel('Deaths in Past Year / Current Population')
+        axes2[3].set_xlim(left=0)
+        axes2[3].set_ylim(0, 0.03)
+        axes2[3].legend()
+        axes2[3].grid(True, alpha=0.3)
+    else:
+        axes2[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes2[3].set_title('Deaths in the Past Year (Rolling 365 Days)')
+        axes2[3].set_axis_off()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_2.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 2 saved as 'grouped_figure_2.png'")
+
+    # --- Group 3 ---
+    fig3, axes3 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes3 = axes3.flatten()
+    fig3.suptitle('Grouped Figure 3: Duration-Based Infection Proportions', fontsize=16)
+    # 1. Duration-Based Infection Proportions
+    if 'infected_10_days_proportion' in df.columns and 'infected_30_days_proportion' in df.columns:
+        axes3[0].plot(df['time_in_years'], pd.Series(df['infected_10_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >10 Days', linewidth=2, color='green')
+        axes3[0].plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >30 Days', linewidth=2, color='brown')
+        axes3[0].set_xlabel('Time (Years)')
+        axes3[0].set_ylabel('Proportion of Currently Infected')
+        axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+        axes3[0].set_ylim(bottom=0)
+        axes3[0].legend()
+        axes3[0].grid(True, alpha=0.3)
+    else:
+        axes3[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+        axes3[0].set_axis_off()
+    # 2. Proportion of currently infected who are on drug
+    if 'infected_and_on_drug_proportion' in df.columns:
+        axes3[1].plot(df['time_in_years'], pd.Series(df['infected_and_on_drug_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected & On Drug', linewidth=2, color='blue')
+        axes3[1].set_xlabel('Time (Years)')
+        axes3[1].set_ylabel('Proportion of Currently Infected')
+        axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
+        axes3[1].set_ylim(0, 1)
+        axes3[1].legend()
+        axes3[1].grid(True, alpha=0.3)
+    else:
+        axes3[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+        axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
+        axes3[1].set_axis_off()
+    # 3. Proportion of living people in each age group
+    age_group_cols = [
+        ('prop_age_0_5', '0-5'),
+        ('prop_age_6_14', '6-14'),
+        ('prop_age_15_49', '15-49'),
+        ('prop_age_50_79', '50-79'),
+        ('prop_age_80plus', '80+')
+    ]
+    if all(col in df.columns for col, _ in age_group_cols):
+        for col, label in age_group_cols:
+            axes3[2].plot(df['time_in_years'], pd.Series(df[col]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label=label)
+        axes3[2].set_xlabel('Time (Years)')
+        axes3[2].set_ylabel('Proportion of Living Population')
+        axes3[2].set_title('Proportion of Living Population in Each Age Group')
+        axes3[2].set_ylim(0, 1)
+        axes3[2].legend()
+        axes3[2].grid(True, alpha=0.3)
+    else:
+        axes3[2].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
+        axes3[2].set_axis_off()
+    # 4. Proportion of people with any potentially pathogenic bacteria in their microbiome
+    if 'num_with_any_bacteria_microbiome' in df.columns and 'total_population' in df.columns:
+        df['any_microbiome_proportion'] = df['num_with_any_bacteria_microbiome'] / df['total_population']
+        axes3[3].plot(df['time_in_years'], pd.Series(df['any_microbiome_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='purple', linewidth=2)
+        axes3[3].set_xlabel('Time (Years)')
+        axes3[3].set_ylabel('Proportion of Population')
+        axes3[3].set_title('Proportion with Any Potentially Pathogenic Bacteria in Microbiome')
+        axes3[3].set_ylim(0, 1)
+        axes3[3].grid(True, alpha=0.3)
+    else:
+        axes3[3].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
+        axes3[3].set_axis_off()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 3 saved as 'grouped_figure_3.png'")
+    
+    # --- Grouped Figure 4 (Integrated) ---
+    fig4, axes4 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes4 = axes4.flatten()
+    fig4.suptitle('Grouped Figure 4: Resistance and Testing Metrics', fontsize=16)
+    
+    # 1. Proportion of newly infected people with any drug resistance (top-left)
+    if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
+        # Calculate proportion
+        df['newly_infected_with_resistance_proportion'] = safe_divide(
+            df['newly_infected_with_resistance_count'], 
+            df['newly_infected_count']
+        )
+        prop_smooth = pd.Series(df['newly_infected_with_resistance_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        axes4[0].plot(df['time_in_years'], prop_smooth, 
+                    color='red', linewidth=2, label='Resistance on Acquisition (Smoothed)')
+        axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes4[0].set_ylabel('Proportion')
+        axes4[0].set_ylim(0, 1)
+        axes4[0].grid(True, alpha=0.3)
+        axes4[0].legend()
+        
+        # Add summary statistics
+        mean_val = df['newly_infected_with_resistance_proportion'].mean()
+        max_val = df['newly_infected_with_resistance_proportion'].max()
+        total_new = df['newly_infected_count'].sum()
+        total_new_with_r = df['newly_infected_with_resistance_count'].sum()
+        
+        textstr = (f'Overall: {total_new_with_r}/{total_new} '
+                  f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
+                  f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
+        props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
+        axes4[0].text(0.02, 0.98, textstr, transform=axes4[0].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes4[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+        axes4[0].set_axis_off()
+    
+    # 2. Proportion of infected with test_identified_infection = true (top-right)
+    # Sum all bacteria-specific test_identified columns
+    test_identified_cols = [col for col in df.columns if col.endswith('_infected_with_test_identified')]
+    if test_identified_cols and 'total_currently_infected' in df.columns:
+        total_test_identified = sum(df[col] for col in test_identified_cols)
+        test_identified_prop = safe_divide(total_test_identified, df['total_currently_infected'])
+        test_identified_smooth = pd.Series(test_identified_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        axes4[1].plot(df['time_in_years'], test_identified_smooth, 
+                    color='blue', linewidth=2, label='Test Identified (Smoothed)')
+        axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria')
+        axes4[1].set_ylabel('Proportion')
+        axes4[1].set_ylim(0, 1)
+        axes4[1].grid(True, alpha=0.3)
+        axes4[1].legend()
+        
+        # Add summary statistics
+        mean_val = test_identified_prop.mean()
+        max_val = test_identified_prop.max()
+        textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+        props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+        axes4[1].text(0.02, 0.98, textstr, transform=axes4[1].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes4[1].text(0.5, 0.5, 'Data not available\n(test_identified columns)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria')
+        axes4[1].set_axis_off()
+    
+    # 3. Proportion of infected with test_for_resistance = true (bottom-left)
+    test_resistance_cols = [col for col in df.columns if col.endswith('_infected_with_test_for_resistance')]
+    if test_resistance_cols and 'total_currently_infected' in df.columns:
+        total_test_resistance = sum(df[col] for col in test_resistance_cols)
+        test_resistance_prop = safe_divide(total_test_resistance, df['total_currently_infected'])
+        test_resistance_smooth = pd.Series(test_resistance_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        axes4[2].plot(df['time_in_years'], test_resistance_smooth, 
+                    color='green', linewidth=2, label='Test for Resistance (Smoothed)')
+        axes4[2].set_title('Proportion of Infected with Test for Resistance')
+        axes4[2].set_xlabel('Time (Years)')
+        axes4[2].set_ylabel('Proportion')
+        axes4[2].set_ylim(0, 1)
+        axes4[2].grid(True, alpha=0.3)
+        axes4[2].legend()
+        
+        # Add summary statistics
+        mean_val = test_resistance_prop.mean()
+        max_val = test_resistance_prop.max()
+        textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+        props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+        axes4[2].text(0.02, 0.98, textstr, transform=axes4[2].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+    else:
+        axes4[2].text(0.5, 0.5, 'Data not available\n(test_for_resistance columns)', 
+                    ha='center', va='center', fontsize=12, color='gray')
+        axes4[2].set_title('Proportion of Infected with Test for Resistance')
+        axes4[2].set_axis_off()
+    
+    # 4. Mean Any-R by Region (pooled across all bacteria and drugs) (bottom-right)
+    region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_display_names = ['North America', 'South America', 'Africa', 'Asia', 'Europe', 'Oceania']
+    
+    found_region_data = False
+    for i, region in enumerate(region_names):
+        any_r_col = f"{region}_any_r_sum"
+        infected_col = f"{region}_infected_count"
+        
+        if any_r_col in df.columns and infected_col in df.columns:
+            # Calculate mean any_r = sum / infected_count using vectorized operations
+            any_r_sum = df[any_r_col]
+            infected_count = df[infected_col]
+            
+            # Calculate mean resistance using pandas vectorization, handling division by zero
+            mean_any_r = pd.Series(index=df.index, dtype=float)
+            mask = infected_count > 0
+            mean_any_r[mask] = any_r_sum[mask] / infected_count[mask]
+            mean_any_r[~mask] = float('nan')  # Use NaN instead of 0 for no infections
+            
+            # Apply smoothing
+            mean_any_r_smooth = mean_any_r.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            axes4[3].plot(df['time_in_years'], mean_any_r_smooth, 
+                         label=region_display_names[i], linewidth=2)
+            found_region_data = True
+    
+    if found_region_data:
+        axes4[3].set_title('Mean Total Resistance Burden Per Infected Person by Region\n(Sum of any_r values across all bacteria-drug combinations\ndivided by number of infected people)', fontsize=11)
+        axes4[3].set_xlabel('Time (Years)', fontsize=10)
+        axes4[3].set_ylabel('Mean Resistance Sum Per Person', fontsize=10)
+        axes4[3].set_ylim(bottom=0)  # Let matplotlib auto-scale the top
+        axes4[3].grid(True, alpha=0.3)
+        axes4[3].legend(fontsize=8, loc='upper left')
+        axes4[3].tick_params(axis='both', which='major', labelsize=9)
+    else:
+        axes4[3].text(0.5, 0.5, 'Region data not available', ha='center', va='center', fontsize=12, color='gray')
+        axes4[3].set_axis_off()
+        
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig("output_graphs/grouped_figure_4.png", dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 4 saved as 'grouped_figure_4.png'")
+
+    # --- Grouped Figure 5: Infection Resolution Pooled Across All Bacteria ---
+    fig5, axes5 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes5 = axes5.flatten()
+    fig5.suptitle('Grouped Figure 5: Infection Resolution Outcomes (Pooled Across All Bacteria)', fontsize=16)
+    
+    # Find all infection resolution columns
+    resolution_types = ['immune_clearance', 'drug_assisted_clearance', 'death_from_sepsis', 
+                       'death_from_background', 'death_from_toxicity']
+    
+    # Pool data across all bacteria for each resolution type
+    pooled_data = {}
+    for res_type in resolution_types:
+        pooled_data[res_type] = np.zeros(len(df))
+        # Sum across all bacteria for this resolution type
+        for col in df.columns:
+            if f'infection_resolution_{res_type}' in col:
+                pooled_data[res_type] += df[col].values
+    
+    # Calculate total resolutions per timestep
+    total_resolutions = np.array([sum(pooled_data[rt] for rt in resolution_types)])
+    
+    # Only proceed if we have resolution data
+    if np.any(total_resolutions > 0):
+        # 1. Stacked area plot showing percentages (top-left)
+        # Find timesteps where we have resolutions
+        has_resolutions = total_resolutions[0] > 0
+        
+        if np.any(has_resolutions):
+            # Calculate percentages for each resolution type
+            percentages = {}
+            for res_type in resolution_types:
+                percentages[res_type] = np.where(has_resolutions, 
+                                               (pooled_data[res_type] / total_resolutions[0]) * 100, 
+                                               0)
+            
+            # Color scheme for the 5 resolution types
+            colors = {
+                'immune_clearance': '#2ca02c',      # green - good outcome
+                'drug_assisted_clearance': '#1f77b4',  # blue - treatment success
+                'death_from_sepsis': '#d62728',     # red - worst outcome
+                'death_from_background': '#ff7f0e', # orange - unrelated death
+                'death_from_toxicity': '#9467bd'    # purple - treatment complication
+            }
+            
+            labels = {
+                'immune_clearance': 'Immune Clearance',
+                'drug_assisted_clearance': 'Drug-Assisted Clearance',
+                'death_from_sepsis': 'Death from Sepsis',
+                'death_from_background': 'Death from Background Causes',
+                'death_from_toxicity': 'Death from Drug Toxicity'
+            }
+            
+            # Only plot timesteps where we have resolutions
+            time_with_resolutions = df['time_in_years'][has_resolutions]
+            
+            # Prepare data for stackplot
+            stack_data = []
+            stack_labels = []
+            stack_colors = []
+            
+            for res_type in resolution_types:
+                data_for_stack = percentages[res_type][has_resolutions]
+                if np.any(data_for_stack > 0):  # Only include if this type actually occurs
+                    stack_data.append(data_for_stack)
+                    stack_labels.append(labels[res_type])
+                    stack_colors.append(colors[res_type])
+            
+            if stack_data:
+                axes5[0].stackplot(time_with_resolutions, *stack_data, 
+                                 labels=stack_labels, colors=stack_colors, alpha=0.8)
+                axes5[0].set_title('Infection Resolution Outcomes\n(Percentage Distribution)')
+                axes5[0].set_ylabel('Percentage of Resolutions (%)')
+                axes5[0].set_ylim(0, 100)
+                axes5[0].legend(loc='upper right', fontsize=8)
+                axes5[0].grid(True, alpha=0.3)
+        
+        # 2. Absolute counts over time (top-right)
+        for res_type in resolution_types:
+            if np.any(pooled_data[res_type] > 0):
+                smoothed = pd.Series(pooled_data[res_type]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                axes5[1].plot(df['time_in_years'], smoothed, 
+                            label=labels[res_type], color=colors[res_type], linewidth=2)
+        
+        axes5[1].set_title('Infection Resolution Counts Over Time\n(All Bacteria Combined)')
+        axes5[1].set_ylabel('Resolution Events per Day')
+        axes5[1].set_ylim(bottom=0)
+        axes5[1].legend(fontsize=8)
+        axes5[1].grid(True, alpha=0.3)
+        
+        # 3. Total Currently Infected vs Total On Drug (bottom-left)
+        if 'total_currently_infected' in df.columns and 'currently_taking_drug_count' in df.columns:
+            # Apply smoothing to both series
+            infected_smooth = pd.Series(df['total_currently_infected']).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            on_drug_smooth = pd.Series(df['currently_taking_drug_count']).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            
+            axes5[2].plot(df['time_in_years'], infected_smooth, 
+                        label='Currently Infected', color='red', linewidth=2)
+            axes5[2].plot(df['time_in_years'], on_drug_smooth, 
+                        label='Currently On Drug', color='blue', linewidth=2)
+            
+            axes5[2].set_title('Total Currently Infected vs Total On Drug')
+            axes5[2].set_xlabel('Time (Years)')
+            axes5[2].set_ylabel('Number of People')
+            axes5[2].set_ylim(bottom=0)
+            axes5[2].legend(fontsize=8)
+            axes5[2].grid(True, alpha=0.3)
+            
+            # Add summary statistics
+            mean_infected = df['total_currently_infected'].mean()
+            mean_on_drug = df['currently_taking_drug_count'].mean()
+            max_infected = df['total_currently_infected'].max()
+            max_on_drug = df['currently_taking_drug_count'].max()
+            
+            textstr = (f'Mean Infected: {mean_infected:.0f}\n'
+                      f'Mean On Drug: {mean_on_drug:.0f}\n'
+                      f'Max Infected: {max_infected:.0f}\n'
+                      f'Max On Drug: {max_on_drug:.0f}')
+            props = dict(boxstyle='round', facecolor='lightyellow', alpha=0.8)
+            axes5[2].text(0.02, 0.98, textstr, transform=axes5[2].transAxes, fontsize=8,
+                        verticalalignment='top', bbox=props)
+        else:
+            axes5[2].text(0.5, 0.5, 'Data not available\n(total_currently_infected or currently_taking_drug_count)', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes5[2].set_title('Total Currently Infected vs Total On Drug')
+            axes5[2].set_axis_off()
+        
+        # 4. Resolution rate as proportion of total infections (bottom-right)
+        if 'total_currently_infected' in df.columns:
+            total_daily_resolutions = total_resolutions[0]
+            smoothed_resolutions = pd.Series(total_daily_resolutions).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smoothed_infections = pd.Series(df['total_currently_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            # Calculate resolution rate as percentage of current infections
+            resolution_rate = np.where(smoothed_infections > 0, 
+                                     (smoothed_resolutions / smoothed_infections) * 100, 0)
+            
+            axes5[3].plot(df['time_in_years'], resolution_rate, 
+                        color='black', linewidth=2, label='Daily Resolution Rate')
+            axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected)')
+            axes5[3].set_xlabel('Time (Years)')
+            axes5[3].set_ylabel('Daily Resolutions / Current Infections (%)')
+            axes5[3].set_ylim(bottom=0)
+            axes5[3].grid(True, alpha=0.3)
+            axes5[3].legend()
+        else:
+            axes5[3].text(0.5, 0.5, 'Total infection data not available', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes5[3].set_axis_off()
+    
+    else:
+        # No resolution data found
+        for i in range(4):
+            axes5[i].text(0.5, 0.5, 'No infection resolution data found', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes5[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_5.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 5 saved as 'grouped_figure_5.png'")
+
+    # --- Grouped Figure 6: Overall Activity R Ratio ---
+    fig6, axes6 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes6 = axes6.flatten()
+    fig6.suptitle('Grouped Figure 6: Overall Activity R Analysis', fontsize=16)
+    
+    # Find all bacteria by looking for *_activity_r_sum columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_activity_r_sum"):
+            bacteria_names.append(col.replace("_activity_r_sum", ""))
+    
+    if bacteria_names:
+        # Calculate total activity_r_sum across all bacteria
+        total_activity_r_sum = pd.Series(0, index=df.index)
+        total_infected_and_on_drug = pd.Series(0, index=df.index)
+        
+        for bacteria_name in bacteria_names:
+            activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
+            infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+            
+            if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
+                total_activity_r_sum += df[activity_r_sum_col].fillna(0)
+                total_infected_and_on_drug += df[infected_and_on_drug_col].fillna(0)
+        
+        # 1. Overall Activity R Ratio (top-left)
+        overall_ratio = safe_divide(total_activity_r_sum, total_infected_and_on_drug, default=np.nan)
+        overall_ratio = pd.Series(overall_ratio, index=df.index)  # Convert back to pandas Series
+        overall_ratio_smooth = overall_ratio.rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        axes6[0].plot(df['time_in_years'], overall_ratio_smooth, 
+                    linewidth=2, color='navy', label='Overall Activity R Ratio')
+        axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug)')
+        axes6[0].set_ylabel('Overall Activity R Ratio')
+        axes6[0].set_ylim(bottom=0)
+        axes6[0].grid(True, alpha=0.3)
+        axes6[0].legend()
+        
+        # Add summary statistics
+        mean_val = overall_ratio.mean()
+        max_val = overall_ratio.max()
+        textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+        props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+        axes6[0].text(0.02, 0.98, textstr, transform=axes6[0].transAxes, fontsize=9,
+                    verticalalignment='top', bbox=props)
+        
+        # 2. Total Activity R Sum Over Time (top-right)
+        total_activity_r_smooth = total_activity_r_sum.rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        axes6[1].plot(df['time_in_years'], total_activity_r_smooth, 
+                    linewidth=2, color='red', label='Total Activity R Sum')
+        axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined)')
+        axes6[1].set_ylabel('Total Activity R Sum')
+        axes6[1].set_ylim(bottom=0)
+        axes6[1].grid(True, alpha=0.3)
+        axes6[1].legend()
+        
+        # 3. Total Infected & On Drug Over Time (bottom-left)
+        total_infected_smooth = total_infected_and_on_drug.rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        axes6[2].plot(df['time_in_years'], total_infected_smooth, 
+                    linewidth=2, color='green', label='Total Infected & On Drug')
+        axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined)')
+        axes6[2].set_xlabel('Time (Years)')
+        axes6[2].set_ylabel('Count')
+        axes6[2].set_ylim(bottom=0)
+        axes6[2].grid(True, alpha=0.3)
+        axes6[2].legend()
+        
+        # 4. Distribution of Activity R Ratio by Bacteria (bottom-right)
+        # Show individual bacteria ratios
+        bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(bacteria_names)))
+        for i, bacteria_name in enumerate(bacteria_names[:8]):  # Limit to first 8 for readability
+            activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
+            infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+            
+            if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
+                bacteria_ratio = safe_divide(df[activity_r_sum_col], df[infected_and_on_drug_col])
+                bacteria_ratio = pd.Series(bacteria_ratio, index=df.index)  # Convert back to pandas Series
+                bacteria_ratio_smooth = bacteria_ratio.rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                ).mean()
+                
+                axes6[3].plot(df['time_in_years'], bacteria_ratio_smooth, 
+                            linewidth=1.5, color=bacteria_colors[i], 
+                            label=bacteria_name.replace('_', ' ').title()[:15])
+        
+        axes6[3].set_title('Activity R Ratio by Bacteria\n(Individual Bacteria Trends)')
+        axes6[3].set_xlabel('Time (Years)')
+        axes6[3].set_ylabel('Activity R Ratio')
+        axes6[3].set_ylim(bottom=0)
+        axes6[3].grid(True, alpha=0.3)
+        axes6[3].legend(fontsize=7, loc='upper left')
+        
+    else:
+        # No activity_r data found
+        for i in range(4):
+            axes6[i].text(0.5, 0.5, 'No activity_r data found', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes6[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_6.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 6 saved as 'grouped_figure_6.png'")
+
+    # --- Grouped Figure 7: Day 7 Drug Initiation Analysis ---
+    fig7, axes7 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes7 = axes7.flatten()
+    fig7.suptitle('Figure 7: Proportion of Infections with Drug Started by Day 7', fontsize=16, fontweight='bold')
+    
+    # Find day-7 evaluation and drug use columns
+    day_7_eval_cols = [col for col in df.columns if col.endswith('_day_7_evaluations')]
+    day_7_used_cols = [col for col in df.columns if col.endswith('_day_7_drug_used')]
+    
+    if day_7_eval_cols and day_7_used_cols:
+        # Create bacteria names from column names
+        bacteria_names = []
+        for col in day_7_eval_cols:
+            bacteria_name = col.replace('_day_7_evaluations', '').replace('_', ' ').title()
+            bacteria_names.append(bacteria_name)
+        
+        print(f"Processing day-7 data for {len(bacteria_names)} bacteria types")
+        
+        # 1. Overall Proportion of Infections with Drug Started by Day 7 (top-left)
+        # Calculate overall proportion across all bacteria
+        total_evaluations = df[day_7_eval_cols].sum(axis=1)
+        total_drug_used = df[day_7_used_cols].sum(axis=1)
+        
+        # Calculate proportion (avoid division by zero)
+        overall_proportions = total_drug_used / total_evaluations.replace(0, np.nan)
+        
+        # Apply smoothing
+        prop_smooth = overall_proportions.rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(overall_proportions)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes7[0].plot(df['time_in_years'], prop_smooth, linewidth=2, color='darkblue', 
+                    label='Overall Proportion')
+        axes7[0].set_title('Proportion of Infections with Drug Started by Day 7\n(All Bacteria Combined)')
+        axes7[0].set_ylabel('Proportion')
+        axes7[0].set_ylim(0, 1)
+        axes7[0].grid(True, alpha=0.3)
+        axes7[0].legend()
+        
+        # Add summary statistics
+        mean_prop = overall_proportions.mean()
+        max_prop = overall_proportions.max()
+        total_evals = total_evaluations.sum()
+        total_used = total_drug_used.sum()
+        
+        textstr = f'Mean: {mean_prop:.3f}\nMax: {max_prop:.3f}\nTotal evals: {total_evals:,}\nTotal used: {total_used:,}'
+        props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+        axes7[0].text(0.02, 0.98, textstr, transform=axes7[0].transAxes, 
+                    fontsize=9, verticalalignment='top', bbox=props)
+        
+        # 2. Number of Day 7 Evaluations Over Time (top-right)
+        eval_counts_smooth = total_evaluations.rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(total_evaluations)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes7[1].plot(df['time_in_years'], eval_counts_smooth, linewidth=2, color='green', 
+                    label='Day 7 Evaluations')
+        axes7[1].set_title('Number of Day 7 Evaluations Over Time\n(Count of infections reaching 7 days)')
+        axes7[1].set_ylabel('Count')
+        axes7[1].set_ylim(bottom=0)
+        axes7[1].grid(True, alpha=0.3)
+        axes7[1].legend()
+        
+        # 3. Proportion by Top Bacteria (bottom-left)
+        # Calculate overall proportions by bacteria
+        bacteria_proportions = {}
+        for i, bacteria_name in enumerate(bacteria_names):
+            eval_col = day_7_eval_cols[i]
+            used_col = day_7_used_cols[i]
+            
+            total_evals = df[eval_col].sum()
+            total_used = df[used_col].sum()
+            
+            if total_evals > 0:
+                bacteria_proportions[bacteria_name] = total_used / total_evals
+            else:
+                bacteria_proportions[bacteria_name] = 0
+        
+        # Sort and take top 8 bacteria
+        sorted_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)[:8]
+        
+        if sorted_bacteria:
+            bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(sorted_bacteria)))
+            
+            for i, (bacteria_name, _) in enumerate(sorted_bacteria):
+                # Find the corresponding column indices
+                bacteria_idx = bacteria_names.index(bacteria_name)
+                eval_col = day_7_eval_cols[bacteria_idx]
+                used_col = day_7_used_cols[bacteria_idx]
+                
+                # Calculate time series proportions for this bacteria
+                bacteria_evals = df[eval_col]
+                bacteria_used = df[used_col]
+                bacteria_props = bacteria_used / bacteria_evals.replace(0, np.nan)
+                
+                # Apply smoothing
+                bacteria_props_smooth = bacteria_props.rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(bacteria_props)), 
+                    min_periods=1, center=True
+                ).mean()
+                
+                axes7[2].plot(df['time_in_years'], bacteria_props_smooth, 
+                            linewidth=1.5, color=bacteria_colors[i], 
+                            label=bacteria_name[:15])
+            
+            axes7[2].set_title('Day 7 Drug Initiation by Bacteria\n(Top 8 Bacteria by Proportion)')
+            axes7[2].set_xlabel('Time (Years)')
+            axes7[2].set_ylabel('Proportion')
+            axes7[2].set_ylim(0, 1)
+            axes7[2].grid(True, alpha=0.3)
+            axes7[2].legend(fontsize=7, loc='upper left')
+        else:
+            axes7[2].text(0.5, 0.5, 'No bacteria data available', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes7[2].set_axis_off()
+        
+        # 4. Summary Statistics (bottom-right)
+        # Create a summary bar chart
+        if bacteria_proportions:
+            # Take top 10 bacteria for bar chart
+            top_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)[:10]
+            
+            bacteria_labels = [name[:20] for name, _ in top_bacteria]
+            proportions = [prop for _, prop in top_bacteria]
+            
+            # Get evaluation counts for labels
+            eval_counts = []
+            for name, _ in top_bacteria:
+                bacteria_idx = bacteria_names.index(name)
+                eval_col = day_7_eval_cols[bacteria_idx]
+                eval_counts.append(df[eval_col].sum())
+            
+            y_pos = np.arange(len(bacteria_labels))
+            bars = axes7[3].barh(y_pos, proportions, color='lightcoral', alpha=0.7)
+            axes7[3].set_yticks(y_pos)
+            axes7[3].set_yticklabels(bacteria_labels, fontsize=8)
+            axes7[3].set_xlabel('Proportion')
+            axes7[3].set_title('Day 7 Drug Initiation by Bacteria\n(Top 10 by Proportion)')
+            axes7[3].grid(True, alpha=0.3, axis='x')
+            axes7[3].set_xlim(0, max(proportions) * 1.1 if proportions else 1)
+            
+            # Add count labels on bars
+            for i, (bar, count) in enumerate(zip(bars, eval_counts)):
+                width = bar.get_width()
+                axes7[3].text(width + max(proportions) * 0.01, bar.get_y() + bar.get_height()/2, 
+                            f'n={count:,}', ha='left', va='center', fontsize=7)
+        else:
+            axes7[3].text(0.5, 0.5, 'No summary data available', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes7[3].set_axis_off()
+    
+    else:
+        # No day-7 data found
+        for i in range(4):
+            axes7[i].text(0.5, 0.5, f'No day-7 data found\nEval cols: {len(day_7_eval_cols)}, Used cols: {len(day_7_used_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes7[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_7.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 7 saved as 'grouped_figure_7.png'")
+
+    # --- Grouped Figure 8: Infectious Syndrome Tracking ---
+    fig8, axes8 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes8 = axes8.flatten()
+    fig8.suptitle('Figure 8: Population Dynamics and Infection Patterns Over Time', fontsize=16, fontweight='bold')
+    
+    # Find syndrome columns
+    syndrome_cols = [col for col in df.columns if col.startswith('syndrome_') and col.endswith('_infected')]
+    
+    if syndrome_cols:
+        print(f"Processing syndrome data for {len(syndrome_cols)} syndromes")
+        
+        # 1. Stacked Bar Chart of Syndrome Proportions Over Time (top-left)
+        syndrome_data = df[syndrome_cols].values
+        total_infected = syndrome_data.sum(axis=1)
+        
+        # Calculate proportions (avoid division by zero)
+        syndrome_proportions = np.zeros_like(syndrome_data, dtype=float)
+        nonzero_mask = total_infected > 0
+        syndrome_proportions[nonzero_mask] = syndrome_data[nonzero_mask] / total_infected[nonzero_mask, np.newaxis]
+        
+        # Create time series with smoothing
+        syndrome_props_smooth = np.zeros_like(syndrome_proportions)
+        for i in range(len(syndrome_cols)):
+            syndrome_props_smooth[:, i] = pd.Series(syndrome_proportions[:, i]).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(syndrome_proportions)), 
+                min_periods=1, center=True
+            ).mean()
+        
+        # Create stacked area plot
+        syndrome_colors = plt.cm.tab10(np.linspace(0, 1, len(syndrome_cols)))
+        
+        # Use every 100th point to reduce density for better visualization
+        step = max(1, len(df) // 500)  # Show ~500 points maximum
+        time_subset = df['time_in_years'].iloc[::step]
+        props_subset = syndrome_props_smooth[::step]
+        
+        bottom = np.zeros(len(time_subset))
+        
+        # Create meaningful syndrome labels based on medical definitions from config.rs
+        syndrome_names = {
+            1: 'uti_genitourinary',
+            2: 'skin_soft_tissue', 
+            3: 'respiratory',
+            4: 'bloodstream_bacteremia',
+            5: 'intra_abdominal',
+            6: 'central_nervous_system',
+            7: 'gastrointestinal',
+            8: 'genital',
+            9: 'bone_joint',
+            10: 'other_syndrome'  # Not explicitly defined in config
+        }
+        
+        syndrome_labels = []
+        for i in range(len(syndrome_cols)):
+            syndrome_num = i + 1
+            syndrome_name = syndrome_names.get(syndrome_num, f'syndrome_{syndrome_num}')
+            syndrome_labels.append(f'S{syndrome_num}: {syndrome_name}')
+        
+        for i, (color, label) in enumerate(zip(syndrome_colors, syndrome_labels)):
+            axes8[0].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                                color=color, alpha=0.7, label=label)
+            bottom += props_subset[:, i]
+        
+        axes8[0].set_title('Infectious Syndrome Distribution Over Time\n(Stacked Proportions, 0-1 Scale)')
+        axes8[0].set_xlabel('Time (Years)')
+        axes8[0].set_ylabel('Proportion')
+        axes8[0].set_ylim(0, 1)
+        axes8[0].grid(True, alpha=0.3)
+        axes8[0].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+        
+        # Add summary statistics
+        total_syndrome_infections = syndrome_data.sum()
+        if total_syndrome_infections > 0:
+            syndrome_percentages = (syndrome_data.sum(axis=0) / total_syndrome_infections * 100)
+            most_common_idx = np.argmax(syndrome_percentages)
+            most_common_name = syndrome_names.get(most_common_idx + 1, f'syndrome_{most_common_idx + 1}')
+            textstr = f'Total infections: {int(total_syndrome_infections):,}\nMost common: S{most_common_idx+1} ({most_common_name})\n{syndrome_percentages[most_common_idx]:.1f}% of infections'
+            props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+            axes8[0].text(0.02, 0.98, textstr, transform=axes8[0].transAxes, 
+                        fontsize=9, verticalalignment='top', bbox=props)
+        
+        # 2. Regional Population Distribution (top-right)
+        region_cols = [col for col in df.columns if col.endswith('_population') and col != 'total_population']
+        
+        if region_cols:
+            print(f"Processing region data for {len(region_cols)} regions")
+            
+            # Get region population data
+            region_data = df[region_cols].values
+            total_population = region_data.sum(axis=1)
+            
+            # Create time series with smoothing (absolute numbers, not proportions)
+            region_data_smooth = np.zeros_like(region_data, dtype=float)
+            for i in range(len(region_cols)):
+                region_data_smooth[:, i] = pd.Series(region_data[:, i]).rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(region_data)), 
+                    min_periods=1, center=True
+                ).mean()
+            
+            # Create stacked area plot
+            region_colors = plt.cm.Set3(np.linspace(0, 1, len(region_cols)))
+            
+            # Use every 100th point to reduce density for better visualization
+            step = max(1, len(df) // 500)  # Show ~500 points maximum
+            time_subset = df['time_in_years'].iloc[::step]
+            data_subset = region_data_smooth[::step]
+            
+            bottom = np.zeros(len(time_subset))
+            
+            # Create region labels (clean up column names)
+            region_labels = []
+            for col in region_cols:
+                region_name = col.replace('_population', '').replace('_', ' ').title()
+                region_labels.append(region_name)
+            
+            for i, (color, label) in enumerate(zip(region_colors, region_labels)):
+                axes8[1].fill_between(time_subset, bottom, bottom + data_subset[:, i], 
+                                    color=color, alpha=0.7, label=label)
+                bottom += data_subset[:, i]
+            
+            axes8[1].set_title('Regional Population Distribution Over Time\n(Absolute Numbers)')
+            axes8[1].set_xlabel('Time (Years)')
+            axes8[1].set_ylabel('Population Count')
+            axes8[1].set_ylim(0, None)  # Auto-scale to maximum population
+            axes8[1].grid(True, alpha=0.3)
+            axes8[1].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # Format y-axis with thousands separators
+            axes8[1].ticklabel_format(style='plain', axis='y')
+            axes8[1].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x):,}'))
+            
+            # Add summary statistics
+            if total_population.sum() > 0:
+                final_populations = region_data[-1]  # Final time point populations
+                most_populous_idx = np.argmax(final_populations)
+                final_total = total_population[-1]
+                textstr = f'Final total: {int(final_total):,}\nLargest: {region_labels[most_populous_idx]}\n({int(final_populations[most_populous_idx]):,} people)'
+                props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+                axes8[1].text(0.02, 0.98, textstr, transform=axes8[1].transAxes, 
+                            fontsize=9, verticalalignment='top', bbox=props)
+        else:
+            # No region data found
+            axes8[1].text(0.5, 0.5, f'No region data found\nExpected columns: north_america_population, etc.\nFound columns: {len(region_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes8[1].set_axis_off()
+        
+        # 3. Bacteria Infection Breakdown (bottom-left)
+        bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected') and col != 'total_currently_infected']
+        
+        if bacteria_cols:
+            print(f"Processing bacteria infection data for {len(bacteria_cols)} bacteria types")
+            
+            # Get bacteria infection data
+            bacteria_data = df[bacteria_cols].values
+            total_infected = bacteria_data.sum(axis=1)
+            
+            # Calculate proportions (avoid division by zero)
+            bacteria_proportions = np.zeros_like(bacteria_data, dtype=float)
+            nonzero_mask = total_infected > 0
+            bacteria_proportions[nonzero_mask] = bacteria_data[nonzero_mask] / total_infected[nonzero_mask, np.newaxis]
+            
+            # Only show top bacteria by total infections to avoid overcrowding
+            total_infections_by_bacteria = bacteria_data.sum(axis=0)
+            top_bacteria_indices = np.argsort(total_infections_by_bacteria)[-12:]  # Top 12 bacteria
+            
+            # Filter to top bacteria only
+            top_bacteria_data = bacteria_data[:, top_bacteria_indices]
+            top_bacteria_props = bacteria_proportions[:, top_bacteria_indices]
+            top_bacteria_cols = [bacteria_cols[i] for i in top_bacteria_indices]
+            
+            # Recalculate proportions for top bacteria only
+            top_total_infected = top_bacteria_data.sum(axis=1)
+            top_bacteria_proportions = np.zeros_like(top_bacteria_data, dtype=float)
+            nonzero_mask = top_total_infected > 0
+            top_bacteria_proportions[nonzero_mask] = top_bacteria_data[nonzero_mask] / top_total_infected[nonzero_mask, np.newaxis]
+            
+            # Create time series with smoothing
+            bacteria_props_smooth = np.zeros_like(top_bacteria_proportions)
+            for i in range(len(top_bacteria_cols)):
+                bacteria_props_smooth[:, i] = pd.Series(top_bacteria_proportions[:, i]).rolling(
+                    window=min(SMOOTHING_WINDOW_DAYS, len(top_bacteria_proportions)), 
+                    min_periods=1, center=True
+                ).mean()
+            
+            # Create stacked area plot
+            bacteria_colors = plt.cm.tab20(np.linspace(0, 1, len(top_bacteria_cols)))
+            
+            # Use every 100th point to reduce density for better visualization
+            step = max(1, len(df) // 500)  # Show ~500 points maximum
+            time_subset = df['time_in_years'].iloc[::step]
+            props_subset = bacteria_props_smooth[::step]
+            
+            bottom = np.zeros(len(time_subset))
+            
+            # Create bacteria labels (clean up column names)
+            bacteria_labels = []
+            for col in top_bacteria_cols:
+                bacteria_name = col.replace('_currently_infected', '').replace('_', ' ').title()
+                # Shorten very long names
+                if len(bacteria_name) > 20:
+                    bacteria_name = bacteria_name[:17] + '...'
+                bacteria_labels.append(bacteria_name)
+            
+            for i, (color, label) in enumerate(zip(bacteria_colors, bacteria_labels)):
+                axes8[2].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                                    color=color, alpha=0.7, label=label)
+                bottom += props_subset[:, i]
+            
+            axes8[2].set_title('Top Bacteria Among Infected People\n(Stacked Proportions, 0-1 Scale)')
+            axes8[2].set_xlabel('Time (Years)')
+            axes8[2].set_ylabel('Proportion')
+            axes8[2].set_ylim(0, 1)
+            axes8[2].grid(True, alpha=0.3)
+            axes8[2].legend(fontsize=7, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # Add summary statistics
+            if total_infected.sum() > 0:
+                bacteria_percentages = (top_bacteria_data.sum(axis=0) / top_bacteria_data.sum() * 100)
+                most_common_idx = np.argmax(bacteria_percentages)
+                textstr = f'Total infections: {int(total_infected.mean()):,}\nMost common: {bacteria_labels[most_common_idx][:15]}\n({bacteria_percentages[most_common_idx]:.1f}% of infections)'
+                props = dict(boxstyle='round', facecolor='lightyellow', alpha=0.8)
+                axes8[2].text(0.02, 0.98, textstr, transform=axes8[2].transAxes, 
+                            fontsize=8, verticalalignment='top', bbox=props)
+        else:
+            # No bacteria infection data found
+            axes8[2].text(0.5, 0.5, f'No bacteria infection data found\nExpected columns: *_currently_infected\nFound columns: {len(bacteria_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes8[2].set_axis_off()
+        
+        # 4. Drug Share Among Users (bottom-right)
+        drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
+        
+        if drug_cols and 'currently_taking_drug_count' in df.columns:
+            print(f"Processing drug share data for {len(drug_cols)} drugs")
+            
+            # Smooth counts first
+            smoothed_counts = []
+            for drug_col in drug_cols:
+                count_smooth = pd.Series(df[drug_col]).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                ).mean()
+                smoothed_counts.append(count_smooth)
+
+            smoothed_counts_df = pd.concat(smoothed_counts, axis=1).fillna(0)
+            smoothed_counts_df.columns = drug_cols
+
+            # Recompute shares so they sum to 1 exactly
+            total_smooth = smoothed_counts_df.sum(axis=1)
+            shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
+            
+            # Only show top drugs by usage to avoid overcrowding
+            total_usage_by_drug = smoothed_counts_df.sum(axis=0)
+            top_drug_indices = np.argsort(total_usage_by_drug)[-15:]  # Top 15 drugs
+            
+            # Filter to top drugs only
+            top_drug_cols = [drug_cols[i] for i in top_drug_indices]
+            top_shares_df = shares_df[top_drug_cols]
+            
+            # Use every 100th point to reduce density for better visualization
+            step = max(1, len(df) // 500)  # Show ~500 points maximum
+            time_subset = df['time_in_years'].iloc[::step]
+            shares_subset = top_shares_df.iloc[::step]
+            
+            # Create drug labels (clean up column names)
+            drug_labels = []
+            for col in top_drug_cols:
+                drug_name = col.replace('_currently_on_drug', '').replace('_', ' ').title()
+                # Shorten very long names
+                if len(drug_name) > 15:
+                    drug_name = drug_name[:12] + '...'
+                drug_labels.append(drug_name)
+            
+            # Create stacked area plot
+            axes8[3].stackplot(
+                time_subset,
+                shares_subset.T.to_numpy(),
+                labels=drug_labels,
+                alpha=0.7
+            )
+            
+            axes8[3].set_title('Drug Share Among All Drug Users\n(Stacked Proportions, 0-1 Scale)')
+            axes8[3].set_xlabel('Time (Years)')
+            axes8[3].set_ylabel('Proportion')
+            axes8[3].set_ylim(0, 1.0)
+            axes8[3].grid(True, alpha=0.3)
+            axes8[3].legend(fontsize=6, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # Add summary statistics
+            if total_smooth.sum() > 0:
+                drug_percentages = (total_usage_by_drug[top_drug_indices] / total_usage_by_drug[top_drug_indices].sum() * 100)
+                most_used_idx = np.argmax(drug_percentages)
+                mean_users = total_smooth.mean()
+                textstr = f'Avg drug users: {int(mean_users):,}\nMost used: {drug_labels[most_used_idx][:12]}\n({drug_percentages[most_used_idx]:.1f}% of usage)'
+                props = dict(boxstyle='round', facecolor='lightcyan', alpha=0.8)
+                axes8[3].text(0.02, 0.98, textstr, transform=axes8[3].transAxes, 
+                            fontsize=8, verticalalignment='top', bbox=props)
+        else:
+            # No drug usage data found
+            axes8[3].text(0.5, 0.5, f'No drug usage data found\nExpected columns: *_currently_on_drug\nFound columns: {len(drug_cols)}', 
+                        ha='center', va='center', fontsize=12, color='gray')
+            axes8[3].set_axis_off()
+        
+    else:
+        # No syndrome data found
+        for i in range(4):
+            if i == 0:
+                axes8[i].text(0.5, 0.5, f'No syndrome data found\nExpected columns: syndrome_1_infected, ..., syndrome_10_infected\nFound columns: {len(syndrome_cols)}', 
+                            ha='center', va='center', fontsize=12, color='gray')
+            else:
+                axes8[i].text(0.5, 0.5, 'Syndrome data\nnot available', 
+                            ha='center', va='center', fontsize=12, color='gray')
+            axes8[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_8.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 8 saved as 'grouped_figure_8.png'")
+
+    # --- Grouped Figure 9: New Drug Initiations Over Time ---
+    fig9, axes9 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
+    axes9 = axes9.flatten()
+    fig9.suptitle('Figure 9: Drug Initiation Patterns Over Time', fontsize=16, fontweight='bold')
+    
+    # Check if new_drug_initiations_count columns exist
+    if 'new_drug_initiations_count' in df.columns:
+        print("Processing new drug initiations data")
+        
+        # 1. New Drug Initiations Over Time (top-left)
+        drug_initiations_smooth = pd.Series(df['new_drug_initiations_count']).rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes9[0].plot(df['time_in_years'], drug_initiations_smooth, linewidth=2, color='darkgreen', 
+                     label='All New Drug Initiations')
+        
+        # Plot infected drug initiations if available
+        if 'new_drug_initiations_count_infected' in df.columns:
+            drug_initiations_infected_smooth = pd.Series(df['new_drug_initiations_count_infected']).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+                min_periods=1, center=True
+            ).mean()
+            
+            axes9[0].plot(df['time_in_years'], drug_initiations_infected_smooth, linewidth=2, color='red', 
+                         label='New Drug Initiations (Infected)')
+        
+        axes9[0].set_title('Daily New Drug Initiations Over Time')
+        axes9[0].set_xlabel('Time (Years)')
+        axes9[0].set_ylabel('Number of People Starting Drugs')
+        axes9[0].set_ylim(bottom=0)
+        axes9[0].grid(True, alpha=0.3)
+        axes9[0].legend()
+        
+        # Add summary statistics
+        mean_initiations = df['new_drug_initiations_count'].mean()
+        max_initiations = df['new_drug_initiations_count'].max()
+        total_initiations = df['new_drug_initiations_count'].sum()
+        
+        textstr = f'All: Mean {mean_initiations:.1f}/day, Total {total_initiations:,}'
+        
+        if 'new_drug_initiations_count_infected' in df.columns:
+            mean_infected = df['new_drug_initiations_count_infected'].mean()
+            total_infected = df['new_drug_initiations_count_infected'].sum()
+            textstr += f'\nInfected: Mean {mean_infected:.1f}/day, Total {total_infected:,}'
+        
+        props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+        axes9[0].text(0.02, 0.98, textstr, transform=axes9[0].transAxes, 
+                     fontsize=9, verticalalignment='top', bbox=props)
+    else:
+        axes9[0].text(0.5, 0.5, 'New drug initiations data\nnot available', 
+                     ha='center', va='center', fontsize=12, color='gray')
+        axes9[0].set_axis_off()
+    
+    # 2. Polypharmacy Distribution Over Time (top-right, panel 9b)
+    polypharmacy_cols = ['people_on_1_drug', 'people_on_2_drugs', 'people_on_3plus_drugs']
+    if all(col in df.columns for col in polypharmacy_cols):
+        print("Processing polypharmacy data")
+        
+        # Apply smoothing to polypharmacy data like other plots
+        people_1_smooth = pd.Series(df['people_on_1_drug']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        people_2_smooth = pd.Series(df['people_on_2_drugs']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        people_3plus_smooth = pd.Series(df['people_on_3plus_drugs']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        # Create stacked area plot showing polypharmacy distribution
+        axes9[1].stackplot(df['time_in_years'], 
+                          people_1_smooth, 
+                          people_2_smooth, 
+                          people_3plus_smooth,
+                          labels=['1 Drug', '2 Drugs', '≥3 Drugs'],
+                          colors=['lightblue', 'orange', 'red'],
+                          alpha=0.8)
+        
+        axes9[1].set_title('Polypharmacy Distribution Over Time')
+        axes9[1].set_xlabel('Time (Years)')
+        axes9[1].set_ylabel('Number of People')
+        axes9[1].set_ylim(bottom=0)
+        axes9[1].grid(True, alpha=0.3)
+        axes9[1].legend(loc='upper right')
+        
+        # Add summary statistics
+        total_on_drugs = df[polypharmacy_cols].sum(axis=1)
+        recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
+        if len(recent_data) > 0:
+            recent_total = recent_data[polypharmacy_cols].sum(axis=1)
+            recent_mean_total = recent_total.mean()
+            recent_mean_1 = recent_data['people_on_1_drug'].mean()
+            recent_mean_2 = recent_data['people_on_2_drugs'].mean()  
+            recent_mean_3plus = recent_data['people_on_3plus_drugs'].mean()
+            
+            if recent_mean_total > 0:
+                pct_1 = (recent_mean_1 / recent_mean_total) * 100
+                pct_2 = (recent_mean_2 / recent_mean_total) * 100
+                pct_3plus = (recent_mean_3plus / recent_mean_total) * 100
+                
+                textstr = f'Recent Years (20-41):\n1 drug: {pct_1:.1f}%\n2 drugs: {pct_2:.1f}%\n≥3 drugs: {pct_3plus:.1f}%'
+                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+                axes9[1].text(0.02, 0.98, textstr, transform=axes9[1].transAxes, 
+                             fontsize=9, verticalalignment='top', bbox=props)
+    else:
+        axes9[1].text(0.5, 0.5, 'Polypharmacy data\nnot available', 
+                     ha='center', va='center', fontsize=12, color='gray')
+        axes9[1].set_axis_off()
+    
+    # 3. Treatment Failure Proportion Over Time (bottom-left, panel 9c)
+    failure_cols = ['infected_on_drug_with_previous_failure', 'currently_infected_and_on_drug_count']
+    if all(col in df.columns for col in failure_cols):
+        print("Processing treatment failure data")
+        
+        # Calculate proportion of infected people on drug who have previously failed
+        failure_proportion = df['infected_on_drug_with_previous_failure'] / df['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+        failure_proportion_smooth = pd.Series(failure_proportion).rolling(
+            window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+            min_periods=1, center=True
+        ).mean()
+        
+        axes9[2].plot(df['time_in_years'], failure_proportion_smooth * 100, linewidth=2, color='darkred', 
+                     label='Previous Treatment Failure %')
+        
+        axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure')
+        axes9[2].set_xlabel('Time (Years)')
+        axes9[2].set_ylabel('Percentage (%)')
+        axes9[2].set_ylim(bottom=0)
+        axes9[2].grid(True, alpha=0.3)
+        axes9[2].legend()
+        
+        # Add summary statistics
+        recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
+        if len(recent_data) > 0:
+            recent_failure_prop = recent_data['infected_on_drug_with_previous_failure'] / recent_data['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+            recent_mean = recent_failure_prop.mean() * 100
+            recent_max = recent_failure_prop.max() * 100
+            
+            # Also show absolute numbers
+            recent_mean_numerator = recent_data['infected_on_drug_with_previous_failure'].mean()
+            recent_mean_denominator = recent_data['currently_infected_and_on_drug_count'].mean()
+            
+            textstr = f'Recent Years (20-41):\nMean: {recent_mean:.1f}%\nMax: {recent_max:.1f}%\nTypical: {recent_mean_numerator:.0f}/{recent_mean_denominator:.0f}'
+            props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
+            axes9[2].text(0.02, 0.98, textstr, transform=axes9[2].transAxes, 
+                         fontsize=9, verticalalignment='top', bbox=props)
+    else:
+        axes9[2].text(0.5, 0.5, 'Treatment failure data\nnot available', 
+                     ha='center', va='center', fontsize=12, color='gray')
+        axes9[2].set_axis_off()
+    
+    # 4. Leave remaining panel blank for now
+    # 4. Leave remaining panel blank for now
+    for i in range(3, 4):
+        axes9[i].text(0.5, 0.5, f'Panel {i+1}\n(Reserved for future use)', 
+                     ha='center', va='center', fontsize=12, color='lightgray')
+        axes9[i].set_axis_off()
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig('output_graphs/grouped_figure_9.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+    plt.close()
+    print("✓ Grouped figure 9 saved as 'grouped_figure_9.png'")
+
+
+def create_proportion_plots(df):
+    """Create separate infection and death proportion plots."""
+    # Infection proportion plot
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+    ax.plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), linewidth=2, color='blue')
+    ax.set_title('Infection Proportion Over Time')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('Proportion of Population Infected')
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+    
+    # Add statistics
+    mean_val = df['infection_proportion'].mean()
+    max_val = df['infection_proportion'].max()
+    textstr = f'Mean: {mean_val:.4f}\nMax: {max_val:.4f}'
+    props = dict(boxstyle='round', facecolor='lightblue', alpha=0.7)
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+    
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['infection_prop']}", "Infection proportion plot")
+    
+    # Death proportion plot
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+    ax.plot(df['time_in_years'], pd.Series(df['death_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), linewidth=2, color='red')
+    ax.set_title('Death Proportion Over Time')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('Proportion of Population Dying per Day')
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+    
+    # Add statistics
+    mean_val = df['death_proportion'].mean()
+    max_val = df['death_proportion'].max()
+    textstr = f'Mean: {mean_val:.6f}\nMax: {max_val:.6f}'
+    props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.7)
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+    
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['death_prop']}", "Death proportion plot")
+
+def create_infection_duration_plot(df):
+    """Create infection duration analysis plot."""
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=FIGURE_SIZE_DOUBLE)
+    
+    # Overall infection proportion
+    ax1.plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), linewidth=2, color='blue')
+    ax1.set_ylabel('Proportion of Total Population')
+    ax1.set_title('Overall Infection Proportion Over Time\n(Denominator: Total Population)')
+    ax1.set_ylim(bottom=0)
+    ax1.grid(True, alpha=0.3)
+    
+    # Duration-based proportions
+    ax2.plot(df['time_in_years'], pd.Series(df['infected_10_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >10 Days', linewidth=2, color='green')
+    ax2.plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >30 Days', linewidth=2, color='brown')
+    ax2.set_xlabel('Time (Years)')
+    ax2.set_ylabel('Proportion of Currently Infected')
+    ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+    ax2.set_ylim(bottom=0)
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+
+    plt.subplots_adjust(hspace=0.7)  # Add even more space between subplots
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['infection_duration']}", "Infection duration plot")
+
+def create_sepsis_plot(df):
+    """Create sepsis proportion plot if data is available."""
+    if 'sepsis_among_infected_proportion' not in df.columns:
+        print("Warning: Sepsis data not available, skipping sepsis plot.")
+        return
+    
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+    ax.plot(df['time_in_years'], pd.Series(df['sepsis_among_infected_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
+            color='red', linewidth=2)
+    ax.set_title('Proportion of Infected Individuals with Sepsis')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('Proportion with Sepsis')
+    ax.set_ylim(0, 1)
+    ax.grid(True, alpha=0.3)
+    
+    # Add statistics
+    mean_val = df['sepsis_among_infected_proportion'].mean()
+    max_val = df['sepsis_among_infected_proportion'].max()
+    textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+    
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['sepsis_prop']}", "Sepsis proportion plot")
+
+def create_death_causes_plot(df):
+    """Create death causes analysis plot if data is available."""
+    death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    missing_cols = [col for col in death_cause_cols if col not in df.columns]
+    
+    if missing_cols:
+        print(f"Warning: Death cause columns {missing_cols} not found. Skipping death causes plot.")
+        return
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=FIGURE_SIZE_DOUBLE)
+    
+    # Absolute counts
+    ax1.plot(df['time_in_years'], pd.Series(df['deaths_background']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Background', linewidth=2, color='gray')
+    ax1.plot(df['time_in_years'], pd.Series(df['deaths_sepsis']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Sepsis', linewidth=2, color='red')
+    ax1.plot(df['time_in_years'], pd.Series(df['deaths_drug_toxicity']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Drug Toxicity', linewidth=2, color='orange')
+    ax1.plot(df['time_in_years'], pd.Series(df['total_deaths']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Total', linewidth=2, color='black', linestyle='--', alpha=0.7)
+    
+    ax1.set_title('Deaths by Cause Over Time (Absolute Counts)')
+    ax1.set_ylabel('Deaths per Day')
+    ax1.set_ylim(bottom=0)
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Proportional (stacked area)
+    ax2.stackplot(df['time_in_years'], 
+                  pd.Series(df['prop_deaths_background']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
+                  pd.Series(df['prop_deaths_sepsis']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
+                  pd.Series(df['prop_deaths_drug_toxicity']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
+                  labels=['Background', 'Sepsis', 'Drug Toxicity'],
+                  colors=['gray', 'red', 'orange'],
+                  alpha=0.7)
+    
+    ax2.set_title('Proportion of Deaths by Cause Over Time')
+    ax2.set_xlabel('Time (Years)')
+    ax2.set_ylabel('Proportion of Total Deaths')
+    ax2.set_ylim(bottom=0, top=1)
+    ax2.legend(loc='upper right')
+    ax2.grid(True, alpha=0.3)
+    
+    # Add summary statistics
+    total_background = df['deaths_background'].sum()
+    total_sepsis = df['deaths_sepsis'].sum()
+    total_toxicity = df['deaths_drug_toxicity'].sum()
+    total_all = df['total_deaths'].sum()
+    
+    if total_all > 0:
+        textstr = (f'Total Deaths Summary:\n'
+                  f'Background: {total_background} ({total_background/total_all*100:.1f}%)\n'
+                  f'Sepsis: {total_sepsis} ({total_sepsis/total_all*100:.1f}%)\n'
+                  f'Drug Toxicity: {total_toxicity} ({total_toxicity/total_all*100:.1f}%)\n'
+                  f'Total: {total_all}')
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+        ax1.text(0.02, 0.98, textstr, transform=ax1.transAxes, fontsize=9,
+                verticalalignment='top', bbox=props)
+    
+    plt.subplots_adjust(hspace=0.7)  # Add even more space between subplots
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['death_causes']}", "Death causes plot")
+
+def create_resistance_plot(df):
+    """Create standalone resistance among infected plot."""
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+    ax.plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='purple', linewidth=2)
+    ax.set_title('Proportion with Resistance Among Currently Infected')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('Proportion')
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+    
+
+    save_and_show_plot(f"output_graphs/{OUTPUT_FILES['resistance_prop']}", "Resistance proportion plot")
+
+# =============================================================================
+# DRUG USE DISTRIBUTION BY BACTERIA (STACKED PLOTS)
+# =============================================================================
+def create_distribution_drug_use_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the distribution of drug use among people infected with that bacteria (stacked area plot).
+    Each plot is saved as output_graphs/distribution_drug_use_by_bacteria/bacteria_x_distribution_drug_use.png
+    """
+    print("\n=== CREATING DRUG USE DISTRIBUTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/distribution_drug_use_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Identify bacteria and drug names from columns
+    bacteria_names = []
+    drug_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected"):
+            bacteria_names.append(col.replace("_currently_infected", ""))
+    for col in df.columns:
+        if col.endswith("_currently_on_drug"):
+            drug_names.append(col.replace("_currently_on_drug", ""))
+    # For each bacteria, collect the per-drug counts
+    for b in bacteria_names:
+        # Find all columns for this bacteria and each drug
+        drug_cols = [f"{b}_currently_on_drug_{d}" for d in drug_names if f"{b}_currently_on_drug_{d}" in df.columns]
+        if not drug_cols:
+            print(f"  ✗ No per-drug columns for {b}")
+            continue
+        # Smooth counts for each drug for this bacteria
+        smoothed_counts = []
+        for drug_col in drug_cols:
+            count_smooth = pd.Series(df[drug_col]).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            smoothed_counts.append(count_smooth)
+        smoothed_counts_df = pd.concat(smoothed_counts, axis=1).fillna(0)
+        smoothed_counts_df.columns = drug_cols
+        # Recompute shares so they sum to 1 exactly for this bacteria
+        total_smooth = smoothed_counts_df.sum(axis=1)
+        shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
+        plt.figure(figsize=FIGURE_SIZE_DOUBLE)
+        plt.stackplot(
+            df['time_in_years'],
+            shares_df.T.to_numpy(),
+            labels=[col.replace(f'{b}_currently_on_drug_','').replace('_',' ').title() for col in drug_cols],
+            alpha=0.8
+        )
+        plt.title(f"Distribution of Drug Use Among People Infected with {b.replace('_',' ').title()}", fontsize=18)
+        plt.xlabel('Time (Years)')
+        plt.ylabel('Proportion of Infected with This Bacteria')
+        plt.ylim(0, 1.0)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        fname = out_dir / f"{b}_distribution_drug_use.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# BACTERIA INFECTION PROPORTION PLOTS
+# =============================================================================
+def create_bacteria_infection_proportion_plots(df):
+    """
+    For each bacteria, plot the proportion of infections with MIC < 2 for all drugs.
+    Each plot is saved as a separate PNG file.
+    """
+    print("\n=== CREATING BACTERIA INFECTION PROPORTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/proportion_of_people_infected_with_each_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all columns matching *_currently_infected
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("No *_currently_infected columns found in data.")
+        return
+    
+    # Calculate consistent y-axis scale for all bacteria infection proportion plots
+    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
+    y_scales = calculate_global_y_scales(df, 'proportion_infected', entities=bacteria_names)
+    print(f"   📊 Using consistent y-axis scale: {y_scales['y_min']:.6f} to {y_scales['y_max']:.6f}")
+    
+    for bacteria_col in bacteria_cols:
+        bacteria_name = bacteria_col.replace('_currently_infected', '')
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        # Proportion: number infected with this bacteria / total population
+        prop = safe_divide(df[bacteria_col], df['total_population'])
+        # Apply rolling mean smoothing (e.g., 30-day window)
+        window = SMOOTHING_WINDOW_DAYS  # days; adjust as needed
+        prop_smooth = pd.Series(prop).rolling(window=window, min_periods=1, center=True).mean()
+        plt.plot(df['time_in_years'], prop_smooth, label=f"{bacteria_name.replace('_', ' ').title()} (Smoothed)", linewidth=7)
+        plt.title(f"Proportion of People Infected with {bacteria_name.replace('_', ' ').title()} (Smoothed)", fontsize=50)
+        plt.ylabel('Proportion of Living Population', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        
+        # Apply consistent y-axis scaling
+        apply_consistent_y_scale(plt.gca(), y_scales)
+        
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = out_dir / f"{bacteria_name}_infection_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# DEATH RATE BY BACTERIA PLOTS
+# =============================================================================
+def create_death_rate_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the death rate (deaths / infected people with that bacteria).
+    Each plot is saved as output_graphs/death_rate_by_bacteria/bacteria_x_death_rate.png
+    """
+    print("\n=== CREATING DEATH RATE BY BACTERIA PLOTS ===")
+    out_dir = Path("output_graphs/death_rate_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for *_currently_infected columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected"):
+            bacteria_names.append(col.replace("_currently_infected", ""))
+    
+    # Calculate consistent y-axis scale for all death rate plots
+    y_scales = calculate_global_y_scales(df, 'death_rate', entities=bacteria_names)
+    print(f"   📊 Using consistent y-axis scale: {y_scales['y_min']:.6f} to {y_scales['y_max']:.6f}")
+    
+    # Load empirical calibration data for potential overlays
+    empirical_data = load_empirical_calibration_data()
+    
+    for bacteria_name in bacteria_names:
+        # Try deaths_past_year first, then fall back to deaths
+        deaths_col = f"{bacteria_name}_deaths_past_year"
+        if deaths_col not in df.columns:
+            deaths_col = f"{bacteria_name}_deaths"
+        
+        pop_col = 'total_population'
+        
+        if deaths_col not in df.columns:
+            print(f"  ✗ Missing death column for {bacteria_name} (tried {bacteria_name}_deaths_past_year and {bacteria_name}_deaths)")
+            continue
+        
+        # Get consistent color for this bacteria
+        bacteria_color = get_consistent_color_for_drug(bacteria_name, bacteria_names)
+        
+        # Calculate death rate: deaths / total population (annual rate)
+        death_rate = safe_divide(df[deaths_col], df[pop_col])
+        
+        # Apply rolling mean smoothing
+        death_rate_smooth = pd.Series(death_rate).rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        # Plot simulation data (solid line)
+        plt.plot(df['time_in_years'], death_rate_smooth, 
+                color=bacteria_color,
+                linewidth=7, 
+                linestyle='-',
+                label=f"Simulation: {bacteria_name.replace('_', ' ').title()}")
+        
+        # Add empirical overlay if available
+        if empirical_data['deaths'] is not None:
+            emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                empirical_data['deaths'], bacteria=bacteria_name
+            )
+            if emp_years is not None:
+                # Plot empirical estimates (dashed line, same color)
+                plt.plot(emp_years, emp_means, 
+                        color=bacteria_color,
+                        linewidth=5, 
+                        linestyle='--',
+                        alpha=0.8, 
+                        label=f'Empirical: {bacteria_name.replace("_", " ").title()}')
+                # Add confidence interval shadow (same color, very transparent)
+                if emp_p5 is not None and emp_p95 is not None:
+                    plt.fill_between(emp_years, emp_p5, emp_p95, 
+                                   color=bacteria_color,
+                                   alpha=0.15, 
+                                   label='Empirical 90% CI')
+                print(f"    ✓ Added empirical death rate overlay for {bacteria_name}")
+            else:
+                print(f"    ⚠ No empirical death rate data found for {bacteria_name}")
+        
+        plt.title(f"Death Rate for {bacteria_name.replace('_', ' ').title()}", fontsize=50)
+        plt.ylabel('Deaths per Person per Year', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        
+        # Apply consistent y-axis scaling
+        apply_consistent_y_scale(plt.gca(), y_scales)
+        
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_death_rate.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# MEAN ACTIVITY_R BY BACTERIA PLOTS
+# =============================================================================
+def create_mean_activity_r_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the mean activity_r (activity_r_sum / infected_and_on_any_drug).
+    Each plot is saved as output_graphs/mean_activity_r_by_bacteria/bacteria_x_mean_activity_r.png
+    """
+    print("\n=== CREATING MEAN ACTIVITY_R BY BACTERIA PLOTS ===")
+    out_dir = Path("output_graphs/mean_activity_r_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for *_activity_r_sum columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_activity_r_sum"):
+            bacteria_names.append(col.replace("_activity_r_sum", ""))
+    
+    for bacteria_name in bacteria_names:
+        activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
+        infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
+        
+        if activity_r_sum_col not in df.columns or infected_and_on_drug_col not in df.columns:
+            print(f"  ✗ Missing columns for {bacteria_name} (need {activity_r_sum_col} and {infected_and_on_drug_col})")
+            continue
+        
+        # Calculate mean activity_r: activity_r_sum / infected_and_on_any_drug
+        mean_activity_r = safe_divide(df[activity_r_sum_col], df[infected_and_on_drug_col])
+        
+        # Apply rolling mean smoothing
+        mean_activity_r_smooth = pd.Series(mean_activity_r).rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean()
+        
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        plt.plot(df['time_in_years'], mean_activity_r_smooth, 
+                linewidth=7, color='blue', 
+                label=f"{bacteria_name.replace('_', ' ').title()} Mean Activity_R (Smoothed)")
+        
+        plt.title(f"Mean Activity_R for {bacteria_name.replace('_', ' ').title()}", fontsize=50)
+        plt.ylabel('Mean Activity_R Value', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_mean_activity_r.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+
+# =============================================================================
+# MIC < 2 BY DRUG FOR EACH BACTERIA
+# =============================================================================
+def create_mic_lt2_by_drug_plots(df):
+    """
+    For each bacteria, plot the proportion of infections with MIC < 2 for all drugs.
+    Each plot is saved as a separate PNG file.
+    """
+    print("\n=== CREATING MIC<2 BY DRUG PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # ...existing code...
+    mic_cols = [col for col in df.columns if '_infected_and_mic_lt2_' in col]
+    pairs = [col.replace('_infected_and_mic_lt2_', '|').split('|') for col in mic_cols]
+    bacteria_set = sorted(set(b for b, d in pairs))
+    drug_set = sorted(set(d for b, d in pairs))
+    infected_col = next((col for col in df.columns if col.startswith('infections_by_bacteria')), None)
+    if infected_col is not None:
+        bacteria_list = []
+        for col in mic_cols:
+            b = col.replace('_infected_and_mic_lt2_', '|').split('|')[0]
+            if b not in bacteria_list:
+                bacteria_list.append(b)
+    else:
+        bacteria_list = bacteria_set
+    for b in bacteria_list:
+        # Make the figure twice as tall, same width
+        fig = plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 3)))
+        ax = fig.add_subplot(1, 1, 1)
+        found_any = False
+        for d in drug_set:
+            mic_col = f"{b}_infected_and_mic_lt2_{d}"
+            if mic_col not in df.columns:
+                continue
+            found_any = True
+            if infected_col is not None:
+                try:
+                    b_idx = None
+                    bacteria_cols = [col for col in df.columns if col.endswith('_infected_and_mic_lt2_' + d)]
+                    bacteria_names = [col.replace('_infected_and_mic_lt2_' + d, '') for col in bacteria_cols]
+                    if b in bacteria_names:
+                        b_idx = bacteria_names.index(b)
+                    if b_idx is not None:
+                        infections = df[infected_col].apply(lambda x: eval(x)[b_idx] if isinstance(x, str) else x[b_idx])
+                    else:
+                        infections = df['total_currently_infected']
+                except Exception:
+                    infections = df['total_currently_infected']
+            else:
+                infections = df['total_currently_infected']
+            mic_lt2 = df[mic_col]
+            prop = safe_divide(mic_lt2, infections)
+            prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            ax.plot(df['time_in_years'], prop_smooth, label=d.replace('_', ' ').title(), linewidth=10)
+        ax.set_title(f"{b.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=40)
+        ax.set_ylabel('Proportion', fontsize=40)
+        ax.set_xlabel('Time (Years)', fontsize=40)
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+        ax.legend(title='Drug', bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=20, title_fontsize=20)
+        # Center the plot vertically by adding top/bottom margins
+        fig.subplots_adjust(top=0.85, bottom=0.15)
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        fname = out_dir / f"{b}_mic_lt2_by_drug.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+# =============================================================================
+# DRUG USAGE PROPORTION PLOTS
+# =============================================================================
+def load_observed_drug_data(drug_name, region='global'):
+    """
+    Load observed drug usage data from external sources (ECDC, OECD, etc.)
+    
+    Args:
+        drug_name: Name of the drug (e.g., 'amoxicillin', 'ciprofloxacin')
+        region: Region name ('global', 'europe', 'north_america', etc.)
+    
+    Returns:
+        Dict with 'years' and 'proportion' keys, or None if no data available
+    """
+    # This is a framework for loading observed data
+    # In practice, this would load from CSV files, APIs, or databases
+    
+    # Example data structure for demonstration
+    observed_data_sources = {
+        'global': {
+            'amoxicillin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.008, 0.012, 0.015, 0.018, 0.020],
+                'source': 'OECD Health Statistics'
+            },
+            'ciprofloxacin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.002, 0.003, 0.004, 0.005, 0.006],
+                'source': 'ECDC Annual Reports'
+            }
+        },
+        'europe': {
+            'amoxicillin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.010, 0.014, 0.017, 0.020, 0.022],
+                'source': 'ECDC ESAC-Net'
+            }
+        },
+        'north_america': {
+            'amoxicillin': {
+                'years': [2000, 2005, 2010, 2015, 2020],
+                'proportion': [0.006, 0.010, 0.013, 0.016, 0.018],
+                'source': 'CDC NARMS'
+            }
+        }
+    }
+    
+    # Look for data in the specified region first, then fall back to global
+    for search_region in [region, 'global']:
+        if search_region in observed_data_sources:
+            if drug_name in observed_data_sources[search_region]:
+                return observed_data_sources[search_region][drug_name]
+    
+    return None
+
+
+def create_drug_usage_proportion_plots(df):
+    """
+    For each drug, create usage plots (per 1000 people):
+    1. Combined global plot (all regions together)
+    2. Individual regional plots in subfolders
+    Each plot shows people per 1000 population, with empirical calibration overlay showing confidence intervals.
+    """
+    print("\n=== CREATING DRUG USAGE PLOTS (PER 1000 PEOPLE) FOR EACH DRUG ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Convert time_step to years (same as other analysis functions)
+    df['time_in_years'] = df['time_step'] / 365
+    
+    # Find all global drug columns (total across all regions - no regional prefix)
+    all_drug_cols = [col for col in df.columns if col.endswith('_currently_on_drug')]
+    
+    # Separate global vs regional columns
+    regions = ['europe', 'north_america', 'south_america', 'asia', 'africa', 'oceania']
+    global_drug_cols = []
+    for col in all_drug_cols:
+        # Check if this column has a regional prefix
+        has_regional_prefix = any(col.startswith(f'{region}_') for region in regions)
+        if not has_regional_prefix:
+            global_drug_cols.append(col)
+    
+    if not global_drug_cols:
+        print("No global *_currently_on_drug columns found in data.")
+        # But we might still have regional columns, so continue
+    
+    # Calculate consistent y-axis scale for all drug usage plots
+    drug_names = [col.replace('_currently_on_drug', '') for col in global_drug_cols]
+    y_scales = calculate_global_y_scales(df, 'drug_usage', entities=drug_names)
+    print(f"   📊 Using consistent y-axis scale: {y_scales['y_min']:.2f} to {y_scales['y_max']:.2f} per 1000 people")
+    
+    # Observed data points for specific drugs and regions (DDD per 1000 inhabitants per day)
+    # Format: {drug_name: {region: [(year, ddd_per_1000), (year, ddd_per_1000), ...]}}
+    # Note: These values can be plotted directly since our y-axis is now "per 1000 people"
+    observed_data = {
+        'amoxicillin': {
+            'europe': [(2015, 12.5), (2018, 13.2), (2020, 11.8)],
+            'north_america': [(2015, 8.9), (2018, 9.1), (2020, 8.7)]
+        },
+        'ciprofloxacin': {
+            'europe': [(2015, 2.1), (2018, 1.9), (2020, 1.7)],
+            'north_america': [(2015, 1.8), (2018, 1.6), (2020, 1.5)]
+        },
+        'azithromycin': {
+            'europe': [(2015, 1.2), (2018, 1.4), (2020, 1.6)],
+            'north_america': [(2015, 2.1), (2018, 2.3), (2020, 2.1)]
+        }
+        # Add more drugs and regions as needed
+    }
+    
+    # Create main output directory
+    out_dir = Path("output_graphs/proportion_of_people_taking_each_drug")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create regional subdirectories (Europe first for easier debugging of observed data)
+    for region in regions:
+        region_dir = out_dir / region
+        region_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create combined directory for global plots
+    combined_dir = out_dir / "combined_all_regions"
+    combined_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find regional drug columns (if they exist)
+    regional_drug_cols = {}
+    for region in regions:
+        region_cols = [col for col in df.columns if col.startswith(f'{region}_') and col.endswith('_currently_on_drug')]
+        if region_cols:
+            regional_drug_cols[region] = region_cols
+    
+    # Create global plots with empirical overlays
+    print("Creating global drug usage plots...")
+    
+    # Get sorted drug list for consistent color assignment
+    global_drug_names = [col.replace('_currently_on_drug', '') for col in global_drug_cols]
+    global_drug_names.sort()
+    
+    for drug_col in global_drug_cols:
+        drug_name = drug_col.replace('_currently_on_drug', '')
+        
+        # Get consistent color for this drug
+        drug_color = get_consistent_color_for_drug(drug_name, global_drug_names)
+        
+        plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 6)))
+        # Convert to per 1000 people instead of proportion
+        per_1000_pop = (df[drug_col] / df['total_population']) * 1000
+        per_1000_pop_smooth = pd.Series(per_1000_pop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        # Plot simulation data (solid line)
+        plt.plot(df['time_in_years'], per_1000_pop_smooth, 
+                color=drug_color,
+                label=f"Simulation: {drug_name.replace('_', ' ').title()}", 
+                linewidth=20, 
+                linestyle='-',
+                alpha=0.8)
+        
+        # Add empirical calibration overlay (global average across regions)
+        if empirical_data['drug_usage'] is not None:
+            emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                empirical_data['drug_usage'], 
+                drug=drug_name, 
+                region=None,  # Will average across regions
+                metric_type='drug_usage_per_100k'
+            )
+            
+            if emp_years is not None:
+                # Convert from per 100k to per 1000 for plotting
+                emp_means_per_1000 = emp_means / 100
+                emp_p5_per_1000 = emp_p5 / 100 if emp_p5 is not None else None
+                emp_p95_per_1000 = emp_p95 / 100 if emp_p95 is not None else None
+                
+                # Plot empirical estimates (dashed line, same color)
+                plt.plot(emp_years, emp_means_per_1000, 
+                        color=drug_color,
+                        label=f"Empirical: {drug_name.replace('_', ' ').title()}", 
+                        linewidth=15, 
+                        linestyle='--',
+                        alpha=0.8)
+                
+                # Add confidence interval shadow (same color, very transparent)
+                if emp_p5_per_1000 is not None and emp_p95_per_1000 is not None:
+                    plt.fill_between(emp_years, emp_p5_per_1000, emp_p95_per_1000, 
+                                   color=drug_color,
+                                   alpha=0.15)  # Remove label to avoid legend clutter
+                
+                print(f"    ✓ Added empirical overlay for {drug_name} (global)")
+            else:
+                print(f"    ⚠ No empirical drug usage data found for {drug_name}")
+        
+        plt.title(f"Global: People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)
+        plt.ylabel('People per 1000 Population', fontsize=80)
+        plt.xlabel('Time (Years)', fontsize=80)
+        
+        # Apply consistent y-axis scaling
+        apply_consistent_y_scale(plt.gca(), y_scales)
+        
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=96, title_fontsize=192)
+        
+        # Add note about confidence intervals if empirical data exists
+        plt.text(0.02, 0.98, "Shaded areas: Empirical 90% CI", 
+               transform=plt.gca().transAxes, fontsize=60, 
+               verticalalignment='top', alpha=0.7)
+        
+        plt.tick_params(axis='both', which='major', labelsize=80)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = combined_dir / f"{drug_name}_usage_per_1000_global.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+    
+    # Create regional plots (new functionality)
+    if regional_drug_cols:
+        print("Creating regional drug usage plots...")
+        for region, region_cols in regional_drug_cols.items():
+            print(f"  Processing {region}...")
+            region_dir = out_dir / region
+            region_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+            
+            # Get regional population column (correct format)
+            region_pop_col = f'{region}_population'
+            if region_pop_col not in df.columns:
+                print(f"    Warning: {region_pop_col} not found, skipping {region}")
+                continue
+            
+            for drug_col in region_cols:
+                # Extract drug name from regional column
+                drug_name = drug_col.replace(f'{region}_', '').replace('_currently_on_drug', '')
+                
+                plt.figure(figsize=(int(FIG_W * 3), int(FIG_H * 6)))
+                
+                # Calculate regional per 1000 people instead of proportion
+                per_1000_regional = (df[drug_col] / df[region_pop_col]) * 1000
+                per_1000_regional_smooth = pd.Series(per_1000_regional).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Plot simulation data
+                plt.plot(df['time_in_years'], per_1000_regional_smooth, 
+                        label=f"Simulation: {drug_name.replace('_', ' ').title()}", 
+                        linewidth=20, color='blue', alpha=0.8)
+                
+                # Add empirical calibration overlay for this region
+                if empirical_data['drug_usage'] is not None:
+                    emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                        empirical_data['drug_usage'], 
+                        drug=drug_name, 
+                        region=region,
+                        metric_type='drug_usage_per_100k'
+                    )
+                    
+                    if emp_years is not None:
+                        # Convert from per 100k to per 1000 for plotting
+                        emp_means_per_1000 = emp_means / 100
+                        emp_p5_per_1000 = emp_p5 / 100 if emp_p5 is not None else None
+                        emp_p95_per_1000 = emp_p95 / 100 if emp_p95 is not None else None
+                        
+                        # Plot empirical estimates
+                        plt.plot(emp_years, emp_means_per_1000, 
+                                label=f"Empirical Estimate: {drug_name.replace('_', ' ').title()}", 
+                                linewidth=15, color='red', alpha=0.9, linestyle='--')
+                        
+                        # Add confidence interval shadow
+                        if emp_p5_per_1000 is not None and emp_p95_per_1000 is not None:
+                            plt.fill_between(emp_years, emp_p5_per_1000, emp_p95_per_1000, 
+                                           alpha=0.2, color='red', 
+                                           label=f"Empirical 90% CI")
+                        
+                        print(f"    ✓ Added empirical overlay for {drug_name} in {region}")
+                
+                # Keep legacy observed data points if available
+                if drug_name in observed_data and region in observed_data[drug_name]:
+                    obs_points = observed_data[drug_name][region]
+                    years = [point[0] for point in obs_points]
+                    ddd_values = [point[1] for point in obs_points]  # Already in DDD per 1000!
+                    
+                    # Convert absolute years to simulation years (simulation starts at 1930)
+                    sim_years = [year - 1930 for year in years]
+                    
+                    # No conversion needed - DDD values are already per 1000 people!
+                    plt.scatter(sim_years, ddd_values, 
+                               color='darkgreen', s=200, alpha=0.9, 
+                               label=f"Legacy Observed (DDD/1000)", 
+                               zorder=5, marker='s', edgecolor='darkgreen', linewidth=3)
+                    print(f"    ✓ Added legacy observed data for {drug_name} in {region} at simulation years: {sim_years}")
+                
+                plt.title(f"{region.replace('_', ' ').title()}: People Taking {drug_name.replace('_', ' ').title()}", fontsize=80)
+                plt.ylabel('People per 1000 Regional Population', fontsize=80)
+                plt.xlabel('Time (Years)', fontsize=80)
+                
+                # Apply consistent y-axis scaling
+                apply_consistent_y_scale(plt.gca(), y_scales)
+                
+                plt.grid(True, alpha=0.3)
+                plt.legend(fontsize=96, title_fontsize=192)
+                plt.tick_params(axis='both', which='major', labelsize=80)
+                plt.tight_layout(rect=[0, 0, 1, 0.96])
+                
+                # Save to region-specific directory
+                fname = region_dir / f"{region}_{drug_name}_usage_per_1000_regional.png"
+                plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+                plt.close()
+                print(f"    ✓ {fname} saved.")
+    else:
+        print("No regional drug usage columns found. Only global plots created.")
+        print("Regional columns expected format: '{region}_{drug}_currently_on_drug'")
+
+    # Per-drug share among all people currently taking any drug (existing functionality)
+    if proportion_share_among_drug_users:
+        if 'currently_taking_drug_count' in df.columns:
+            share_dir = Path("output_graphs/proportion_share_among_drug_users")
+            share_dir.mkdir(parents=True, exist_ok=True)
+            for drug_col in global_drug_cols:
+                drug_name = drug_col.replace('_currently_on_drug', '')
+                plt.figure(figsize=FIGURE_SIZE_SINGLE)
+                share = safe_divide(df[drug_col], df['currently_taking_drug_count'])
+                share_smooth = pd.Series(share).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                plt.plot(df['time_in_years'], share_smooth, label=f"{drug_name.replace('_', ' ').title()} Share", linewidth=6)
+                plt.title(f"Share of Drug Users Taking {drug_name.replace('_', ' ').title()}", fontsize=18)
+                plt.xlabel('Time (Years)', fontsize=24)
+                plt.ylabel('Proportion of All People On Any Drug', fontsize=24)
+                plt.ylim(0, 1)
+                plt.grid(True, alpha=0.3)
+                plt.legend(fontsize=24)
+                plt.tick_params(axis='both', which='major', labelsize=24)
+                plt.tight_layout()
+                out_path = share_dir / f"{drug_name}_share_among_drug_users.png"
+                plt.savefig(out_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+                plt.close()
+                print(f"  ✓ {out_path} saved.")
+        else:
+            print("Warning: 'currently_taking_drug_count' column not found; skipping per-drug share plots.")
+    else:
+        print("\n=== SKIPPING proportion_share_among_drug_users plots (set proportion_share_among_drug_users = True to enable) ===")
+def export_data_files(df):
+    """Export data to various formats for external analysis."""
+    print("\n=== EXPORTING DATA FILES ===")
+    
+    # No longer saving 'all_simulation_data.csv' or 'simulation_data_summary.csv'
+
+# def export_txt_data_file(df, filename="all_simulation_data.txt"):
+#     """
+#     Export the DataFrame to a .txt file in a wide, aligned, human-readable format.
+#     Integers are printed without decimals, floats with six decimals.
+#     """
+#     print(f"Exporting data to '{filename}' in human-readable .txt format...")
+#     columns = list(df.columns)
+#     # Determine column types for formatting
+#     dtypes = df.dtypes
+#     # Set column widths based on max length of formatted data in each column
+#     col_widths = []
+#     for col in columns:
+#         # Format a sample of values to determine width
+#         if pd.api.types.is_integer_dtype(dtypes[col]):
+#             formatted = df[col].map(lambda v: f"{int(v)}" if pd.notnull(v) else "").astype(str)
+#         elif pd.api.types.is_float_dtype(dtypes[col]):
+#             formatted = df[col].map(lambda v: f"{v:.6f}" if pd.notnull(v) else "").astype(str)
+#         else:
+#             formatted = df[col].astype(str)
+#         max_data_len = formatted.map(len).max() if not df.empty else 0
+#         col_widths.append(max(len(str(col)), max_data_len, 10))
+#     # Add extra space between columns for better separation
+#     col_sep = "   "  # triple space for clear separation
+#     with open(filename, 'w', encoding='utf-8') as f:
+#         # Write column headers
+#         header = col_sep.join([str(col).ljust(width) for col, width in zip(columns, col_widths)])
+#         f.write(header + "\n")
+#         # Write data rows
+#         for _, row in df.iterrows():
+#             formatted_row = []
+#             for col, width in zip(columns, col_widths):
+#                 val = row[col]
+#                 if pd.isnull(val):
+#                     sval = ""
+#                 elif pd.api.types.is_integer_dtype(dtypes[col]):
+#                     sval = f"{int(val)}"
+#                 elif pd.api.types.is_float_dtype(dtypes[col]):
+#                     sval = f"{val:.6f}"
+#                 else:
+#                     sval = str(val)
+#                 formatted_row.append(sval.ljust(width))
+#             line = col_sep.join(formatted_row)
+#             f.write(line + "\n")
+#     print(f"\u2713 Data exported to '{filename}'")
+
+def generate_summary_statistics(df):
+    """Generate and display comprehensive summary statistics."""
+    print("\n=== SIMULATION SUMMARY STATISTICS ===")
+    
+    # Basic simulation info
+    duration_days = df['time_step'].max() + 1
+    duration_years = duration_days / 365
+    print(f"Simulation duration: {duration_days} days (~{duration_years:.2f} years)")
+    print(f"Initial population: {df['total_population'].iloc[0]:,}")
+    print(f"Final population: {df['total_population'].iloc[-1]:,}")
+    print(f"Total deaths: {df['total_deaths'].sum():,}")
+    
+    # Proportion statistics
+    prop_cols = ['infection_proportion', 'death_proportion']
+    available_props = [col for col in prop_cols if col in df.columns]
+    
+    if available_props:
+        print(f"\n=== PROPORTION STATISTICS ===")
+        props_summary = df[available_props].describe()
+        print(props_summary)
+        props_summary.to_csv(OUTPUT_FILES['summary_stats'])
+        print(f"\n✓ Summary statistics saved to '{OUTPUT_FILES['summary_stats']}'")
+    
+    # Death cause statistics
+    death_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    available_death_cols = [col for col in death_cols if col in df.columns]
+    
+    if available_death_cols:
+        print(f"\n=== DEATH CAUSES STATISTICS ===")
+        death_summary = df[available_death_cols].describe()
+        print(death_summary)
+        
+        # Calculate total proportions
+        total_all_deaths = df['total_deaths'].sum()
+        if total_all_deaths > 0:
+            print(f"\n=== DEATH CAUSES BREAKDOWN ===")
+            for col in available_death_cols:
+                total = df[col].sum()
+                pct = total / total_all_deaths * 100
+                cause_name = col.replace('deaths_', '').replace('_', ' ').title()
+                print(f"{cause_name}: {total:,} ({pct:.1f}%)")
+
+# =============================================================================
+# PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS
+# =============================================================================
+def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df):
+    """
+    For each bacteria, plot the proportion of the population with presence_microbiome = true by region.
+    Each plot shows 6 regional lines for comparison.
+    Each plot is saved as output_graphs/proportion_of_population_with_microbiome_presence_bacteria/bacteria_x_presence_proportion.png
+    """
+    print("\n=== CREATING PROPORTION OF POPULATION WITH PRESENCE BACTERIA PLOTS BY REGION ===")
+    out_dir = Path("output_graphs/proportion_of_population_with_microbiome_presence_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Regional configuration
+    region_suffixes = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown']
+    
+    # Find all bacteria names from regional columns
+    bacteria_set = set()
+    for col in df.columns:
+        if '_presence_microbiome_' in col:
+            for suffix in region_suffixes:
+                if col.endswith(f'_presence_microbiome_{suffix}'):
+                    bacteria_name = col.replace(f'_presence_microbiome_{suffix}', '')
+                    bacteria_set.add(bacteria_name)
+    
+    if not bacteria_set:
+        print("No regional *_presence_microbiome_* columns found in data.")
+        return
+    
+    print(f"Found {len(bacteria_set)} bacteria with regional microbiome presence data")
+    
+    # Create one plot per bacteria with 6 regional lines
+    for bacteria_name in sorted(bacteria_set):
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        
+        max_prop = 0  # Track maximum for consistent y-axis scaling
+        
+        for region_idx, region_name in enumerate(region_suffixes):
+            presence_col = f"{bacteria_name}_presence_microbiome_{region_name}"
+            population_col = f"{region_name}_population"  # Fixed: region_name comes first
+            
+            if presence_col in df.columns and population_col in df.columns:
+                # Proportion: people with this bacteria in microbiome / regional population
+                prop = safe_divide(df[presence_col], df[population_col])
+                
+                # Apply rolling mean smoothing
+                window = SMOOTHING_WINDOW_DAYS
+                prop_smooth = pd.Series(prop).rolling(window=window, min_periods=1, center=True).mean()
+                
+                # Track maximum for scaling
+                if not prop_smooth.isna().all():
+                    max_prop = max(max_prop, prop_smooth.max())
+                
+                plt.plot(df['time_in_years'], prop_smooth, 
+                        label=region_name.replace('_', ' ').title(), 
+                        linewidth=7, 
+                        color=region_colors[region_idx])
+            else:
+                print(f"  Warning: Missing columns for {bacteria_name} in {region_name}")
+        
+        # Format bacteria name for display
+        bacteria_display = bacteria_name.replace('_', ' ').title()
+        
+        plt.title(f"Proportion of Population with {bacteria_display} in Microbiome by Region (Smoothed)", 
+                 fontsize=50)
+        plt.ylabel('Proportion of Regional Population', fontsize=50)
+        plt.xlabel('Time (Years)', fontsize=50)
+        
+        # Set consistent y-axis scaling with some padding
+        if max_prop > 0:
+            plt.ylim(0, max_prop * 1.1)
+        
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=30, loc='upper right')
+        plt.tick_params(axis='both', which='major', labelsize=40)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_presence_proportion.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved with regional comparison")
+
+# =============================================================================
+# PROPORTION OF MICROBIOME PRESENCE WITH RESISTANCE BY DRUG PLOTS
+# =============================================================================
+def create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(df):
+    """
+    For each bacteria, plot the proportion of people with presence_microbiome who have microbiome_r > 0 for each drug.
+    Each plot is saved as output_graphs/proportion_of_microbiome_presence_with_resistance_by_drug/bacteria_x_microbiome_resistance_by_drug.png
+    """
+    print("\n=== CREATING PROPORTION OF MICROBIOME PRESENCE WITH RESISTANCE BY DRUG PLOTS ===")
+    out_dir = Path("output_graphs/proportion_of_microbiome_presence_with_resistance_by_drug")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for *_presence_microbiome columns
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith('_presence_microbiome'):
+            bacteria_names.append(col.replace('_presence_microbiome', ''))
+    
+    if not bacteria_names:
+        print("No *_presence_microbiome columns found in data.")
+        return
+    
+    # Find all drugs by looking for microbiome_r columns
+    drug_names = []
+    for col in df.columns:
+        if '_microbiome_r_positive_' in col:
+            # Extract drug name from column like "bacteria_microbiome_r_positive_drugname"
+            parts = col.split('_microbiome_r_positive_')
+            if len(parts) == 2:
+                drug_names.append(parts[1])
+    
+    drug_names = sorted(set(drug_names))
+    
+    if not drug_names:
+        print("No microbiome resistance columns found in data.")
+        return
+    
+    print(f"Found {len(bacteria_names)} bacteria and {len(drug_names)} drugs for microbiome resistance analysis...")
+    
+    for bacteria_name in bacteria_names:
+        presence_col = f"{bacteria_name}_presence_microbiome"
+        
+        if presence_col not in df.columns:
+            print(f"  ✗ Missing presence column for {bacteria_name}")
+            continue
+        
+        plt.figure(figsize=(25, 40))  # Adjusted height: 25 inches wide, 40 inches tall
+        
+        found_any_drug = False
+        for drug_name in drug_names:
+            resistance_col = f"{bacteria_name}_microbiome_r_positive_{drug_name}"
+            
+            if resistance_col not in df.columns:
+                continue
+            
+            found_any_drug = True
+            
+            # Calculate proportion: people with microbiome_r > 0 / people with presence_microbiome
+            prop = safe_divide(df[resistance_col], df[presence_col])
+            
+            # Apply rolling mean smoothing
+            prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            plt.plot(df['time_in_years'], prop_smooth, 
+                    label=f"{drug_name.replace('_', ' ').title()}", 
+                    linewidth=7)
+        
+        if not found_any_drug:
+            print(f"  ✗ No drug resistance columns found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        plt.title(f"Proportion of {bacteria_name.replace('_', ' ').title()} Microbiome Carriers with Resistance by Drug", 
+                 fontsize=60)  # Increased from 40 to 60 (50% larger)
+        plt.ylabel('Proportion with Resistance', fontsize=60)  # Increased from 40 to 60
+        plt.xlabel('Time (Years)', fontsize=60)  # Increased from 40 to 60
+        plt.ylim(0, 1)
+        plt.xlim(0, df['time_in_years'].max() * 0.75)  # Limit x-axis to 75% of the time range
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Drug', fontsize=30, title_fontsize=36)  # Increased from 20 to 30, title from 24 to 36
+        plt.tick_params(axis='both', which='major', labelsize=45)  # Increased from 30 to 45
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        
+        fname = out_dir / f"{bacteria_name}_microbiome_resistance_by_drug.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS
+# =============================================================================
+def create_mean_any_r_by_drug_for_each_bacteria_plots(df):
+    """
+    For each bacteria, plot the mean any_r resistance level for each drug over time.
+    Mean any_r = sum_any_r / number_currently_infected for each bacteria-drug combination.
+    Each plot is saved as output_graphs/mean_any_r_by_drug_for_each_bacteria/bacteria_x_mean_any_r_by_drug.png
+    """
+    print("\n=== CREATING MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    out_dir = Path("output_graphs/mean_any_r_by_drug_for_each_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for sum_any_r columns
+    bacteria_names = set()
+    for col in df.columns:
+        if '_sum_any_r_' in col and '_sum_any_r_hospital_' not in col:
+            bacteria_name = col.split('_sum_any_r_')[0]
+            bacteria_names.add(bacteria_name)
+    
+    if not bacteria_names:
+        print("No sum_any_r columns found in data.")
+        return
+    
+    # Calculate consistent y-axis scale for all resistance plots
+    bacteria_list = list(bacteria_names)
+    y_scales = calculate_global_y_scales(df, 'resistance', entities=bacteria_list)
+    print(f"   📊 Using consistent y-axis scale: {y_scales['y_min']:.4f} to {y_scales['y_max']:.4f}")
+    
+    print(f"Found {len(bacteria_names)} bacteria for mean any_r analysis...")
+    
+    for bacteria_name in bacteria_names:
+        # Check if we have infection data for this bacteria
+        infection_col = f"{bacteria_name}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"  ✗ Missing infection data for {bacteria_name}")
+            continue
+        
+        plt.figure(figsize=(20, 12))  # More reasonable size
+        
+        # Find all drugs for this bacteria and create sorted list for consistent colors
+        sum_any_r_columns = [col for col in df.columns if col.startswith(f"{bacteria_name}_sum_any_r_") and not col.startswith(f"{bacteria_name}_sum_any_r_hospital_")]
+        
+        if not sum_any_r_columns:
+            print(f"  ✗ No sum_any_r columns found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        # Extract drug names and sort for consistent color assignment
+        drug_names = [col.replace(f"{bacteria_name}_sum_any_r_", "") for col in sum_any_r_columns]
+        drug_names.sort()  # Consistent ordering for color assignment
+        
+        # 🔧 CLEANER LEGEND APPROACH: Separate color and style legends
+        drug_handles = []  # For drug color legend
+        drug_labels = []   # For drug color legend
+        style_handles = []  # For line style legend
+        style_labels = []   # For line style legend
+        
+        found_any_drug = False
+        for drug_name in drug_names:
+            col = f"{bacteria_name}_sum_any_r_{drug_name}"
+            
+            # Get consistent color for this drug
+            drug_color = get_consistent_color_for_drug(drug_name, drug_names)
+            
+            # Calculate mean any_r = sum_any_r / currently_infected using vectorized operations
+            sum_any_r = df[col]
+            currently_infected = df[infection_col]
+            
+            # Calculate mean resistance using pandas vectorization, handling division by zero
+            mean_any_r = pd.Series(index=df.index, dtype=float)
+            mask = currently_infected > 0
+            mean_any_r[mask] = sum_any_r[mask] / currently_infected[mask]
+            mean_any_r[~mask] = float('nan')  # Use NaN instead of 0 for no infections
+            
+            # Apply smoothing
+            mean_any_r_smooth = mean_any_r.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            # Plot simulation data (solid line) - add label for backup legend
+            sim_line = plt.plot(df['time_in_years'], mean_any_r_smooth, 
+                    color=drug_color,
+                    linewidth=2.5,
+                    linestyle='-',
+                    alpha=0.8,
+                    label=drug_name.replace('_', ' ').title())[0]  # Add label for backup
+            
+            # Add to drug color legend (using simulation line as representative)
+            drug_handles.append(sim_line)
+            drug_labels.append(drug_name.replace('_', ' ').title())
+            print(f"      ✓ Added {drug_name} to legend (handles: {len(drug_handles)})")
+            
+            # Add empirical resistance overlay for this drug-bacteria combination
+            if empirical_data['resistance'] is not None:
+                emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                    empirical_data['resistance'], 
+                    drug=drug_name, 
+                    bacteria=bacteria_name,
+                    region=None,  # Average across regions
+                    metric_type='resistance_proportion'
+                )
+                
+                if emp_years is not None:
+                    # Plot empirical estimates (dashed line, same color) - no individual label
+                    emp_line = plt.plot(emp_years, emp_means, 
+                            color=drug_color,
+                            linewidth=2, 
+                            linestyle='--', 
+                            alpha=0.7)[0]
+                    
+                    # Add to style legend (only once)
+                    if len(style_handles) == 0:  # First empirical line
+                        style_handles.extend([sim_line, emp_line])
+                        style_labels.extend(['Simulation', 'Empirical Data (90% CI)'])
+                    
+                    # Add confidence interval shadow (same color, very transparent)
+                    if emp_p5 is not None and emp_p95 is not None:
+                        plt.fill_between(emp_years, emp_p5, emp_p95, 
+                                       color=drug_color,
+                                       alpha=0.15)
+                    
+                    print(f"    ✓ Added empirical resistance overlay for {drug_name} vs {bacteria_name}")
+                else:
+                    print(f"    ⚠ No empirical resistance data found for {drug_name} vs {bacteria_name}")
+            
+            found_any_drug = True
+        
+        if not found_any_drug:
+            print(f"  ✗ No valid drug data found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        plt.title(f"Mean Any-R Resistance Level for {bacteria_name.replace('_', ' ').title()} by Drug", fontsize=18, pad=20)
+        plt.ylabel('Mean Any-R Resistance Level (0-1)', fontsize=14)
+        plt.xlabel('Time (Years)', fontsize=14)
+        
+        # Apply consistent y-axis scaling
+        apply_consistent_y_scale(plt.gca(), y_scales)
+        
+        plt.grid(True, alpha=0.3)
+        
+        # 🔧 IMPROVED DUAL LEGEND SYSTEM: Drug colors + Line styles
+        # Create drug color legend (right side, with proper space allocation)
+        print(f"    🔍 DEBUG: drug_handles length = {len(drug_handles)}, found_any_drug = {found_any_drug}")
+        if drug_handles:
+            # Use multiple columns if many drugs to keep legend compact
+            n_drugs = len(drug_handles)
+            ncols = min(2, max(1, n_drugs // 12))  # 1-2 columns based on number of drugs
+            
+            drug_legend = plt.legend(drug_handles, drug_labels, 
+                                   title='Drugs', fontsize=8, title_fontsize=10,
+                                   bbox_to_anchor=(1.02, 1.0), loc='upper left',  # ⬆️ Safer position (1.02 vs 1.05)
+                                   ncol=ncols, framealpha=0.98,
+                                   borderaxespad=0.3)  # ⬆️ Reset to smaller borderaxespad
+            plt.gca().add_artist(drug_legend)  # Keep this legend when adding the second one
+            print(f"    ✓ Added drug legend with {len(drug_handles)} drugs for {bacteria_name}")
+        else:
+            # Fallback: use matplotlib's automatic legend from plot labels
+            plt.legend(title="Drugs", bbox_to_anchor=(1.02, 1.0), loc='upper left', fontsize=8)
+            print(f"    ⚠ Used fallback drug legend for {bacteria_name} - no drug handles created")
+            print(f"    🔍 DEBUG: drug_labels would have been: {drug_labels}")
+        
+        # Create line style legend (outside plot area, below regional legend)
+        if style_handles:
+            style_legend = plt.legend(style_handles, style_labels,
+                                    title='Data Types', fontsize=9, title_fontsize=10,
+                                    bbox_to_anchor=(1.02, 0.6),
+                                    loc='upper left', framealpha=0.98)
+            print(f"    ✓ Added style legend (simulation vs empirical) for {bacteria_name}")
+        else:
+            print(f"    ⚠ No empirical data available for {bacteria_name} - only drug legend shown")
+        
+        plt.tick_params(axis='both', which='major', labelsize=12)
+        plt.tight_layout()  # Use automatic layout
+        
+        filename = f"{bacteria_name}_mean_any_r_by_drug.png"
+        file_path = out_dir / filename
+        plt.savefig(file_path, dpi=PLOT_DPI, bbox_inches='tight', 
+                   pad_inches=0.5, facecolor='white')  # ⬆️ INCREASED padding from 0.3 to 0.5 for legend space
+        plt.close()
+        print(f"  ✓ {file_path} saved with improved legends.")
+
+# =============================================================================
+# MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS (HOSPITAL-ACQUIRED ONLY)
+# =============================================================================
+def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(df):
+    """
+    For each bacteria, plot the mean any_r resistance level for each drug over time,
+    restricted to hospital-acquired infections only.
+    Mean any_r = sum_any_r_hospital / number_currently_infected for each bacteria-drug combination.
+    Each plot is saved as output_graphs/mean_any_r_by_drug_for_each_bacteria_hospital/bacteria_x_mean_any_r_by_drug_hospital.png
+    """
+    print("\n=== CREATING MEAN ANY_R BY DRUG FOR EACH BACTERIA PLOTS (HOSPITAL-ACQUIRED ONLY) ===")
+    out_dir = Path("output_graphs/mean_any_r_by_drug_for_each_bacteria_hospital")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all bacteria by looking for sum_any_r_hospital columns
+    bacteria_names = set()
+    for col in df.columns:
+        if '_sum_any_r_hospital_' in col:
+            bacteria_name = col.split('_sum_any_r_hospital_')[0]
+            bacteria_names.add(bacteria_name)
+    
+    if not bacteria_names:
+        print("No sum_any_r_hospital columns found in data.")
+        return
+    
+    print(f"Found {len(bacteria_names)} bacteria for hospital-acquired mean any_r analysis...")
+    
+    for bacteria_name in bacteria_names:
+        # Check if we have infection data for this bacteria
+        infection_col = f"{bacteria_name}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"  ✗ Missing infection data for {bacteria_name}")
+            continue
+        
+        plt.figure(figsize=(25, 40))  # Same size as other resistance plots
+        
+        # Find all drugs for this bacteria (hospital version)
+        sum_any_r_hospital_columns = [col for col in df.columns if col.startswith(f"{bacteria_name}_sum_any_r_hospital_")]
+        
+        if not sum_any_r_hospital_columns:
+            print(f"  ✗ No sum_any_r_hospital columns found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        found_any_drug = False
+        for col in sum_any_r_hospital_columns:
+            drug_name = col.replace(f"{bacteria_name}_sum_any_r_hospital_", "")
+            
+            # Calculate mean any_r = sum_any_r_hospital / currently_infected
+            sum_any_r_hospital = df[col]
+            currently_infected = df[infection_col]
+            
+            # Calculate mean any_r = sum_any_r_hospital / currently_infected using vectorized operations
+            sum_any_r_hospital = df[col]
+            currently_infected = df[infection_col]
+            
+            # Calculate mean resistance using pandas vectorization, handling division by zero
+            mean_any_r_hospital = pd.Series(index=df.index, dtype=float)
+            mask = currently_infected > 0
+            mean_any_r_hospital[mask] = sum_any_r_hospital[mask] / currently_infected[mask]
+            mean_any_r_hospital[~mask] = float('nan')  # Use NaN instead of 0 for no infections
+            
+            # Apply smoothing
+            mean_any_r_hospital_smooth = mean_any_r_hospital.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            plt.plot(df['time_in_years'], mean_any_r_hospital_smooth, 
+                    label=drug_name.replace('_', ' ').title(), 
+                    linewidth=7)
+            found_any_drug = True
+        
+        if not found_any_drug:
+            print(f"  ✗ No valid drug data found for {bacteria_name}")
+            plt.close()
+            continue
+        
+        plt.title(f"Mean Any-R Resistance Level for {bacteria_name.replace('_', ' ').title()} by Drug\n(Hospital-Acquired Infections Only)", fontsize=60)
+        plt.ylabel('Mean Any-R Resistance Level (0-1)', fontsize=60)
+        plt.xlabel('Time (Years)', fontsize=60)
+        plt.ylim(0, 1)
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Drug', fontsize=30, title_fontsize=36)
+        plt.tick_params(axis='both', which='major', labelsize=45)
+        plt.tight_layout()
+        
+        filename = f"{bacteria_name}_mean_any_r_by_drug_hospital.png"
+        file_path = out_dir / filename
+        plt.savefig(file_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {file_path} saved.")
+
+# =============================================================================
+# RESISTANCE MECHANISM PROPORTION BY BACTERIA PLOTS
+# =============================================================================
+def create_resistance_mechanism_by_bacteria_plots(df):
+    """
+    For each bacteria, plot the proportion of infected individuals with each resistance mechanism.
+    Each plot is saved as output_graphs/resistance_mechanism_by_bacteria/bacteria_x_resistance_mechanism.png
+    """
+    print("\n=== CREATING RESISTANCE MECHANISM PROPORTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/resistance_mechanism_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Identify bacteria and mechanisms from columns
+    bacteria_names = []
+    mechanism_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected"):
+            bacteria_names.append(col.replace("_currently_infected", ""))
+    for col in df.columns:
+        if "_infected_with_" in col:
+            parts = col.split("_infected_with_")
+            if len(parts) == 2:
+                mechanism_names.append(parts[1])
+    mechanism_names = sorted(set(mechanism_names))
+    for b in bacteria_names:
+        infected_col = f"{b}_currently_infected"
+        if infected_col not in df.columns:
+            continue
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        for mech in mechanism_names:
+            mech_col = f"{b}_infected_with_{mech}"
+            if mech_col not in df.columns:
+                continue
+            prop = safe_divide(df[mech_col], df[infected_col])
+            prop_smooth = pd.Series(prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            plt.plot(df['time_in_years'], prop_smooth, label=mech.replace('_', ' ').title(), linewidth=7)
+        plt.title(f"Proportion of Infected with Resistance Mechanism by Bacteria: {b.replace('_', ' ').title()}", fontsize=40)
+        plt.ylabel('Proportion of Infected', fontsize=40)
+        plt.xlabel('Time (Years)', fontsize=40)
+        plt.ylim(0, 1)
+        plt.grid(True, alpha=0.3)
+        plt.legend(title='Resistance Mechanism', fontsize=20, title_fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=30)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        fname = out_dir / f"{b}_resistance_mechanism.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print(f"  ✓ {fname} saved.")
+
+# =============================================================================
+# SOURCE OF NEW RESISTANCE BY BACTERIA-DRUG PLOTS
+# =============================================================================
+
+def create_source_of_new_resistance_by_drug_bacteria_plots(df):
+    """
+    For each bacteria-drug combination, create stacked area charts showing 
+    the contribution of each resistance acquisition mechanism over time.
+    Each plot is saved as output_graphs/source_of_new_resistance_by_drug_bacteria/bacteria_drug_new_resistance_sources.png
+    """
+    print("\n=== CREATING SOURCE OF NEW RESISTANCE PLOTS FOR EACH BACTERIA-DRUG COMBINATION ===")
+    out_dir = Path("output_graphs/source_of_new_resistance_by_drug_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Identify bacteria and drugs from new resistance acquisition columns
+    bacteria_drug_pairs = []
+    acquisition_types = ['at_infection_community', 'at_infection_env', 'at_infection_tb', 'hgt', 'from_microbiome_r']
+    
+    for col in df.columns:
+        if col.endswith("_new_resistance_at_infection_community"):
+            # Extract bacteria_drug from column name
+            bacteria_drug = col.replace("_new_resistance_at_infection_community", "")
+            bacteria_drug_pairs.append(bacteria_drug)
+    
+    bacteria_drug_pairs = sorted(set(bacteria_drug_pairs))
+    
+    print(f"Found {len(bacteria_drug_pairs)} bacteria-drug combinations to analyze...")
+    
+    # Color scheme for the 5 acquisition types (added TB-specific)
+    colors = {
+        'at_infection_community': '#1f77b4',  # blue
+        'at_infection_env': '#ff7f0e',        # orange  
+        'at_infection_tb': '#9467bd',         # purple (new for TB-specific acquisition)
+        'hgt': '#2ca02c',                     # green
+        'from_microbiome_r': '#d62728'        # red
+    }
+    
+    labels = {
+        'at_infection_community': 'Community Infection',
+        'at_infection_env': 'Environmental Infection',
+        'at_infection_tb': 'TB-Specific Acquisition',
+        'hgt': 'Horizontal Gene Transfer',
+        'from_microbiome_r': 'From Microbiome'
+    }
+    
+    for bacteria_drug in bacteria_drug_pairs:
+        # Check if all required columns exist
+        required_cols = [f"{bacteria_drug}_new_resistance_{acq_type}" for acq_type in acquisition_types]
+        if not all(col in df.columns for col in required_cols):
+            print(f"  ⚠ Skipping {bacteria_drug} - missing required columns")
+            continue
+            
+        # Extract data for this bacteria-drug combination
+        data = {}
+        for acq_type in acquisition_types:
+            col_name = f"{bacteria_drug}_new_resistance_{acq_type}"
+            # Apply smoothing to reduce noise
+            data[acq_type] = pd.Series(df[col_name]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+        
+        # Create line plot
+        plt.figure(figsize=(int(FIG_W * 1.5), int(FIG_H)))
+        
+        # Plot each acquisition type as a separate line
+        for acq_type in acquisition_types:
+            plt.plot(df['time_in_years'], data[acq_type], 
+                    label=labels[acq_type], color=colors[acq_type], 
+                    linewidth=2, alpha=0.8)
+        
+        # Format the plot
+        bacteria_name = bacteria_drug.split('_')[:-1]  # Remove drug name
+        drug_name = bacteria_drug.split('_')[-1]       # Get drug name
+        bacteria_display = ' '.join(bacteria_name).replace('_', ' ').title()
+        drug_display = drug_name.replace('_', ' ').title()
+        
+        plt.title(f"New Resistance Acquisition Sources Over Time\n{bacteria_display} - {drug_display}", 
+                 fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('New Resistance Cases per Timestep (Smoothed)', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.legend(loc='upper right', fontsize=10)
+        plt.tick_params(axis='both', which='major', labelsize=10)
+        
+        # Set y-axis to start from 0
+        plt.ylim(bottom=0)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        safe_bacteria_drug = bacteria_drug.replace(' ', '_').replace('/', '_')
+        fname = out_dir / f"{safe_bacteria_drug}_new_resistance_sources.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        if len(bacteria_drug_pairs) <= 10:  # Only print individual confirmations for small numbers
+            print(f"  ✓ {fname} saved.")
+    
+    print(f"✓ Completed {len(bacteria_drug_pairs)} source of new resistance plots.")
+
+# =============================================================================
+# INFECTION RESOLUTION TRACKING PLOTS
+# =============================================================================
+def create_infection_resolution_by_bacteria_plots(df):
+    """
+    For each bacteria, create stacked area plots showing percentage of infection resolution outcomes.
+    Each plot shows 5 stacked areas (one for each resolution type) with percentages that sum to 100%
+    when resolutions occur, and are blank when no resolutions occur.
+    Each plot is saved as output_graphs/infection_resolution_by_bacteria/bacteria_x_infection_resolution.png
+    """
+    print("\n=== CREATING INFECTION RESOLUTION PLOTS FOR EACH BACTERIA ===")
+    out_dir = Path("output_graphs/infection_resolution_by_bacteria")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find bacteria with infection resolution data
+    bacteria_with_resolution_data = set()
+    resolution_types = ['immune_clearance', 'drug_assisted_clearance', 'death_from_sepsis', 
+                       'death_from_background', 'death_from_toxicity']
+    
+    for col in df.columns:
+        if 'infection_resolution' in col:
+            # Extract bacteria name from column like "bacteria_name_infection_resolution_immune_clearance"
+            parts = col.split('_infection_resolution_')
+            if len(parts) == 2:
+                bacteria_name = parts[0]
+                bacteria_with_resolution_data.add(bacteria_name)
+    
+    if not bacteria_with_resolution_data:
+        print("No infection resolution data found in dataset.")
+        return
+    
+    print(f"Found {len(bacteria_with_resolution_data)} bacteria with resolution data...")
+    
+    # Color scheme for the 5 resolution types
+    colors = {
+        'immune_clearance': '#2ca02c',      # green - good outcome
+        'drug_assisted_clearance': '#1f77b4',  # blue - treatment success
+        'death_from_sepsis': '#d62728',     # red - worst outcome
+        'death_from_background': '#ff7f0e', # orange - unrelated death
+        'death_from_toxicity': '#9467bd'    # purple - treatment complication
+    }
+    
+    labels = {
+        'immune_clearance': 'Immune Clearance',
+        'drug_assisted_clearance': 'Drug-Assisted Clearance',
+        'death_from_sepsis': 'Death from Sepsis',
+        'death_from_background': 'Death from Background Causes',
+        'death_from_toxicity': 'Death from Drug Toxicity'
+    }
+    
+    for bacteria_name in sorted(bacteria_with_resolution_data):
+        # Check if all required columns exist
+        required_cols = [f"{bacteria_name}_infection_resolution_{res_type}" for res_type in resolution_types]
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        
+        if missing_cols:
+            print(f"  ⚠ Skipping {bacteria_name} - missing columns: {missing_cols}")
+            continue
+        
+        # Extract raw data for this bacteria
+        raw_data = {}
+        for res_type in resolution_types:
+            col_name = f"{bacteria_name}_infection_resolution_{res_type}"
+            raw_data[res_type] = df[col_name].values
+        
+        # Calculate total resolutions per timestep
+        total_resolutions = np.array([sum(raw_data[rt][i] for rt in resolution_types) 
+                                    for i in range(len(df))])
+        
+        # Find timesteps where we have resolutions
+        has_resolutions = total_resolutions > 0
+        
+        if not np.any(has_resolutions):
+            print(f"  ⚠ Skipping {bacteria_name} - no resolution events found")
+            continue
+        
+        # Calculate percentages for each resolution type
+        percentages = {}
+        for res_type in resolution_types:
+            percentages[res_type] = np.where(has_resolutions, 
+                                           (raw_data[res_type] / total_resolutions) * 100, 
+                                           0)  # Use 0 instead of NaN for stackplot
+        
+        # Create stacked area plot
+        plt.figure(figsize=(int(FIG_W * 1.5), int(FIG_H)))
+        
+        # Only plot timesteps where we have resolutions
+        time_with_resolutions = df['time_in_years'][has_resolutions]
+        
+        # Prepare data for stackplot (only timesteps with resolutions)
+        stack_data = []
+        stack_labels = []
+        stack_colors = []
+        
+        for res_type in resolution_types:
+            data_for_stack = percentages[res_type][has_resolutions]
+            if np.any(data_for_stack > 0):  # Only include if this type actually occurs
+                stack_data.append(data_for_stack)
+                stack_labels.append(labels[res_type])
+                stack_colors.append(colors[res_type])
+        
+        if stack_data:
+            plt.stackplot(time_with_resolutions, *stack_data, 
+                         labels=stack_labels, colors=stack_colors, alpha=0.8)
+        
+        # Format the plot
+        bacteria_display = bacteria_name.replace('_', ' ').title()
+        plt.title(f"Infection Resolution Outcomes Over Time\n{bacteria_display}", 
+                 fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('Percentage of Resolutions by Cause (%)', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.legend(loc='upper right', fontsize=10)
+        plt.tick_params(axis='both', which='major', labelsize=10)
+        
+        # Set y-axis to show percentages (0-100%)
+        plt.ylim(0, 100)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        safe_bacteria_name = bacteria_name.replace(' ', '_').replace('/', '_')
+        fname = out_dir / f"{safe_bacteria_name}_infection_resolution.png"
+        plt.savefig(fname, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        if len(bacteria_with_resolution_data) <= 10:  # Only print individual confirmations for small numbers
+            print(f"  ✓ {fname} saved.")
+    
+    print(f"✓ Completed {len(bacteria_with_resolution_data)} infection resolution plots.")
+
+
+def create_age_distribution_by_region_plots(df):
+    """Create age distribution plots for each region separately."""
+    print("=== CREATING AGE DISTRIBUTION BY REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/age_distribution_by_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define age groups and regions
+    age_group_cols = [
+        ('prop_age_0_5', '0-5 years'),
+        ('prop_age_6_14', '6-14 years'), 
+        ('prop_age_15_49', '15-49 years'),
+        ('prop_age_50_79', '50-79 years'),
+        ('prop_age_80plus', '80+ years')
+    ]
+    
+    regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    
+    # Check if we have age data columns
+    age_cols_exist = all(col in df.columns for col, _ in age_group_cols)
+    if not age_cols_exist:
+        print("  ⚠ Missing age distribution columns - skipping age distribution by region plots")
+        return
+    
+    # Check if we have regional age data (these would be named like north_america_prop_age_0_5)
+    regional_age_data = {}
+    for region in regions:
+        regional_age_data[region] = []
+        for age_col, age_label in age_group_cols:
+            regional_col = f"{region}_{age_col}"
+            if regional_col in df.columns:
+                regional_age_data[region].append((regional_col, age_label))
+        
+        if len(regional_age_data[region]) == 0:
+            print(f"  ⚠ No regional age data found for {region}")
+        else:
+            print(f"  ✓ Found {len(regional_age_data[region])} age groups for {region}")
+    
+    # Create plots for each region that has data
+    plots_created = 0
+    for region in regions:
+        if len(regional_age_data[region]) == 0:
+            continue
+            
+        # Create the plot
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        
+        # Plot age groups for this region
+        colors = plt.cm.tab10(np.linspace(0, 1, len(regional_age_data[region])))
+        
+        for (col, label), color in zip(regional_age_data[region], colors):
+            # Apply smoothing
+            smoothed_data = pd.Series(df[col]).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            
+            ax.plot(df['time_in_years'], smoothed_data, 
+                   label=label, linewidth=2, color=color)
+        
+        # Formatting
+        region_title = region.replace('_', ' ').title()
+        ax.set_title(f'Age Distribution Over Time - {region_title}')
+        ax.set_xlabel('Time (Years)')
+        ax.set_ylabel('Proportion of Living Population')
+        ax.set_ylim(0, 1)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add summary statistics
+        if len(regional_age_data[region]) > 0:
+            # Find the most populous age group at the end of simulation
+            final_proportions = []
+            age_labels = []
+            for col, label in regional_age_data[region]:
+                final_prop = df[col].iloc[-1] if len(df) > 0 else 0
+                final_proportions.append(final_prop)
+                age_labels.append(label)
+            
+            if final_proportions:
+                max_idx = np.argmax(final_proportions)
+                max_prop = final_proportions[max_idx]
+                max_age_group = age_labels[max_idx]
+                
+                # Get final total population for this region
+                pop_col = f"{region}_population"
+                final_pop = df[pop_col].iloc[-1] if pop_col in df.columns and len(df) > 0 else 0
+                
+                textstr = f'Final population: {int(final_pop):,}\nLargest age group: {max_age_group}\n({max_prop:.1%} of {region_title})'
+                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+                ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+                       verticalalignment='top', bbox=props)
+        
+        # Save the plot
+        filename = f"{region}_age_distribution.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        plots_created += 1
+        print(f"  ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No age distribution plots created - missing regional age data columns")
+        print("  Expected columns like: north_america_prop_age_0_5, asia_prop_age_15_49, etc.")
+    else:
+        print(f"✓ Created {plots_created} age distribution plots by region")
+
+
+def create_death_rate_by_region_plots(df):
+    """Create death rate plots for each region separately (like Figure 2 bottom-right)."""
+    print("=== CREATING DEATH RATE BY REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/death_rate_by_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    
+    # Check if we have regional death and population data
+    required_cols = []
+    for region in regions:
+        required_cols.extend([
+            f"{region}_population",
+            f"{region}_deaths_background", 
+            f"{region}_deaths_sepsis",
+            f"{region}_deaths_drug_toxicity"
+        ])
+    
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        print(f"  ⚠ Missing regional death data columns: {missing_cols[:5]}...")
+        print("  Expected columns like: north_america_deaths_background, asia_deaths_sepsis, etc.")
+        return
+    
+    plots_created = 0
+    for region in regions:
+        # Get population and death data for this region
+        pop_col = f"{region}_population"
+        death_bg_col = f"{region}_deaths_background"
+        death_sepsis_col = f"{region}_deaths_sepsis"
+        death_tox_col = f"{region}_deaths_drug_toxicity"
+        
+        if all(col in df.columns for col in [pop_col, death_bg_col, death_sepsis_col, death_tox_col]):
+            # Create the plot
+            fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+            
+            # Calculate total deaths for this region
+            total_deaths = df[death_bg_col] + df[death_sepsis_col] + df[death_tox_col]
+            
+            # Calculate death proportion (deaths per population)
+            death_proportion = total_deaths / df[pop_col].replace(0, 1)  # Avoid division by zero
+            
+            # Apply smoothing
+            smoothed_death_prop = pd.Series(death_proportion).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            
+            # Plot death proportion over time
+            ax.plot(df['time_in_years'], smoothed_death_prop, 
+                   label='Total Death Rate', linewidth=2, color='red')
+            
+            # Optional: Plot death causes separately
+            death_bg_prop = df[death_bg_col] / df[pop_col].replace(0, 1)
+            death_sepsis_prop = df[death_sepsis_col] / df[pop_col].replace(0, 1)
+            death_tox_prop = df[death_tox_col] / df[pop_col].replace(0, 1)
+            
+            # Smooth individual death types
+            smooth_bg = pd.Series(death_bg_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smooth_sepsis = pd.Series(death_sepsis_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smooth_tox = pd.Series(death_tox_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            
+            ax.plot(df['time_in_years'], smooth_bg, label='Background Mortality', linewidth=1, color='gray', alpha=0.7)
+            ax.plot(df['time_in_years'], smooth_sepsis, label='Sepsis Deaths', linewidth=1, color='orange', alpha=0.7)
+            ax.plot(df['time_in_years'], smooth_tox, label='Drug Toxicity Deaths', linewidth=1, color='purple', alpha=0.7)
+            
+            # Formatting
+            region_title = region.replace('_', ' ').title()
+            ax.set_title(f'Death Rate Over Time - {region_title}')
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Proportion of Population Dying')
+            ax.set_ylim(0, None)  # Start from 0, auto-scale maximum
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            # Add summary statistics
+            final_pop = df[pop_col].iloc[-1] if len(df) > 0 else 0
+            total_deaths_final = total_deaths.sum()
+            max_death_rate = smoothed_death_prop.max()
+            
+            textstr = f'Final population: {int(final_pop):,}\nTotal deaths: {int(total_deaths_final):,}\nPeak death rate: {max_death_rate:.4f}'
+            props = dict(boxstyle='round', facecolor='lightcoral', alpha=0.8)
+            ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+                   verticalalignment='top', bbox=props)
+            
+            # Save the plot
+            filename = f"{region}_death_rate.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            print(f"  ⚠ Missing death data for {region}")
+    
+    if plots_created == 0:
+        print("  ⚠ No death rate plots created - missing regional death data columns")
+        print("  Expected columns like: north_america_deaths_background, asia_deaths_sepsis, etc.")
+    else:
+        print(f"✓ Created {plots_created} death rate plots by region")
+
+
+def create_age_specific_death_rate_by_region_plots(df):
+    """Create age-specific death rate plots for each region."""
+    print("=== CREATING AGE-SPECIFIC DEATH RATE BY REGION PLOTS ===")
+    
+    # Create output directory
+    output_dir = Path("output_graphs/age specific death rates")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and age groups
+    regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    age_groups = ['prop_age_0_5', 'prop_age_6_14', 'prop_age_15_49', 'prop_age_50_79', 'prop_age_80plus']
+    age_labels = ['0-5 years', '6-14 years', '15-49 years', '50-79 years', '80+ years']
+    death_types = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    death_labels = ['Background Mortality', 'Sepsis Deaths', 'Drug Toxicity Deaths']
+    
+    # Colors matching Figure 2 exactly
+    death_colors = ['gray', 'red', 'orange']  # Background, Sepsis, Drug Toxicity
+    total_color = 'black'  # All-cause deaths
+    
+    plots_created = 0
+    
+    # Create plots for each region
+    for region in regions:
+        # Check if we have population data for this region
+        pop_col = f"{region}_population"
+        if pop_col not in df.columns:
+            print(f"  ⚠ Missing population data for {region}")
+            continue
+        
+        # Check if we have age-specific death data
+        age_death_data_available = False
+        for age_group in age_groups:
+            for death_type in death_types:
+                death_col = f"{region}_{age_group}_{death_type}"
+                if death_col in df.columns:
+                    age_death_data_available = True
+                    break
+            if age_death_data_available:
+                break
+        
+        if not age_death_data_available:
+            print(f"  ⚠ Missing age-specific death data for {region}")
+            continue
+        
+        # Create subplot grid: one subplot for each age group
+        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        axes = axes.flatten()
+        
+        # First pass: calculate maximum death rate across age groups for consistent y-axis
+        # Separate scaling for 80+ vs younger age groups
+        max_death_rate_young = 0  # For ages 0-79
+        max_death_rate_elderly = 0  # For ages 80+
+        
+        for age_group in age_groups:
+            age_pop_col = f"{region}_{age_group}"
+            if age_pop_col in df.columns:
+                region_pop = df[pop_col].replace(0, 1)
+                age_proportion = df[age_pop_col]
+                age_population = region_pop * age_proportion
+                
+                for death_type in death_types:
+                    death_col = f"{region}_{age_group}_{death_type}"
+                    if death_col in df.columns:
+                        death_rate = df[death_col] / age_population.replace(0, 1)
+                        smoothed_rate = pd.Series(death_rate).rolling(
+                            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                        ).mean()
+                        max_rate = smoothed_rate.max()
+                        if not pd.isna(max_rate):
+                            if age_group == 'prop_age_80plus':
+                                max_death_rate_elderly = max(max_death_rate_elderly, max_rate)
+                            else:
+                                max_death_rate_young = max(max_death_rate_young, max_rate)
+        
+        # Set y-axis limits with padding
+        y_max_young = max_death_rate_young * 1.1 if max_death_rate_young > 0 else 0.01
+        y_max_elderly = max_death_rate_elderly * 1.1 if max_death_rate_elderly > 0 else 0.01
+        
+        for age_idx, (age_group, age_label) in enumerate(zip(age_groups, age_labels)):
+            ax = axes[age_idx]
+            
+            # Get age-specific population data for this region and age group
+            age_pop_col = f"{region}_{age_group}"
+            if age_pop_col not in df.columns:
+                ax.text(0.5, 0.5, f'No population data\nfor {age_label}', 
+                       transform=ax.transAxes, ha='center', va='center')
+                ax.set_title(f'{age_label}')
+                continue
+            
+            # Calculate age-specific population count
+            region_pop = df[pop_col].replace(0, 1)  # Avoid division by zero
+            age_proportion = df[age_pop_col]
+            age_population = region_pop * age_proportion
+            
+            # Plot death rates for each death type
+            death_rates = {}  # Store death rates to calculate total
+            
+            for death_idx, (death_type, death_label, color) in enumerate(zip(death_types, death_labels, death_colors)):
+                death_col = f"{region}_{age_group}_{death_type}"
+                
+                if death_col in df.columns:
+                    # Calculate death rate (deaths per age-specific population)
+                    death_rate = df[death_col] / age_population.replace(0, 1)
+                    
+                    # Apply smoothing
+                    smoothed_rate = pd.Series(death_rate).rolling(
+                        window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                    ).mean()
+                    
+                    # Store for total calculation
+                    death_rates[death_type] = smoothed_rate
+                    
+                    ax.plot(df['time_in_years'], smoothed_rate, 
+                           label=death_label, linewidth=2, color=color, alpha=0.8)
+            
+            # Calculate and plot total deaths (all-cause)
+            if death_rates:
+                total_deaths = sum(death_rates.values())
+                ax.plot(df['time_in_years'], total_deaths, 
+                       label='All-cause', linewidth=2, color=total_color, alpha=0.9)
+            
+            # Formatting
+            ax.set_title(f'{age_label}')
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Death Rate')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            
+            # Set y-axis limits: different scales for 80+ vs younger groups
+            if age_group == 'prop_age_80plus':
+                ax.set_ylim(0, y_max_elderly)
+            else:
+                ax.set_ylim(0, y_max_young)
+        
+        # Hide the last subplot if we have 5 age groups (2x3 grid)
+        if len(age_groups) == 5:
+            axes[5].set_visible(False)
+        
+        # Overall title
+        region_title = region.replace('_', ' ').title()
+        fig.suptitle(f'Age-Specific Death Rates Over Time - {region_title}', fontsize=16)
+        
+        # Tight layout
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"{region}_age_specific_death_rates.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        plots_created += 1
+        print(f"  ✓ {filename} saved")
+    
+    # Create combined plot for all regions
+    if plots_created > 0:
+        print("  Creating combined plot for all regions...")
+        
+        # Create subplot grid for combined plot
+        fig_combined, axes_combined = plt.subplots(2, 3, figsize=(18, 12))
+        axes_combined = axes_combined.flatten()
+        
+        # Calculate global maximum death rate across all regions for separate y-axis scaling
+        global_max_death_rate_young = 0  # For ages 0-79
+        global_max_death_rate_elderly = 0  # For ages 80+
+        total_death_rates_by_age = {age_group: {'background': None, 'sepsis': None, 'toxicity': None} for age_group in age_groups}
+        
+        for age_idx, age_group in enumerate(age_groups):
+            # Initialize totals for this age group
+            total_background = pd.Series(0, index=df.index)
+            total_sepsis = pd.Series(0, index=df.index)
+            total_toxicity = pd.Series(0, index=df.index)
+            total_population = pd.Series(0, index=df.index)
+            
+            # Sum across all regions
+            for region in regions:
+                pop_col = f"{region}_population"
+                age_pop_col = f"{region}_{age_group}"
+                
+                if pop_col in df.columns and age_pop_col in df.columns:
+                    region_pop = df[pop_col].replace(0, 1)
+                    age_proportion = df[age_pop_col]
+                    age_population = region_pop * age_proportion
+                    total_population += age_population
+                    
+                    # Add deaths from this region
+                    for death_type in death_types:
+                        death_col = f"{region}_{age_group}_{death_type}"
+                        if death_col in df.columns:
+                            if death_type == 'deaths_background':
+                                total_background += df[death_col]
+                            elif death_type == 'deaths_sepsis':
+                                total_sepsis += df[death_col]
+                            elif death_type == 'deaths_drug_toxicity':
+                                total_toxicity += df[death_col]
+            
+            # Calculate death rates for combined data
+            if total_population.sum() > 0:
+                background_rate = total_background / total_population.replace(0, 1)
+                sepsis_rate = total_sepsis / total_population.replace(0, 1)
+                toxicity_rate = total_toxicity / total_population.replace(0, 1)
+                
+                # Apply smoothing
+                background_smooth = pd.Series(background_rate).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                sepsis_smooth = pd.Series(sepsis_rate).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                toxicity_smooth = pd.Series(toxicity_rate).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Store for plotting
+                total_death_rates_by_age[age_group]['background'] = background_smooth
+                total_death_rates_by_age[age_group]['sepsis'] = sepsis_smooth
+                total_death_rates_by_age[age_group]['toxicity'] = toxicity_smooth
+                
+                # Update global max for appropriate age group
+                for rate in [background_smooth, sepsis_smooth, toxicity_smooth]:
+                    max_rate = rate.max()
+                    if not pd.isna(max_rate):
+                        if age_group == 'prop_age_80plus':
+                            global_max_death_rate_elderly = max(global_max_death_rate_elderly, max_rate)
+                        else:
+                            global_max_death_rate_young = max(global_max_death_rate_young, max_rate)
+        
+        # Set global y-axis limits with padding
+        global_y_max_young = global_max_death_rate_young * 1.1 if global_max_death_rate_young > 0 else 0.01
+        global_y_max_elderly = global_max_death_rate_elderly * 1.1 if global_max_death_rate_elderly > 0 else 0.01
+        
+        # Plot each age group
+        for age_idx, (age_group, age_label) in enumerate(zip(age_groups, age_labels)):
+            ax = axes_combined[age_idx]
+            
+            rates = total_death_rates_by_age[age_group]
+            
+            # Plot individual death types
+            if rates['background'] is not None:
+                ax.plot(df['time_in_years'], rates['background'], label='Background Mortality', linewidth=2, color='gray', alpha=0.8)
+            if rates['sepsis'] is not None:
+                ax.plot(df['time_in_years'], rates['sepsis'], label='Sepsis Deaths', linewidth=2, color='red', alpha=0.8)
+            if rates['toxicity'] is not None:
+                ax.plot(df['time_in_years'], rates['toxicity'], label='Drug Toxicity Deaths', linewidth=2, color='orange', alpha=0.8)
+            
+            # Plot total deaths
+            if all(rates[key] is not None for key in rates.keys()):
+                total_combined = rates['background'] + rates['sepsis'] + rates['toxicity']
+                ax.plot(df['time_in_years'], total_combined, label='All-cause', linewidth=2, color='black', alpha=0.9)
+            
+            # Formatting
+            ax.set_title(f'{age_label}')
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Death Rate')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            
+            # Set y-axis limits: different scales for 80+ vs younger groups
+            if age_group == 'prop_age_80plus':
+                ax.set_ylim(0, global_y_max_elderly)
+            else:
+                ax.set_ylim(0, global_y_max_young)
+        
+        # Hide the last subplot if we have 5 age groups
+        if len(age_groups) == 5:
+            axes_combined[5].set_visible(False)
+        
+        # Overall title
+        fig_combined.suptitle('Age-Specific Death Rates Over Time - All Regions Combined', fontsize=16)
+        
+        # Tight layout and save
+        plt.tight_layout()
+        combined_filename = "all_regions_combined_age_specific_death_rates.png"
+        combined_filepath = output_dir / combined_filename
+        plt.savefig(combined_filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        
+        print(f"  ✓ {combined_filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No age-specific death rate plots created - missing required data columns")
+        print("  Expected columns like: north_america_prop_age_0_5_deaths_background, etc.")
+    else:
+        print(f"✓ Created {plots_created} age-specific death rate plots by region")
+        print(f"✓ Created 1 combined plot for all regions")
+
+
+def create_incidence_of_infection_plots(df):
+    """Create incidence of infection plots by bacteria and region.
+    
+    Creates one plot per bacteria showing incidence rate (newly infected / population)
+    for each region over time, with empirical overlay support.
+    """
+    print("\n=== Creating incidence of infection plots ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'incidence_of_infection'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and their population columns
+    regions = {
+        'North America': 'north_america_population',
+        'South America': 'south_america_population', 
+        'Africa': 'africa_population',
+        'Asia': 'asia_population',
+        'Europe': 'europe_population',
+        'Oceania': 'oceania_population'
+    }
+    
+    # Define region colors for consistent coloring
+    region_colors = {
+        'North America': '#1f77b4',  # blue
+        'South America': '#ff7f0e',  # orange
+        'Africa': '#2ca02c',         # green
+        'Asia': '#d62728',           # red
+        'Europe': '#9467bd',         # purple
+        'Oceania': '#8c564b'         # brown
+    }
+    
+    # Extract bacteria names from newly infected columns
+    newly_infected_cols = [col for col in df.columns if '_newly_infected_' in col and 
+                          any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    
+    bacteria_set = set()
+    for col in newly_infected_cols:
+        # Extract bacteria name (everything before '_newly_infected_')
+        bacteria = col.split('_newly_infected_')[0]
+        bacteria_set.add(bacteria)
+    
+    bacteria_list = sorted(bacteria_set)
+    
+    if not bacteria_list:
+        print("  ⚠ No bacteria found with newly infected data")
+        return
+    
+    # Calculate consistent y-axis scale for all incidence plots
+    y_scales = calculate_global_y_scales(df, 'incidence', entities=bacteria_list)
+    print(f"   📊 Using consistent y-axis scale: {y_scales['y_min']:.6f} to {y_scales['y_max']:.6f}")
+    
+    print(f"  Found {len(bacteria_list)} bacteria with newly infected data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        for region_name, pop_col in regions.items():
+            # Check if population column exists
+            if pop_col not in df.columns:
+                continue
+                
+            # Construct newly infected column name
+            region_suffix = region_name.lower().replace(' ', '_')
+            newly_infected_col = f"{bacteria}_newly_infected_{region_suffix}"
+            
+            if newly_infected_col not in df.columns:
+                continue
+            
+            # Get consistent color for this region
+            region_color = region_colors.get(region_name, '#000000')
+            
+            # Calculate annual incidence rate per 100,000 population (epidemiological standard)
+            # Create annual aggregation to match empirical data time scale
+            sim_df = pd.DataFrame({
+                'time_in_years': df['time_in_years'],
+                'year': df['time_in_years'].astype(int),  # Convert to integer year
+                'population': df[pop_col],
+                'newly_infected': df[newly_infected_col]
+            })
+            
+            # Group by year and sum newly infected cases
+            annual_data = sim_df.groupby('year').agg({
+                'time_in_years': 'mean',  # Use mid-year as representative time
+                'population': 'mean',     # Average population for the year
+                'newly_infected': 'sum'   # Sum all new infections in the year
+            }).reset_index()
+            
+            # Calculate annual incidence rate per 100,000 population
+            mask = annual_data['population'] > 0
+            incidence_rate = pd.Series(0.0, index=annual_data.index)
+            incidence_rate[mask] = (annual_data['newly_infected'][mask] / annual_data['population'][mask]) * 100000
+            
+            # Use annual data for plotting (no additional smoothing needed)
+            time_years = annual_data['time_in_years']
+            incidence_rate_smooth = incidence_rate
+            
+            # Plot simulation data (solid line) - now using annual aggregated data
+            ax.plot(time_years, incidence_rate_smooth, 
+                   color=region_color,
+                   label=f"Simulation: {region_name}", 
+                   linewidth=3,
+                   linestyle='-')
+            
+            # Add empirical overlay if available
+            if empirical_data['incidence'] is not None:
+                emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                    empirical_data['incidence'], 
+                    bacteria=bacteria,
+                    region=region_name.lower().replace(' ', '_')
+                )
+                
+                if emp_years is not None:
+                    # Plot empirical estimates (dashed line, same color)
+                    ax.plot(emp_years, emp_means, 
+                           color=region_color,
+                           label=f"Empirical: {region_name}", 
+                           linewidth=2,
+                           linestyle='--',
+                           alpha=0.8)
+                    
+                    # Add confidence interval shadow (same color, very transparent)
+                    if emp_p5 is not None and emp_p95 is not None:
+                        ax.fill_between(emp_years, emp_p5, emp_p95, 
+                                       color=region_color,
+                                       alpha=0.1)  # Remove label to avoid legend clutter
+                    
+                    print(f"    ✓ Added empirical incidence overlay for {bacteria} in {region_name}")
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time (Years)', fontsize=12)
+            ax.set_ylabel('Incidence Rate (per 100,000 population)', fontsize=12)
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Incidence of {bacteria_title} Infection by Region', fontsize=14)
+            
+            # 🔧 DUAL LEGEND SYSTEM: Regional colors + Line styles
+            # Create regional color legend (right side)
+            region_handles = []
+            region_labels = []
+            
+            # Collect handles for regional legend (use simulation lines as representative)
+            for region_name in regions.keys():
+                region_suffix = region_name.lower().replace(' ', '_')
+                newly_infected_col = f"{bacteria}_newly_infected_{region_suffix}"
+                if newly_infected_col in df.columns:
+                    color = region_colors.get(region_name, '#000000')
+                    # Create a representative line for this region
+                    sim_handle = plt.Line2D([0], [0], color=color, linewidth=3, linestyle='-')
+                    region_handles.append(sim_handle)
+                    region_labels.append(region_name)
+            
+            # Create regional legend
+            if region_handles:
+                region_legend = ax.legend(region_handles, region_labels,
+                                        title="Regions", 
+                                        bbox_to_anchor=(1.02, 1), 
+                                        loc='upper left',
+                                        fontsize=9,
+                                        title_fontsize=10)
+                ax.add_artist(region_legend)  # Keep this legend when adding the next one
+            
+            # Create style legend (if empirical data was plotted)
+            if empirical_data['incidence'] is not None:
+                sim_line = plt.Line2D([0], [0], color='gray', linewidth=3, linestyle='-')
+                emp_line = plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='--')
+                style_handles = [sim_line, emp_line]
+                style_labels = ['Simulation', 'Empirical Data (90% CI)']
+                
+                style_legend = ax.legend(style_handles, style_labels,
+                                       title="Data Type",
+                                       bbox_to_anchor=(1.02, 0.6),
+                                       loc='upper left',
+                                       fontsize=9,
+                                       title_fontsize=10)
+            
+            # 🔧 FIXED Y-AXIS SCALING: Use consistent global scale for all incidence plots
+            # Apply global y-axis scale calculated from annual aggregated data
+            apply_consistent_y_scale(ax, y_scales)
+            
+            ax.grid(True, alpha=0.3)
+            
+            # Add note about confidence intervals
+            ax.text(0.02, 0.98, "Shaded areas: Empirical 90% CI", 
+                   transform=ax.transAxes, fontsize=8, 
+                   verticalalignment='top', alpha=0.7)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{bacteria}_incidence_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No incidence plots created - missing required data columns")
+        print("  Expected columns like: bacteria_newly_infected_north_america and region population columns")
+    else:
+        print(f"✓ Created {plots_created} incidence of infection plots")
+
+
+def create_incidence_of_infection_hospital_plots(df):
+    """Create hospital incidence of infection plots by bacteria and region.
+    
+    Creates one plot per bacteria showing hospital-acquired incidence rate 
+    (newly infected in hospital / hospital population) for each region over time.
+    """
+    print("\n=== Creating hospital incidence of infection plots ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'incidence_of_infection_hospital'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and their hospital population columns
+    regions = {
+        'North America': 'north_america_hospital_population',
+        'South America': 'south_america_hospital_population', 
+        'Africa': 'africa_hospital_population',
+        'Asia': 'asia_hospital_population',
+        'Europe': 'europe_hospital_population',
+        'Oceania': 'oceania_hospital_population'
+    }
+    
+    # Define region colors (same as regular incidence plots)
+    region_colors = {
+        'North America': '#1f77b4',  # blue
+        'South America': '#ff7f0e',  # orange
+        'Africa': '#2ca02c',         # green
+        'Asia': '#d62728',           # red
+        'Europe': '#9467bd',         # purple
+        'Oceania': '#8c564b'         # brown
+    }
+    
+    # Extract bacteria names from hospital newly infected columns
+    hospital_newly_infected_cols = [col for col in df.columns if '_newly_infected_hospital_' in col and 
+                                   any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    
+    bacteria_set = set()
+    for col in hospital_newly_infected_cols:
+        # Extract bacteria name (everything before '_newly_infected_hospital_')
+        bacteria = col.split('_newly_infected_hospital_')[0]
+        bacteria_set.add(bacteria)
+    
+    bacteria_list = sorted(bacteria_set)
+    
+    if not bacteria_list:
+        print("  ⚠ No bacteria found with hospital newly infected data")
+        return
+    
+    print(f"  Found {len(bacteria_list)} bacteria with hospital newly infected data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        region_handles = []  # For regional legend
+        region_labels = []   # For regional legend
+        style_handles = []  # For simulation vs empirical legend
+        style_labels = []
+        
+        for region_name, hospital_pop_col in regions.items():
+            # Check if hospital population column exists
+            if hospital_pop_col not in df.columns:
+                continue
+                
+            # Construct hospital newly infected column name
+            region_suffix = region_name.lower().replace(' ', '_')
+            hospital_newly_infected_col = f"{bacteria}_newly_infected_hospital_{region_suffix}"
+            
+            if hospital_newly_infected_col not in df.columns:
+                continue
+            
+            # Calculate hospital incidence rate (avoid division by zero)
+            hospital_population = df[hospital_pop_col]
+            newly_infected_hospital = df[hospital_newly_infected_col]
+            
+            # Only calculate where hospital population > 0
+            mask = hospital_population > 0
+            incidence_rate = pd.Series(0.0, index=df.index)
+            incidence_rate[mask] = newly_infected_hospital[mask] / hospital_population[mask]
+            
+            # Apply smoothing if there are enough data points
+            if len(incidence_rate) > SMOOTHING_WINDOW_DAYS:
+                incidence_rate_smooth = incidence_rate.rolling(window=SMOOTHING_WINDOW_DAYS, center=True).mean()
+            else:
+                incidence_rate_smooth = incidence_rate
+            
+            # Plot simulation data (solid line)
+            color = region_colors.get(region_name, '#000000')
+            sim_line = ax.plot(df['time_in_years'], incidence_rate_smooth, 
+                   label=region_name, color=color, linewidth=2)[0]
+            
+            # Add empirical hospital incidence overlay for this bacteria-region combination
+            if empirical_data['hospital_incidence'] is not None:
+                emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                    empirical_data['hospital_incidence'], 
+                    drug=None,  # Not drug-specific
+                    bacteria=bacteria,
+                    region=region_suffix,
+                    metric_type='hospital_incidence_rate'
+                )
+                
+                if emp_years is not None:
+                    # Plot empirical estimates (dashed line, same color) - use years directly
+                    emp_line = ax.plot(emp_years, emp_means, 
+                            color=color,
+                            linewidth=2, 
+                            linestyle='--', 
+                            alpha=0.8)[0]
+                    
+                    # Add to style legend (only once)
+                    if len(style_handles) == 0:  # First empirical line
+                        style_handles.extend([sim_line, emp_line])
+                        style_labels.extend(['Simulation', 'Empirical Data (90% CI)'])
+                    
+                    # Add confidence interval shadow (same color, very transparent)
+                    if emp_p5 is not None and emp_p95 is not None:
+                        ax.fill_between(emp_years, emp_p5, emp_p95, 
+                                       color=color,
+                                       alpha=0.15)
+                    
+                    print(f"    ✓ Added empirical hospital incidence overlay for {bacteria} in {region_name}")
+                else:
+                    print(f"    ⚠ No empirical hospital incidence data found for {bacteria} in {region_name}")
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Years')
+            ax.set_ylabel('Hospital Incidence Rate (New Hospital Infections / Hospital Population)')
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Hospital-Acquired Incidence of {bacteria_title} Infection by Region')
+            
+            # Create dual legend system if empirical data was plotted
+            if len(style_handles) > 0:
+                # Regional legend (colors)
+                region_legend = ax.legend(loc='best')
+                ax.add_artist(region_legend)  # Keep this legend when adding the next one
+                
+                # Style legend (line types)
+                style_legend = ax.legend(style_handles, style_labels,
+                                        title="Data Type",
+                                        loc='upper right',
+                                        fontsize=10,
+                                        title_fontsize=11)
+            else:
+                # Just regional legend if no empirical data
+                ax.legend(loc='best')
+            
+            ax.grid(True, alpha=0.3)
+            
+            # Set y-axis to start at 0
+            ax.set_ylim(bottom=0)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{bacteria}_hospital_incidence_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No hospital data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No hospital incidence plots created - missing required data columns")
+        print("  Expected columns like: bacteria_newly_infected_hospital_north_america and regional hospital population columns")
+    else:
+        print(f"✓ Created {plots_created} hospital incidence of infection plots")
+
+
+def create_death_rate_by_bacteria_region_plots(df):
+    """Create death rate plots by bacteria and region.
+    
+    Creates one plot per bacteria showing death rate (deaths of infected / population)
+    for each region over time.
+    """
+    print("\n=== Creating death rate by bacteria and region plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'death_rate_by_bacteria_region'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define regions and their population columns
+    regions = {
+        'North America': 'north_america_population',
+        'South America': 'south_america_population', 
+        'Africa': 'africa_population',
+        'Asia': 'asia_population',
+        'Europe': 'europe_population',
+        'Oceania': 'oceania_population'
+    }
+    
+    # Define region colors
+    region_colors = {
+        'North America': '#1f77b4',  # blue
+        'South America': '#ff7f0e',  # orange
+        'Africa': '#2ca02c',         # green
+        'Asia': '#d62728',           # red
+        'Europe': '#9467bd',         # purple
+        'Oceania': '#8c564b'         # brown
+    }
+    
+    # Extract bacteria names from deaths infected columns
+    deaths_infected_cols = [col for col in df.columns if '_deaths_infected_' in col and 
+                           any(region.lower().replace(' ', '_') in col for region in regions.keys())]
+    
+    bacteria_set = set()
+    for col in deaths_infected_cols:
+        # Extract bacteria name (everything before '_deaths_infected_')
+        bacteria = col.split('_deaths_infected_')[0]
+        bacteria_set.add(bacteria)
+    
+    bacteria_list = sorted(bacteria_set)
+    
+    if not bacteria_list:
+        print("  ⚠ No bacteria found with deaths infected data")
+        return
+    
+    # Calculate consistent y-axis scale for all death rate plots
+    y_scales = calculate_global_y_scales(df, 'death_rate', entities=bacteria_list)
+    print(f"   📊 Using consistent y-axis scale: {y_scales['y_min']:.8f} to {y_scales['y_max']:.8f}")
+        
+    print(f"  Found {len(bacteria_list)} bacteria with deaths infected data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        # Load empirical calibration data for potential overlays
+        empirical_data = load_empirical_calibration_data()
+        
+        for region_name, pop_col in regions.items():
+            # Check if population column exists
+            if pop_col not in df.columns:
+                continue
+                
+            # Construct deaths infected column name
+            region_suffix = region_name.lower().replace(' ', '_')
+            deaths_infected_col = f"{bacteria}_deaths_infected_{region_suffix}"
+            
+            if deaths_infected_col not in df.columns:
+                continue
+            
+            # Calculate case fatality rate (deaths among infected / currently infected)
+            currently_infected_col = f"{bacteria}_currently_infected"
+            
+            if currently_infected_col not in df.columns:
+                continue
+                
+            # Create annual aggregation for case fatality rate
+            sim_df = pd.DataFrame({
+                'time_in_years': df['time_in_years'],
+                'year': df['time_in_years'].astype(int),  # Convert to integer year
+                'currently_infected': df[currently_infected_col],
+                'deaths_infected': df[deaths_infected_col]
+            })
+            
+            # Group by year and sum deaths and average infected population
+            annual_data = sim_df.groupby('year').agg({
+                'time_in_years': 'mean',      # Use mid-year as representative time
+                'currently_infected': 'mean', # Average infected population for the year
+                'deaths_infected': 'sum'      # Sum all deaths in the year
+            }).reset_index()
+            
+            # Calculate annual case fatality rate
+            mask = annual_data['currently_infected'] > 0
+            death_rate = pd.Series(0.0, index=annual_data.index)
+            death_rate[mask] = annual_data['deaths_infected'][mask] / annual_data['currently_infected'][mask]
+            
+            # Use annual data for plotting (no additional smoothing needed)
+            time_years = annual_data['time_in_years']
+            death_rate_smooth = death_rate
+            
+            # Plot the simulation data (solid line) - now using annual aggregated population mortality rate
+            color = region_colors.get(region_name, '#000000')
+            ax.plot(time_years, death_rate_smooth, 
+                   label=f'Simulation: {region_name}', color=color, linewidth=2, linestyle='-')
+            
+            # Add empirical overlay if available
+            if empirical_data['deaths'] is not None:
+                # Convert region name to empirical format (lowercase with underscores)
+                empirical_region = region_name.lower().replace(' ', '_')
+                emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                    empirical_data['deaths'], 
+                    bacteria=bacteria, 
+                    region=empirical_region
+                )
+                if emp_years is not None:
+                    # Convert empirical death rates from per 100k to per person
+                    emp_means_per_person = emp_means / 100000 if emp_means is not None else None
+                    emp_p5_per_person = emp_p5 / 100000 if emp_p5 is not None else None
+                    emp_p95_per_person = emp_p95 / 100000 if emp_p95 is not None else None
+                    
+                    # Plot empirical estimates (dashed line, same color)
+                    if emp_means_per_person is not None:
+                        ax.plot(emp_years, emp_means_per_person, 
+                                color=color,
+                                linewidth=2, 
+                                linestyle='--',
+                                alpha=0.8, 
+                                label=f'Empirical: {region_name}')
+                        
+                        # Add confidence interval shadow (same color, very transparent)
+                        if emp_p5_per_person is not None and emp_p95_per_person is not None:
+                            ax.fill_between(emp_years, emp_p5_per_person, emp_p95_per_person, 
+                                           color=color,
+                                           alpha=0.15)
+                        
+                        print(f"    ✓ Added empirical death rate overlay for {bacteria} in {region_name}")
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Case Fatality Rate (Deaths among Infected / Currently Infected)')
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Death Rate in {bacteria_title} Infected Individuals by Region')
+            
+            # 🔧 DUAL LEGEND SYSTEM: Regional colors + Line styles
+            # Create regional color legend (right side)
+            region_handles = []
+            region_labels = []
+            style_handles = []
+            style_labels = []
+            
+            # Collect handles for regional legend (use simulation lines as representative)
+            for region_name in regions.keys():
+                region_suffix = region_name.lower().replace(' ', '_')
+                deaths_infected_col = f"{bacteria}_deaths_infected_{region_suffix}"
+                if deaths_infected_col in df.columns:
+                    color = region_colors.get(region_name, '#000000')
+                    # Create a representative line for this region
+                    sim_handle = plt.Line2D([0], [0], color=color, linewidth=2, linestyle='-')
+                    region_handles.append(sim_handle)
+                    region_labels.append(region_name)
+            
+            # Create regional legend
+            if region_handles:
+                region_legend = ax.legend(region_handles, region_labels,
+                                        title="Regions", 
+                                        bbox_to_anchor=(1.02, 1), 
+                                        loc='upper left',
+                                        fontsize=9,
+                                        title_fontsize=10)
+                ax.add_artist(region_legend)  # Keep this legend when adding the next one
+            
+            # Create style legend (if empirical data was plotted)
+            if empirical_data['deaths'] is not None:
+                sim_line = plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='-')
+                emp_line = plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='--')
+                style_handles = [sim_line, emp_line]
+                style_labels = ['Simulation', 'Empirical Data (90% CI)']
+                
+                style_legend = ax.legend(style_handles, style_labels,
+                                       title="Data Type",
+                                       loc='upper left',
+                                       fontsize=9,
+                                       title_fontsize=10)
+            
+            ax.grid(True, alpha=0.3)
+            
+            # 🔧 IMPROVED Y-AXIS SCALING: Use data-driven approach instead of global scaling
+            # Get all death rate values for this bacteria to set appropriate Y-axis
+            all_death_rates = []
+            for region_name in regions.keys():
+                region_suffix = region_name.lower().replace(' ', '_')
+                deaths_infected_col = f"{bacteria}_deaths_infected_{region_suffix}"
+                currently_infected_col = f"{bacteria}_currently_infected"
+                
+                if deaths_infected_col in df.columns and currently_infected_col in df.columns:
+                    deaths = df[deaths_infected_col]
+                    infected = df[currently_infected_col]
+                    mask = infected > 0
+                    if mask.any():
+                        death_rates = deaths[mask] / infected[mask]
+                        all_death_rates.extend(death_rates.dropna().tolist())
+            
+            # Set Y-axis based on actual data range with padding
+            if all_death_rates:
+                max_rate = max(all_death_rates)
+                min_rate = min(all_death_rates)
+                y_padding = (max_rate - min_rate) * 0.1  # 10% padding
+                ax.set_ylim(max(0, min_rate - y_padding), max_rate + y_padding)
+            else:
+                ax.set_ylim(0, 0.05)  # Default fallback for death rates (5%)
+            
+            # Add note about confidence intervals
+            ax.text(0.02, 0.98, "Shaded areas: Empirical 90% CI", 
+                   transform=ax.transAxes, fontsize=8, 
+                   verticalalignment='top', alpha=0.7)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{bacteria}_death_rate_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No death rate plots created - missing required data columns")
+        print("  Expected columns like: bacteria_deaths_infected_north_america and region population columns")
+    else:
+        print(f"✓ Created {plots_created} death rate by bacteria and region plots")
+
+
+def create_population_mortality_by_bacteria_region_plots(df):
+    """Create population mortality rate plots by bacteria and region.
+    
+    Creates one plot per bacteria showing population mortality rate (deaths per 100k population per year)
+    by region over time. This allows comparison with empirical population mortality data.
+    """
+    print("\n=== Creating population mortality by bacteria and region plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'population_mortality_by_bacteria_region'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Get bacteria list and load empirical data
+    bacteria_list = extract_bacteria_list_from_csv(df)
+    empirical_data = load_empirical_calibration_data()
+    
+    # Calculate consistent y-axis scale for all population mortality plots
+    y_scales = calculate_global_y_scales(df, 'population_mortality', entities=bacteria_list)
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        print(f"  Creating population mortality plot for {bacteria}...")
+        
+        fig, ax = plt.subplots(figsize=(16, 8))  # 🔧 Increased width for dual legends
+        
+        # Region colors for consistency
+        regions = {
+            'North America': '#1f77b4',
+            'South America': '#ff7f0e', 
+            'Europe': '#2ca02c',
+            'Asia': '#d62728',
+            'Africa': '#9467bd',
+            'Oceania': '#8c564b'
+        }
+        
+        found_data = False
+        
+        for region_name in regions.keys():
+            # Check if population column exists
+            region_suffix = region_name.lower().replace(' ', '_')
+            pop_col = f"{region_suffix}_population"
+            
+            if pop_col not in df.columns:
+                continue
+                
+            # Construct deaths infected column name
+            deaths_infected_col = f"{bacteria}_deaths_infected_{region_suffix}"
+            
+            if deaths_infected_col not in df.columns:
+                continue
+            
+            # Calculate population mortality rate (deaths per 100k population per year)
+            # Create annual aggregation to match empirical data time scale
+            sim_df = pd.DataFrame({
+                'time_in_years': df['time_in_years'],
+                'year': df['time_in_years'].astype(int),  # Convert to integer year
+                'population': df[pop_col],
+                'deaths_infected': df[deaths_infected_col]
+            })
+            
+            # Group by year and sum deaths
+            annual_data = sim_df.groupby('year').agg({
+                'time_in_years': 'mean',  # Use mid-year as representative time
+                'population': 'mean',     # Average population for the year
+                'deaths_infected': 'sum'  # Sum all deaths in the year
+            }).reset_index()
+            
+            # Calculate annual population mortality rate per 100,000 population
+            mask = annual_data['population'] > 0
+            mortality_rate = pd.Series(0.0, index=annual_data.index)
+            mortality_rate[mask] = (annual_data['deaths_infected'][mask] / annual_data['population'][mask]) * 100000
+            
+            # Use annual data for plotting (no additional smoothing needed)
+            time_years = annual_data['time_in_years']
+            mortality_rate_smooth = mortality_rate
+            
+            # Plot the simulation data (solid line) - now using annual aggregated population mortality rate
+            color = regions.get(region_name, '#000000')
+            ax.plot(time_years, mortality_rate_smooth, 
+                   label=f'Simulation: {region_name}', color=color, linewidth=2, linestyle='-')
+            
+            # Add empirical overlay if available
+            if empirical_data['deaths'] is not None:
+                # Convert region name to empirical format (lowercase with underscores)
+                empirical_region = region_name.lower().replace(' ', '_')
+                emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                    empirical_data['deaths'], 
+                    bacteria=bacteria,
+                    region=empirical_region
+                )
+                
+                if emp_years is not None:
+                    # Plot empirical estimates (dashed line, same color)
+                    ax.plot(emp_years, emp_means, 
+                           color=color,
+                           label=f"Empirical: {region_name}", 
+                           linewidth=2,
+                           linestyle='--',
+                           alpha=0.8)
+                    
+                    # Add confidence interval shadow (same color, very transparent)
+                    if emp_p5 is not None and emp_p95 is not None:
+                        ax.fill_between(emp_years, emp_p5, emp_p95, 
+                                       color=color,
+                                       alpha=0.1)  # Remove label to avoid legend clutter
+                    
+                    print(f"    ✓ Added empirical population mortality overlay for {bacteria} in {region_name}")
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time (Years)', fontsize=12)
+            ax.set_ylabel('Population Mortality Rate (deaths per 100,000 population per year)', fontsize=12)
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Population Mortality Rate from {bacteria_title} by Region', fontsize=14)
+            
+            # 🔧 DUAL LEGEND SYSTEM: Regional colors + Line styles
+            # Create regional color legend (right side)
+            region_handles = []
+            region_labels = []
+            
+            # Collect handles for regional legend (use simulation lines as representative)
+            for region_name in regions.keys():
+                region_suffix = region_name.lower().replace(' ', '_')
+                deaths_infected_col = f"{bacteria}_deaths_infected_{region_suffix}"
+                if deaths_infected_col in df.columns:
+                    region_handles.append(plt.Line2D([0], [0], color=regions[region_name], linewidth=3))
+                    region_labels.append(region_name)
+            
+            if region_handles:
+                # Create regional legend
+                region_legend = ax.legend(region_handles, region_labels,
+                                        title="Regions",
+                                        loc='center left',
+                                        bbox_to_anchor=(1.02, 0.5),  # 🔧 Moved slightly closer
+                                        fontsize=10,
+                                        title_fontsize=11)
+                ax.add_artist(region_legend)
+                
+                # Create style legend for data types (only if empirical data exists)
+                if empirical_data['deaths'] is not None:
+                    style_handles = [
+                        plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='-', label='Simulation'),
+                        plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='--', label='Empirical Data (90% CI)')
+                    ]
+                    style_labels = ['Simulation', 'Empirical Data (90% CI)']
+                    
+                    # Style legend (line types) - use add_artist to preserve both legends
+                    style_legend = plt.gca().legend(style_handles, style_labels,
+                                            title="Data Type",
+                                            bbox_to_anchor=(1.02, 0.3),
+                                            loc='upper left',
+                                            fontsize=10,
+                                            title_fontsize=11)
+                    ax.add_artist(style_legend)  # 🔧 FIX: Add this legend as artist to preserve regional legend
+                    print(f"    ✓ Added both regional and style legends for {bacteria}")
+                else:
+                    print(f"    ✓ Added regional legend only for {bacteria} (no empirical data)")
+            else:
+                print(f"    ⚠ No regional data found for {bacteria} - no regional legend created")
+            
+            ax.grid(True, alpha=0.3)
+            
+            # Apply global y-axis scaling
+            apply_consistent_y_scale(ax, y_scales)
+            
+            # Add note about confidence intervals
+            ax.text(0.02, 0.98, "Shaded areas: Empirical 90% CI", 
+                   transform=ax.transAxes, fontsize=8, 
+                   verticalalignment='top', alpha=0.7)
+            
+            plt.tight_layout()
+            
+            # Save the plot with extra padding for dual legends
+            filename = f"{bacteria}_population_mortality_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight', 
+                       pad_inches=0.5, facecolor='white')  # 🔧 Added padding and white background for legends
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No data found for {bacteria}")
+    
+    if plots_created == 0:
+        print("  ⚠ No population mortality plots created - missing required data columns")
+        print("  Expected columns like: bacteria_deaths_infected_north_america and region population columns")
+    else:
+        print(f"✓ Created {plots_created} population mortality by bacteria and region plots")
+
+
+def create_syndrome_distribution_by_bacteria_plots(df):
+    """Create syndrome distribution plots by bacteria.
+    
+    Creates one plot per bacteria showing how infectious syndromes are distributed
+    over time for that specific bacteria.
+    """
+    print("\n=== Creating syndrome distribution by bacteria plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'syndrome_distribution_by_bacteria'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define syndrome names based on medical definitions from config.rs
+    syndrome_names = {
+        1: 'uti_genitourinary',
+        2: 'skin_soft_tissue', 
+        3: 'respiratory',
+        4: 'bloodstream_bacteremia',
+        5: 'intra_abdominal',
+        6: 'central_nervous_system',
+        7: 'gastrointestinal',
+        8: 'genital',
+        9: 'bone_joint',
+        10: 'other_syndrome'
+    }
+    
+    # Find bacteria-syndrome columns (should be named like: bacteria_syndrome_1, bacteria_syndrome_2, etc.)
+    bacteria_syndrome_cols = [col for col in df.columns if '_syndrome_' in col and col.endswith('_infected')]
+    
+    if not bacteria_syndrome_cols:
+        print("  ⚠ No bacteria-syndrome columns found")
+        print("  Expected columns like: bacteria_syndrome_1_infected, bacteria_syndrome_2_infected, etc.")
+        return
+    
+    # Extract bacteria names and group by bacteria
+    bacteria_syndromes = {}
+    for col in bacteria_syndrome_cols:
+        # Parse column name: bacteria_syndrome_N_infected
+        parts = col.split('_syndrome_')
+        if len(parts) == 2:
+            bacteria = parts[0]
+            syndrome_part = parts[1].replace('_infected', '')
+            try:
+                syndrome_num = int(syndrome_part)
+                if syndrome_num >= 1 and syndrome_num <= 10:
+                    if bacteria not in bacteria_syndromes:
+                        bacteria_syndromes[bacteria] = {}
+                    bacteria_syndromes[bacteria][syndrome_num] = col
+            except ValueError:
+                continue
+    
+    if not bacteria_syndromes:
+        print("  ⚠ No valid bacteria-syndrome columns found")
+        return
+    
+    bacteria_list = sorted(bacteria_syndromes.keys())
+    print(f"  Found {len(bacteria_list)} bacteria with syndrome data")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_list:
+        syndrome_data_for_bacteria = bacteria_syndromes[bacteria]
+        
+        # Check if we have data for this bacteria
+        syndrome_cols = []
+        for syndrome_num in range(1, 11):
+            if syndrome_num in syndrome_data_for_bacteria:
+                syndrome_cols.append(syndrome_data_for_bacteria[syndrome_num])
+        
+        if not syndrome_cols:
+            continue
+        
+        # Extract data for this bacteria
+        syndrome_data = df[syndrome_cols].values
+        total_infected = syndrome_data.sum(axis=1)
+        
+        # Skip if no infections for this bacteria
+        if total_infected.sum() == 0:
+            print(f"  ⚠ No infections found for {bacteria}")
+            continue
+        
+        # Calculate proportions (avoid division by zero)
+        syndrome_proportions = np.zeros_like(syndrome_data, dtype=float)
+        nonzero_mask = total_infected > 0
+        syndrome_proportions[nonzero_mask] = syndrome_data[nonzero_mask] / total_infected[nonzero_mask, np.newaxis]
+        
+        # Create time series with smoothing
+        syndrome_props_smooth = np.zeros_like(syndrome_proportions)
+        for i in range(len(syndrome_cols)):
+            syndrome_props_smooth[:, i] = pd.Series(syndrome_proportions[:, i]).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(syndrome_proportions)), 
+                min_periods=1, center=True
+            ).mean()
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Create stacked area plot
+        syndrome_colors = plt.cm.tab10(np.linspace(0, 1, len(syndrome_cols)))
+        
+        # Use every 100th point to reduce density for better visualization
+        step = max(1, len(df) // 500)  # Show ~500 points maximum
+        time_subset = df['time_in_years'].iloc[::step]
+        props_subset = syndrome_props_smooth[::step]
+        
+        bottom = np.zeros(len(time_subset))
+        
+        # Create syndrome labels
+        syndrome_labels = []
+        for i, col in enumerate(syndrome_cols):
+            # Extract syndrome number from column name
+            syndrome_num = None
+            for num in range(1, 11):
+                if f'_syndrome_{num}_' in col:
+                    syndrome_num = num
+                    break
+            
+            if syndrome_num:
+                syndrome_name = syndrome_names.get(syndrome_num, f'syndrome_{syndrome_num}')
+                syndrome_labels.append(f'S{syndrome_num}: {syndrome_name}')
+            else:
+                syndrome_labels.append(f'Syndrome {i+1}')
+        
+        for i, (color, label) in enumerate(zip(syndrome_colors, syndrome_labels)):
+            ax.fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                          color=color, alpha=0.7, label=label)
+            bottom += props_subset[:, i]
+        
+        # Format the plot
+        bacteria_title = bacteria.replace('_', ' ').title()
+        ax.set_title(f'Syndrome Distribution for {bacteria_title} Over Time\n(Stacked Proportions, 0-1 Scale)')
+        ax.set_xlabel('Time (Years)')
+        ax.set_ylabel('Proportion')
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
+        
+        # Add summary statistics
+        total_syndrome_infections = syndrome_data.sum()
+        if total_syndrome_infections > 0:
+            syndrome_percentages = (syndrome_data.sum(axis=0) / total_syndrome_infections * 100)
+            most_common_idx = np.argmax(syndrome_percentages)
+            most_common_syndrome_num = None
+            for num in range(1, 11):
+                if f'_syndrome_{num}_' in syndrome_cols[most_common_idx]:
+                    most_common_syndrome_num = num
+                    break
+            
+            if most_common_syndrome_num:
+                most_common_name = syndrome_names.get(most_common_syndrome_num, f'syndrome_{most_common_syndrome_num}')
+                textstr = f'Total infections: {int(total_syndrome_infections):,}\nMost common: S{most_common_syndrome_num} ({most_common_name})\n{syndrome_percentages[most_common_idx]:.1f}% of infections'
+                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+                ax.text(0.02, 0.98, textstr, transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='top', bbox=props)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"{bacteria}_syndrome_distribution.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        plots_created += 1
+        print(f"  ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No syndrome distribution plots created - missing required data columns")
+        print("  Expected columns like: bacteria_syndrome_1_infected, bacteria_syndrome_2_infected, etc.")
+    else:
+        print(f"✓ Created {plots_created} syndrome distribution by bacteria plots")
+
+
+def create_death_rate_by_syndrome_region_plots(df):
+    """Create death rate plots by syndrome for each region.
+    
+    Creates one plot per region showing death rates for all 10 syndromes.
+    Death rate = syndrome sepsis deaths / syndrome population
+    Files: {region}_death_rate_by_syndrome.png
+    """
+    print("\n=== Creating death rate by syndrome and region plots ===")
+    
+    # Create output directory
+    output_dir = Path('output_graphs') / 'death_rate_by_syndrome_region'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Check if we have time_in_years column
+    if 'time_in_years' not in df.columns:
+        print("  ⚠ Missing time_in_years column - cannot create plots")
+        return
+    
+    # Define regions
+    region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_display_names = ['North America', 'South America', 'Africa', 'Asia', 'Europe', 'Oceania']
+    
+    # Define syndrome names
+    syndrome_names = {
+        1: 'uti_genitourinary',
+        2: 'skin_soft_tissue', 
+        3: 'respiratory',
+        4: 'bloodstream_bacteremia',
+        5: 'intra_abdominal',
+        6: 'central_nervous_system',
+        7: 'gastrointestinal',
+        8: 'genital',
+        9: 'bone_joint',
+        10: 'other_syndrome'
+    }
+    
+    # Define colors for syndromes (10 distinct colors)
+    syndrome_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                      '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    
+    plots_created = 0
+    all_death_rates = []  # For calculating fixed Y-axis scale
+    
+    # First pass: collect all death rates to determine fixed Y-axis scale
+    for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
+        for syndrome_id in range(1, 11):  # syndromes 1-10
+            pop_col = f"syndrome_{syndrome_id}_population_{region}"
+            death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
+            
+            if pop_col in df.columns and death_col in df.columns:
+                population = df[pop_col]
+                deaths = df[death_col]
+                
+                # Calculate death rate where population > 0
+                mask = population > 0
+                if mask.any():
+                    death_rates = deaths[mask] / population[mask]
+                    all_death_rates.extend(death_rates.values)
+    
+    # Determine fixed Y-axis scale
+    if all_death_rates:
+        max_death_rate = max(all_death_rates)
+        y_max = max_death_rate * 1.1  # Add 10% padding
+    else:
+        y_max = 0.1  # Default scale
+    
+    # Second pass: create plots
+    for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        found_data = False
+        
+        for syndrome_id in range(1, 11):  # syndromes 1-10
+            pop_col = f"syndrome_{syndrome_id}_population_{region}"
+            death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
+            
+            if pop_col not in df.columns or death_col not in df.columns:
+                continue
+            
+            population = df[pop_col]
+            deaths = df[death_col]
+            
+            # Calculate death rate (skip where population = 0)
+            death_rate = pd.Series(index=df.index, dtype=float)
+            mask = population > 0
+            death_rate[mask] = deaths[mask] / population[mask]
+            death_rate[~mask] = float('nan')  # Missing data points where population = 0
+            
+            # Apply smoothing if there are enough data points
+            if len(death_rate.dropna()) > SMOOTHING_WINDOW_DAYS:
+                death_rate_smooth = death_rate.rolling(window=SMOOTHING_WINDOW_DAYS, center=True).mean()
+            else:
+                death_rate_smooth = death_rate
+            
+            # Plot the line
+            syndrome_name = syndrome_names.get(syndrome_id, f'syndrome_{syndrome_id}')
+            color = syndrome_colors[(syndrome_id - 1) % len(syndrome_colors)]
+            ax.plot(df['time_in_years'], death_rate_smooth, 
+                   label=syndrome_name, color=color, linewidth=2)
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time (Years)')
+            ax.set_ylabel('Death Rate (Sepsis Deaths / Syndrome Population)')
+            ax.set_title(f'Death Rate by Syndrome - {region_display}')
+            
+            ax.legend(loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            # Set fixed Y-axis scale across all regions
+            ax.set_ylim(0, y_max)
+            
+            plt.tight_layout()
+            
+            # Save the plot
+            filename = f"{region}_death_rate_by_syndrome.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+        else:
+            plt.close()
+            print(f"  ⚠ No syndrome data found for {region_display}")
+    
+    if plots_created == 0:
+        print("  ⚠ No syndrome death rate plots created - missing required data columns")
+        print("  Expected columns like: syndrome_1_population_north_america and syndrome_1_deaths_sepsis_north_america")
+    else:
+        print(f"✓ Created {plots_created} syndrome death rate by region plots")
+
+
+# =============================================================================
+# DRUG FAILURE RATE BY BACTERIA AND REGION PLOTS
+# =============================================================================
+def create_drug_failure_rate_by_bacteria_region_plots(df):
+    """
+    Create plots showing drug failure rates by bacteria and region over time.
+    
+    Drug failure rate = (day 5 failures) / (day 5 treatment events)
+    where:
+    - Day 5 failures: day 5 post-drug-initiation, on drug, still infected
+    - Day 5 treatment events: day 5 post-drug-initiation (any outcome)
+    
+    One plot per bacteria with 6 regional lines.
+    
+    Clinical interpretation footnotes:
+    - Multi-drug scenarios: Counted as failure if ANY drug was initiated 5 days ago and patient still infected
+    - Infection persistence: Any active infection at day 5 counted as failure (new or persistent)
+    
+    Saves plots to: output_graphs/drug_failure_rate_by_bacteria_region/
+    """
+    print("\n=== CREATING DRUG FAILURE RATE BY BACTERIA AND REGION PLOTS ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Create output directory
+    output_dir = Path("output_graphs/drug_failure_rate_by_bacteria_region")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Regional configuration
+    region_suffixes = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown']
+    
+    # Find all bacteria names from failure event columns
+    bacteria_set = set()
+    for col in df.columns:
+        if '_drug_failure_events_' in col:
+            for suffix in region_suffixes:
+                if col.endswith(f'_drug_failure_events_{suffix}'):
+                    bacteria_name = col.replace(f'_drug_failure_events_{suffix}', '')
+                    bacteria_set.add(bacteria_name)
+    
+    if not bacteria_set:
+        print("  ⚠ No drug failure event columns found in data.")
+        print("  Expected columns like: escherichia_coli_drug_failure_events_north_america")
+        return
+    
+    print(f"Found {len(bacteria_set)} bacteria with drug failure rate data")
+    
+    # Track global max failure rate for consistent Y-axis scaling
+    global_max_rate = 0.0
+    
+    # Create one plot per bacteria with 6 regional lines
+    plots_created = 0
+    for bacteria_name in sorted(bacteria_set):
+        plt.figure(figsize=(int(FIG_W * 2), int(FIG_H * 2)))
+        
+        has_any_data = False
+        local_max_rate = 0.0
+        style_handles = []  # For simulation vs empirical legend
+        style_labels = []
+        
+        for region_idx, region_name in enumerate(region_suffixes):
+            failure_col = f"{bacteria_name}_drug_failure_events_{region_name}"
+            day5_events_col = f"{bacteria_name}_drug_treatment_day5_events_{region_name}"
+            
+            if failure_col in df.columns and day5_events_col in df.columns:
+                failures = df[failure_col]
+                day5_events = df[day5_events_col]
+                
+                # Calculate failure rate (skip where day5_events = 0)
+                failure_rate = pd.Series(index=df.index, dtype=float)
+                mask = day5_events > 0
+                failure_rate[mask] = failures[mask] / day5_events[mask]
+                failure_rate[~mask] = float('nan')  # Missing data points where no day5 events
+                
+                # Only plot if we have some data
+                if not failure_rate.isna().all():
+                    has_any_data = True
+                    
+                    # Apply smoothing if there are enough data points
+                    if len(failure_rate.dropna()) > SMOOTHING_WINDOW_DAYS:
+                        failure_rate_smooth = failure_rate.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                    else:
+                        failure_rate_smooth = failure_rate
+                    
+                    # Track maximum for scaling
+                    if not failure_rate_smooth.isna().all():
+                        local_max_rate = max(local_max_rate, failure_rate_smooth.max())
+                    
+                    # Plot simulation data (solid line)
+                    region_color = region_colors[region_idx]
+                    sim_line = plt.plot(df['time_in_years'], failure_rate_smooth, 
+                            label=region_name.replace('_', ' ').title(), 
+                            linewidth=7, 
+                            color=region_color)[0]
+                    
+                    # Add empirical drug failure overlay for this bacteria-region combination
+                    if empirical_data['drug_failure'] is not None:
+                        emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                            empirical_data['drug_failure'], 
+                            drug=None,  # All drugs
+                            bacteria=bacteria_name,
+                            region=region_name,
+                            metric_type='failure_rate',
+                            data_source='drug_failure'  # 🔧 Added context for proper bacteria name normalization
+                        )
+                        
+                        if emp_years is not None:
+                            # Plot empirical estimates (dashed line, same color)
+                            emp_line = plt.plot(emp_years, emp_means, 
+                                    color=region_color,
+                                    linewidth=4, 
+                                    linestyle='--', 
+                                    alpha=0.8)[0]
+                            
+                            # Add to style legend (only once)
+                            if len(style_handles) == 0:  # First empirical line
+                                style_handles.extend([sim_line, emp_line])
+                                style_labels.extend(['Simulation', 'Empirical Data (90% CI)'])
+                            
+                            # Add confidence interval shadow (same color, very transparent)
+                            if emp_p5 is not None and emp_p95 is not None:
+                                plt.fill_between(emp_years, emp_p5, emp_p95, 
+                                               color=region_color,
+                                               alpha=0.15)
+                            
+                            print(f"    ✓ Added empirical failure rate overlay for {bacteria_name} in {region_name}")
+                        else:
+                            print(f"    ⚠ No empirical failure rate data found for {bacteria_name} in {region_name}")
+                else:
+                    print(f"    ⚠ No failure rate data for {bacteria_name} in {region_name}")
+        
+        if has_any_data:
+            # Format bacteria name for display
+            bacteria_display = bacteria_name.replace('_', ' ').title()
+            
+            plt.title(f"Drug Failure Rate for {bacteria_display} by Region (Smoothed)", 
+                     fontsize=50)
+            plt.ylabel('Drug Failure Rate', fontsize=50)
+            plt.xlabel('Time (Years)', fontsize=50)
+            
+            # Set Y-axis scale (0 to 1.0 to show all empirical data)
+            plt.ylim(0, 1.0)  # 🔧 Fixed y-axis to show full empirical data range (0-100%)
+            
+            plt.grid(True, alpha=0.3)
+            
+            # Create dual legend system if empirical data was plotted
+            if len(style_handles) > 0:
+                # Regional legend (colors) 
+                region_legend = plt.legend(fontsize=30, loc='upper right')
+                plt.gca().add_artist(region_legend)  # Keep this legend when adding the next one
+                
+                # Style legend (line types)
+                style_legend = plt.legend(style_handles, style_labels,
+                                        title="Data Type",
+                                        loc='upper left',
+                                        fontsize=25,
+                                        title_fontsize=27)
+            else:
+                # Just regional legend if no empirical data
+                plt.legend(fontsize=30, loc='upper right')
+                
+                # Add note about no empirical data availability
+                plt.figtext(0.1, 0.08, f"Note: No empirical drug failure data available for {bacteria_display}", 
+                           fontsize=22, style='italic', alpha=0.7,
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8))
+            
+            plt.tick_params(axis='both', which='major', labelsize=40)
+            plt.tight_layout(rect=[0, 0, 1, 0.96])
+            
+            # Add footnotes as small text at bottom
+            footnote_text = ("Note: Multi-drug cases counted as failure if ANY drug initiated 5 days ago + still infected. "
+                           "Any active infection at day 5 = failure (new or persistent).")
+            plt.figtext(0.1, 0.02, footnote_text, fontsize=20, style='italic', wrap=True)
+            
+            filename = f"{bacteria_name}_drug_failure_rate_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+            plt.close()
+            
+            plots_created += 1
+            print(f"  ✓ {filename} saved")
+            
+            # Track global max for reporting
+            global_max_rate = max(global_max_rate, local_max_rate)
+        else:
+            plt.close()
+            print(f"  ⚠ No drug failure rate data found for {bacteria_name}")
+    
+    if plots_created == 0:
+        print("  ⚠ No drug failure rate plots created - missing required data columns")
+        print("  Expected columns like: escherichia_coli_drug_failure_events_north_america and escherichia_coli_drug_treatment_day5_events_north_america")
+    else:
+        print(f"✓ Created {plots_created} drug failure rate by region plots")
+        print(f"  Maximum failure rate observed: {global_max_rate:.3f}")
+
+
+# =============================================================================
+# PROPORTION WITH ANY RESISTANCE BY DRUG FOR EACH BACTERIA PLOTS
+# =============================================================================
+def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(df):
+    """
+    Create plots showing proportion of people infected with each bacteria who have any_r > 0 for each drug.
+    One plot per bacteria, with multiple drug lines on each plot.
+    Saves plots to: output_graphs/proportion_of_people_with_any_resistance_by_drug_for_each_bacteria/
+    """
+    print("\n=== CREATING PROPORTION WITH ANY RESISTANCE BY DRUG FOR EACH BACTERIA PLOTS ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Create output directory
+    output_dir = Path("output_graphs/proportion_of_people_with_any_resistance_by_drug_for_each_bacteria")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Extract bacteria names from currently infected columns
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("  ⚠ No bacteria infection columns found (*_currently_infected)")
+        return
+    
+    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
+    print(f"  Found {len(bacteria_names)} bacteria: {bacteria_names}")
+    
+    # Extract drug names from columns
+    drug_names = []
+    for col in df.columns:
+        if '_infected_with_any_r_positive_' in col:
+            parts = col.split('_infected_with_any_r_positive_')
+            if len(parts) == 2:
+                drug = parts[1]
+                if drug not in drug_names:
+                    drug_names.append(drug)
+    
+    print(f"  Found {len(drug_names)} drugs with resistance data: {drug_names}")
+    
+    if not drug_names:
+        print("  ⚠ No resistance columns found (*_infected_with_any_r_positive_*)")
+        print("  Make sure the Rust simulation has been run with the updated code to generate these columns")
+        return
+    
+    plots_created = 0
+    
+    # Create one plot per bacteria
+    for bacteria in bacteria_names:
+        print(f"  Creating plot for {bacteria}...")
+        
+        # Check if this bacteria has infection data
+        infection_col = f"{bacteria}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"    ⚠ Missing infection column: {infection_col}")
+            continue
+        
+        # Debug: Check infection levels
+        max_infected = df[infection_col].max()
+        print(f"    Max infected with {bacteria}: {max_infected}")
+        if max_infected == 0:
+            print(f"    ⚠ No infections found for {bacteria}")
+            continue
+            
+        # Find relevant drugs for this bacteria (those with resistance columns and non-zero infections)
+        relevant_drugs = []
+        for drug in drug_names:
+            resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+            if resistance_col in df.columns:
+                # Check if there's ever any infections with this bacteria to avoid empty plots
+                if df[infection_col].max() > 0:
+                    relevant_drugs.append(drug)
+        
+        if not relevant_drugs:
+            print(f"    ⚠ No relevant drugs found for {bacteria}")
+            continue
+            
+        print(f"    Relevant drugs: {relevant_drugs}")
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        colors = plt.cm.Set1(np.linspace(0, 1, len(relevant_drugs)))
+        lines_plotted = 0
+        
+        for i, drug in enumerate(relevant_drugs):
+            resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+            
+            if resistance_col not in df.columns:
+                print(f"      ⚠ Missing resistance column: {resistance_col}")
+                continue
+                
+            # Debug: Check resistance data
+            resistance_counts = df[resistance_col]
+            total_infected = df[infection_col]
+            max_resistance = resistance_counts.max()
+            print(f"      {drug}: max resistance count = {max_resistance}")
+            
+            # Calculate proportion: (infected with any_r > 0) / (total infected)
+            proportion = np.where(total_infected > 0, resistance_counts / total_infected, 0)
+            max_proportion = proportion.max()
+            print(f"      {drug}: max proportion = {max_proportion:.3f}")
+            
+            # Plot the line with thicker lines for better visibility
+            ax.plot(df['time_in_years'], proportion, 
+                   color=colors[i], linewidth=3, label=drug, alpha=0.9)
+            lines_plotted += 1
+        
+        if lines_plotted == 0:
+            print(f"    ⚠ No data to plot for {bacteria}")
+            plt.close(fig)
+            continue
+            
+        # Format the plot
+        ax.set_xlabel('Time (years)', fontsize=12)
+        ax.set_ylabel('Proportion with Resistance (any_r > 0)', fontsize=12)
+        ax.set_title(f'Proportion of {bacteria.replace("_", " ").title()} Infections\nwith Resistance by Drug', 
+                    fontsize=14, fontweight='bold')
+        
+        # Set y-axis to 0-1 range, but if all data is very small, adjust the range
+        max_prop_in_plot = 0
+        for i, drug in enumerate(relevant_drugs):
+            resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+            if resistance_col in df.columns:
+                resistance_counts = df[resistance_col]
+                total_infected = df[infection_col]
+                proportion = np.where(total_infected > 0, resistance_counts / total_infected, 0)
+                max_prop_in_plot = max(max_prop_in_plot, proportion.max())
+        
+        if max_prop_in_plot > 0:
+            if max_prop_in_plot < 0.01:  # If max is less than 1%, adjust y-axis
+                ax.set_ylim(0, min(0.05, max_prop_in_plot * 1.2))
+            else:
+                ax.set_ylim(0, 1)
+        else:
+            ax.set_ylim(0, 1)
+        
+        # Add grid
+        ax.grid(True, alpha=0.3)
+        
+        # Add empirical data overlay if available
+        empirical_lines_plotted = 0
+        style_handles = []
+        style_labels = []
+        
+        if empirical_data and 'resistance' in empirical_data:
+            resistance_data = empirical_data['resistance']
+            bacteria_normalized = normalize_bacteria_name(bacteria)
+            
+            for i, drug in enumerate(relevant_drugs):
+                drug_normalized = normalize_drug_name(drug)
+                
+                # Try multiple column name variations for empirical resistance data
+                possible_cols = [
+                    f"{bacteria_normalized}_{drug_normalized}_resistance_rate",
+                    f"{bacteria_normalized}_{drug_normalized}",
+                    f"{drug_normalized}_{bacteria_normalized}_resistance_rate",
+                    f"{drug_normalized}_{bacteria_normalized}",
+                    f"resistance_{bacteria_normalized}_{drug_normalized}",
+                    f"resistance_rate_{bacteria_normalized}_{drug_normalized}"
+                ]
+                
+                empirical_col = None
+                for col_name in possible_cols:
+                    if col_name in resistance_data.columns:
+                        empirical_col = col_name
+                        break
+                
+                if empirical_col and len(resistance_data[empirical_col].dropna()) > 0:
+                    # Convert simulation years to empirical time scale
+                    sim_start_year = 2020  # Simulation starts in 2020
+                    empirical_years = resistance_data['year'].values
+                    empirical_values = resistance_data[empirical_col].values / 100.0  # Convert percentage to proportion
+                    
+                    # Only plot points within simulation timeframe
+                    valid_mask = (empirical_years >= sim_start_year) & (empirical_years <= sim_start_year + df['time_in_years'].max())
+                    if valid_mask.sum() > 0:
+                        empirical_years_adj = empirical_years[valid_mask] - sim_start_year
+                        empirical_values_adj = empirical_values[valid_mask]
+                        
+                        ax.plot(empirical_years_adj, empirical_values_adj, 
+                               color=colors[i], linestyle='--', linewidth=2, 
+                               alpha=0.8, marker='o', markersize=4)
+                        empirical_lines_plotted += 1
+        
+        # Create legend handles for simulation vs empirical
+        if empirical_lines_plotted > 0 and empirical_lines_plotted not in [label.split(':')[0] for label in style_labels]:
+            style_handles.append(plt.Line2D([0], [0], color='gray', linestyle='-', linewidth=2))
+            style_labels.append('Simulation')
+            style_handles.append(plt.Line2D([0], [0], color='gray', linestyle='--', linewidth=2, marker='o', markersize=4))
+            style_labels.append('Empirical Data')
+        
+        # Add legend - always show it to see what drugs are included
+        if lines_plotted > 0:
+            if lines_plotted <= 15:  # Show legend if not too many drugs
+                drug_legend = ax.legend(bbox_to_anchor=(1.02, 1.0), loc='upper left', fontsize=9)
+                
+                # Add second legend for simulation vs empirical if we have empirical data
+                if style_handles and style_labels:
+                    style_legend = ax.legend(style_handles, style_labels, 
+                                           bbox_to_anchor=(1.02, 0.3), loc='upper left', fontsize=9)
+                    ax.add_artist(drug_legend)  # Keep both legends
+            else:
+                ax.text(0.02, 0.02, f"{lines_plotted} drugs plotted", transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='bottom')
+        
+        # Add summary statistics as text
+        if lines_plotted > 0:
+            # Calculate final proportions
+            final_props = []
+            for drug in relevant_drugs:
+                resistance_col = f"{bacteria}_infected_with_any_r_positive_{drug}"
+                if resistance_col in df.columns and len(df) > 0:
+                    final_resistance = df[resistance_col].iloc[-1]
+                    final_infected = df[infection_col].iloc[-1]
+                    if final_infected > 0:
+                        final_prop = final_resistance / final_infected
+                        final_props.append(f"{drug}: {final_prop:.1%}")
+            
+            if final_props:
+                props_text = "Final proportions:\n" + "\n".join(final_props[:5])  # Show max 5
+                ax.text(0.02, 0.98, props_text, transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='top', 
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor="wheat", alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        filename = f"bacteria_{bacteria}_proportion_with_any_resistance_by_drug.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        plots_created += 1
+        print(f"    ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No plots created - check that resistance data columns exist in CSV")
+        print("  Expected columns like: bacteria_infected_with_any_r_positive_drug")
+        print("  Make sure to run the updated Rust simulation first")
+    else:
+        print(f"✓ Created {plots_created} proportion with any resistance plots")
+
+
+# =============================================================================
+# MEAN MIC BY DRUG FOR EACH BACTERIA PLOTS
+# =============================================================================
+def create_mean_mic_by_drug_for_each_bacteria_plots(df):
+    """
+    Create plots showing mean MIC for each drug amongst people infected with each bacteria.
+    One plot per bacteria, with multiple drug lines on each plot.
+    Saves plots to: output_graphs/mean_mic_by_drug_per_bacteria/
+    """
+    print("\n=== CREATING MEAN MIC BY DRUG FOR EACH BACTERIA PLOTS ===")
+    
+    # Load empirical calibration data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Create output directory
+    output_dir = Path("output_graphs/mean_mic_by_drug_per_bacteria")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Extract bacteria names from currently infected columns
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("  ⚠ No bacteria infection columns found (*_currently_infected)")
+        return
+    
+    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
+    print(f"  📊 Found {len(bacteria_names)} bacteria to analyze")
+    
+    # Extract all available drugs from MIC sum columns
+    mic_sum_cols = [col for col in df.columns if '_sum_mic_' in col]
+    if not mic_sum_cols:
+        print("  ⚠ No MIC sum columns found (*_sum_mic_*)")
+        print("  Make sure to run the updated Rust simulation first")
+        return
+    
+    # Extract drug names from MIC sum columns
+    all_drugs = set()
+    for col in mic_sum_cols:
+        if '_sum_mic_' in col:
+            drug = col.split('_sum_mic_')[1]
+            all_drugs.add(drug)
+    
+    all_drugs = sorted(list(all_drugs))
+    print(f"  💊 Found {len(all_drugs)} drugs to analyze: {all_drugs[:5]}{'...' if len(all_drugs) > 5 else ''}")
+    
+    plots_created = 0
+    
+    for bacteria in bacteria_names:
+        print(f"\n  Processing bacteria: {bacteria}")
+        
+        # Get the infection count column for this bacteria
+        infection_col = f"{bacteria}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"    ⚠ Skipping {bacteria} - no infection data column")
+            continue
+        
+        # Find relevant drugs for this bacteria (those with MIC sum data)
+        relevant_drugs = []
+        for drug in all_drugs:
+            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+            if mic_sum_col in df.columns:
+                relevant_drugs.append(drug)
+        
+        if not relevant_drugs:
+            print(f"    ⚠ Skipping {bacteria} - no MIC sum data found")
+            continue
+        
+        print(f"    Found {len(relevant_drugs)} drugs with MIC sum data")
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        lines_plotted = 0
+        style_handles = []  # For simulation vs empirical legend
+        style_labels = []
+        drug_handles = []   # For drug color legend
+        drug_labels = []
+        
+        for drug in relevant_drugs:
+            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+            
+            # Vectorized calculation (efficient approach like other successful plots)
+            infected_counts = df[infection_col]
+            mic_sums = df[mic_sum_col]
+            
+            # Calculate mean MIC using pandas vectorization
+            mean_mic_values = pd.Series(index=df.index, dtype=float)
+            mask = infected_counts > 0
+            mean_mic_values[mask] = mic_sums[mask] / infected_counts[mask]
+            mean_mic_values[~mask] = float('nan')  # Use NaN instead of 0 for no infections
+            
+            # Apply smoothing like other successful plots
+            if len(mean_mic_values.dropna()) > SMOOTHING_WINDOW_DAYS:
+                mean_mic_smooth = mean_mic_values.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            else:
+                mean_mic_smooth = mean_mic_values
+            
+            # Only plot if there's meaningful data
+            valid_data = mean_mic_smooth.dropna()
+            if len(valid_data) > 0 and valid_data.max() > 0:
+                # Plot simulation data (solid line)
+                drug_color = plt.cm.tab20(lines_plotted % 20)  # Cycle through colors
+                sim_line = plt.plot(df['time_in_years'], mean_mic_smooth, 
+                        color=drug_color, linewidth=1.5, alpha=0.8, 
+                        label=drug.replace('_', ' ').title())[0]  # Add label for backup legend
+                
+                # Add to drug color legend
+                drug_handles.append(sim_line)
+                drug_labels.append(drug.replace('_', ' ').title())
+                
+                print(f"      ✓ Plotted {drug}: {len(valid_data)} data points, max MIC: {valid_data.max():.3f}")
+                
+                # 🔧 FIX: Add empirical MIC overlay for this drug-bacteria combination (moved inside the if block)
+                if empirical_data['mic_values'] is not None:
+                    emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                        empirical_data['mic_values'], 
+                        drug=drug, 
+                        bacteria=bacteria,
+                        region=None,  # Average across regions
+                        metric_type='mic50'  # Use mic50 as the primary empirical metric
+                    )
+                    
+                    if emp_years is not None:
+                        # Plot empirical estimates (dashed line, same color)
+                        emp_line = plt.plot(emp_years, emp_means, 
+                                color=drug_color,
+                                linewidth=2, 
+                                linestyle='--', 
+                                alpha=0.7)[0]
+                        
+                        # Add to style legend (only once)
+                        if len(style_handles) == 0:  # First empirical line
+                            style_handles.extend([sim_line, emp_line])
+                            style_labels.extend(['Simulation', 'Empirical Data (90% CI)'])
+                        
+                        # Add confidence interval shadow (same color, very transparent)
+                        if emp_p5 is not None and emp_p95 is not None:
+                            plt.fill_between(emp_years, emp_p5, emp_p95, 
+                                           color=drug_color,
+                                           alpha=0.15)
+                        
+                        print(f"      ✓ Added empirical MIC overlay for {drug} vs {bacteria}")
+                    else:
+                        print(f"      ⚠ No empirical MIC data found for {drug} vs {bacteria}")
+                
+                lines_plotted += 1
+            else:
+                print(f"      ⚠ Skipped {drug}: no valid data (len={len(valid_data)}, max={valid_data.max() if len(valid_data) > 0 else 'N/A'})")
+        
+        # Customize the plot
+        bacteria_clean = bacteria.replace('_', ' ').title()
+        plt.title(f'Mean MIC by Drug - {bacteria_clean}', fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('Mean MIC', fontsize=12)
+        
+        # Set y-axis to show both simulation data (0-1.2) and empirical data (up to ~32+)
+        plt.ylim(0, 50)  # Expand to fit empirical MIC data range
+        
+        # Add grid
+        plt.grid(True, alpha=0.3)
+        
+        # Add legend - always show it to see what drugs are included
+        print(f"    🔍 DEBUG: lines_plotted = {lines_plotted}, drug_handles length = {len(drug_handles)}")
+        if lines_plotted > 0:
+            # 🔧 IMPROVED DUAL LEGEND SYSTEM: Drug colors + Line styles (consistent with resistance plots)
+            if len(drug_handles) > 0:
+                # Drug legend (colors) - improved positioning
+                drug_fontsize = max(6, min(9, 12 - len(drug_handles) // 10))
+                drug_legend = plt.legend(drug_handles, drug_labels, 
+                                       title="Drugs", 
+                                       bbox_to_anchor=(1.02, 1.0), 
+                                       loc='upper left', 
+                                       fontsize=drug_fontsize,
+                                       title_fontsize=drug_fontsize+1,
+                                       framealpha=0.98,
+                                       borderaxespad=0.3)
+                plt.gca().add_artist(drug_legend)  # Keep this legend when adding the next one
+                print(f"    ✓ Added drug legend with {len(drug_handles)} drugs")
+            else:
+                # Fallback: use matplotlib's automatic legend from plot labels - ensure it's outside plot area
+                plt.legend(title="Drugs", bbox_to_anchor=(1.02, 1.0), loc='upper left', fontsize=9, title_fontsize=10)
+                print(f"    ⚠ Used fallback legend - no drug handles created")
+                print(f"    🔍 DEBUG: drug_labels would have been: {drug_labels}")
+            
+            # Style legend (line types) - only if empirical data was plotted
+            if len(style_handles) > 0:
+                style_legend = plt.legend(style_handles, style_labels,
+                                        title="Data Types",
+                                        bbox_to_anchor=(1.02, 0.6), 
+                                        loc='upper left',
+                                        fontsize=9,
+                                        title_fontsize=10,
+                                        framealpha=0.98)
+                print(f"    ✓ Added style legend (simulation vs empirical)")
+            else:
+                print(f"    ⚠ No empirical data available for {bacteria} - only simulation legend shown")
+        else:
+            print(f"    ⚠ No lines plotted for {bacteria} - no legend to show")
+        
+        # Add note if no empirical data is available
+        if lines_plotted > 0 and len(style_handles) == 0:
+            plt.gca().text(0.02, 0.02, "Note: No empirical MIC data available for this bacteria", 
+                          transform=plt.gca().transAxes, 
+                          fontsize=10, style='italic', alpha=0.7,
+                          bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8))
+        
+        # Add summary statistics as text
+        if lines_plotted > 0:
+            # Calculate final mean MICs
+            final_mics = []
+            for drug in relevant_drugs:
+                mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+                if mic_sum_col in df.columns and len(df) > 0:
+                    final_infected = df[infection_col].iloc[-1]
+                    final_mic_sum = df[mic_sum_col].iloc[-1]
+                    if final_infected > 0:
+                        final_mean_mic = final_mic_sum / final_infected
+                        final_mics.append(f"{drug}: {final_mean_mic:.2f}")
+            
+            if final_mics:
+                mics_text = "Final mean MICs:\n" + "\n".join(final_mics[:5])  # Show max 5
+                plt.gca().text(0.02, 0.98, mics_text, transform=plt.gca().transAxes, 
+                              fontsize=9, verticalalignment='top', 
+                              bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot with improved spacing to include legends outside plot area
+        filename = f"bacteria_{bacteria}_mean_mic_by_drug.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight', 
+                   pad_inches=0.3, facecolor='white')  # Extra padding and white background
+        plt.close()
+        
+        plots_created += 1
+        print(f"    ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No plots created - check that MIC sum data columns exist in CSV")
+        print("  Expected columns like: bacteria_sum_mic_drug")
+        print("  Make sure to run the updated Rust simulation first")
+    else:
+        print(f"✓ Created {plots_created} mean MIC by drug plots")
+
+
+def create_drug_score_analysis_by_bacteria():
+    """
+    Analyze and visualize drug scores from the simulation_summary.csv file.
+    Creates plots showing drug scores by bacteria to debug clinical guidelines.
+    Uses the new aggregate drug score tracking data.
+    """
+    print("\n=== CREATING DRUG SCORE ANALYSIS BY BACTERIA ===")
+    
+    # Load the simulation summary data (contains our drug score columns)
+    try:
+        data = pd.read_csv('simulation_summary.csv')
+        print(f"Loaded simulation summary data: {len(data)} time steps, {len(data.columns)} columns")
+    except FileNotFoundError:
+        print("ERROR: simulation_summary.csv not found! Make sure the simulation has been run.")
+        return
+    except Exception as e:
+        print(f"ERROR loading simulation_summary.csv: {e}")
+        return
+    
+    # Find drug score columns
+    selection_count_cols = [col for col in data.columns if '_drug_selection_count' in col]
+    score_sum_cols = [col for col in data.columns if '_drug_score_sum_' in col]
+    
+    print(f"Found {len(selection_count_cols)} bacteria with drug selection counts")
+    print(f"Found {len(score_sum_cols)} bacteria-drug score combinations")
+    
+    if len(selection_count_cols) == 0 or len(score_sum_cols) == 0:
+        print("WARNING: No drug score data found in simulation_summary.csv!")
+        return
+    
+    # Use recent data for analysis (last 5000 time steps)
+    recent_data = data[data['time_step'] >= len(data) - 5000].copy()
+    print(f"Analyzing recent period: {len(recent_data)} time steps")
+    
+    # Extract bacteria names from column headers and their selection counts
+    bacteria_with_selections = []
+    for col in selection_count_cols:
+        bacteria_name = col.replace('_drug_selection_count', '').replace('_', ' ')
+        total_selections = recent_data[col].sum()
+        if total_selections > 0:
+            bacteria_with_selections.append((bacteria_name, total_selections, col))
+    
+    # Sort by frequency
+    bacteria_with_selections.sort(key=lambda x: x[1], reverse=True)
+    print(f"Found {len(bacteria_with_selections)} bacteria with drug selections")
+    
+    # Create plots for ALL bacteria with meaningful drug selections (not just top 8)
+    # Set minimum threshold for meaningful analysis
+    min_selections_threshold = 10  # Only bacteria with at least 10 drug selections
+    all_bacteria = [(name, count, col) for name, count, col in bacteria_with_selections if count >= min_selections_threshold]
+    
+    print(f"Creating plots for {len(all_bacteria)} bacteria (with ≥{min_selections_threshold} selections)...")
+    
+    # Create individual time-series plots
+    create_drug_score_summary_plots(recent_data, all_bacteria)
+    
+    print("✓ Drug score analysis plots created")
+
+def create_drug_score_summary_plots(recent_data, all_bacteria):
+    """Create individual time-series plots for each bacteria showing drug scores over time."""
+    
+    # Create output directory
+    output_dir = Path('output_graphs/drug_score_analysis')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Load full dataset for time series (not just recent data)
+    full_data = pd.read_csv('simulation_summary.csv')
+    print(f"Creating time-series plots for {len(all_bacteria)} bacteria...")
+    
+    # Create individual plots for each bacteria
+    for bacteria_name, total_selections, selection_col in all_bacteria:
+        print(f"  Creating plot for {bacteria_name}...")
+        
+        # Find all drug score columns for this bacteria
+        bacteria_col_prefix = bacteria_name.replace(' ', '_')
+        score_cols = [col for col in full_data.columns if col.startswith(f"{bacteria_col_prefix}_drug_score_sum_")]
+        
+        if not score_cols:
+            print(f"    No drug score columns found for {bacteria_name}")
+            continue
+            
+        # Calculate years from 1930
+        full_data['years_from_1930'] = 1930 + (full_data['time_step'] / 365.25)
+        
+        # For each time step, calculate mean drug scores (total_score / selection_count)
+        drug_data = {}
+        
+        for col in score_cols:
+            drug_name = col.replace(f"{bacteria_col_prefix}_drug_score_sum_", "")
+            
+            # Calculate mean scores: sum_score / selection_count for each time step
+            # Only include time steps where selections > 0
+            mask = full_data[selection_col] > 0
+            if mask.sum() == 0:
+                continue
+                
+            mean_scores = full_data.loc[mask, col] / full_data.loc[mask, selection_col]
+            mean_scores = mean_scores.fillna(0)
+            
+            # Only include drugs with meaningful activity (some non-zero scores)
+            if mean_scores.sum() > 0.01:  # threshold to avoid noise
+                drug_data[drug_name] = {
+                    'years': full_data.loc[mask, 'years_from_1930'].values,
+                    'scores': mean_scores.values
+                }
+        
+        if not drug_data:
+            print(f"    No meaningful drug score data for {bacteria_name}")
+            continue
+            
+        # Create the plot
+        plt.figure(figsize=(14, 8))
+        
+        # Sort drugs by maximum score to prioritize important ones
+        drug_scores_max = {drug: max(data['scores']) for drug, data in drug_data.items()}
+        sorted_drugs = sorted(drug_scores_max.items(), key=lambda x: x[1], reverse=True)
+        
+        # Plot top 15 drugs to avoid overcrowding
+        top_drugs = [drug for drug, _ in sorted_drugs[:15]]
+        
+        # Color palette
+        colors = plt.cm.tab20(np.linspace(0, 1, len(top_drugs)))
+        
+        # Plot each drug's time series
+        for i, drug in enumerate(top_drugs):
+            if drug in drug_data:
+                data = drug_data[drug]
+                plt.plot(data['years'], data['scores'], 
+                        color=colors[i], linewidth=2, alpha=0.8,
+                        label=drug.replace('_', ' ').title(), marker='o', markersize=3)
+        
+        # Formatting
+        plt.title(f'Drug Score Evolution: {bacteria_name.title()}\n(Higher scores = more likely to be selected)', 
+                 fontsize=14, fontweight='bold', pad=20)
+        plt.xlabel('Year', fontsize=12, fontweight='bold')
+        plt.ylabel('Mean Drug Score per Selection Event', fontsize=12, fontweight='bold')
+        
+        # Set y-axis to log scale if there are large differences
+        max_score = max([max(data['scores']) for data in drug_data.values() if len(data['scores']) > 0])
+        min_score = min([min([s for s in data['scores'] if s > 0] + [max_score]) 
+                        for data in drug_data.values() if len(data['scores']) > 0])
+        
+        if max_score / max(min_score, 0.001) > 10:  # Use log scale if range > 10x
+            plt.yscale('log')
+            plt.ylabel('Mean Drug Score per Selection Event (log scale)', fontsize=12, fontweight='bold')
+        
+        # Grid and legend
+        plt.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+        plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=10)
+        
+        # Add clinical guidance annotation
+        clinical_info = get_clinical_guidance_info(bacteria_name)
+        if clinical_info:
+            plt.text(0.02, 0.98, clinical_info, transform=plt.gca().transAxes, 
+                    fontsize=9, verticalalignment='top', bbox=dict(boxstyle='round', 
+                    facecolor='lightyellow', alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        safe_bacteria_name = bacteria_name.replace(' ', '_').replace('.', '')
+        output_file = output_dir / f'{safe_bacteria_name}_drug_scores_timeseries.png'
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"    ✓ Saved {output_file}")
+    
+    print(f"✓ All drug score time-series plots created in {output_dir}")
+
+def get_clinical_guidance_info(bacteria_name):
+    """Return clinical guidance text for annotation."""
+    guidance = {
+        'escherichia coli': 'Expected: Ciprofloxacin, Ceftriaxone, Nitrofurantoin should dominate\nActual guidelines: 35x, 20x, 30x multipliers',
+        'staphylococcus aureus': 'Expected: Penicillin (MSSA), Vancomycin (MRSA), Cephalexin\nActual guidelines: Variable multipliers based on resistance',
+        'pseudomonas aeruginosa': 'Expected: Meropenem, Ceftazidime, Piperacillin-Tazobactam only\nActual guidelines: 25x, 20x, 25x multipliers',
+        'klebsiella pneumoniae': 'Expected: Ceftriaxone (early), Meropenem (ESBL era)\nActual guidelines: 25x early, 8x later periods',
+        'mdr mycobacterium tuberculosis': 'Expected: Multi-drug therapy required - Rifampicin + FQs (Levofloxacin/Moxifloxacin) + Injectable (Amikacin)\nActual: MDR-TB has guaranteed rifampicin resistance, synergy when ≥2 drugs active'
+    }
+    return guidance.get(bacteria_name, None)
+
+def analyze_bacteria_drug_scores(recent_data, bacteria_name):
+    """Analyze drug scores for a specific bacteria."""
+    bacteria_col_prefix = bacteria_name.replace(' ', '_')
+    
+    # Find selection count
+    selection_col = f"{bacteria_col_prefix}_drug_selection_count"
+    if selection_col not in recent_data.columns:
+        return None
+    
+    total_selections = recent_data[selection_col].sum()
+    if total_selections == 0:
+        return None
+    
+    # Find all drug score columns for this bacteria
+    score_cols = [col for col in recent_data.columns if col.startswith(f"{bacteria_col_prefix}_drug_score_sum_")]
+    
+    drug_scores = {}
+    for col in score_cols:
+        drug_name = col.replace(f"{bacteria_col_prefix}_drug_score_sum_", "")
+        total_score = recent_data[col].sum()
+        avg_score = total_score / total_selections if total_selections > 0 else 0
+        if avg_score > 0:
+            drug_scores[drug_name] = avg_score
+    
+    # Sort by average score
+    return dict(sorted(drug_scores.items(), key=lambda x: x[1], reverse=True))
+
+def analyze_clinical_guideline_effectiveness(recent_data, top_bacteria):
+    """Calculate a simple effectiveness score for clinical guidelines."""
+    effectiveness = {}
+    
+    # Define clinically appropriate drugs for key bacteria
+    clinical_preferences = {
+        'escherichia coli': ['ciprofloxacin', 'ceftriaxone', 'nitrofurantoin'],
+        'staphylococcus aureus': ['vancomycin', 'penicillin', 'cephalexin'],
+        'pseudomonas aeruginosa': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam'],
+        'klebsiella pneumoniae': ['ceftriaxone', 'meropenem', 'ciprofloxacin'],
+        'mdr mycobacterium tuberculosis': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid']
+    }
+    
+    for bacteria_name, _, _ in top_bacteria:
+        if bacteria_name in clinical_preferences:
+            bacteria_analysis = analyze_bacteria_drug_scores(recent_data, bacteria_name)
+            if bacteria_analysis and len(bacteria_analysis) > 0:
+                # Check if appropriate drugs are in top 3
+                top_3_drugs = list(bacteria_analysis.keys())[:3]
+                appropriate_in_top_3 = sum(1 for drug in top_3_drugs 
+                                         if any(pref in drug for pref in clinical_preferences[bacteria_name]))
+                inappropriate_in_top_3 = 3 - appropriate_in_top_3
+                
+                # Simple effectiveness score: +1 for appropriate, -1 for inappropriate in top 3
+                effectiveness[bacteria_name] = appropriate_in_top_3 - inappropriate_in_top_3
+            else:
+                effectiveness[bacteria_name] = 0
+    
+    return effectiveness
+
+def create_clinical_guideline_analysis_plots(recent_data, all_bacteria):
+    """Create detailed clinical guideline analysis plots."""
+    output_dir = Path('output_graphs/drug_score_analysis')
+    
+    # Print detailed clinical guideline analysis to console
+    print("\n=== DETAILED CLINICAL GUIDELINE ANALYSIS ===")
+    for bacteria_name, selections, _ in all_bacteria[:8]:  # Show top 8 for console analysis
+        print(f"\n{bacteria_name.upper()} ({selections:.1f} selections):")
+        bacteria_analysis = analyze_bacteria_drug_scores(recent_data, bacteria_name)
+        if bacteria_analysis:
+            print("  Top drugs by average score:")
+            for i, (drug, score) in enumerate(list(bacteria_analysis.items())[:8]):
+                clinical_status = get_clinical_appropriateness(bacteria_name, drug)
+                print(f"    {i+1}. {drug}: {score:.2f} {clinical_status}")
+        else:
+            print("  No drug score data available")
+
+def get_clinical_appropriateness(bacteria_name, drug_name):
+    """Return clinical appropriateness indicator."""
+    clinical_map = {
+        'escherichia coli': {
+            'appropriate': ['ciprofloxacin', 'ceftriaxone', 'nitrofurantoin', 'trim_sulf', 'ampicillin'],
+            'inappropriate': ['vancomycin', 'penicillin']
+        },
+        'staphylococcus aureus': {
+            'appropriate': ['vancomycin', 'penicillin', 'cephalexin', 'clindamycin'],
+            'inappropriate': ['ciprofloxacin', 'meropenem']
+        },
+        'pseudomonas aeruginosa': {
+            'appropriate': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam', 'colistin'],
+            'inappropriate': ['vancomycin', 'penicillin', 'ampicillin']
+        },
+        'mdr mycobacterium tuberculosis': {
+            'appropriate': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid', 'ofloxacin'],
+            'inappropriate': ['penicillin', 'ampicillin', 'ceftriaxone', 'vancomycin', 'meropenem']
+        }
+    }
+    
+    if bacteria_name in clinical_map:
+        for drug in clinical_map[bacteria_name]['appropriate']:
+            if drug in drug_name:
+                return "(✓ appropriate)"
+        for drug in clinical_map[bacteria_name]['inappropriate']:
+            if drug in drug_name:
+                return "(✗ inappropriate)"
+    
+    return "(? unclear)"
+
+
+# =============================================================================
+# MAIN ANALYSIS WORKFLOW
+# =============================================================================
+
+def main():
+    """Main analysis function - orchestrates the entire analysis workflow."""
+    print("Starting AMR Simulation Data Analysis...")
+    print("=" * 50)
+    
+    # Load and preprocess data
+    df = load_simulation_data()
+    if df is None:
+        return
+    
+    # Extract dynamic bacteria, drug, and mechanism lists from CSV
+    print("\n=== DETECTING SIMULATION CONFIGURATION ===")
+    bacteria_list = extract_bacteria_list_from_csv(df)
+    drug_list = extract_drug_list_from_csv(df)
+    resistance_mechanisms = extract_resistance_mechanisms_from_csv(df)
+    print("=" * 50)
+    
+    # Store in global variables for plotting functions to use
+    # (Alternative: pass as parameters to each function)
+    globals()['DETECTED_BACTERIA_LIST'] = bacteria_list
+    globals()['DETECTED_DRUG_LIST'] = drug_list
+    globals()['DETECTED_RESISTANCE_MECHANISMS'] = resistance_mechanisms
+    
+    # Preprocess data (adds time_in_years and other columns)
+    df = preprocess_data(df)
+    # Per-bacteria stacked drug use plots
+    if distribution_drug_use_by_bacteria:
+        create_distribution_drug_use_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING distribution_drug_use_by_bacteria plots (set distribution_drug_use_by_bacteria = True to enable) ===")
+    df = preprocess_data(df)
+    print(f"Data preprocessing complete. Dataset shape: {df.shape}")
+    
+    # Always create grouped visualizations (figures 1-4)
+    print("\n=== CREATING GROUPED VISUALIZATIONS ===")
+    create_grouped_plots(df)
+    # Optionally create the three other output_graphs plot sets (per subfolder)
+    if for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
+        create_mic_lt2_by_drug_plots(df)
+    else:
+        print("\n=== SKIPPING MIC<2 by drug plots (set for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2 = True to enable) ===")
+    if proportion_of_people_taking_each_drug:
+        create_drug_usage_proportion_plots(df)
+    else:
+        print("\n=== SKIPPING drug usage proportion plots (set proportion_of_people_taking_each_drug = True to enable) ===")
+    if proportion_of_people_infected_with_each_bacteria:
+        create_bacteria_infection_proportion_plots(df)
+    else:
+        print("\n=== SKIPPING bacteria infection proportion plots (set proportion_of_people_infected_with_each_bacteria = True to enable) ===")
+    if death_rate_by_bacteria:
+        create_death_rate_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING death rate by bacteria plots (set death_rate_by_bacteria = True to enable) ===")
+    if mean_activity_r_by_bacteria:
+        create_mean_activity_r_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING mean activity_r by bacteria plots (set mean_activity_r_by_bacteria = True to enable) ===")
+    # Resistance mechanism by bacteria plots
+    if resistance_mechanism_by_bacteria:
+        create_resistance_mechanism_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING resistance_mechanism_by_bacteria plots (set resistance_mechanism_by_bacteria = True to enable) ===")
+    
+    # Proportion of population with presence bacteria plots
+    if proportion_of_population_with_microbiome_presence_bacteria:
+        create_proportion_of_population_with_microbiome_presence_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING proportion_of_population_with_microbiome_presence_bacteria plots (set proportion_of_population_with_microbiome_presence_bacteria = True to enable) ===")
+    
+    # Proportion of microbiome presence with resistance by drug plots
+    if proportion_of_microbiome_presence_with_resistance_by_drug:
+        create_proportion_of_microbiome_presence_with_resistance_by_drug_plots(df)
+    else:
+        print("\n=== SKIPPING proportion_of_microbiome_presence_with_resistance_by_drug plots (set proportion_of_microbiome_presence_with_resistance_by_drug = True to enable) ===")
+    
+    # Mean any_r by drug for each bacteria plots
+    if mean_any_r_by_drug_for_each_bacteria:
+        create_mean_any_r_by_drug_for_each_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING mean_any_r_by_drug_for_each_bacteria plots (set mean_any_r_by_drug_for_each_bacteria = True to enable) ===")
+    
+    # Mean any_r by drug for each bacteria plots (hospital-acquired only)
+    if mean_any_r_by_drug_for_each_bacteria_hospital:
+        create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(df)
+    else:
+        print("\n=== SKIPPING mean_any_r_by_drug_for_each_bacteria_hospital plots (set mean_any_r_by_drug_for_each_bacteria_hospital = True to enable) ===")
+    
+    # Source of new resistance by bacteria-drug plots
+    if source_of_new_resistance_by_drug_bacteria:
+        create_source_of_new_resistance_by_drug_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING source_of_new_resistance_by_drug_bacteria plots (set source_of_new_resistance_by_drug_bacteria = True to enable) ===")
+    
+    # Infection resolution by bacteria plots
+    if infection_resolution_by_bacteria:
+        create_infection_resolution_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING infection_resolution_by_bacteria plots (set infection_resolution_by_bacteria = True to enable) ===")
+    
+    # Drug score analysis by bacteria plots
+    if drug_score_analysis_by_bacteria:
+        create_drug_score_analysis_by_bacteria()
+    else:
+        print("\n=== SKIPPING drug_score_analysis_by_bacteria plots (set drug_score_analysis_by_bacteria = True to enable) ===")
+    
+    # Age distribution by region plots  
+    if age_distribution_by_region:
+        create_age_distribution_by_region_plots(df)
+    else:
+        print("\n=== SKIPPING age_distribution_by_region plots (set age_distribution_by_region = True to enable) ===")
+    
+    # Death rate by region plots
+    if death_rate_by_region:
+        create_death_rate_by_region_plots(df)
+    else:
+        print("\n=== SKIPPING death_rate_by_region plots (set death_rate_by_region = True to enable) ===")
+    
+    # Age-specific death rate by region plots
+    if age_specific_death_rate_by_region:
+        create_age_specific_death_rate_by_region_plots(df)
+    else:
+        print("\n=== SKIPPING age_specific_death_rate_by_region plots (set age_specific_death_rate_by_region = True to enable) ===")
+    
+    # Incidence of infection plots by bacteria and region
+    if incidence_of_infection:
+        create_incidence_of_infection_plots(df)
+    else:
+        print("\n=== SKIPPING incidence_of_infection plots (set incidence_of_infection = True to enable) ===")
+    
+    # Hospital incidence of infection plots by bacteria and region
+    if incidence_of_infection_hospital:
+        create_incidence_of_infection_hospital_plots(df)
+    else:
+        print("\n=== SKIPPING incidence_of_infection_hospital plots (set incidence_of_infection_hospital = True to enable) ===")
+    
+    # Death rate by bacteria and region plots
+    if death_rate_by_bacteria_region:
+        create_death_rate_by_bacteria_region_plots(df)
+    else:
+        print("\n=== SKIPPING death_rate_by_bacteria_region plots (set death_rate_by_bacteria_region = True to enable) ===")
+    
+    # Population mortality by bacteria and region plots
+    if population_mortality_by_bacteria_region:
+        create_population_mortality_by_bacteria_region_plots(df)
+    else:
+        print("\n=== SKIPPING population_mortality_by_bacteria_region plots (set population_mortality_by_bacteria_region = True to enable) ===")
+    
+    # Syndrome distribution by bacteria plots
+    if syndrome_distribution_by_bacteria:
+        create_syndrome_distribution_by_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING syndrome_distribution_by_bacteria plots (set syndrome_distribution_by_bacteria = True to enable) ===")
+    
+    # Death rate by syndrome and region plots
+    if death_rate_by_syndrome_region:
+        create_death_rate_by_syndrome_region_plots(df)
+    else:
+        print("\n=== SKIPPING death_rate_by_syndrome_region plots (set death_rate_by_syndrome_region = True to enable) ===")
+    
+    # Drug failure rate by bacteria and region plots
+    if drug_failure_rate_by_bacteria_region:
+        create_drug_failure_rate_by_bacteria_region_plots(df)
+    else:
+        print("\n=== SKIPPING drug_failure_rate_by_bacteria_region plots (set drug_failure_rate_by_bacteria_region = True to enable) ===")
+    
+    # Proportion with any resistance by drug for each bacteria plots
+    if proportion_of_people_with_any_resistance_by_drug_for_each_bacteria:
+        create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING proportion_of_people_with_any_resistance_by_drug_for_each_bacteria plots (set proportion_of_people_with_any_resistance_by_drug_for_each_bacteria = True to enable) ===")
+    
+    # Mean MIC by drug for each bacteria plots
+    if mean_mic_by_drug_for_each_bacteria:
+        create_mean_mic_by_drug_for_each_bacteria_plots(df)
+    else:
+        print("\n=== SKIPPING mean_mic_by_drug_for_each_bacteria plots (set mean_mic_by_drug_for_each_bacteria = True to enable) ===")
+    
+    # Export data and statistics
+    export_data_files(df)
+    # export_txt_data_file(df)
+    generate_summary_statistics(df)
+    
+    # Summary of generated files
+    print("\n" + "=" * 50)
+    print("ANALYSIS COMPLETE!")
+    print("Generated files:")
+    for fname in [f'grouped_figure_1.png', f'grouped_figure_2.png', f'grouped_figure_3.png', f'grouped_figure_4.png', f'grouped_figure_5.png', f'grouped_figure_6.png', f'grouped_figure_7.png', f'grouped_figure_8.png', f'grouped_figure_9.png']:
+        out_path = Path('output_graphs') / fname
+        if out_path.exists():
+            print(f"  ✓ output_graphs/{fname}")
+        else:
+            print(f"  ✗ output_graphs/{fname} (not created)")
+    for key, filename in OUTPUT_FILES.items():
+        if Path(filename).exists():
+            print(f"  ✓ {filename}")
+        else:
+            print(f"  ✗ {filename} (not created)")
+    # txt_file = "all_simulation_data.txt"
+    # if Path(txt_file).exists():
+    #     print(f"  ✓ {txt_file}")
+    # else:
+    #     print(f"  ✗ {txt_file} (not created)")
+    print("\nRecommendation: Open grouped PNG files for visualizations, CSV files in Excel for data analysis. The .txt file is human-readable.")
+
+if __name__ == "__main__":
+    main()

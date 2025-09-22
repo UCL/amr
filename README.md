@@ -100,7 +100,7 @@ config = PlotConfig(
 create_all_plots(config)
 ```
 
-For complete usage examples, see `amr_analysis_examples.py`.
+For complete usage examples, see `amr_analysis.py`.
 
 ## Analysis Capabilities
 
