@@ -57,7 +57,7 @@ def create_grouped_plots(df, config=None):
         if config.create_grouped_figure_1:
             fig1, axes1 = plt.subplots(2, 2, figsize=(FIG_W, FIG_H))
             axes1 = axes1.flatten()
-            fig1.suptitle('Grouped Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16)
+            fig1.suptitle('Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16, fontweight='bold', y=0.95)
         
         # 1. Living Population Over Time
         axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
@@ -114,7 +114,7 @@ def create_grouped_plots(df, config=None):
                     plotted_count += 1
             
             axes1[1].set_title('Daily Sepsis Incidence Rate\\n(all bacteria)')
-            axes1[1].set_ylabel('New sepsis cases per person-day\\n(among infected without sepsis)')
+            axes1[1].set_ylabel('New sepsis cases per person-day')
             axes1[1].set_ylim(bottom=0)  # Start y-axis at 0
             axes1[1].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
             
@@ -137,7 +137,7 @@ def create_grouped_plots(df, config=None):
         
         axes1[2].plot(df['time_in_years'], hospital_proportion, 'navy', linewidth=2, label='In Hospital')
         axes1[2].plot(df['time_in_years'], immunosuppressed_proportion, 'crimson', linewidth=2, label='Severely Immunosuppressed')
-        axes1[2].set_title('Hospitalized & Immunosuppressed (Proportion of Living Population)')
+        axes1[2].set_title('Hospitalized & Immunosuppressed\\n(Proportion of Population)')
         axes1[2].set_ylabel('Proportion of Population')
         axes1[2].set_ylim(bottom=0)
         axes1[2].legend()
@@ -146,16 +146,17 @@ def create_grouped_plots(df, config=None):
         # 4. Proportion with Resistance Among Currently Infected
         if 'resistance_among_infected' in df.columns:
             axes1[3].plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'purple', linewidth=2)
-            axes1[3].set_title('Proportion with bacteria that has resistance to any drug\\n(whether that drug is being taken or not)')
+            axes1[3].set_title('Proportion with bacteria that has\nresistance to any drug')
             axes1[3].set_ylabel('Proportion')
             axes1[3].set_ylim(bottom=0)
             axes1[3].grid(True, alpha=0.3)
         else:
             axes1[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes1[3].set_title('Proportion with bacteria that has resistance to any drug\\n(whether that drug is being taken or not)')
+            axes1[3].set_title('Proportion with bacteria that has\nresistance to any drug')
             axes1[3].set_axis_off()
             
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.tight_layout(rect=[0, 0, 1, 0.92])
+        plt.subplots_adjust(hspace=0.75, wspace=0.4)  # Increase vertical space significantly
         plt.savefig(config.output_dir / 'grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close() # Close the figure to free memory
         print("✓ Grouped figure 1 saved as 'grouped_figure_1.png'")
@@ -905,6 +906,10 @@ def create_grouped_plots(df, config=None):
         if syndrome_cols:
             print(f"Processing syndrome data for {len(syndrome_cols)} syndromes")
             
+            # Define time mask and subset for consistent plotting
+            mask = df['time_in_years'] >= 1.0
+            time_subset = df['time_in_years'][mask]
+            
             # 1. Stacked Bar Chart of Syndrome Proportions Over Time (top-left)
             syndrome_data = df[syndrome_cols].values
             total_infected = syndrome_data.sum(axis=1)
@@ -927,10 +932,10 @@ def create_grouped_plots(df, config=None):
             
             # Use every 100th point to reduce density for better visualization
             step = max(1, len(df) // 500)  # Show ~500 points maximum
-            time_subset = df['time_in_years'].iloc[::step]
+            time_subset_sampled = df['time_in_years'].iloc[::step]
             props_subset = syndrome_props_smooth[::step]
             
-            bottom = np.zeros(len(time_subset))
+            bottom = np.zeros(len(time_subset_sampled))
             
             # Create meaningful syndrome labels based on medical definitions from config.rs
             syndrome_names = {
@@ -953,7 +958,7 @@ def create_grouped_plots(df, config=None):
                 syndrome_labels.append(f'S{syndrome_num}: {syndrome_name}')
             
             for i, (color, label) in enumerate(zip(syndrome_colors, syndrome_labels)):
-                axes8[0].fill_between(time_subset, bottom, bottom + props_subset[:, i], 
+                axes8[0].fill_between(time_subset_sampled, bottom, bottom + props_subset[:, i], 
                                     color=color, alpha=0.7, label=label)
                 bottom += props_subset[:, i]
             
@@ -999,10 +1004,10 @@ def create_grouped_plots(df, config=None):
                 
                 # Use every 100th point to reduce density for better visualization
                 step = max(1, len(df) // 500)  # Show ~500 points maximum
-                time_subset = df['time_in_years'].iloc[::step]
+                time_subset_region = df['time_in_years'].iloc[::step]
                 data_subset = region_data_smooth[::step]
                 
-                bottom = np.zeros(len(time_subset))
+                bottom = np.zeros(len(time_subset_region))
                 
                 # Create region labels (clean up column names)
                 region_labels = []
@@ -1011,7 +1016,7 @@ def create_grouped_plots(df, config=None):
                     region_labels.append(region_name)
                 
                 for i, (color, label) in enumerate(zip(region_colors, region_labels)):
-                    axes8[1].fill_between(time_subset, bottom, bottom + data_subset[:, i], 
+                    axes8[1].fill_between(time_subset_region, bottom, bottom + data_subset[:, i], 
                                         color=color, alpha=0.7, label=label)
                     bottom += data_subset[:, i]
                 
@@ -1041,11 +1046,80 @@ def create_grouped_plots(df, config=None):
                             ha='center', va='center', fontsize=12, color='gray')
                 axes8[1].set_axis_off()
             
-            # Add panels 3-4 or fallbacks
-            for i in range(2, 4):
-                axes8[i].text(0.5, 0.5, f'Panel {i+1}\n(Additional data analysis)', 
-                            ha='center', va='center', fontsize=12, color='lightgray')
-                axes8[i].set_axis_off()
+            # Add panels 3-4 with meaningful data
+            
+            # Panel 3: Drug Failure Events by Top Bacteria
+            drug_failure_cols = [col for col in df.columns if '_drug_failure_events_' in col and 'north_america' in col]
+            if drug_failure_cols:
+                # Extract bacteria names from drug failure columns
+                bacteria_failure_data = {}
+                for col in drug_failure_cols:
+                    bacteria_name = col.split('_drug_failure_events_')[0]
+                    bacteria_display = bacteria_name.replace('_', ' ').title()
+                    
+                    # Sum failure events across all regions for this bacteria
+                    region_cols = [c for c in df.columns if c.startswith(f"{bacteria_name}_drug_failure_events_")]
+                    if region_cols:
+                        total_failures = df[region_cols].sum(axis=1)
+                        bacteria_failure_data[bacteria_display] = total_failures
+                
+                if bacteria_failure_data:
+                    # Select top 5 bacteria by total failure events
+                    total_failures_by_bacteria = {name: data.sum() for name, data in bacteria_failure_data.items()}
+                    top_bacteria = sorted(total_failures_by_bacteria.items(), key=lambda x: x[1], reverse=True)[:5]
+                    
+                    colors = plt.cm.Set3(np.linspace(0, 1, len(top_bacteria)))
+                    for (bacteria_name, _), color in zip(top_bacteria, colors):
+                        if bacteria_name in bacteria_failure_data:
+                            smoothed_data = pd.Series(bacteria_failure_data[bacteria_name]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                            axes8[2].plot(df['time_in_years'][mask], smoothed_data[mask], label=bacteria_name, color=color, linewidth=2)
+                    
+                    axes8[2].set_title('Drug Failure Events Over Time\n(Top 5 Bacteria by Total Failures)')
+                    axes8[2].set_xlabel('Time (Years)')
+                    axes8[2].set_ylabel('Drug Failure Events')
+                    axes8[2].set_ylim(bottom=0)
+                    axes8[2].grid(True, alpha=0.3)
+                    axes8[2].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+                else:
+                    axes8[2].text(0.5, 0.5, 'No drug failure data\navailable', ha='center', va='center', fontsize=12, color='gray')
+                    axes8[2].set_axis_off()
+            else:
+                axes8[2].text(0.5, 0.5, 'No drug failure data\navailable', ha='center', va='center', fontsize=12, color='gray')
+                axes8[2].set_axis_off()
+            
+            # Panel 4: Infection Resolution Patterns (Deaths by Cause)
+            death_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+            if all(col in df.columns for col in death_cols):
+                death_data = df[death_cols]
+                colors = ['lightgray', 'red', 'orange']
+                labels = ['Background Deaths', 'Sepsis Deaths', 'Drug Toxicity Deaths']
+                
+                bottom = np.zeros(len(df['time_in_years'][mask]))
+                for i, (col, color, label) in enumerate(zip(death_cols, colors, labels)):
+                    smoothed_data = pd.Series(df[col]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                    axes8[3].fill_between(df['time_in_years'][mask], bottom, bottom + smoothed_data[mask], 
+                                        color=color, alpha=0.7, label=label)
+                    bottom += smoothed_data[mask]
+                
+                axes8[3].set_title('Cumulative Deaths by Cause Over Time\n(Stacked Area Chart)')
+                axes8[3].set_xlabel('Time (Years)')
+                axes8[3].set_ylabel('Cumulative Deaths')
+                axes8[3].set_ylim(bottom=0)
+                axes8[3].grid(True, alpha=0.3)
+                axes8[3].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+                
+                # Add summary statistics
+                if bottom.sum() > 0:
+                    final_deaths = death_data.iloc[-1]
+                    total_final = final_deaths.sum()
+                    sepsis_pct = (final_deaths['deaths_sepsis'] / total_final * 100) if total_final > 0 else 0
+                    textstr = f'Total deaths: {int(total_final):,}\nSepsis: {sepsis_pct:.1f}%'
+                    props = dict(boxstyle='round', facecolor='lightcoral', alpha=0.8)
+                    axes8[3].text(0.02, 0.98, textstr, transform=axes8[3].transAxes, 
+                                fontsize=9, verticalalignment='top', bbox=props)
+            else:
+                axes8[3].text(0.5, 0.5, 'No death cause data\navailable', ha='center', va='center', fontsize=12, color='gray')
+                axes8[3].set_axis_off()
         
         else:
             # No syndrome data found

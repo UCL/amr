@@ -27,7 +27,7 @@ class PlotConfig:
     create_grouped_figure_9: bool = True
     
     # Detail plot categories
-    basic_plots: bool = True  # Proportion, duration, sepsis plots
+    basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
     
     # Individual plot type controls (from original script boolean flags)
     drug_failure_rate_by_bacteria_region: bool = True

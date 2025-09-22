@@ -311,6 +311,9 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.incidence_of_infection:
         create_incidence_of_infection_plots(data, config)
         
+    if config.mean_mic_by_drug_for_each_bacteria:
+        create_mean_mic_by_drug_plots(data, config)
+        
     if config.for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
         create_mic_lt2_by_drug_plots(data, config)
     
@@ -574,6 +577,273 @@ def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) ->
             plt.savefig(fname, dpi=config.dpi, bbox_inches=config.bbox_inches)
             plt.close()
             print(f"  ✓ {fname} saved.")
+
+
+def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """
+    Create plots showing mean MIC for each drug amongst people infected with each bacteria.
+    One plot per bacteria, with multiple drug lines on each plot.
+    """
+    print("\n=== CREATING MEAN MIC BY DRUG FOR EACH BACTERIA PLOTS ===")
+    
+    # Load empirical calibration data
+    from ..empirical.data_loader import load_empirical_calibration_data
+    empirical_data = load_empirical_calibration_data()
+    
+    # Create output directory
+    output_dir = config.output_dir / "mean_mic_by_drug_per_bacteria"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Extract bacteria names from currently infected columns
+    bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
+    if not bacteria_cols:
+        print("  ⚠ No bacteria infection columns found (*_currently_infected)")
+        return
+    
+    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
+    print(f"  📊 Found {len(bacteria_names)} bacteria to analyze")
+    
+    # Extract all available drugs from MIC sum columns
+    mic_sum_cols = [col for col in df.columns if '_sum_mic_' in col]
+    if not mic_sum_cols:
+        print("  ⚠ No MIC sum columns found (*_sum_mic_*)")
+        return
+    
+    # Extract drug names from MIC sum columns
+    all_drugs = set()
+    for col in mic_sum_cols:
+        if '_sum_mic_' in col:
+            drug = col.split('_sum_mic_')[1]
+            all_drugs.add(drug)
+    
+    all_drugs = sorted(list(all_drugs))
+    print(f"  💊 Found {len(all_drugs)} drugs to analyze")
+    
+    plots_created = 0
+    SMOOTHING_WINDOW_DAYS = config.smoothing_window_days
+    
+    for bacteria in bacteria_names:
+        print(f"\n  Processing bacteria: {bacteria}")
+        
+        # Get the infection count column for this bacteria
+        infection_col = f"{bacteria}_currently_infected"
+        if infection_col not in df.columns:
+            print(f"    ⚠ Skipping {bacteria} - no infection data column")
+            continue
+        
+        # Find relevant drugs for this bacteria (those with MIC sum data)
+        relevant_drugs = []
+        for drug in all_drugs:
+            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+            if mic_sum_col in df.columns:
+                relevant_drugs.append(drug)
+        
+        if not relevant_drugs:
+            print(f"    ⚠ Skipping {bacteria} - no MIC sum data found")
+            continue
+        
+        print(f"    Found {len(relevant_drugs)} drugs with MIC sum data")
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        lines_plotted = 0
+        style_handles = []  # For simulation vs empirical legend
+        style_labels = []
+        drug_handles = []   # For drug color legend
+        drug_labels = []
+        
+        for drug in relevant_drugs:
+            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+            
+            # Vectorized calculation
+            infected_counts = df[infection_col]
+            mic_sums = df[mic_sum_col]
+            
+            # Calculate mean MIC using pandas vectorization
+            mean_mic_values = pd.Series(index=df.index, dtype=float)
+            mask = infected_counts > 0
+            mean_mic_values[mask] = mic_sums[mask] / infected_counts[mask]
+            mean_mic_values[~mask] = float('nan')
+            
+            # Debug: Check data availability
+            non_zero_infections = mask.sum()
+            if non_zero_infections == 0:
+                print(f"      ⚠ {drug}: No infections found for this bacteria")
+                continue
+            
+            valid_mic_values = mean_mic_values[mask]
+            print(f"      📊 {drug}: {non_zero_infections} time points with infections, MIC range {valid_mic_values.min():.3f}-{valid_mic_values.max():.3f}")
+            
+            # Apply smoothing
+            if len(mean_mic_values.dropna()) > SMOOTHING_WINDOW_DAYS:
+                mean_mic_smooth = mean_mic_values.rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            else:
+                mean_mic_smooth = mean_mic_values
+            
+            # 🔧 IMPROVED: Plot if there's any data, even if very low values
+            valid_data = mean_mic_smooth.dropna()
+            if len(valid_data) > 0:  # Removed the `valid_data.max() > 0` condition that was too strict
+                # Plot simulation data (solid line)
+                drug_color = plt.cm.tab20(lines_plotted % 20)
+                sim_line = plt.plot(df['time_in_years'], mean_mic_smooth, 
+                        color=drug_color, linewidth=1.5, alpha=0.8, 
+                        label=drug.replace('_', ' ').title())[0]
+                
+                # Add to drug color legend
+                drug_handles.append(sim_line)
+                drug_labels.append(drug.replace('_', ' ').title())
+                
+                print(f"      ✓ Plotted {drug}: {len(valid_data)} data points, range {valid_data.min():.3f}-{valid_data.max():.3f}")
+                
+                # Add empirical MIC overlay for this drug-bacteria combination
+                if empirical_data['mic_values'] is not None:
+                    # Direct matching without normalization for MIC data
+                    mic_df = empirical_data['mic_values']
+                    empirical_filtered = mic_df[
+                        (mic_df['bacteria'] == bacteria) & 
+                        (mic_df['drug'] == drug)
+                    ]
+                    
+                    if len(empirical_filtered) > 0:
+                        # Group by year and average across regions
+                        yearly_data = empirical_filtered.groupby('year').agg({
+                            'mic50': 'mean',
+                            'p5': 'mean',
+                            'p95': 'mean'
+                        }).reset_index()
+                        
+                        if len(yearly_data) > 0:
+                            # Plot empirical estimates (dashed line, same color)
+                            emp_line = plt.plot(yearly_data['year'], yearly_data['mic50'], 
+                                    color=drug_color,
+                                    linewidth=2, 
+                                    linestyle='--', 
+                                    alpha=0.7)[0]
+                            
+                            # Add to style legend (only once)
+                            if len(style_handles) == 0:  # First empirical line
+                                style_handles.extend([sim_line, emp_line])
+                                style_labels.extend(['Simulation', 'Empirical Data (90% CI)'])
+                            
+                            # Add confidence interval shadow (same color, very transparent)
+                            if not yearly_data['p5'].isna().all() and not yearly_data['p95'].isna().all():
+                                plt.fill_between(yearly_data['year'], yearly_data['p5'], yearly_data['p95'], 
+                                               color=drug_color,
+                                               alpha=0.15)
+                
+                lines_plotted += 1
+        
+        # Customize the plot
+        bacteria_clean = bacteria.replace('_', ' ').title()
+        plt.title(f'Mean MIC by Drug - {bacteria_clean}', fontsize=14, fontweight='bold')
+        plt.xlabel('Time (Years)', fontsize=12)
+        plt.ylabel('Mean MIC', fontsize=12)
+        
+        # 🔧 FIX: Set proper axis limits
+        plt.xlim(0, 105)  # Limit to actual simulation time (105 years)
+        plt.ylim(0, 50)   # Expand to fit empirical MIC data range
+        
+        # Add grid
+        plt.grid(True, alpha=0.3)
+        
+        # 🔧 IMPROVED: Always show drug legend for ALL bacteria with data, even if MIC values are very low
+        # Drug legend (colors) - ALWAYS show if we have relevant drugs, regardless of plot success
+        if len(relevant_drugs) > 0:
+            # If we successfully plotted lines with handles, use those
+            if len(drug_handles) > 0:
+                # Drug legend (colors) with proper handles
+                drug_fontsize = max(6, min(9, 12 - len(drug_handles) // 10))
+                drug_legend = plt.legend(drug_handles, drug_labels, 
+                                       title="Drugs", 
+                                       bbox_to_anchor=(1.02, 1.0), 
+                                       loc='upper left', 
+                                       fontsize=drug_fontsize,
+                                       title_fontsize=drug_fontsize+1,
+                                       framealpha=0.98,
+                                       borderaxespad=0.3)
+                plt.gca().add_artist(drug_legend)  # Keep this legend when adding the next one
+                print(f"    ✓ Added drug legend with {len(drug_handles)} drugs")
+            else:
+                # Fallback: Create legend from all available drugs even if not plotted
+                print(f"    🔧 Creating fallback legend for {len(relevant_drugs)} available drugs")
+                fallback_lines = []
+                fallback_labels = []
+                for i, drug in enumerate(relevant_drugs[:20]):  # Limit to 20 for readability
+                    color = plt.cm.tab20(i % 20)
+                    line = plt.Line2D([0], [0], color=color, linewidth=2, alpha=0.8)
+                    fallback_lines.append(line)
+                    fallback_labels.append(drug.replace('_', ' ').title())
+                
+                drug_fontsize = max(6, min(9, 12 - len(fallback_lines) // 10))
+                drug_legend = plt.legend(fallback_lines, fallback_labels,
+                                       title="Available Drugs", 
+                                       bbox_to_anchor=(1.02, 1.0), 
+                                       loc='upper left', 
+                                       fontsize=drug_fontsize,
+                                       title_fontsize=drug_fontsize+1,
+                                       framealpha=0.98,
+                                       borderaxespad=0.3)
+                plt.gca().add_artist(drug_legend)
+                print(f"    ✓ Added fallback legend with {len(fallback_lines)} drugs")
+            
+            # Style legend (line types) - only if empirical data was plotted, positioned lower
+            if len(style_handles) > 0:
+                style_legend = plt.legend(style_handles, style_labels,
+                                        title="Data Types",
+                                        bbox_to_anchor=(1.02, 0.4),  # Lower position to avoid overlap
+                                        loc='upper left',
+                                        fontsize=9,
+                                        title_fontsize=10,
+                                        framealpha=0.98)
+                print(f"    ✓ Added style legend (simulation vs empirical)")
+            else:
+                print(f"    ⚠ No empirical data available for {bacteria}")
+        else:
+            print(f"    ⚠ No relevant drugs found for {bacteria}")
+        
+        # Add note if no empirical data is available
+        if lines_plotted > 0 and len(style_handles) == 0:
+            plt.gca().text(0.02, 0.02, "Note: No empirical MIC data available for this bacteria", 
+                          transform=plt.gca().transAxes, 
+                          fontsize=10, style='italic', alpha=0.7,
+                          bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8))
+        
+        # Add summary statistics as text
+        if lines_plotted > 0:
+            # Calculate final mean MICs
+            final_mics = []
+            for drug in relevant_drugs[:5]:  # Show max 5
+                mic_sum_col = f"{bacteria}_sum_mic_{drug}"
+                if mic_sum_col in df.columns and len(df) > 0:
+                    final_infected = df[infection_col].iloc[-1]
+                    final_mic_sum = df[mic_sum_col].iloc[-1]
+                    if final_infected > 0:
+                        final_mean_mic = final_mic_sum / final_infected
+                        final_mics.append(f"{drug}: {final_mean_mic:.2f}")
+            
+            if final_mics:
+                mics_text = "Final mean MICs:\n" + "\n".join(final_mics)
+                plt.gca().text(0.02, 0.98, mics_text, transform=plt.gca().transAxes, 
+                              fontsize=9, verticalalignment='top', 
+                              bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save the plot with improved spacing to include legends outside plot area
+        filename = f"bacteria_{bacteria}_mean_mic_by_drug.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=config.dpi, bbox_inches=config.bbox_inches, 
+                   pad_inches=0.3, facecolor='white')
+        plt.close()
+        
+        plots_created += 1
+        print(f"    ✓ {filename} saved")
+    
+    if plots_created == 0:
+        print("  ⚠ No plots created")
+    else:
+        print(f"✓ Created {plots_created} mean MIC by drug plots")
 
 
 # Additional functions to be extracted:

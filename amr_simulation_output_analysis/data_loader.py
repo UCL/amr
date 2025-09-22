@@ -59,7 +59,7 @@ class DataCache:
         """
         if self._simulation_data is None or force_reload:
             if csv_file is None:
-                csv_file = DataConfig().csv_input
+                csv_file = str(DataConfig().simulation_file)
                 
             self._simulation_data = load_simulation_data(csv_file)
             
