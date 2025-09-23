@@ -145,7 +145,7 @@ def safe_plot_creation(func):
             
         except Exception as e:
             logger.error(f"Error creating plot {plot_name}: {str(e)}")
-            print(f"⚠ Warning: Failed to create {plot_name}: {str(e)}")
+            print(f"[WARNING] Failed to create {plot_name}: {str(e)}")
             
             # Clean up any open matplotlib figures
             plt.close('all')
@@ -316,7 +316,7 @@ def save_and_show_plot(filename: Union[str, Path],
         else:
             plt.close()  # Close to free memory
             
-        print(f"✓ {title or 'Plot'} saved as '{filename}'")
+        print(f"[OK] {title or 'Plot'} saved as '{filename}'")
         
     except Exception as e:
         logging.error(f"Error saving plot to {filename}: {e}")

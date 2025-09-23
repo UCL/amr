@@ -57,14 +57,14 @@ def load_empirical_calibration_data():
         print("\n🚀 Generating empirical data with real surveillance patterns...")
         try:
             enhance_empirical_data(force_regenerate=FORCE_REGENERATE_EMPIRICAL)
-            print("✅ Empirical data ready with WHO GLASS, ECDC, CDC, and GBD patterns")
+            print("Empirical data ready with WHO GLASS, ECDC, CDC, and GBD patterns")
             empirical_files_exist = True
         except Exception as e:
-            print(f"⚠ Empirical data generation failed: {e}")
-            print("📁 Analysis will proceed without empirical overlays...")
+            print(f"WARNING: Empirical data generation failed: {e}")
+            print("[FOLDER] Analysis will proceed without empirical overlays...")
             return empirical_data
     
-    print(f"\n🔬 Loading empirical calibration data (real surveillance patterns)...")
+    print("\nLoading empirical calibration data (real surveillance patterns)...")
     
     for data_type, filename in empirical_files.items():
         try:
@@ -76,7 +76,7 @@ def load_empirical_calibration_data():
                     # Check if swap is needed (if bacteria column contains drug names)
                     sample_bacteria = df['bacteria'].iloc[0] if len(df) > 0 else ""
                     if any(drug_name in sample_bacteria for drug_name in ['amoxicillin', 'ciprofloxacin', 'vancomycin']):
-                        print(f"   🔧 Fixing swapped bacteria/drug columns in {filename}")
+                        print(f"   Fixing swapped bacteria/drug columns in {filename}")
                         df['bacteria'], df['drug'] = df['drug'], df['bacteria']
                 
                 empirical_data[data_type] = df
@@ -92,11 +92,11 @@ def load_empirical_calibration_data():
                     else:
                         empirical_indicator = " (baseline synthetic data)"
                 
-                print(f"   ✓ Loaded {len(df):,} records from {filename}{empirical_indicator}")
+                print(f"   Loaded {len(df):,} records from {filename}{empirical_indicator}")
             else:
-                print(f"   ⚠ {filename} not found, skipping empirical overlay for {data_type}")
+                print(f"   WARNING: {filename} not found, skipping empirical overlay for {data_type}")
         except Exception as e:
-            print(f"   ✗ Error loading {filename}: {e}")
+            print(f"   ERROR loading {filename}: {e}")
     
     return empirical_data
 

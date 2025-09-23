@@ -73,7 +73,7 @@ def generate_summary_statistics():
     # Save summary statistics
     summary_df = pd.DataFrame(summary_stats)
     summary_df.to_csv('summary_statistics.csv', index=False)
-    print("✓ Summary statistics saved to 'summary_statistics.csv'")
+    print("[OK] Summary statistics saved to 'summary_statistics.csv'")
 
 def main():
     """Main comprehensive analysis function."""
@@ -84,16 +84,16 @@ def main():
     print("Running comprehensive AMR analysis...")
     try:
         create_all_plots()
-        print("   ✓ Comprehensive analysis completed successfully!\n")
+        print("   [OK] Comprehensive analysis completed successfully!\n")
     except Exception as e:
-        print(f"   ✗ Error: {e}\n")
+        print(f"   [ERROR] Error: {e}\n")
     
     # Generate summary statistics (equivalent to original script)
     try:
         generate_summary_statistics()
-        print("   ✓ Summary statistics generated successfully!\n")
+        print("   [OK] Summary statistics generated successfully!\n")
     except Exception as e:
-        print(f"   ✗ Error generating summary statistics: {e}\n")
+        print(f"   [ERROR] Error generating summary statistics: {e}\n")
     
     # Summary
     print("=== Analysis Complete ===")
