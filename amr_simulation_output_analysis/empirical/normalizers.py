@@ -80,7 +80,15 @@ def normalize_name_for_empirical_matching(name, entity_type='bacteria', data_sou
                 'streptococcus_pneumoniae': 'streptococcus pneumoniae',
                 'streptococcus_pyogenes': 'streptococcus pyogenes',
                 'vibrio_cholerae': 'vibrio cholerae',
-                'yersinia_enterocolitica': 'yersinia_enterocolitica'
+                'yersinia_enterocolitica': 'yersinia_enterocolitica',
+                # Add missing bacteria mappings
+                'enterobacter_spp': 'enterobacter spp.',
+                'invasive_non_typhoidal_salmonella_spp': 'invasive non-typhoidal salmonella spp.',
+                'citrobacter_spp': 'citrobacter spp.',
+                'morganella_spp': 'morganella spp.',
+                'proteus_spp': 'proteus spp.',
+                'serratia_spp': 'serratia spp.',
+                'shigella_spp': 'shigella spp.'
             }
             
             # Check if we have a direct mapping

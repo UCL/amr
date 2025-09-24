@@ -14,29 +14,29 @@ from pathlib import Path
 class PlotConfig:
     """Configuration for individual plot types and categories."""
     
-    # Grouped figures (Figures 1-9)
-    grouped_plots: bool = True  # Master toggle for all grouped plots
-    create_grouped_figure_1: bool = True
-    create_grouped_figure_2: bool = True
-    create_grouped_figure_3: bool = True
-    create_grouped_figure_4: bool = True
-    create_grouped_figure_5: bool = True
-    create_grouped_figure_6: bool = True
-    create_grouped_figure_7: bool = True
-    create_grouped_figure_8: bool = True
-    create_grouped_figure_9: bool = True
+    # Grouped figures (Figures 1-9) - TEMPORARILY DISABLED FOR TESTING
+    grouped_plots: bool = False  # Master toggle for all grouped plots
+    create_grouped_figure_1: bool = False
+    create_grouped_figure_2: bool = False
+    create_grouped_figure_3: bool = False
+    create_grouped_figure_4: bool = False
+    create_grouped_figure_5: bool = False
+    create_grouped_figure_6: bool = False
+    create_grouped_figure_7: bool = False
+    create_grouped_figure_8: bool = False
+    create_grouped_figure_9: bool = False
     
     # Detail plot categories
     basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
     
-    # Individual plot type controls (from original script boolean flags)
+    # Individual plot type controls - ALL ENABLED TO TEST EMPIRICAL OVERLAY FIXES
     drug_failure_rate_by_bacteria_region: bool = True
-    mean_mic_by_drug_for_each_bacteria: bool = True
+    mean_mic_by_drug_for_each_bacteria: bool = True  # FIXED: MIC empirical overlay normalization
     incidence_of_infection_hospital: bool = True
     incidence_of_infection: bool = True
     death_rate_by_bacteria_region: bool = True
     population_mortality_by_bacteria_region: bool = True
-    mean_any_r_by_drug_for_each_bacteria: bool = True
+    mean_any_r_by_drug_for_each_bacteria: bool = True  # FIXED: Resistance empirical overlay normalization
     proportion_of_people_taking_each_drug: bool = True
     
     # Additional plot types (disabled by default in original)
@@ -48,6 +48,10 @@ class PlotConfig:
     mean_activity_r_by_bacteria: bool = False
     resistance_mechanism_by_bacteria: bool = False
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
+    
+    # Empirical data display options
+    show_synthetic_fallback_data: bool = False  # Whether to display synthetic fallback empirical overlays
+    show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
     source_of_new_resistance_by_drug_bacteria: bool = False

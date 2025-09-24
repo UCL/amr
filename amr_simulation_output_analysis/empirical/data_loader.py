@@ -14,9 +14,35 @@ def load_empirical_calibration_data():
     """
     Load empirical calibration data for overlay on simulation plots.
     Uses real surveillance data from WHO GLASS, ECDC EARS-Net, CDC NARMS, and GBD Study.
-    Automatically generates empirical files if they don't exist.
+    Enhanced with integrated surveillance data from major global sources.
     Returns dictionary with data for drug usage, resistance, incidence, and deaths.
     """
+    
+    # Try to use enhanced integrated loader if available
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Add project root to path
+        project_root = Path(__file__).parent.parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+            
+        from enhanced_empirical_loader import load_integrated_empirical_data
+        
+        print("\n🚀 Loading integrated empirical data (WHO GLASS, ECDC EARS-Net, Australian NNDSS, CDDEP ResistanceMap)...")
+        integrated_data = load_integrated_empirical_data()
+        
+        # Show enhanced coverage
+        total_records = sum(len(df) if df is not None else 0 for df in integrated_data.values())
+        print(f"✅ Enhanced empirical data loaded: {total_records:,} total records from integrated surveillance sources")
+        
+        return integrated_data
+        
+    except Exception as e:
+        print(f"⚠️  Enhanced loader unavailable ({e}), using standard calibration data...")
+    
+    # Fallback to standard calibration loading
     empirical_data = {
         'drug_usage': None,
         'resistance': None, 

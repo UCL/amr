@@ -320,6 +320,10 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2:
         create_mic_lt2_by_drug_plots(data, config)
     
+    # Population mortality plots with empirical overlays
+    if config.population_mortality_by_bacteria_region:
+        create_population_mortality_by_bacteria_region_plots(data, config)
+    
     # Additional plots can be added here as they are implemented
     # if config.death_rate_by_bacteria:
     #     create_death_rate_by_bacteria_plots(data, config)
@@ -557,6 +561,15 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
         if drug_match.empty:
             return None, None, None, None, None
         
+        # Check if we should filter out synthetic fallback data
+        if not config.show_synthetic_fallback_data:
+            # Only keep rows with real empirical sources
+            real_data_mask = ~drug_match['source_quality'].isin(['na', 'synthetic_fallback', 'empirical_pattern_extrapolated'])
+            drug_match = drug_match[real_data_mask]
+            
+            if drug_match.empty:
+                return None, None, None, None, None
+        
         # Map empirical years to simulation years (1930-2020 → years 14-104) 
         simulation_years = drug_match['year'] - 1916  # 1930 → 14
         
@@ -631,11 +644,12 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
                                        color=drug_color, alpha=0.2, 
                                        label=f"Empirical 90% CI")
                 
-                # Add source attribution text box
-                source_text = create_empirical_source_text(emp_sources)
-                plt.text(0.02, 0.98, source_text, transform=plt.gca().transAxes, 
-                        fontsize=8, verticalalignment='top', 
-                        bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.7))
+                # Add source attribution text box (if enabled)
+                if config.show_empirical_source_attribution:
+                    source_text = create_empirical_source_text(emp_sources)
+                    plt.text(0.02, 0.98, source_text, transform=plt.gca().transAxes, 
+                            fontsize=8, verticalalignment='top', 
+                            bbox=dict(boxstyle='round,pad=0.3', facecolor='lightblue', alpha=0.7))
                 
                 print(f"    ✓ Added empirical overlay for {drug_name} ({len(emp_years)} data points, sources: {emp_sources})")
             else:
@@ -839,13 +853,25 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                     
                     resistance_df = empirical_data['resistance']
                     
-                    # Try exact match first (empirical data uses underscores like simulation data)
-                    print(f"      DEBUG: Looking for empirical data: bacteria='{bacteria}', drug='{drug}'")
+                    # Normalize bacteria name for empirical matching
+                    normalized_bacteria = normalize_name_for_empirical_matching(bacteria, entity_type='bacteria', data_source='resistance')
+                    normalized_drug = normalize_name_for_empirical_matching(drug, entity_type='drug', data_source='resistance')
                     
+                    print(f"      DEBUG: Looking for empirical data: bacteria='{bacteria}' -> '{normalized_bacteria}', drug='{drug}' -> '{normalized_drug}'")
+                    
+                    # Try exact match first
                     empirical_filtered = resistance_df[
                         (resistance_df['bacteria'] == bacteria) & 
                         (resistance_df['drug'] == drug)
                     ]
+                    
+                    # If no exact match, try normalized names
+                    if len(empirical_filtered) == 0 and normalized_bacteria != bacteria:
+                        empirical_filtered = resistance_df[
+                            (resistance_df['bacteria'] == normalized_bacteria) & 
+                            (resistance_df['drug'] == normalized_drug)
+                        ]
+                        print(f"      DEBUG: Trying normalized names: {len(empirical_filtered)} records found")
                     
                     print(f"      DEBUG: Found {len(empirical_filtered)} empirical records for {drug}")
                     
@@ -1147,13 +1173,25 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                     
                     mic_df = empirical_data['mic_values']
                     
-                    # Try exact match first (empirical data uses underscores like simulation data)
-                    print(f"      DEBUG: Looking for empirical MIC data: bacteria='{bacteria}', drug='{drug}'")
+                    # Normalize bacteria name for empirical matching
+                    normalized_bacteria = normalize_name_for_empirical_matching(bacteria, entity_type='bacteria', data_source='mic_values')
+                    normalized_drug = normalize_name_for_empirical_matching(drug, entity_type='drug', data_source='mic_values')
                     
+                    print(f"      DEBUG: Looking for empirical MIC data: bacteria='{bacteria}' -> '{normalized_bacteria}', drug='{drug}' -> '{normalized_drug}'")
+                    
+                    # Try exact match first
                     empirical_filtered = mic_df[
                         (mic_df['bacteria'] == bacteria) & 
                         (mic_df['drug'] == drug)
                     ]
+                    
+                    # If no exact match, try normalized names
+                    if len(empirical_filtered) == 0 and normalized_bacteria != bacteria:
+                        empirical_filtered = mic_df[
+                            (mic_df['bacteria'] == normalized_bacteria) & 
+                            (mic_df['drug'] == normalized_drug)
+                        ]
+                        print(f"      DEBUG: Trying normalized names for MIC: {len(empirical_filtered)} records found")
                     
                     if len(empirical_filtered) > 0:
                         print(f"      DEBUG: Found {len(empirical_filtered)} empirical MIC records")
@@ -1279,7 +1317,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             if len(style_handles) > 0:
                 style_legend = plt.legend(style_handles, style_labels,
                                         title="Data Types",
-                                        bbox_to_anchor=(1.02, 0.4),  # Lower position to avoid overlap
+                                        bbox_to_anchor=(1.02, 0.2),  # Much lower position to avoid overlap
                                         loc='upper left',
                                         fontsize=9,
                                         title_fontsize=10,
@@ -1338,8 +1376,237 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         print(f"[OK] Created {plots_created} mean MIC by drug plots")
 
 
+@safe_plot_creation
+def create_population_mortality_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """
+    Create population mortality rate plots by bacteria and region with empirical overlays.
+    
+    Shows deaths per 100,000 population per year for each bacteria across regions.
+    Includes empirical death data overlays when available with proper units matching.
+    """
+    output_dir = Path(config.output_dir) / "population_mortality_by_bacteria_region"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    bacteria_list = extract_bacteria_list_from_csv(df)
+    
+    # Load empirical death data if available
+    empirical_data = None
+    deaths_file = "calibration_deaths_empirical.csv"  # Default empirical deaths file name
+    deaths_file_path = Path(deaths_file)  # Assume it's in the current directory
+    if deaths_file_path.exists():
+        try:
+            empirical_data = pd.read_csv(deaths_file_path)
+            print(f"  [INFO] Loaded empirical death data: {len(empirical_data)} records")
+        except Exception as e:
+            logger.warning(f"Could not load empirical death data: {e}")
+            empirical_data = None
+    else:
+        logger.warning(f"Empirical death data file not found: {deaths_file_path}")
+    
+    plots_created = 0
+    
+    # Define regions and colors (matching actual data columns)
+    regions = {
+        'North America': '#1f77b4',  # Blue
+        'South America': '#ff7f0e',  # Orange
+        'Europe': '#2ca02c',         # Green  
+        'Asia': '#d62728',           # Red
+        'Africa': '#9467bd',         # Purple
+        'Oceania': '#8c564b'         # Brown
+    }
+    
+    for bacteria in bacteria_list:
+        # Check if we have death data for this bacteria
+        deaths_columns = [col for col in df.columns if f"{bacteria}_deaths_infected_" in col]
+        population_columns = [col for col in df.columns if f"population_" in col]
+        
+        if not deaths_columns or not population_columns:
+            continue
+            
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        found_data = False
+        
+        for region_name, color in regions.items():
+            # Convert region name to column suffix format
+            region_suffix = region_name.lower().replace(' ', '_')
+            deaths_col = f"{bacteria}_deaths_infected_{region_suffix}"
+            pop_col = f"{region_suffix}_population"  # Correct format: region_population not population_region
+            
+            if deaths_col not in df.columns or pop_col not in df.columns:
+                continue
+                
+            # Create annual aggregated data for population mortality calculation
+            sim_df = pd.DataFrame({
+                'time_in_years': df['time_in_years'],
+                'year': df['time_in_years'].astype(int),  # Convert to integer year
+                'population': df[pop_col],
+                'deaths_infected': df[deaths_col]
+            })
+            
+            # Group by year and sum deaths
+            annual_data = sim_df.groupby('year').agg({
+                'time_in_years': 'mean',  # Use mid-year as representative time
+                'population': 'mean',     # Average population for the year
+                'deaths_infected': 'sum'  # Sum all deaths in the year
+            }).reset_index()
+            
+            # Calculate annual population mortality rate per 100,000 population
+            mask = annual_data['population'] > 0
+            mortality_rate = pd.Series(0.0, index=annual_data.index)
+            mortality_rate[mask] = (annual_data['deaths_infected'][mask] / annual_data['population'][mask]) * 100000
+            
+            # Use annual data for plotting (no additional smoothing needed)
+            time_years = annual_data['time_in_years']
+            mortality_rate_smooth = mortality_rate
+            
+            # Plot the simulation data (solid line) - now using annual aggregated population mortality rate
+            ax.plot(time_years, mortality_rate_smooth, 
+                   label=f'Simulation: {region_name}', color=color, linewidth=2, linestyle='-')
+            
+            # Add empirical overlay if available
+            if empirical_data is not None:
+                emp_years, emp_means, emp_p5, emp_p95 = get_empirical_data_for_plot(
+                    empirical_data, 
+                    bacteria=bacteria,
+                    region=region_suffix
+                )
+                
+                if emp_years is not None and emp_means is not None:
+                    # Plot empirical estimates (dashed line, same color)
+                    ax.plot(emp_years, emp_means, 
+                           color=color,
+                           label=f"Empirical: {region_name}", 
+                           linewidth=2,
+                           linestyle='--',
+                           alpha=0.8)
+                    
+                    # Add confidence interval shadow (same color, very transparent)
+                    if emp_p5 is not None and emp_p95 is not None:
+                        ax.fill_between(emp_years, emp_p5, emp_p95, 
+                                       color=color,
+                                       alpha=0.1)
+                    
+                    print(f"    ✓ Added empirical population mortality overlay for {bacteria} in {region_name}")
+            
+            found_data = True
+        
+        if found_data:
+            # Format the plot
+            ax.set_xlabel('Time (Years)', fontsize=12)
+            ax.set_ylabel('Population Mortality Rate (deaths per 100,000 population per year)', fontsize=12)
+            
+            # Clean up bacteria name for title
+            bacteria_title = bacteria.replace('_', ' ').title()
+            ax.set_title(f'Population Mortality Rate from {bacteria_title} by Region', fontsize=14)
+            
+            # Create dual legend system: Regional colors + Line styles
+            # Create regional color legend (right side)
+            region_handles = []
+            region_labels = []
+            
+            # Collect handles for regional legend (use simulation lines as representative)
+            for region_name, region_color in regions.items():
+                region_suffix = region_name.lower().replace(' ', '_')
+                deaths_col = f"{bacteria}_deaths_infected_{region_suffix}"
+                if deaths_col in df.columns:
+                    region_handles.append(plt.Line2D([0], [0], color=region_color, linewidth=3))
+                    region_labels.append(region_name)
+            
+            if region_handles:
+                # Create style legend for data types first (this becomes the default legend)
+                if empirical_data is not None:
+                    style_handles = [
+                        plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='-', label='Simulation'),
+                        plt.Line2D([0], [0], color='gray', linewidth=2, linestyle='--', label='Empirical Data (90% CI)')
+                    ]
+                    # Create the style legend (this will be the default legend)
+                    style_legend = ax.legend(style_handles, ['Simulation', 'Empirical Data (90% CI)'],
+                                            title="Data Type",
+                                            bbox_to_anchor=(1.02, 0.3),
+                                            loc='upper left',
+                                            fontsize=10,
+                                            title_fontsize=11)
+                    
+                # Create regional legend as a separate artist (positioned higher)
+                from matplotlib.legend import Legend
+                region_legend = Legend(ax, region_handles, region_labels,
+                                     title="Regions",
+                                     loc='center left',
+                                     bbox_to_anchor=(1.02, 0.7),
+                                     fontsize=10,
+                                     title_fontsize=11)
+                ax.add_artist(region_legend)
+            else:
+                # Fallback: simple legend if no region data found
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+            
+            plt.tight_layout()
+            
+            # Save the plot with improved spacing to include legends outside plot area
+            filename = f"bacteria_{bacteria}_population_mortality_by_region.png"
+            filepath = output_dir / filename
+            plt.savefig(filepath, dpi=config.dpi, bbox_inches=config.bbox_inches, 
+                       pad_inches=0.3, facecolor='white')
+            plt.close()
+            
+            plots_created += 1
+            print(f"    [OK] {filename} saved")
+    
+    if plots_created == 0:
+        print("  [WARNING] No population mortality plots created")
+    else:
+        print(f"[OK] Created {plots_created} population mortality by bacteria region plots")
+
+
+def get_empirical_data_for_plot(empirical_df, drug=None, bacteria=None, region=None):
+    """
+    Extract empirical data points for a specific drug/bacteria/region combination.
+    Simplified version adapted from legacy implementation for death data.
+    
+    Args:
+        empirical_df: The empirical data DataFrame
+        drug: Drug name to filter by (not used for death data)
+        bacteria: Bacteria name to filter by  
+        region: Region name to filter by
+        
+    Returns:
+        tuple: (years, means, p5, p95) for plotting
+    """
+    if empirical_df is None:
+        return None, None, None, None
+    
+    # Filter data based on parameters
+    filtered_df = empirical_df.copy()
+    
+    if bacteria is not None:
+        # Normalize bacteria name for matching - convert underscores to spaces and ensure lowercase
+        normalized_bacteria = bacteria.replace('_', ' ').lower()
+        filtered_df = filtered_df[filtered_df['bacteria'].str.lower() == normalized_bacteria]
+        
+    if region is not None:
+        filtered_df = filtered_df[filtered_df['region'] == region]
+    
+    if len(filtered_df) == 0:
+        return None, None, None, None
+    
+    # Sort by year and extract plotting data
+    filtered_df = filtered_df.sort_values('year')
+    
+    # Convert absolute years to simulation years (simulation starts at 1930)
+    sim_years = filtered_df['year'] - 1930
+    
+    # Extract death rate data - use 'mean' column for deaths_per_100k_per_year
+    means = filtered_df['mean'].values if 'mean' in filtered_df.columns else None
+    
+    # Extract confidence intervals if available
+    p5 = filtered_df['p5'].values if 'p5' in filtered_df.columns else None
+    p95 = filtered_df['p95'].values if 'p95' in filtered_df.columns else None
+    
+    return sim_years, means, p5, p95
+
+
 # Additional functions to be extracted:
-# - create_death_rate_by_bacteria_plots
+# - create_death_rate_by_bacteria_plots (case fatality rates)
 # - create_mean_activity_r_by_bacteria_plots  
 # - create_resistance_mechanism_by_bacteria_plots
 # - create_age_distribution_by_region_plots
