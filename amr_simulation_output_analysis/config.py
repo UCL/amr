@@ -15,7 +15,7 @@ class PlotConfig:
     """Configuration for individual plot types and categories."""
     
     # Grouped figures (Figures 1-9) - TEMPORARILY DISABLED FOR TESTING
-    grouped_plots: bool = False  # Master toggle for all grouped plots
+    grouped_plots: bool = True  # Master toggle for all grouped plots
     create_grouped_figure_1: bool = False
     create_grouped_figure_2: bool = False
     create_grouped_figure_3: bool = False
@@ -29,14 +29,21 @@ class PlotConfig:
     # Detail plot categories
     basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
     
-    # Individual plot type controls - ALL ENABLED TO TEST EMPIRICAL OVERLAY FIXES
-    drug_failure_rate_by_bacteria_region: bool = True
-    mean_mic_by_drug_for_each_bacteria: bool = True  # FIXED: MIC empirical overlay normalization
-    incidence_of_infection_hospital: bool = True
-    incidence_of_infection: bool = True
-    death_rate_by_bacteria_region: bool = True
-    population_mortality_by_bacteria_region: bool = True
-    mean_any_r_by_drug_for_each_bacteria: bool = True  # FIXED: Resistance empirical overlay normalization
+    # Individual basic plot controls - DISABLED since they're included in grouped figures
+    infection_duration: bool = False  # Included in grouped figures
+    sepsis_among_infected: bool = False  # Included in grouped figures
+    death_causes: bool = False  # Included in grouped figures  
+    resistance_among_infected: bool = False  # Included in grouped figures
+    infection_resolution_by_bacteria: bool = False
+    
+    # Individual plot type controls - ENABLING DRUG USAGE PLOTS FOR COMPARISON
+    drug_failure_rate_by_bacteria_region: bool = False
+    mean_mic_by_drug_for_each_bacteria: bool = False
+    incidence_of_infection_hospital: bool = False
+    incidence_of_infection: bool = False
+    death_rate_by_bacteria_region: bool = False
+    population_mortality_by_bacteria_region: bool = False
+    mean_any_r_by_drug_for_each_bacteria: bool = False
     proportion_of_people_taking_each_drug: bool = True
     
     # Additional plot types (disabled by default in original)
@@ -50,13 +57,15 @@ class PlotConfig:
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
     
     # Empirical data display options
-    show_synthetic_fallback_data: bool = False  # Whether to display synthetic fallback empirical overlays
+    show_synthetic_fallback_data: bool = True  # Whether to display synthetic fallback empirical overlays
     show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
-    source_of_new_resistance_by_drug_bacteria: bool = False
+    source_of_new_resistance_by_drug_bacteria: bool = True
     infection_resolution_by_bacteria: bool = False
     drug_score_analysis_by_bacteria: bool = False
+    drug_score_summary: bool = False  # Individual drug score time series plots
+    clinical_guideline_analysis: bool = False  # Clinical appropriateness analysis
     age_distribution_by_region: bool = False
     death_rate_by_region: bool = False
     age_specific_death_rate_by_region: bool = False
@@ -65,13 +74,13 @@ class PlotConfig:
     proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
     
     # Convenience category groupings
-    incidence_plots: bool = True
-    mortality_plots: bool = True
-    resistance_plots: bool = True
-    drug_usage_plots: bool = True
-    hospital_plots: bool = True
-    age_specific_plots: bool = True
-    regional_plots: bool = True
+    incidence_plots: bool = False
+    mortality_plots: bool = False
+    resistance_plots: bool = False
+    drug_usage_plots: bool = False
+    hospital_plots: bool = False
+    age_specific_plots: bool = False
+    regional_plots: bool = False
     
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))
@@ -82,8 +91,72 @@ class PlotConfig:
     
     # Smoothing and styling
     smoothing_window_days: int = 1095  # 3 years
+    smoothing_window: int = 1095  # Alias for smoothing_window_days
     plot_style: str = 'seaborn-v0_8'
     bbox_inches: str = 'tight'
+    
+    # Figure size parameters
+    fig_width: int = 12
+    fig_height: int = 6
+    
+    # Simulation time parameters
+    start_year: int = 1930  # Starting year for simulation time axis
+    
+    # Convenience properties
+    @property
+    def plot_dpi(self) -> int:
+        """Alias for dpi for backward compatibility."""
+        return self.dpi
+    
+    def should_create_plot(self, plot_type: str) -> bool:
+        """Check if a specific plot type should be created based on configuration."""
+        # Check if the specific plot type is enabled
+        if hasattr(self, plot_type):
+            return getattr(self, plot_type)
+        
+        # Fallback to category-based checks
+        category_mapping = {
+            'death_rate_by_bacteria': 'mortality_plots',
+            'microbiome_resistance_by_drug': 'resistance_plots', 
+            'hospital_resistance_by_drug_bacteria': 'hospital_plots',
+            'age_specific_death_rate_by_region': 'age_specific_plots',
+            'syndrome_distribution_by_bacteria': 'mortality_plots',
+            'proportion_resistance_by_drug_bacteria': 'resistance_plots'
+        }
+        
+        category = category_mapping.get(plot_type)
+        if category and hasattr(self, category):
+            return getattr(self, category)
+        
+        # Default to True if no specific configuration found
+        return True
+    
+    def _normalize_bacteria_name(self, name: str) -> str:
+        """Normalize bacteria names for empirical data matching."""
+        return name.lower().replace(' ', '_').replace('-', '_')
+    
+    def _normalize_drug_name(self, name: str) -> str:
+        """Normalize drug names for empirical data matching."""
+        return name.lower().replace(' ', '_').replace('-', '_')
+    
+    def _normalize_region_name(self, name: str) -> str:
+        """Normalize region names for empirical data matching."""
+        return name.lower().replace(' ', '_').replace('-', '_')
+    
+    @property 
+    def output_dirs(self) -> Dict[str, Path]:
+        """Get organized output directories by category."""
+        return {
+            'basic': self.output_dir,
+            'mortality': self.output_dir,
+            'resistance': self.output_dir, 
+            'incidence': self.output_dir,
+            'drug_usage': self.output_dir,
+            'hospital': self.output_dir,
+            'microbiome': self.output_dir,
+            'clinical': self.output_dir,
+            'regional': self.output_dir
+        }
 
 @dataclass
 class EmpiricalConfig:

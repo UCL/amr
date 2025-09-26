@@ -318,7 +318,7 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
         create_distribution_drug_use_by_bacteria_plots(data, config)
     
     if config.proportion_of_people_taking_each_drug:
-        create_drug_usage_proportion_plots(data, config)  # Global/overall plots
+        # Only create regional proportion plots (DDD plots archived - redundant and misleading)
         create_regional_drug_usage_proportion_plots(data, config)  # Regional plots with empirical overlays
     
     if config.proportion_of_people_infected_with_each_bacteria:
@@ -521,7 +521,7 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     Each plot is saved as a separate PNG file showing all drugs for one bacteria.
     """
     print("\n=== CREATING MIC<2 BY DRUG PLOTS FOR EACH BACTERIA ===")
-    out_dir = config.output_dir / "for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2"
+    out_dir = Path(config.output_dir) / "for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2"
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # Find MIC columns using the correct pattern from legacy code
@@ -539,16 +539,16 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     
     # Create one plot per bacteria showing all drugs
     for bacteria_name in bacteria_set:
-        fig, ax = plt.subplots(figsize=(12, 8))
+        # Use taller figure for better vertical space utilization
+        fig, ax = plt.subplots(figsize=(14, 12))
         found_any = False
+        drug_data = []  # Store drug data for better legend management
         
         for drug_name in drug_set:
             mic_col = f"{bacteria_name}_infected_and_mic_lt2_{drug_name}"
             
             if mic_col not in df.columns:
                 continue
-            
-            found_any = True
             
             # Use total infections as denominator (same as legacy code fallback)
             infections = df['total_currently_infected']
@@ -562,19 +562,43 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                 window=config.smoothing_window_days, min_periods=1, center=True
             ).mean()
             
-            ax.plot(df['time_in_years'], proportion_smooth, 
-                   label=drug_name.replace('_', ' ').title(), linewidth=2)
+            # Include all drugs (no filtering)
+            max_proportion = proportion_smooth.max()
+            drug_data.append((drug_name, proportion_smooth, max_proportion))
+            found_any = True
         
         if not found_any:
             plt.close(fig)
             continue
         
-        ax.set_title(f"{bacteria_name.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=14)
+        # Sort drugs by maximum proportion (most relevant first)
+        drug_data.sort(key=lambda x: x[2], reverse=True)
+        
+        # Plot drugs with better color management
+        import matplotlib.cm as cm
+        import numpy as np
+        colors = cm.tab20(np.linspace(0, 1, min(len(drug_data), 20)))  # Use tab20 colormap
+        
+        for i, (drug_name, proportion_smooth, max_prop) in enumerate(drug_data):
+            color = colors[i % len(colors)]
+            line_alpha = 0.8 if max_prop > 0.05 else 0.6  # Highlight higher-activity drugs
+            
+            ax.plot(df['time_in_years'], proportion_smooth, 
+                   label=drug_name.replace('_', ' ').title(), 
+                   linewidth=2, color=color, alpha=line_alpha)
+        
+        ax.set_title(f"{bacteria_name.replace('_', ' ').title()}: Proportion with MIC < 2 by Drug", fontsize=14, pad=20)
         ax.set_ylabel('Proportion', fontsize=12)
         ax.set_xlabel('Time (Years)', fontsize=12)
         ax.set_ylim(0, 1)
         ax.grid(True, alpha=0.3)
-        ax.legend(title='Drug', bbox_to_anchor=(1.02, 1), loc='upper left')
+        
+        # Improved legend formatting for taller figure - keep legend on right
+        legend = ax.legend(title='Drug', bbox_to_anchor=(1.02, 1), loc='upper left', 
+                          fontsize=9, title_fontsize=10, ncol=1,
+                          columnspacing=0.5, handletextpad=0.3)
+        legend.get_frame().set_alpha(0.9)
+        
         plt.tight_layout()
         
         fname = out_dir / f"{bacteria_name}_mic_lt2_by_drug.png"
@@ -583,11 +607,21 @@ def create_mic_lt2_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         print(f"  [OK] {fname} saved.")
 
 
-@safe_plot_creation
+@safe_plot_creation  
 def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
+    DEPRECATED: This function is no longer used as of 2025-09-26.
+    
     Plot drug usage in DDD per 1000 inhabitants per day with empirical overlays.
     
+    REASON FOR DEPRECATION:
+    - Misleading labeling: Claims "DDD/1000/day" but actually calculates percentage
+    - Redundant functionality: Same core calculation as create_regional_drug_usage_proportion_plots
+    - Poor organization: Puts all regional plots in single "overall_global" folder
+    - Replaced by: create_regional_drug_usage_proportion_plots which provides better 
+      organization, honest labeling, and same empirical overlays
+    
+    Original description:
     Both simulation and empirical data are converted to DDD/1000/day for direct comparison:
     - Simulation data: Has 10-fold scaling, so divide percentage by 10 to get DDD/1000/day
     - Empirical data: Convert from courses_per_100k_per_year back to DDD/1000/day by dividing by 36.5
@@ -803,7 +837,8 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
     pattern1 = re.compile(r'^([^_]+)_currently_on_drug_(.+)$')
     
     # Pattern 2: {region}_{drug}_currently_on_drug (used by north_america, south_america)  
-    pattern2 = re.compile(r'^([^_]+)_(.+)_currently_on_drug$')
+    # Fixed to handle multi-word regions like 'north_america' and 'south_america'
+    pattern2 = re.compile(r'^(north_america|south_america)_(.+)_currently_on_drug$')
     
     for col in df.columns:
         # Try pattern 1 first
@@ -2281,7 +2316,7 @@ def create_incidence_of_infection_hospital_plots(df: pd.DataFrame, config: PlotC
 
 
 @safe_plot_creation
-def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: PlotConfig, empirical_data: dict = None) -> None:
     """
     Create plots showing drug failure rates by bacteria and region over time.
     
@@ -2291,11 +2326,12 @@ def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: 
     - Day 5 treatment events: day 5 post-drug-initiation (any outcome)
     
     One plot per bacteria with 6 regional lines.
+    Includes empirical drug failure overlays when available.
     """
     logger.info("Creating drug failure rate by bacteria and region plots")
     
     # Create output directory
-    output_dir = config.output_dir / "drug_failure_rate_by_bacteria_region"
+    output_dir = Path(config.output_dir) / "drug_failure_rate_by_bacteria_region"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Regional configuration
@@ -2318,7 +2354,39 @@ def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: 
     
     logger.info(f"Found {len(bacteria_set)} bacteria with drug failure rate data")
     
-    # Create one plot per bacteria with 6 regional lines
+    # First pass: collect all failure rates to determine reasonable Y-axis scale
+    all_failure_rates = []
+    for bacteria_name in bacteria_set:
+        for region_name in region_suffixes:
+            failure_col = f"{bacteria_name}_drug_failure_events_{region_name}"
+            day5_events_col = f"{bacteria_name}_drug_treatment_day5_events_{region_name}"
+            
+            if failure_col in df.columns and day5_events_col in df.columns:
+                failures = pd.to_numeric(df[failure_col], errors='coerce')
+                day5_events = pd.to_numeric(df[day5_events_col], errors='coerce')
+                
+                # Calculate failure rate where day5_events > 0
+                mask = day5_events > 0
+                if mask.any():
+                    failure_rates = failures[mask] / day5_events[mask]
+                    all_failure_rates.extend(failure_rates.dropna().values)
+    
+    # Determine reasonable fixed Y-axis scale using 95th percentile
+    if all_failure_rates:
+        import numpy as np
+        p95 = np.percentile(all_failure_rates, 95)
+        
+        # Set reasonable scale based on 95th percentile
+        if p95 < 0.1:  # Very low failure rates (< 10%)
+            y_max = 0.2   # 20% scale
+        elif p95 < 0.5:  # Low-moderate failure rates (< 50%)
+            y_max = 0.7   # 70% scale
+        else:
+            y_max = min(p95 * 1.2, 1.0)  # 20% padding above 95th percentile, capped at 100%
+    else:
+        y_max = 0.2  # Default 20% scale if no data
+    
+    # Second pass: create plots with fixed Y-axis scale
     plots_created = 0
     for bacteria_name in sorted(bacteria_set):
         fig, ax = plt.subplots(figsize=(12, 8))
@@ -2330,8 +2398,8 @@ def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: 
             day5_events_col = f"{bacteria_name}_drug_treatment_day5_events_{region_name}"
             
             if failure_col in df.columns and day5_events_col in df.columns:
-                failures = df[failure_col]
-                day5_events = df[day5_events_col]
+                failures = pd.to_numeric(df[failure_col], errors='coerce')
+                day5_events = pd.to_numeric(df[day5_events_col], errors='coerce')
                 
                 # Calculate failure rate (skip where day5_events = 0)
                 failure_rate = pd.Series(index=df.index, dtype=float)
@@ -2366,8 +2434,8 @@ def create_drug_failure_rate_by_bacteria_region_plots(df: pd.DataFrame, config: 
             ax.set_ylabel('Drug Failure Rate')
             ax.set_xlabel('Time (Years)')
             
-            # Set Y-axis scale (0 to 1.0 to show all data)
-            ax.set_ylim(0, 1.0)
+            # Set fixed Y-axis scale across all plots (allows comparison)
+            ax.set_ylim(0, y_max)
             
             ax.grid(True, alpha=0.3)
             ax.legend(loc='best')
@@ -2662,7 +2730,7 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
     logger.info("Creating death rate by syndrome and region plots")
     
     # Create output directory
-    output_dir = config.output_dir / 'death_rate_by_syndrome_region'
+    output_dir = Path(config.output_dir) / 'death_rate_by_syndrome_region'
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Check if we have time_in_years column
@@ -2693,9 +2761,9 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
                       '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
     plots_created = 0
-    all_death_rates = []  # For calculating fixed Y-axis scale
+    all_death_rates = []  # For calculating reasonable fixed Y-axis scale
     
-    # First pass: collect all death rates to determine fixed Y-axis scale
+    # First pass: collect all death rates to determine a reasonable fixed Y-axis scale
     for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
         for syndrome_id in range(1, 11):  # syndromes 1-10
             pop_col = f"syndrome_{syndrome_id}_population_{region}"
@@ -2705,26 +2773,41 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
                 population = df[pop_col]
                 deaths = df[death_col]
                 
+                # Ensure numeric types
+                population = pd.to_numeric(population, errors='coerce')
+                deaths = pd.to_numeric(deaths, errors='coerce')
+                
                 # Calculate death rate where population > 0
                 mask = population > 0
                 if mask.any():
                     death_rates = deaths[mask] / population[mask]
-                    all_death_rates.extend(death_rates.values)
+                    all_death_rates.extend(death_rates.dropna().values)
     
-    # Determine fixed Y-axis scale
+    # Determine reasonable fixed Y-axis scale that shows meaningful variation
+    # but allows occasional outliers to exceed the scale
     if all_death_rates:
-        max_death_rate = max(all_death_rates)
-        y_max = max_death_rate * 1.1  # Add 10% padding
+        # Use 95th percentile instead of max to ignore extreme outliers
+        import numpy as np
+        p95 = np.percentile(all_death_rates, 95)
+        
+        # Set reasonable scale based on 95th percentile
+        if p95 < 0.01:  # Very low death rates (< 1%)
+            y_max = 0.02  # 2% scale
+        elif p95 < 0.05:  # Low death rates (< 5%)
+            y_max = 0.1   # 10% scale
+        else:
+            y_max = p95 * 1.2  # 20% padding above 95th percentile
     else:
-        y_max = 0.1  # Default scale
+        y_max = 0.02  # Default 2% scale if no data
     
-    # Second pass: create plots
+    # Second pass: create plots with fixed Y-axis scale
     for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
         # Create figure
         fig, ax = plt.subplots(figsize=(12, 8))
         
         found_data = False
         
+        # Plot the lines
         for syndrome_id in range(1, 11):  # syndromes 1-10
             pop_col = f"syndrome_{syndrome_id}_population_{region}"
             death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
@@ -2734,6 +2817,10 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
             
             population = df[pop_col]
             deaths = df[death_col]
+            
+            # Ensure numeric types
+            population = pd.to_numeric(population, errors='coerce')
+            deaths = pd.to_numeric(deaths, errors='coerce')
             
             # Calculate death rate (skip where population = 0)
             death_rate = pd.Series(index=df.index, dtype=float)
@@ -2764,7 +2851,7 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
             ax.legend(loc='best')
             ax.grid(True, alpha=0.3)
             
-            # Set fixed Y-axis scale across all regions
+            # Set fixed Y-axis scale across all regions (allows comparison)
             ax.set_ylim(0, y_max)
             
             plt.tight_layout()
