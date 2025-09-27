@@ -13,6 +13,7 @@
 
 
 use crate::simulation::population::{Population, BACTERIA_LIST, DRUG_SHORT_NAMES, ResistanceMechanism, Region};
+use crate::simulation::journey_logger::JourneyLogger;
 use crate::rules::apply_rules;
 use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use std::collections::HashMap;
@@ -235,6 +236,8 @@ pub struct Simulation {
     pub mic_lt2_majority_r_thresholds: Vec<f64>,
     /// Hint: previous timestep total majority_r entries to reserve capacity
     pub prev_majority_r_entries_len: usize,
+    /// Journey logger for tracking infection episodes
+    pub journey_logger: JourneyLogger,
 }
 
 impl Simulation {
@@ -271,19 +274,7 @@ impl Simulation {
             }
         }
 
-        println!(" ");
-        println!("--- simulation.rs  initial state of individual 0 ---");
-        println!(" ");
-        println!("id: {}", population.individuals[0].id);
-        println!("age: {} days", population.individuals[0].age);
-        println!("sex at birth: {}", population.individuals[0].sex_at_birth);
-        println!("region living: {:?}", population.individuals[0].region_living);
-        println!("region currently in: {:?}", population.individuals[0].region_cur_in);
-        println!("current_infection_related_death_risk: {:.2}", population.individuals[0].current_infection_related_death_risk);
-        println!("background_all_cause_mortality_rate: {:.4}", population.individuals[0].background_all_cause_mortality_rate);
-        println!("current_toxicity: {:.2}", population.individuals[0].current_toxicity);
-        println!("mortality_risk_current_toxicity: {:.2}", population.individuals[0].mortality_risk_current_toxicity);
-        println!(" ");
+        // Initial individual state logging disabled for cleaner output
 
         // Precompute potency matrix to avoid repeated string formatting/hash lookups in hot loop
         let num_bacteria = BACTERIA_LIST.len();
@@ -317,15 +308,26 @@ impl Simulation {
             potency_matrix,
             mic_lt2_majority_r_thresholds,
             prev_majority_r_entries_len: 0,
+            journey_logger: JourneyLogger::new(),
+        }
+    }
+
+    /// Enable infection journey logging with specified sample rate
+    pub fn enable_infection_journey_logging(&mut self, sample_rate: f64) {
+        println!("Calling journey_logger.enable() with sample_rate: {}", sample_rate);
+        match self.journey_logger.enable(sample_rate) {
+            Ok(_) => println!("Journey logging enabled successfully"),
+            Err(e) => {
+                eprintln!("ERROR: Failed to enable infection journey logging: {}", e);
+                eprintln!("Journey logging will not work!");
+            }
         }
     }
 
     pub fn run(&mut self) {
         // public function named run, which executes the simulation for the specified number of time steps.
 
-        println!(" ");
-        println!("--- starting to run over time steps");
-        println!(" ");
+        // Starting simulation
 
         for t in 0..self.time_steps {
             let timestep_start = Instant::now();
@@ -1629,13 +1631,31 @@ impl Simulation {
                     ).unwrap();
                 }
             }
+
+            // Journey logging - process infection journeys after rules have been applied
+            if self.journey_logger.enabled {
+                // Process all individuals sequentially to update journey tracking
+                for individual in &self.population.individuals {
+                    self.journey_logger.check_individual(individual, t);
+                }
+                
+                // Write journey data to file periodically (or use finalize method if needed)
+                if t % 30 == 0 || t == 365 * 105 - 1 { // Every 30 days or at the end
+                    let _ = self.journey_logger.finalize();
+                }
+            }
             
             let _timestep_time = timestep_start.elapsed();
             if t % 100 == 0 { // Log every 100th timestep
                 println!("Time step {}", t);
-                // println!("Time step {} total time: {:.3}ms", t, timestep_time.as_secs_f64() * 1000.0);
             }
 
+        }
+
+        // Final journey logging - ensure all journey data is written at simulation end
+        if self.journey_logger.enabled {
+            let _ = self.journey_logger.finalize();
+            let _ = self.journey_logger.close(); // Close the file at the very end
         }
 
     }
@@ -1673,7 +1693,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
         
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -2071,8 +2091,10 @@ impl Simulation {
             let mut row = String::with_capacity(20000); // Pre-allocate for each row
             
             // Write basic summary data
-            row.push_str(&format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
-                summary.time_step, 
+            let time_in_years = summary.time_step as f64 / 365.0;
+            row.push_str(&format!("{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+                summary.time_step,
+                time_in_years,
                 summary.total_population,
                 summary.number_in_hospital,
                 summary.number_severely_immunosuppressed,

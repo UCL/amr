@@ -25,12 +25,12 @@ mod config;
 //  
 // maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
 // 
-// add gbd estimates as calibration data to the plots (at least for incidence and mortality)
-//
 //
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
+//
+// consider whether to use gbd regions rather than continents 
 //
 // think carefully about standardized drug levels and mic - do I need to make drug levels realistic ? 
 //
@@ -106,11 +106,19 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 100_000; 
-    let time_steps =  38_325 ;  // 38_325
+    let population_size = 2_000; // Reduced for testing
+    let time_steps = 5000 ;  // Back to 5000 steps for real data
     let log_individuals = false  ; // Set to false to disable detailed individual logging
+    let log_infection_journeys = true; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.1; // Log 10% of infections for testing (0.0-1.0)
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
+    
+    // Configure infection journey logging
+    if log_infection_journeys {
+        // Enable journey logging silently
+        let _ = simulation.enable_infection_journey_logging(infection_journey_sample_rate);
+    }
 
     use std::time::Instant;
     let start = Instant::now();

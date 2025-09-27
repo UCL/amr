@@ -72,6 +72,7 @@ def create_all_plots(config=None):
         config.population_mortality_by_bacteria_region,
         config.mean_any_r_by_drug_for_each_bacteria,
         config.proportion_of_people_taking_each_drug,
+        config.death_rate_by_region,
         # Add more as needed
     ])
     

@@ -22,8 +22,17 @@ def normalize_name_for_empirical_matching(name, entity_type='bacteria', data_sou
         return None
     
     if entity_type == 'drug':
-        # For drugs, keep underscores as empirical data uses them for combinations
-        normalized = name  # Keep original format
+        # For drugs, handle region-prefixed names (e.g., 'europe_penicilling' -> 'penicilling')
+        # and keep underscores as empirical data uses them for combinations
+        
+        # Extract base drug name from region-prefixed names
+        regions = ['north_america', 'south_america', 'europe', 'asia', 'africa', 'oceania']
+        normalized = name
+        
+        for region in regions:
+            if name.startswith(f"{region}_"):
+                normalized = name[len(f"{region}_"):]
+                break
         
         # Handle specific drug name variations if needed
         drug_mappings = {
