@@ -45,7 +45,14 @@ pub struct InfectionJourneySnapshot {
     
     // Resistance status for primary bacteria
     pub resistance_any_r: Vec<(String, f64)>, // (drug_name, any_r_level)
+    pub resistance_majority_r: Vec<(String, f64)>, // (drug_name, majority_r_level)
+    pub resistance_activity_r: Vec<(String, f64)>, // (drug_name, activity_r_level)
     pub resistance_mechanisms: Vec<String>, // active mechanisms
+    
+    // Drug selection information (captured when treatment starts)
+    pub drug_selection_bacteria: Option<String>, // bacteria that triggered drug selection
+    pub drug_selection_scores: Vec<(String, f64)>, // all drug scores at selection time
+    pub selected_drug: Option<String>, // which drug was actually selected
     
     // Clinical status
     pub hospital_status: String,
@@ -75,6 +82,7 @@ pub struct JourneyLogger {
     // Configuration
     pub enabled: bool,
     pub sample_rate: f64,
+    pub bacteria_filter: Option<String>, // Filter to log only specific bacteria
     
     // Active tracking
     active_journeys: HashMap<usize, ActiveJourney>, // individual_id -> journey
@@ -95,6 +103,7 @@ impl JourneyLogger {
         Self {
             enabled: false,
             sample_rate: 0.0,
+            bacteria_filter: None,
             active_journeys: HashMap::new(),
             next_journey_id: 1,
             csv_writer: None,
@@ -108,6 +117,7 @@ impl JourneyLogger {
     pub fn enable(&mut self, sample_rate: f64) -> Result<(), Box<dyn std::error::Error>> {
         self.enabled = true;
         self.sample_rate = sample_rate.clamp(0.0, 1.0);
+        self.bacteria_filter = None;
         
         // Create output file
         self.output_filename = "infection_journeys.csv".to_string();
@@ -124,8 +134,34 @@ impl JourneyLogger {
         Ok(())
     }
     
+    /// Enable journey logging with sample rate and optional bacteria filter
+    pub fn enable_with_filter(&mut self, sample_rate: f64, bacteria_filter: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+        self.enabled = true;
+        self.sample_rate = sample_rate.clamp(0.0, 1.0);
+        self.bacteria_filter = bacteria_filter;
+        
+        // Create output file with bacteria-specific name if filtering
+        self.output_filename = if let Some(ref filter) = self.bacteria_filter {
+            format!("infection_journeys_{}.csv", filter)
+        } else {
+            "infection_journeys.csv".to_string()
+        };
+        
+        let file = File::create(&self.output_filename)?;
+        let mut writer = BufWriter::new(file);
+        
+        // Write CSV header
+        writeln!(writer, "{}", JourneyLogger::get_csv_header())?;
+        
+        self.csv_writer = Some(writer);
+        
+        // Journey logging enabled silently
+        
+        Ok(())
+    }
+    
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_mechanisms,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type"
+        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type"
     }
     
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -173,6 +209,14 @@ impl JourneyLogger {
         
         if highest_level <= 0.001 {
             return; // No significant infection
+        }
+        
+        // Check bacteria filter if specified
+        if let Some(ref filter_bacteria) = self.bacteria_filter {
+            let bacteria_name = BACTERIA_LIST[primary_bacteria_idx].to_lowercase().replace(" ", "_");
+            if bacteria_name != *filter_bacteria {
+                return; // Skip this infection - doesn't match filter
+            }
         }
         
         let journey_id = self.next_journey_id;
@@ -298,12 +342,55 @@ impl JourneyLogger {
             .map(|(idx, &drug_name)| (drug_name.to_string(), individual.resistances[primary_bacteria_idx][idx].any_r))
             .collect();
         
+        let resistance_majority_r: Vec<(String, f64)> = DRUG_SHORT_NAMES.iter()
+            .enumerate()
+            .filter(|(idx, _)| individual.resistances[primary_bacteria_idx][*idx].majority_r > 0.0)
+            .map(|(idx, &drug_name)| (drug_name.to_string(), individual.resistances[primary_bacteria_idx][idx].majority_r))
+            .collect();
+        
+        let resistance_activity_r: Vec<(String, f64)> = DRUG_SHORT_NAMES.iter()
+            .enumerate()
+            .filter(|(idx, _)| individual.resistances[primary_bacteria_idx][*idx].activity_r > 0.0)
+            .map(|(idx, &drug_name)| (drug_name.to_string(), individual.resistances[primary_bacteria_idx][idx].activity_r))
+            .collect();
+        
         // Collect active resistance mechanisms
         let resistance_mechanisms: Vec<String> = individual.resistance_mechanisms[primary_bacteria_idx].iter()
             .enumerate()
             .filter(|(_, &is_active)| is_active)
             .map(|(idx, _)| format!("mechanism_{}", idx)) // Will need to map to actual mechanism names
             .collect();
+        
+        // Collect drug selection information if available
+        let (drug_selection_bacteria, drug_selection_scores, selected_drug) = if individual.bacteria_on_selection_day >= 0 {
+            let selection_bacteria_idx = individual.bacteria_on_selection_day as usize;
+            let selection_bacteria_name = if selection_bacteria_idx < BACTERIA_LIST.len() {
+                Some(BACTERIA_LIST[selection_bacteria_idx].to_string())
+            } else {
+                None
+            };
+            
+            let scores: Vec<(String, f64)> = DRUG_SHORT_NAMES.iter()
+                .enumerate()
+                .filter(|(idx, _)| individual.drug_score_on_selection_day[*idx] >= 0.0)
+                .map(|(idx, &drug_name)| (drug_name.to_string(), individual.drug_score_on_selection_day[idx]))
+                .collect();
+            
+            // Find which drug was selected (the one currently being taken that was started most recently)
+            let selected = current_drugs.iter()
+                .max_by_key(|(drug_name, _)| {
+                    if let Some(drug_idx) = DRUG_SHORT_NAMES.iter().position(|&d| d == drug_name) {
+                        individual.date_drug_initiated[drug_idx]
+                    } else {
+                        -1
+                    }
+                })
+                .map(|(drug_name, _)| drug_name.clone());
+            
+            (selection_bacteria_name, scores, selected)
+        } else {
+            (None, Vec::new(), None)
+        };
         
         InfectionJourneySnapshot {
             journey_id,
@@ -325,7 +412,12 @@ impl JourneyLogger {
             days_on_current_treatment: individual.days_on_current_treatment[primary_bacteria_idx],
             treatment_failures_count: 0, // Will need to track this
             resistance_any_r,
+            resistance_majority_r,
+            resistance_activity_r,
             resistance_mechanisms,
+            drug_selection_bacteria,
+            drug_selection_scores,
+            selected_drug,
             hospital_status: format!("{:?}", individual.hospital_status),
             immunity_level: individual.immune_resp[primary_bacteria_idx],
             toxicity_level: individual.current_toxicity,
@@ -370,17 +462,36 @@ impl JourneyLogger {
             .collect::<Vec<_>>()
             .join(";");
         
-        let resistance_str = snapshot.resistance_any_r.iter()
+        let resistance_any_r_str = snapshot.resistance_any_r.iter()
+            .map(|(drug, level)| format!("{}:{:.6}", drug, level))
+            .collect::<Vec<_>>()
+            .join(";");
+        
+        let resistance_majority_r_str = snapshot.resistance_majority_r.iter()
+            .map(|(drug, level)| format!("{}:{:.6}", drug, level))
+            .collect::<Vec<_>>()
+            .join(";");
+        
+        let resistance_activity_r_str = snapshot.resistance_activity_r.iter()
             .map(|(drug, level)| format!("{}:{:.6}", drug, level))
             .collect::<Vec<_>>()
             .join(";");
         
         let mechanisms_str = snapshot.resistance_mechanisms.join(";");
         
+        let drug_selection_bacteria_str = snapshot.drug_selection_bacteria.as_ref().unwrap_or(&String::new()).clone();
+        
+        let drug_selection_scores_str = snapshot.drug_selection_scores.iter()
+            .map(|(drug, score)| format!("{}:{:.6}", drug, score))
+            .collect::<Vec<_>>()
+            .join(";");
+        
+        let selected_drug_str = snapshot.selected_drug.as_ref().unwrap_or(&String::new()).clone();
+        
         let resolution_str = snapshot.resolution_type.as_ref().unwrap_or(&String::new()).clone();
         
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",{},{:.6},{:.6},{:.6},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{}",
             snapshot.journey_id,
             snapshot.individual_id,
             snapshot.time_step,
@@ -399,8 +510,13 @@ impl JourneyLogger {
             current_drugs_str,
             snapshot.days_on_current_treatment,
             snapshot.treatment_failures_count,
-            resistance_str,
+            resistance_any_r_str,
+            resistance_majority_r_str,
+            resistance_activity_r_str,
             mechanisms_str,
+            drug_selection_bacteria_str,
+            drug_selection_scores_str,
+            selected_drug_str,
             snapshot.hospital_status,
             snapshot.immunity_level,
             snapshot.toxicity_level,

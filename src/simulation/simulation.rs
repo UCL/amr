@@ -323,6 +323,23 @@ impl Simulation {
             }
         }
     }
+    
+    /// Enable infection journey logging with sample rate and optional bacteria filter
+    pub fn enable_infection_journey_logging_with_filter(&mut self, sample_rate: f64, bacteria_filter: Option<String>) {
+        let filter_msg = if let Some(ref filter) = bacteria_filter {
+            format!(" with bacteria filter: {}", filter)
+        } else {
+            " (no bacteria filter)".to_string()
+        };
+        println!("Calling journey_logger.enable_with_filter() with sample_rate: {}{}", sample_rate, filter_msg);
+        match self.journey_logger.enable_with_filter(sample_rate, bacteria_filter) {
+            Ok(_) => println!("Journey logging enabled successfully{}", filter_msg),
+            Err(e) => {
+                eprintln!("ERROR: Failed to enable infection journey logging: {}", e);
+                eprintln!("Journey logging will not work!");
+            }
+        }
+    }
 
     pub fn run(&mut self) {
         // public function named run, which executes the simulation for the specified number of time steps.

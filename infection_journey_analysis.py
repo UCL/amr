@@ -18,15 +18,34 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for saving files only
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns  # Commented out to avoid import issues
 from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
+# =============================================================================
+# CONFIGURATION SETTINGS - Modify these values as needed
+# =============================================================================
+
+# Number of individual journey timeline plots to generate
+# Recommended range: 1-50 (higher numbers create more files)
+# Files will be named: journey_01_timeline.png, journey_02_timeline.png, etc.
+NUM_TIMELINE_PLOTS = 10
+
+# Enable verbose output during analysis
+# True: Shows detailed progress messages and analysis results
+# False: Silent operation (still generates all files)
+VERBOSE_OUTPUT = False
+
+# =============================================================================
+
 class InfectionJourneyAnalyzer:
-    def __init__(self, csv_file="infection_journeys.csv", output_dir="output_graphs/journey_analysis"):
+    def __init__(self, csv_file="infection_journeys.csv", output_dir="output_graphs/journey_analysis", verbose=True):
         """Initialize the analyzer with the journey data."""
-        print(f"Loading infection journey data from {csv_file}...")
+        self.verbose = verbose
+        self.plot_counter = 0  # Counter for sequential plot numbering
+        if self.verbose:
+            print(f"Loading infection journey data from {csv_file}...")
         self.df = pd.read_csv(csv_file)
         self.output_dir = output_dir
         
@@ -35,8 +54,9 @@ class InfectionJourneyAnalyzer:
         os.makedirs(output_dir, exist_ok=True)
         
         self.process_data()
-        print(f"Loaded {len(self.df)} journey snapshots for {self.df['journey_id'].nunique()} unique journeys")
-        print(f"Figures will be saved to: {output_dir}")
+        if self.verbose:
+            print(f"Loaded {len(self.df)} journey snapshots for {self.df['journey_id'].nunique()} unique journeys")
+            print(f"Figures will be saved to: {output_dir}")
         
     def process_data(self):
         """Process and clean the loaded data."""
@@ -60,6 +80,18 @@ class InfectionJourneyAnalyzer:
         # Create journey summaries
         self.journey_summary = self._create_journey_summary()
         
+    def parse_drug_data(self, drug_string):
+        """Parse drug data string into list of (drug_name, level) tuples."""
+        if pd.isna(drug_string) or drug_string == "":
+            return []
+        
+        drugs = []
+        for item in drug_string.split(";"):
+            if ":" in item:
+                drug_name, level = item.split(":")
+                drugs.append((drug_name.strip(), float(level)))
+        return drugs
+    
     def _create_journey_summary(self):
         """Create summary statistics for each journey."""
         summary_stats = []
@@ -85,13 +117,15 @@ class InfectionJourneyAnalyzer:
                 'treatment_failures': journey_data['treatment_failures'].max(),
                 'resolution_type': self._determine_actual_resolution(journey_data),
                 'died': self._determine_actual_resolution(journey_data) == 'Death',
-                'died_within_30_days': (self._determine_actual_resolution(journey_data) == 'Death') and (journey_data['day_of_journey'].max() <= 30)
+                'died_within_30_days': (self._determine_actual_resolution(journey_data) == 'Death') and (journey_data['day_of_journey'].max() <= 30),
+                'drug_selection_occurred': journey_data['drug_selection_bacteria'].notna().any(),
+                'selected_drug': journey_data['selected_drug'].dropna().iloc[0] if journey_data['selected_drug'].notna().any() else None
             }
             summary_stats.append(summary)
             
         return pd.DataFrame(summary_stats)
     
-    def view_individual_journey(self, journey_id=None, individual_id=None):
+    def view_individual_journey(self, journey_id=None, individual_id=None, sequential_number=None):
         """View detailed timeline for a specific journey."""
         if journey_id is not None:
             journey_data = self.df[self.df['journey_id'] == journey_id].copy()
@@ -102,31 +136,33 @@ class InfectionJourneyAnalyzer:
             journey_data = self.df[self.df['journey_id'] == self.df['journey_id'].iloc[0]].copy()
             
         if journey_data.empty:
-            print("No journey found with the specified criteria.")
+            if self.verbose:
+                print("No journey found with the specified criteria.")
             return
             
         journey_data = journey_data.sort_values('day_of_journey')
         journey_id = journey_data['journey_id'].iloc[0]
         individual_id = journey_data['individual_id'].iloc[0]
         
-        print(f"\n{'='*80}")
-        print(f"INFECTION JOURNEY ANALYSIS - Journey ID: {journey_id}, Individual ID: {individual_id}")
-        print(f"{'='*80}")
-        
-        # Patient demographics
-        print(f"Patient Demographics:")
-        print(f"  Age at onset: {journey_data['age_at_onset'].iloc[0]} days ({journey_data['age_at_onset'].iloc[0]/365.25:.1f} years)")
-        print(f"  Sex: {journey_data['sex'].iloc[0]}")
-        print(f"  Region: {journey_data['region_living'].iloc[0]}")
-        print(f"  Immunodeficiency: {journey_data['immunodeficiency'].iloc[0]}")
-        
-        # Infection characteristics
-        print(f"\nInfection Characteristics:")
-        print(f"  Primary bacteria: {journey_data['primary_bacteria'].iloc[0]}")
-        print(f"  Syndrome: {journey_data['syndrome'].iloc[0]}")
-        print(f"  Hospital acquired: {journey_data['hospital_acquired'].iloc[0]}")
-        print(f"  Journey duration: {journey_data['day_of_journey'].max()} days")
-        print(f"  Final resolution: {journey_data['resolution_type'].iloc[-1]}")
+        if self.verbose:
+            print(f"\n{'='*80}")
+            print(f"INFECTION JOURNEY ANALYSIS - Journey ID: {journey_id}, Individual ID: {individual_id}")
+            print(f"{'='*80}")
+            
+            # Patient demographics
+            print(f"Patient Demographics:")
+            print(f"  Age at onset: {journey_data['age_at_onset'].iloc[0]} days ({journey_data['age_at_onset'].iloc[0]/365.25:.1f} years)")
+            print(f"  Sex: {journey_data['sex'].iloc[0]}")
+            print(f"  Region: {journey_data['region_living'].iloc[0]}")
+            print(f"  Immunodeficiency: {journey_data['immunodeficiency'].iloc[0]}")
+            
+            # Infection characteristics
+            print(f"\nInfection Characteristics:")
+            print(f"  Primary bacteria: {journey_data['primary_bacteria'].iloc[0]}")
+            print(f"  Syndrome: {journey_data['syndrome'].iloc[0]}")
+            print(f"  Hospital acquired: {journey_data['hospital_acquired'].iloc[0]}")
+            print(f"  Journey duration: {journey_data['day_of_journey'].max()} days")
+            print(f"  Final resolution: {journey_data['resolution_type'].iloc[-1]}")
         
         # Create timeline visualization
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
@@ -139,6 +175,7 @@ class InfectionJourneyAnalyzer:
         ax1.set_title('Primary Bacteria Level')
         ax1.set_xlabel('Day of Journey')
         ax1.set_ylabel('Bacteria Level')
+        ax1.set_xticks(range(int(days.min()), int(days.max()) + 1))
         ax1.grid(True, alpha=0.3)
         
         # Immunity and toxicity levels
@@ -147,57 +184,128 @@ class InfectionJourneyAnalyzer:
         ax2.set_title('Immunity & Toxicity Levels')
         ax2.set_xlabel('Day of Journey')
         ax2.set_ylabel('Level')
+        ax2.set_xticks(range(int(days.min()), int(days.max()) + 1))
         ax2.legend()
         ax2.grid(True, alpha=0.3)
         
-        # Treatment status
-        treatment_status = journey_data['is_treated'].astype(int)
-        sepsis_status = journey_data['sepsis'].astype(int) * 2
-        ax3.fill_between(days, 0, treatment_status, alpha=0.6, color='blue', label='Treated', step='mid')
-        ax3.fill_between(days, treatment_status, treatment_status + sepsis_status, alpha=0.6, color='red', label='Sepsis', step='mid')
-        ax3.set_title('Treatment & Sepsis Status')
-        ax3.set_xlabel('Day of Journey')
-        ax3.set_ylabel('Status')
-        ax3.set_yticks([0, 1, 2, 3])
-        ax3.set_yticklabels(['None', 'Treated', 'Sepsis', 'Both'])
-        ax3.legend()
-        ax3.grid(True, alpha=0.3)
+        # Drug levels and resistance (activity_r)
+        # Parse drug data to get levels and activity_r values
+        drug_data = self._parse_drug_and_resistance_data(journey_data)
         
-        # Hospital status
-        hospital_mapping = {'NotInHospital': 0, 'Hospital': 1, 'ICU': 2}
-        hospital_numeric = journey_data['hospital_status'].map(hospital_mapping)
-        ax4.step(days, hospital_numeric, where='mid', linewidth=2, marker='o', markersize=4)
-        ax4.set_title('Hospital Status')
-        ax4.set_xlabel('Day of Journey')
-        ax4.set_ylabel('Status')
-        ax4.set_yticks([0, 1, 2])
-        ax4.set_yticklabels(['Not in Hospital', 'Hospital', 'ICU'])
-        ax4.grid(True, alpha=0.3)
+        if drug_data['has_drugs']:
+            # Plot drug levels from when treatment starts
+            for drug_name, drug_levels in drug_data['drug_levels'].items():
+                mask = ~pd.isna(drug_levels)
+                if mask.any():
+                    ax3.plot(days[mask], drug_levels[mask], 'b-', marker='o', 
+                            label=f'{drug_name} Level', linewidth=2, markersize=3)
+            
+            # Plot activity_r on secondary y-axis
+            ax3_twin = ax3.twinx()
+            for drug_name, activity_r in drug_data['activity_r'].items():
+                mask = ~pd.isna(activity_r) & (activity_r > 0)
+                if mask.any():
+                    ax3_twin.plot(days[mask], activity_r[mask], 'r--', marker='s', 
+                                 label=f'{drug_name} Activity R', linewidth=2, markersize=3)
+            
+            ax3.set_xlabel('Day of Journey')
+            ax3.set_ylabel('Drug Level', color='b')
+            ax3_twin.set_ylabel('Activity R', color='r')
+            ax3.set_title('Drug Levels & Resistance (Activity R)')
+            ax3.set_xticks(range(int(days.min()), int(days.max()) + 1))
+            ax3.grid(True, alpha=0.3)
+            
+            # Combine legends
+            lines1, labels1 = ax3.get_legend_handles_labels()
+            lines2, labels2 = ax3_twin.get_legend_handles_labels()
+            if lines1 or lines2:
+                ax3.legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=8)
+        else:
+            ax3.text(0.5, 0.5, 'No drug treatment', transform=ax3.transAxes, 
+                    ha='center', va='center', fontsize=12)
+            ax3.set_title('Drug Levels & Resistance (Activity R)')
+            ax3.set_xlabel('Day of Journey')
+            ax3.set_xticks(range(int(days.min()), int(days.max()) + 1))
+        
+        # Clinical summary text (replacing hospital status plot)
+        ax4.axis('off')  # Turn off axis for text display
+        
+        # Prepare clinical summary information
+        sepsis_day = None
+        if journey_data['sepsis'].any():
+            sepsis_day = journey_data[journey_data['sepsis']]['day_of_journey'].min()
+        
+        death_day = None
+        death_cause = journey_data['resolution_type'].iloc[-1]
+        is_death = False
+        
+        # Check for death resolution types
+        if pd.notna(death_cause) and ('Death' in str(death_cause)):
+            is_death = True
+            death_day = journey_data['day_of_journey'].max()
+        
+        # Check if journey is ongoing (NaN resolution)
+        is_ongoing = pd.isna(death_cause) or death_cause == ''
+        
+        # Format clinical information
+        if is_ongoing:
+            outcome_text = f"Ongoing ({journey_data['day_of_journey'].max()} days)"
+        elif is_death:
+            outcome_text = f"Died Day {death_day} ({death_cause})"
+        else:
+            outcome_text = f"Recovered ({death_cause})"
+        
+        clinical_info = [
+            f"Bacteria: {journey_data['primary_bacteria'].iloc[0]}",
+            f"Region: {journey_data['region_living'].iloc[0]}",
+            f"Age: {journey_data['age_at_onset'].iloc[0]/365.25:.1f} years",
+            f"Syndrome: {journey_data['syndrome'].iloc[0]}",
+            f"Sepsis: {'Day ' + str(sepsis_day) if sepsis_day else 'None'}",
+            f"Outcome: {outcome_text}",
+            f"Duration: {journey_data['day_of_journey'].max()} days",
+            f"Hospital acquired: {'Yes' if journey_data['hospital_acquired'].iloc[0] else 'No'}"
+        ]
+        
+        # Display clinical information as text
+        ax4.text(0.05, 0.95, "Clinical Summary", transform=ax4.transAxes, 
+                fontsize=12, fontweight='bold', va='top')
+        
+        for i, info in enumerate(clinical_info):
+            ax4.text(0.05, 0.85 - i*0.1, info, transform=ax4.transAxes, 
+                    fontsize=10, va='top', family='monospace')
         
         plt.tight_layout()
         
-        # Save the figure
-        filename = f"journey_{journey_id}_individual_{individual_id}_timeline.png"
+        # Save the figure with sequential numbering
+        if sequential_number is not None:
+            filename = f"journey_{sequential_number:02d}_timeline.png"
+        else:
+            # Auto-increment counter if no specific number provided
+            self.plot_counter += 1
+            filename = f"journey_{self.plot_counter:02d}_timeline.png"
         filepath = f"{self.output_dir}/{filename}"
         plt.savefig(filepath, dpi=300, bbox_inches='tight')
-        print(f"Saved individual journey plot: {filepath}")
+        if self.verbose:
+            print(f"Saved individual journey plot: {filepath}")
         
         plt.close()  # Close figure to free memory
         
         # Print detailed day-by-day progression
-        print(f"\nDay-by-Day Progression:")
-        print(f"{'Day':>3} {'Bacteria':>8} {'Immunity':>8} {'Toxicity':>8} {'Treated':>7} {'Sepsis':>6} {'Hospital':>10}")
-        print("-" * 65)
-        
-        for _, row in journey_data.iterrows():
-            treated = 'Yes' if row['is_treated'] else 'No'
-            sepsis = 'Yes' if row['sepsis'] else 'No'
-            print(f"{row['day_of_journey']:>3} {row['primary_bacteria_level']:>8.3f} {row['immunity_level']:>8.3f} "
-                  f"{row['toxicity_level']:>8.3f} {treated:>7} {sepsis:>6} {row['hospital_status']:>10}")
+        if self.verbose:
+            print(f"\nDay-by-Day Progression:")
+            print(f"{'Day':>3} {'Bacteria':>8} {'Immunity':>8} {'Toxicity':>8} {'Treated':>7} {'Sepsis':>6} {'Hospital':>10}")
+            print("-" * 65)
+            
+            for _, row in journey_data.iterrows():
+                treated = 'Yes' if row['is_treated'] else 'No'
+                sepsis = 'Yes' if row['sepsis'] else 'No'
+                print(f"{row['day_of_journey']:>3} {row['primary_bacteria_level']:>8.3f} {row['immunity_level']:>8.3f} "
+                      f"{row['toxicity_level']:>8.3f} {treated:>7} {sepsis:>6} {row['hospital_status']:>10}")
     
     def plot_infection_states_over_time(self, max_days=30):
         """Create stacked bar chart of infection states by day."""
-        print(f"\nCreating infection states visualization (first {max_days} days)...")
+        if self.verbose:
+            print(f"\nCreating infection states visualization (first {max_days} days)...")
         
         # Filter to first N days for readability
         daily_data = self.df[self.df['day_of_journey'] <= max_days].copy()
@@ -217,6 +325,10 @@ class InfectionJourneyAnalyzer:
         ax.legend(title='Infection State', bbox_to_anchor=(1.05, 1), loc='upper left')
         ax.grid(True, alpha=0.3, axis='y')
         
+        # Set x-axis to show whole days
+        day_range = range(1, max_days + 1)
+        ax.set_xticks(range(len(state_counts.index)))
+        ax.set_xticklabels([str(day) for day in state_counts.index])
         plt.xticks(rotation=45)
         plt.tight_layout()
         
@@ -224,7 +336,8 @@ class InfectionJourneyAnalyzer:
         filename = f"infection_states_stacked_first_{max_days}_days.png"
         filepath = f"{self.output_dir}/{filename}"
         plt.savefig(filepath, dpi=300, bbox_inches='tight')
-        print(f"Saved infection states plot: {filepath}")
+        if self.verbose:
+            print(f"Saved infection states plot: {filepath}")
         
         plt.close()  # Close figure to free memory
         
@@ -232,7 +345,8 @@ class InfectionJourneyAnalyzer:
     
     def calculate_30_day_mortality(self):
         """Calculate and visualize 30-day mortality probability."""
-        print("\nCalculating 30-day mortality analysis...")
+        if self.verbose:
+            print("\nCalculating 30-day mortality analysis...")
         
         # Filter journeys that either died within 30 days or survived at least 30 days
         mortality_analysis = []
@@ -256,12 +370,14 @@ class InfectionJourneyAnalyzer:
         mortality_df = pd.DataFrame(mortality_analysis)
         
         if len(mortality_df) == 0:
-            print("No journeys available for 30-day mortality analysis.")
+            if self.verbose:
+                print("No journeys available for 30-day mortality analysis.")
             return None
         
         # Calculate overall 30-day mortality rate
         overall_mortality = mortality_df['died_within_30_days'].mean()
-        print(f"Overall 30-day mortality rate: {overall_mortality:.1%} ({mortality_df['died_within_30_days'].sum()}/{len(mortality_df)} cases)")
+        if self.verbose:
+            print(f"Overall 30-day mortality rate: {overall_mortality:.1%} ({mortality_df['died_within_30_days'].sum()}/{len(mortality_df)} cases)")
         
         # Create mortality analysis plots
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
@@ -311,7 +427,8 @@ class InfectionJourneyAnalyzer:
         filename = "30_day_mortality_analysis.png"
         filepath = f"{self.output_dir}/{filename}"
         plt.savefig(filepath, dpi=300, bbox_inches='tight')
-        print(f"Saved mortality analysis plot: {filepath}")
+        if self.verbose:
+            print(f"Saved mortality analysis plot: {filepath}")
         
         plt.close()  # Close figure to free memory
         
@@ -369,15 +486,73 @@ class InfectionJourneyAnalyzer:
         
         return " + ".join(causes)
     
-    def _determine_actual_resolution(self, journey_data):
-        """Determine the actual resolution, detecting death if present"""
-        # Check if death occurred (overrides original resolution)
-        death_day = self.detect_death_day(journey_data)
-        if death_day:
-            return 'Death'
+    def _parse_drug_and_resistance_data(self, journey_data):
+        """Parse drug levels and resistance data from journey data"""
+        drug_data = {
+            'has_drugs': False,
+            'drug_levels': {},
+            'activity_r': {}
+        }
         
-        # Otherwise use the original resolution from the data
-        return journey_data['resolution_type'].iloc[-1]
+        # Check if there are any drugs in this journey
+        has_treatment = journey_data['current_drugs'].notna() & (journey_data['current_drugs'] != "")
+        if not has_treatment.any():
+            return drug_data
+        
+        drug_data['has_drugs'] = True
+        
+        # Parse current_drugs field to extract drug names and levels
+        for _, row in journey_data.iterrows():
+            if pd.isna(row['current_drugs']) or row['current_drugs'] == "":
+                continue
+                
+            # Parse drug string format: "drug1:level1;drug2:level2"
+            drugs_str = row['current_drugs']
+            if drugs_str and isinstance(drugs_str, str):
+                for drug_entry in drugs_str.split(';'):
+                    if ':' in drug_entry:
+                        drug_name, level_str = drug_entry.split(':', 1)
+                        drug_name = drug_name.strip()
+                        try:
+                            level = float(level_str.strip())
+                            if drug_name not in drug_data['drug_levels']:
+                                drug_data['drug_levels'][drug_name] = pd.Series(index=journey_data.index, dtype=float)
+                            drug_data['drug_levels'][drug_name].loc[row.name] = level
+                        except ValueError:
+                            continue
+        
+        # Parse resistance_activity_r field  
+        for _, row in journey_data.iterrows():
+            if pd.isna(row['resistance_activity_r']) or row['resistance_activity_r'] == "":
+                continue
+                
+            # Parse resistance string format: "drug1:value1;drug2:value2"
+            resistance_str = row['resistance_activity_r']
+            if resistance_str and isinstance(resistance_str, str):
+                for resistance_entry in resistance_str.split(';'):
+                    if ':' in resistance_entry:
+                        drug_name, value_str = resistance_entry.split(':', 1)
+                        drug_name = drug_name.strip()
+                        try:
+                            value = float(value_str.strip())
+                            if drug_name not in drug_data['activity_r']:
+                                drug_data['activity_r'][drug_name] = pd.Series(index=journey_data.index, dtype=float)
+                            drug_data['activity_r'][drug_name].loc[row.name] = value
+                        except ValueError:
+                            continue
+        
+        return drug_data
+    
+    def _determine_actual_resolution(self, journey_data):
+        """Determine the actual resolution based on the data"""
+        final_resolution = journey_data['resolution_type'].iloc[-1]
+        
+        # If resolution is NaN or empty, it's an ongoing journey
+        if pd.isna(final_resolution) or final_resolution == '':
+            return 'Ongoing'
+        
+        # Otherwise use the resolution from the data
+        return final_resolution
     
     def generate_text_report(self):
         """Generate comprehensive text report file with detailed journey listings."""
@@ -398,6 +573,7 @@ class InfectionJourneyAnalyzer:
             f.write(f"Average journey length: {self.df.groupby('journey_id')['day_of_journey'].max().mean():.1f} days\n")
             f.write(f"Journeys with sepsis: {self.journey_summary['developed_sepsis'].sum()} ({self.journey_summary['developed_sepsis'].mean()*100:.1f}%)\n")
             f.write(f"Journeys with treatment: {self.journey_summary['was_treated'].sum()} ({self.journey_summary['was_treated'].mean()*100:.1f}%)\n")
+            f.write(f"Journeys with drug selection events: {self.journey_summary['drug_selection_occurred'].sum()}\n")
             f.write(f"Hospital acquired infections: {self.journey_summary['hospital_acquired'].sum()} ({self.journey_summary['hospital_acquired'].mean()*100:.1f}%)\n\n")
             
             # Resolution type breakdown
@@ -448,6 +624,10 @@ class InfectionJourneyAnalyzer:
                 f.write(f"Developed sepsis: {journey['developed_sepsis']}\n")
                 f.write(f"Received treatment: {journey['was_treated']}\n")
                 f.write(f"Treatment failures: {journey['treatment_failures']}\n")
+                if journey['drug_selection_occurred']:
+                    f.write(f"Selected drug: {journey['selected_drug']}\n")
+                else:
+                    f.write(f"No drug selection recorded\n")
                 # Show corrected resolution (detect death if present)
                 actual_resolution = self._determine_actual_resolution(journey_data)
                 if actual_resolution != journey['resolution_type']:
@@ -455,10 +635,37 @@ class InfectionJourneyAnalyzer:
                 else:
                     f.write(f"Final resolution: {actual_resolution}\n\n")
                 
+                # Drug selection information if available (only show meaningful selections)
+                drug_selection_data = journey_data[journey_data['drug_selection_bacteria'].notna()]
+                if not drug_selection_data.empty:
+                    f.write("Drug Selection Information:\n")
+                    displayed_selections = set()
+                    for _, selection_row in drug_selection_data.iterrows():
+                        # Parse drug scores to see if this is a meaningful selection
+                        scores = self.parse_drug_data(selection_row['drug_selection_scores'])
+                        has_selected_drug = pd.notna(selection_row['selected_drug']) and selection_row['selected_drug'] != ""
+                        
+                        # Only show if we have scores or a selected drug, and haven't shown this selection already
+                        selection_key = (selection_row['day_of_journey'], selection_row['drug_selection_bacteria'])
+                        if (scores or has_selected_drug) and selection_key not in displayed_selections:
+                            displayed_selections.add(selection_key)
+                            f.write(f"Day {selection_row['day_of_journey']}: Drug selection for {selection_row['drug_selection_bacteria']}\n")
+                            
+                            if scores:
+                                f.write("  Drug scores at selection time:\n")
+                                # Sort by score (highest first)
+                                scores.sort(key=lambda x: x[1], reverse=True)
+                                for drug_name, score in scores:
+                                    f.write(f"    {drug_name}: {score:.4f}\n")
+                            
+                            if has_selected_drug:
+                                f.write(f"  Selected drug: {selection_row['selected_drug']}\n")
+                            f.write("\n")
+                
                 # Day-by-day progression (show ALL days until death)
                 f.write("Day-by-day progression:\n")
-                f.write("Day | Bacteria | Immunity | Toxicity | Treated | Sepsis | Hospital    | Death | Notes\n")
-                f.write("-" * 95 + "\n")
+                f.write("day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death | notes\n")
+                f.write("-" * 145 + "\n")
                 
                 # Identify key milestone days for annotations
                 treatment_starts = journey_data[journey_data['is_treated'] & ~journey_data['is_treated'].shift(1, fill_value=False)]
@@ -482,32 +689,67 @@ class InfectionJourneyAnalyzer:
                     if death_day and day > death_day:
                         break
                         
-                    treated = 'Yes' if row['is_treated'] else 'No '
-                    sepsis = 'Yes' if row['sepsis'] else 'No '
+                    # Parse current drugs and levels
+                    current_drugs = self.parse_drug_data(row['current_drugs'])
+                    if current_drugs:
+                        # Show up to 3 drugs with their actual levels
+                        drug_entries = []
+                        for drug, level in current_drugs[:3]:
+                            drug_entries.append(f"{drug}({level:.1f})")
+                        drug_str = ", ".join(drug_entries)
+                        if len(current_drugs) > 3:
+                            drug_str += f" +{len(current_drugs)-3}more"
+                    else:
+                        drug_str = "none"
+                    drug_str = f"{drug_str:<20}"  # Fixed width for alignment
+                    
+                    # Parse resistance data for current drugs
+                    majority_r_data = self.parse_drug_data(row['resistance_majority_r'])
+                    activity_r_data = self.parse_drug_data(row['resistance_activity_r'])
+                    
+                    # Get resistance levels for current drugs
+                    maj_r_levels = []
+                    act_r_levels = []
+                    for drug_name, _ in current_drugs:
+                        # Find resistance for this drug
+                        maj_r = next((level for drug, level in majority_r_data if drug == drug_name), 0.0)
+                        act_r = next((level for drug, level in activity_r_data if drug == drug_name), 0.0)
+                        maj_r_levels.append(maj_r)
+                        act_r_levels.append(act_r)
+                    
+                    maj_r_str = f"{max(maj_r_levels):.2f}" if maj_r_levels else "0.00"
+                    act_r_str = f"{max(act_r_levels):.2f}" if act_r_levels else "0.00"
+                    
+                    sepsis = 'yes' if row['sepsis'] else 'no'
                     
                     # Determine death status and cause
-                    death_status = "No "
+                    death_status = "no"
                     death_cause = ""
                     if death_day and day == death_day:
-                        death_status = "Yes"
+                        death_status = "yes"
                         death_cause = self.determine_death_cause(row)
                     
                     # Add notes for key events
                     notes = []
                     if day in treatment_start_days:
-                        notes.append("Treatment started")
+                        # Add specific drug name when treatment starts
+                        if current_drugs:
+                            drug_names = [drug for drug, _ in current_drugs]
+                            notes.append(f"started: {', '.join(drug_names)}")
+                        else:
+                            notes.append("treatment started")
                     if day in sepsis_start_days:
-                        notes.append("Sepsis onset")
+                        notes.append("sepsis onset")
                     if day in hospital_change_days:
-                        notes.append(f"Hospital: {row['hospital_status']}")
+                        notes.append(f"hospital: {row['hospital_status']}")
                     if death_cause:
-                        notes.append(f"Death: {death_cause}")
+                        notes.append(f"death: {death_cause}")
                     
                     note_str = "; ".join(notes) if notes else ""
                     
                     f.write(f"{day:3d} | {row['primary_bacteria_level']:8.3f} | {row['immunity_level']:8.3f} | "
-                           f"{row['toxicity_level']:8.3f} | {treated:7} | {sepsis:6} | "
-                           f"{row['hospital_status']:11} | {death_status:5} | {note_str}\n")
+                           f"{row['toxicity_level']:8.3f} | {drug_str} | {maj_r_str:10} | {act_r_str:10} | {sepsis.lower():6} | "
+                           f"{row['hospital_status']:11} | {death_status.lower():5} | {note_str}\n")
                 
                 # Add summary if death was detected
                 if death_day:
@@ -515,74 +757,84 @@ class InfectionJourneyAnalyzer:
                 
                 f.write("\n" + "="*80 + "\n\n")
         
-        print(f"Detailed text report saved: {filename}")
+        if self.verbose:
+            print(f"Detailed text report saved: {filename}")
         return filename
 
     def generate_summary_report(self):
         """Generate comprehensive summary report."""
-        print(f"\n{'='*80}")
-        print("INFECTION JOURNEY ANALYSIS SUMMARY REPORT")
-        print(f"{'='*80}")
-        print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        print(f"\nDataset Overview:")
-        print(f"  Total journey snapshots: {len(self.df):,}")
-        print(f"  Unique journeys: {self.df['journey_id'].nunique():,}")
-        print(f"  Unique individuals: {self.df['individual_id'].nunique():,}")
-        print(f"  Average journey length: {self.df.groupby('journey_id')['day_of_journey'].max().mean():.1f} days")
-        
-        print(f"\nJourney Outcomes:")
-        resolution_counts = self.journey_summary['resolution_type'].value_counts()
-        for resolution, count in resolution_counts.items():
-            percentage = count / len(self.journey_summary) * 100
-            print(f"  {resolution}: {count:,} ({percentage:.1f}%)")
-        
-        print(f"\nInfection Characteristics:")
-        print(f"  Journeys with sepsis: {self.journey_summary['developed_sepsis'].sum():,} ({self.journey_summary['developed_sepsis'].mean()*100:.1f}%)")
-        print(f"  Journeys with treatment: {self.journey_summary['was_treated'].sum():,} ({self.journey_summary['was_treated'].mean()*100:.1f}%)")
-        print(f"  Hospital acquired infections: {self.journey_summary['hospital_acquired'].sum():,} ({self.journey_summary['hospital_acquired'].mean()*100:.1f}%)")
-        
-        print(f"\nMost Common Bacteria:")
-        bacteria_counts = self.journey_summary['primary_bacteria'].value_counts().head(10)
-        for bacteria, count in bacteria_counts.items():
-            percentage = count / len(self.journey_summary) * 100
-            print(f"  {bacteria.replace('_', ' ').title()}: {count:,} ({percentage:.1f}%)")
-        
-        print(f"\nDemographics:")
-        print(f"  Average age at onset: {self.journey_summary['age_at_onset'].mean()/365.25:.1f} years")
-        print(f"  Sex distribution:")
-        sex_counts = self.journey_summary['sex'].value_counts()
-        for sex, count in sex_counts.items():
-            percentage = count / len(self.journey_summary) * 100
-            print(f"    {sex.title()}: {count:,} ({percentage:.1f}%)")
-        
-        print(f"\nRegional Distribution:")
-        region_counts = self.journey_summary['region'].value_counts()
-        for region, count in region_counts.items():
-            percentage = count / len(self.journey_summary) * 100
-            print(f"  {region}: {count:,} ({percentage:.1f}%)")
+        if self.verbose:
+            print(f"\n{'='*80}")
+            print("INFECTION JOURNEY ANALYSIS SUMMARY REPORT")
+            print(f"{'='*80}")
+            print(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            print(f"\nDataset Overview:")
+            print(f"  Total journey snapshots: {len(self.df):,}")
+            print(f"  Unique journeys: {self.df['journey_id'].nunique():,}")
+            print(f"  Unique individuals: {self.df['individual_id'].nunique():,}")
+            print(f"  Average journey length: {self.df.groupby('journey_id')['day_of_journey'].max().mean():.1f} days")
+            
+            print(f"\nJourney Outcomes:")
+            resolution_counts = self.journey_summary['resolution_type'].value_counts()
+            for resolution, count in resolution_counts.items():
+                percentage = count / len(self.journey_summary) * 100
+                print(f"  {resolution}: {count:,} ({percentage:.1f}%)")
+            
+            print(f"\nInfection Characteristics:")
+            print(f"  Journeys with sepsis: {self.journey_summary['developed_sepsis'].sum():,} ({self.journey_summary['developed_sepsis'].mean()*100:.1f}%)")
+            print(f"  Journeys with treatment: {self.journey_summary['was_treated'].sum():,} ({self.journey_summary['was_treated'].mean()*100:.1f}%)")
+            print(f"  Hospital acquired infections: {self.journey_summary['hospital_acquired'].sum():,} ({self.journey_summary['hospital_acquired'].mean()*100:.1f}%)")
+            
+            print(f"\nMost Common Bacteria:")
+            bacteria_counts = self.journey_summary['primary_bacteria'].value_counts().head(10)
+            for bacteria, count in bacteria_counts.items():
+                percentage = count / len(self.journey_summary) * 100
+                print(f"  {bacteria.replace('_', ' ').title()}: {count:,} ({percentage:.1f}%)")
+            
+            print(f"\nDemographics:")
+            print(f"  Average age at onset: {self.journey_summary['age_at_onset'].mean()/365.25:.1f} years")
+            print(f"  Sex distribution:")
+            sex_counts = self.journey_summary['sex'].value_counts()
+            for sex, count in sex_counts.items():
+                percentage = count / len(self.journey_summary) * 100
+                print(f"    {sex.title()}: {count:,} ({percentage:.1f}%)")
+            
+            print(f"\nRegional Distribution:")
+            region_counts = self.journey_summary['region'].value_counts()
+            for region, count in region_counts.items():
+                percentage = count / len(self.journey_summary) * 100
+                print(f"  {region}: {count:,} ({percentage:.1f}%)")
 
-def main():
+def main(verbose=False, num_timeline_plots=5):
     """Main function to run the analysis."""
-    print("Infection Journey Analysis Tool")
-    print("=" * 50)
+    if verbose:
+        print("Infection Journey Analysis Tool")
+        print("=" * 50)
     
-    # Initialize analyzer
-    analyzer = InfectionJourneyAnalyzer()
+    # Initialize analyzer with verbose setting
+    analyzer = InfectionJourneyAnalyzer(verbose=verbose)
     
     # Generate summary report
     analyzer.generate_summary_report()
     
     # Generate detailed text report
-    print(f"\nGenerating detailed text report for all journeys...")
+    if verbose:
+        print(f"\nGenerating detailed text report for all journeys...")
     text_report_file = analyzer.generate_text_report()
     
-    # Show available journey IDs for individual viewing
-    print(f"\nAvailable journey IDs (showing first 20): {list(analyzer.df['journey_id'].unique()[:20])}")
+    # Generate timeline plots for first N journeys with sequential numbering  
+    # Use journey_summary which properly handles unique journeys and resolution detection
+    available_journeys = analyzer.journey_summary['journey_id'].unique()[:num_timeline_plots]
+    if verbose:
+        print(f"\nTotal unique journeys available: {len(analyzer.journey_summary)}")
+        print(f"Generating {len(available_journeys)} individual journey timeline plots...")
     
-    # Example individual journey analysis
-    print(f"\nShowing example individual journey analysis...")
-    analyzer.view_individual_journey(journey_id=analyzer.df['journey_id'].iloc[0])
+    for i, journey_id in enumerate(available_journeys, 1):
+        analyzer.view_individual_journey(journey_id=journey_id, sequential_number=i)
+    
+    if verbose:
+        print(f"\nAvailable journey IDs (showing first 20): {list(analyzer.df['journey_id'].unique()[:20])}")
     
     # Create population-level visualizations
     state_counts = analyzer.plot_infection_states_over_time(max_days=30)
@@ -590,16 +842,19 @@ def main():
     # Calculate mortality analysis
     mortality_analysis = analyzer.calculate_30_day_mortality()
     
-    print(f"\nAnalysis complete! Files generated:")
-    print(f"  📊 Figures: {analyzer.output_dir}/*.png")
-    print(f"  📄 Text report: {text_report_file}")
-    print(f"\nUse the following methods for further exploration:")
-    print(f"  analyzer.view_individual_journey(journey_id=X)  # View specific journey")
-    print(f"  analyzer.plot_infection_states_over_time()      # Population infection states")
-    print(f"  analyzer.calculate_30_day_mortality()           # Mortality analysis")
-    print(f"  analyzer.generate_text_report()                 # Generate detailed text report")
+    if verbose:
+        print(f"\nAnalysis complete! Files generated:")
+        print(f"  📊 Figures: {analyzer.output_dir}/*.png")
+        print(f"  📄 Text report: {text_report_file}")
+        print(f"\nUse the following methods for further exploration:")
+        print(f"  analyzer.view_individual_journey(journey_id=X)  # View specific journey")
+        print(f"  analyzer.plot_infection_states_over_time()      # Population infection states")
+        print(f"  analyzer.calculate_30_day_mortality()           # Mortality analysis")
+        print(f"  analyzer.generate_text_report()                 # Generate detailed text report")
     
     return analyzer
 
 if __name__ == "__main__":
-    analyzer = main()
+    # Configuration is set at the top of this file
+    # Modify NUM_TIMELINE_PLOTS and VERBOSE_OUTPUT variables to change behavior
+    analyzer = main(verbose=VERBOSE_OUTPUT, num_timeline_plots=NUM_TIMELINE_PLOTS)

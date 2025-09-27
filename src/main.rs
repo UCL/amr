@@ -106,18 +106,30 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 2_000; // Reduced for testing
-    let time_steps = 5000 ;  // Back to 5000 steps for real data
+    let population_size = 100_000; // Reduced for testing
+    let time_steps = 38_325 ;  // Back to 5000 steps for real data
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = true; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.1; // Log 10% of infections for testing (0.0-1.0)
+    let infection_journey_sample_rate = 0.01; // Log 10% of infections for testing (0.0-1.0)
+    let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
+    
+    // Examples of bacteria filter values (use lowercase with underscores):
+    // Some("escherichia_coli")
+    // Some("staphylococcus_aureus") 
+    // Some("pseudomonas_aeruginosa")
+    // Some("acinetobacter_baumannii")
+    // Some("enterococcus_faecium")
+    // None - logs all bacteria types
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
     
     // Configure infection journey logging
     if log_infection_journeys {
-        // Enable journey logging silently
-        let _ = simulation.enable_infection_journey_logging(infection_journey_sample_rate);
+        // Enable journey logging with optional bacteria filter
+        simulation.enable_infection_journey_logging_with_filter(
+            infection_journey_sample_rate, 
+            infection_journey_bacteria_filter.map(|s| s.to_string())
+        );
     }
 
     use std::time::Instant;
