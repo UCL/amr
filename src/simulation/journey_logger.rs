@@ -76,6 +76,7 @@ pub struct ActiveJourney {
     pub primary_bacteria_idx: usize,
     pub day_count: u32,
     pub snapshots: Vec<InfectionJourneySnapshot>,
+    pub primary_bacteria_cleared_day: Option<u32>, // Day when primary bacteria cleared
 }
 
 pub struct JourneyLogger {
@@ -173,24 +174,31 @@ impl JourneyLogger {
         let has_active_infection = individual.level.iter().any(|&level| level > 0.001);
         let is_currently_tracked = self.active_journeys.contains_key(&individual_id);
         
-        match (is_currently_tracked, has_active_infection) {
-            (false, true) => {
+        // Check if individual is dead
+        let is_dead = individual.date_of_death.is_some();
+        
+        match (is_currently_tracked, has_active_infection, is_dead) {
+            (false, true, false) => {
                 // New infection - potentially start tracking
                 let mut rng = rand::thread_rng();
                 if rng.gen::<f64>() < self.sample_rate {
                     self.start_journey(individual, time_step);
                 }
             },
-            (true, true) => {
-                // Continue existing journey
-                self.update_journey(individual, time_step);
-            },
-            (true, false) => {
-                // Journey completed (infection resolved)
+            (true, _, true) => {
+                // Individual died - complete journey immediately
                 self.complete_journey(individual, time_step);
             },
-            (false, false) => {
-                // Not tracking, no infection - do nothing
+            (true, _, false) => {
+                // Continue tracking - check if we should terminate based on clearance + time
+                if self.should_terminate_journey(individual, time_step) {
+                    self.complete_journey(individual, time_step);
+                } else {
+                    self.update_journey(individual, time_step);
+                }
+            },
+            (false, false, false) | (false, _, true) => {
+                // Not tracking - do nothing (covers dead/alive, no infection cases)
             }
         }
     }
@@ -232,6 +240,7 @@ impl JourneyLogger {
             primary_bacteria_idx,
             day_count: 1,
             snapshots: vec![snapshot],
+            primary_bacteria_cleared_day: None,
         };
         
         self.active_journeys.insert(individual.id, journey);
@@ -281,6 +290,29 @@ impl JourneyLogger {
         }
     }
     
+    fn should_terminate_journey(&mut self, individual: &Individual, _time_step: usize) -> bool {
+        if let Some(journey) = self.active_journeys.get_mut(&individual.id) {
+            let primary_bacteria_level = individual.level[journey.primary_bacteria_idx];
+            
+            // Check if primary bacteria has cleared
+            if primary_bacteria_level <= 0.001 {
+                if journey.primary_bacteria_cleared_day.is_none() {
+                    // First time we detected clearance - record the day
+                    journey.primary_bacteria_cleared_day = Some(journey.day_count);
+                }
+                
+                // Check if 7 days have passed since clearance
+                if let Some(cleared_day) = journey.primary_bacteria_cleared_day {
+                    return journey.day_count >= cleared_day + 7;
+                }
+            } else {
+                // Bacteria level increased again - reset clearance tracking
+                journey.primary_bacteria_cleared_day = None;
+            }
+        }
+        false
+    }
+
     fn complete_journey(&mut self, individual: &Individual, time_step: usize) {
         if let Some(mut journey) = self.active_journeys.remove(&individual.id) {
             journey.day_count += 1;
@@ -328,12 +360,29 @@ impl JourneyLogger {
             .map(|(idx, &level)| (BACTERIA_LIST[idx].to_string(), level))
             .collect();
         
-        // Collect current drugs
-        let current_drugs: Vec<(String, f64)> = individual.cur_use_drug.iter()
+        // Collect current drugs and recently initiated drugs
+        let mut current_drugs: Vec<(String, f64)> = individual.cur_use_drug.iter()
             .enumerate()
             .filter(|(_, &is_taking)| is_taking)
             .map(|(idx, _)| (DRUG_SHORT_NAMES[idx].to_string(), individual.cur_level_drug[idx]))
             .collect();
+        
+        // Also include drugs that were initiated recently (within last 2 days) even if not currently active
+        // This helps capture the timing when drugs were started but may have cleared bacteria quickly
+        for (idx, &initiation_day) in individual.date_drug_initiated.iter().enumerate() {
+            if initiation_day >= 0 && (time_step as i32 - initiation_day).abs() <= 1 {
+                let drug_name = DRUG_SHORT_NAMES[idx].to_string();
+                // Only add if not already in current_drugs
+                if !current_drugs.iter().any(|(name, _)| name == &drug_name) {
+                    let level = if individual.cur_use_drug[idx] {
+                        individual.cur_level_drug[idx]
+                    } else {
+                        0.0 // Drug was used recently but no longer active
+                    };
+                    current_drugs.push((drug_name, level));
+                }
+            }
+        }
         
         // Collect resistance for primary bacteria
         let resistance_any_r: Vec<(String, f64)> = DRUG_SHORT_NAMES.iter()
