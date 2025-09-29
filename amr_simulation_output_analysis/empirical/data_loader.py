@@ -56,14 +56,14 @@ def load_empirical_calibration_data():
     
     # Standard empirical files with real surveillance data
     empirical_files = {
-        'drug_usage': 'calibration_drug_usage_empirical.csv',
-        'resistance': 'calibration_resistance_empirical.csv',
-        'incidence': 'calibration_infection_incidence_empirical.csv', 
-        'deaths': 'calibration_deaths_empirical.csv',
+        'drug_usage': 'data/empirical/calibration_drug_usage_empirical.csv',
+        'resistance': 'data/empirical/calibration_resistance_empirical.csv',
+        'incidence': 'data/empirical/calibration_infection_incidence_empirical.csv', 
+        'deaths': 'data/empirical/calibration_deaths_empirical.csv',
         # NEW TIER 1 CLINICAL FILES
-        'drug_failure': 'calibration_drug_failure_empirical.csv',
-        'mic_values': 'calibration_mic_empirical.csv',
-        'hospital_incidence': 'calibration_hospital_incidence_empirical.csv'
+        'drug_failure': 'data/empirical/calibration_drug_failure_empirical.csv',
+        'mic_values': 'data/empirical/calibration_mic_empirical.csv',
+        'hospital_incidence': 'data/empirical/calibration_hospital_incidence_empirical.csv'
     }
     
     # Check if empirical files exist

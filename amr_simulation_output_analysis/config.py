@@ -14,29 +14,19 @@ from pathlib import Path
 class PlotConfig:
     """Configuration for individual plot types and categories."""
     
-    # Grouped figures (Figures 1-9) - TEMPORARILY DISABLED FOR TESTING
+    # Grouped figures (Figures 1-9) 
     grouped_plots: bool = True  # Master toggle for all grouped plots
-    create_grouped_figure_1: bool = False
-    create_grouped_figure_2: bool = False
-    create_grouped_figure_3: bool = False
-    create_grouped_figure_4: bool = False
-    create_grouped_figure_5: bool = False
-    create_grouped_figure_6: bool = False
-    create_grouped_figure_7: bool = False
-    create_grouped_figure_8: bool = False
-    create_grouped_figure_9: bool = False
+    create_grouped_figure_1: bool = True
+    create_grouped_figure_2: bool = True
+    create_grouped_figure_3: bool = True
+    create_grouped_figure_4: bool = True
+    create_grouped_figure_5: bool = True
+    create_grouped_figure_6: bool = True
+    create_grouped_figure_7: bool = True
+    create_grouped_figure_8: bool = True
+    create_grouped_figure_9: bool = True
     
-    # Detail plot categories
-    basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
-    
-    # Individual basic plot controls - DISABLED since they're included in grouped figures
-    infection_duration: bool = False  # Included in grouped figures
-    sepsis_among_infected: bool = False  # Included in grouped figures
-    death_causes: bool = False  # Included in grouped figures  
-    resistance_among_infected: bool = False  # Included in grouped figures
-    infection_resolution_by_bacteria: bool = False
-    
-    # Individual plot type controls - ENABLING DRUG USAGE PLOTS FOR COMPARISON
+    # Individual plot type controls 
     drug_failure_rate_by_bacteria_region: bool = False
     mean_mic_by_drug_for_each_bacteria: bool = False
     incidence_of_infection_hospital: bool = False
@@ -44,9 +34,7 @@ class PlotConfig:
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
     mean_any_r_by_drug_for_each_bacteria: bool = False
-    proportion_of_people_taking_each_drug: bool = True
-    
-    # Additional plot types (disabled by default in original)
+    proportion_of_people_taking_each_drug: bool = False
     for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
     proportion_of_people_infected_with_each_bacteria: bool = False
     proportion_share_among_drug_users: bool = False
@@ -55,13 +43,9 @@ class PlotConfig:
     mean_activity_r_by_bacteria: bool = False
     resistance_mechanism_by_bacteria: bool = False
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
-    
-    # Empirical data display options
-    show_synthetic_fallback_data: bool = True  # Whether to display synthetic fallback empirical overlays
-    show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
-    source_of_new_resistance_by_drug_bacteria: bool = True
+    source_of_new_resistance_by_drug_bacteria: bool = False
     infection_resolution_by_bacteria: bool = False
     drug_score_analysis_by_bacteria: bool = False
     drug_score_summary: bool = False  # Individual drug score time series plots
@@ -72,6 +56,10 @@ class PlotConfig:
     death_rate_by_syndrome_region: bool = False
     syndrome_distribution_by_bacteria: bool = False
     proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
+
+    # Empirical data display options
+    show_synthetic_fallback_data: bool = True  # Whether to display synthetic fallback empirical overlays
+    show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
     
     # Convenience category groupings
     incidence_plots: bool = False
@@ -81,7 +69,15 @@ class PlotConfig:
     hospital_plots: bool = False
     age_specific_plots: bool = False
     regional_plots: bool = False
-    
+
+    # Individual plot controls - DISABLED since they're included in grouped figures
+    basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
+    infection_duration: bool = False  # Included in grouped figures
+    sepsis_among_infected: bool = False  # Included in grouped figures
+    death_causes: bool = False  # Included in grouped figures  
+    resistance_among_infected: bool = False  # Included in grouped figures
+    infection_resolution_by_bacteria: bool = False
+
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))
     figure_format: str = "png"
@@ -172,13 +168,13 @@ class EmpiricalConfig:
     force_regenerate: bool = False  # Whether to regenerate empirical data
     
     # Empirical data file names
-    drug_usage_file: str = "calibration_drug_usage_empirical.csv"
-    resistance_file: str = "calibration_resistance_empirical.csv"
-    incidence_file: str = "calibration_infection_incidence_empirical.csv"
-    deaths_file: str = "calibration_deaths_empirical.csv"
-    drug_failure_file: str = "calibration_drug_failure_empirical.csv"
-    mic_values_file: str = "calibration_mic_empirical.csv"
-    hospital_incidence_file: str = "calibration_hospital_incidence_empirical.csv"
+    drug_usage_file: str = "data/empirical/calibration_drug_usage_empirical.csv"
+    resistance_file: str = "data/empirical/calibration_resistance_empirical.csv"
+    incidence_file: str = "data/empirical/calibration_infection_incidence_empirical.csv"
+    deaths_file: str = "data/empirical/calibration_deaths_empirical.csv"
+    drug_failure_file: str = "data/empirical/calibration_drug_failure_empirical.csv"
+    mic_values_file: str = "data/empirical/calibration_mic_empirical.csv"
+    hospital_incidence_file: str = "data/empirical/calibration_hospital_incidence_empirical.csv"
 
 @dataclass
 class DataConfig:

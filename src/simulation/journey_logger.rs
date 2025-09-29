@@ -367,19 +367,48 @@ impl JourneyLogger {
             .map(|(idx, _)| (DRUG_SHORT_NAMES[idx].to_string(), individual.cur_level_drug[idx]))
             .collect();
         
-        // Also include drugs that were initiated recently (within last 2 days) even if not currently active
-        // This helps capture the timing when drugs were started but may have cleared bacteria quickly
+        // CORRECTED APPROACH: Show drugs accurately according to simulation timing
+        // The simulation timing is correct - drugs start when they should start
+        // The visual confusion comes from gradual bacterial decline vs instant drug appearance
+        
+        // Show currently active drugs
+        for (idx, &is_taking) in individual.cur_use_drug.iter().enumerate() {
+            if is_taking && individual.cur_level_drug[idx] > 0.0 {
+                let drug_name = DRUG_SHORT_NAMES[idx].to_string();
+                current_drugs.push((drug_name, individual.cur_level_drug[idx]));
+            }
+        }
+        
+        // Also show drugs that were just initiated this time step
         for (idx, &initiation_day) in individual.date_drug_initiated.iter().enumerate() {
-            if initiation_day >= 0 && (time_step as i32 - initiation_day).abs() <= 1 {
+            if initiation_day == time_step as i32 {
+                let drug_name = DRUG_SHORT_NAMES[idx].to_string();
+                // Check if not already added from cur_use_drug
+                let already_added = current_drugs.iter().any(|(name, _)| name == &drug_name);
+                if !already_added {
+                    // Use initial level for newly initiated drugs
+                    let initial_level = if individual.cur_level_drug[idx] > 0.0 {
+                        individual.cur_level_drug[idx]
+                    } else {
+                        10.0 // Standard initial level
+                    };
+                    current_drugs.push((drug_name, initial_level));
+                }
+            }
+        }
+        
+        // Also include drugs that were initiated in the last few days even if no longer active
+        // This provides comprehensive drug history for better timing accuracy
+        for (idx, &initiation_day) in individual.date_drug_initiated.iter().enumerate() {
+            if initiation_day >= 0 && initiation_day < time_step as i32 - 1 {  // Skip current and previous day (already handled above)
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
                 // Only add if not already in current_drugs
                 if !current_drugs.iter().any(|(name, _)| name == &drug_name) {
-                    let level = if individual.cur_use_drug[idx] {
-                        individual.cur_level_drug[idx]
-                    } else {
-                        0.0 // Drug was used recently but no longer active
-                    };
-                    current_drugs.push((drug_name, level));
+                    let days_since_initiation = time_step as i32 - initiation_day;
+                    if days_since_initiation <= 2 {  // Show drugs used within last 2 days
+                        // Show recently used drugs with minimal level to indicate they were used
+                        current_drugs.push((drug_name, 0.1));
+                    }
                 }
             }
         }

@@ -154,6 +154,9 @@ class InfectionJourneyAnalyzer:
             # Show first available journey
             journey_data = self.df[self.df['journey_id'] == self.df['journey_id'].iloc[0]].copy()
             
+        # Apply 90-day maximum journey length cap
+        journey_data = journey_data[journey_data['day_of_journey'] <= 90].copy()
+            
         if journey_data.empty:
             if self.verbose:
                 print("No journey found with the specified criteria.")
@@ -183,9 +186,57 @@ class InfectionJourneyAnalyzer:
             print(f"  Journey duration: {journey_data['day_of_journey'].max()} days")
             print(f"  Final resolution: {journey_data['resolution_type'].iloc[-1]}")
         
+        # Extend timeline 14 days after bacteria clearance if bacteria cleared
+        bacteria_clearance_day = None
+        bacteria_levels = journey_data['primary_bacteria_level'].values
+        if len(bacteria_levels) > 0 and bacteria_levels[-1] <= 0.001:
+            # Find first day bacteria was cleared
+            cleared_indices = np.where(bacteria_levels <= 0.001)[0]
+            if len(cleared_indices) > 0:
+                bacteria_clearance_day = journey_data.iloc[cleared_indices[0]]['day_of_journey']
+        
+        # Extend data for visualization if bacteria was cleared
+        if bacteria_clearance_day is not None:
+            max_day = min(journey_data['day_of_journey'].max() + 14, 90)  # Extend 14 days but cap at 90
+            extended_days = range(journey_data['day_of_journey'].max() + 1, max_day + 1)
+            
+            # Create extended data with zero bacteria and declining drug levels
+            if extended_days:
+                extended_data = []
+                last_row = journey_data.iloc[-1].copy()
+                
+                for extend_day in extended_days:
+                    new_row = last_row.copy()
+                    new_row['day_of_journey'] = extend_day
+                    new_row['primary_bacteria_level'] = 0.0
+                    # Simulate drug decay (assuming 1-day half-life for visualization)
+                    days_since_clearance = extend_day - bacteria_clearance_day
+                    decay_factor = 0.5 ** days_since_clearance
+                    
+                    # Update drug levels in current_drugs field with decay
+                    if pd.notna(new_row['current_drugs']) and new_row['current_drugs'] != '':
+                        drug_entries = new_row['current_drugs'].split(';')
+                        decayed_entries = []
+                        for entry in drug_entries:
+                            if ':' in entry:
+                                drug_name, level_str = entry.split(':', 1)
+                                try:
+                                    level = float(level_str) * decay_factor
+                                    if level > 0.01:  # Only show if level is significant
+                                        decayed_entries.append(f"{drug_name}:{level:.6f}")
+                                except ValueError:
+                                    continue
+                        new_row['current_drugs'] = ';'.join(decayed_entries) if decayed_entries else ''
+                    
+                    extended_data.append(new_row)
+                
+                if extended_data:
+                    extended_df = pd.DataFrame(extended_data)
+                    journey_data = pd.concat([journey_data, extended_df], ignore_index=True)
+        
         # Create timeline visualization
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle(f'Journey Timeline - ID: {journey_id}', fontsize=14, fontweight='bold')
+        fig.suptitle(f'Journey Timeline - ID: {journey_id}', fontsize=21, fontweight='bold')  # 14 * 1.5 = 21
         
         days = journey_data['day_of_journey']
         
@@ -193,12 +244,11 @@ class InfectionJourneyAnalyzer:
         sepsis_status = journey_data['sepsis'].values
         bacteria_levels = journey_data['primary_bacteria_level'].values
         
-        # Plot segments with different colors based on sepsis status
-        for i in range(len(days) - 1):
-            color = 'red' if sepsis_status[i] else 'blue'
-            ax1.plot(days.iloc[i:i+2], bacteria_levels[i:i+2], color=color, linewidth=4)
+        # Use step plot to show horizontal lines followed by vertical drops
+        # This makes drug effects visually clear: level stays constant until drug acts, then drops immediately
+        ax1.step(days, bacteria_levels, where='post', linewidth=4, color='blue', alpha=0.8)
             
-        # Add markers
+        # Add markers with sepsis coloring
         sepsis_mask = sepsis_status
         no_sepsis_mask = ~sepsis_status
         if no_sepsis_mask.any():
@@ -208,37 +258,43 @@ class InfectionJourneyAnalyzer:
             ax1.scatter(days[sepsis_mask], bacteria_levels[sepsis_mask], 
                        color='red', marker='o', s=20, label='Sepsis', zorder=5)
         
-        ax1.set_title('Primary Bacteria Level')
-        ax1.set_xlabel('Day of Journey', fontsize=20)
-        ax1.set_ylabel('Bacteria Level', fontsize=20)
-        ax1.set_xticks(range(int(days.min()), int(days.max()) + 1))
+        # Get drug data for later use
+        drug_data = self._parse_drug_and_resistance_data(journey_data)
+        
+        ax1.set_title('Primary Bacteria Level', fontsize=18)  # Default ~12 * 1.5 = 18
+        ax1.set_xlabel('Day of Journey', fontsize=15)  # 20 * 0.75 = 15
+        ax1.set_ylabel('Bacteria Level', fontsize=15)
+        ax1.set_xticks(range(1, int(days.max()) + 1))
+        ax1.set_xlim(0.5, int(days.max()) + 0.5)
         ax1.set_ylim(bottom=0)  # Ensure y-axis starts at 0
         ax1.grid(True, alpha=0.3)
         if sepsis_mask.any():
             ax1.legend(fontsize=8)
         
-        # Immunity and toxicity levels
-        ax2.plot(days, journey_data['immunity_level'], 'g-', marker='s', label='Immunity', linewidth=4, markersize=4)
-        ax2.plot(days, journey_data['toxicity_level'], 'r-', marker='^', label='Toxicity', linewidth=4, markersize=4)
-        ax2.set_title('Immunity & Toxicity Levels')
-        ax2.set_xlabel('Day of Journey', fontsize=20)
-        ax2.set_ylabel('Level', fontsize=20)
-        ax2.set_xticks(range(int(days.min()), int(days.max()) + 1))
+        # Immunity and toxicity levels with step plotting
+        ax2.step(days, journey_data['immunity_level'], where='post', color='green', linewidth=4, label='Immunity', alpha=0.8)
+        ax2.step(days, journey_data['toxicity_level'], where='post', color='red', linewidth=4, label='Toxicity', alpha=0.8)
+        ax2.set_title('Immunity & Toxicity Levels', fontsize=18)
+        ax2.set_xlabel('Day of Journey', fontsize=15)
+        ax2.set_ylabel('Level', fontsize=15)
+        ax2.set_xticks(range(1, int(days.max()) + 1))
+        ax2.set_xlim(0.5, int(days.max()) + 0.5)
         ax2.set_ylim(bottom=0)  # Ensure y-axis starts at 0
         ax2.legend()
         ax2.grid(True, alpha=0.3)
         
         # Drug levels and resistance (activity_r)
-        # Parse drug data to get levels and activity_r values
-        drug_data = self._parse_drug_and_resistance_data(journey_data)
+        # Note: drug_data already parsed above for markers
         
         if drug_data['has_drugs']:
-            # Plot drug levels from when treatment starts
-            for drug_name, drug_levels in drug_data['drug_levels'].items():
+            # Plot drug levels with step plotting for consistency
+            drug_colors = ['#FF8C00', '#FF4500', '#FFA500', '#FFD700', '#FF6347']  # Different orange/red shades
+            for i, (drug_name, drug_levels) in enumerate(drug_data['drug_levels'].items()):
                 mask = ~pd.isna(drug_levels)
                 if mask.any():
-                    ax3.plot(days[mask], drug_levels[mask], color='#FF8C00', marker='o', 
-                            label=f'{drug_name} Level', linewidth=4, markersize=3)
+                    color = drug_colors[i % len(drug_colors)]  # Cycle through colors
+                    ax3.step(days[mask], drug_levels[mask], where='post', color=color, 
+                            label=f'{drug_name} Level', linewidth=4, alpha=0.8)
             
             # Plot activity_r on secondary y-axis
             ax3_twin = ax3.twinx()
@@ -248,26 +304,27 @@ class InfectionJourneyAnalyzer:
                     ax3_twin.plot(days[mask], activity_r[mask], color='#9370DB', linestyle='--', marker='s', 
                                  label=f'{drug_name} Activity R', linewidth=4, markersize=3)
             
-            ax3.set_xlabel('Day of Journey', fontsize=20)
-            ax3.set_ylabel('Drug Level', color='#FF8C00', fontsize=20)
-            ax3_twin.set_ylabel('Activity R', color='#9370DB', fontsize=20)
-            ax3.set_title('Drug Levels & Resistance (Activity R)')
+            ax3.set_xlabel('Day of Journey', fontsize=15)
+            ax3.set_ylabel('Drug Level', color='#FF8C00', fontsize=15)
+            ax3_twin.set_ylabel('Activity R', color='#9370DB', fontsize=15)
+            ax3.set_title('Drug Levels & Resistance (Activity R)', fontsize=18)
             ax3.set_xticks(range(int(days.min()), int(days.max()) + 1))
             ax3.set_ylim(bottom=0)  # Ensure drug level y-axis starts at 0
             ax3_twin.set_ylim(bottom=0)  # Ensure activity R y-axis starts at 0
             ax3.grid(True, alpha=0.3)
             
-            # Combine legends
+            # Combine legends and place at bottom left
             lines1, labels1 = ax3.get_legend_handles_labels()
             lines2, labels2 = ax3_twin.get_legend_handles_labels()
             if lines1 or lines2:
-                ax3.legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=8)
+                ax3.legend(lines1 + lines2, labels1 + labels2, loc='lower left', fontsize=8)
         else:
             ax3.text(0.5, 0.5, 'No drug treatment', transform=ax3.transAxes, 
                     ha='center', va='center', fontsize=12)
-            ax3.set_title('Drug Levels & Resistance (Activity R)')
-            ax3.set_xlabel('Day of Journey', fontsize=20)
-            ax3.set_xticks(range(int(days.min()), int(days.max()) + 1))
+            ax3.set_title('Drug Levels & Resistance (Activity R)', fontsize=18)
+            ax3.set_xlabel('Day of Journey', fontsize=15)
+            ax3.set_xticks(range(1, int(days.max()) + 1))
+            ax3.set_xlim(0.5, int(days.max()) + 0.5)
             ax3.set_ylim(bottom=0)  # Ensure y-axis starts at 0 even with no data
         
         # Clinical summary text (replacing hospital status plot)
@@ -290,6 +347,24 @@ class InfectionJourneyAnalyzer:
         sepsis_day = None
         if journey_data['sepsis'].any():
             sepsis_day = journey_data[journey_data['sepsis']]['day_of_journey'].min()
+            
+        # Find bacteria clearance day for duration calculation
+        bacteria_clearance_day = None
+        original_data = self.df[self.df['journey_id'] == journey_id].copy()  # Use original data without extension
+        bacteria_levels = original_data['primary_bacteria_level'].values
+        if len(bacteria_levels) > 0:
+            cleared_indices = np.where(bacteria_levels <= 0.001)[0]
+            if len(cleared_indices) > 0:
+                bacteria_clearance_day = original_data.iloc[cleared_indices[0]]['day_of_journey']
+        
+        # Get drug potency and resistance information
+        drug_potency_info = self._get_drug_potency_resistance_info(original_data)
+        
+        # Get drug failure day information
+        drug_failure_info = self._get_drug_failure_info(original_data)
+        
+        # Get other bacteria present during journey
+        other_bacteria_info = self._get_other_bacteria_info(original_data)
         
         death_day = None
         death_cause = journey_data['resolution_type'].iloc[-1]
@@ -315,6 +390,12 @@ class InfectionJourneyAnalyzer:
         syndrome_num = journey_data['syndrome'].iloc[0]
         syndrome_name = self.syndrome_names.get(syndrome_num, f"Syndrome {syndrome_num}")
         
+        # Calculate duration as time to bacteria clearance
+        if bacteria_clearance_day is not None:
+            duration_text = f"{bacteria_clearance_day} days (to clearance)"
+        else:
+            duration_text = f"{original_data['day_of_journey'].max()} days (ongoing)"
+        
         clinical_info = [
             f"Year: {calendar_year}",
             f"Bacteria: {journey_data['primary_bacteria'].iloc[0]}",
@@ -322,12 +403,24 @@ class InfectionJourneyAnalyzer:
             f"Age: {journey_data['age_at_onset'].iloc[0]/365.25:.1f} years",
             f"Syndrome: {syndrome_name}",
             f"Sepsis: {'Day ' + str(sepsis_day) if sepsis_day else 'None'}",
-            f"Bacteria identified: {'Day ' + str(bacteria_id_day) if bacteria_id_day else 'None'}",
-            f"Resistance test: {'Day ' + str(resistance_test_day) if resistance_test_day else 'None'}",
+            f"Bacteria identified: {'Day ' + str(bacteria_id_day) if bacteria_id_day else 'No'}",
+            f"Resistance test: {'Day ' + str(resistance_test_day) if resistance_test_day else 'No'}",
             f"Outcome: {outcome_text}",
-            f"Duration: {journey_data['day_of_journey'].max()} days",
+            f"Duration: {duration_text}",
             f"Hospital acquired: {'Yes' if journey_data['hospital_acquired'].iloc[0] else 'No'}"
         ]
+        
+        # Add drug potency and resistance information
+        if drug_potency_info:
+            clinical_info.extend(drug_potency_info)
+            
+        # Add drug failure information
+        if drug_failure_info:
+            clinical_info.extend(drug_failure_info)
+            
+        # Add other bacteria information
+        if other_bacteria_info:
+            clinical_info.extend(other_bacteria_info)
         
         # Display clinical information as text with reduced vertical spacing
         ax4.text(0.05, 0.95, "Clinical Summary", transform=ax4.transAxes, 
@@ -901,6 +994,141 @@ class InfectionJourneyAnalyzer:
             for region, count in region_counts.items():
                 percentage = count / len(self.journey_summary) * 100
                 print(f"  {region}: {count:,} ({percentage:.1f}%)")
+    
+    def _get_drug_potency_resistance_info(self, journey_data):
+        """Extract drug potency and any_r resistance values on the day each drug was started."""
+        drug_info = []
+        
+        # Find all drugs used and their start days
+        drug_start_info = {}
+        
+        for _, row in journey_data.iterrows():
+            if pd.notna(row['current_drugs']) and row['current_drugs'] != '':
+                drug_entries = row['current_drugs'].split(';')
+                day = int(row['day_of_journey'])
+                
+                for entry in drug_entries:
+                    if ':' in entry:
+                        drug_name, level_str = entry.split(':', 1)
+                        try:
+                            level = float(level_str)
+                            if level > 0.1:  # Only consider significant drug levels
+                                # Track the earliest day this drug appeared
+                                if drug_name not in drug_start_info or day < drug_start_info[drug_name]['start_day']:
+                                    drug_start_info[drug_name] = {
+                                        'start_day': day,
+                                        'potency': level,
+                                        'row_data': row
+                                    }
+                        except ValueError:
+                            continue
+        
+        if drug_start_info:
+            drug_info.append("")  # Add spacing
+            
+            # For each drug, get potency and any_r on start day
+            for drug_name in sorted(drug_start_info.keys()):
+                start_info = drug_start_info[drug_name]
+                potency = start_info['potency']
+                start_row = start_info['row_data']
+                
+                # Find any_r resistance value on drug start day
+                any_r_value = None
+                if pd.notna(start_row['resistance_any_r']) and start_row['resistance_any_r'] != '':
+                    any_r_entries = start_row['resistance_any_r'].split(';')
+                    for entry in any_r_entries:
+                        if ':' in entry and entry.startswith(drug_name + ':'):
+                            _, level_str = entry.split(':', 1)
+                            try:
+                                any_r_value = float(level_str)
+                                break
+                            except ValueError:
+                                continue
+                
+                # Format the drug information
+                if any_r_value is not None:
+                    drug_info.append(f"potency: {potency:.1f} {drug_name}: any_r: {any_r_value:.3f}")
+                else:
+                    drug_info.append(f"potency: {potency:.1f} {drug_name}: any_r: no data")
+        
+        return drug_info
+    
+    def _get_other_bacteria_info(self, journey_data):
+        """Extract information about other bacteria present during the journey."""
+        other_bacteria_info = []
+        
+        # Get primary bacteria to exclude it
+        primary_bacteria = journey_data['primary_bacteria'].iloc[0]
+        
+        # Find rows with other bacteria levels
+        other_bacteria_found = {}
+        
+        for _, row in journey_data.iterrows():
+            if pd.notna(row['all_bacteria_levels']) and row['all_bacteria_levels'] != '':
+                bacteria_entries = row['all_bacteria_levels'].split(';')
+                day = int(row['day_of_journey'])
+                
+                for entry in bacteria_entries:
+                    if ':' in entry:
+                        bacteria_name, level_str = entry.split(':', 1)
+                        try:
+                            level = float(level_str)
+                            if bacteria_name != primary_bacteria and level > 0.001:
+                                if bacteria_name not in other_bacteria_found:
+                                    other_bacteria_found[bacteria_name] = day
+                                else:
+                                    # Keep the earliest appearance
+                                    other_bacteria_found[bacteria_name] = min(other_bacteria_found[bacteria_name], day)
+                        except ValueError:
+                            continue
+        
+        if other_bacteria_found:
+            other_bacteria_info.append("")  # Add spacing
+            other_bacteria_info.append("Other bacteria present:")
+            
+            # Sort by first appearance day
+            sorted_bacteria = sorted(other_bacteria_found.items(), key=lambda x: x[1])
+            for bacteria_name, first_day in sorted_bacteria:
+                other_bacteria_info.append(f"  {bacteria_name}: Day {first_day}")
+        
+        return other_bacteria_info
+    
+    def _get_drug_failure_info(self, journey_data):
+        """Extract drug failure event information from the journey data."""
+        drug_failure_info = []
+        
+        # Look for treatment failure events in the journey
+        failure_days = []
+        
+        for _, row in journey_data.iterrows():
+            # Check if treatment_failures increased on this day
+            treatment_failures = row['treatment_failures']
+            if pd.notna(treatment_failures) and treatment_failures > 0:
+                day = int(row['day_of_journey'])
+                
+                # Check if this is a new failure (compare with previous day if available)
+                is_new_failure = True
+                if day > 1:
+                    # Look for previous day's data
+                    prev_day_data = journey_data[journey_data['day_of_journey'] == day - 1]
+                    if not prev_day_data.empty:
+                        prev_failures = prev_day_data['treatment_failures'].iloc[0]
+                        if pd.notna(prev_failures) and treatment_failures <= prev_failures:
+                            is_new_failure = False
+                
+                if is_new_failure:
+                    failure_days.append(day)
+        
+        # Format failure information
+        if failure_days:
+            failure_days.sort()  # Sort chronologically
+            if len(failure_days) == 1:
+                drug_failure_info.append(f"Drug failure: Day {failure_days[0]}")
+            else:
+                failure_days_str = ", ".join([f"Day {day}" for day in failure_days])
+                drug_failure_info.append(f"Drug failures: {failure_days_str}")
+        
+        return drug_failure_info
 
 def main(verbose=False, num_timeline_plots=5):
     """Main function to run the analysis."""
