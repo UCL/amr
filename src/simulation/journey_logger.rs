@@ -66,6 +66,9 @@ pub struct InfectionJourneySnapshot {
     
     // Journey outcome (only on final snapshot)
     pub resolution_type: Option<String>,
+    
+    // De novo resistance detection
+    pub has_de_novo_resistance: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +80,7 @@ pub struct ActiveJourney {
     pub day_count: u32,
     pub snapshots: Vec<InfectionJourneySnapshot>,
     pub primary_bacteria_cleared_day: Option<u32>, // Day when primary bacteria cleared
+    pub has_de_novo_resistance: bool, // Track if de novo resistance emerged during this journey
 }
 
 pub struct JourneyLogger {
@@ -162,7 +166,7 @@ impl JourneyLogger {
     }
     
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type"
+        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type,has_de_novo_resistance"
     }
     
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -180,8 +184,11 @@ impl JourneyLogger {
         match (is_currently_tracked, has_active_infection, is_dead) {
             (false, true, false) => {
                 // New infection - potentially start tracking
+                let has_de_novo_resistance = self.detect_de_novo_resistance_emergence(individual);
                 let mut rng = rand::thread_rng();
-                if rng.gen::<f64>() < self.sample_rate {
+                
+                // Always sample if de novo resistance is detected, otherwise use normal sampling
+                if has_de_novo_resistance || rng.gen::<f64>() < self.sample_rate {
                     self.start_journey(individual, time_step);
                 }
             },
@@ -231,7 +238,7 @@ impl JourneyLogger {
         self.next_journey_id += 1;
         
         // Create initial snapshot
-        let snapshot = JourneyLogger::create_snapshot(individual, journey_id, time_step, 1, primary_bacteria_idx, None);
+        let snapshot = JourneyLogger::create_snapshot(individual, journey_id, time_step, 1, primary_bacteria_idx, None, false);
         
         let journey = ActiveJourney {
             journey_id,
@@ -241,6 +248,7 @@ impl JourneyLogger {
             day_count: 1,
             snapshots: vec![snapshot],
             primary_bacteria_cleared_day: None,
+            has_de_novo_resistance: false,
         };
         
         self.active_journeys.insert(individual.id, journey);
@@ -261,8 +269,16 @@ impl JourneyLogger {
     }
     
     fn update_journey(&mut self, individual: &Individual, time_step: usize) {
+        // Check for de novo resistance emergence before getting mutable reference
+        let has_new_resistance = self.detect_de_novo_resistance_emergence(individual);
+        
         if let Some(journey) = self.active_journeys.get_mut(&individual.id) {
             journey.day_count += 1;
+            
+            // Update resistance flag if detected
+            if !journey.has_de_novo_resistance && has_new_resistance {
+                journey.has_de_novo_resistance = true;
+            }
             
             let snapshot = JourneyLogger::create_snapshot(
                 individual, 
@@ -270,7 +286,8 @@ impl JourneyLogger {
                 time_step, 
                 journey.day_count, 
                 journey.primary_bacteria_idx,
-                None
+                None,
+                journey.has_de_novo_resistance
             );
             
             journey.snapshots.push(snapshot);
@@ -327,7 +344,8 @@ impl JourneyLogger {
                 time_step,
                 journey.day_count,
                 journey.primary_bacteria_idx,
-                Some(resolution_type.clone())
+                Some(resolution_type.clone()),
+                journey.has_de_novo_resistance
             );
             
             journey.snapshots.push(final_snapshot);
@@ -350,7 +368,8 @@ impl JourneyLogger {
         time_step: usize,
         day_of_journey: u32,
         primary_bacteria_idx: usize,
-        resolution_type: Option<String>
+        resolution_type: Option<String>,
+        has_de_novo_resistance: bool
     ) -> InfectionJourneySnapshot {
         
         // Collect all active bacteria
@@ -360,22 +379,15 @@ impl JourneyLogger {
             .map(|(idx, &level)| (BACTERIA_LIST[idx].to_string(), level))
             .collect();
         
-        // Collect current drugs and recently initiated drugs
-        let mut current_drugs: Vec<(String, f64)> = individual.cur_use_drug.iter()
-            .enumerate()
-            .filter(|(_, &is_taking)| is_taking)
-            .map(|(idx, _)| (DRUG_SHORT_NAMES[idx].to_string(), individual.cur_level_drug[idx]))
-            .collect();
+        // Collect ALL drugs with detectable levels (active AND decaying after cessation)
+        let mut current_drugs: Vec<(String, f64)> = Vec::new();
         
-        // CORRECTED APPROACH: Show drugs accurately according to simulation timing
-        // The simulation timing is correct - drugs start when they should start
-        // The visual confusion comes from gradual bacterial decline vs instant drug appearance
-        
-        // Show currently active drugs
-        for (idx, &is_taking) in individual.cur_use_drug.iter().enumerate() {
-            if is_taking && individual.cur_level_drug[idx] > 0.0 {
+        // Include all drugs with levels above detection threshold (0.001)
+        // This captures both actively taken drugs and drugs in decay phase after cessation
+        for (idx, &level) in individual.cur_level_drug.iter().enumerate() {
+            if level > 0.001 {
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
-                current_drugs.push((drug_name, individual.cur_level_drug[idx]));
+                current_drugs.push((drug_name, level));
             }
         }
         
@@ -503,6 +515,7 @@ impl JourneyLogger {
             infection_identified: individual.test_identified_infection[primary_bacteria_idx],
             resistance_testing_done: individual.test_for_resistance[primary_bacteria_idx],
             resolution_type,
+            has_de_novo_resistance,
         }
     }
     
@@ -569,7 +582,7 @@ impl JourneyLogger {
         let resolution_str = snapshot.resolution_type.as_ref().unwrap_or(&String::new()).clone();
         
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{}",
             snapshot.journey_id,
             snapshot.individual_id,
             snapshot.time_step,
@@ -601,7 +614,8 @@ impl JourneyLogger {
             snapshot.background_mortality_risk,
             snapshot.infection_identified,
             snapshot.resistance_testing_done,
-            resolution_str
+            resolution_str,
+            snapshot.has_de_novo_resistance
         )
     }
     
@@ -609,6 +623,47 @@ impl JourneyLogger {
         (self.active_journeys.len(), self.total_journeys_started, self.total_snapshots_logged)
     }
 
+    // Detect if de novo resistance has emerged during active treatment
+    fn detect_de_novo_resistance_emergence(&self, individual: &Individual) -> bool {
+        // Check if any resistance acquisition events occurred while on active treatment
+        // Look for resistance acquisition types that indicate de novo emergence:
+        // - AtInfectionEnv: acquired during infection in environment
+        // - AtInfectionTB: acquired during infection in tissue/blood  
+        // - FromMicrobiomeR: transferred from resistant microbiome
+        // - Hgt: horizontal gene transfer
+        
+        // Check if individual is currently on drugs
+        let on_active_treatment = individual.cur_use_drug.iter().any(|&taking| taking);
+        
+        if !on_active_treatment {
+            return false;
+        }
+        
+        // Check how_resistance_acquired field for de novo patterns
+        // This is a 2D Vec indexed by [bacteria][drug]
+        for (_bacteria_idx, bacteria_resistances) in individual.how_resistance_acquired.iter().enumerate() {
+            for (_drug_idx, acquisition_type_opt) in bacteria_resistances.iter().enumerate() {
+                if let Some(acquisition_type) = acquisition_type_opt {
+                    // Check if this resistance was acquired during treatment
+                    match acquisition_type {
+                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv |
+                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB |
+                        crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR |
+                        crate::simulation::population::ResistanceAcquisitionType::Hgt => {
+                            return true;
+                        },
+                        _ => {
+                            // Other types like AtInfectionCommunity are less concerning
+                            // as they represent pre-existing resistance
+                        }
+                    }
+                }
+            }
+        }
+        
+        false
+    }
+    
     pub fn finalize(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref mut writer) = self.csv_writer {
             writer.flush()?;

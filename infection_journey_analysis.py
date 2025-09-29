@@ -144,7 +144,7 @@ class InfectionJourneyAnalyzer:
             
         return pd.DataFrame(summary_stats)
     
-    def view_individual_journey(self, journey_id=None, individual_id=None, sequential_number=None):
+    def view_individual_journey(self, journey_id=None, individual_id=None, sequential_number=None, highlight_de_novo=False):
         """View detailed timeline for a specific journey."""
         if journey_id is not None:
             journey_data = self.df[self.df['journey_id'] == journey_id].copy()
@@ -236,7 +236,10 @@ class InfectionJourneyAnalyzer:
         
         # Create timeline visualization
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle(f'Journey Timeline - ID: {journey_id}', fontsize=21, fontweight='bold')  # 14 * 1.5 = 21
+        
+        # Highlight de novo resistance cases in title
+        title_prefix = "⭐ DE NOVO RESISTANCE ⭐ " if highlight_de_novo else ""
+        fig.suptitle(f'{title_prefix}Journey Timeline - ID: {journey_id}', fontsize=21, fontweight='bold')  # 14 * 1.5 = 21
         
         days = journey_data['day_of_journey']
         
@@ -288,7 +291,7 @@ class InfectionJourneyAnalyzer:
         
         if drug_data['has_drugs']:
             # Plot drug levels with step plotting for consistency
-            drug_colors = ['#FF8C00', '#FF4500', '#FFA500', '#FFD700', '#FF6347']  # Different orange/red shades
+            drug_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # More distinct colors: blue, orange, green, red, purple
             for i, (drug_name, drug_levels) in enumerate(drug_data['drug_levels'].items()):
                 mask = ~pd.isna(drug_levels)
                 if mask.any():
@@ -296,17 +299,21 @@ class InfectionJourneyAnalyzer:
                     ax3.step(days[mask], drug_levels[mask], where='post', color=color, 
                             label=f'{drug_name} Level', linewidth=4, alpha=0.8)
             
-            # Plot activity_r on secondary y-axis
+            # Plot activity_r on secondary y-axis with distinct colors per drug
             ax3_twin = ax3.twinx()
-            for drug_name, activity_r in drug_data['activity_r'].items():
+            activity_r_colors = ['#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']  # Brown, pink, gray, olive, cyan
+            for i, (drug_name, activity_r) in enumerate(drug_data['activity_r'].items()):
                 mask = ~pd.isna(activity_r) & (activity_r > 0)
                 if mask.any():
-                    ax3_twin.plot(days[mask], activity_r[mask], color='#9370DB', linestyle='--', marker='s', 
-                                 label=f'{drug_name} Activity R', linewidth=4, markersize=3)
+                    color = activity_r_colors[i % len(activity_r_colors)]  # Cycle through colors
+                    # Use thicker lines, larger markers, and solid line style to ensure visibility
+                    ax3_twin.plot(days[mask], activity_r[mask], color=color, linestyle='-', marker='o', 
+                                 label=f'{drug_name} Activity R', linewidth=6, markersize=8, 
+                                 markerfacecolor='white', markeredgecolor=color, markeredgewidth=3, zorder=10)
             
             ax3.set_xlabel('Day of Journey', fontsize=15)
-            ax3.set_ylabel('Drug Level', color='#FF8C00', fontsize=15)
-            ax3_twin.set_ylabel('Activity R', color='#9370DB', fontsize=15)
+            ax3.set_ylabel('Drug Level', fontsize=15)
+            ax3_twin.set_ylabel('Activity R', fontsize=15)
             ax3.set_title('Drug Levels & Resistance (Activity R)', fontsize=18)
             ax3.set_xticks(range(int(days.min()), int(days.max()) + 1))
             ax3.set_ylim(bottom=0)  # Ensure drug level y-axis starts at 0
@@ -396,6 +403,11 @@ class InfectionJourneyAnalyzer:
         else:
             duration_text = f"{original_data['day_of_journey'].max()} days (ongoing)"
         
+        # Check for de novo resistance status
+        has_de_novo = False
+        if 'has_de_novo_resistance' in journey_data.columns:
+            has_de_novo = journey_data['has_de_novo_resistance'].any()
+        
         clinical_info = [
             f"Year: {calendar_year}",
             f"Bacteria: {journey_data['primary_bacteria'].iloc[0]}",
@@ -405,6 +417,7 @@ class InfectionJourneyAnalyzer:
             f"Sepsis: {'Day ' + str(sepsis_day) if sepsis_day else 'None'}",
             f"Bacteria identified: {'Day ' + str(bacteria_id_day) if bacteria_id_day else 'No'}",
             f"Resistance test: {'Day ' + str(resistance_test_day) if resistance_test_day else 'No'}",
+            f"⭐ DE NOVO RESISTANCE: {'YES' if has_de_novo else 'No'}",
             f"Outcome: {outcome_text}",
             f"Duration: {duration_text}",
             f"Hospital acquired: {'Yes' if journey_data['hospital_acquired'].iloc[0] else 'No'}"
@@ -1147,16 +1160,71 @@ def main(verbose=False, num_timeline_plots=5):
         print(f"\nGenerating detailed text report for all journeys...")
     text_report_file = analyzer.generate_text_report()
     
-    # Generate timeline plots for randomly selected journeys with sequential numbering  
-    # Use journey_summary which properly handles unique journeys and resolution detection
-    # Random sampling ensures equal probability for all journeys regardless of temporal order
-    available_journeys = analyzer.journey_summary['journey_id'].sample(n=min(num_timeline_plots, len(analyzer.journey_summary)), random_state=None).values
-    if verbose:
-        print(f"\nTotal unique journeys available: {len(analyzer.journey_summary)}")
-        print(f"Generating {len(available_journeys)} randomly selected individual journey timeline plots...")
+    # Enhanced journey selection: prioritize de novo resistance cases and stratify across time periods
     
-    for i, journey_id in enumerate(available_journeys, 1):
-        analyzer.view_individual_journey(journey_id=journey_id, sequential_number=i)
+    # First, identify journeys with de novo resistance emergence
+    de_novo_journeys = []
+    if 'has_de_novo_resistance' in analyzer.df.columns:
+        de_novo_mask = analyzer.df['has_de_novo_resistance'] == True
+        de_novo_journeys = analyzer.df[de_novo_mask]['journey_id'].unique().tolist()
+        
+    if verbose and len(de_novo_journeys) > 0:
+        print(f"\nFound {len(de_novo_journeys)} journeys with de novo resistance emergence!")
+        print(f"De novo resistance journey IDs: {de_novo_journeys}")
+    
+    # Stratified sampling across time periods to reduce early-simulation bias
+    # Define time periods: early (before treatment), treatment era, late
+    treatment_start_time = 2555  # Treatment starts in 1937 (day 2555)
+    
+    # Get journey start times (minimum time step for each journey)
+    journey_times = analyzer.df.groupby('journey_id')['time_step'].min().reset_index()
+    journey_times['period'] = 'early'
+    journey_times.loc[journey_times['time_step'] >= treatment_start_time, 'period'] = 'treatment'
+    journey_times.loc[journey_times['time_step'] >= treatment_start_time + 2000, 'period'] = 'late'
+    
+    # Calculate sampling targets per period (bias toward treatment period)
+    total_random_slots = max(0, num_timeline_plots - len(de_novo_journeys))
+    early_target = max(1, int(total_random_slots * 0.2))  # 20% from early period
+    treatment_target = max(1, int(total_random_slots * 0.6))  # 60% from treatment period
+    late_target = total_random_slots - early_target - treatment_target  # Remainder from late period
+    
+    if verbose:
+        period_counts = journey_times['period'].value_counts()
+        print(f"\nJourney distribution by time period:")
+        print(f"Early period (pre-treatment): {period_counts.get('early', 0)} journeys")
+        print(f"Treatment period: {period_counts.get('treatment', 0)} journeys") 
+        print(f"Late period: {period_counts.get('late', 0)} journeys")
+        print(f"\nSampling strategy:")
+        print(f"De novo resistance journeys: {len(de_novo_journeys)} (always included)")
+        print(f"Random from early period: {early_target}")
+        print(f"Random from treatment period: {treatment_target}")
+        print(f"Random from late period: {late_target}")
+    
+    # Sample from each period
+    selected_journeys = de_novo_journeys.copy()  # Always include de novo resistance cases
+    
+    for period, target in [('early', early_target), ('treatment', treatment_target), ('late', late_target)]:
+        period_journeys = journey_times[journey_times['period'] == period]['journey_id'].values
+        # Exclude already selected de novo journeys
+        period_journeys = [j for j in period_journeys if j not in selected_journeys]
+        
+        if len(period_journeys) > 0 and target > 0:
+            sample_size = min(target, len(period_journeys))
+            sampled = np.random.choice(period_journeys, size=sample_size, replace=False)
+            selected_journeys.extend(sampled.tolist())
+    
+    # Ensure we don't exceed the requested number
+    selected_journeys = selected_journeys[:num_timeline_plots]
+    
+    if verbose:
+        print(f"\nTotal journeys selected: {len(selected_journeys)}")
+        print(f"Generating individual journey timeline plots...")
+        if len(de_novo_journeys) > 0:
+            print(f"⭐ {len([j for j in selected_journeys if j in de_novo_journeys])} de novo resistance journeys included")
+    
+    for i, journey_id in enumerate(selected_journeys, 1):
+        is_de_novo = journey_id in de_novo_journeys
+        analyzer.view_individual_journey(journey_id=journey_id, sequential_number=i, highlight_de_novo=is_de_novo)
     
     if verbose:
         print(f"\nAvailable journey IDs (showing first 20): {list(analyzer.df['journey_id'].unique()[:20])}")

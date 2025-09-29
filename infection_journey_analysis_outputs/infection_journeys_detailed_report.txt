@@ -1,57 +1,107 @@
 ================================================================================
 DETAILED INFECTION JOURNEY ANALYSIS REPORT
 ================================================================================
-Generated on: 2025-09-29 16:14:03
-Total journeys: 19
-Total snapshots: 332
+Generated on: 2025-09-29 18:25:06
+Total journeys: 68
+Total snapshots: 1,405
 
 SUMMARY STATISTICS
 ----------------------------------------
-Average journey length: 17.5 days
-Journeys with sepsis: 7 (36.8%)
-Journeys with treatment: 6 (31.6%)
-Journeys with drug selection events: 6
-Hospital acquired infections: 5 (26.3%)
+Average journey length: 20.7 days
+Journeys with sepsis: 13 (19.1%)
+Journeys with treatment: 42 (61.8%)
+Journeys with drug selection events: 42
+Hospital acquired infections: 10 (14.7%)
 
 JOURNEY OUTCOMES
 ----------------------------------------
-  ImmuneClearance: 13 (68.4%)
-  DeathFromSepsis: 3 (15.8%)
-  DrugAssistedClearance: 3 (15.8%)
+  ImmuneClearance: 48 (70.6%)
+  DrugAssistedClearance: 13 (19.1%)
+  DeathFromSepsis: 7 (10.3%)
 
 BACTERIA DISTRIBUTION
 ----------------------------------------
-  Neisseria Meningitidis: 3 (15.8%)
-  Streptococcus Pyogenes: 3 (15.8%)
-  Streptococcus Agalactiae: 2 (10.5%)
-  Helicobacter Pylori: 2 (10.5%)
-  Listeria Monocytogenes: 2 (10.5%)
-  Staphylococcus Aureus: 2 (10.5%)
-  Streptococcus Pneumoniae: 1 (5.3%)
-  Klebsiella Pneumoniae: 1 (5.3%)
-  Neisseria Gonorrhoeae: 1 (5.3%)
-  Enterobacter Spp.: 1 (5.3%)
-  Haemophilus Influenzae: 1 (5.3%)
+  Listeria Monocytogenes: 7 (10.3%)
+  Streptococcus Agalactiae: 5 (7.4%)
+  Escherichia Coli: 5 (7.4%)
+  Haemophilus Influenzae: 4 (5.9%)
+  Serratia Spp.: 3 (4.4%)
+  Acinetobacter Baumannii: 3 (4.4%)
+  Proteus Spp.: 3 (4.4%)
+  Enterococcus Faecalis: 3 (4.4%)
+  Neisseria Meningitidis: 3 (4.4%)
+  Invasive Non-Typhoidal Salmonella Spp.: 3 (4.4%)
+  Enterobacter Spp.: 2 (2.9%)
+  Bordetella Pertussis: 2 (2.9%)
+  Pseudomonas Aeruginosa: 2 (2.9%)
+  Staphylococcus Aureus: 2 (2.9%)
+  Morganella Spp.: 2 (2.9%)
 
 ================================================================================
 DETAILED INDIVIDUAL JOURNEY LISTINGS
 ================================================================================
 
-Showing detailed analysis for first 30 journeys (out of 19 total)
+Showing detailed analysis for first 30 journeys (out of 68 total)
 
 JOURNEY #1 (ID: 1)
 ------------------------------------------------------------
-Patient ID: 177
+Patient ID: 119
 Calendar year: 1930
-Age at onset: 471 days (1.3 years)
-Sex: male
+Age at onset: 19320 days (52.9 years)
+Sex: female
 Region: Asia
 Immunodeficiency: nan
 
-Primary bacteria: Neisseria Meningitidis
+Primary bacteria: Acinetobacter Baumannii
+Syndrome: Urinary tract infection
+Hospital acquired: True
+Journey duration: 18 days
+Maximum bacteria level: 2.808
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.808 |   10.000 |    2.326 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+  2 |    2.508 |   10.000 |    2.604 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  3 |    2.208 |   10.000 |    2.301 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  4 |    1.908 |   10.000 |    2.701 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  5 |    1.608 |   10.000 |    2.278 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  6 |    1.308 |   10.000 |    1.913 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  7 |    1.008 |   10.000 |    2.030 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  8 |    0.708 |   10.000 |    2.013 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.408 |   10.000 |    2.264 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.108 |   10.000 |    2.652 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    2.930 |    2.324 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    0.000 |    2.910 |    2.681 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    0.000 |    2.890 |    2.610 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    0.000 |    2.870 |    2.193 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    0.000 |    2.850 |    1.981 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.000 |    2.830 |    2.368 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.000 |    2.810 |    2.132 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.000 |    2.790 |    2.169 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #2 (ID: 2)
+------------------------------------------------------------
+Patient ID: 167
+Calendar year: 1930
+Age at onset: 31604 days (86.5 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Acinetobacter Baumannii
 Syndrome: Skin/soft tissue infection
-Hospital acquired: False
-Journey duration: 25 days
+Hospital acquired: True
+Journey duration: 30 days
 Maximum bacteria level: 3.285
 Developed sepsis: True
 Received treatment: False
@@ -64,101 +114,53 @@ Final resolution: ImmuneClearance
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    2.626 |    2.769 |    2.942 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    2.904 |    3.644 |    2.715 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    3.113 |    4.630 |    2.736 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    3.243 |    5.722 |    2.612 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    3.285 |    6.916 |    2.661 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.231 |    8.208 |    3.118 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
-  7 |    3.075 |    9.591 |    3.274 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    2.808 |   10.000 |    3.668 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
-  9 |    2.508 |   10.000 |    3.990 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | 
- 10 |    2.208 |   10.000 |    3.867 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | 
- 11 |    1.908 |   10.000 |    3.480 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
- 12 |    1.608 |   10.000 |    3.507 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 13 |    1.308 |   10.000 |    3.813 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 14 |    1.008 |   10.000 |    3.762 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 15 |    0.708 |   10.000 |    3.922 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 16 |    0.408 |   10.000 |    4.145 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 17 |    0.108 |   10.000 |    4.243 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 18 |    0.000 |   10.000 |    4.316 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 19 |    0.000 |    9.980 |    4.591 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 20 |    0.000 |    9.960 |    5.058 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 21 |    0.000 |    9.940 |    4.936 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 22 |    0.000 |    9.920 |    4.615 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
- 23 |    0.000 |    9.900 |    4.308 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 24 |    0.000 |    9.880 |    4.022 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 25 |    0.000 |    9.860 |    3.605 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-
-================================================================================
-
-JOURNEY #2 (ID: 2)
-------------------------------------------------------------
-Patient ID: 75
-Calendar year: 1930
-Age at onset: 18186 days (49.8 years)
-Sex: female
-Region: Europe
-Immunodeficiency: nan
-
-Primary bacteria: Streptococcus Agalactiae
-Syndrome: Central nervous system infection
-Hospital acquired: True
-Journey duration: 25 days
-Maximum bacteria level: 3.285
-Developed sepsis: False
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: ImmuneClearance
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    2.626 |    2.769 |    7.277 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    2.904 |    3.644 |    6.972 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    3.113 |    4.630 |    7.058 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    3.243 |    5.722 |    7.399 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    3.285 |    6.916 |    7.095 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.231 |    8.208 |    7.398 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    3.075 |    9.591 |    7.488 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    2.808 |   10.000 |    7.868 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    2.508 |   10.000 |    7.812 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    2.208 |   10.000 |    7.772 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    1.908 |   10.000 |    7.712 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    1.608 |   10.000 |    7.876 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 13 |    1.308 |   10.000 |    7.982 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 14 |    1.008 |   10.000 |    8.391 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 15 |    0.708 |   10.000 |    8.523 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 16 |    0.408 |   10.000 |    8.995 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 17 |    0.108 |   10.000 |    9.370 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 18 |    0.000 |   10.000 |    8.912 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 19 |    0.000 |    9.980 |    9.390 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 20 |    0.000 |    9.960 |    9.438 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 21 |    0.000 |    9.940 |    9.926 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 22 |    0.000 |    9.920 |   10.108 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 23 |    0.000 |    9.900 |   10.221 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 24 |    0.000 |    9.880 |   10.116 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 25 |    0.000 |    9.860 |   10.029 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    0.510 |    0.155 |    6.335 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.998 |    0.435 |    6.141 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.463 |    0.839 |    6.476 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    1.896 |    1.363 |    6.261 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    2.287 |    2.008 |    6.343 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    2.626 |    2.769 |    6.483 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    2.904 |    3.644 |    6.953 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.113 |    4.630 |    7.047 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    3.243 |    5.722 |    7.275 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    3.285 |    6.916 |    7.076 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    3.231 |    8.208 |    6.770 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    3.075 |    9.591 |    7.069 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 13 |    2.808 |   10.000 |    7.323 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 14 |    2.508 |   10.000 |    7.224 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 15 |    2.208 |   10.000 |    7.681 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 16 |    1.908 |   10.000 |    8.146 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 17 |    1.608 |   10.000 |    8.268 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 18 |    1.308 |   10.000 |    8.660 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 19 |    1.008 |   10.000 |    8.416 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 20 |    0.708 |   10.000 |    8.652 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.408 |   10.000 |    8.231 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.108 |   10.000 |    8.646 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |   10.000 |    9.025 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.980 |    9.462 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.960 |    9.714 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.940 |    9.651 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    0.000 |    9.920 |    9.958 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 28 |    0.000 |    9.900 |    9.874 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+ 29 |    0.000 |    9.880 |    9.547 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 30 |    0.000 |    9.860 |    9.615 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
 
 ================================================================================
 
 JOURNEY #3 (ID: 3)
 ------------------------------------------------------------
-Patient ID: 33
-Calendar year: 1932
-Age at onset: 5970 days (16.3 years)
-Sex: male
-Region: Asia
+Patient ID: 167
+Calendar year: 1930
+Age at onset: 31634 days (86.6 years)
+Sex: female
+Region: Europe
 Immunodeficiency: nan
 
-Primary bacteria: Streptococcus Pneumoniae
-Syndrome: Urinary tract infection
-Hospital acquired: False
-Journey duration: 10 days
-Maximum bacteria level: 1.327
+Primary bacteria: Invasive Non-Typhoidal Salmonella Spp.
+Syndrome: Bone/joint infection
+Hospital acquired: True
+Journey duration: 14 days
+Maximum bacteria level: 1.608
 Developed sepsis: False
 Received treatment: False
 Treatment failures: 0
@@ -170,33 +172,216 @@ Final resolution: ImmuneClearance
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    1.327 |    7.888 |    7.927 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    0.644 |    9.150 |    7.740 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    0.000 |   10.000 |    7.552 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    0.000 |    9.980 |    7.232 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    0.000 |    9.960 |    6.892 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.000 |    9.940 |    7.043 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |    9.920 |    7.226 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.900 |    6.826 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.880 |    6.343 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    0.000 |    9.860 |    6.768 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    1.608 |   10.000 |   10.079 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    1.308 |   10.000 |   10.016 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.008 |   10.000 |    9.600 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.708 |   10.000 |    9.686 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    0.408 |   10.000 |    9.654 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.108 |   10.000 |   10.012 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |   10.000 |   10.327 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.980 |    9.916 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.960 |   10.416 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.000 |    9.940 |   10.289 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    9.920 |   10.375 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    0.000 |    9.900 |   10.541 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    0.000 |    9.880 |   10.223 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    0.000 |    9.860 |    9.931 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
 JOURNEY #4 (ID: 4)
 ------------------------------------------------------------
-Patient ID: 251
-Calendar year: 1932
-Age at onset: 12231 days (33.5 years)
-Sex: male
+Patient ID: 237
+Calendar year: 1930
+Age at onset: 611 days (1.7 years)
+Sex: female
+Region: Oceania
+Immunodeficiency: Some(Temporary)
+
+Primary bacteria: Serratia Spp.
+Syndrome: Bone/joint infection
+Hospital acquired: False
+Journey duration: 8 days
+Maximum bacteria level: 5.000
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: DeathFromSepsis
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    5.000 |    2.099 |    1.560 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    5.000 |    2.317 |    1.685 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    5.000 |    2.545 |    1.345 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    5.000 |    2.783 |    1.054 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    5.000 |    3.031 |    0.644 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    5.000 |    3.289 |    0.815 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+  7 |    5.000 |    3.557 |    0.572 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    5.000 |    3.835 |    0.125 | none                 | 0.00       | 0.00       | yes    | NotInHospital | yes (DeathFromSepsis) | sepsis onset
+
+================================================================================
+
+JOURNEY #5 (ID: 5)
+------------------------------------------------------------
+Patient ID: 101
+Calendar year: 1931
+Age at onset: 1363 days (3.7 years)
+Sex: female
+Region: Europe
+Immunodeficiency: Some(Chronic)
+
+Primary bacteria: Campylobacter Jejuni
+Syndrome: Bone/joint infection
+Hospital acquired: False
+Journey duration: 12 days
+Maximum bacteria level: 5.000
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: DeathFromSepsis
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    5.000 |    2.317 |    7.146 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    5.000 |    2.545 |    7.595 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    5.000 |    2.783 |    7.630 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+  4 |    5.000 |    3.031 |    7.265 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+  5 |    5.000 |    3.289 |    7.247 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+  6 |    5.000 |    3.557 |    7.514 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+  7 |    5.000 |    3.835 |    7.317 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+  8 |    5.000 |    4.123 |    6.912 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+  9 |    5.000 |    4.421 |    6.942 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 10 |    5.000 |    4.729 |    6.540 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 11 |    5.000 |    5.047 |    6.505 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 12 |    5.000 |    5.375 |    6.062 | none                 | 0.00       | 0.00       | yes    | InHospital  | yes (DeathFromSepsis) | 
+
+================================================================================
+
+JOURNEY #6 (ID: 6)
+------------------------------------------------------------
+Patient ID: 119
+Calendar year: 1931
+Age at onset: 19833 days (54.3 years)
+Sex: female
 Region: Asia
 Immunodeficiency: nan
 
-Primary bacteria: Streptococcus Agalactiae
-Syndrome: Skin/soft tissue infection
+Primary bacteria: Pseudomonas Aeruginosa
+Syndrome: Pneumonia
 Hospital acquired: False
-Journey duration: 25 days
-Maximum bacteria level: 3.285
+Journey duration: 75 days
+Maximum bacteria level: 4.166
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: DeathFromSepsis
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    3.924 |    7.014 |    1.253 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    4.073 |    8.348 |    1.087 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    4.156 |    9.786 |    0.652 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    4.166 |   10.000 |    0.555 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    4.166 |   10.000 |    0.790 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    4.166 |   10.000 |    1.159 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    4.166 |   10.000 |    1.320 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    4.166 |   10.000 |    0.919 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+  9 |    4.166 |   10.000 |    1.148 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+ 10 |    4.166 |   10.000 |    1.540 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 11 |    4.166 |   10.000 |    1.599 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 12 |    4.166 |   10.000 |    2.005 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 13 |    4.166 |   10.000 |    2.452 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 14 |    4.166 |   10.000 |    2.862 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    4.166 |   10.000 |    2.561 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    4.166 |   10.000 |    2.078 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    4.166 |   10.000 |    2.013 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    4.166 |   10.000 |    2.004 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    4.166 |   10.000 |    1.756 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    4.166 |   10.000 |    1.485 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    4.166 |   10.000 |    1.882 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    4.166 |   10.000 |    1.383 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    4.166 |   10.000 |    1.650 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    4.166 |   10.000 |    1.407 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    4.166 |   10.000 |    1.222 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    4.166 |   10.000 |    0.959 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    4.166 |   10.000 |    1.456 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 28 |    4.166 |   10.000 |    1.103 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 29 |    4.166 |   10.000 |    1.009 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 30 |    4.166 |   10.000 |    0.986 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 31 |    4.166 |   10.000 |    0.895 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 32 |    4.166 |   10.000 |    1.113 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 33 |    4.166 |   10.000 |    1.409 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 34 |    4.166 |   10.000 |    1.667 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 35 |    4.166 |   10.000 |    1.346 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 36 |    4.166 |   10.000 |    0.880 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 37 |    4.166 |   10.000 |    0.533 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 38 |    4.166 |   10.000 |    0.452 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 39 |    4.166 |   10.000 |    0.627 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 40 |    4.166 |   10.000 |    0.865 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 41 |    4.166 |   10.000 |    0.588 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 42 |    4.166 |   10.000 |    0.266 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 43 |    4.166 |   10.000 |    0.478 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 44 |    4.166 |   10.000 |    0.302 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 45 |    4.166 |   10.000 |    0.278 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 46 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 47 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 48 |    4.166 |   10.000 |    0.448 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 49 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 50 |    4.166 |   10.000 |    0.333 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 51 |    4.166 |   10.000 |    0.344 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 52 |    4.166 |   10.000 |    0.493 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 53 |    4.166 |   10.000 |    0.544 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 54 |    4.166 |   10.000 |    0.536 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 55 |    4.166 |   10.000 |    0.103 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 56 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 57 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 58 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset
+ 59 |    4.166 |   10.000 |    0.162 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 60 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 61 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 62 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 63 |    4.166 |   10.000 |    0.130 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 64 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 65 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 66 |    4.166 |   10.000 |    0.473 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+ 67 |    4.166 |   10.000 |    0.188 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 68 |    4.166 |   10.000 |    0.190 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 69 |    4.166 |   10.000 |    0.053 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 70 |    4.166 |   10.000 |    0.182 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 71 |    4.166 |   10.000 |    0.375 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 72 |    4.166 |   10.000 |    0.246 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 73 |    4.166 |   10.000 |    0.019 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 74 |    4.166 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 75 |    4.166 |   10.000 |    0.293 | none                 | 0.00       | 0.00       | yes    | InHospital  | yes (DeathFromSepsis) | 
+
+================================================================================
+
+JOURNEY #7 (ID: 7)
+------------------------------------------------------------
+Patient ID: 167
+Calendar year: 1931
+Age at onset: 32127 days (88.0 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Citrobacter Spp.
+Syndrome: Pneumonia
+Hospital acquired: True
+Journey duration: 17 days
+Maximum bacteria level: 2.508
 Developed sepsis: False
 Received treatment: False
 Treatment failures: 0
@@ -208,45 +393,359 @@ Final resolution: ImmuneClearance
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    2.626 |    2.769 |   11.338 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    2.904 |    3.644 |   11.235 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    3.113 |    4.630 |   11.636 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    3.243 |    5.722 |   11.799 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    3.285 |    6.916 |   12.115 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.231 |    8.208 |   11.798 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    3.075 |    9.591 |   11.356 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    2.808 |   10.000 |   11.379 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    2.508 |   10.000 |   11.648 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    2.208 |   10.000 |   11.671 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    1.908 |   10.000 |   11.447 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    1.608 |   10.000 |   11.429 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 13 |    1.308 |   10.000 |   10.955 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 14 |    1.008 |   10.000 |   11.388 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 15 |    0.708 |   10.000 |   11.489 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 16 |    0.408 |   10.000 |   11.411 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 17 |    0.108 |   10.000 |   11.168 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 18 |    0.000 |   10.000 |   11.544 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 19 |    0.000 |    9.980 |   11.634 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 20 |    0.000 |    9.960 |   11.154 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 21 |    0.000 |    9.940 |   11.347 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 22 |    0.000 |    9.920 |   11.006 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 23 |    0.000 |    9.900 |   11.218 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 24 |    0.000 |    9.880 |   11.675 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 25 |    0.000 |    9.860 |   11.914 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    2.508 |   10.000 |   13.857 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.208 |   10.000 |   14.066 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.908 |   10.000 |   14.320 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    1.608 |   10.000 |   14.521 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    1.308 |   10.000 |   14.090 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    1.008 |   10.000 |   13.668 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.708 |   10.000 |   14.021 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.408 |   10.000 |   14.051 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.108 |   10.000 |   13.641 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.000 |   10.000 |   13.906 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    9.980 |   13.923 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    0.000 |    9.960 |   13.563 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    0.000 |    9.940 |   13.326 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    0.000 |    9.920 |   13.609 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    0.000 |    9.900 |   13.234 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.000 |    9.880 |   13.702 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.000 |    9.860 |   13.969 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #5 (ID: 5)
+JOURNEY #8 (ID: 8)
 ------------------------------------------------------------
-Patient ID: 47
-Calendar year: 1933
-Age at onset: 23430 days (64.1 years)
+Patient ID: 131
+Calendar year: 1931
+Age at onset: 2802 days (7.7 years)
+Sex: male
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Neisseria Meningitidis
+Syndrome: Pneumonia
+Hospital acquired: False
+Journey duration: 20 days
+Maximum bacteria level: 3.231
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    3.231 |    8.208 |   12.453 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    3.075 |    9.591 |   12.406 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.808 |   10.000 |   12.879 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    2.508 |   10.000 |   12.886 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+  5 |    2.208 |   10.000 |   12.941 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+  6 |    1.908 |   10.000 |   13.053 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  7 |    1.608 |   10.000 |   12.843 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    1.308 |   10.000 |   13.299 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    1.008 |   10.000 |   13.548 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.708 |   10.000 |   13.897 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.408 |   10.000 |   13.448 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    0.108 |   10.000 |   13.605 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    0.000 |   10.000 |   13.692 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    0.000 |    9.980 |   13.538 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    0.000 |    9.960 |   13.113 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.000 |    9.940 |   13.119 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.000 |    9.920 |   13.023 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.000 |    9.900 |   12.543 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |    9.880 |   12.244 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |    9.860 |   12.477 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #9 (ID: 9)
+------------------------------------------------------------
+Patient ID: 281
+Calendar year: 1931
+Age at onset: 2826 days (7.7 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Bordetella Pertussis
+Syndrome: Urinary tract infection
+Hospital acquired: False
+Journey duration: 80 days
+Maximum bacteria level: 5.000
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: DeathFromSepsis
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    1.004 |    0.436 |    1.403 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    1.486 |    0.840 |    1.304 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.953 |    1.368 |    1.453 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    2.398 |    2.018 |    1.717 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    2.817 |    2.788 |    2.061 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    3.206 |    3.679 |    1.582 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    3.559 |    4.687 |    1.402 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.871 |    5.810 |    0.981 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    4.139 |    7.047 |    0.562 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    4.357 |    8.395 |    0.453 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    4.521 |    9.851 |    0.155 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    4.627 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    4.727 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    4.827 |   10.000 |    0.306 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    4.927 |   10.000 |    0.233 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    5.000 |   10.000 |    0.335 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    5.000 |   10.000 |    0.671 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    5.000 |   10.000 |    0.757 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    5.000 |   10.000 |    0.967 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    5.000 |   10.000 |    0.992 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    5.000 |   10.000 |    0.544 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    5.000 |   10.000 |    0.573 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    5.000 |   10.000 |    0.658 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    5.000 |   10.000 |    0.657 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 25 |    5.000 |   10.000 |    0.510 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 26 |    5.000 |   10.000 |    0.723 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 27 |    5.000 |   10.000 |    1.156 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 28 |    5.000 |   10.000 |    1.098 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 29 |    5.000 |   10.000 |    0.978 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset
+ 30 |    5.000 |   10.000 |    1.278 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 31 |    5.000 |   10.000 |    1.427 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 32 |    5.000 |   10.000 |    1.709 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 33 |    5.000 |   10.000 |    1.493 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 34 |    5.000 |   10.000 |    1.708 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 35 |    5.000 |   10.000 |    2.109 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 36 |    5.000 |   10.000 |    1.908 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 37 |    5.000 |   10.000 |    1.636 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 38 |    5.000 |   10.000 |    1.318 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 39 |    5.000 |   10.000 |    1.583 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 40 |    5.000 |   10.000 |    1.209 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 41 |    5.000 |   10.000 |    1.181 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 42 |    5.000 |   10.000 |    0.858 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 43 |    5.000 |   10.000 |    0.470 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 44 |    5.000 |   10.000 |    0.781 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 45 |    5.000 |   10.000 |    0.734 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset
+ 46 |    5.000 |   10.000 |    0.564 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 47 |    5.000 |   10.000 |    0.884 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 48 |    5.000 |   10.000 |    1.343 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 49 |    5.000 |   10.000 |    1.764 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 50 |    5.000 |   10.000 |    2.029 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 51 |    5.000 |   10.000 |    1.940 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 52 |    5.000 |   10.000 |    1.584 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 53 |    5.000 |   10.000 |    1.999 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 54 |    5.000 |   10.000 |    2.034 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 55 |    5.000 |   10.000 |    2.322 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 56 |    5.000 |   10.000 |    2.246 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 57 |    5.000 |   10.000 |    2.526 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 58 |    5.000 |   10.000 |    2.050 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset
+ 59 |    5.000 |   10.000 |    1.585 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 60 |    5.000 |   10.000 |    1.693 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 61 |    5.000 |   10.000 |    1.752 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 62 |    5.000 |   10.000 |    1.835 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 63 |    5.000 |   10.000 |    1.461 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 64 |    5.000 |   10.000 |    1.668 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 65 |    5.000 |   10.000 |    1.565 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset
+ 66 |    5.000 |   10.000 |    1.160 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 67 |    5.000 |   10.000 |    0.869 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 68 |    5.000 |   10.000 |    1.001 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 69 |    5.000 |   10.000 |    0.693 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 70 |    5.000 |   10.000 |    0.309 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 71 |    5.000 |   10.000 |    0.397 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 72 |    5.000 |   10.000 |    0.000 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 73 |    5.000 |   10.000 |    0.342 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 74 |    5.000 |   10.000 |    0.766 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 75 |    5.000 |   10.000 |    0.828 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 76 |    5.000 |   10.000 |    0.685 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 77 |    5.000 |   10.000 |    0.486 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 78 |    5.000 |   10.000 |    0.438 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 79 |    5.000 |   10.000 |    0.549 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 80 |    5.000 |   10.000 |    0.384 | none                 | 0.00       | 0.00       | yes    | InHospital  | yes (DeathFromSepsis) | sepsis onset
+
+================================================================================
+
+JOURNEY #10 (ID: 10)
+------------------------------------------------------------
+Patient ID: 221
+Calendar year: 1932
+Age at onset: 10076 days (27.6 years)
 Sex: male
 Region: Asia
 Immunodeficiency: nan
 
 Primary bacteria: Neisseria Gonorrhoeae
 Syndrome: Endocarditis
+Hospital acquired: False
+Journey duration: 30 days
+Maximum bacteria level: 3.285
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    0.510 |    0.155 |   10.427 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.998 |    0.435 |   10.257 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.463 |    0.839 |   10.482 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    1.896 |    1.363 |   10.916 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    2.287 |    2.008 |   11.013 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    2.626 |    2.769 |   11.003 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    2.904 |    3.644 |   10.771 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.113 |    4.630 |   10.571 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    3.243 |    5.722 |   10.925 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    3.285 |    6.916 |   10.433 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    3.231 |    8.208 |   10.904 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    3.075 |    9.591 |   10.567 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    2.808 |   10.000 |   10.576 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    2.508 |   10.000 |   10.545 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    2.208 |   10.000 |   10.222 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    1.908 |   10.000 |   10.009 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    1.608 |   10.000 |   10.415 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    1.308 |   10.000 |   10.897 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    1.008 |   10.000 |   10.428 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.708 |   10.000 |   10.909 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.408 |   10.000 |   10.579 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.108 |   10.000 |   10.167 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |   10.000 |    9.820 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.980 |    9.350 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.960 |    8.926 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.940 |    8.587 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    0.000 |    9.920 |    8.869 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 28 |    0.000 |    9.900 |    9.214 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 29 |    0.000 |    9.880 |    8.794 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 30 |    0.000 |    9.860 |    9.009 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #11 (ID: 11)
+------------------------------------------------------------
+Patient ID: 21
+Calendar year: 1932
+Age at onset: 8934 days (24.5 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Shigella Spp.
+Syndrome: Bone/joint infection
+Hospital acquired: False
+Journey duration: 26 days
+Maximum bacteria level: 3.285
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.287 |    2.008 |    6.125 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.626 |    2.769 |    6.304 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.904 |    3.644 |    6.066 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    3.113 |    4.630 |    5.770 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    3.243 |    5.722 |    5.306 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    3.285 |    6.916 |    5.167 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    3.231 |    8.208 |    4.772 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.075 |    9.591 |    4.702 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    2.808 |   10.000 |    4.474 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    2.508 |   10.000 |    4.440 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    2.208 |   10.000 |    4.173 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    1.908 |   10.000 |    3.739 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    1.608 |   10.000 |    3.941 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    1.308 |   10.000 |    3.886 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    1.008 |   10.000 |    3.619 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.708 |   10.000 |    3.551 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.408 |   10.000 |    3.433 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.108 |   10.000 |    3.527 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |   10.000 |    3.159 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |    9.980 |    2.913 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |    9.960 |    2.553 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.940 |    2.495 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.920 |    2.989 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.900 |    2.881 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.880 |    2.864 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.860 |    3.120 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #12 (ID: 12)
+------------------------------------------------------------
+Patient ID: 167
+Calendar year: 1932
+Age at onset: 32496 days (89.0 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Invasive Non-Typhoidal Salmonella Spp.
+Syndrome: Skin/soft tissue infection
+Hospital acquired: True
+Journey duration: 26 days
+Maximum bacteria level: 3.285
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.287 |    2.008 |   12.191 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.626 |    2.769 |   12.077 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+  3 |    2.904 |    3.644 |   11.694 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+  4 |    3.113 |    4.630 |   12.126 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  5 |    3.243 |    5.722 |   12.292 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  6 |    3.285 |    6.916 |   12.746 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  7 |    3.231 |    8.208 |   13.166 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  8 |    3.075 |    9.591 |   13.263 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  9 |    2.808 |   10.000 |   13.169 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    2.508 |   10.000 |   13.568 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    2.208 |   10.000 |   13.981 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+ 12 |    1.908 |   10.000 |   13.611 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 13 |    1.608 |   10.000 |   13.768 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 14 |    1.308 |   10.000 |   13.770 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    1.008 |   10.000 |   13.993 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.708 |   10.000 |   14.284 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.408 |   10.000 |   14.490 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.108 |   10.000 |   14.843 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |   10.000 |   15.172 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |    9.980 |   15.016 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |    9.960 |   14.853 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.940 |   14.700 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.920 |   15.087 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.900 |   15.481 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.880 |   15.610 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.860 |   15.744 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #13 (ID: 13)
+------------------------------------------------------------
+Patient ID: 167
+Calendar year: 1932
+Age at onset: 32544 days (89.1 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Listeria Monocytogenes
+Syndrome: Bone/joint infection
 Hospital acquired: True
 Journey duration: 30 days
 Maximum bacteria level: 3.285
@@ -261,353 +760,51 @@ Final resolution: ImmuneClearance
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.510 |    0.155 |   18.076 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
-  2 |    0.998 |    0.435 |   17.986 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  3 |    1.463 |    0.839 |   17.774 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  4 |    1.896 |    1.363 |   18.200 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    2.287 |    2.008 |   18.405 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    2.626 |    2.769 |   18.446 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    2.904 |    3.644 |   18.737 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    3.113 |    4.630 |   18.954 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    3.243 |    5.722 |   18.531 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    3.285 |    6.916 |   18.742 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    3.231 |    8.208 |   18.787 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    3.075 |    9.591 |   19.192 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 13 |    2.808 |   10.000 |   19.587 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 14 |    2.508 |   10.000 |   19.679 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 15 |    2.208 |   10.000 |   20.050 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 16 |    1.908 |   10.000 |   19.705 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 17 |    1.608 |   10.000 |   19.739 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 18 |    1.308 |   10.000 |   19.788 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 19 |    1.008 |   10.000 |   19.972 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 20 |    0.708 |   10.000 |   19.846 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 21 |    0.408 |   10.000 |   20.296 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 22 |    0.108 |   10.000 |   20.367 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 23 |    0.000 |   10.000 |   20.351 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 24 |    0.000 |    9.980 |   20.279 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 25 |    0.000 |    9.960 |   20.507 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 26 |    0.000 |    9.940 |   20.378 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 27 |    0.000 |    9.920 |   20.273 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 28 |    0.000 |    9.900 |   20.349 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 29 |    0.000 |    9.880 |   19.986 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 30 |    0.000 |    9.860 |   20.270 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    0.510 |    0.155 |   13.455 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+  2 |    0.998 |    0.435 |   13.433 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  3 |    1.463 |    0.839 |   13.484 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  4 |    1.896 |    1.363 |   13.811 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    2.287 |    2.008 |   13.642 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    2.626 |    2.769 |   13.730 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    2.904 |    3.644 |   14.086 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.113 |    4.630 |   13.885 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+  9 |    3.243 |    5.722 |   14.213 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 10 |    3.285 |    6.916 |   14.447 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    3.231 |    8.208 |   14.263 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    3.075 |    9.591 |   13.854 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    2.808 |   10.000 |   13.658 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    2.508 |   10.000 |   13.437 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    2.208 |   10.000 |   13.328 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    1.908 |   10.000 |   13.706 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    1.608 |   10.000 |   13.346 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    1.308 |   10.000 |   13.689 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    1.008 |   10.000 |   13.404 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.708 |   10.000 |   12.984 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.408 |   10.000 |   13.432 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.108 |   10.000 |   13.428 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |   10.000 |   13.002 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.980 |   13.068 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.960 |   13.535 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.940 |   13.160 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    0.000 |    9.920 |   12.859 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 28 |    0.000 |    9.900 |   12.906 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 29 |    0.000 |    9.880 |   13.089 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 30 |    0.000 |    9.860 |   12.924 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #6 (ID: 6)
+JOURNEY #14 (ID: 14)
 ------------------------------------------------------------
-Patient ID: 47
-Calendar year: 1933
-Age at onset: 23460 days (64.2 years)
+Patient ID: 143
+Calendar year: 1932
+Age at onset: 12103 days (33.1 years)
 Sex: male
-Region: Asia
-Immunodeficiency: nan
-
-Primary bacteria: Listeria Monocytogenes
-Syndrome: Skin/soft tissue infection
-Hospital acquired: False
-Journey duration: 21 days
-Maximum bacteria level: 3.285
-Developed sepsis: False
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: ImmuneClearance
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    3.285 |    6.916 |   19.868 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    3.231 |    8.208 |   20.057 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    3.075 |    9.591 |   20.451 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    2.808 |   10.000 |   20.481 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    2.508 |   10.000 |   20.714 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    2.208 |   10.000 |   20.868 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    1.908 |   10.000 |   21.173 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    1.608 |   10.000 |   21.076 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    1.308 |   10.000 |   21.266 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    1.008 |   10.000 |   21.152 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    0.708 |   10.000 |   20.991 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    0.408 |   10.000 |   21.023 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 13 |    0.108 |   10.000 |   20.977 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 14 |    0.000 |   10.000 |   20.549 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 15 |    0.000 |    9.980 |   20.573 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 16 |    0.000 |    9.960 |   20.192 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 17 |    0.000 |    9.940 |   20.040 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 18 |    0.000 |    9.920 |   20.241 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 19 |    0.000 |    9.900 |   20.353 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 20 |    0.000 |    9.880 |   20.722 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 21 |    0.000 |    9.860 |   20.632 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-
-================================================================================
-
-JOURNEY #7 (ID: 7)
-------------------------------------------------------------
-Patient ID: 177
-Calendar year: 1933
-Age at onset: 1716 days (4.7 years)
-Sex: male
-Region: Asia
-Immunodeficiency: nan
-
-Primary bacteria: Staphylococcus Aureus
-Syndrome: Pneumonia
-Hospital acquired: False
-Journey duration: 6 days
-Maximum bacteria level: 3.793
-Developed sepsis: True
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: DeathFromSepsis
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    3.055 |    3.661 |    2.104 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    3.335 |    4.658 |    2.245 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    3.556 |    5.766 |    2.014 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    3.710 |    6.981 |    1.726 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    3.791 |    8.301 |    2.015 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.793 |    9.721 |    1.686 | none                 | 0.00       | 0.00       | yes    | NotInHospital | yes (DeathFromSepsis) | sepsis onset
-
-================================================================================
-
-JOURNEY #8 (ID: 8)
-------------------------------------------------------------
-Patient ID: 76
-Calendar year: 1933
-Age at onset: 3674 days (10.1 years)
-Sex: female
-Region: Asia
-Immunodeficiency: nan
-
-Primary bacteria: Klebsiella Pneumoniae
-Syndrome: Bloodstream infection
-Hospital acquired: False
-Journey duration: 12 days
-Maximum bacteria level: 1.008
-Developed sepsis: True
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: ImmuneClearance
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    1.008 |   10.000 |    4.618 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset; hospital: InHospital
-  2 |    0.708 |   10.000 |    4.428 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
-  3 |    0.408 |   10.000 |    4.152 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  4 |    0.108 |   10.000 |    3.882 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  5 |    0.000 |   10.000 |    3.746 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  6 |    0.000 |    9.980 |    3.334 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  7 |    0.000 |    9.960 |    3.536 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  8 |    0.000 |    9.940 |    3.337 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  9 |    0.000 |    9.920 |    3.636 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 10 |    0.000 |    9.900 |    3.144 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 11 |    0.000 |    9.880 |    2.846 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 12 |    0.000 |    9.860 |    2.394 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-
-================================================================================
-
-JOURNEY #9 (ID: 9)
-------------------------------------------------------------
-Patient ID: 76
-Calendar year: 1933
-Age at onset: 3686 days (10.1 years)
-Sex: female
-Region: Asia
-Immunodeficiency: nan
-
-Primary bacteria: Streptococcus Pyogenes
-Syndrome: Urinary tract infection
-Hospital acquired: True
-Journey duration: 31 days
-Maximum bacteria level: 3.285
-Developed sepsis: True
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: ImmuneClearance
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.010 |    0.000 |    1.948 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
-  2 |    0.510 |    0.155 |    1.599 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  3 |    0.998 |    0.435 |    1.790 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  4 |    1.463 |    0.839 |    2.244 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  5 |    1.896 |    1.363 |    2.671 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    2.287 |    2.008 |    2.356 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    2.626 |    2.769 |    2.835 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    2.904 |    3.644 |    3.156 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    3.113 |    4.630 |    3.559 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    3.243 |    5.722 |    3.822 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    3.285 |    6.916 |    3.738 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    3.231 |    8.208 |    4.095 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
- 13 |    3.075 |    9.591 |    4.285 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
- 14 |    2.808 |   10.000 |    3.827 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 15 |    2.508 |   10.000 |    3.644 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 16 |    2.208 |   10.000 |    3.741 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 17 |    1.908 |   10.000 |    3.296 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
- 18 |    1.608 |   10.000 |    2.921 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 19 |    1.308 |   10.000 |    2.820 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 20 |    1.008 |   10.000 |    3.286 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 21 |    0.708 |   10.000 |    3.157 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 22 |    0.408 |   10.000 |    2.839 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 23 |    0.108 |   10.000 |    3.238 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 24 |    0.000 |   10.000 |    3.661 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 25 |    0.000 |    9.980 |    3.576 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 26 |    0.000 |    9.960 |    3.365 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 27 |    0.000 |    9.940 |    3.341 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 28 |    0.000 |    9.920 |    2.992 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 29 |    0.000 |    9.900 |    3.164 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 30 |    0.000 |    9.880 |    2.731 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 31 |    0.000 |    9.860 |    2.376 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-
-================================================================================
-
-JOURNEY #10 (ID: 10)
-------------------------------------------------------------
-Patient ID: 132
-Calendar year: 1934
-Age at onset: 19440 days (53.2 years)
-Sex: male
-Region: Asia
-Immunodeficiency: nan
-
-Primary bacteria: Helicobacter Pylori
-Syndrome: Bone/joint infection
-Hospital acquired: False
-Journey duration: 15 days
-Maximum bacteria level: 5.000
-Developed sepsis: True
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: DeathFromSepsis
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    1.498 |    0.841 |    0.870 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    1.981 |    1.370 |    1.072 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    2.454 |    2.023 |    0.852 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    2.914 |    2.798 |    1.010 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    3.358 |    3.696 |    0.851 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.784 |    4.715 |    1.016 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    4.189 |    5.855 |    0.527 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    4.572 |    7.113 |    0.715 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    4.930 |    8.490 |    0.734 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    5.000 |    9.970 |    0.248 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    5.000 |   10.000 |    0.158 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
- 12 |    5.000 |   10.000 |    0.034 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
- 13 |    5.000 |   10.000 |    0.216 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 14 |    5.000 |   10.000 |    0.197 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 15 |    5.000 |   10.000 |    0.611 | none                 | 0.00       | 0.00       | yes    | InHospital  | yes (DeathFromSepsis) | 
-
-================================================================================
-
-JOURNEY #11 (ID: 11)
-------------------------------------------------------------
-Patient ID: 12
-Calendar year: 1934
-Age at onset: 17211 days (47.1 years)
-Sex: female
-Region: NorthAmerica
-Immunodeficiency: Some(Chronic)
-
-Primary bacteria: Streptococcus Pyogenes
-Syndrome: Urinary tract infection
-Hospital acquired: False
-Journey duration: 7 days
-Maximum bacteria level: 5.000
-Developed sepsis: True
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: DeathFromSepsis
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    3.919 |    0.473 |    7.116 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    4.381 |    0.588 |    7.326 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    4.834 |    0.715 |    7.528 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    5.000 |    0.853 |    7.655 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    5.000 |    1.001 |    7.368 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    5.000 |    1.159 |    7.396 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | sepsis onset; hospital: InHospital
-  7 |    5.000 |    1.327 |    7.795 | none                 | 0.00       | 0.00       | yes    | InHospital  | yes (DeathFromSepsis) | 
-
-================================================================================
-
-JOURNEY #12 (ID: 12)
-------------------------------------------------------------
-Patient ID: 87
-Calendar year: 1935
-Age at onset: 4442 days (12.2 years)
-Sex: male
-Region: NorthAmerica
-Immunodeficiency: nan
-
-Primary bacteria: Neisseria Meningitidis
-Syndrome: Central nervous system infection
-Hospital acquired: False
-Journey duration: 14 days
-Maximum bacteria level: 1.608
-Developed sepsis: False
-Received treatment: False
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-No drug selection recorded
-Final resolution: ImmuneClearance
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    1.608 |   10.000 |   16.934 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    1.308 |   10.000 |   16.451 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    1.008 |   10.000 |   16.528 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    0.708 |   10.000 |   16.943 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    0.408 |   10.000 |   16.853 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.108 |   10.000 |   16.824 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |   10.000 |   16.731 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.980 |   16.447 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.960 |   16.405 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    0.000 |    9.940 |   16.197 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    0.000 |    9.920 |   16.434 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    0.000 |    9.900 |   16.376 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 13 |    0.000 |    9.880 |   16.499 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 14 |    0.000 |    9.860 |   16.516 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-
-================================================================================
-
-JOURNEY #13 (ID: 13)
-------------------------------------------------------------
-Patient ID: 37
-Calendar year: 1936
-Age at onset: 15909 days (43.6 years)
-Sex: female
 Region: Europe
 Immunodeficiency: nan
 
-Primary bacteria: Enterobacter Spp.
-Syndrome: Urinary tract infection
-Hospital acquired: True
+Primary bacteria: Enterococcus Faecalis
+Syndrome: Intra-abdominal infection
+Hospital acquired: False
 Journey duration: 28 days
 Maximum bacteria level: 3.285
 Developed sepsis: False
@@ -621,87 +818,629 @@ Final resolution: ImmuneClearance
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    1.463 |    0.839 |   17.933 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
-  2 |    1.896 |    1.363 |   17.877 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  3 |    2.287 |    2.008 |   18.026 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    2.626 |    2.769 |   17.869 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    2.904 |    3.644 |   17.382 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.113 |    4.630 |   17.371 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    3.243 |    5.722 |   17.433 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    3.285 |    6.916 |   17.236 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    3.231 |    8.208 |   17.511 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    3.075 |    9.591 |   17.185 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    2.808 |   10.000 |   16.823 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    2.508 |   10.000 |   16.975 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 13 |    2.208 |   10.000 |   17.135 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 14 |    1.908 |   10.000 |   17.532 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 15 |    1.608 |   10.000 |   17.971 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 16 |    1.308 |   10.000 |   17.755 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 17 |    1.008 |   10.000 |   17.961 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 18 |    0.708 |   10.000 |   17.734 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 19 |    0.408 |   10.000 |   18.075 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 20 |    0.108 |   10.000 |   18.465 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 21 |    0.000 |   10.000 |   18.332 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 22 |    0.000 |    9.980 |   18.105 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 23 |    0.000 |    9.960 |   18.256 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 24 |    0.000 |    9.940 |   17.793 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 25 |    0.000 |    9.920 |   17.461 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 26 |    0.000 |    9.900 |   17.063 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 27 |    0.000 |    9.880 |   17.547 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 28 |    0.000 |    9.860 |   17.653 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    1.463 |    0.839 |    8.036 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    1.896 |    1.363 |    7.971 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.287 |    2.008 |    8.062 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    2.626 |    2.769 |    7.891 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    2.904 |    3.644 |    7.505 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    3.113 |    4.630 |    7.106 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    3.243 |    5.722 |    6.867 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.285 |    6.916 |    7.081 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    3.231 |    8.208 |    7.266 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    3.075 |    9.591 |    7.354 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    2.808 |   10.000 |    7.849 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    2.508 |   10.000 |    8.183 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    2.208 |   10.000 |    7.724 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    1.908 |   10.000 |    7.774 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    1.608 |   10.000 |    7.321 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    1.308 |   10.000 |    6.888 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    1.008 |   10.000 |    7.228 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.708 |   10.000 |    7.234 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.408 |   10.000 |    7.029 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.108 |   10.000 |    6.916 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |   10.000 |    7.152 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.980 |    6.986 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.960 |    7.198 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.940 |    7.086 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.920 |    6.676 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.900 |    6.991 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    0.000 |    9.880 |    6.991 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 28 |    0.000 |    9.860 |    7.039 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #14 (ID: 14)
+JOURNEY #15 (ID: 15)
 ------------------------------------------------------------
-Patient ID: 47
-Calendar year: 1940
-Age at onset: 25950 days (71.0 years)
+Patient ID: 167
+Calendar year: 1932
+Age at onset: 32612 days (89.3 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Proteus Spp.
+Syndrome: Pneumonia
+Hospital acquired: False
+Journey duration: 31 days
+Maximum bacteria level: 3.285
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    0.010 |    0.000 |   11.684 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.510 |    0.155 |   11.702 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    0.998 |    0.435 |   11.821 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    1.463 |    0.839 |   11.401 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    1.896 |    1.363 |   11.806 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    2.287 |    2.008 |   11.530 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    2.626 |    2.769 |   11.734 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    2.904 |    3.644 |   11.781 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    3.113 |    4.630 |   11.436 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    3.243 |    5.722 |   10.987 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    3.285 |    6.916 |   11.455 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    3.231 |    8.208 |   11.714 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    3.075 |    9.591 |   11.897 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    2.808 |   10.000 |   12.150 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    2.508 |   10.000 |   12.408 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    2.208 |   10.000 |   12.305 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    1.908 |   10.000 |   12.663 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    1.608 |   10.000 |   12.660 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    1.308 |   10.000 |   13.081 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    1.008 |   10.000 |   12.678 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.708 |   10.000 |   12.423 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.408 |   10.000 |   12.663 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.108 |   10.000 |   12.651 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |   10.000 |   12.424 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.980 |   12.799 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+ 26 |    0.000 |    9.960 |   12.687 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 27 |    0.000 |    9.940 |   13.105 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 28 |    0.000 |    9.920 |   13.261 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 29 |    0.000 |    9.900 |   12.896 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 30 |    0.000 |    9.880 |   13.180 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 31 |    0.000 |    9.860 |   12.876 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #16 (ID: 16)
+------------------------------------------------------------
+Patient ID: 286
+Calendar year: 1933
+Age at onset: 28837 days (79.0 years)
+Sex: male
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Staphylococcus Aureus
+Syndrome: Surgical site infection
+Hospital acquired: False
+Journey duration: 59 days
+Maximum bacteria level: 3.793
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    0.010 |    0.000 |   27.701 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.510 |    0.155 |   27.885 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.001 |    0.436 |   27.833 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    1.475 |    0.839 |   27.517 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    1.924 |    1.365 |   27.052 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    2.342 |    2.013 |   26.698 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    2.721 |    2.779 |   26.588 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.055 |    3.661 |   27.072 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    3.335 |    4.658 |   27.087 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    3.556 |    5.766 |   27.357 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    3.710 |    6.981 |   27.025 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    3.791 |    8.301 |   27.470 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    3.793 |    9.721 |   27.440 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    3.709 |   10.000 |   27.635 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+ 15 |    3.609 |   10.000 |   27.776 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+ 16 |    3.509 |   10.000 |   27.382 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 17 |    3.409 |   10.000 |   26.887 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 18 |    3.309 |   10.000 |   26.952 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 19 |    3.209 |   10.000 |   26.920 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 20 |    3.109 |   10.000 |   27.237 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 21 |    3.009 |   10.000 |   27.529 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 22 |    2.909 |   10.000 |   27.202 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 23 |    2.809 |   10.000 |   27.405 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    2.709 |   10.000 |   27.345 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    2.609 |   10.000 |   26.854 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    2.509 |   10.000 |   26.725 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    2.409 |   10.000 |   27.035 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 28 |    2.309 |   10.000 |   26.980 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 29 |    2.209 |   10.000 |   26.572 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 30 |    2.109 |   10.000 |   27.058 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 31 |    2.009 |   10.000 |   26.691 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 32 |    1.909 |   10.000 |   26.761 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 33 |    1.809 |   10.000 |   26.961 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 34 |    1.709 |   10.000 |   26.593 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 35 |    1.609 |   10.000 |   26.507 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 36 |    1.509 |   10.000 |   26.478 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 37 |    1.409 |   10.000 |   26.867 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 38 |    1.309 |   10.000 |   27.275 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 39 |    1.209 |   10.000 |   27.017 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 40 |    1.109 |   10.000 |   27.346 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 41 |    1.009 |   10.000 |   27.501 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 42 |    0.909 |   10.000 |   27.814 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 43 |    0.809 |   10.000 |   27.362 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 44 |    0.709 |   10.000 |   27.625 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 45 |    0.609 |   10.000 |   27.546 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 46 |    0.509 |   10.000 |   27.073 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 47 |    0.409 |   10.000 |   27.409 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 48 |    0.309 |   10.000 |   26.924 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 49 |    0.209 |   10.000 |   26.879 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 50 |    0.109 |   10.000 |   26.973 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 51 |    0.009 |   10.000 |   26.753 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 52 |    0.000 |   10.000 |   26.868 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 53 |    0.000 |    9.980 |   26.514 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 54 |    0.000 |    9.960 |   26.612 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 55 |    0.000 |    9.940 |   26.959 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 56 |    0.000 |    9.920 |   27.054 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 57 |    0.000 |    9.900 |   26.706 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 58 |    0.000 |    9.880 |   26.994 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 59 |    0.000 |    9.860 |   27.409 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #17 (ID: 17)
+------------------------------------------------------------
+Patient ID: 74
+Calendar year: 1934
+Age at onset: 5175 days (14.2 years)
+Sex: female
+Region: Africa
+Immunodeficiency: Some(Chronic)
+
+Primary bacteria: Proteus Spp.
+Syndrome: Bloodstream infection
+Hospital acquired: False
+Journey duration: 23 days
+Maximum bacteria level: 5.000
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: DeathFromSepsis
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.488 |    0.203 |   27.761 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.971 |    0.280 |   27.372 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    3.449 |    0.371 |   27.852 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    3.919 |    0.473 |   28.053 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    4.381 |    0.588 |   28.010 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    4.834 |    0.715 |   28.334 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    5.000 |    0.853 |   28.297 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    5.000 |    1.001 |   28.369 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    5.000 |    1.159 |   28.076 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    5.000 |    1.327 |   27.956 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    5.000 |    1.505 |   27.869 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    5.000 |    1.693 |   27.997 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    5.000 |    1.891 |   28.249 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    5.000 |    2.099 |   27.967 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    5.000 |    2.317 |   28.340 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    5.000 |    2.545 |   27.876 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    5.000 |    2.783 |   28.067 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    5.000 |    3.031 |   27.605 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    5.000 |    3.289 |   27.116 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    5.000 |    3.557 |   27.192 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    5.000 |    3.835 |   27.606 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    5.000 |    4.123 |   27.365 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    5.000 |    4.421 |   27.524 | none                 | 0.00       | 0.00       | yes    | NotInHospital | yes (DeathFromSepsis) | sepsis onset
+
+================================================================================
+
+JOURNEY #18 (ID: 18)
+------------------------------------------------------------
+Patient ID: 286
+Calendar year: 1935
+Age at onset: 29568 days (81.0 years)
+Sex: male
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Streptococcus Agalactiae
+Syndrome: Skin/soft tissue infection
+Hospital acquired: False
+Journey duration: 26 days
+Maximum bacteria level: 3.285
+Developed sepsis: True
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.287 |    2.008 |   20.854 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.626 |    2.769 |   20.862 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.904 |    3.644 |   20.480 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    3.113 |    4.630 |   20.556 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    3.243 |    5.722 |   20.450 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
+  6 |    3.285 |    6.916 |   20.055 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
+  7 |    3.231 |    8.208 |   19.844 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+  8 |    3.075 |    9.591 |   19.821 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+  9 |    2.808 |   10.000 |   19.527 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 10 |    2.508 |   10.000 |   19.333 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
+ 11 |    2.208 |   10.000 |   18.994 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 12 |    1.908 |   10.000 |   18.830 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 13 |    1.608 |   10.000 |   18.375 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 14 |    1.308 |   10.000 |   18.174 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
+ 15 |    1.008 |   10.000 |   18.213 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+ 16 |    0.708 |   10.000 |   18.607 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.408 |   10.000 |   18.773 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.108 |   10.000 |   18.300 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |   10.000 |   18.558 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |    9.980 |   19.002 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |    9.960 |   18.599 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.940 |   19.020 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.920 |   18.960 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.900 |   18.840 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.880 |   18.557 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.860 |   18.865 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #19 (ID: 19)
+------------------------------------------------------------
+Patient ID: 75
+Calendar year: 1935
+Age at onset: 10792 days (29.5 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Escherichia Coli
+Syndrome: Bloodstream infection
+Hospital acquired: False
+Journey duration: 19 days
+Maximum bacteria level: 2.673
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    1.839 |    1.359 |    8.872 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.176 |    1.998 |    8.393 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.436 |    2.750 |    8.626 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    2.606 |    3.610 |    8.945 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    2.673 |    4.573 |    8.565 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    2.624 |    5.635 |    8.971 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    2.448 |    6.787 |    9.391 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    2.133 |    8.024 |    8.918 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    1.670 |    9.337 |    8.691 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    1.050 |   10.000 |    8.583 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.350 |   10.000 |    8.342 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    0.000 |   10.000 |    8.522 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    0.000 |    9.980 |    8.132 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    0.000 |    9.960 |    8.102 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    0.000 |    9.940 |    8.566 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.000 |    9.920 |    8.571 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.000 |    9.900 |    8.829 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.000 |    9.880 |    8.668 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |    9.860 |    9.115 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #20 (ID: 20)
+------------------------------------------------------------
+Patient ID: 188
+Calendar year: 1935
+Age at onset: 9068 days (24.8 years)
+Sex: female
+Region: Asia
+Immunodeficiency: nan
+
+Primary bacteria: Proteus Spp.
+Syndrome: Bloodstream infection
+Hospital acquired: False
+Journey duration: 17 days
+Maximum bacteria level: 2.508
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.508 |   10.000 |    3.333 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.208 |   10.000 |    2.972 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.908 |   10.000 |    2.705 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    1.608 |   10.000 |    2.794 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    1.308 |   10.000 |    3.119 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    1.008 |   10.000 |    2.847 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.708 |   10.000 |    3.267 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.408 |   10.000 |    3.123 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.108 |   10.000 |    3.239 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.000 |   10.000 |    3.570 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    9.980 |    3.795 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    0.000 |    9.960 |    3.839 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    0.000 |    9.940 |    4.299 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    0.000 |    9.920 |    3.879 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    0.000 |    9.900 |    4.036 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.000 |    9.880 |    4.022 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.000 |    9.860 |    4.422 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #21 (ID: 21)
+------------------------------------------------------------
+Patient ID: 242
+Calendar year: 1935
+Age at onset: 20063 days (54.9 years)
+Sex: female
+Region: NorthAmerica
+Immunodeficiency: nan
+
+Primary bacteria: Acinetobacter Baumannii
+Syndrome: Urinary tract infection
+Hospital acquired: True
+Journey duration: 11 days
+Maximum bacteria level: 0.708
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    0.708 |   10.000 |    9.060 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.408 |   10.000 |    9.447 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    0.108 |   10.000 |    9.562 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.000 |   10.000 |    9.065 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    0.000 |    9.980 |    9.475 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.000 |    9.960 |    9.178 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.940 |    8.698 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.920 |    8.570 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.900 |    8.167 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.000 |    9.880 |    8.537 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    9.860 |    8.370 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #22 (ID: 22)
+------------------------------------------------------------
+Patient ID: 75
+Calendar year: 1936
+Age at onset: 11145 days (30.5 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Chlamydia Trachomatis
+Syndrome: Endocarditis
+Hospital acquired: False
+Journey duration: 26 days
+Maximum bacteria level: 3.285
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.287 |    2.008 |    8.900 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.626 |    2.769 |    9.082 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.904 |    3.644 |    9.122 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    3.113 |    4.630 |    9.356 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    3.243 |    5.722 |    9.712 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    3.285 |    6.916 |    9.695 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    3.231 |    8.208 |    9.296 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.075 |    9.591 |    9.729 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    2.808 |   10.000 |    9.319 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    2.508 |   10.000 |    8.867 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    2.208 |   10.000 |    8.718 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    1.908 |   10.000 |    8.523 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    1.608 |   10.000 |    8.506 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    1.308 |   10.000 |    8.329 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    1.008 |   10.000 |    8.472 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.708 |   10.000 |    8.952 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.408 |   10.000 |    8.914 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.108 |   10.000 |    9.407 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |   10.000 |    9.384 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |    9.980 |    9.421 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |    9.960 |    9.802 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.940 |    9.775 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.920 |    9.920 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.900 |    9.435 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.880 |    9.914 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.860 |   10.153 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #23 (ID: 23)
+------------------------------------------------------------
+Patient ID: 221
+Calendar year: 1936
+Age at onset: 11536 days (31.6 years)
 Sex: male
 Region: Asia
 Immunodeficiency: nan
 
-Primary bacteria: Streptococcus Pyogenes
-Syndrome: Pneumonia
+Primary bacteria: Listeria Monocytogenes
+Syndrome: Skin/soft tissue infection
 Hospital acquired: False
-Journey duration: 10 days
-Maximum bacteria level: 1.463
+Journey duration: 25 days
+Maximum bacteria level: 3.285
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    2.626 |    2.769 |    6.406 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.904 |    3.644 |    6.769 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    3.113 |    4.630 |    6.586 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    3.243 |    5.722 |    6.307 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    3.285 |    6.916 |    5.966 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    3.231 |    8.208 |    5.917 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    3.075 |    9.591 |    5.784 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    2.808 |   10.000 |    5.614 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    2.508 |   10.000 |    5.481 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    2.208 |   10.000 |    5.172 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    1.908 |   10.000 |    4.794 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    1.608 |   10.000 |    5.123 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    1.308 |   10.000 |    5.497 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    1.008 |   10.000 |    5.164 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    0.708 |   10.000 |    5.026 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    0.408 |   10.000 |    4.608 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.108 |   10.000 |    4.531 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.000 |   10.000 |    4.042 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.000 |    9.980 |    3.570 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |    9.960 |    3.746 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |    9.940 |    4.013 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.920 |    3.930 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.900 |    4.279 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.880 |    4.593 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.860 |    4.851 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #24 (ID: 24)
+------------------------------------------------------------
+Patient ID: 267
+Calendar year: 1936
+Age at onset: 23429 days (64.1 years)
+Sex: female
+Region: Europe
+Immunodeficiency: nan
+
+Primary bacteria: Listeria Monocytogenes
+Syndrome: Skin/soft tissue infection
+Hospital acquired: False
+Journey duration: 27 days
+Maximum bacteria level: 3.285
+Developed sepsis: False
+Received treatment: False
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+No drug selection recorded
+Final resolution: ImmuneClearance
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    1.896 |    1.363 |   17.166 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    2.287 |    2.008 |   17.262 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    2.626 |    2.769 |   16.913 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    2.904 |    3.644 |   16.864 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    3.113 |    4.630 |   16.722 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    3.243 |    5.722 |   16.249 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    3.285 |    6.916 |   15.851 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    3.231 |    8.208 |   15.629 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    3.075 |    9.591 |   15.876 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    2.808 |   10.000 |   15.547 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    2.508 |   10.000 |   15.992 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 12 |    2.208 |   10.000 |   15.662 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 13 |    1.908 |   10.000 |   15.461 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 14 |    1.608 |   10.000 |   15.731 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 15 |    1.308 |   10.000 |   15.440 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 16 |    1.008 |   10.000 |   15.078 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 17 |    0.708 |   10.000 |   14.956 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 18 |    0.408 |   10.000 |   15.275 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 19 |    0.108 |   10.000 |   14.872 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 20 |    0.000 |   10.000 |   15.096 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 21 |    0.000 |    9.980 |   15.544 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 22 |    0.000 |    9.960 |   15.973 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 23 |    0.000 |    9.940 |   16.177 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 24 |    0.000 |    9.920 |   16.214 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 25 |    0.000 |    9.900 |   16.434 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 26 |    0.000 |    9.880 |   16.279 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 27 |    0.000 |    9.860 |   16.267 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #25 (ID: 25)
+------------------------------------------------------------
+Patient ID: 275
+Calendar year: 1942
+Age at onset: 3 days (0.0 years)
+Sex: female
+Region: Asia
+Immunodeficiency: nan
+
+Primary bacteria: Haemophilus Influenzae
+Syndrome: Central nervous system infection
+Hospital acquired: False
+Journey duration: 9 days
+Maximum bacteria level: 0.010
 Developed sepsis: False
 Received treatment: True
 Treatment failures: 0
 Bacteria identified: Not identified
 Resistance testing: Not performed
 Selected drug: sulfanilamide
-Final resolution: DrugAssistedClearance
+Final resolution: ImmuneClearance
 
 Drug Selection Information:
-Day 3: Drug selection for streptococcus pyogenes
+Day 2: Drug selection for haemophilus influenzae
   Drug scores at selection time:
-    sulfanilamide: 0.7500
-    penicilling: 0.4500
+    sulfanilamide: 0.3000
   Selected drug: sulfanilamide
 
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.998 |    0.435 |   39.821 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    1.463 |    0.839 |   39.832 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    0.000 |   10.000 |   39.879 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide, sulfanilamide
-  4 |    0.000 |    9.980 |   39.771 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    0.000 |    9.960 |   39.469 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.000 |    9.940 |   39.442 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |    9.920 |   39.345 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.900 |   39.130 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.880 |   39.304 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    0.000 |    9.860 |   39.223 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    0.010 |    0.000 |    0.958 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.000 |   10.000 |    0.647 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide
+  3 |    0.000 |    9.980 |    1.056 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.000 |    9.960 |    1.541 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    0.000 |    9.940 |    1.677 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.000 |    9.920 |    1.685 | sulfanilamide(2.1)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.900 |    1.199 | sulfanilamide(0.5)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.880 |    1.541 | sulfanilamide(0.1)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.860 |    1.530 | sulfanilamide(0.0)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #15 (ID: 15)
+JOURNEY #26 (ID: 26)
 ------------------------------------------------------------
-Patient ID: 29
-Calendar year: 1941
-Age at onset: 20859 days (57.1 years)
+Patient ID: 178
+Calendar year: 1942
+Age at onset: 9676 days (26.5 years)
 Sex: female
 Region: Europe
 Immunodeficiency: Some(Chronic)
@@ -717,7 +1456,7 @@ Treatment failures: 0
 Bacteria identified: Not identified
 Resistance testing: Not performed
 Selected drug: sulfanilamide
-Final resolution: ImmuneClearance
+Final resolution: DrugAssistedClearance
 
 Drug Selection Information:
 Day 2: Drug selection for staphylococcus aureus
@@ -728,39 +1467,39 @@ Day 2: Drug selection for staphylococcus aureus
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.010 |    0.000 |   31.491 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    0.000 |   10.000 |   31.480 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide, sulfanilamide
-  3 |    0.000 |    9.980 |   31.600 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    0.000 |    9.960 |   31.872 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    0.000 |    9.940 |   31.903 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.000 |    9.920 |   31.854 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |    9.900 |   31.618 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.880 |   31.458 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.860 |   31.853 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    0.010 |    0.000 |    2.738 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.000 |   10.000 |    3.045 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide
+  3 |    0.000 |    9.980 |    2.972 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.000 |    9.960 |    3.125 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    0.000 |    9.940 |    3.101 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.000 |    9.920 |    3.395 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.900 |    3.751 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.880 |    4.174 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.860 |    4.042 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #16 (ID: 16)
+JOURNEY #27 (ID: 27)
 ------------------------------------------------------------
-Patient ID: 47
-Calendar year: 1941
-Age at onset: 26366 days (72.2 years)
-Sex: male
+Patient ID: 275
+Calendar year: 1942
+Age at onset: 24 days (0.1 years)
+Sex: female
 Region: Asia
 Immunodeficiency: nan
 
 Primary bacteria: Listeria Monocytogenes
-Syndrome: Skin/soft tissue infection
-Hospital acquired: True
+Syndrome: Central nervous system infection
+Hospital acquired: False
 Journey duration: 11 days
-Maximum bacteria level: 1.463
+Maximum bacteria level: 0.974
 Developed sepsis: False
 Received treatment: True
 Treatment failures: 0
 Bacteria identified: Not identified
 Resistance testing: Not performed
 Selected drug: penicilling
-Final resolution: ImmuneClearance
+Final resolution: DrugAssistedClearance
 
 Drug Selection Information:
 Day 4: Drug selection for listeria_monocytogenes
@@ -769,37 +1508,42 @@ Day 4: Drug selection for listeria_monocytogenes
     sulfanilamide: 0.3000
   Selected drug: penicilling
 
+Day 5: Drug selection for vibrio cholerae
+  Drug scores at selection time:
+    sulfanilamide: 0.3000
+  Selected drug: sulfanilamide
+
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.510 |    0.155 |   33.921 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
-  2 |    0.998 |    0.435 |   34.010 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  3 |    1.463 |    0.839 |   33.531 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
-  4 |    0.000 |   10.000 |   33.324 | penicilling(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | started: penicilling, penicilling; hospital: NotInHospital
-  5 |    0.000 |    9.980 |   32.926 | penicilling(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.000 |    9.960 |   33.100 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |    9.940 |   33.192 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.920 |   33.688 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.900 |   33.614 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    0.000 |    9.880 |   33.742 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    0.000 |    9.860 |   33.722 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    0.010 |    0.000 |    1.678 | sulfanilamide(0.5)   | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide; hospital: NotInHospital
+  2 |    0.490 |    0.155 |    1.513 | sulfanilamide(0.1)   | 0.00       | 0.02       | no     | NotInHospital | no                    | 
+  3 |    0.974 |    0.433 |    1.915 | sulfanilamide(0.0)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.000 |   10.000 |    1.665 | sulfanilamide(0.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    0.000 |    9.980 |    1.462 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.000 |    9.960 |    1.302 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.940 |    0.968 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.920 |    1.119 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.900 |    0.744 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.000 |    9.880 |    1.341 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    9.860 |    1.648 | sulfanilamide(10.0), penicilling(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #17 (ID: 17)
+JOURNEY #28 (ID: 28)
 ------------------------------------------------------------
-Patient ID: 219
-Calendar year: 1943
-Age at onset: 7 days (0.0 years)
-Sex: male
-Region: Africa
-Immunodeficiency: Some(Chronic)
+Patient ID: 275
+Calendar year: 1942
+Age at onset: 171 days (0.5 years)
+Sex: female
+Region: Asia
+Immunodeficiency: nan
 
 Primary bacteria: Neisseria Meningitidis
 Syndrome: Central nervous system infection
 Hospital acquired: False
-Journey duration: 9 days
-Maximum bacteria level: 0.010
+Journey duration: 11 days
+Maximum bacteria level: 1.463
 Developed sepsis: False
 Received treatment: True
 Treatment failures: 0
@@ -809,94 +1553,43 @@ Selected drug: sulfanilamide
 Final resolution: DrugAssistedClearance
 
 Drug Selection Information:
-Day 2: Drug selection for neisseria_meningitidis
+Day 4: Drug selection for neisseria_meningitidis
   Drug scores at selection time:
-    sulfanilamide: 0.0300
-  Selected drug: sulfanilamide
-
-Day 3: Drug selection for salmonella enterica serovar typhi
-  Drug scores at selection time:
-    sulfanilamide: 0.0300
-  Selected drug: sulfanilamide
-
-Day 9: Drug selection for vibrio cholerae
-  Drug scores at selection time:
-    sulfanilamide: 0.0300
+    sulfanilamide: 0.0600
   Selected drug: sulfanilamide
 
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.010 |    0.000 |    0.721 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    0.000 |   10.000 |    0.626 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide, sulfanilamide
-  3 |    0.000 |    9.980 |    0.664 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    0.000 |    9.960 |    0.803 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    0.000 |    9.940 |    1.175 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.000 |    9.920 |    1.055 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |    9.900 |    0.671 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.880 |    0.662 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.860 |    0.373 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide, sulfanilamide
+  1 |    0.510 |    0.155 |    2.946 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.998 |    0.435 |    2.511 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  3 |    1.463 |    0.839 |    2.301 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.000 |   10.000 |    1.993 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide
+  5 |    0.000 |    9.980 |    1.913 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.000 |    9.960 |    2.043 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.940 |    2.016 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.920 |    2.248 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.900 |    1.949 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 10 |    0.000 |    9.880 |    2.465 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+ 11 |    0.000 |    9.860 |    2.346 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 
-JOURNEY #18 (ID: 18)
+JOURNEY #29 (ID: 29)
 ------------------------------------------------------------
-Patient ID: 219
+Patient ID: 249
 Calendar year: 1943
-Age at onset: 29 days (0.1 years)
-Sex: male
-Region: Africa
-Immunodeficiency: Some(Chronic)
-
-Primary bacteria: Haemophilus Influenzae
-Syndrome: Skin/soft tissue infection
-Hospital acquired: False
-Journey duration: 9 days
-Maximum bacteria level: 0.010
-Developed sepsis: False
-Received treatment: True
-Treatment failures: 0
-Bacteria identified: Not identified
-Resistance testing: Not performed
-Selected drug: sulfanilamide
-Final resolution: DrugAssistedClearance
-
-Drug Selection Information:
-Day 2: Drug selection for haemophilus influenzae
-  Drug scores at selection time:
-    sulfanilamide: 0.0300
-  Selected drug: sulfanilamide
-
-Day-by-day progression:
-day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    0.010 |    9.940 |    0.002 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    0.000 |   10.000 |    0.391 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide, sulfanilamide
-  3 |    0.000 |    9.980 |    0.806 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    0.000 |    9.960 |    1.205 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    0.000 |    9.940 |    1.007 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    0.000 |    9.920 |    0.696 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    0.000 |    9.900 |    0.433 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    0.000 |    9.880 |    0.384 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    0.000 |    9.860 |    0.098 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-
-================================================================================
-
-JOURNEY #19 (ID: 19)
-------------------------------------------------------------
-Patient ID: 47
-Calendar year: 1943
-Age at onset: 27053 days (74.1 years)
-Sex: male
+Age at onset: 23623 days (64.7 years)
+Sex: female
 Region: Asia
 Immunodeficiency: nan
 
-Primary bacteria: Helicobacter Pylori
-Syndrome: Bone/joint infection
-Hospital acquired: False
-Journey duration: 35 days
-Maximum bacteria level: 5.000
-Developed sepsis: True
+Primary bacteria: Escherichia Coli
+Syndrome: Bloodstream infection
+Hospital acquired: True
+Journey duration: 9 days
+Maximum bacteria level: 0.991
+Developed sepsis: False
 Received treatment: True
 Treatment failures: 0
 Bacteria identified: Not identified
@@ -905,62 +1598,67 @@ Selected drug: sulfanilamide
 Final resolution: ImmuneClearance
 
 Drug Selection Information:
-Day 24: Drug selection for helicobacter pylori
+Day 2: Drug selection for escherichia coli
   Drug scores at selection time:
-    sulfanilamide: 0.3000
-    penicilling: 0.0001
+    sulfanilamide: 0.7500
+    penicilling: 0.0600
   Selected drug: sulfanilamide
-
-Day 25: Drug selection for helicobacter pylori
-  Selected drug: sulfanilamide
-
-Day 26: Drug selection for helicobacter pylori
-  Selected drug: sulfanilamide
-
-Day 27: Drug selection for helicobacter pylori
-  Selected drug: amoxicillin
-
-Day 28: Drug selection for helicobacter pylori
-  Selected drug: amoxicillin
 
 Day-by-day progression:
 day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  1 |    1.007 |    0.436 |   31.180 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
-  2 |    1.498 |    0.841 |   30.794 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  3 |    1.981 |    1.370 |   30.744 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  4 |    2.454 |    2.023 |   30.526 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  5 |    2.914 |    2.798 |   30.805 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  6 |    3.358 |    3.696 |   30.333 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  7 |    3.784 |    4.715 |   30.194 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  8 |    4.189 |    5.855 |   30.106 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
-  9 |    4.572 |    7.113 |   30.212 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 10 |    4.930 |    8.490 |   30.193 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 11 |    5.000 |    9.970 |   29.809 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 12 |    5.000 |   10.000 |   29.501 | none                 | 0.00       | 0.00       | yes    | NotInHospital | no                    | sepsis onset
- 13 |    5.000 |   10.000 |   29.797 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | hospital: InHospital
- 14 |    5.000 |   10.000 |   30.269 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 15 |    5.000 |   10.000 |   29.798 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 16 |    5.000 |   10.000 |   29.942 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 17 |    5.000 |   10.000 |   30.147 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 18 |    5.000 |   10.000 |   30.030 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 19 |    5.000 |   10.000 |   30.433 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 20 |    5.000 |   10.000 |   30.192 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 21 |    5.000 |   10.000 |   30.033 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 22 |    5.000 |   10.000 |   29.637 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 23 |    5.000 |   10.000 |   29.164 | none                 | 0.00       | 0.00       | yes    | InHospital  | no                    | 
- 24 |    4.500 |   10.000 |   29.672 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.80       | yes    | InHospital  | no                    | started: sulfanilamide, sulfanilamide
- 25 |    4.000 |   10.000 |   30.180 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.80       | yes    | InHospital  | no                    | 
- 26 |    3.500 |   10.000 |   30.476 | sulfanilamide(10.0), sulfanilamide(10.0) | 0.00       | 0.80       | yes    | InHospital  | no                    | 
- 27 |    0.200 |   10.000 |   30.523 | amoxicillin(10.0), amoxicillin(10.0) | 0.00       | 2.80       | yes    | InHospital  | no                    | 
- 28 |    0.000 |   10.000 |   30.939 | amoxicillin(10.0), amoxicillin(10.0) | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 29 |    0.000 |    9.980 |   31.101 | amoxicillin(10.0), amoxicillin(10.0) | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 30 |    0.000 |    9.960 |   30.925 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 31 |    0.000 |    9.940 |   30.683 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 32 |    0.000 |    9.920 |   31.045 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | 
- 33 |    0.000 |    9.900 |   30.555 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
- 34 |    0.000 |    9.880 |   31.002 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
- 35 |    0.000 |    9.860 |   30.897 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  1 |    0.991 |    0.435 |    2.796 | none                 | 0.00       | 0.00       | no     | InHospital  | no                    | hospital: InHospital
+  2 |    0.000 |   10.000 |    3.278 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | InHospital  | no                    | started: sulfanilamide
+  3 |    0.000 |    9.980 |    3.725 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  4 |    0.000 |    9.960 |    3.471 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | InHospital  | no                    | 
+  5 |    0.000 |    9.940 |    3.362 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  6 |    0.000 |    9.920 |    3.372 | sulfanilamide(2.1)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.900 |    3.529 | sulfanilamide(0.5)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.880 |    3.703 | sulfanilamide(0.1)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.860 |    3.636 | sulfanilamide(0.0)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+
+================================================================================
+
+JOURNEY #30 (ID: 30)
+------------------------------------------------------------
+Patient ID: 95
+Calendar year: 1944
+Age at onset: 1 days (0.0 years)
+Sex: female
+Region: Asia
+Immunodeficiency: nan
+
+Primary bacteria: Haemophilus Influenzae
+Syndrome: Urinary tract infection
+Hospital acquired: False
+Journey duration: 9 days
+Maximum bacteria level: 0.010
+Developed sepsis: False
+Received treatment: True
+Treatment failures: 0
+Bacteria identified: Not identified
+Resistance testing: Not performed
+Selected drug: sulfanilamide
+Final resolution: ImmuneClearance
+
+Drug Selection Information:
+Day 2: Drug selection for haemophilus influenzae
+  Drug scores at selection time:
+    sulfanilamide: 0.3000
+  Selected drug: sulfanilamide
+
+Day-by-day progression:
+day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 |    0.010 |    0.000 |    2.073 | none                 | 0.00       | 0.00       | no     | NotInHospital | no                    | hospital: NotInHospital
+  2 |    0.000 |   10.000 |    2.501 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | started: sulfanilamide
+  3 |    0.000 |    9.980 |    2.778 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  4 |    0.000 |    9.960 |    2.407 | sulfanilamide(10.0)  | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  5 |    0.000 |    9.940 |    2.791 | sulfanilamide(2.1)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  6 |    0.000 |    9.920 |    2.919 | sulfanilamide(0.5)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  7 |    0.000 |    9.900 |    2.633 | sulfanilamide(0.1)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  8 |    0.000 |    9.880 |    2.203 | sulfanilamide(0.0)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
+  9 |    0.000 |    9.860 |    2.235 | sulfanilamide(0.0)   | 0.00       | 0.00       | no     | NotInHospital | no                    | 
 
 ================================================================================
 

@@ -107,7 +107,7 @@ fn main() {
     
     // Create and run the simulation
     let population_size = 300; // Reduced for testing
-    let time_steps = 5_000 ;  // Back to 5000 steps for real data
+    let time_steps = 10_000 ;  // Back to 5000 steps for real data
     let log_individuals = true  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = true; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.1; // Log 10% of infections for testing (0.0-1.0)
