@@ -132,7 +132,13 @@ fn assess_treatment_failure(
             time_step
         );
         
-        if avail < 0.01 { // Drug not sufficiently available
+        // Check if drug has been historically introduced (CRITICAL: was missing!)
+        let intro_ok = match get_drug_introduction_time_step(drug_name) {
+            Some(intro_step) => time_step >= intro_step,
+            None => true,
+        };
+        
+        if avail < 0.01 || !intro_ok { // Drug not sufficiently available OR not yet introduced
             continue;
         }
         
@@ -299,7 +305,13 @@ fn start_restart_treatment(
             time_step
         );
         
-        if avail >= 0.01 && !individual.cur_use_drug[prev_drug_idx] {
+        // Check if drug has been historically introduced
+        let intro_ok = match get_drug_introduction_time_step(prev_drug_name) {
+            Some(intro_step) => time_step >= intro_step,
+            None => true,
+        };
+        
+        if avail >= 0.01 && intro_ok && !individual.cur_use_drug[prev_drug_idx] {
             // Check if drug has adequate potency (basic safety check)
             let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
             if let Some(potency_param_key) = param_cache.drug_bacteria_potency_keys.get(&(prev_drug_idx, *bacteria_idx_for_cache)) {
@@ -353,7 +365,13 @@ fn start_restart_treatment(
             time_step
         );
         
-        if avail < 0.01 {
+        // Check if drug has been historically introduced
+        let intro_ok = match get_drug_introduction_time_step(drug_name) {
+            Some(intro_step) => time_step >= intro_step,
+            None => true,
+        };
+        
+        if avail < 0.01 || !intro_ok {
             continue;
         }
         
@@ -2961,17 +2979,16 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let was_previously_infected = old_level > 0.001;
                 
                 if was_previously_infected {
-                    // Determine resolution type based on drugs and context
-                    let has_relevant_drugs = individual.cur_use_drug.iter().enumerate()
+                    // Determine resolution type based on actual drug activity accounting for resistance
+                    let has_active_drugs = individual.cur_use_drug.iter().enumerate()
                         .any(|(drug_idx, &on_drug)| {
                             if !on_drug { return false; }
-                            // Check if this drug has potency against this bacteria
-                            let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
-                            let drug_potency = get_global_param(potency_param_key).unwrap_or(0.0);
-                            drug_potency > 0.0
+                            // Check if this drug has current activity_r > 0 (accounts for resistance)
+                            let activity_r = individual.resistances[b_idx][drug_idx].activity_r;
+                            activity_r > 0.0
                         });
                     
-                    let resolution_type = if has_relevant_drugs {
+                    let resolution_type = if has_active_drugs {
                         InfectionResolutionType::DrugAssistedClearance
                     } else {
                         InfectionResolutionType::ImmuneClearance

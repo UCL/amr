@@ -299,17 +299,20 @@ class InfectionJourneyAnalyzer:
                     ax3.step(days[mask], drug_levels[mask], where='post', color=color, 
                             label=f'{drug_name} Level', linewidth=4, alpha=0.8)
             
-            # Plot activity_r on secondary y-axis with distinct colors per drug
+            # Plot activity_r on secondary y-axis with matching colors to drug levels
             ax3_twin = ax3.twinx()
-            activity_r_colors = ['#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']  # Brown, pink, gray, olive, cyan
             for i, (drug_name, activity_r) in enumerate(drug_data['activity_r'].items()):
-                mask = ~pd.isna(activity_r) & (activity_r > 0)
+                mask = ~pd.isna(activity_r)  # Show activity_r even when zero - removed (activity_r > 0) condition
                 if mask.any():
-                    color = activity_r_colors[i % len(activity_r_colors)]  # Cycle through colors
-                    # Use thicker lines, larger markers, and solid line style to ensure visibility
-                    ax3_twin.plot(days[mask], activity_r[mask], color=color, linestyle='-', marker='o', 
-                                 label=f'{drug_name} Activity R', linewidth=6, markersize=8, 
-                                 markerfacecolor='white', markeredgecolor=color, markeredgewidth=3, zorder=10)
+                    # Use same color as corresponding drug level line
+                    color = drug_colors[i % len(drug_colors)]
+                    # Use stepped dashed lines with circle markers for each day, 1.5x thicker than drug levels (linewidth=4 * 1.5 = 6)
+                    ax3_twin.step(days[mask], activity_r[mask], where='post', color=color, linestyle='--',
+                                 label=f'{drug_name} Activity R', linewidth=6, alpha=0.8, zorder=10)
+                    # Add circle markers for each day
+                    ax3_twin.plot(days[mask], activity_r[mask], color=color, marker='o', 
+                                 markersize=6, linestyle='', markerfacecolor='white', 
+                                 markeredgecolor=color, markeredgewidth=2, zorder=11)
             
             ax3.set_xlabel('Day of Journey', fontsize=15)
             ax3.set_ylabel('Drug Level', fontsize=15)
@@ -320,11 +323,11 @@ class InfectionJourneyAnalyzer:
             ax3_twin.set_ylim(bottom=0)  # Ensure activity R y-axis starts at 0
             ax3.grid(True, alpha=0.3)
             
-            # Combine legends and place at bottom left
+            # Combine legends and place at top right
             lines1, labels1 = ax3.get_legend_handles_labels()
             lines2, labels2 = ax3_twin.get_legend_handles_labels()
             if lines1 or lines2:
-                ax3.legend(lines1 + lines2, labels1 + labels2, loc='lower left', fontsize=8)
+                ax3.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
         else:
             ax3.text(0.5, 0.5, 'No drug treatment', transform=ax3.transAxes, 
                     ha='center', va='center', fontsize=12)
@@ -1214,15 +1217,30 @@ def main(verbose=False, num_timeline_plots=5):
             selected_journeys.extend(sampled.tolist())
     
     # Ensure we don't exceed the requested number
-    selected_journeys = selected_journeys[:num_timeline_plots]
+    # Limit de novo resistance cases to max 5 to avoid overwhelming plots
+    de_novo_count = 0
+    max_de_novo = 5
+    journeys_to_plot = []
+    
+    for journey_id in selected_journeys:
+        is_de_novo = journey_id in de_novo_journeys
+        if is_de_novo:
+            if de_novo_count < max_de_novo:
+                journeys_to_plot.append(journey_id)
+                de_novo_count += 1
+        else:
+            journeys_to_plot.append(journey_id)
+        
+        if len(journeys_to_plot) >= num_timeline_plots:
+            break
     
     if verbose:
-        print(f"\nTotal journeys selected: {len(selected_journeys)}")
+        print(f"\nTotal journeys selected: {len(journeys_to_plot)}")
         print(f"Generating individual journey timeline plots...")
         if len(de_novo_journeys) > 0:
-            print(f"⭐ {len([j for j in selected_journeys if j in de_novo_journeys])} de novo resistance journeys included")
+            print(f"⭐ {len([j for j in journeys_to_plot if j in de_novo_journeys])} de novo resistance journeys included (max {max_de_novo})")
     
-    for i, journey_id in enumerate(selected_journeys, 1):
+    for i, journey_id in enumerate(journeys_to_plot, 1):
         is_de_novo = journey_id in de_novo_journeys
         analyzer.view_individual_journey(journey_id=journey_id, sequential_number=i, highlight_de_novo=is_de_novo)
     

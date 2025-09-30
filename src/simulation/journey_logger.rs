@@ -440,7 +440,7 @@ impl JourneyLogger {
         
         let resistance_activity_r: Vec<(String, f64)> = DRUG_SHORT_NAMES.iter()
             .enumerate()
-            .filter(|(idx, _)| individual.resistances[primary_bacteria_idx][*idx].activity_r > 0.0)
+            .filter(|(idx, _)| individual.cur_use_drug[*idx]) // Only log activity_r for drugs currently being used
             .map(|(idx, &drug_name)| (drug_name.to_string(), individual.resistances[primary_bacteria_idx][idx].activity_r))
             .collect();
         

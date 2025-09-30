@@ -15,7 +15,7 @@ class PlotConfig:
     """Configuration for individual plot types and categories."""
     
     # Grouped figures (Figures 1-9) 
-    grouped_plots: bool = True  # Master toggle for all grouped plots
+    grouped_plots: bool = False  # Master toggle for all grouped plots - DISABLED to force individual plots
     create_grouped_figure_1: bool = True
     create_grouped_figure_2: bool = True
     create_grouped_figure_3: bool = True
@@ -34,13 +34,13 @@ class PlotConfig:
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
     mean_any_r_by_drug_for_each_bacteria: bool = False
-    proportion_of_people_taking_each_drug: bool = False
-    for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
-    proportion_of_people_infected_with_each_bacteria: bool = False
-    proportion_share_among_drug_users: bool = False
-    distribution_drug_use_by_bacteria: bool = False
-    death_rate_by_bacteria: bool = False
-    mean_activity_r_by_bacteria: bool = False
+    proportion_of_people_taking_each_drug: bool = True
+    for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = True
+    proportion_of_people_infected_with_each_bacteria: bool = True
+    proportion_share_among_drug_users: bool = True
+    distribution_drug_use_by_bacteria: bool = True
+    death_rate_by_bacteria: bool = True
+    mean_activity_r_by_bacteria: bool = True
     resistance_mechanism_by_bacteria: bool = False
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
@@ -61,15 +61,6 @@ class PlotConfig:
     show_synthetic_fallback_data: bool = True  # Whether to display synthetic fallback empirical overlays
     show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
     
-    # Convenience category groupings
-    incidence_plots: bool = False
-    mortality_plots: bool = False
-    resistance_plots: bool = False
-    drug_usage_plots: bool = False
-    hospital_plots: bool = False
-    age_specific_plots: bool = False
-    regional_plots: bool = False
-
     # Individual plot controls - DISABLED since they're included in grouped figures
     basic_plots: bool = False  # Proportion, duration, sepsis plots (redundant with grouped figures)
     infection_duration: bool = False  # Included in grouped figures
@@ -109,20 +100,6 @@ class PlotConfig:
         # Check if the specific plot type is enabled
         if hasattr(self, plot_type):
             return getattr(self, plot_type)
-        
-        # Fallback to category-based checks
-        category_mapping = {
-            'death_rate_by_bacteria': 'mortality_plots',
-            'microbiome_resistance_by_drug': 'resistance_plots', 
-            'hospital_resistance_by_drug_bacteria': 'hospital_plots',
-            'age_specific_death_rate_by_region': 'age_specific_plots',
-            'syndrome_distribution_by_bacteria': 'mortality_plots',
-            'proportion_resistance_by_drug_bacteria': 'resistance_plots'
-        }
-        
-        category = category_mapping.get(plot_type)
-        if category and hasattr(self, category):
-            return getattr(self, category)
         
         # Default to True if no specific configuration found
         return True

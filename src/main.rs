@@ -106,11 +106,11 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 300; // Reduced for testing
-    let time_steps = 10_000 ;  // Back to 5000 steps for real data
-    let log_individuals = true  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.1; // Log 10% of infections for testing (0.0-1.0)
+    let population_size =   100_000; // Larger population to get more infections
+    let time_steps = 38_325 ;  // Covers ~68 years from 1930 to ~1998 - includes many modern drugs
+    let log_individuals = false  ; // Set to false to disable detailed individual logging
+    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.0001; // Log 10% of infections for testing (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):
