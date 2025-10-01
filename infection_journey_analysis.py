@@ -411,6 +411,11 @@ class InfectionJourneyAnalyzer:
         if 'has_de_novo_resistance' in journey_data.columns:
             has_de_novo = journey_data['has_de_novo_resistance'].any()
         
+        # Get resistance source information for de novo cases
+        resistance_sources_info = []
+        if has_de_novo and 'resistance_sources' in journey_data.columns:
+            resistance_sources_info = self._get_resistance_sources_info(journey_data)
+        
         clinical_info = [
             f"Year: {calendar_year}",
             f"Bacteria: {journey_data['primary_bacteria'].iloc[0]}",
@@ -426,6 +431,10 @@ class InfectionJourneyAnalyzer:
             f"Hospital acquired: {'Yes' if journey_data['hospital_acquired'].iloc[0] else 'No'}"
         ]
         
+        # Add resistance source information for de novo cases
+        if resistance_sources_info:
+            clinical_info.extend(resistance_sources_info)
+            
         # Add drug potency and resistance information
         if drug_potency_info:
             clinical_info.extend(drug_potency_info)
@@ -1145,6 +1154,44 @@ class InfectionJourneyAnalyzer:
                 drug_failure_info.append(f"Drug failures: {failure_days_str}")
         
         return drug_failure_info
+    
+    def _get_resistance_sources_info(self, journey_data):
+        """Extract and format resistance source information for de novo resistance cases."""
+        resistance_sources_info = []
+        
+        # Get unique resistance sources from all days in the journey
+        all_sources = set()
+        
+        for _, row in journey_data.iterrows():
+            resistance_sources = row.get('resistance_sources', '')
+            if pd.notna(resistance_sources) and resistance_sources.strip():
+                # Parse the semicolon-separated drug:source pairs
+                source_pairs = resistance_sources.split(';')
+                for pair in source_pairs:
+                    if ':' in pair:
+                        drug, source = pair.split(':', 1)
+                        # Map internal source names to user-friendly names
+                        source_display = self._format_resistance_source(source.strip())
+                        all_sources.add(f"{drug.strip()} ({source_display})")
+        
+        # Format the resistance sources information
+        if all_sources:
+            resistance_sources_info.append("⭐ RESISTANCE SOURCES:")
+            for source in sorted(all_sources):
+                resistance_sources_info.append(f"  • {source}")
+        
+        return resistance_sources_info
+    
+    def _format_resistance_source(self, source):
+        """Convert internal resistance source names to user-friendly display names."""
+        source_mapping = {
+            'at_infection_community': 'Community infection',
+            'at_infection_env': 'Environmental infection', 
+            'at_infection_tb': 'TB infection',
+            'hgt': 'Horizontal gene transfer',
+            'from_microbiome_r': 'From microbiome'
+        }
+        return source_mapping.get(source, source)
 
 def main(verbose=False, num_timeline_plots=5):
     """Main function to run the analysis."""

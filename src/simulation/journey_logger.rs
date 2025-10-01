@@ -69,6 +69,9 @@ pub struct InfectionJourneySnapshot {
     
     // De novo resistance detection
     pub has_de_novo_resistance: bool,
+    
+    // Resistance source tracking
+    pub resistance_sources: Vec<(String, String)>, // (drug_name, acquisition_source)
 }
 
 #[derive(Clone, Debug)]
@@ -166,7 +169,7 @@ impl JourneyLogger {
     }
     
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type,has_de_novo_resistance"
+        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
     }
     
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -451,6 +454,18 @@ impl JourneyLogger {
             .map(|(idx, _)| format!("mechanism_{}", idx)) // Will need to map to actual mechanism names
             .collect();
         
+        // Collect resistance sources for primary bacteria
+        let resistance_sources: Vec<(String, String)> = DRUG_SHORT_NAMES.iter()
+            .enumerate()
+            .filter_map(|(idx, &drug_name)| {
+                if let Some(acquisition_type) = &individual.how_resistance_acquired[primary_bacteria_idx][idx] {
+                    Some((drug_name.to_string(), acquisition_type.as_str().to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
         // Collect drug selection information if available
         let (drug_selection_bacteria, drug_selection_scores, selected_drug) = if individual.bacteria_on_selection_day >= 0 {
             let selection_bacteria_idx = individual.bacteria_on_selection_day as usize;
@@ -516,6 +531,7 @@ impl JourneyLogger {
             resistance_testing_done: individual.test_for_resistance[primary_bacteria_idx],
             resolution_type,
             has_de_novo_resistance,
+            resistance_sources,
         }
     }
     
@@ -581,8 +597,13 @@ impl JourneyLogger {
         
         let resolution_str = snapshot.resolution_type.as_ref().unwrap_or(&String::new()).clone();
         
+        let resistance_sources_str = snapshot.resistance_sources.iter()
+            .map(|(drug, source)| format!("{}:{}", drug, source))
+            .collect::<Vec<_>>()
+            .join(";");
+        
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},\"{}\"",
             snapshot.journey_id,
             snapshot.individual_id,
             snapshot.time_step,
@@ -615,7 +636,8 @@ impl JourneyLogger {
             snapshot.infection_identified,
             snapshot.resistance_testing_done,
             resolution_str,
-            snapshot.has_de_novo_resistance
+            snapshot.has_de_novo_resistance,
+            resistance_sources_str
         )
     }
     
