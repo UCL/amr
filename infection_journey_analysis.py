@@ -30,12 +30,12 @@ warnings.filterwarnings('ignore')
 # Number of individual journey timeline plots to generate
 # Recommended range: 1-50 (higher numbers create more files)
 # Files will be named: journey_01_timeline.png, journey_02_timeline.png, etc.
-NUM_TIMELINE_PLOTS = 30
+NUM_TIMELINE_PLOTS = 50
 
 # Number of journeys to include in detailed text report
 # Recommended range: 1-20 (higher numbers create much larger text files)
 # Set to 0 to skip detailed report generation entirely
-NUM_DETAILED_JOURNEYS = 30
+NUM_DETAILED_JOURNEYS = 50
 
 # Enable verbose output during analysis
 # True: Shows detailed progress messages and analysis results
@@ -290,14 +290,53 @@ class InfectionJourneyAnalyzer:
         # Note: drug_data already parsed above for markers
         
         if drug_data['has_drugs']:
-            # Plot drug levels with step plotting for consistency
+            # Plot drug levels with vertical offset to prevent overlapping lines
             drug_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # More distinct colors: blue, orange, green, red, purple
+            
+            # Collect all drug data first to detect overlaps
+            drug_plot_data = []
             for i, (drug_name, drug_levels) in enumerate(drug_data['drug_levels'].items()):
                 mask = ~pd.isna(drug_levels)
                 if mask.any():
-                    color = drug_colors[i % len(drug_colors)]  # Cycle through colors
-                    ax3.step(days[mask], drug_levels[mask], where='post', color=color, 
-                            label=f'{drug_name} Level', linewidth=4, alpha=0.8)
+                    drug_plot_data.append({
+                        'name': drug_name,
+                        'levels': drug_levels[mask].copy(),
+                        'days': days[mask],
+                        'color': drug_colors[i % len(drug_colors)],
+                        'index': i
+                    })
+            
+            # Apply vertical offsets to prevent overlapping
+            for drug_data_item in drug_plot_data:
+                levels = drug_data_item['levels'].copy()
+                
+                # Check for overlaps with previously plotted drugs and apply offset
+                for other_drug in drug_plot_data[:drug_data_item['index']]:
+                    # Find overlapping time points
+                    common_days = np.intersect1d(drug_data_item['days'], other_drug['days'])
+                    if len(common_days) > 0:
+                        for day in common_days:
+                            # Get indices for this day in both datasets
+                            day_idx_current = np.where(drug_data_item['days'] == day)[0]
+                            day_idx_other = np.where(other_drug['days'] == day)[0]
+                            
+                            if len(day_idx_current) > 0 and len(day_idx_other) > 0:
+                                current_level = levels.iloc[day_idx_current[0]]
+                                other_level = other_drug['levels'].iloc[day_idx_other[0]]
+                                
+                                # If levels are very close (within 5% or 0.2 absolute), apply offset
+                                if abs(current_level - other_level) < max(0.2, 0.05 * max(current_level, other_level)):
+                                    # Apply offset based on drug index to avoid collisions
+                                    # Use a pattern that ensures all drugs get meaningful offsets: -0.2, +0.2, -0.4, +0.4, etc.
+                                    offset_magnitude = 0.2 * ((drug_data_item['index'] // 2) + 1)
+                                    offset_direction = 1 if drug_data_item['index'] % 2 == 0 else -1
+                                    offset = offset_magnitude * offset_direction
+                                    levels.iloc[day_idx_current[0]] += offset
+                
+                # Plot with potentially offset levels
+                ax3.step(drug_data_item['days'], levels, where='post', 
+                        color=drug_data_item['color'], label=f"{drug_data_item['name']} Level", 
+                        linewidth=4, alpha=0.8)
             
             # Plot activity_r on secondary y-axis with matching colors to drug levels
             ax3_twin = ax3.twinx()
@@ -1159,7 +1198,17 @@ class InfectionJourneyAnalyzer:
         """Extract and format resistance source information for de novo resistance cases."""
         resistance_sources_info = []
         
-        # Get unique resistance sources from all days in the journey
+        # First, identify which drugs were actually used in this journey
+        drugs_used = set()
+        for _, row in journey_data.iterrows():
+            if pd.notna(row['current_drugs']) and row['current_drugs'] != '':
+                drug_entries = row['current_drugs'].split(';')
+                for entry in drug_entries:
+                    if ':' in entry:
+                        drug_name, _ = entry.split(':', 1)
+                        drugs_used.add(drug_name.strip())
+        
+        # Get resistance sources only for drugs that were actually used
         all_sources = set()
         
         for _, row in journey_data.iterrows():
@@ -1170,9 +1219,12 @@ class InfectionJourneyAnalyzer:
                 for pair in source_pairs:
                     if ':' in pair:
                         drug, source = pair.split(':', 1)
-                        # Map internal source names to user-friendly names
-                        source_display = self._format_resistance_source(source.strip())
-                        all_sources.add(f"{drug.strip()} ({source_display})")
+                        drug = drug.strip()
+                        # Only include if this drug was actually used in the journey
+                        if drug in drugs_used:
+                            # Map internal source names to user-friendly names
+                            source_display = self._format_resistance_source(source.strip())
+                            all_sources.add(f"{drug} ({source_display})")
         
         # Format the resistance sources information
         if all_sources:
@@ -1193,7 +1245,7 @@ class InfectionJourneyAnalyzer:
         }
         return source_mapping.get(source, source)
 
-def main(verbose=False, num_timeline_plots=5):
+def main(verbose=False, num_timeline_plots=NUM_TIMELINE_PLOTS):
     """Main function to run the analysis."""
     if verbose:
         print("Infection Journey Analysis Tool")
@@ -1214,13 +1266,16 @@ def main(verbose=False, num_timeline_plots=5):
     
     # First, identify journeys with de novo resistance emergence
     de_novo_journeys = []
+    max_de_novo = 5  # Limit de novo journeys to avoid overwhelming the plots
     if 'has_de_novo_resistance' in analyzer.df.columns:
         de_novo_mask = analyzer.df['has_de_novo_resistance'] == True
-        de_novo_journeys = analyzer.df[de_novo_mask]['journey_id'].unique().tolist()
+        all_de_novo = analyzer.df[de_novo_mask]['journey_id'].unique().tolist()
+        # Limit to max_de_novo from the start
+        de_novo_journeys = all_de_novo[:max_de_novo] if len(all_de_novo) > max_de_novo else all_de_novo
         
     if verbose and len(de_novo_journeys) > 0:
-        print(f"\nFound {len(de_novo_journeys)} journeys with de novo resistance emergence!")
-        print(f"De novo resistance journey IDs: {de_novo_journeys}")
+        print(f"\nFound {len(all_de_novo) if 'all_de_novo' in locals() else len(de_novo_journeys)} journeys with de novo resistance emergence!")
+        print(f"Including {len(de_novo_journeys)} de novo resistance journeys (max {max_de_novo})")
     
     # Stratified sampling across time periods to reduce early-simulation bias
     # Define time periods: early (before treatment), treatment era, late
@@ -1250,10 +1305,14 @@ def main(verbose=False, num_timeline_plots=5):
         print(f"Random from treatment period: {treatment_target}")
         print(f"Random from late period: {late_target}")
     
-    # Sample from each period
+    # Sample from each period, redistributing unfilled targets
     selected_journeys = de_novo_journeys.copy()  # Always include de novo resistance cases
     
-    for period, target in [('early', early_target), ('treatment', treatment_target), ('late', late_target)]:
+    period_targets = [('early', early_target), ('treatment', treatment_target), ('late', late_target)]
+    
+    # First pass: sample what we can from each period
+    unfilled_slots = 0
+    for period, target in period_targets:
         period_journeys = journey_times[journey_times['period'] == period]['journey_id'].values
         # Exclude already selected de novo journeys
         period_journeys = [j for j in period_journeys if j not in selected_journeys]
@@ -1262,24 +1321,22 @@ def main(verbose=False, num_timeline_plots=5):
             sample_size = min(target, len(period_journeys))
             sampled = np.random.choice(period_journeys, size=sample_size, replace=False)
             selected_journeys.extend(sampled.tolist())
-    
-    # Ensure we don't exceed the requested number
-    # Limit de novo resistance cases to max 5 to avoid overwhelming plots
-    de_novo_count = 0
-    max_de_novo = 5
-    journeys_to_plot = []
-    
-    for journey_id in selected_journeys:
-        is_de_novo = journey_id in de_novo_journeys
-        if is_de_novo:
-            if de_novo_count < max_de_novo:
-                journeys_to_plot.append(journey_id)
-                de_novo_count += 1
+            # Track how many slots were left unfilled from this period
+            unfilled_slots += (target - sample_size)
         else:
-            journeys_to_plot.append(journey_id)
-        
-        if len(journeys_to_plot) >= num_timeline_plots:
-            break
+            # Track completely unfilled slots
+            unfilled_slots += target
+    
+    # Second pass: if we have unfilled slots, redistribute to available periods
+    if unfilled_slots > 0:
+        all_available = [j for j in journey_times['journey_id'].values if j not in selected_journeys]
+        if len(all_available) > 0:
+            additional_sample_size = min(unfilled_slots, len(all_available))
+            additional_sampled = np.random.choice(all_available, size=additional_sample_size, replace=False)
+            selected_journeys.extend(additional_sampled.tolist())
+    
+    # Trim to requested number if we somehow exceeded it
+    journeys_to_plot = selected_journeys[:num_timeline_plots]
     
     if verbose:
         print(f"\nTotal journeys selected: {len(journeys_to_plot)}")
