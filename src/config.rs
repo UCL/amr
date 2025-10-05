@@ -782,12 +782,30 @@ lazy_static! {
         map.insert("drug_ampicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.05);     // Poor activity
         
         // HELICOBACTER PYLORI - Triple/quadruple therapy drugs (clarithromycin + amoxicillin + metronidazole)
+        // Historical note: H. pylori discovered 1982 by Marshall & Warren, triple therapy established ~1990s
+        // Before 1982, peptic ulcers attributed to stress/diet, not infection
         // Boost first-line eradication therapy drugs
         map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.85);   // Key component of triple therapy
         map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.8);       // Key component of triple therapy  
         map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.75);    // Alternative/quadruple therapy
         map.insert("drug_tetracycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.7);      // Bismuth quadruple therapy
         map.insert("drug_levofloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.75);     // Rescue therapy
+        
+        // H. pylori drug availability dates - triple therapy not available until 1990s
+        map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_availability_year".to_string(), 1990.0); // Triple therapy era
+        map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_availability_year".to_string(), 1990.0);    // Triple therapy era
+        map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_availability_year".to_string(), 1990.0);  // Triple therapy era
+        
+        // H. pylori testing parameters - endoscopy/biopsy required for identification
+        map.insert("helicobacter_pylori_test_probability_per_day".to_string(), 0.15); // Higher testing rate for chronic symptoms
+        map.insert("helicobacter_pylori_test_sensitivity".to_string(), 0.95);        // High sensitivity with proper testing
+        map.insert("helicobacter_pylori_test_availability_year".to_string(), 1982.0); // Marshall & Warren discovery year
+        
+        // H. pylori-specific drug selection bonuses when bacteria is identified
+        map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 15.0); // Strong preference for triple therapy
+        map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 12.0);   // Strong preference for triple therapy
+        map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 8.0);  // Alternative therapy
+        
         // Reduce inappropriate antibiotics
         map.insert("drug_penicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
         map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not effective
@@ -1487,6 +1505,24 @@ lazy_static! {
     
         map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
 
+        // Mechanism-specific fitness costs (reversion rates per day when drug absent)
+        // High-cost mechanisms: Metabolically expensive enzymes
+        map.insert("resistance_mechanism_carbapenemase_reversion_rate".to_string(), 0.0002); // High cost - large, expensive enzymes
+        map.insert("resistance_mechanism_van_type_reversion_rate".to_string(), 0.0003); // High cost - complex resistance pathway
+        
+        // Medium-cost mechanisms: Moderate metabolic burden
+        map.insert("resistance_mechanism_esbl_reversion_rate".to_string(), 0.0001); // Medium cost - beta-lactamase production
+        map.insert("resistance_mechanism_meca_reversion_rate".to_string(), 0.00015); // Medium cost - altered PBP
+        map.insert("resistance_mechanism_erm_methylation_reversion_rate".to_string(), 0.0001); // Medium cost - methyltransferase
+        map.insert("resistance_mechanism_16s_methyltransferase_reversion_rate".to_string(), 0.0001); // Medium cost - rRNA modification
+        
+        // Low-cost mechanisms: Minimal fitness burden
+        map.insert("resistance_mechanism_qnr_reversion_rate".to_string(), 0.00003); // Low cost - point mutation effect
+        map.insert("resistance_mechanism_target_site_mutation_reversion_rate".to_string(), 0.00003); // Low cost - single nucleotide changes
+        map.insert("resistance_mechanism_reduced_permeability_reversion_rate".to_string(), 0.00005); // Low cost - adaptive change
+        map.insert("resistance_mechanism_efflux_overexpression_reversion_rate".to_string(), 0.00008); // Low-medium cost - energy for pumping
+        map.insert("resistance_mechanism_ampc_reversion_rate".to_string(), 0.00005); // Low cost - chromosomal enzyme
+
         // Testing Parameters
         map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available
         map.insert("resistance_testing_available_from_day".to_string(), 9131.0); // 9131.0  1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
@@ -1642,6 +1678,9 @@ lazy_static! {
         map.insert("moraxella_catarrhalis_sepsis_risk_multiplier".to_string(), 0.2); // Usually upper respiratory, low virulence
         map.insert("treponema_pallidum_sepsis_risk_multiplier".to_string(), 0.1); // Chronic infection, not acute sepsis
         map.insert("shigella_spp._sepsis_risk_multiplier".to_string(), 0.3); // Usually limited to GI tract
+        
+        // ULTRA-LOW SEPSIS RISK - Chronic mucosal pathogens that rarely cause acute sepsis
+        map.insert("helicobacter_pylori_sepsis_risk_multiplier".to_string(), 0.02); // Chronic gastritis/ulcer pathogen, extremely rare sepsis
 
         // --- AGE-DEPENDENT BACTERIA SEPSIS RISK INTERACTIONS ---
         // These modify bacteria sepsis risk based on age groups for clinically important interactions
@@ -1725,6 +1764,10 @@ lazy_static! {
         map.insert("log_odds_sepsis_syndrome_folliculitis".to_string(), -1.3); // Hair follicle infection
         map.insert("log_odds_sepsis_syndrome_oral_thrush".to_string(), -1.5); // Oral candidiasis
         map.insert("log_odds_sepsis_syndrome_superficial_dermatitis".to_string(), -1.4); // Skin surface only
+        
+        // ULTRA-LOW SEPSIS RISK SYNDROMES - chronic mucosal infections
+        map.insert("log_odds_sepsis_syndrome_chronic_gastritis".to_string(), -3.0); // H. pylori gastritis, extremely low sepsis risk
+        map.insert("log_odds_sepsis_syndrome_peptic_ulcer_uncomplicated".to_string(), -2.5); // Ulcer disease without perforation
 
         // --- REGIONAL SEPSIS RISK FACTORS ---
         // Account for healthcare infrastructure, population density, socioeconomic factors

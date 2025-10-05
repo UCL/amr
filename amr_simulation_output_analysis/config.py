@@ -14,17 +14,11 @@ from pathlib import Path
 class PlotConfig:
     """Configuration for individual plot types and categories."""
     
-    # Grouped figures (Figures 1-9) 
-    grouped_plots: bool = False  # Master toggle for all grouped plots - DISABLED to force individual plots
-    create_grouped_figure_1: bool = True
-    create_grouped_figure_2: bool = True
-    create_grouped_figure_3: bool = True
-    create_grouped_figure_4: bool = True
-    create_grouped_figure_5: bool = True
-    create_grouped_figure_6: bool = True
-    create_grouped_figure_7: bool = True
-    create_grouped_figure_8: bool = True
-    create_grouped_figure_9: bool = True
+    # Main plot category controls
+    grouped_plots: bool = True  # Enable/disable grouped figures 1-9
+    
+    # Individual grouped figure controls
+
     
     # Individual plot type controls 
     drug_failure_rate_by_bacteria_region: bool = False
@@ -34,13 +28,13 @@ class PlotConfig:
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
     mean_any_r_by_drug_for_each_bacteria: bool = False
-    proportion_of_people_taking_each_drug: bool = True
-    for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = True
-    proportion_of_people_infected_with_each_bacteria: bool = True
-    proportion_share_among_drug_users: bool = True
-    distribution_drug_use_by_bacteria: bool = True
-    death_rate_by_bacteria: bool = True
-    mean_activity_r_by_bacteria: bool = True
+    proportion_of_people_taking_each_drug: bool = False
+    for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
+    proportion_of_people_infected_with_each_bacteria: bool = False
+    proportion_share_among_drug_users: bool = False
+    distribution_drug_use_by_bacteria: bool = False
+    death_rate_by_bacteria: bool = False
+    mean_activity_r_by_bacteria: bool = False
     resistance_mechanism_by_bacteria: bool = False
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
@@ -88,6 +82,17 @@ class PlotConfig:
     
     # Simulation time parameters
     start_year: int = 1930  # Starting year for simulation time axis
+    
+    # Grouped figure toggles (always True to ensure figures 1-9 are generated)
+    create_grouped_figure_1: bool = True
+    create_grouped_figure_2: bool = True
+    create_grouped_figure_3: bool = True
+    create_grouped_figure_4: bool = True
+    create_grouped_figure_5: bool = True
+    create_grouped_figure_6: bool = True
+    create_grouped_figure_7: bool = True
+    create_grouped_figure_8: bool = True
+    create_grouped_figure_9: bool = True
     
     # Convenience properties
     @property

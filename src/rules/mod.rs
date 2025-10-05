@@ -1679,7 +1679,17 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             daily_drug_toxicity_increase += individual.cur_level_drug[drug_idx] * drug_toxicity_per_unit;
         }
     }
-    individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase).max(0.0);
+    
+    // Apply toxicity changes: increase from drugs, natural clearance when no drugs
+    if daily_drug_toxicity_increase > 0.0 {
+        // Drugs present: accumulate toxicity with maximum cap
+        let max_toxicity = get_global_param("max_toxicity_level").unwrap_or(20.0);
+        individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase).max(0.0).min(max_toxicity);
+    } else {
+        // No drugs present: natural toxicity clearance (liver/kidney function)
+        let toxicity_clearance_rate = get_global_param("toxicity_clearance_rate_per_day").unwrap_or(0.1);
+        individual.current_toxicity = (individual.current_toxicity - toxicity_clearance_rate).max(0.0);
+    }
 
     // --- Treatment failure tracking and assessment ---
     // Update treatment days counter and assess treatment failure
@@ -2665,8 +2675,11 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     // --- end resistance mechanism emergence logic ---
 
 
-                    // calculate activity_r (should always be updated)
-                    if drug_current_level > 0.0 {
+                    // calculate activity_r (should always be updated) - but only when both drug and bacteria are present
+                    // First check what the bacteria level will be after this timestep
+                    let current_bacteria_level = individual.level[bacteria_full_idx];
+                    
+                    if drug_current_level > 0.0 && current_bacteria_level > 0.001 {
                         // Fetch potency from config, fallback to 0.05 if not found
                         let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_index, bacteria_full_idx)];
                         let base_potency = get_global_param(potency_param_key).unwrap_or(0.05);
@@ -2861,16 +2874,102 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             let reduction_due_to_immune_resp = get_bacteria_param(bacteria, "immunity_effect_on_level_change").unwrap_or(0.0);
             let mut total_reduction_due_to_antibiotic = 0.0;
 
-            // --- Resistance reversion logic: revert any_r/majority_r to 0 if not on any drug ---
-            let resistance_reversion_rate = get_global_param("resistance_reversion_rate_per_day").unwrap_or(0.0001); // Default: very rare
+            // --- Mechanism-specific fitness cost reversion logic ---
             let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
             if !on_any_drug {
-                for drug_index in 0..DRUG_SHORT_NAMES.len() {
-                    let resistance_data = &mut individual.resistances[b_idx][drug_index];
-                    if resistance_data.any_r > 0.0 || resistance_data.majority_r > 0.0 {
-                        if rng.gen_bool(resistance_reversion_rate) {
-                            resistance_data.any_r = 0.0;
-                            resistance_data.majority_r = 0.0;
+                // Check for reversion of specific resistance mechanisms based on their fitness costs
+                use crate::simulation::population::ResistanceMechanism;
+                let mut mechanisms_reverted = Vec::new();
+                
+                for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                    if individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                        let mechanism_str = mechanism.as_str();
+                        let mechanism_reversion_key = format!("resistance_mechanism_{}_reversion_rate", mechanism_str);
+                        let mechanism_reversion_rate = get_global_param(&mechanism_reversion_key)
+                            .unwrap_or(0.0001); // Fallback to default if mechanism-specific rate not found
+                        
+                        if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
+                            individual.resistance_mechanisms[b_idx][mechanism_idx] = false;
+                            mechanisms_reverted.push(mechanism_idx);
+                        }
+                    }
+                }
+                
+                // If any mechanisms were lost, recalculate resistance levels for all drugs
+                if !mechanisms_reverted.is_empty() {
+                    for drug_index in 0..DRUG_SHORT_NAMES.len() {
+                        let resistance_data = &mut individual.resistances[b_idx][drug_index];
+                        
+                        // Recalculate mechanism-based resistance enhancement
+                        let mut mechanism_resistance_boost = 0.0;
+                        let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
+                        
+                        for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                            if individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                                // Check if this mechanism affects the current drug (same logic as in calculation)
+                                let mechanism_affects_drug = match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
+                                    (ResistanceMechanism::ESBL, drug) => {
+                                        matches!(drug, "penicilling" | "ampicillin" | "amoxicillin" | "piperacillin" | 
+                                               "ticarcillin" | "cephalexin" | "cefazolin" | "cefuroxime" | 
+                                               "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline" | 
+                                               "aztreonam" | "amoxicillin_clavulanate" | "piperacillin_tazobactam" |
+                                               "ampicillin_sulbactam" | "ticarcillin_clavulanate")
+                                    },
+                                    (ResistanceMechanism::Carbapenemase, drug) => {
+                                        matches!(drug, "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam")
+                                    },
+                                    (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
+                                        matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
+                                    },
+                                    (ResistanceMechanism::Qnr, drug) => {
+                                        matches!(drug, "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin")
+                                    },
+                                    (ResistanceMechanism::ErmMethylation, drug) => {
+                                        matches!(drug, "erythromycin" | "azithromycin" | "clarithromycin")
+                                    },
+                                    (ResistanceMechanism::VanType, drug) => {
+                                        matches!(drug, "vancomycin" | "teicoplanin")
+                                    },
+                                    (ResistanceMechanism::MecA, drug) => {
+                                        bacteria == "staphylococcus aureus" && 
+                                        matches!(drug, "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin" | 
+                                               "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | 
+                                               "cefepime" | "meropenem" | "imipenem_c" | "ertapenem")
+                                    },
+                                    (ResistanceMechanism::EffluxOverexpression, _) => true,
+                                    (ResistanceMechanism::ReducedPermeability, _) => {
+                                        !matches!(bacteria, "staphylococcus aureus" | "streptococcus pneumoniae" | 
+                                                 "streptococcus pyogenes" | "streptococcus agalactiae" | 
+                                                 "enterococcus faecalis" | "enterococcus faecium")
+                                    },
+                                    (ResistanceMechanism::TargetSiteMutation, _) => true,
+                                    (ResistanceMechanism::AmpC, drug) => {
+                                        matches!(drug, "penicilling" | "ampicillin" | "amoxicillin" | "piperacillin" | 
+                                               "ticarcillin" | "cephalexin" | "cefazolin" | "cefuroxime" | 
+                                               "ceftriaxone" | "amoxicillin_clavulanate" | "piperacillin_tazobactam" |
+                                               "ampicillin_sulbactam" | "ticarcillin_clavulanate")
+                                    },
+                                };
+                                
+                                if mechanism_affects_drug {
+                                    let mechanism_str = mechanism.as_str();
+                                    let mechanism_enhancement_key = format!("resistance_mechanism_{}_enhancement_multiplier", mechanism_str);
+                                    let mechanism_enhancement = get_global_param(&mechanism_enhancement_key)
+                                        .unwrap_or(0.3);
+                                    mechanism_resistance_boost += mechanism_enhancement;
+                                }
+                            }
+                        }
+                        
+                        // Update resistance levels based on remaining mechanisms
+                        let base_resistance = resistance_data.any_r / max_resistance_level - 
+                            (resistance_data.any_r / max_resistance_level).min(mechanism_resistance_boost);
+                        let new_resistance_level = (base_resistance + mechanism_resistance_boost).min(1.0).max(0.0);
+                        let new_any_r = new_resistance_level * max_resistance_level;
+                        
+                        resistance_data.any_r = new_any_r;
+                        if resistance_data.majority_r > 0.0 {
+                            resistance_data.majority_r = resistance_data.any_r;
                         }
                     }
                 }

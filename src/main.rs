@@ -32,9 +32,22 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// consider whether to use gbd regions rather than continents 
 //
 // think carefully about standardized drug levels and mic - do I need to make drug levels realistic ? 
+//
+// Consider:
+// more explicit sub-MIC concentration modelling ?
+// reduced bacterial growth rates for resistant strains
+// competition between sensitive and resistant strains in microbiome
+// mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
+// time-dependent costs: higher initially, decreasing with compensatory mutations
+// multi-drug cost interactions: costs compound with multiple resistance mechanisms
+//
+// Differentiate growth rates - fast vs. slow growing bacteria ?
+// Add early immune response - rapid initial immunity activation ?
+// Consider treatment phases - intensive vs. continuation therapy ?
+// Model dormancy - especially for chronic infections like TB ?
+// Biofilm resistance - reduced drug effectiveness in chronic infections ?
 //
 // use gbd super regions instead of continents ?
 // High-income  Latin America and Caribbean  Sub-Saharan Africa
@@ -108,11 +121,11 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size =  5_000; // Larger population to get more infections
-    let time_steps =  5_000 ;  // Covers ~68 years from 1930 to ~1998 - includes many modern drugs
+    let population_size = 5000; 
+    let time_steps = 38_325 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true  ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.01; // Log 10% of infections for testing (0.0-1.0)
+    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.0003; // Log 10% of infections for testing (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):
