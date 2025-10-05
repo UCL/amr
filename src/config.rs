@@ -282,6 +282,13 @@ lazy_static! {
         map.insert("mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier".to_string(), 2.5); // Effectiveness multiplier when ≥2 TB drugs active
         map.insert("mdr_mycobacterium_tuberculosis_background_drug_effectiveness".to_string(), 0.8); // Additional effectiveness from unmodeled TB-specific drugs
         map.insert("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance".to_string(), 0.90); // Rifampicin resistance level at MDR-TB acquisition
+        
+        // Historical MDR TB incidence parameters (time-dependent infection rates)
+        map.insert("mdr_tb_pre_antibiotic_era_multiplier".to_string(), 0.0001); // Pre-1944: virtually no MDR TB (only de novo mutations)
+        map.insert("mdr_tb_early_antibiotic_era_multiplier".to_string(), 0.01);  // 1944-1965: low MDR rates (monotherapy era)
+        map.insert("mdr_tb_modern_era_multiplier".to_string(), 1.0);            // 1966+: full MDR TB rates (rifampicin era)
+        map.insert("mdr_tb_pre_antibiotic_mortality_multiplier".to_string(), 3.0); // Pre-antibiotic TB had much higher mortality
+        map.insert("mdr_tb_ineffective_treatment_mortality_multiplier".to_string(), 2.5); // Ineffective treatment increases mortality
       
 
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---

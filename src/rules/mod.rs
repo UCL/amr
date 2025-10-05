@@ -2021,7 +2021,20 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             log_odds += log_odds_age_region_bacteria;
 
             // Convert log-odds to probability
-            let acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+            let mut acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+            
+            // Apply historical MDR TB incidence modifier
+            if bacteria == "mdr mycobacterium tuberculosis" {
+                let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+                let mdr_tb_multiplier = if simulation_year < 1944.0 {
+                    get_global_param("mdr_tb_pre_antibiotic_era_multiplier").unwrap_or(0.0001)
+                } else if simulation_year < 1966.0 {
+                    get_global_param("mdr_tb_early_antibiotic_era_multiplier").unwrap_or(0.01)
+                } else {
+                    get_global_param("mdr_tb_modern_era_multiplier").unwrap_or(1.0)
+                };
+                acquisition_probability *= mdr_tb_multiplier;
+            }
 
             // --- microbiome presence (Carriage) ---
             if !individual.presence_microbiome[b_idx] {
@@ -2292,7 +2305,26 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
 
                 // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
                 let is_tb = bacteria == "mdr mycobacterium tuberculosis";
-                let guaranteed_rifampicin_resistance = if is_tb {
+                
+                // Time-dependent MDR TB incidence (historically accurate)
+                let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+                let mdr_tb_incidence_multiplier = if is_tb {
+                    if simulation_year < 1944.0 {
+                        // Pre-antibiotic era: virtually no MDR TB possible
+                        get_global_param("mdr_tb_pre_antibiotic_era_multiplier").unwrap_or(0.0001)
+                    } else if simulation_year < 1966.0 {
+                        // Early antibiotic era (streptomycin monotherapy): low MDR rates  
+                        get_global_param("mdr_tb_early_antibiotic_era_multiplier").unwrap_or(0.01)
+                    } else {
+                        // Modern era (rifampicin available): full MDR TB rates
+                        get_global_param("mdr_tb_modern_era_multiplier").unwrap_or(1.0)
+                    }
+                } else {
+                    1.0 // No modification for other bacteria
+                };
+                
+                let guaranteed_rifampicin_resistance = if is_tb && simulation_year >= 1966.0 {
+                    // Only apply guaranteed rifampicin resistance after rifampicin is available
                     get_global_param("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance").unwrap_or(0.90)
                 } else {
                     0.0
@@ -3043,7 +3075,18 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     // cycloserine, ethionamide, p-aminosalicylic acid) that are critical for MDR-TB treatment but not 
                     // explicitly tracked in this general AMR model. Value reflects their collective contribution when 
                     // proper multi-drug TB regimens are used.
-                    let background_effectiveness = get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness").unwrap_or(0.8);
+                    let mut background_effectiveness = get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness").unwrap_or(0.8);
+                    
+                    // Apply historical treatment effectiveness modifier
+                    let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+                    if simulation_year < 1944.0 {
+                        // Pre-antibiotic era: no effective TB treatment available
+                        background_effectiveness *= 0.01; // 99% reduction in effectiveness
+                    } else if simulation_year < 1966.0 {
+                        // Early antibiotic era: limited effectiveness with monotherapy
+                        background_effectiveness *= 0.3; // 70% reduction in effectiveness  
+                    }
+                    // Modern era (1966+): full effectiveness (no change needed)
                     
                     // Apply synergy: multiply existing drug effects + add background effectiveness
                     tb_synergy_bonus = (total_reduction_due_to_antibiotic * (synergy_multiplier - 1.0)) + background_effectiveness;
