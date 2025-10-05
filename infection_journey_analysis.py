@@ -79,17 +79,19 @@ class InfectionJourneyAnalyzer:
         self.df.loc[(self.df['sepsis'] == False) & (self.df['is_treated'] == True), 'infection_state'] = 'Treated'
         self.df.loc[(self.df['sepsis'] == False) & (self.df['is_treated'] == False), 'infection_state'] = 'Not Treated'
         
-        # Syndrome mapping (syndromes 1-10)
+        # Syndrome mapping (syndromes 1-10) - corrected to match Rust code
+        # Syndromes: 1=UTI, 2=Skin/soft tissue, 3=Respiratory, 4=Bloodstream, 5=Intra-abdominal, 
+        #           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
         self.syndrome_names = {
-            1: "bloodstream infection",
-            2: "pneumonia", 
-            3: "urinary tract infection",
-            4: "skin/soft tissue infection",
+            1: "urinary tract infection",
+            2: "skin/soft tissue infection", 
+            3: "respiratory infection",
+            4: "bloodstream infection",
             5: "intra-abdominal infection",
             6: "central nervous system infection",
-            7: "bone/joint infection",
-            8: "endocarditis", 
-            9: "surgical site infection",
+            7: "gastrointestinal infection",
+            8: "genital infection", 
+            9: "bone/joint infection",
             10: "other/unspecified infection"
         }
         
@@ -774,7 +776,13 @@ class InfectionJourneyAnalyzer:
             f.write("SUMMARY STATISTICS\n")
             f.write("-" * 40 + "\n")
             f.write(f"Average journey length: {self.df.groupby('journey_id')['day_of_journey'].max().mean():.1f} days\n")
-            f.write(f"Journeys with sepsis: {self.journey_summary['developed_sepsis'].sum()} ({self.journey_summary['developed_sepsis'].mean()*100:.1f}%)\n")
+            
+            # Debug: Check if 'developed_sepsis' column exists
+            if 'developed_sepsis' in self.journey_summary.columns:
+                f.write(f"Journeys with sepsis: {self.journey_summary['developed_sepsis'].sum()} ({self.journey_summary['developed_sepsis'].mean()*100:.1f}%)\n")
+            else:
+                f.write(f"DEBUG: Available columns: {list(self.journey_summary.columns)}\n")
+                f.write("ERROR: 'developed_sepsis' column not found in journey_summary\n")
             f.write(f"Journeys with treatment: {self.journey_summary['was_treated'].sum()} ({self.journey_summary['was_treated'].mean()*100:.1f}%)\n")
             f.write(f"Journeys with drug selection events: {self.journey_summary['drug_selection_occurred'].sum()}\n")
             f.write(f"Hospital acquired infections: {self.journey_summary['hospital_acquired'].sum()} ({self.journey_summary['hospital_acquired'].mean()*100:.1f}%)\n\n")
