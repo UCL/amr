@@ -1012,9 +1012,13 @@ pub fn apply_rules(
     }
 
     // --- drug updates---
-    let has_any_infection = individual.level.iter().any(|&level| level > 0.0);
+    // Only count infections that have caused symptoms for treatment initiation decisions
+    let has_any_infection = individual.level.iter().enumerate()
+        .any(|(b_idx, &level)| level > 0.0 && individual.infection_has_caused_symptoms[b_idx]);
     let initial_on_any_antibiotic = individual.cur_use_drug.iter().any(|&identified| identified);
-    let has_any_identified_infection = individual.test_identified_infection.iter().any(|&identified| identified);
+    // Only count identified infections that also have symptoms (can't identify asymptomatic infections clinically)
+    let has_any_identified_infection = individual.test_identified_infection.iter().enumerate()
+        .any(|(b_idx, &identified)| identified && individual.infection_has_caused_symptoms[b_idx]);
 
     // --- count number of drugs currently being used ---
     let num_drugs_currently_used = individual.cur_use_drug.iter().filter(|&&on| on).count();
@@ -2831,7 +2835,20 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
         let bacterial_testing_available_from_day = get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32;
         let bacterial_testing_available = time_step >= bacterial_testing_available_from_day as usize;
         
-        if is_infected && !individual.test_identified_infection[b_idx] && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) && bacterial_testing_available {
+        // Check bacteria-specific test availability for late-discovered bacteria (e.g., H. pylori 1982)
+        // Most bacteria are available once general bacterial testing is available (~1945)
+        // Only specific bacteria have delayed discovery dates
+        let bacteria_name = BACTERIA_LIST[b_idx];
+        let bacteria_param_name = bacteria_name.to_lowercase().replace(" ", "_");
+        let bacteria_test_availability_param = format!("{}_test_availability_year", bacteria_param_name);
+        let bacteria_specific_available = if let Some(bacteria_discovery_year) = get_global_param(&bacteria_test_availability_param) {
+            let bacteria_discovery_day = ((bacteria_discovery_year - 1930.0) * 365.25) as i32;
+            time_step >= bacteria_discovery_day as usize
+        } else {
+            bacterial_testing_available // For most bacteria, use the general bacterial testing availability
+        };
+        
+        if is_infected && !individual.test_identified_infection[b_idx] && last_infected_time > 0 && (time_step as i32) >= (last_infected_time + test_delay_days) && bacterial_testing_available && bacteria_specific_available && individual.infection_has_caused_symptoms[b_idx] {
             // Calculate comprehensive testing probability
             let testing_probability = calculate_testing_probability(
                 individual, 
@@ -3174,15 +3191,17 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 individual.test_identified_infection[b_idx] = false;
                 individual.test_for_resistance[b_idx] = false;
                 individual.resistance_test_initiated_day[b_idx] = -1;
+                individual.infection_has_caused_symptoms[b_idx] = false; // Reset symptom status when infection clears
             } else {
                 // Update level for infections that are continuing
                 individual.level[b_idx] = new_level;
             }
         }
 
-        // Safety check: ensure test_identified_infection is false when not infected
+        // Safety check: ensure test_identified_infection and symptom status are false when not infected
         if !is_infected {
             individual.test_identified_infection[b_idx] = false;
+            individual.infection_has_caused_symptoms[b_idx] = false;
         }
 
         // --- Apply cross-resistance logic ---
@@ -3206,6 +3225,29 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             }
             let max_immune_response = get_bacteria_param(bacteria, "max_immune_response").unwrap_or(10.0);
             individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase).max(0.0001).min(max_immune_response);
+            
+            // --- Symptom onset logic for infected bacteria ---
+            if !individual.infection_has_caused_symptoms[b_idx] {
+                // Get bacteria-specific symptom parameters
+                let daily_symptom_probability = get_bacteria_param(bacteria, "daily_symptom_onset_probability").unwrap_or(0.15);
+                let threshold_level = get_bacteria_param(bacteria, "symptom_onset_threshold_level").unwrap_or(0.5);
+                let delay_days = get_bacteria_param(bacteria, "symptom_onset_delay_days").unwrap_or(1.0) as i32;
+                let level_multiplier = get_bacteria_param(bacteria, "symptom_onset_level_multiplier").unwrap_or(1.0);
+                
+                // Check if minimum delay has passed
+                let infection_duration = (time_step as i32) - individual.date_last_infected[b_idx];
+                
+                if infection_duration >= delay_days && individual.level[b_idx] >= threshold_level {
+                    // Calculate symptom onset probability (base rate × level effect)
+                    let level_effect = (individual.level[b_idx] / threshold_level).powf(level_multiplier);
+                    let symptom_probability = (daily_symptom_probability * level_effect).clamp(0.0, 1.0);
+                    
+                    // Roll for symptom onset
+                    if rng.gen_bool(symptom_probability) {
+                        individual.infection_has_caused_symptoms[b_idx] = true;
+                    }
+                }
+            }
         } else {
             // immunity decay when not infected
             let immunity_decay_rate = get_global_param("immune_decay_rate_per_day").unwrap_or(0.02);

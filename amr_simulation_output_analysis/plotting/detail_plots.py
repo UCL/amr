@@ -366,13 +366,11 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     
     # Age-specific death rate by region plots
     if config.age_specific_death_rate_by_region:
-        create_age_specific_death_rate_by_region_plots(data, config)
-    
+        create_age_specific_death_rate_by_region_plots_working(data, config)
+
     # Syndrome distribution by bacteria plots
     if config.syndrome_distribution_by_bacteria:
-        create_syndrome_distribution_by_bacteria_plots(data, config)
-    
-    # Drug score analysis plots
+        create_syndrome_distribution_by_bacteria_plots_working(data, config)    # Drug score analysis plots
     if config.drug_score_summary:
         create_drug_score_summary_plots(data, config)
     
@@ -2876,7 +2874,7 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
 
 
 @safe_plot_creation
-def create_age_specific_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, config: PlotConfig) -> None:
     """
     Create age-specific death rate plots for each region.
     
@@ -3005,7 +3003,7 @@ def create_age_specific_death_rate_by_region_plots(df: pd.DataFrame, config: Plo
 
 
 @safe_plot_creation
-def create_syndrome_distribution_by_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+def create_syndrome_distribution_by_bacteria_plots_working(df: pd.DataFrame, config: PlotConfig) -> None:
     """
     Create syndrome distribution plots by bacteria.
     
@@ -4805,7 +4803,7 @@ def create_age_specific_death_rate_by_region_plots(config: PlotConfig, data_cach
         return
     
     logger.info("Creating age-specific death rate by region plots...")
-    df = data_cache.get_data('main')
+    df = data_cache.get_preprocessed_data()
     
     if df is None or df.empty:
         logger.warning(f"No data available for {plot_type}")
@@ -5028,7 +5026,7 @@ def create_syndrome_distribution_by_bacteria_plots(config: PlotConfig, data_cach
         return
     
     logger.info("Creating syndrome distribution by bacteria plots...")
-    df = data_cache.get_data('main')
+    df = data_cache.get_preprocessed_data()
     
     if df is None or df.empty:
         logger.warning(f"No data available for {plot_type}")

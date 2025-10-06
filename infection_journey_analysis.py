@@ -30,12 +30,12 @@ warnings.filterwarnings('ignore')
 # Number of individual journey timeline plots to generate
 # Recommended range: 1-50 (higher numbers create more files)
 # Files will be named: journey_01_timeline.png, journey_02_timeline.png, etc.
-NUM_TIMELINE_PLOTS = 50
+NUM_TIMELINE_PLOTS = 200
 
 # Number of journeys to include in detailed text report
 # Recommended range: 1-20 (higher numbers create much larger text files)
 # Set to 0 to skip detailed report generation entirely
-NUM_DETAILED_JOURNEYS = 50
+NUM_DETAILED_JOURNEYS = 200
 
 # Enable verbose output during analysis
 # True: Shows detailed progress messages and analysis results
@@ -66,7 +66,7 @@ class InfectionJourneyAnalyzer:
     def process_data(self):
         """Process and clean the loaded data."""
         # Convert boolean columns
-        bool_cols = ['sepsis', 'hospital_acquired', 'infection_identified', 'resistance_testing_done']
+        bool_cols = ['sepsis', 'hospital_acquired', 'infection_identified', 'infection_has_caused_symptoms', 'resistance_testing_done']
         for col in bool_cols:
             self.df[col] = self.df[col].astype(bool)
             
@@ -367,15 +367,19 @@ class InfectionJourneyAnalyzer:
         first_time_step = journey_data['time_step'].iloc[0]
         calendar_year = int(first_time_step / 365) + 1930
         
-        # Find testing days
+        # Find testing days and symptom onset
         bacteria_id_day = None
         if journey_data['infection_identified'].any():
             bacteria_id_day = journey_data[journey_data['infection_identified']]['day_of_journey'].min()
-        
+
+        symptom_onset_day = None
+        if 'infection_has_caused_symptoms' in journey_data.columns and journey_data['infection_has_caused_symptoms'].any():
+            symptom_onset_day = journey_data[journey_data['infection_has_caused_symptoms']]['day_of_journey'].min()
+
         resistance_test_day = None
         if journey_data['resistance_testing_done'].any():
             resistance_test_day = journey_data[journey_data['resistance_testing_done']]['day_of_journey'].min()
-        
+
         sepsis_day = None
         if journey_data['sepsis'].any():
             sepsis_day = journey_data[journey_data['sepsis']]['day_of_journey'].min()
@@ -445,6 +449,7 @@ class InfectionJourneyAnalyzer:
             f"age: {journey_data['age_at_onset'].iloc[0]/365.25:.1f} years",
             f"syndrome: {syndrome_name}",
             f"sepsis: {'day ' + str(sepsis_day) if sepsis_day else 'none'}",
+            f"symptoms: {'day ' + str(symptom_onset_day) if symptom_onset_day else 'asymptomatic'}",
             f"bacteria identified: {'day ' + str(bacteria_id_day) if bacteria_id_day else 'no'}",
             f"resistance test: {'day ' + str(resistance_test_day) if resistance_test_day else 'no'}",
             f"⭐ de novo resistance: {'yes' if has_de_novo else 'no'}",
@@ -452,6 +457,10 @@ class InfectionJourneyAnalyzer:
             f"duration: {duration_text}",
             f"hospital acquired: {'yes' if journey_data['hospital_acquired'].iloc[0] else 'no'}"
         ]
+        
+        # Add other bacteria information early (prioritize visibility)
+        if other_bacteria_info:
+            clinical_info.extend(other_bacteria_info)
         
         # Add resistance source information for de novo cases
         if resistance_sources_info:
@@ -464,20 +473,16 @@ class InfectionJourneyAnalyzer:
         # Add drug failure information
         if drug_failure_info:
             clinical_info.extend(drug_failure_info)
-            
-        # Add other bacteria information
-        if other_bacteria_info:
-            clinical_info.extend(other_bacteria_info)
         
         # Display clinical information as text with reduced vertical spacing
         # Position title at same level as drug plot title, use larger fonts
         ax4.text(0.05, 1.02, "clinical summary", transform=ax4.transAxes, 
                 fontsize=18, fontweight='bold', va='top')  # Match drug plot title level
         
-        # Reduce line spacing and use Calibri font with smaller size for items
+        # Reduce line spacing further and use smaller font to fit more lines
         for i, info in enumerate(clinical_info):
-            ax4.text(0.05, 0.89 - i*0.05, info, transform=ax4.transAxes, 
-                    fontsize=12, va='top', family='Calibri')  # Reduced from 15 to 12, Calibri font
+            ax4.text(0.05, 0.95 - i*0.035, info, transform=ax4.transAxes, 
+                    fontsize=10, va='top', family='Calibri')  # Smaller spacing (0.035) and font (10) to fit more lines
         
         plt.tight_layout()
         
@@ -853,15 +858,20 @@ class InfectionJourneyAnalyzer:
                             f.write(f"{info_line}\n")
                     f.write("\n")
                 
-                # Add testing information
+                # Add testing and symptom information
+                symptom_onset_day = None
+                if 'infection_has_caused_symptoms' in journey_data.columns and journey_data['infection_has_caused_symptoms'].any():
+                    symptom_onset_day = journey_data[journey_data['infection_has_caused_symptoms']]['day_of_journey'].min()
+
                 bacteria_id_day = None
                 if journey_data['infection_identified'].any():
                     bacteria_id_day = journey_data[journey_data['infection_identified']]['day_of_journey'].min()
-                
+
                 resistance_test_day = None
                 if journey_data['resistance_testing_done'].any():
                     resistance_test_day = journey_data[journey_data['resistance_testing_done']]['day_of_journey'].min()
-                
+
+                f.write(f"Symptoms developed: {'Day ' + str(symptom_onset_day) if symptom_onset_day else 'Asymptomatic throughout'}\n")
                 f.write(f"Bacteria identified: {'Day ' + str(bacteria_id_day) if bacteria_id_day else 'Not identified'}\n")
                 f.write(f"Resistance testing: {'Day ' + str(resistance_test_day) if resistance_test_day else 'Not performed'}\n")
                 if journey['drug_selection_occurred']:
@@ -1146,8 +1156,7 @@ class InfectionJourneyAnalyzer:
                             continue
         
         if other_bacteria_found:
-            other_bacteria_info.append("")  # Add spacing
-            other_bacteria_info.append("Other bacteria present:")
+            other_bacteria_info.append("Other bacteria present:")  # Header for co-infections
             
             # Sort by first appearance day
             sorted_bacteria = sorted(other_bacteria_found.items(), key=lambda x: x[1])

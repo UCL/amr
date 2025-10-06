@@ -41,6 +41,12 @@ lazy_static! {
             map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0); // effect of age on immune response
             map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1); // effect of being immunodeficient on immune response 
             map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level (arbitrary scale)
+            
+            // --- Symptom Onset Parameters (Clinical Presentation) ---
+            map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.15); // Default: 15% chance per day of developing symptoms
+            map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.5); // Minimum bacteria level needed for symptom onset
+            map.insert(format!("{}_symptom_onset_delay_days", bacteria), 1.0); // Minimum days infected before symptoms can start
+            map.insert(format!("{}_symptom_onset_level_multiplier", bacteria), 1.0); // How much higher bacteria levels increase symptom probability
              
         // --- Evidence-Based Bacteria-Specific Immune Clearance Effectiveness ---
         // Based on natural history studies, pre-antibiotic era mortality data, and known biological mechanisms
@@ -806,7 +812,10 @@ lazy_static! {
         // H. pylori testing parameters - endoscopy/biopsy required for identification
         map.insert("helicobacter_pylori_test_probability_per_day".to_string(), 0.15); // Higher testing rate for chronic symptoms
         map.insert("helicobacter_pylori_test_sensitivity".to_string(), 0.95);        // High sensitivity with proper testing
-        map.insert("helicobacter_pylori_test_availability_year".to_string(), 1982.0); // Marshall & Warren discovery year
+        // Bacteria-specific test availability years for late-discovered organisms
+        map.insert("helicobacter_pylori_test_availability_year".to_string(), 1982.0); // Marshall & Warren discovery
+        map.insert("chlamydia_trachomatis_test_availability_year".to_string(), 1966.0); // Chlamydia cell culture methods
+        map.insert("campylobacter_jejuni_test_availability_year".to_string(), 1973.0); // Campylobacter isolation techniques
         
         // H. pylori-specific drug selection bonuses when bacteria is identified
         map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 15.0); // Strong preference for triple therapy
@@ -816,6 +825,37 @@ lazy_static! {
         // Reduce inappropriate antibiotics
         map.insert("drug_penicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
         map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not effective
+        
+        // --- BACTERIA-SPECIFIC SYMPTOM ONSET PARAMETERS ---
+        
+        // H. PYLORI - Usually asymptomatic chronic gastritis
+        map.insert("helicobacter pylori_daily_symptom_onset_probability".to_string(), 0.001); // 0.1% per day - very low symptomatic rate
+        map.insert("helicobacter pylori_symptom_onset_threshold_level".to_string(), 2.0);     // High threshold for symptoms
+        map.insert("helicobacter pylori_symptom_onset_delay_days".to_string(), 30.0);         // Long delay before symptoms possible
+        
+        // CHLAMYDIA TRACHOMATIS - Often asymptomatic
+        map.insert("chlamydia trachomatis_daily_symptom_onset_probability".to_string(), 0.01); // 1% per day - often asymptomatic
+        map.insert("chlamydia trachomatis_symptom_onset_threshold_level".to_string(), 1.5);    // Moderate threshold
+        
+        // NEISSERIA MENINGITIDIS - Often asymptomatic carriage  
+        map.insert("neisseria_meningitidis_daily_symptom_onset_probability".to_string(), 0.02); // 2% per day - usually carriage
+        map.insert("neisseria_meningitidis_symptom_onset_threshold_level".to_string(), 3.0);    // High threshold for invasive disease
+        
+        // MORAXELLA CATARRHALIS - Often just colonization
+        map.insert("moraxella_catarrhalis_daily_symptom_onset_probability".to_string(), 0.05);  // 5% per day - often colonizer
+        map.insert("moraxella_catarrhalis_symptom_onset_threshold_level".to_string(), 2.0);     // Moderate threshold
+        
+        // ACUTE INFECTIONS - High symptomatic rates
+        map.insert("streptococcus pneumoniae_daily_symptom_onset_probability".to_string(), 0.8); // 80% per day - usually symptomatic
+        map.insert("streptococcus pyogenes_daily_symptom_onset_probability".to_string(), 0.7);   // 70% per day - usually symptomatic
+        map.insert("staphylococcus aureus_daily_symptom_onset_probability".to_string(), 0.6);    // 60% per day - usually symptomatic
+        
+        // ENTERIC PATHOGENS - Moderate to high symptomatic rates
+        map.insert("salmonella enterica serovar typhi_daily_symptom_onset_probability".to_string(), 0.4);       // 40% per day
+        map.insert("salmonella enterica serovar paratyphi a_daily_symptom_onset_probability".to_string(), 0.4); // 40% per day
+        map.insert("shigella spp._daily_symptom_onset_probability".to_string(), 0.6);                           // 60% per day
+        map.insert("vibrio cholerae_daily_symptom_onset_probability".to_string(), 0.5);                         // 50% per day
+        map.insert("campylobacter_jejuni_daily_symptom_onset_probability".to_string(), 0.5);                    // 50% per day
         
         // YERSINIA ENTEROCOLITICA - Address intrinsic penicillin resistance
         // Reduce penicillins (intrinsic resistance)

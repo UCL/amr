@@ -72,6 +72,13 @@ def create_all_plots(config=None):
         config.mean_any_r_by_drug_for_each_bacteria,
         config.proportion_of_people_taking_each_drug,
         config.death_rate_by_region,
+        config.age_specific_death_rate_by_region,
+        config.syndrome_distribution_by_bacteria,
+        config.age_distribution_by_region,
+        config.death_rate_by_syndrome_region,
+        config.distribution_drug_use_by_bacteria,
+        config.proportion_of_people_infected_with_each_bacteria,
+        config.for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2,
         # Add more as needed
     ])
     

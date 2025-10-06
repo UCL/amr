@@ -40,15 +40,15 @@ class PlotConfig:
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
     source_of_new_resistance_by_drug_bacteria: bool = False
-    infection_resolution_by_bacteria: bool = False
+    infection_resolution_by_bacteria: bool = True
     drug_score_analysis_by_bacteria: bool = False
     drug_score_summary: bool = False  # Individual drug score time series plots
     clinical_guideline_analysis: bool = False  # Clinical appropriateness analysis
     age_distribution_by_region: bool = False
     death_rate_by_region: bool = False
-    age_specific_death_rate_by_region: bool = False
+    age_specific_death_rate_by_region: bool = True
     death_rate_by_syndrome_region: bool = False
-    syndrome_distribution_by_bacteria: bool = False
+    syndrome_distribution_by_bacteria: bool = True
     proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
 
     # Empirical data display options
@@ -61,7 +61,6 @@ class PlotConfig:
     sepsis_among_infected: bool = False  # Included in grouped figures
     death_causes: bool = False  # Included in grouped figures  
     resistance_among_infected: bool = False  # Included in grouped figures
-    infection_resolution_by_bacteria: bool = False
 
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))

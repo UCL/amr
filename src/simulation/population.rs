@@ -293,6 +293,10 @@ pub struct Individual {
     /// Initialized as false (unvaccinated) and updated dynamically based on age-appropriate schedules
     /// Only covers bacterial vaccines: pneumococcal, meningococcal, hib             
     pub cur_infection_from_environment: Vec<bool>, 
+    /// Per-bacteria symptom status: true if active infection has caused clinical symptoms
+    /// Once true, remains true until infection clears completely
+    /// Gates both testing and treatment initiation decisions
+    pub infection_has_caused_symptoms: Vec<bool>,
     pub test_identified_infection: Vec<bool>,      
     /// Tracks if resistance test has been performed for each bacteria
     pub test_for_resistance: Vec<bool>, // tracks if resistance test has been performed for each bacteria
@@ -375,6 +379,7 @@ impl Individual {
         let presence_microbiome = vec![false; num_bacteria];
         let infection_hospital_acquired = vec![false; num_bacteria];
         let cur_infection_from_environment = vec![false; num_bacteria];
+        let infection_has_caused_symptoms = vec![false; num_bacteria];
         let test_identified_infection = vec![false; num_bacteria];
         let test_for_resistance = vec![false; num_bacteria]; // NEW: initialize all to false
         let resistance_test_initiated_day = vec![-1; num_bacteria]; // NEW: initialize all to -1 (never initiated)
@@ -470,6 +475,7 @@ impl Individual {
             background_all_cause_mortality_rate,  
             infection_hospital_acquired,
             cur_infection_from_environment,
+            infection_has_caused_symptoms,
             test_identified_infection,
             test_for_resistance,
             resistance_test_initiated_day,

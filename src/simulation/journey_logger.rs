@@ -62,6 +62,7 @@ pub struct InfectionJourneySnapshot {
     
     // Testing status
     pub infection_identified: bool,
+    pub infection_has_caused_symptoms: bool,
     pub resistance_testing_done: bool,
     
     // Journey outcome (only on final snapshot)
@@ -169,7 +170,7 @@ impl JourneyLogger {
     }
     
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
+        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
     }
     
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -533,6 +534,7 @@ impl JourneyLogger {
             toxicity_level: individual.current_toxicity,
             background_mortality_risk: individual.background_all_cause_mortality_rate,
             infection_identified: individual.test_identified_infection[primary_bacteria_idx],
+            infection_has_caused_symptoms: individual.infection_has_caused_symptoms[primary_bacteria_idx],
             resistance_testing_done: individual.test_for_resistance[primary_bacteria_idx],
             resolution_type,
             has_de_novo_resistance,
@@ -608,7 +610,7 @@ impl JourneyLogger {
             .join(";");
         
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},\"{}\"",
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},{},\"{}\"",
             snapshot.journey_id,
             snapshot.individual_id,
             snapshot.time_step,
@@ -639,6 +641,7 @@ impl JourneyLogger {
             snapshot.toxicity_level,
             snapshot.background_mortality_risk,
             snapshot.infection_identified,
+            snapshot.infection_has_caused_symptoms,
             snapshot.resistance_testing_done,
             resolution_str,
             snapshot.has_de_novo_resistance,

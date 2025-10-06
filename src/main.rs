@@ -35,6 +35,10 @@ mod config;
 //
 // think carefully about standardized drug levels and mic - do I need to make drug levels realistic ? 
 //
+// consider realistic / plausible microbiome levels by bacteria
+//
+// grouped figure 4d y-axis - wrong or expressed as percent ?
+//
 // Consider:
 // more explicit sub-MIC concentration modelling ?
 // reduced bacterial growth rates for resistant strains
@@ -122,10 +126,10 @@ fn main() {
     
     // Create and run the simulation
     let population_size = 300; 
-    let time_steps = 38_325 ;  
+    let time_steps = 15_000 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true  ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.01; // Log 1% of infections for analysis (0.0-1.0)
+    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.1; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):
