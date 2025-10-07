@@ -27,11 +27,15 @@ mod config;
 //  
 // maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
 // 
+// check journies and that we are properly modelling effect of any drug
+// on all bacterial infections present - check on what is happening when
+// a person "would be infected" but is on drug against the bacteria already
+// - get graph of such "drug resisted infections"
+//
 //
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
-//
 //
 // think carefully about standardized drug levels and mic - do I need to make drug levels realistic ? 
 //
@@ -129,7 +133,7 @@ fn main() {
     let time_steps = 15_000 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = true ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.1; // Log 1% of infections for analysis (0.0-1.0)
+    let infection_journey_sample_rate = 0.005; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):

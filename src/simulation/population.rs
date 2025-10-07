@@ -286,7 +286,10 @@ pub struct Individual {
     // note we say sepsis but we mean sepsis or other life threatening condition directly caused by the infection             
     pub sepsis: Vec<bool>,                         
     /// Day when sepsis started for each bacteria (-1 if never had sepsis)
-    pub sepsis_onset_day: Vec<i32>,               
+    pub sepsis_onset_day: Vec<i32>,
+    /// Tracks if infection was prevented by existing therapy for each bacteria this timestep
+    /// Reset to false at start of each timestep, set to true if prevention occurs
+    pub infection_prevented_by_drug: Vec<bool>,               
     pub presence_microbiome: Vec<bool>,            
     pub vaccination_status: Vec<bool>,             
     /// Per-bacteria vaccination status: true if vaccinated against that pathogen
@@ -464,6 +467,7 @@ impl Individual {
             immune_resp,
             sepsis,
             sepsis_onset_day,
+            infection_prevented_by_drug: vec![false; num_bacteria],
             presence_microbiome,
             vaccination_status, 
             cur_use_drug: vec![false; num_drugs],

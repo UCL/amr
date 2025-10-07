@@ -57,8 +57,8 @@ def create_all_plots(config=None):
     if df is None:
         raise RuntimeError("Failed to preprocess simulation data.")
     
-    # Create grouped plots (Figures 1-9) - always generated
-    print("Creating grouped plots (Figures 1-9)...")
+    # Create grouped plots (Figures 1-10) - always generated
+    print("Creating grouped plots (Figures 1-10)...")
     create_grouped_plots(df, config)
     
     # Create detail plots (check if any individual plot types are enabled)

@@ -2281,6 +2281,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if effective_activity > 0.5 { // Threshold for effective prevention
                             if rng.gen_bool(prevention_efficacy) {
                                 infection_prevented = true;
+                                individual.infection_prevented_by_drug[b_idx] = true; // Track prevention event
                                 break; // One effective drug is enough
                             }
                         }

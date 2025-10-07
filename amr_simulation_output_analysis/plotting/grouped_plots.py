@@ -1296,4 +1296,116 @@ def create_grouped_plots(df, config=None):
         plt.close()
         print("[OK] Grouped figure 9 saved as 'grouped_figure_9.png'")
 
-    print("[OK] Grouped plots (1-9) creation completed")
+    # --- Grouped Figure 10: Infections Prevented by Drug Analysis ---
+    if config.create_grouped_figure_10:
+        fig10, axes10 = plt.subplots(2, 1, figsize=(FIG_W, FIG_H * 1.2))  # Taller figure for better legend space
+        fig10.suptitle('Figure 10: Infections Prevented by Drug Analysis', fontsize=16, fontweight='bold')
+        
+        prevention_cols = [col for col in df.columns if col.endswith('_infections_prevented_by_drug')]
+        if prevention_cols:
+            print("Processing infections prevented by drug data for Figure 10")
+            
+            # Extract bacteria names and calculate total preventions for sorting
+            bacteria_preventions = []
+            for col in prevention_cols:
+                bacteria_name = col.replace('_infections_prevented_by_drug', '')
+                total_preventions = df[col].sum()
+                bacteria_preventions.append((bacteria_name, total_preventions, col))
+            
+            # Sort by total preventions (descending) to show most important bacteria first
+            bacteria_preventions.sort(key=lambda x: x[1], reverse=True)
+            
+            # Generate colors for bacteria (same approach as other plots)
+            n_bacteria = len(bacteria_preventions)
+            colors = cm.tab20(np.linspace(0, 1, min(20, n_bacteria)))
+            if n_bacteria > 20:
+                extra_colors = cm.tab20b(np.linspace(0, 1, min(20, n_bacteria-20)))
+                colors = np.vstack([colors, extra_colors])
+            if n_bacteria > 40:
+                extra_colors2 = cm.tab20c(np.linspace(0, 1, n_bacteria-40))
+                colors = np.vstack([colors, extra_colors2])
+            
+            # Top panel: Individual bacteria lines (show top 15)
+            plotted_count = 0
+            max_lines = 15  # Limit for readability
+            
+            for i, (bacteria_name, total_preventions, col) in enumerate(bacteria_preventions):
+                if plotted_count >= max_lines:
+                    break
+                
+                if total_preventions > 0:  # Only plot bacteria that had some preventions
+                    # Apply smoothing to prevention data
+                    prevention_smooth = pd.Series(df[col]).rolling(
+                        window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+                        min_periods=1, center=True
+                    ).mean()
+                    
+                    # Clean bacteria name for legend
+                    clean_name = bacteria_name.replace('_', ' ').title()
+                    axes10[0].plot(df['time_in_years'], prevention_smooth, 
+                                  color=colors[i % len(colors)], linewidth=1.5, 
+                                  label=f"{clean_name} ({total_preventions})", alpha=0.8)
+                    plotted_count += 1
+            
+            axes10[0].set_title('Daily Infections Prevented by Drug Over Time\n(Top 15 bacteria by total preventions)')
+            axes10[0].set_xlabel('Time (Years)')
+            axes10[0].set_ylabel('Daily Preventions')
+            axes10[0].set_ylim(bottom=0)
+            axes10[0].grid(True, alpha=0.3)
+            
+            # Add legend with better positioning
+            if plotted_count > 0:
+                axes10[0].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=8)
+            
+            # Add summary statistics
+            total_all_preventions = sum([total for _, total, _ in bacteria_preventions])
+            recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
+            if len(recent_data) > 0:
+                recent_preventions = recent_data[prevention_cols].sum().sum()
+                recent_daily_avg = recent_preventions / len(recent_data)
+                
+                textstr = f'Total Preventions: {total_all_preventions:,}\nRecent Daily Avg: {recent_daily_avg:.1f}/day'
+                props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
+                axes10[0].text(0.02, 0.98, textstr, transform=axes10[0].transAxes, 
+                              fontsize=9, verticalalignment='top', bbox=props)
+            
+            # Bottom panel: Total preventions across all bacteria
+            total_preventions_per_day = df[prevention_cols].sum(axis=1)
+            total_preventions_smooth = pd.Series(total_preventions_per_day).rolling(
+                window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
+                min_periods=1, center=True
+            ).mean()
+            
+            axes10[1].plot(df['time_in_years'], total_preventions_smooth, 
+                          linewidth=2, color='darkgreen', label='Total All Bacteria')
+            axes10[1].fill_between(df['time_in_years'], total_preventions_smooth, 
+                                  alpha=0.3, color='lightgreen')
+            
+            axes10[1].set_title('Total Daily Infections Prevented by Drug Over Time\n(All bacteria combined)')
+            axes10[1].set_xlabel('Time (Years)')
+            axes10[1].set_ylabel('Total Daily Preventions')
+            axes10[1].set_ylim(bottom=0)
+            axes10[1].grid(True, alpha=0.3)
+            
+            # Add peak information
+            max_prevention_day = total_preventions_smooth.max()
+            max_prevention_time = df['time_in_years'][total_preventions_smooth.idxmax()]
+            
+            textstr2 = f'Peak: {max_prevention_day:.2f}/day at year {max_prevention_time:.1f}'
+            props2 = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+            axes10[1].text(0.02, 0.98, textstr2, transform=axes10[1].transAxes, 
+                          fontsize=9, verticalalignment='top', bbox=props2)
+            
+        else:
+            # Show message if no prevention data available
+            for i in range(2):
+                axes10[i].text(0.5, 0.5, 'Infection prevention data\nnot available', 
+                              ha='center', va='center', fontsize=12, color='gray')
+                axes10[i].set_axis_off()
+        
+        plt.tight_layout(rect=[0, 0, 0.85, 0.96])  # Leave space for legend
+        plt.savefig(config.output_dir / 'grouped_figure_10.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close()
+        print("[OK] Grouped figure 10 saved as 'grouped_figure_10.png'")
+
+    print("[OK] Grouped plots (1-10) creation completed")

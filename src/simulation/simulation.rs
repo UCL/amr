@@ -73,6 +73,7 @@ pub struct TimeStepSummary {
     pub number_with_sepsis: usize,         
     pub number_with_sepsis_by_bacteria: Vec<usize>, // per-bacteria counts of people with sepsis
     pub new_sepsis_cases_by_bacteria: Vec<usize>, // per-bacteria counts of people who developed sepsis this timestep
+    pub infections_prevented_by_drug_by_bacteria: Vec<usize>, // per-bacteria counts of infections prevented by existing therapy this timestep
     pub infections_by_bacteria: Vec<usize>, // indexed by bacteria
     pub deaths_by_bacteria: Vec<usize>, // indexed by bacteria
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>, // [bacteria][drug] counts
@@ -376,6 +377,7 @@ impl Simulation {
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
                 microbiome_r_positive_by_bacteria_drug: Vec<usize>,
                 infections_by_bacteria: Vec<usize>,
+                infections_prevented_by_drug_by_bacteria: Vec<usize>,
                 deaths_by_bacteria: Vec<usize>,
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
@@ -468,6 +470,7 @@ impl Simulation {
                         microbiome_r_positive_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         infected_and_on_any_drug_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria: vec![0; num_bacteria],
+                        infections_prevented_by_drug_by_bacteria: vec![0; num_bacteria],
                         deaths_by_bacteria: vec![0; num_bacteria],
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
@@ -540,6 +543,7 @@ impl Simulation {
                     for (a,b) in self.microbiome_r_positive_by_bacteria_drug.iter_mut().zip(other.microbiome_r_positive_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.infected_and_on_any_drug_by_bacteria.iter_mut().zip(other.infected_and_on_any_drug_by_bacteria) { *a += b; }
                     for (a,b) in self.infections_by_bacteria.iter_mut().zip(other.infections_by_bacteria) { *a += b; }
+                    for (a,b) in self.infections_prevented_by_drug_by_bacteria.iter_mut().zip(other.infections_prevented_by_drug_by_bacteria) { *a += b; }
                     for (a,b) in self.deaths_by_bacteria.iter_mut().zip(other.deaths_by_bacteria) { *a += b; }
                     for (a,b) in self.resistance_by_bacteria_drug.iter_mut().zip(other.resistance_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.currently_on_drug_by_drug.iter_mut().zip(other.currently_on_drug_by_drug) { *a += b; }
@@ -901,6 +905,15 @@ impl Simulation {
                                         infected_any_tmp = true;
                                         individual_has_any_infection = true;
                                         lt.infections_by_bacteria[b_idx] += 1;
+                                    }
+                                    
+                                    // Count infections prevented by existing therapy (even if not currently infected)
+                                    if individual.infection_prevented_by_drug[b_idx] {
+                                        lt.infections_prevented_by_drug_by_bacteria[b_idx] += 1;
+                                    }
+                                }
+                                for b_idx in 0..num_bacteria {
+                                    if individual.level[b_idx] > 0.001 {
                                         
                                         // Count syndrome for this infected individual (take first one if multiple infections)
                                         if !individual_has_any_infection_counted_for_syndrome {
@@ -1036,6 +1049,7 @@ impl Simulation {
                     currently_on_drug_by_bacteria_drug,
                     microbiome_r_positive_by_bacteria_drug,
                     infections_by_bacteria: infections_by_bacteria_vec,
+                    infections_prevented_by_drug_by_bacteria,
                     deaths_by_bacteria,
                     resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                     currently_on_drug_by_drug,
@@ -1171,6 +1185,7 @@ impl Simulation {
                 number_with_sepsis,
                 number_with_sepsis_by_bacteria,
                 new_sepsis_cases_by_bacteria,
+                infections_prevented_by_drug_by_bacteria,
                 newly_infected_count,
                 newly_infected_with_resistance_count,
                 new_drug_initiations_count,
@@ -1521,6 +1536,8 @@ impl Simulation {
                     for res_idx in 0..crate::simulation::population::InfectionResolutionType::all().len() {
                         individual.infection_resolution_this_timestep[b_idx][res_idx] = 0;
                     }
+                    // Reset infection prevention flags for next timestep
+                    individual.infection_prevented_by_drug[b_idx] = false;
                 }
             });
 
@@ -1717,6 +1734,12 @@ impl Simulation {
             header.push(',');
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_currently_infected");
+        }
+        // Add per-bacteria infections prevented by drug columns
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_infections_prevented_by_drug");
         }
         // Add per-bacteria deaths columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -2153,6 +2176,7 @@ impl Simulation {
             
             // Append all array data efficiently
             for value in &summary.infections_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.infections_prevented_by_drug_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.deaths_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.number_with_sepsis_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             for value in &summary.new_sepsis_cases_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
