@@ -40,7 +40,7 @@ class PlotConfig:
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
     source_of_new_resistance_by_drug_bacteria: bool = False
-    infection_resolution_by_bacteria: bool = False
+    infection_resolution_by_bacteria: bool = True
     drug_score_analysis_by_bacteria: bool = False
     drug_score_summary: bool = False  # Individual drug score time series plots
     clinical_guideline_analysis: bool = False  # Clinical appropriateness analysis
