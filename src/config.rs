@@ -296,6 +296,27 @@ lazy_static! {
         map.insert("mdr_tb_pre_antibiotic_mortality_multiplier".to_string(), 3.0); // Pre-antibiotic TB had much higher mortality
         map.insert("mdr_tb_ineffective_treatment_mortality_multiplier".to_string(), 2.5); // Ineffective treatment increases mortality
       
+        // --- Drug Level Interaction Parameters ---
+        // These are pairwise interactions that affect the effective level of each drug when co-administered
+        // Format: "drug_level_multiplier_{drug1}_when_coadministered_with_{drug2}" -> multiplier for drug1's level
+        // Important: These are NOT activity bonuses or generic effects - they model actual pharmacokinetic interactions
+        
+        // Rifampicin interactions (CYP450 induction reduces levels of co-administered drugs)
+        // Rifampicin is a potent CYP3A4 inducer - reduces levels of drugs metabolized by this pathway
+        map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_rifampicin".to_string(), 0.7); // 30% reduction in levofloxacin levels
+        map.insert("drug_level_multiplier_moxifloxacin_when_coadministered_with_rifampicin".to_string(), 0.8); // 20% reduction in moxifloxacin levels
+        map.insert("drug_level_multiplier_clarithromycin_when_coadministered_with_rifampicin".to_string(), 0.6); // 40% reduction in clarithromycin levels
+        map.insert("drug_level_multiplier_azithromycin_when_coadministered_with_rifampicin".to_string(), 0.8); // 20% reduction in azithromycin levels
+        
+        // Fluoroquinolone interactions with divalent cations (from combination drugs)
+        // Amoxicillin/clavulanate contains potassium clavulanate which can reduce fluoroquinolone absorption
+        map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_amoxicillin_clavulanate".to_string(), 0.85); // 15% reduction
+        map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_amoxicillin_clavulanate".to_string(), 0.9); // 10% reduction
+        
+        // Macrolide-fluoroquinolone interactions (QT prolongation leads to dose reduction)
+        // Clinical practice often reduces doses when combining these drug classes due to cardiac safety
+        map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
+        map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
         // Instead of uniform potency, use clinically relevant potency categories:
@@ -3237,4 +3258,50 @@ pub fn sample_age_and_region_from_distribution(rng: &mut impl rand::Rng) -> (cra
     // Fallback (should rarely be reached)
     (Region::Asia, 0)
 }
+
+/// Helper function to get drug interaction multiplier between two drugs
+/// Returns the multiplier for drug1's level when co-administered with drug2
+/// Returns 1.0 (no interaction) if no specific interaction is defined
+pub fn get_drug_interaction_multiplier(drug1: &str, drug2: &str) -> f64 {
+    let interaction_key = format!(
+        "drug_level_multiplier_{}_when_coadministered_with_{}", 
+        drug1, drug2
+    );
+    get_global_param(&interaction_key).unwrap_or(1.0)
+}
+
+/// Helper function to check if two drugs have a defined interaction
+pub fn drugs_have_interaction(drug1: &str, drug2: &str) -> bool {
+    let interaction_key = format!(
+        "drug_level_multiplier_{}_when_coadministered_with_{}", 
+        drug1, drug2
+    );
+    get_global_param(&interaction_key).is_some()
+}
+
+/// Helper function to list all active drug interactions for debugging/analysis
+pub fn get_all_active_interactions() -> Vec<(String, String, f64)> {
+    let mut interactions = Vec::new();
+    
+    // This would require iterating through PARAMETERS to find interaction keys
+    // For now, return the known interactions from our configuration
+    let known_interactions = vec![
+        ("levofloxacin", "rifampicin", 0.7),
+        ("moxifloxacin", "rifampicin", 0.8), 
+        ("clarithromycin", "rifampicin", 0.6),
+        ("azithromycin", "rifampicin", 0.8),
+        ("ciprofloxacin", "amoxicillin_clavulanate", 0.85),
+        ("levofloxacin", "amoxicillin_clavulanate", 0.9),
+        ("ciprofloxacin", "erythromycin", 0.85),
+        ("levofloxacin", "azithromycin", 0.9),
+    ];
+    
+    for (drug1, drug2, multiplier) in known_interactions {
+        interactions.push((drug1.to_string(), drug2.to_string(), multiplier));
+    }
+    
+    interactions
+}
+
+
 

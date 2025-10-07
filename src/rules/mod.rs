@@ -33,6 +33,64 @@ use std::collections::HashMap;
 fn update_drug_counter(individual: &mut Individual) {
     individual.current_number_of_drugs = individual.cur_use_drug.iter().filter(|&&on| on).count() as i32;
 }
+
+/// Apply pairwise drug level interactions based on pharmacokinetic effects
+/// Modifies individual.cur_level_drug in-place to account for drug-drug interactions
+fn apply_drug_level_interactions(individual: &mut Individual) {
+    // Create a copy of current levels to calculate interactions from baseline levels
+    let original_levels = individual.cur_level_drug.clone();
+    
+    // Identify which drugs have significant levels (>0.001, roughly 0.1% of standard dose)
+    let active_drugs: Vec<usize> = original_levels.iter()
+        .enumerate()
+        .filter(|(_, &level)| level > 0.001)
+        .map(|(idx, _)| idx)
+        .collect();
+    
+    // If fewer than 2 drugs active, no interactions possible
+    if active_drugs.len() < 2 {
+        return;
+    }
+    
+    // Apply each pairwise interaction
+    for &drug1_idx in &active_drugs {
+        let drug1_name = DRUG_SHORT_NAMES[drug1_idx];
+        
+        for &drug2_idx in &active_drugs {
+            if drug1_idx == drug2_idx {
+                continue; // Skip self-interactions
+            }
+            
+            let drug2_name = DRUG_SHORT_NAMES[drug2_idx];
+            
+            // Look up interaction parameter: "drug_level_multiplier_{drug1}_when_coadministered_with_{drug2}"
+            let interaction_key = format!(
+                "drug_level_multiplier_{}_when_coadministered_with_{}", 
+                drug1_name, 
+                drug2_name
+            );
+            
+            if let Some(multiplier) = get_global_param(&interaction_key) {
+                // Apply the interaction multiplier to drug1's level
+                // Only apply if it would actually change the level (avoid redundant 1.0 multipliers)
+                if (multiplier - 1.0).abs() > 0.001 {
+                    individual.cur_level_drug[drug1_idx] *= multiplier;
+                    
+                    // Ensure levels don't go negative or below detection threshold
+                    if individual.cur_level_drug[drug1_idx] < 0.001 {
+                        individual.cur_level_drug[drug1_idx] = 0.0;
+                    }
+                    
+                    // Cap levels at reasonable maximum (e.g., 5x standard dose to prevent unrealistic accumulation)
+                    let max_level = get_drug_param(drug1_name, "initial_level").unwrap_or(10.0) * 5.0;
+                    if individual.cur_level_drug[drug1_idx] > max_level {
+                        individual.cur_level_drug[drug1_idx] = max_level;
+                    }
+                }
+            }
+        }
+    }
+}
 use rand::distributions::WeightedIndex;
 use rand::distributions::Distribution; 
 
@@ -1155,6 +1213,10 @@ let drugs_initiated_this_time_step: usize = 0;
             individual.cur_level_drug[drug_idx] = if new_level < 0.001 { 0.0 } else { new_level };
         }
     }
+
+    // --- Apply Drug Level Interactions ---
+    // Calculate final drug levels considering pairwise pharmacokinetic interactions
+    apply_drug_level_interactions(individual);
 
     // --- drug initiation (two-stage process) ---
     // Stage 1: Decide whether to start any antibiotic

@@ -23,14 +23,8 @@ mod config;
 //
 // -- additional output graphs ---------------------------------------------------------------------------------
 //
-// on journey timelines include the source of any new resistance
-//  
 // maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
 // 
-// check journies and that we are properly modelling effect of any drug
-// on all bacterial infections present - check on what is happening when
-// a person "would be infected" but is on drug against the bacteria already
-// - get graph of such "drug resisted infections"
 //
 //
 //
@@ -43,39 +37,34 @@ mod config;
 //
 // grouped figure 4d y-axis - wrong or expressed as percent ?
 //
-// Consider:
-// more explicit sub-MIC concentration modelling ?
-// reduced bacterial growth rates for resistant strains
-// competition between sensitive and resistant strains in microbiome
-// mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
-// time-dependent costs: higher initially, decreasing with compensatory mutations
-// multi-drug cost interactions: costs compound with multiple resistance mechanisms
-//
-// Differentiate growth rates - fast vs. slow growing bacteria ?
-// Add early immune response - rapid initial immunity activation ?
-// Consider treatment phases - intensive vs. continuation therapy ?
-// Model dormancy - especially for chronic infections like TB ?
-// Biofilm resistance - reduced drug effectiveness in chronic infections ?
-//
-// use gbd super regions instead of continents ?
-// High-income  Latin America and Caribbean  Sub-Saharan Africa
-// North Africa and Middle East  South Asia  Southeast Asia, East Asia, and Oceania
-// Central Europe, Eastern Europe, and Central Asia
-//
 // need to better account for how death rate can be high in some infections despite treatment ?
 // (and I think this means despite treatment with a non resistant drug)
-//
-// need to add fidaxomicin as a drug ?
 //
 // make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
 //
 // think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
 // carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
 //
-// bear in mind that strep pneu for example has a vaccine against it but this has resulted in
-// growth of non-vaccine-covered serotypes
-//
 // when people on two drugs account for drug drug interactions in determining final drug level of each drug
+//
+//
+//
+//
+// consider (but probably only for future iterations):
+//
+// reduced bacterial growth rates for resistant strains ?
+// competition between sensitive and resistant strains in microbiome ?
+// mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
+// time-dependent costs: higher initially, decreasing with compensatory mutations
+// multi-drug cost interactions: costs compound with multiple resistance mechanisms
+// differentiate growth rates - fast vs. slow growing bacteria ?
+// consider treatment phases - intensive vs. continuation therapy ?
+// model dormancy - especially for chronic infections like mdr tb ?
+// biofilm resistance - reduced drug effectiveness in chronic infections ?
+// use gbd super regions instead of continents ?
+// need to add fidaxomicin as a drug ?
+// bear in mind that strep pneu for example has a vaccine against it but this has resulted in growth of non-vaccine-covered serotypes
+//
 //
 //
 //
@@ -129,10 +118,10 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 300; 
-    let time_steps = 15_000 ;  
+    let population_size = 100; 
+    let time_steps = 38_325 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let log_infection_journeys = false ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.005; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
