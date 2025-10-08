@@ -31,6 +31,13 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
+// ok that pseudomonas aeruginosa can continue for > 90 days with full immune response and no clearance ?
+// 
+// introduce a new mechanism of death which is "non sepsis but caused by infection"
+// (for h pylori and mdr tb for example, which currently don't increase death risk)
+//
+// bring back in mic suseptible based potency measures (as in 6941b7a) ?
+//
 // consider realistic / plausible microbiome levels by bacteria
 //
 // grouped figure 4d y-axis - wrong or expressed as percent ?
@@ -116,11 +123,11 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 50_000; 
+    let population_size = 100_000; 
     let time_steps = 38_325 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = true ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.0001; // Log 1% of infections for analysis (0.0-1.0)
+    let infection_journey_sample_rate = 0.00001; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):

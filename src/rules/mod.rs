@@ -997,8 +997,28 @@ pub fn apply_rules(
                                     + syndrome_log_odds
                                     + region_log_odds;
 
-                // Convert log odds to probability using logistic function
-                let prob_sepsis_today = 1.0 / (1.0 + (-log_odds_sepsis).exp());
+                // EXPLICIT H. PYLORI SEPSIS PREVENTION
+                // If H. pylori is the only infection, force sepsis risk to zero
+                let prob_sepsis_today = if bacteria == "helicobacter pylori" {
+                    // Check if this is the only active infection
+                    let other_infections_exist = individual.level.iter().enumerate()
+                        .any(|(idx, &level)| idx != b_idx && level > 0.001);
+                    
+                    if !other_infections_exist {
+                        // H. pylori as sole infection = ZERO sepsis risk
+                        // Also clear any existing sepsis status from H. pylori
+                        if individual.sepsis[b_idx] {
+                            individual.sepsis[b_idx] = false;
+                        }
+                        0.0  
+                    } else {
+                        // H. pylori + other bacteria = use calculated risk
+                        1.0 / (1.0 + (-log_odds_sepsis).exp())
+                    }
+                } else {
+                    // Non-H. pylori bacteria = use calculated risk
+                    1.0 / (1.0 + (-log_odds_sepsis).exp())
+                };
 
                 if rng.gen::<f64>() < prob_sepsis_today {
                     // Set sepsis status to true for this bacteria and record onset day
@@ -1104,6 +1124,18 @@ let drugs_initiated_this_time_step: usize = 0;
             // Find the most significant bacteria infection relevant to this drug
             for b_idx in 0..BACTERIA_LIST.len() {
                 if individual.level[b_idx] > 0.0001 {
+                    let bacteria_name = BACTERIA_LIST[b_idx];
+                    
+                    // Check if bacteria treatment was recognized in current year
+                    let current_year = 1930.0 + (time_step as f64 / 365.0);
+                    let treatment_recognition_param = format!("{}_treatment_recognition_year", bacteria_name.replace(" ", "_"));
+                    if let Some(recognition_year) = get_global_param(&treatment_recognition_param) {
+                        if current_year < recognition_year {
+                            // Skip this bacteria - treatment not yet recognized, don't continue drugs for it
+                            continue;
+                        }
+                    }
+                    
                     // Use potency_when_no_r to determine if drug is relevant for this bacteria
                     let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
                     let drug_potency = get_global_param(potency_param_key).unwrap_or(0.0);
@@ -1307,6 +1339,18 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 
                 for b_idx in 0..BACTERIA_LIST.len() {
                     if individual.level[b_idx] > 0.001 {
+                        let bacteria_name = BACTERIA_LIST[b_idx];
+                        
+                        // Check if bacteria treatment was recognized in current year
+                        let current_year = 1930.0 + (time_step as f64 / 365.0);
+                        let treatment_recognition_param = format!("{}_treatment_recognition_year", bacteria_name.replace(" ", "_"));
+                        if let Some(recognition_year) = get_global_param(&treatment_recognition_param) {
+                            if current_year < recognition_year {
+                                // Skip this bacteria - treatment not yet recognized
+                                continue;
+                            }
+                        }
+                        
                         let potency_param_key = &param_cache.drug_bacteria_potency_keys[&(drug_idx, b_idx)];
                         let potency = get_global_param(potency_param_key).unwrap_or(0.0);
                         max_potency_against_infections = max_potency_against_infections.max(potency);
@@ -1520,6 +1564,18 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let mut max_bacteria_specific_multiplier: f64 = 1.0;
                 for b_idx in 0..BACTERIA_LIST.len() {
                     if individual.level[b_idx] > 0.001 {
+                        let bacteria_name = BACTERIA_LIST[b_idx];
+                        
+                        // Check if bacteria treatment was recognized in current year
+                        let current_year = 1930.0 + (time_step as f64 / 365.0);
+                        let treatment_recognition_param = format!("{}_treatment_recognition_year", bacteria_name.replace(" ", "_"));
+                        if let Some(recognition_year) = get_global_param(&treatment_recognition_param) {
+                            if current_year < recognition_year {
+                                // Skip this bacteria - treatment not yet recognized
+                                continue;
+                            }
+                        }
+                        
                         let param_key = &param_cache.drug_bacteria_initiation_keys[&(drug_idx, b_idx)];
                         if let Some(specific_multiplier) = get_global_param(param_key) {
                             max_bacteria_specific_multiplier = max_bacteria_specific_multiplier.max(specific_multiplier);
