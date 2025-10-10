@@ -122,7 +122,7 @@ def create_infection_duration_plot(df: pd.DataFrame, config: PlotConfig) -> None
         
     ax2.set_xlabel('Time (Years)')
     ax2.set_ylabel('Proportion of Currently Infected')
-    ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+    ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
     ax2.set_ylim(bottom=0)
     ax2.grid(True, alpha=0.3)
 
@@ -267,7 +267,7 @@ def create_resistance_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     ax.plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(
         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
         color='purple', linewidth=2)
-    ax.set_title('Proportion with Resistance Among Currently Infected')
+    ax.set_title('Proportion with Resistance Among Currently Infected (excl. H. pylori)')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')
     ax.set_ylim(bottom=0)
@@ -4157,7 +4157,7 @@ def create_infection_duration_plot(
              label='Infected >30 Days', linewidth=2, color='brown')
     ax2.set_xlabel('Time (Years)')
     ax2.set_ylabel('Proportion of Currently Infected')
-    ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+    ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
     ax2.set_ylim(bottom=0)
     ax2.legend()
     ax2.grid(True, alpha=0.3)
@@ -4329,7 +4329,7 @@ def create_resistance_plot(
                 window=config.smoothing_window, min_periods=1, center=True
             ).mean(), 
             color='purple', linewidth=2)
-    ax.set_title('Proportion with Resistance Among Currently Infected')
+    ax.set_title('Proportion with Resistance Among Currently Infected (excl. H. pylori)')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')
     ax.set_ylim(bottom=0)

@@ -63,10 +63,10 @@ pub struct TimeStepSummary {
     pub deaths_sepsis_past_year: usize,     // Rolling 1-year (365 days) death counts
     pub deaths_drug_toxicity_past_year: usize,     // Rolling 1-year (365 days) death counts
     pub total_with_resistance: usize,
-    pub total_currently_infected: usize, // Number of living people currently infected with any bacteria
+    pub total_currently_infected: usize, // Number of living people currently infected with bacteria (excl. H. pylori)
     pub currently_taking_drug_count: usize, 
-    pub infected_10_days_count: usize,     
-    pub infected_30_days_count: usize,     
+    pub infected_10_days_count: usize,     // People infected >10 days with bacteria (excl. H. pylori)
+    pub infected_30_days_count: usize,     // People infected >30 days with bacteria (excl. H. pylori)     
     pub taking_two_drugs_count: usize,     
     pub number_in_hospital: usize,         
     pub number_severely_immunosuppressed: usize, 
@@ -82,11 +82,11 @@ pub struct TimeStepSummary {
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
     pub new_drug_initiations_count: usize, // Number of people who started any new drug this time step
-    pub new_drug_initiations_count_infected: usize, // Number of currently infected people who started any new drug this time step
+    pub new_drug_initiations_count_infected: usize, // Number of currently infected (excl. H. pylori) people who started any new drug this time step
     pub newly_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = new active infections this timestep by bacteria and home region
     pub deaths_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = deaths this timestep of people currently infected with bacteria by home region
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
-    pub currently_infected_and_on_drug_count: usize, // intersection of currently infected AND on any drug
+    pub currently_infected_and_on_drug_count: usize, // intersection of currently infected (excl. H. pylori) AND on any drug
     pub num_age_0_5: usize,
     pub num_age_6_14: usize,
     pub num_age_15_49: usize,
@@ -201,7 +201,7 @@ pub struct TimeStepSummary {
     pub people_on_3plus_drugs: usize,                    // number of people taking 3 or more drugs
     
     // treatment failure tracking: people currently on drug + infected + previously failed treatment
-    pub infected_on_drug_with_previous_failure: usize,   // numerator: people currently infected, on drug, with previous treatment failure
+    pub infected_on_drug_with_previous_failure: usize,   // numerator: people currently infected (excl. H. pylori), on drug, with previous treatment failure
     
     // drug score tracking: aggregate statistics for clinical guideline debugging
     pub drug_selection_count_by_bacteria: Vec<usize>,    // [bacteria_idx] = number of drug selections for this bacteria this timestep
@@ -854,9 +854,10 @@ impl Simulation {
                             if started_drug_today {
                                 lt.new_drug_initiations_count += 1;
                                 
-                                // Check if this person is currently infected (any level > 0)
-                                let is_currently_infected = individual.level.iter().any(|&level| level > 0.0);
-                                if is_currently_infected {
+                                // Check if this person is currently infected with non-H. pylori pathogens (exclude H. pylori at index 32)
+                                let is_currently_infected_non_h_pylori = individual.level.iter().enumerate()
+                                    .any(|(b_idx, &level)| b_idx != 32 && level > 0.0);
+                                if is_currently_infected_non_h_pylori {
                                     lt.new_drug_initiations_count_infected += 1;
                                 }
                             }
@@ -897,6 +898,7 @@ impl Simulation {
                             let mut was_newly_infected = false;
                             let mut was_newly_infected_with_resistance = false;
                             let mut individual_has_any_infection_counted_for_syndrome = false;
+                            let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
                             let is_currently_infected_any;
                             {
                                 let mut infected_any_tmp = false;
@@ -904,6 +906,10 @@ impl Simulation {
                                     if individual.level[b_idx] > 0.001 {
                                         infected_any_tmp = true;
                                         individual_has_any_infection = true;
+                                        // Track non-H. pylori infections separately (exclude H. pylori at index 32)
+                                        if b_idx != 32 { // 32 = helicobacter pylori index
+                                            individual_has_any_non_h_pylori_infection = true;
+                                        }
                                         lt.infections_by_bacteria[b_idx] += 1;
                                     }
                                     
@@ -934,7 +940,8 @@ impl Simulation {
                                         // sum activity_r for this bacteria, ONLY for individuals on drug
                                         let mut activity_r_sum = 0.0;
                                         let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
-                                        if days_since_infection > individual_max_infection_duration { individual_max_infection_duration = days_since_infection; }
+                                        // Only count infection duration for non-H. pylori pathogens (exclude H. pylori at index 32)
+                                        if b_idx != 32 && days_since_infection > individual_max_infection_duration { individual_max_infection_duration = days_since_infection; }
                                         if individual.date_last_infected[b_idx] == t as i32 { 
                                             was_newly_infected = true; 
                                             // Count new active infections by bacteria and home region
@@ -978,8 +985,9 @@ impl Simulation {
                                 }
                                 is_currently_infected_any = infected_any_tmp;
                             }
-                            if is_currently_infected_any && on_any_drug { lt.currently_infected_and_on_drug_count += 1; }
-                            if individual_has_any_infection { lt.total_currently_infected += 1; }
+                            // Exclude H. pylori from cross-bacteria infection statistics for clinical metrics
+                            if individual_has_any_non_h_pylori_infection && on_any_drug { lt.currently_infected_and_on_drug_count += 1; }
+                            if individual_has_any_non_h_pylori_infection { lt.total_currently_infected += 1; }
                             if individual_has_any_r_positive { lt.total_with_resistance += 1; }
                             if individual_max_infection_duration > 10 { lt.infected_10_days_count += 1; }
                             if individual_max_infection_duration > 30 { lt.infected_30_days_count += 1; }
@@ -1420,9 +1428,10 @@ impl Simulation {
             for individual in &self.population.individuals {
                 if individual.date_of_death.is_some() { continue; } // Skip dead individuals
                 
-                // Check if person is currently infected
-                let currently_infected = individual.level.iter().any(|&level| level > 0.0);
-                if !currently_infected { continue; }
+                // Check if person is currently infected with non-H. pylori pathogens (exclude H. pylori at index 32)
+                let currently_infected_non_h_pylori = individual.level.iter().enumerate()
+                    .any(|(b_idx, &level)| b_idx != 32 && level > 0.0);
+                if !currently_infected_non_h_pylori { continue; }
                 
                 // Check if person is currently on any drug
                 let on_any_drug = individual.cur_use_drug.iter().any(|&is_on| is_on);

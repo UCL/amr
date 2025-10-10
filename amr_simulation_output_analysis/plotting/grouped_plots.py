@@ -186,12 +186,12 @@ def create_grouped_plots(df, config=None):
             axes2[1].plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='darkgreen', linewidth=2)
             axes2[1].set_xlabel('Time (Years)')
             axes2[1].set_ylabel('Proportion of Population')
-            axes2[1].set_title('Proportion of Population Currently Infected')
+            axes2[1].set_title('Proportion of Population Currently Infected (excl. H. pylori)')
             axes2[1].set_ylim(bottom=0)
             axes2[1].grid(True, alpha=0.3)
         else:
             axes2[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes2[1].set_title('Proportion of Population Currently Infected')
+            axes2[1].set_title('Proportion of Population Currently Infected (excl. H. pylori)')
             axes2[1].set_axis_off()
             
         # 3. Sepsis Proportion (if available)
@@ -253,13 +253,13 @@ def create_grouped_plots(df, config=None):
             axes3[0].plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >30 Days', linewidth=2, color='brown')
             axes3[0].set_xlabel('Time (Years)')
             axes3[0].set_ylabel('Proportion of Currently Infected')
-            axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+            axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
             axes3[0].set_ylim(bottom=0)
             axes3[0].legend()
             axes3[0].grid(True, alpha=0.3)
         else:
             axes3[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected)')
+            axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
             axes3[0].set_axis_off()
             
         # 2. Proportion of currently infected who are on drug
@@ -267,13 +267,13 @@ def create_grouped_plots(df, config=None):
             axes3[1].plot(df['time_in_years'], pd.Series(df['infected_and_on_drug_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected & On Drug', linewidth=2, color='blue')
             axes3[1].set_xlabel('Time (Years)')
             axes3[1].set_ylabel('Proportion of Currently Infected')
-            axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
+            axes3[1].set_title('Proportion of Currently Infected Who Are On Drug (excl. H. pylori)')
             axes3[1].set_ylim(0, 1)
             axes3[1].legend()
             axes3[1].grid(True, alpha=0.3)
         else:
             axes3[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes3[1].set_title('Proportion of Currently Infected Who Are On Drug')
+            axes3[1].set_title('Proportion of Currently Infected Who Are On Drug (excl. H. pylori)')
             axes3[1].set_axis_off()
             
         # 3. Proportion of living people in each age group
@@ -355,7 +355,8 @@ def create_grouped_plots(df, config=None):
             axes4[0].set_axis_off()
         
         # 2. Proportion of infected with test_identified_infection = true
-        test_identified_cols = [col for col in df.columns if col.endswith('_infected_with_test_identified')]
+        test_identified_cols = [col for col in df.columns if col.endswith('_infected_with_test_identified') 
+                               and not col.startswith('helicobacter_pylori_')]  # Exclude H. pylori to match denominator
         if test_identified_cols and 'total_currently_infected' in df.columns:
             total_test_identified = sum(df[col] for col in test_identified_cols)
             test_identified_prop = safe_divide(total_test_identified, df['total_currently_infected'], 0)
@@ -363,7 +364,7 @@ def create_grouped_plots(df, config=None):
             
             axes4[1].plot(df['time_in_years'], test_identified_smooth, 
                         color='blue', linewidth=2, label='Test Identified (Smoothed)')
-            axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria')
+            axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria (excl. H. pylori)')
             axes4[1].set_ylabel('Proportion')
             axes4[1].set_ylim(0, 1)
             axes4[1].grid(True, alpha=0.3)
@@ -379,11 +380,12 @@ def create_grouped_plots(df, config=None):
         else:
             axes4[1].text(0.5, 0.5, 'Data not available\n(test_identified columns)', 
                         ha='center', va='center', fontsize=12, color='gray')
-            axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria')
+            axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria (excl. H. pylori)')
             axes4[1].set_axis_off()
         
         # 3. Proportion of infected with test_for_resistance = true
-        test_resistance_cols = [col for col in df.columns if col.endswith('_infected_with_test_for_resistance')]
+        test_resistance_cols = [col for col in df.columns if col.endswith('_infected_with_test_for_resistance')
+                               and not col.startswith('helicobacter_pylori_')]  # Exclude H. pylori to match denominator
         if test_resistance_cols and 'total_currently_infected' in df.columns:
             total_test_resistance = sum(df[col] for col in test_resistance_cols)
             test_resistance_prop = safe_divide(total_test_resistance, df['total_currently_infected'], 0)
@@ -391,7 +393,7 @@ def create_grouped_plots(df, config=None):
             
             axes4[2].plot(df['time_in_years'], test_resistance_smooth, 
                         color='green', linewidth=2, label='Test for Resistance (Smoothed)')
-            axes4[2].set_title('Proportion of Infected with Test for Resistance')
+            axes4[2].set_title('Proportion of Infected with Test for Resistance (excl. H. pylori)')
             axes4[2].set_xlabel('Time (Years)')
             axes4[2].set_ylabel('Proportion')
             axes4[2].set_ylim(0, 1)
@@ -408,7 +410,7 @@ def create_grouped_plots(df, config=None):
         else:
             axes4[2].text(0.5, 0.5, 'Data not available\n(test_for_resistance columns)', 
                         ha='center', va='center', fontsize=12, color='gray')
-            axes4[2].set_title('Proportion of Infected with Test for Resistance')
+            axes4[2].set_title('Proportion of Infected with Test for Resistance (excl. H. pylori)')
             axes4[2].set_axis_off()
         
         # 4. Mean Any-R by Region (pooled across all bacteria and drugs)
@@ -551,11 +553,11 @@ def create_grouped_plots(df, config=None):
                 ).mean()
                 
                 axes5[2].plot(df['time_in_years'], infected_smooth, 
-                            label='Currently Infected', color='red', linewidth=2)
+                            label='Currently Infected (excl. H. pylori)', color='red', linewidth=2)
                 axes5[2].plot(df['time_in_years'], on_drug_smooth, 
                             label='Currently On Drug', color='blue', linewidth=2)
                 
-                axes5[2].set_title('Total Currently Infected vs Total On Drug')
+                axes5[2].set_title('Total Currently Infected vs Total On Drug (excl. H. pylori)')
                 axes5[2].set_xlabel('Time (Years)')
                 axes5[2].set_ylabel('Number of People')
                 axes5[2].set_ylim(bottom=0)
@@ -578,7 +580,7 @@ def create_grouped_plots(df, config=None):
             else:
                 axes5[2].text(0.5, 0.5, 'Data not available\n(total_currently_infected or currently_taking_drug_count)', 
                             ha='center', va='center', fontsize=12, color='gray')
-                axes5[2].set_title('Total Currently Infected vs Total On Drug')
+                axes5[2].set_title('Total Currently Infected vs Total On Drug (excl. H. pylori)')
                 axes5[2].set_axis_off()
             
             # 4. Resolution rate as proportion of total infections (bottom-right)
@@ -593,7 +595,7 @@ def create_grouped_plots(df, config=None):
                 
                 axes5[3].plot(df['time_in_years'], resolution_rate, 
                             color='black', linewidth=2, label='Daily Resolution Rate')
-                axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected)')
+                axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected, excl. H. pylori)')
                 axes5[3].set_xlabel('Time (Years)')
                 axes5[3].set_ylabel('Daily Resolutions / Current Infections (%)')
                 axes5[3].set_ylim(bottom=0)

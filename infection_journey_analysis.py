@@ -402,25 +402,26 @@ class InfectionJourneyAnalyzer:
         # Get other bacteria present during journey
         other_bacteria_info = self._get_other_bacteria_info(original_data)
         
+        # Use original_data (full journey) to determine ultimate outcome, not just first 90 days
         death_day = None
-        death_cause = journey_data['resolution_type'].iloc[-1]
+        ultimate_death_cause = original_data['resolution_type'].iloc[-1]  # Ultimate outcome from full journey
         is_death = False
         
-        # Check for death resolution types
-        if pd.notna(death_cause) and ('Death' in str(death_cause)):
+        # Check for death resolution types in ultimate outcome
+        if pd.notna(ultimate_death_cause) and ('Death' in str(ultimate_death_cause)):
             is_death = True
-            death_day = journey_data['day_of_journey'].max()
+            death_day = original_data['day_of_journey'].max()  # Actual day of death from full journey
         
-        # Check if journey is ongoing (NaN resolution)
-        is_ongoing = pd.isna(death_cause) or death_cause == ''
+        # Check if journey is ongoing (NaN resolution) in ultimate outcome
+        is_ongoing = pd.isna(ultimate_death_cause) or ultimate_death_cause == ''
         
         # Format clinical information
         if is_ongoing:
-            outcome_text = f"ongoing ({journey_data['day_of_journey'].max()} days)"
+            outcome_text = f"ongoing ({original_data['day_of_journey'].max()} days)"  # Show actual journey length
         elif is_death:
-            outcome_text = f"died day {death_day} ({death_cause})"
+            outcome_text = f"died day {death_day} ({ultimate_death_cause})"
         else:
-            outcome_text = f"recovered ({death_cause})"
+            outcome_text = f"recovered ({ultimate_death_cause})"
         
         # Get syndrome name
         syndrome_num = journey_data['syndrome'].iloc[0]
