@@ -24,8 +24,6 @@ mod config;
 // -- additional output graphs ---------------------------------------------------------------------------------
 //
 // maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
-// 
-// adapt plots to by default not include h pylori
 //
 // proportion currently infected with h pylori / mdr tb
 //
@@ -36,10 +34,13 @@ mod config;
 //
 // ok that pseudomonas aeruginosa can continue for > 90 days with full immune response and no clearance ?
 // 
+// consider whether infection from the environment should also depend on concurrent majority_r 
+//
 // introduce a new mechanism of death which is "non sepsis but caused by infection"
 // (for h pylori and mdr tb for example, which currently don't increase death risk)
 //
-// bring back in mic suseptible based potency measures (as in 6941b7a) ?
+// bring back in mic suseptible based potency measures which are commented out in config.rs - this will 
+// require re-scaling of activity_r scales
 //
 // consider realistic / plausible microbiome levels by bacteria
 //
@@ -72,7 +73,9 @@ mod config;
 // need to add fidaxomicin as a drug ?
 // bear in mind that strep pneu for example has a vaccine against it but this has resulted in growth of non-vaccine-covered serotypes
 // we may still decide we need to model drug-specific drug levels but not clear how we would get data
-//
+// consider whether infection from the environment should also depend on concurrent majority_r - or do we need
+// to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ? 
+// (maybe someone can do this in a future interation.....)
 //
 //
 //
@@ -126,11 +129,11 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 5_000; 
+    let population_size =  50_000 ; 
     let time_steps = 38_325 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.01; // Log 1% of infections for analysis (0.0-1.0)
+    let log_infection_journeys = true  ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.000003; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):

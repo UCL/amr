@@ -33,7 +33,7 @@ class PlotConfig:
     proportion_of_people_infected_with_each_bacteria: bool = False
     proportion_share_among_drug_users: bool = False
     distribution_drug_use_by_bacteria: bool = False
-    death_rate_by_bacteria: bool = True
+    death_rate_by_bacteria: bool = False
     mean_activity_r_by_bacteria: bool = False
     resistance_mechanism_by_bacteria: bool = False
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
