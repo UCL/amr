@@ -146,7 +146,7 @@ class InfectionJourneyAnalyzer:
             
         return pd.DataFrame(summary_stats)
     
-    def view_individual_journey(self, journey_id=None, individual_id=None, sequential_number=None, highlight_de_novo=False):
+    def view_individual_journey(self, journey_id=None, individual_id=None, sequential_number=None, highlight_de_novo=False, highlight_sepsis_death=False):
         """View detailed timeline for a specific journey."""
         if journey_id is not None:
             journey_data = self.df[self.df['journey_id'] == journey_id].copy()
@@ -204,8 +204,12 @@ class InfectionJourneyAnalyzer:
         # Create timeline visualization
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
         
-        # Highlight de novo resistance cases in title
-        title_prefix = "⭐ DE NOVO RESISTANCE ⭐ " if highlight_de_novo else ""
+        # Highlight special cases in title
+        title_prefix = ""
+        if highlight_de_novo:
+            title_prefix = "⭐ DE NOVO RESISTANCE ⭐ "
+        elif highlight_sepsis_death:
+            title_prefix = "💀 DEATH FROM SEPSIS 💀 "
         fig.suptitle(f'{title_prefix}journey timeline - id: {journey_id}', fontsize=21, fontweight='bold')  # 14 * 1.5 = 21
         
         days = journey_data['day_of_journey']
@@ -1276,7 +1280,7 @@ def main(verbose=False, num_timeline_plots=NUM_TIMELINE_PLOTS):
     
     # First, identify journeys with de novo resistance emergence
     de_novo_journeys = []
-    max_de_novo = 5  # Limit de novo journeys to avoid overwhelming the plots
+    max_de_novo = 20  # Limit de novo journeys to avoid overwhelming the plots
     if 'has_de_novo_resistance' in analyzer.df.columns:
         de_novo_mask = analyzer.df['has_de_novo_resistance'] == True
         all_de_novo = analyzer.df[de_novo_mask]['journey_id'].unique().tolist()
@@ -1286,6 +1290,34 @@ def main(verbose=False, num_timeline_plots=NUM_TIMELINE_PLOTS):
     if verbose and len(de_novo_journeys) > 0:
         print(f"\nFound {len(all_de_novo) if 'all_de_novo' in locals() else len(de_novo_journeys)} journeys with de novo resistance emergence!")
         print(f"Including {len(de_novo_journeys)} de novo resistance journeys (max {max_de_novo})")
+    
+    # Second, identify journeys with sepsis deaths (post-1937 only for drug failure analysis)
+    sepsis_death_journeys = []
+    max_sepsis_deaths = 20  # Limit sepsis death journeys to match de novo resistance
+    treatment_start_time = 2555  # Treatment starts in 1937 (day 2555)
+    
+    # Find journeys that had sepsis and resulted in death, but only after 1937
+    sepsis_journeys = analyzer.df[analyzer.df['sepsis'] == True]['journey_id'].unique()
+    death_journeys = []
+    
+    for journey_id in sepsis_journeys:
+        journey_data = analyzer.df[analyzer.df['journey_id'] == journey_id]
+        # Check if journey started after 1937 (interested in drug failure scenarios)
+        journey_start_time = journey_data['time_step'].min()
+        # Exclude H. pylori cases as they are less interpretable for drug failure analysis
+        primary_bacteria = journey_data['primary_bacteria'].iloc[0] if len(journey_data) > 0 else ""
+        if (journey_start_time >= treatment_start_time and 
+            primary_bacteria != "helicobacter pylori"):
+            ultimate_resolution = journey_data['resolution_type'].iloc[-1] if len(journey_data) > 0 else None
+            if pd.notna(ultimate_resolution) and 'Death' in str(ultimate_resolution):
+                death_journeys.append(journey_id)
+    
+    # Limit to max_sepsis_deaths from the start
+    sepsis_death_journeys = death_journeys[:max_sepsis_deaths] if len(death_journeys) > max_sepsis_deaths else death_journeys
+    
+    if verbose and len(sepsis_death_journeys) > 0:
+        print(f"\nFound {len(death_journeys)} journeys with sepsis deaths (post-1937, excl. H. pylori)!")
+        print(f"Including {len(sepsis_death_journeys)} sepsis death journeys (max {max_sepsis_deaths})")
     
     # Stratified sampling across time periods to reduce early-simulation bias
     # Define time periods: early (before treatment), treatment era, late
@@ -1298,7 +1330,8 @@ def main(verbose=False, num_timeline_plots=NUM_TIMELINE_PLOTS):
     journey_times.loc[journey_times['time_step'] >= treatment_start_time + 2000, 'period'] = 'late'
     
     # Calculate sampling targets per period (bias toward treatment period)
-    total_random_slots = max(0, num_timeline_plots - len(de_novo_journeys))
+    total_prioritized = len(de_novo_journeys) + len(sepsis_death_journeys)
+    total_random_slots = max(0, num_timeline_plots - total_prioritized)
     early_target = max(1, int(total_random_slots * 0.2))  # 20% from early period
     treatment_target = max(1, int(total_random_slots * 0.6))  # 60% from treatment period
     late_target = total_random_slots - early_target - treatment_target  # Remainder from late period
@@ -1311,12 +1344,14 @@ def main(verbose=False, num_timeline_plots=NUM_TIMELINE_PLOTS):
         print(f"Late period: {period_counts.get('late', 0)} journeys")
         print(f"\nSampling strategy:")
         print(f"De novo resistance journeys: {len(de_novo_journeys)} (always included)")
+        print(f"Sepsis death journeys: {len(sepsis_death_journeys)} (always included)")
         print(f"Random from early period: {early_target}")
         print(f"Random from treatment period: {treatment_target}")
         print(f"Random from late period: {late_target}")
     
     # Sample from each period, redistributing unfilled targets
     selected_journeys = de_novo_journeys.copy()  # Always include de novo resistance cases
+    selected_journeys.extend(sepsis_death_journeys)  # Always include sepsis death cases
     
     period_targets = [('early', early_target), ('treatment', treatment_target), ('late', late_target)]
     
@@ -1353,10 +1388,13 @@ def main(verbose=False, num_timeline_plots=NUM_TIMELINE_PLOTS):
         print(f"Generating individual journey timeline plots...")
         if len(de_novo_journeys) > 0:
             print(f"⭐ {len([j for j in journeys_to_plot if j in de_novo_journeys])} de novo resistance journeys included (max {max_de_novo})")
+        if len(sepsis_death_journeys) > 0:
+            print(f"💀 {len([j for j in journeys_to_plot if j in sepsis_death_journeys])} sepsis death journeys included (max {max_sepsis_deaths})")
     
     for i, journey_id in enumerate(journeys_to_plot, 1):
         is_de_novo = journey_id in de_novo_journeys
-        analyzer.view_individual_journey(journey_id=journey_id, sequential_number=i, highlight_de_novo=is_de_novo)
+        is_sepsis_death = journey_id in sepsis_death_journeys
+        analyzer.view_individual_journey(journey_id=journey_id, sequential_number=i, highlight_de_novo=is_de_novo, highlight_sepsis_death=is_sepsis_death)
     
     if verbose:
         print(f"\nAvailable journey IDs (showing first 20): {list(analyzer.df['journey_id'].unique()[:20])}")

@@ -624,11 +624,13 @@ def create_grouped_plots(df, config=None):
         axes6 = axes6.flatten()
         fig6.suptitle('Grouped Figure 6: Overall Activity R Analysis', fontsize=16)
         
-        # Find all bacteria by looking for *_activity_r_sum columns
+        # Find all bacteria by looking for *_activity_r_sum columns (exclude H. pylori for consistency)
         bacteria_names = []
         for col in df.columns:
             if col.endswith("_activity_r_sum"):
-                bacteria_names.append(col.replace("_activity_r_sum", ""))
+                bacteria_name = col.replace("_activity_r_sum", "")
+                if bacteria_name != "helicobacter_pylori":  # Exclude H. pylori for clinical consistency
+                    bacteria_names.append(bacteria_name)
         
         if bacteria_names:
             # Calculate total activity_r_sum across all bacteria
@@ -644,7 +646,13 @@ def create_grouped_plots(df, config=None):
                     total_infected_and_on_drug += df[infected_and_on_drug_col].fillna(0)
             
             # 1. Overall Activity R Ratio (top-left)
+            # Use more conservative approach: only calculate ratio when denominator > 0
+            # and cap extreme values to prevent display issues
             overall_ratio = safe_divide(total_activity_r_sum, total_infected_and_on_drug, default=np.nan)
+            # Cap extreme ratios to improve plot readability and consistency
+            overall_ratio = np.where(overall_ratio > 5.0, np.nan, overall_ratio)
+            # Also exclude periods with very low denominators that create unstable ratios
+            overall_ratio = np.where(total_infected_and_on_drug < 1, np.nan, overall_ratio)
             overall_ratio = pd.Series(overall_ratio, index=df.index)  # Convert back to pandas Series
             overall_ratio_smooth = overall_ratio.rolling(
                 window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
@@ -652,7 +660,7 @@ def create_grouped_plots(df, config=None):
             
             axes6[0].plot(df['time_in_years'], overall_ratio_smooth, 
                         linewidth=2, color='navy', label='Overall Activity R Ratio')
-            axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug)')
+            axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug, excl. H. pylori)')
             axes6[0].set_ylabel('Overall Activity R Ratio')
             axes6[0].set_ylim(bottom=0)
             axes6[0].grid(True, alpha=0.3)
@@ -673,7 +681,7 @@ def create_grouped_plots(df, config=None):
             
             axes6[1].plot(df['time_in_years'], total_activity_r_smooth, 
                         linewidth=2, color='red', label='Total Activity R Sum')
-            axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined)')
+            axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined, excl. H. pylori)')
             axes6[1].set_ylabel('Total Activity R Sum')
             axes6[1].set_ylim(bottom=0)
             axes6[1].grid(True, alpha=0.3)
@@ -685,8 +693,8 @@ def create_grouped_plots(df, config=None):
             ).mean()
             
             axes6[2].plot(df['time_in_years'], total_infected_smooth, 
-                        linewidth=2, color='green', label='Total Infected & On Drug')
-            axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined)')
+                        linewidth=2, color='green', label='Total Infected & On Drug (excl. H. pylori)')
+            axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined, excl. H. pylori)')
             axes6[2].set_xlabel('Time (Years)')
             axes6[2].set_ylabel('Count')
             axes6[2].set_ylim(bottom=0)
@@ -694,14 +702,30 @@ def create_grouped_plots(df, config=None):
             axes6[2].legend()
             
             # 4. Distribution of Activity R Ratio by Bacteria (bottom-right)
-            # Show individual bacteria ratios
-            bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(bacteria_names)))
-            for i, bacteria_name in enumerate(bacteria_names[:8]):  # Limit to first 8 for readability
+            # Show individual bacteria ratios for most impactful bacteria (by infected count)
+            # Sort bacteria by average infected count to show most relevant ones
+            bacteria_impact = []
+            recent_data = df.iloc[-5000:] if len(df) > 5000 else df
+            for bacteria_name in bacteria_names:
+                infected_col = f"{bacteria_name}_infected_and_on_any_drug"
+                if infected_col in df.columns:
+                    avg_infected = recent_data[infected_col].fillna(0).mean()
+                    bacteria_impact.append((bacteria_name, avg_infected))
+            
+            # Sort by impact and take top 8
+            bacteria_impact.sort(key=lambda x: x[1], reverse=True)
+            top_bacteria = [name for name, _ in bacteria_impact[:8]]
+            
+            bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(top_bacteria)))
+            for i, bacteria_name in enumerate(top_bacteria):  # Show most impactful bacteria
                 activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
                 infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
                 
                 if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
                     bacteria_ratio = safe_divide(df[activity_r_sum_col], df[infected_and_on_drug_col])
+                    # Apply same filtering as overall ratio for consistency
+                    bacteria_ratio = np.where(bacteria_ratio > 5.0, np.nan, bacteria_ratio)
+                    bacteria_ratio = np.where(df[infected_and_on_drug_col] < 1, np.nan, bacteria_ratio)
                     bacteria_ratio = pd.Series(bacteria_ratio, index=df.index)  # Convert back to pandas Series
                     bacteria_ratio_smooth = bacteria_ratio.rolling(
                         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
@@ -711,7 +735,7 @@ def create_grouped_plots(df, config=None):
                                 linewidth=1.5, color=bacteria_colors[i], 
                                 label=bacteria_name.replace('_', ' ').title()[:15])
             
-            axes6[3].set_title('Activity R Ratio by Bacteria\n(Individual Bacteria Trends)')
+            axes6[3].set_title('Activity R Ratio by Bacteria\n(Top 8 by Infection Count)')
             axes6[3].set_xlabel('Time (Years)')
             axes6[3].set_ylabel('Activity R Ratio')
             axes6[3].set_ylim(bottom=0)
@@ -796,7 +820,7 @@ def create_grouped_plots(df, config=None):
             axes7[1].grid(True, alpha=0.3)
             axes7[1].legend()
             
-            # 3. Proportion by Top Bacteria (bottom-left)
+            # 3. Proportion by ALL Bacteria (bottom-left)
             # Calculate overall proportions by bacteria
             bacteria_proportions = {}
             for i, bacteria_name in enumerate(bacteria_names):
@@ -811,11 +835,26 @@ def create_grouped_plots(df, config=None):
                 else:
                     bacteria_proportions[bacteria_name] = 0
             
-            # Sort and take top 8 bacteria
-            sorted_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)[:8]
+            # Include ALL bacteria (not just top 8)
+            sorted_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)
             
             if sorted_bacteria:
-                bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(sorted_bacteria)))
+                # Use high-contrast, distinguishable colors for better visual separation
+                num_bacteria = len(sorted_bacteria)
+                if num_bacteria <= 10:
+                    bacteria_colors = plt.cm.Set3(np.linspace(0, 1, num_bacteria))  # More distinct than tab10
+                elif num_bacteria <= 20:
+                    bacteria_colors = plt.cm.tab20(np.linspace(0, 1, num_bacteria))
+                else:
+                    # For many bacteria, use a combination of high-contrast qualitative colormaps
+                    colors1 = plt.cm.Set1(np.linspace(0, 1, min(9, num_bacteria)))
+                    colors2 = plt.cm.Set2(np.linspace(0, 1, min(8, max(0, num_bacteria-9))))
+                    colors3 = plt.cm.Dark2(np.linspace(0, 1, min(8, max(0, num_bacteria-17))))
+                    colors4 = plt.cm.Accent(np.linspace(0, 1, max(0, num_bacteria-25)))
+                    bacteria_colors = np.vstack([colors1, colors2, colors3, colors4])[:num_bacteria]
+                
+                legend_handles = []
+                legend_labels = []
                 
                 for i, (bacteria_name, _) in enumerate(sorted_bacteria):
                     # Find the corresponding column indices
@@ -834,53 +873,42 @@ def create_grouped_plots(df, config=None):
                         min_periods=1, center=True
                     ).mean()
                     
-                    axes7[2].plot(df['time_in_years'], bacteria_props_smooth, 
-                                linewidth=1.5, color=bacteria_colors[i], 
-                                label=bacteria_name[:15])
+                    line = axes7[2].plot(df['time_in_years'], bacteria_props_smooth, 
+                                linewidth=1.2, color=bacteria_colors[i], 
+                                label=bacteria_name[:20])
+                    
+                    # Store for legend
+                    legend_handles.append(line[0])
+                    legend_labels.append(bacteria_name[:20])
                 
-                axes7[2].set_title('Day 7 Drug Initiation by Bacteria\n(Top 8 Bacteria by Proportion)')
+                axes7[2].set_title('Day 7 Drug Initiation by Bacteria\n(All Bacteria)')
                 axes7[2].set_xlabel('Time (Years)')
                 axes7[2].set_ylabel('Proportion')
                 axes7[2].set_ylim(0, 1)
                 axes7[2].grid(True, alpha=0.3)
-                axes7[2].legend(fontsize=7, loc='upper left')
+                # No legend on the plot itself - will be in bottom-right panel
             else:
                 axes7[2].text(0.5, 0.5, 'No bacteria data available', 
                             ha='center', va='center', fontsize=12, color='gray')
                 axes7[2].set_axis_off()
+                legend_handles = []
+                legend_labels = []
             
-            # 4. Summary Statistics (bottom-right)
-            # Create a summary bar chart
-            if bacteria_proportions:
-                # Take top 10 bacteria for bar chart
-                top_bacteria = sorted(bacteria_proportions.items(), key=lambda x: x[1], reverse=True)[:10]
+            # 4. Legend Panel (bottom-right)
+            # Create legend for the bacteria lines from bottom-left plot
+            if 'legend_handles' in locals() and 'legend_labels' in locals() and legend_handles:
+                axes7[3].axis('off')  # Turn off axis for clean legend display
                 
-                bacteria_labels = [name[:20] for name, _ in top_bacteria]
-                proportions = [prop for _, prop in top_bacteria]
-                
-                # Get evaluation counts for labels
-                eval_counts = []
-                for name, _ in top_bacteria:
-                    bacteria_idx = bacteria_names.index(name)
-                    eval_col = day_7_eval_cols[bacteria_idx]
-                    eval_counts.append(df[eval_col].sum())
-                
-                y_pos = np.arange(len(bacteria_labels))
-                bars = axes7[3].barh(y_pos, proportions, color='lightcoral', alpha=0.7)
-                axes7[3].set_yticks(y_pos)
-                axes7[3].set_yticklabels(bacteria_labels, fontsize=8)
-                axes7[3].set_xlabel('Proportion')
-                axes7[3].set_title('Day 7 Drug Initiation by Bacteria\n(Top 10 by Proportion)')
-                axes7[3].grid(True, alpha=0.3, axis='x')
-                axes7[3].set_xlim(0, max(proportions) * 1.1 if proportions else 1)
-                
-                # Add count labels on bars
-                for i, (bar, count) in enumerate(zip(bars, eval_counts)):
-                    width = bar.get_width()
-                    axes7[3].text(width + max(proportions) * 0.01, bar.get_y() + bar.get_height()/2, 
-                                f'n={count:,}', ha='left', va='center', fontsize=7)
+                # Create the legend with multiple columns to fit more bacteria - no frame
+                num_cols = min(3, max(1, len(legend_labels) // 12))  # 3 columns max, adjust based on count
+                legend = axes7[3].legend(legend_handles, legend_labels, 
+                                       loc='center', fontsize=8, 
+                                       ncol=num_cols, 
+                                       title='Bacteria Legend',
+                                       title_fontsize=10,
+                                       frameon=False)  # Remove frame background
             else:
-                axes7[3].text(0.5, 0.5, 'No summary data available', 
+                axes7[3].text(0.5, 0.5, 'No legend data available', 
                             ha='center', va='center', fontsize=12, color='gray')
                 axes7[3].set_axis_off()
         
@@ -984,7 +1012,8 @@ def create_grouped_plots(df, config=None):
             
             # Handle other panels with fallback for missing data
             # 2. Regional Population Distribution (top-right)
-            region_cols = [col for col in df.columns if col.endswith('_population') and col != 'total_population']
+            region_cols = [col for col in df.columns if col.endswith('_population') 
+                          and col != 'total_population' and not col.endswith('_hospital_population')]
             
             if region_cols:
                 print(f"Processing region data for {len(region_cols)} regions")
@@ -1250,8 +1279,16 @@ def create_grouped_plots(df, config=None):
         if all(col in df.columns for col in failure_cols):
             print("Processing treatment failure data")
             
-            # Calculate proportion of infected people on drug who have previously failed
-            failure_proportion = df['infected_on_drug_with_previous_failure'] / df['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+            # FIX: Ensure H. pylori consistency between numerator and denominator
+            # The denominator excludes H. pylori, so we need a consistent numerator
+            
+            # Calculate proportion with capping to prevent >100% due to H. pylori inconsistency
+            numerator = df['infected_on_drug_with_previous_failure']
+            denominator = df['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+            
+            # Cap the ratio at 1.0 (100%) to prevent impossible percentages
+            failure_proportion = np.minimum(numerator / denominator, 1.0)
+            
             failure_proportion_smooth = pd.Series(failure_proportion).rolling(
                 window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
                 min_periods=1, center=True
@@ -1260,22 +1297,26 @@ def create_grouped_plots(df, config=None):
             axes9[2].plot(df['time_in_years'], failure_proportion_smooth * 100, linewidth=2, color='darkred', 
                          label='Previous Treatment Failure %')
             
-            axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure')
+            axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure (capped at 100%)')
             axes9[2].set_xlabel('Time (Years)')
             axes9[2].set_ylabel('Percentage (%)')
-            axes9[2].set_ylim(bottom=0)
+            axes9[2].set_ylim(bottom=0, top=100)  # Set explicit upper limit at 100%
             axes9[2].grid(True, alpha=0.3)
             axes9[2].legend()
             
-            # Add summary statistics
+            # Add summary statistics with corrected calculation
             recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
             if len(recent_data) > 0:
-                recent_failure_prop = recent_data['infected_on_drug_with_previous_failure'] / recent_data['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+                # Apply the same capping as in the main calculation
+                numerator = recent_data['infected_on_drug_with_previous_failure']
+                denominator = recent_data['currently_infected_and_on_drug_count'].replace(0, float('nan'))
+                recent_failure_prop = np.minimum(numerator / denominator, 1.0)
+                
                 recent_mean = recent_failure_prop.mean() * 100
                 recent_max = recent_failure_prop.max() * 100
                 
                 # Also show absolute numbers
-                recent_mean_numerator = recent_data['infected_on_drug_with_previous_failure'].mean()
+                recent_mean_numerator = numerator.mean()
                 recent_mean_denominator = recent_data['currently_infected_and_on_drug_count'].mean()
                 
                 textstr = f'Recent Years (20-41):\nMean: {recent_mean:.1f}%\nMax: {recent_max:.1f}%\nTypical: {recent_mean_numerator:.0f}/{recent_mean_denominator:.0f}'

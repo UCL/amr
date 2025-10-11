@@ -733,6 +733,34 @@ lazy_static! {
             if DRUG_SHORT_NAMES.contains(&"rifampicin") {
                 map.insert("drug_rifampicin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.80); // Good for prophylaxis
             }
+            
+            // Ciprofloxacin - critical for prophylaxis and some treatment
+            if DRUG_SHORT_NAMES.contains(&"ciprofloxacin") {
+                map.insert("drug_ciprofloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.90); // Excellent for prophylaxis
+            }
+            
+            // Levofloxacin - also excellent for meningococcal infections
+            if DRUG_SHORT_NAMES.contains(&"levofloxacin") {
+                map.insert("drug_levofloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.85); // Very good alternative
+            }
+            
+            // Cefotaxime - alternative third-generation cephalosporin
+            if DRUG_SHORT_NAMES.contains(&"cefotaxime") {
+                map.insert("drug_cefotaxime_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.95); // Excellent alternative to ceftriaxone
+            }
+            
+            // Sulfanilamide - historically used but resistance common
+            if DRUG_SHORT_NAMES.contains(&"sulfanilamide") {
+                map.insert("drug_sulfanilamide_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.10); // High resistance rates
+            }
+            
+            // Reduce inappropriately high inherited macrolide values
+            if DRUG_SHORT_NAMES.contains(&"azithromycin") {
+                map.insert("drug_azithromycin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.50); // Lower than inherited 0.75
+            }
+            if DRUG_SHORT_NAMES.contains(&"clarithromycin") {
+                map.insert("drug_clarithromycin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 0.50); // Lower than inherited 0.75
+            }
         }
 
         // GRAM-POSITIVE RODS (Listeria)
@@ -872,6 +900,15 @@ lazy_static! {
         map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 15.0); // Strong preference for triple therapy
         map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 12.0);   // Strong preference for triple therapy
         map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_initiation_multiplier".to_string(), 8.0);  // Alternative therapy
+        
+        // N. meningitidis-specific drug selection bonuses - emergency treatment for meningococcal disease
+        map.insert("drug_penicilling_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 25.0); // First-line for sensitive strains
+        map.insert("drug_ampicillin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 22.0);  // Excellent alternative
+        map.insert("drug_ceftriaxone_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 30.0); // Current standard of care
+        map.insert("drug_cefotaxime_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 28.0);  // Equivalent 3rd generation
+        map.insert("drug_chlorampheni_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 18.0); // Important alternative historically
+        map.insert("drug_ciprofloxacin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 15.0); // Prophylaxis and treatment
+        map.insert("drug_rifampicin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 12.0);  // Prophylaxis agent
         
         // Reduce inappropriate antibiotics
         map.insert("drug_penicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
@@ -1232,7 +1269,9 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -13.5); // -13.5 Default baseline log-odds for infection acquisition
+        map.insert("acquisition_log_odds_baseline".to_string(), -14.5); // -14.5 Default baseline log-odds for infection acquisition
+        // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
+        // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -2500,6 +2539,112 @@ lazy_static! {
         map.insert("asia_serratia_spp._infection_risk_multiplier".to_string(), 1.4);
         map.insert("europe_serratia_spp._infection_risk_multiplier".to_string(), 0.9);
         map.insert("oceania_serratia_spp._infection_risk_multiplier".to_string(), 1.0);
+        
+        // MDR Mycobacterium tuberculosis - regional acquisition risk multipliers
+        // Reflects risk of acquiring MDR TB through primary transmission OR treatment failure
+        // Based on MDR TB transmission networks, treatment quality, and healthcare infrastructure
+        map.insert("north_america_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 0.15);
+        map.insert("south_america_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 1.6);
+        map.insert("asia_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 2.8);
+        map.insert("europe_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 3.2);
+        map.insert("oceania_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 0.1);
+        
+        // Streptococcus pyogenes - Group A Strep, higher in crowded/poor sanitation areas
+        map.insert("north_america_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("south_america_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("asia_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("europe_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Streptococcus agalactiae - Group B Strep, neonatal pathogen, regional obstetric care variation
+        map.insert("north_america_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("south_america_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("africa_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.6);
+        map.insert("asia_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("europe_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("oceania_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.0);
+        
+        // Haemophilus influenzae - post-vaccine era, higher in unvaccinated populations
+        map.insert("north_america_haemophilus_influenzae_infection_risk_multiplier".to_string(), 0.5);
+        map.insert("south_america_haemophilus_influenzae_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_haemophilus_influenzae_infection_risk_multiplier".to_string(), 2.5);
+        map.insert("asia_haemophilus_influenzae_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("europe_haemophilus_influenzae_infection_risk_multiplier".to_string(), 0.4);
+        map.insert("oceania_haemophilus_influenzae_infection_risk_multiplier".to_string(), 0.6);
+        
+        // Neisseria meningitidis - seasonal/climate patterns, meningitis belt in Africa
+        map.insert("north_america_neisseria_meningitidis_infection_risk_multiplier".to_string(), 0.7);
+        map.insert("south_america_neisseria_meningitidis_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("africa_neisseria_meningitidis_infection_risk_multiplier".to_string(), 4.0);
+        map.insert("asia_neisseria_meningitidis_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("europe_neisseria_meningitidis_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_neisseria_meningitidis_infection_risk_multiplier".to_string(), 0.6);
+        
+        // Listeria monocytogenes - foodborne, varies by food safety and refrigeration
+        map.insert("north_america_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("south_america_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("africa_listeria_monocytogenes_infection_risk_multiplier".to_string(), 2.0);
+        map.insert("asia_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.6);
+        map.insert("europe_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("oceania_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.2);
+        
+        // Clostridioides difficile - healthcare-associated, antibiotic use patterns
+        map.insert("north_america_clostridioides_difficile_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("south_america_clostridioides_difficile_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("africa_clostridioides_difficile_infection_risk_multiplier".to_string(), 0.6);
+        map.insert("asia_clostridioides_difficile_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("europe_clostridioides_difficile_infection_risk_multiplier".to_string(), 1.4);
+        map.insert("oceania_clostridioides_difficile_infection_risk_multiplier".to_string(), 1.2);
+        
+        // Enterobacter cloacae - similar to Enterobacter spp. but more healthcare-associated
+        map.insert("north_america_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("south_america_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.3);
+        map.insert("africa_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.7);
+        map.insert("asia_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.5);
+        map.insert("europe_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("oceania_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.1);
+        
+        // Yersinia enterocolitica - foodborne, cold-climate pathogen, pork products
+        map.insert("north_america_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("south_america_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("africa_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 0.6);
+        map.insert("asia_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("europe_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("oceania_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.3);
+        
+        // Moraxella catarrhalis - respiratory pathogen, COPD exacerbations
+        map.insert("north_america_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("south_america_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 0.9);
+        map.insert("africa_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("asia_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("europe_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("oceania_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.1);
+        
+        // Treponema pallidum - syphilis, sexually transmitted, varies by region
+        map.insert("north_america_treponema_pallidum_infection_risk_multiplier".to_string(), 1.0);
+        map.insert("south_america_treponema_pallidum_infection_risk_multiplier".to_string(), 1.2);
+        map.insert("africa_treponema_pallidum_infection_risk_multiplier".to_string(), 2.5);
+        map.insert("asia_treponema_pallidum_infection_risk_multiplier".to_string(), 1.1);
+        map.insert("europe_treponema_pallidum_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("oceania_treponema_pallidum_infection_risk_multiplier".to_string(), 1.4);
+        
+        // Bordetella pertussis - whooping cough, varies by vaccination coverage
+        map.insert("north_america_bordetella_pertussis_infection_risk_multiplier".to_string(), 0.8);
+        map.insert("south_america_bordetella_pertussis_infection_risk_multiplier".to_string(), 1.5);
+        map.insert("africa_bordetella_pertussis_infection_risk_multiplier".to_string(), 3.0);
+        map.insert("asia_bordetella_pertussis_infection_risk_multiplier".to_string(), 2.0);
+        map.insert("europe_bordetella_pertussis_infection_risk_multiplier".to_string(), 0.6);
+        map.insert("oceania_bordetella_pertussis_infection_risk_multiplier".to_string(), 0.7);
+        
+        // Helicobacter pylori - chronic gastric colonization, varies by sanitation/development
+        map.insert("north_america_helicobacter_pylori_infection_risk_multiplier".to_string(), 0.5);
+        map.insert("south_america_helicobacter_pylori_infection_risk_multiplier".to_string(), 1.8);
+        map.insert("africa_helicobacter_pylori_infection_risk_multiplier".to_string(), 2.5);
+        map.insert("asia_helicobacter_pylori_infection_risk_multiplier".to_string(), 2.2);
+        map.insert("europe_helicobacter_pylori_infection_risk_multiplier".to_string(), 0.7);
+        map.insert("oceania_helicobacter_pylori_infection_risk_multiplier".to_string(), 0.8);
         
         // Default multiplier for Home region and any missing region-bacteria combinations
         map.insert("home_infection_risk_multiplier_default".to_string(), 1.0);

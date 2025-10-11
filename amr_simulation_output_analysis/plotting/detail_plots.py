@@ -395,8 +395,8 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
         create_mean_mic_by_drug_for_each_bacteria_plots(data, config)
     
     # Additional plots can be added here as they are implemented
-    # if config.death_rate_by_bacteria:
-    #     create_death_rate_by_bacteria_plots(data, config)
+    if config.death_rate_by_bacteria:
+        create_death_rate_by_bacteria_plots(config, data_cache)
     
     logger.info("Detail plots creation completed")
 
@@ -4346,33 +4346,37 @@ def create_resistance_plot(
 
 @safe_plot_creation  
 def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCache):
-    """Create plots showing death rates by individual bacteria with empirical overlays."""
+    """Create all-cause death rate plots for each bacteria individually (deaths per currently infected)."""
     plot_type = "death_rate_by_bacteria"
     if not config.should_create_plot(plot_type):
         return
     
-    logger.info("Creating death rate by bacteria plots...")
-    df = data_cache.get_data('main')
+    logger.info("Creating sepsis death rate by bacteria plots...")
+    df = data_cache.get_simulation_data()
     
     if df is None or df.empty:
-        logger.warning(f"No data available for {plot_type}")
+        logger.warning(f"No simulation data available for {plot_type}")
         return
-        
-    # Load empirical data
-    empirical_data = data_cache.get_empirical_data()
     
     # Create output directory
     output_dir = config.output_dirs['mortality'] / "death_rate_by_bacteria"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find bacteria names from columns
+    # Find bacteria names from columns, excluding total and summary columns
     bacteria_cols = [col for col in df.columns if col.endswith('_currently_infected')]
     if not bacteria_cols:
         logger.warning("No bacteria infection columns found (*_currently_infected)")
         return
     
-    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
-    logger.info(f"Found {len(bacteria_names)} bacteria: {bacteria_names}")
+    # Filter out non-bacteria columns like 'total_currently_infected'
+    bacteria_names = []
+    for col in bacteria_cols:
+        bacteria_name = col.replace('_currently_infected', '')
+        # Skip total/summary columns and ensure it's a real bacteria name
+        if bacteria_name not in ['total', 'summary', 'all'] and len(bacteria_name) > 3:
+            bacteria_names.append(bacteria_name)
+    
+    logger.info(f"Found {len(bacteria_names)} bacteria: {bacteria_names[:5]}{'...' if len(bacteria_names) > 5 else ''}")
     
     plots_created = 0
     
@@ -4388,27 +4392,25 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
             logger.warning(f"Missing infection column: {infection_col}")
             continue
             
-        # Check for cumulative deaths column
-        cumulative_death_col = None
+        # Look for all death columns for this bacteria (deaths per time step, not cumulative)
+        current_death_cols = []
         for col in death_cols:
-            if 'cumulative' in col.lower():
-                cumulative_death_col = col
-                break
+            # Skip cumulative columns, we want deaths per time step
+            if 'cumulative' not in col.lower() and 'deaths_' in col:
+                current_death_cols.append(col)
         
-        if not cumulative_death_col:
-            # Look for any death column for this bacteria
-            if death_cols:
-                cumulative_death_col = death_cols[0]
-            else:
-                logger.warning(f"No death columns found for {bacteria}")
-                continue
+        if not current_death_cols:
+            logger.warning(f"No current death columns found for {bacteria}. Available: {death_cols}")
+            continue
         
         # Calculate death rate
         infections = df[infection_col]
-        deaths = df[cumulative_death_col]
+        
+        # Sum all types of deaths for this bacteria (sepsis, background, toxicity, etc.)
+        total_deaths = df[current_death_cols].sum(axis=1)
         
         # Calculate rate as deaths per infected (but avoid division by zero)
-        death_rate = np.where(infections > 0, deaths / infections, 0)
+        death_rate = np.where(infections > 0, total_deaths / infections, 0)
         
         if death_rate.max() == 0:
             logger.info(f"No deaths recorded for {bacteria}, skipping plot")
@@ -4422,41 +4424,18 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
                color='red', linewidth=2, label='Simulation', alpha=0.9)
         
         # Add empirical data overlay if available
-        if empirical_data and 'deaths' in empirical_data:
-            deaths_data = empirical_data['deaths']
-            bacteria_normalized = config._normalize_bacteria_name(bacteria)
-            
-            # Try different column name variations
-            possible_cols = [
-                f"{bacteria_normalized}_death_rate",
-                f"death_rate_{bacteria_normalized}",
-                f"{bacteria_normalized}_mortality_rate",
-                f"mortality_rate_{bacteria_normalized}",
-                f"{bacteria_normalized}_cfr",
-                f"cfr_{bacteria_normalized}"
-            ]
-            
-            empirical_col = None
-            for col_name in possible_cols:
-                if col_name in deaths_data.columns:
-                    empirical_col = col_name
-                    break
-            
-            if empirical_col and len(deaths_data[empirical_col].dropna()) > 0:
-                # Convert to simulation timeframe
-                sim_start_year = 2020
-                empirical_years = deaths_data['year'].values
-                empirical_values = deaths_data[empirical_col].values / 100.0  # Convert percentage to rate
-                
-                # Only plot points within simulation timeframe
-                valid_mask = (empirical_years >= sim_start_year) & (empirical_years <= sim_start_year + df['time_in_years'].max())
-                if valid_mask.sum() > 0:
-                    empirical_years_adj = empirical_years[valid_mask] - sim_start_year
-                    empirical_values_adj = empirical_values[valid_mask]
-                    
-                    ax.plot(empirical_years_adj, empirical_values_adj, 
-                           color='blue', linestyle='--', linewidth=2, 
-                           alpha=0.8, marker='o', markersize=6, label='Empirical Data')
+        try:
+            from ..empirical.data_loader import load_empirical_calibration_data
+            empirical_data = load_empirical_calibration_data()
+            if empirical_data is not None and 'mortality' in empirical_data:
+                mortality_data = empirical_data['mortality']
+                if bacteria in mortality_data:
+                    emp_data = mortality_data[bacteria]
+                    ax.plot(emp_data['year'], emp_data['death_rate'], 
+                           'o-', color='blue', label='Empirical', alpha=0.7)
+        except Exception as e:
+            # Empirical data not available or not applicable for this bacteria
+            pass
         
         ax.set_xlabel('Time (years)', fontsize=12)
         ax.set_ylabel('Death Rate (Deaths / Currently Infected)', fontsize=12)
@@ -4472,7 +4451,7 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
         ax.legend()
         
         # Add summary statistics
-        final_rate = death_rate.iloc[-1] if len(death_rate) > 0 else 0
+        final_rate = death_rate[-1] if len(death_rate) > 0 else 0
         max_rate_val = death_rate.max()
         stats_text = f"Final rate: {final_rate:.3f}\nMax rate: {max_rate_val:.3f}"
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 

@@ -21,35 +21,35 @@ class PlotConfig:
 
     
     # Individual plot type controls 
-    drug_failure_rate_by_bacteria_region: bool = True
-    mean_mic_by_drug_for_each_bacteria: bool = True
-    incidence_of_infection_hospital: bool = True
-    incidence_of_infection: bool = True
-    death_rate_by_bacteria_region: bool = True
-    population_mortality_by_bacteria_region: bool = True
-    mean_any_r_by_drug_for_each_bacteria: bool = True
-    proportion_of_people_taking_each_drug: bool = True
-    for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = True
-    proportion_of_people_infected_with_each_bacteria: bool = True
-    proportion_share_among_drug_users: bool = True
-    distribution_drug_use_by_bacteria: bool = True
+    drug_failure_rate_by_bacteria_region: bool = False
+    mean_mic_by_drug_for_each_bacteria: bool = False
+    incidence_of_infection_hospital: bool = False
+    incidence_of_infection: bool = False
+    death_rate_by_bacteria_region: bool = False
+    population_mortality_by_bacteria_region: bool = False
+    mean_any_r_by_drug_for_each_bacteria: bool = False
+    proportion_of_people_taking_each_drug: bool = False
+    for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
+    proportion_of_people_infected_with_each_bacteria: bool = False
+    proportion_share_among_drug_users: bool = False
+    distribution_drug_use_by_bacteria: bool = False
     death_rate_by_bacteria: bool = True
-    mean_activity_r_by_bacteria: bool = True
-    resistance_mechanism_by_bacteria: bool = True
-    proportion_of_population_with_microbiome_presence_bacteria: bool = True
-    proportion_of_microbiome_presence_with_resistance_by_drug: bool = True
-    mean_any_r_by_drug_for_each_bacteria_hospital: bool = True
-    source_of_new_resistance_by_drug_bacteria: bool = True
-    infection_resolution_by_bacteria: bool = True
-    drug_score_analysis_by_bacteria: bool = True
-    drug_score_summary: bool = True  # Individual drug score time series plots
-    clinical_guideline_analysis: bool = True  # Clinical appropriateness analysis
-    age_distribution_by_region: bool = True
-    death_rate_by_region: bool = True
-    age_specific_death_rate_by_region: bool = True
-    death_rate_by_syndrome_region: bool = True
-    syndrome_distribution_by_bacteria: bool = True
-    proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = True
+    mean_activity_r_by_bacteria: bool = False
+    resistance_mechanism_by_bacteria: bool = False
+    proportion_of_population_with_microbiome_presence_bacteria: bool = False
+    proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
+    mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
+    source_of_new_resistance_by_drug_bacteria: bool = False
+    infection_resolution_by_bacteria: bool = False
+    drug_score_analysis_by_bacteria: bool = False
+    drug_score_summary: bool = False  # Individual drug score time series plots
+    clinical_guideline_analysis: bool = False  # Clinical appropriateness analysis
+    age_distribution_by_region: bool = False
+    death_rate_by_region: bool = False
+    age_specific_death_rate_by_region: bool = False
+    death_rate_by_syndrome_region: bool = False
+    syndrome_distribution_by_bacteria: bool = False
+    proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
 
     # Empirical data display options
     show_synthetic_fallback_data: bool = True  # Whether to display synthetic fallback empirical overlays
