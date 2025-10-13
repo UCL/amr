@@ -104,8 +104,8 @@ fn assess_treatment_failure(
     _drug_indices: &HashMap<&'static str, usize>,
     _cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
     param_cache: &ParameterKeyCache,
+    rng: &mut impl Rng,
 ) -> bool {
-    let mut rng = rand::thread_rng();
     
     // Check if treatment failure assessment is enabled
     let assessment_enabled = get_global_param("enable_treatment_failure_assessment").unwrap_or(1.0) > 0.5;
@@ -236,7 +236,7 @@ fn assess_treatment_failure(
         let total_weight: f64 = weights.iter().sum();
         if total_weight > 0.0 && total_weight.is_finite() {
             let dist = WeightedIndex::new(&weights).unwrap();
-            let chosen_idx = dist.sample(&mut rng);
+            let chosen_idx = dist.sample(rng);
             let new_drug_idx = alternative_scores[chosen_idx].0;
             
             // Stop current drugs
@@ -279,8 +279,8 @@ fn assess_restart_window(
     bacteria_idx: usize,
     bacteria_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
+    rng: &mut impl Rng,
 ) -> bool {
-    let mut rng = rand::thread_rng();
     
     // Check if restart window is enabled
     if get_global_param("enable_restart_window").unwrap_or(1.0) < 0.5 {
@@ -320,7 +320,7 @@ fn assess_restart_window(
                             individual.stopped_drug_index[bacteria_idx] = None;
                             
                             // Start restart treatment, preferring the previously effective drug
-                            return start_restart_treatment(individual, time_step, bacteria_idx, stopped_drug_idx, bacteria_indices, param_cache);
+                            return start_restart_treatment(individual, time_step, bacteria_idx, stopped_drug_idx, bacteria_indices, param_cache, rng);
                         }
                     }
                 }
@@ -346,8 +346,8 @@ fn start_restart_treatment(
     stopped_drug_idx: Option<usize>,
     bacteria_indices: &HashMap<&'static str, usize>,
     param_cache: &ParameterKeyCache,
+    rng: &mut impl Rng,
 ) -> bool {
-    let mut rng = rand::thread_rng();
     
     let bacteria_name = BACTERIA_LIST[bacteria_idx];
     
@@ -475,7 +475,7 @@ fn start_restart_treatment(
         let total_weight: f64 = weights.iter().sum();
         if total_weight > 0.0 && total_weight.is_finite() {
             let dist = WeightedIndex::new(&weights).unwrap();
-            let chosen_idx = dist.sample(&mut rng);
+            let chosen_idx = dist.sample(rng);
             let new_drug_idx = drug_scores[chosen_idx].0;
             
             // Start restart treatment
@@ -668,6 +668,7 @@ impl ParameterKeyCache {
 pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
+    rng: &mut impl Rng,
     majority_r_positive_values_by_combo: &HashMap<(usize, bool, usize, usize), Vec<f64>>, // <-- update type
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
@@ -683,8 +684,6 @@ pub fn apply_rules(
     if individual.date_of_death.is_some() {
         return; // Exit the function if dead
     }
-
-    let mut rng = rand::thread_rng();
 
     // --- all these parameter lookups at the top so they're in scope everywhere ---
     let transfer_prob = get_global_param("microbiome_resistance_transfer_probability_per_day").unwrap_or(0.05);
@@ -1749,7 +1748,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 let total_weight: f64 = weights.iter().sum();
                 if total_weight > 0.0 && total_weight.is_finite() {
                     let dist = WeightedIndex::new(&weights).unwrap();
-                    let chosen_idx = dist.sample(&mut rng);
+                    let chosen_idx = dist.sample(rng);
                     let chosen_drug_idx = drug_scores[chosen_idx].0;
                     
                     // Initiate the selected drug
@@ -1831,6 +1830,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     drug_indices,
                     cross_resistance_groups,
                     param_cache,
+                    rng,
                 );
             }
         } else {
@@ -1853,6 +1853,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             bacteria_idx,
             bacteria_indices,
             param_cache,
+            rng,
         );
     }
 
@@ -2244,7 +2245,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             if let Some(majority_r_values_from_population) =
                                 majority_r_positive_values_by_combo.get(&(region_idx, sampling_hospital_status, b_idx, d_idx))
                             {
-                                if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
+                                if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(rng) {
                                     let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
                                     resistance_data.microbiome_r = clamped_level;
                                 } else {
@@ -2414,7 +2415,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
 
                     // --- probabilistic syndrome assignment ---
-                    let syndrome_id = assign_syndrome_for_bacteria(bacteria, &mut rng);
+                    let syndrome_id = assign_syndrome_for_bacteria(bacteria, rng);
                     individual.infectious_syndrome[b_idx] = syndrome_id as i32;
 
                 let env_acquisition_chance = get_bacteria_param(bacteria, "environmental_acquisition_proportion").unwrap_or(0.1);
@@ -2534,7 +2535,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                         if let Some(majority_r_values_from_population) =
                             majority_r_positive_values_by_combo.get(&(region_idx, sampling_hospital_status, b_idx, d_idx))
                         {
-                            if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(&mut rng) {
+                            if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(rng) {
                                 let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
                                 resistance_data.any_r = clamped_level;
                                 resistance_data.majority_r = clamped_level;

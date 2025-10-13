@@ -17,6 +17,8 @@ use crate::simulation::journey_logger::JourneyLogger;
 use crate::rules::apply_rules;
 use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use std::collections::HashMap;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use rayon::prelude::*;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
 use std::time::Instant;
@@ -372,6 +374,7 @@ impl Simulation {
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
+                rng: SmallRng,
                 infected_and_on_any_drug_by_bacteria: Vec<usize>,
                 mic_lt2_counts: Vec<usize>,
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
@@ -465,6 +468,7 @@ impl Simulation {
             impl LocalTotals {
                 fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
                     Self {
+                        rng: SmallRng::from_entropy(),
                         mic_lt2_counts: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         microbiome_r_positive_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
@@ -713,6 +717,7 @@ impl Simulation {
                         apply_rules(
                             individual,
                             t,
+                            &mut lt.rng,
                             &previous_majority_r_positive_values_by_combo,
                             &self.bacteria_indices,
                             &self.drug_indices,
@@ -1052,6 +1057,7 @@ impl Simulation {
 
                 // Destructure to move out (avoid cloning large vectors)
                 let LocalTotals {
+                    rng: _,
                     infected_and_on_any_drug_by_bacteria,
                     mic_lt2_counts: infected_and_standardized_mic_lt2_by_bacteria_drug,
                     currently_on_drug_by_bacteria_drug,
