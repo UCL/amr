@@ -898,19 +898,14 @@ impl Simulation {
 
                             // Infection & resistance
                             let mut individual_max_infection_duration = 0;
-                            let mut individual_has_any_infection = false;
                             let mut individual_has_any_r_positive = false;
                             let mut was_newly_infected = false;
                             let mut was_newly_infected_with_resistance = false;
                             let mut individual_has_any_infection_counted_for_syndrome = false;
                             let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
-                            let is_currently_infected_any;
                             {
-                                let mut infected_any_tmp = false;
                                 for b_idx in 0..num_bacteria {
                                     if individual.level[b_idx] > 0.001 {
-                                        infected_any_tmp = true;
-                                        individual_has_any_infection = true;
                                         // Track non-H. pylori infections separately (exclude H. pylori at index 32)
                                         if b_idx != 32 { // 32 = helicobacter pylori index
                                             individual_has_any_non_h_pylori_infection = true;
@@ -988,7 +983,6 @@ impl Simulation {
                                         }
                                     }
                                 }
-                                is_currently_infected_any = infected_any_tmp;
                             }
                             // Exclude H. pylori from cross-bacteria infection statistics for clinical metrics
                             if individual_has_any_non_h_pylori_infection && on_any_drug { lt.currently_infected_and_on_drug_count += 1; }
@@ -1570,7 +1564,7 @@ impl Simulation {
                 };
                 // Write header only on first timestep
                 if is_first_timestep {
-                    writeln!(file, "time_step,individual_index,id,age,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs").unwrap();
+                    writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs").unwrap();
                 }
                 fn fmt_vec<T: std::fmt::Display>(v: &[T]) -> String {
                     v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(";")
@@ -1601,10 +1595,12 @@ impl Simulation {
                         }
                     }
                     // Flatten infection resolution data for all bacteria/resolution types
-                    let mut infection_resolutions = Vec::new();
+                    let resolution_types = crate::simulation::population::InfectionResolutionType::all();
+                    let mut infection_resolutions: Vec<String> = Vec::new();
                     for bact_resolutions in &ind.infection_resolution_this_timestep {
-                        for &count in bact_resolutions {
-                            infection_resolutions.push(count);
+                        for (res_idx, &count) in bact_resolutions.iter().enumerate() {
+                            let label = resolution_types[res_idx].as_str();
+                            infection_resolutions.push(format!("{}:{}", label, count));
                         }
                     }
                     
@@ -1638,46 +1634,56 @@ impl Simulation {
                         .collect::<Vec<_>>()
                         .join(";");
 
-                    writeln!(file, "{},{},{},{},{},{:?},{:?},{:.4},{:.4},{:.4},{:.4},{:?},{},{:?},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{},{},{},{},{}",
-                        t,
-                        i,
-                        ind.id,
-                        ind.age,
-                        ind.sex_at_birth,
-                        ind.region_living,
-                        ind.region_cur_in,
-                        ind.current_infection_related_death_risk,
-                        ind.background_all_cause_mortality_rate,
-                        ind.current_toxicity,
-                        ind.mortality_risk_current_toxicity,
-                        format!("{:?}", ind.hospital_status),
-                        format!("{:?}", ind.immunodeficiency_type),
-                        format!("{:?}", ind.date_of_death),
-                        fmt_vec(&ind.level),
-                        fmt_vec(&ind.immune_resp),
-                        fmt_vec(&ind.presence_microbiome),
-                        fmt_vec(&ind.cur_level_drug),
-                        fmt_vec(&ind.cur_use_drug),
-                        fmt_vec(&ind.ever_taken_drug),
-                        fmt_vec(&ind.date_last_infected),
-                        fmt_vec(&ind.cur_infection_from_environment),
-                        fmt_vec(&ind.infection_hospital_acquired),
-                        fmt_vec(&ind.test_identified_infection),
-                        fmt_vec(&ind.sepsis),
-                        fmt_vec(&infection_resolutions),
-                        active_infection_activity_r,
-                        fmt_day_7_drug_used,
-                        fmt_vec(&microbiome_r),
-                        fmt_vec(&test_r),
-                        fmt_vec(&activity_r),
-                        fmt_vec(&any_r),
-                        fmt_vec(&majority_r),
-                        mechanisms.join(";"),
-                        ind.bacteria_on_selection_day,
-                        fmt_vec(&ind.drug_score_on_selection_day),
-                        fmt_vec(&ind.date_last_drug_failure),
-                        ind.current_number_of_drugs
-                    ).unwrap();
+                    let age_category = crate::simulation::population::get_age_category_str(ind.age);
+                    let immunodeficiency_status = ind
+                        .immunodeficiency_type
+                        .map(|t| t.as_str())
+                        .unwrap_or("none");
+
+                    let mut row: Vec<String> = Vec::with_capacity(39);
+                    row.push(t.to_string());
+                    row.push(i.to_string());
+                    row.push(ind.id.to_string());
+                    row.push(ind.age.to_string());
+                    row.push(age_category.to_string());
+                    row.push(format!("{}", ind.sex_at_birth));
+                    row.push(format!("{:?}", ind.region_living));
+                    row.push(format!("{:?}", ind.region_cur_in));
+                    row.push(format!("{:.4}", ind.current_infection_related_death_risk));
+                    row.push(format!("{:.4}", ind.background_all_cause_mortality_rate));
+                    row.push(format!("{:.4}", ind.current_toxicity));
+                    row.push(format!("{:.4}", ind.mortality_risk_current_toxicity));
+                    row.push(format!("{:?}", ind.hospital_status));
+                    row.push(immunodeficiency_status.to_string());
+                    row.push(format!("{:?}", ind.date_of_death));
+                    row.push(fmt_vec(&ind.level));
+                    row.push(fmt_vec(&ind.immune_resp));
+                    row.push(fmt_vec(&ind.presence_microbiome));
+                    row.push(fmt_vec(&ind.cur_level_drug));
+                    row.push(fmt_vec(&ind.cur_use_drug));
+                    row.push(fmt_vec(&ind.ever_taken_drug));
+                    row.push(fmt_vec(&ind.date_last_infected));
+                    row.push(fmt_vec(&ind.cur_infection_from_environment));
+                    row.push(fmt_vec(&ind.infection_hospital_acquired));
+                    row.push(fmt_vec(&ind.test_identified_infection));
+                    row.push(fmt_vec(&ind.sepsis));
+                    row.push(fmt_vec(&infection_resolutions));
+                    row.push(format!("{:.4}", active_infection_activity_r));
+                    row.push(fmt_day_7_drug_used);
+                    row.push(fmt_vec(&microbiome_r));
+                    row.push(fmt_vec(&test_r));
+                    row.push(fmt_vec(&activity_r));
+                    row.push(fmt_vec(&any_r));
+                    row.push(fmt_vec(&majority_r));
+                    row.push(mechanisms.join(";"));
+                    row.push(ind.bacteria_on_selection_day.to_string());
+                    row.push(fmt_vec(&ind.drug_score_on_selection_day));
+                    row.push(fmt_vec(&ind.date_last_drug_failure));
+                    row.push(ind.current_number_of_drugs.to_string());
+
+                    if let Err(e) = writeln!(file, "{}", row.join(",")) {
+                        eprintln!("Error writing snapshot: {}", e);
+                    }
                 }
             }
 
@@ -1717,19 +1723,13 @@ impl Simulation {
             return;
         }
 
-  
-
-        // println!("\n--- Simulation Summary Statistics ---");
-        // for summary in &self.summary_log {
-        //     println!("Time step {}: {} newly infected, {} deaths, {} with resistance", 
-        //         summary.time_step, 
-        //         summary.newly_infected_count, 
-        //         summary.total_deaths, 
-        //         summary.total_with_resistance
-        //     );
-        // }
-
-
+        let (active_journeys, journeys_started, snapshots_logged) = self.journey_logger.get_stats();
+        println!(
+            "Journey logging summary: {} active journeys, {} journeys started, {} snapshots captured.",
+            active_journeys,
+            journeys_started,
+            snapshots_logged
+        );
 
     }
 

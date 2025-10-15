@@ -21,16 +21,23 @@ mod config;
 //
 //
 //
-// -- additional output graphs ---------------------------------------------------------------------------------
+// -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
 // maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
 //
 // proportion currently infected with h pylori / mdr tb
 //
-// 
+// calculate total number of sepsis deaths in 2019 (pre covid) scaled up to the worl population size to compare with gbd 
+// 14.1 million
+//
+// proportion of sepsis deaths by syndrome (and region and age) to compare with gbd
+//
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
+//
+// review acquisition risk model: note that these parameters "asia_helicobacter_pylori_infection_risk_multiplier"
+// not used at all
 //
 // ok that pseudomonas aeruginosa can continue for > 90 days with full immune response and no clearance ?
 // 
@@ -129,11 +136,11 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size =  50_000 ; 
+    let population_size =  100_000 ; 
     let time_steps = 38_325 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true  ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.000003; // Log 1% of infections for analysis (0.0-1.0)
+    let log_infection_journeys = false  ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.00001   ; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):
@@ -149,10 +156,13 @@ fn main() {
     // Configure infection journey logging
     if log_infection_journeys {
         // Enable journey logging with optional bacteria filter
-        simulation.enable_infection_journey_logging_with_filter(
-            infection_journey_sample_rate, 
-            infection_journey_bacteria_filter.map(|s| s.to_string())
-        );
+        match infection_journey_bacteria_filter {
+            Some(filter) => simulation.enable_infection_journey_logging_with_filter(
+                infection_journey_sample_rate,
+                Some(filter.to_string()),
+            ),
+            None => simulation.enable_infection_journey_logging(infection_journey_sample_rate),
+        }
     }
 
     use std::time::Instant;

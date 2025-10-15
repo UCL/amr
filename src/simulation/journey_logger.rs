@@ -78,8 +78,6 @@ pub struct InfectionJourneySnapshot {
 #[derive(Clone, Debug)]
 pub struct ActiveJourney {
     pub journey_id: u32,
-    pub individual_id: usize,
-    pub onset_time_step: usize,
     pub primary_bacteria_idx: usize,
     pub day_count: u32,
     pub snapshots: Vec<InfectionJourneySnapshot>,
@@ -246,8 +244,6 @@ impl JourneyLogger {
         
         let journey = ActiveJourney {
             journey_id,
-            individual_id: individual.id,
-            onset_time_step: time_step,
             primary_bacteria_idx,
             day_count: 1,
             snapshots: vec![snapshot],

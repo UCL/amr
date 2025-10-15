@@ -19,7 +19,1350 @@
 // src/config.rs
 use std::collections::HashMap;
 use lazy_static::lazy_static;
-use crate::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES}; // Import both lists
+use crate::simulation::population::{BACTERIA_LIST, DRUG_SHORT_NAMES, ResistanceMechanism, Region}; // Import both lists and helper enums
+
+const REGION_NAMES: [&str; 6] = [
+    "north_america",
+    "south_america",
+    "africa",
+    "asia",
+    "europe",
+    "oceania",
+];
+
+const HOME_REGION_NAME: &str = "home";
+
+const REGION_VARIANTS: [Region; 7] = [
+    Region::NorthAmerica,
+    Region::SouthAmerica,
+    Region::Africa,
+    Region::Asia,
+    Region::Europe,
+    Region::Oceania,
+    Region::Home,
+];
+
+const AGE_BUCKETS: [&str; 6] = [
+    "0_1",
+    "1_5",
+    "5_18",
+    "18_50",
+    "50_70",
+    "70plus",
+];
+
+const AGE_CATEGORY_NAMES: [&str; 7] = [
+    "infant",
+    "preschool",
+    "school",
+    "young_adult",
+    "middle_age",
+    "elderly",
+    "very_elderly",
+];
+
+#[derive(Debug)]
+pub struct ParameterStore {
+    pub globals: GlobalScalars,
+    pub immunodeficiency: ImmunodeficiencyParameters,
+    pub region: RegionParameters,
+    pub syndrome: SyndromeParameters,
+    pub sex: SexParameters,
+    pub vaccination: VaccinationParameters,
+    pub drug: DrugParameters,
+    pub bacteria: BacteriaParameters,
+    pub drug_bacteria: DrugBacteriaMatrix,
+    pub region_bacteria: RegionBacteriaAcquisition,
+    pub age_categories: AgeCategoryParameters,
+    #[allow(dead_code)]
+    pub age_tables: AgeTables,
+    pub hgt: HgtMatrix,
+    pub resistance_mechanism: ResistanceMechanismParameters,
+}
+
+impl ParameterStore {
+    fn from_parameter_map(map: &HashMap<String, f64>) -> Self {
+        let num_bacteria = BACTERIA_LIST.len();
+        let num_drugs = DRUG_SHORT_NAMES.len();
+
+        let globals = GlobalScalars::from_map(map);
+        let immunodeficiency = ImmunodeficiencyParameters::from_map(map);
+        let region = RegionParameters::from_map(map);
+        let syndrome = SyndromeParameters::from_map(map);
+        let sex = SexParameters::from_map(map);
+        let vaccination = VaccinationParameters::from_map(map);
+        let drug = DrugParameters::from_map(map, num_drugs);
+        let bacteria = BacteriaParameters::from_map(map, num_bacteria);
+        let drug_bacteria = DrugBacteriaMatrix::from_map(map, num_bacteria, num_drugs);
+        let region_bacteria = RegionBacteriaAcquisition::from_map(map, num_bacteria);
+        let age_categories = AgeCategoryParameters::from_map(map, num_bacteria);
+        let age_tables = AgeTables::from_map(map, num_bacteria);
+        let hgt = HgtMatrix::from_map(map, num_bacteria);
+        let resistance_mechanism = ResistanceMechanismParameters::from_map(map);
+
+        ParameterStore {
+            globals,
+            immunodeficiency,
+            region,
+            syndrome,
+            sex,
+            vaccination,
+            drug,
+            bacteria,
+            drug_bacteria,
+            region_bacteria,
+            age_categories,
+            age_tables,
+            hgt,
+            resistance_mechanism,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct GlobalScalars {
+    pub drug_base_initiation_rate_per_day: f64,
+    pub drug_infection_present_multiplier: f64,
+    pub already_on_drug_initiation_multiplier: f64,
+    pub drug_test_identified_multiplier: f64,
+    pub double_dose_probability_if_identified_infection: f64,
+    pub random_drug_cessation_probability: f64,
+    pub random_drug_cessation_probability_if_no_active_infection: f64,
+    pub immunodeficiency_prophylactic_drug_multiplier: f64,
+    pub microbiome_resistance_transfer_probability_per_day: f64,
+    pub hospital_baseline_rate_per_day: f64,
+    pub hospital_age_multiplier_per_day: f64,
+    pub hospital_recovery_rate_per_day: f64,
+    pub hospital_max_days: f64,
+    pub hospital_sepsis_admission_multiplier: f64,
+    pub hospital_prevent_discharge_with_sepsis: f64,
+    pub travel_probability_per_day: f64,
+    pub antibiotic_infection_prevention_efficacy: f64,
+    pub max_resistance_level: f64,
+    pub resistance_emergence_bacteria_level_multiplier: f64,
+    pub any_r_emergence_level_on_first_emergence: f64,
+    pub multi_drug_penalty_threshold_num_drugs: f64,
+    pub resistance_development_inhibition_single_drug: f64,
+    pub resistance_development_inhibition_partial_cross: f64,
+    pub mechanism_assignment_probability_on_any_r_gain: f64,
+    pub treatment_failure_enabled: bool,
+    pub treatment_failure_assessment_day: i32,
+    pub treatment_failure_threshold: f64,
+    pub drug_failure_memory_days: i32,
+    pub minimal_potency_threshold_for_drug_selection: f64,
+    pub drug_selection_temperature: f64,
+    pub restart_window_enabled: bool,
+    pub restart_window_days: i32,
+    pub restart_bacteria_level_threshold: f64,
+    pub restart_window_probability: f64,
+    pub previously_effective_drug_bonus: f64,
+    pub log_odds_bacteria_with_high_sepsis_risk: f64,
+    pub log_odds_bacteria_with_medium_sepsis_risk: f64,
+    pub log_odds_bacteria_with_low_sepsis_risk: f64,
+    pub log_odds_sepsis_region_a: f64,
+    pub log_odds_sepsis_region_b: f64,
+    #[allow(dead_code)]
+    pub environmental_majority_r_level_for_new_acquisition: f64,
+    pub mdr_tb_pre_antibiotic_era_multiplier: f64,
+    pub mdr_tb_early_antibiotic_era_multiplier: f64,
+    pub mdr_tb_modern_era_multiplier: f64,
+    pub microbiome_resistance_emergence_rate_per_day_baseline: f64,
+    pub max_toxicity_level: f64,
+    pub toxicity_clearance_rate_per_day: f64,
+    pub regional_resistance_threshold_very_high: f64,
+    pub regional_resistance_threshold_high: f64,
+    pub regional_resistance_threshold_moderate: f64,
+    pub regional_resistance_penalty_very_high: f64,
+    pub regional_resistance_penalty_high: f64,
+    pub regional_resistance_penalty_moderate: f64,
+    pub targeted_therapy_narrow_spectrum_bonus: f64,
+    pub targeted_therapy_broad_spectrum_penalty: f64,
+    pub targeted_therapy_ineffective_drug_penalty: f64,
+    pub effective_potency_threshold_for_targeted_therapy: f64,
+    pub empiric_therapy_broad_spectrum_bonus: f64,
+    pub empiric_therapy_ineffective_penalty: f64,
+    pub effective_potency_threshold_for_empirical_therapy: f64,
+    pub any_r_increase_rate_per_day_when_drug_present: f64,
+    pub sepsis_minimum_duration_days: i32,
+    pub sepsis_base_log_odds_of_recovery_per_day: f64,
+    pub sepsis_log_odds_bacteria_level: f64,
+    pub sepsis_log_odds_in_hospital: f64,
+    pub sepsis_log_odds_age_infant: f64,
+    pub sepsis_log_odds_age_child: f64,
+    pub sepsis_log_odds_age_adult: f64,
+    pub sepsis_log_odds_age_elderly: f64,
+    pub sepsis_log_odds_immunosuppressed: f64,
+    pub background_mortality_baseline_log_odds: f64,
+    pub mortality_baseline_1930_multiplier: f64,
+    pub mortality_baseline_2035_multiplier: f64,
+    pub mortality_improvement_half_life_years: f64,
+    pub log_odds_mortality_per_year_of_age: f64,
+    pub log_odds_mortality_per_year_of_age_squared: f64,
+    pub log_odds_mortality_immunosuppressed: f64,
+    pub log_odds_mortality_hospitalized: f64,
+    pub base_sepsis_death_risk_per_day: f64,
+    pub sepsis_age_mortality_multiplier_infant: f64,
+    pub sepsis_age_mortality_multiplier_child: f64,
+    pub sepsis_age_mortality_multiplier_adult: f64,
+    pub sepsis_age_mortality_multiplier_elderly: f64,
+    pub sepsis_immunosuppressed_multiplier: f64,
+    pub drug_toxicity_death_risk_per_day: f64,
+}
+
+impl GlobalScalars {
+    fn from_map(map: &HashMap<String, f64>) -> Self {
+        GlobalScalars {
+            drug_base_initiation_rate_per_day: get_or_default(map, "drug_base_initiation_rate_per_day", 0.0005),
+            drug_infection_present_multiplier: get_or_default(map, "drug_infection_present_multiplier", 200.0),
+            already_on_drug_initiation_multiplier: get_or_default(map, "already_on_drug_initiation_multiplier", 1.0),
+            drug_test_identified_multiplier: get_or_default(map, "drug_test_identified_multiplier", 2.0),
+            double_dose_probability_if_identified_infection: get_or_default(map, "double_dose_probability_if_identified_infection", 0.25),
+            random_drug_cessation_probability: get_or_default(map, "random_drug_cessation_probability", 0.001),
+            random_drug_cessation_probability_if_no_active_infection: get_or_default(
+                map,
+                "random_drug_cessation_probability_if_no_active_infection",
+                0.25,
+            ),
+            immunodeficiency_prophylactic_drug_multiplier: get_or_default(
+                map,
+                "immunodeficiency_prophylactic_drug_multiplier",
+                8.0,
+            ),
+            microbiome_resistance_transfer_probability_per_day: get_or_default(map, "microbiome_resistance_transfer_probability_per_day", 0.05),
+            hospital_baseline_rate_per_day: get_or_default(map, "hospitalization_baseline_rate_per_day", 0.0005),
+            hospital_age_multiplier_per_day: get_or_default(map, "hospitalization_age_multiplier_per_day", 0.0),
+            hospital_recovery_rate_per_day: get_or_default(map, "hospitalization_recovery_rate_per_day", 0.1),
+            hospital_max_days: get_or_default(map, "hospitalization_max_days", 30.0),
+            hospital_sepsis_admission_multiplier: get_or_default(map, "hospitalization_sepsis_admission_multiplier", 10.0),
+            hospital_prevent_discharge_with_sepsis: get_or_default(map, "hospitalization_prevent_discharge_with_sepsis", 1.0),
+            travel_probability_per_day: get_or_default(map, "travel_probability_per_day", 0.0005),
+            antibiotic_infection_prevention_efficacy: get_or_default(map, "antibiotic_infection_prevention_efficacy", 0.85),
+            max_resistance_level: get_or_default(map, "max_resistance_level", 1.0),
+            resistance_emergence_bacteria_level_multiplier: get_or_default(map, "resistance_emergence_bacteria_level_multiplier", 0.05),
+            any_r_emergence_level_on_first_emergence: get_or_default(map, "any_r_emergence_level_on_first_emergence", 0.5),
+            multi_drug_penalty_threshold_num_drugs: get_or_default(map, "multi_drug_penalty_threshold_num_drugs", 2.0),
+            resistance_development_inhibition_single_drug: get_or_default(map, "resistance_development_inhibition_single_drug", 0.05),
+            resistance_development_inhibition_partial_cross: get_or_default(map, "resistance_development_inhibition_partial_cross", 0.3),
+            mechanism_assignment_probability_on_any_r_gain: get_or_default(map, "mechanism_assignment_probability_on_any_r_gain", 0.8),
+            treatment_failure_enabled: get_or_default(map, "enable_treatment_failure_assessment", 1.0) > 0.5,
+            treatment_failure_assessment_day: get_or_default(map, "treatment_failure_assessment_day", 4.0) as i32,
+            treatment_failure_threshold: get_or_default(map, "treatment_failure_threshold", 0.5),
+            drug_failure_memory_days: get_or_default(map, "drug_failure_memory_days", 30.0) as i32,
+            minimal_potency_threshold_for_drug_selection: get_or_default(map, "minimal_potency_threshold_for_drug_selection", 0.10),
+            drug_selection_temperature: get_or_default(map, "drug_selection_temperature", 0.5),
+            restart_window_enabled: get_or_default(map, "enable_restart_window", 1.0) > 0.5,
+            restart_window_days: get_or_default(map, "restart_window_days", 5.0) as i32,
+            restart_bacteria_level_threshold: get_or_default(map, "restart_bacteria_level_threshold", 1.5),
+            restart_window_probability: get_or_default(map, "restart_window_probability", 0.3),
+            previously_effective_drug_bonus: get_or_default(map, "previously_effective_drug_bonus", 2.0),
+            log_odds_bacteria_with_high_sepsis_risk: get_or_default(map, "log_odds_bacteria_with_high_sepsis_risk", 0.5),
+            log_odds_bacteria_with_medium_sepsis_risk: get_or_default(map, "log_odds_bacteria_with_medium_sepsis_risk", 0.0),
+            log_odds_bacteria_with_low_sepsis_risk: get_or_default(map, "log_odds_bacteria_with_low_sepsis_risk", -0.5),
+            log_odds_sepsis_region_a: get_or_default(map, "log_odds_sepsis_region_a", -0.3),
+            log_odds_sepsis_region_b: get_or_default(map, "log_odds_sepsis_region_b", 0.2),
+            environmental_majority_r_level_for_new_acquisition: get_or_default(
+                map,
+                "environmental_majority_r_level_for_new_acquisition",
+                0.0,
+            ),
+            mdr_tb_pre_antibiotic_era_multiplier: get_or_default(
+                map,
+                "mdr_tb_pre_antibiotic_era_multiplier",
+                0.0001,
+            ),
+            mdr_tb_early_antibiotic_era_multiplier: get_or_default(
+                map,
+                "mdr_tb_early_antibiotic_era_multiplier",
+                0.01,
+            ),
+            mdr_tb_modern_era_multiplier: get_or_default(
+                map,
+                "mdr_tb_modern_era_multiplier",
+                1.0,
+            ),
+            microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
+                map,
+                "microbiome_resistance_emergence_rate_per_day_baseline",
+                0.000001,
+            ),
+            max_toxicity_level: get_or_default(map, "max_toxicity_level", 20.0),
+            toxicity_clearance_rate_per_day: get_or_default(map, "toxicity_clearance_rate_per_day", 0.1),
+            regional_resistance_threshold_very_high: get_or_default(
+                map,
+                "regional_resistance_threshold_very_high",
+                0.5,
+            ),
+            regional_resistance_threshold_high: get_or_default(
+                map,
+                "regional_resistance_threshold_high",
+                0.3,
+            ),
+            regional_resistance_threshold_moderate: get_or_default(
+                map,
+                "regional_resistance_threshold_moderate",
+                0.1,
+            ),
+            regional_resistance_penalty_very_high: get_or_default(
+                map,
+                "regional_resistance_penalty_very_high",
+                0.2,
+            ),
+            regional_resistance_penalty_high: get_or_default(
+                map,
+                "regional_resistance_penalty_high",
+                0.4,
+            ),
+            regional_resistance_penalty_moderate: get_or_default(
+                map,
+                "regional_resistance_penalty_moderate",
+                0.7,
+            ),
+            targeted_therapy_narrow_spectrum_bonus: get_or_default(
+                map,
+                "targeted_therapy_narrow_spectrum_bonus",
+                3.0,
+            ),
+            targeted_therapy_broad_spectrum_penalty: get_or_default(
+                map,
+                "targeted_therapy_broad_spectrum_penalty",
+                0.4,
+            ),
+            targeted_therapy_ineffective_drug_penalty: get_or_default(
+                map,
+                "targeted_therapy_ineffective_drug_penalty",
+                0.1,
+            ),
+            effective_potency_threshold_for_targeted_therapy: get_or_default(
+                map,
+                "effective_potency_threshold_for_targeted_therapy",
+                0.10,
+            ),
+            empiric_therapy_broad_spectrum_bonus: get_or_default(
+                map,
+                "empiric_therapy_broad_spectrum_bonus",
+                2.0,
+            ),
+            empiric_therapy_ineffective_penalty: get_or_default(
+                map,
+                "empiric_therapy_ineffective_drug_penalty",
+                0.05,
+            ),
+            effective_potency_threshold_for_empirical_therapy: get_or_default(
+                map,
+                "effective_potency_threshold_for_empirical_therapy",
+                0.10,
+            ),
+            any_r_increase_rate_per_day_when_drug_present: get_or_default(
+                map,
+                "any_r_increase_rate_per_day_when_drug_present",
+                0.05,
+            ),
+            sepsis_minimum_duration_days: get_or_default(map, "sepsis_minimum_duration_days", 1.0) as i32,
+            sepsis_base_log_odds_of_recovery_per_day: get_required(
+                map,
+                "sepsis_base_log_odds_of_recovery_per_day",
+            ),
+            sepsis_log_odds_bacteria_level: get_required(map, "sepsis_log_odds_bacteria_level"),
+            sepsis_log_odds_in_hospital: get_required(map, "sepsis_log_odds_in_hospital"),
+            sepsis_log_odds_age_infant: get_required(map, "sepsis_log_odds_age_infant"),
+            sepsis_log_odds_age_child: get_required(map, "sepsis_log_odds_age_child"),
+            sepsis_log_odds_age_adult: get_required(map, "sepsis_log_odds_age_adult"),
+            sepsis_log_odds_age_elderly: get_required(map, "sepsis_log_odds_age_elderly"),
+            sepsis_log_odds_immunosuppressed: get_required(map, "sepsis_log_odds_immunosuppressed"),
+            background_mortality_baseline_log_odds: get_required(
+                map,
+                "background_mortality_baseline_log_odds",
+            ),
+            mortality_baseline_1930_multiplier: get_or_default(
+                map,
+                "mortality_baseline_1930_multiplier",
+                3.0,
+            ),
+            mortality_baseline_2035_multiplier: get_or_default(
+                map,
+                "mortality_baseline_2035_multiplier",
+                1.0,
+            ),
+            mortality_improvement_half_life_years: get_or_default(
+                map,
+                "mortality_improvement_half_life_years",
+                35.0,
+            ),
+            log_odds_mortality_per_year_of_age: get_required(
+                map,
+                "log_odds_mortality_per_year_of_age",
+            ),
+            log_odds_mortality_per_year_of_age_squared: get_or_default(
+                map,
+                "log_odds_mortality_per_year_of_age_squared",
+                0.0,
+            ),
+            log_odds_mortality_immunosuppressed: get_or_default(
+                map,
+                "log_odds_mortality_immunosuppressed",
+                0.0,
+            ),
+            log_odds_mortality_hospitalized: get_or_default(
+                map,
+                "log_odds_mortality_hospitalized",
+                0.0,
+            ),
+            base_sepsis_death_risk_per_day: get_required(
+                map,
+                "base_sepsis_death_risk_per_day",
+            ),
+            sepsis_age_mortality_multiplier_infant: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_infant",
+                3.0,
+            ),
+            sepsis_age_mortality_multiplier_child: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_child",
+                0.5,
+            ),
+            sepsis_age_mortality_multiplier_adult: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_adult",
+                1.0,
+            ),
+            sepsis_age_mortality_multiplier_elderly: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_elderly",
+                2.5,
+            ),
+            sepsis_immunosuppressed_multiplier: get_or_default(
+                map,
+                "sepsis_immunosuppressed_multiplier",
+                3.0,
+            ),
+            drug_toxicity_death_risk_per_day: get_or_default(
+                map,
+                "drug_toxicity_death_risk_per_day",
+                0.0,
+            ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ImmunodeficiencyParameters {
+    temporary_onset_rate_per_day: f64,
+    temporary_recovery_rate_per_day: f64,
+    chronic_onset_rate_per_day: f64,
+    chronic_recovery_rate_per_day: f64,
+    chronic_probability_age_bands: [f64; 4],
+}
+
+#[derive(Debug)]
+pub struct RegionParameters {
+    travel_multiplier: [f64; RegionParameters::REGION_COUNT],
+    cessation_multiplier: [f64; RegionParameters::REGION_COUNT],
+    mortality_log_odds: [f64; RegionParameters::REGION_COUNT],
+    sepsis_log_odds: [f64; RegionParameters::REGION_COUNT],
+    sepsis_mortality_multiplier: [f64; RegionParameters::REGION_COUNT],
+    testing_multiplier: [f64; RegionParameters::REGION_COUNT],
+}
+
+impl RegionParameters {
+    pub const REGION_COUNT: usize = REGION_VARIANTS.len();
+
+    fn from_map(map: &HashMap<String, f64>) -> Self {
+        let mut travel_multiplier = [1.0; RegionParameters::REGION_COUNT];
+        let mut cessation_multiplier = [1.0; RegionParameters::REGION_COUNT];
+        let mut mortality_log_odds = [0.0; RegionParameters::REGION_COUNT];
+        let mut sepsis_log_odds = [0.0; RegionParameters::REGION_COUNT];
+        let mut sepsis_mortality_multiplier = [1.0; RegionParameters::REGION_COUNT];
+        let mut testing_multiplier = [1.0; RegionParameters::REGION_COUNT];
+
+        for (idx, region) in REGION_VARIANTS.iter().enumerate() {
+            let key_prefix = region.to_string();
+            travel_multiplier[idx] = get_or_default(
+                map,
+                &format!("{}_travel_multiplier", key_prefix),
+                1.0,
+            );
+            cessation_multiplier[idx] = get_or_default(
+                map,
+                &format!("{}_cessation_multiplier", key_prefix),
+                1.0,
+            );
+            mortality_log_odds[idx] = get_or_default(
+                map,
+                &format!("log_odds_mortality_region_{}", key_prefix),
+                0.0,
+            );
+            sepsis_log_odds[idx] = get_or_default(
+                map,
+                &format!("sepsis_log_odds_region_{}", key_prefix),
+                0.0,
+            );
+            sepsis_mortality_multiplier[idx] = get_or_default(
+                map,
+                &format!("{}_sepsis_mortality_multiplier", key_prefix),
+                1.0,
+            );
+            testing_multiplier[idx] = get_or_default(
+                map,
+                &format!("{}_testing_multiplier", key_prefix),
+                1.0,
+            );
+        }
+
+        RegionParameters {
+            travel_multiplier,
+            cessation_multiplier,
+            mortality_log_odds,
+            sepsis_log_odds,
+            sepsis_mortality_multiplier,
+            testing_multiplier,
+        }
+    }
+
+    #[inline]
+    pub fn travel_multiplier(&self, region: Region) -> f64 {
+        self.travel_multiplier[Self::region_index(region)]
+    }
+
+    #[inline]
+    pub fn cessation_multiplier(&self, region: Region) -> f64 {
+        self.cessation_multiplier[Self::region_index(region)]
+    }
+
+    #[inline]
+    pub fn mortality_log_odds(&self, region: Region) -> f64 {
+        self.mortality_log_odds[Self::region_index(region)]
+    }
+
+    #[inline]
+    pub fn sepsis_log_odds(&self, region: Region) -> f64 {
+        self.sepsis_log_odds[Self::region_index(region)]
+    }
+
+    #[inline]
+    pub fn sepsis_mortality_multiplier(&self, region: Region) -> f64 {
+        self.sepsis_mortality_multiplier[Self::region_index(region)]
+    }
+
+    #[inline]
+    pub fn testing_multiplier(&self, region: Region) -> f64 {
+        self.testing_multiplier[Self::region_index(region)]
+    }
+
+    #[inline]
+    pub fn region_index(region: Region) -> usize {
+        match region {
+            Region::NorthAmerica => 0,
+            Region::SouthAmerica => 1,
+            Region::Africa => 2,
+            Region::Asia => 3,
+            Region::Europe => 4,
+            Region::Oceania => 5,
+            Region::Home => 6,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SexParameters {
+    male_log_odds: f64,
+    female_log_odds: f64,
+}
+
+impl SexParameters {
+    fn from_map(map: &HashMap<String, f64>) -> Self {
+        SexParameters {
+            male_log_odds: get_or_default(map, "log_odds_mortality_sex_male", 0.0),
+            female_log_odds: get_or_default(map, "log_odds_mortality_sex_female", 0.0),
+        }
+    }
+
+    #[inline]
+    pub fn mortality_log_odds(&self, sex_at_birth: &str) -> f64 {
+        if sex_at_birth.eq_ignore_ascii_case("male") {
+            self.male_log_odds
+        } else if sex_at_birth.eq_ignore_ascii_case("female") {
+            self.female_log_odds
+        } else {
+            0.0
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct VaccinationParameters {
+    daily_probabilities: Vec<f64>,
+    availability_years: Vec<f64>,
+}
+
+impl VaccinationParameters {
+    const VACCINES: &'static [&'static str] = &["pneumococcal", "meningococcal", "hib"];
+
+    fn index(vaccine_idx: usize, age_idx: usize) -> usize {
+        vaccine_idx * AGE_BUCKETS.len() + age_idx
+    }
+
+    pub fn from_map(map: &HashMap<String, f64>) -> Self {
+        let mut daily_probabilities = vec![0.0; Self::VACCINES.len() * AGE_BUCKETS.len()];
+        let mut availability_years = vec![2100.0; Self::VACCINES.len()];
+
+        for (vaccine_idx, &vaccine) in Self::VACCINES.iter().enumerate() {
+            let availability_key = format!("vaccine_{}_availability_year", vaccine);
+            availability_years[vaccine_idx] = get_or_default(map, &availability_key, 2100.0);
+
+            for (age_idx, &age_group) in AGE_BUCKETS.iter().enumerate() {
+                let key = format!("vaccine_{}_daily_prob_age_{}", vaccine, age_group);
+                daily_probabilities[Self::index(vaccine_idx, age_idx)] =
+                    get_or_default(map, &key, 0.0);
+            }
+        }
+
+        VaccinationParameters {
+            daily_probabilities,
+            availability_years,
+        }
+    }
+
+    #[inline]
+    pub fn vaccine_index(vaccine: &str) -> Option<usize> {
+        match vaccine {
+            "pneumococcal" => Some(0),
+            "meningococcal" => Some(1),
+            "hib" => Some(2),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn age_group_index(age_years: f64) -> usize {
+        if age_years < 1.0 {
+            0
+        } else if age_years < 5.0 {
+            1
+        } else if age_years < 18.0 {
+            2
+        } else if age_years < 50.0 {
+            3
+        } else if age_years < 70.0 {
+            4
+        } else {
+            5
+        }
+    }
+
+    #[inline]
+    pub fn daily_probability(&self, vaccine_idx: usize, age_idx: usize) -> f64 {
+        self.daily_probabilities[Self::index(vaccine_idx, age_idx)]
+    }
+
+    #[inline]
+    pub fn availability_year(&self, vaccine_idx: usize) -> f64 {
+        self.availability_years
+            .get(vaccine_idx)
+            .copied()
+            .unwrap_or(2100.0)
+    }
+}
+
+#[derive(Debug)]
+pub struct SyndromeParameters {
+    sepsis_log_odds: Vec<f64>,
+    initiation_multiplier: Vec<f64>,
+}
+
+impl SyndromeParameters {
+    const MAX_SYNDROME_ID: usize = 10;
+
+    fn from_map(map: &HashMap<String, f64>) -> Self {
+        let len = Self::MAX_SYNDROME_ID + 1;
+        let mut sepsis_log_odds = vec![0.0; len];
+        let mut initiation_multiplier = vec![1.0; len];
+
+        for syndrome_id in 1..=Self::MAX_SYNDROME_ID {
+            sepsis_log_odds[syndrome_id] = get_or_default(
+                map,
+                &format!("log_odds_syndrome_{}_sepsis", syndrome_id),
+                0.0,
+            );
+            initiation_multiplier[syndrome_id] = get_or_default(
+                map,
+                &format!("syndrome_{}_initiation_multiplier", syndrome_id),
+                1.0,
+            );
+        }
+
+        SyndromeParameters {
+            sepsis_log_odds,
+            initiation_multiplier,
+        }
+    }
+
+    #[inline]
+    pub fn sepsis_log_odds(&self, syndrome_id: usize) -> f64 {
+        self.sepsis_log_odds
+            .get(syndrome_id)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    #[inline]
+    pub fn initiation_multiplier(&self, syndrome_id: usize) -> f64 {
+        self.initiation_multiplier
+            .get(syndrome_id)
+            .copied()
+            .unwrap_or(1.0)
+    }
+}
+
+impl ImmunodeficiencyParameters {
+    fn from_map(map: &HashMap<String, f64>) -> Self {
+        let temporary_onset_rate_per_day = get_or_default(
+            map,
+            "temporary_immunosuppression_onset_rate_per_day",
+            0.0002,
+        );
+        let temporary_recovery_rate_per_day = get_or_default(
+            map,
+            "temporary_immunosuppression_recovery_rate_per_day",
+            0.01,
+        );
+        let chronic_onset_rate_per_day = get_or_default(
+            map,
+            "chronic_immunosuppression_onset_rate_per_day",
+            0.0001,
+        );
+        let chronic_recovery_rate_per_day = get_or_default(
+            map,
+            "chronic_immunosuppression_recovery_rate_per_day",
+            0.0005,
+        );
+
+        let chronic_probability_age_bands = [
+            get_or_default(map, "chronic_immunodeficiency_probability_age_0_1", 0.3),
+            get_or_default(map, "chronic_immunodeficiency_probability_age_1_18", 0.2),
+            get_or_default(map, "chronic_immunodeficiency_probability_age_18_65", 0.4),
+            get_or_default(map, "chronic_immunodeficiency_probability_age_65_plus", 0.6),
+        ];
+
+        ImmunodeficiencyParameters {
+            temporary_onset_rate_per_day,
+            temporary_recovery_rate_per_day,
+            chronic_onset_rate_per_day,
+            chronic_recovery_rate_per_day,
+            chronic_probability_age_bands,
+        }
+    }
+
+    #[inline]
+    pub fn temporary_onset_rate(&self) -> f64 {
+        self.temporary_onset_rate_per_day
+    }
+
+    #[inline]
+    pub fn temporary_recovery_rate(&self) -> f64 {
+        self.temporary_recovery_rate_per_day
+    }
+
+    #[inline]
+    pub fn chronic_onset_rate(&self) -> f64 {
+        self.chronic_onset_rate_per_day
+    }
+
+    #[inline]
+    pub fn chronic_recovery_rate(&self) -> f64 {
+        self.chronic_recovery_rate_per_day
+    }
+
+    #[inline]
+    pub fn chronic_probability(&self, age_days: i32) -> f64 {
+        let age_days = age_days.max(0);
+        if age_days <= 365 {
+            self.chronic_probability_age_bands[0]
+        } else if age_days <= 6570 {
+            self.chronic_probability_age_bands[1]
+        } else if age_days <= 23725 {
+            self.chronic_probability_age_bands[2]
+        } else {
+            self.chronic_probability_age_bands[3]
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DrugParameters {
+    pub initial_level: Vec<f64>,
+    pub double_dose_multiplier: Vec<f64>,
+    pub spectrum_breadth: Vec<f64>,
+    pub half_life_days: Vec<f64>,
+    pub toxicity_per_unit_level_per_day: Vec<f64>,
+}
+
+impl DrugParameters {
+    fn from_map(map: &HashMap<String, f64>, num_drugs: usize) -> Self {
+        let mut initial_level = Vec::with_capacity(num_drugs);
+        let mut double_dose_multiplier = Vec::with_capacity(num_drugs);
+        let mut spectrum_breadth = Vec::with_capacity(num_drugs);
+        let mut half_life_days = Vec::with_capacity(num_drugs);
+        let mut toxicity_per_unit_level_per_day = Vec::with_capacity(num_drugs);
+
+        for &drug in DRUG_SHORT_NAMES.iter() {
+            let prefix = format!("drug_{}", drug);
+            initial_level.push(get_or_default(map, &format!("{}_initial_level", prefix), 10.0));
+            double_dose_multiplier.push(get_or_default(map, &format!("{}_double_dose_multiplier", prefix), 2.0));
+            spectrum_breadth.push(get_or_default(map, &format!("{}_spectrum_breadth", prefix), 3.0));
+            half_life_days.push(get_or_default(map, &format!("{}_half_life_days", prefix), 0.25));
+            toxicity_per_unit_level_per_day.push(get_or_default(map, &format!("{}_toxicity_per_unit_level_per_day", prefix), get_or_default(map, "default_drug_toxicity_per_unit_level_per_day", 0.001)));
+        }
+
+        DrugParameters {
+            initial_level,
+            double_dose_multiplier,
+            spectrum_breadth,
+            half_life_days,
+            toxicity_per_unit_level_per_day,
+        }
+    }
+
+    #[inline]
+    pub fn initial_level(&self, drug_idx: usize) -> f64 {
+        self.initial_level[drug_idx]
+    }
+
+    #[inline]
+    pub fn double_dose_multiplier(&self, drug_idx: usize) -> f64 {
+        self.double_dose_multiplier[drug_idx]
+    }
+
+    #[inline]
+    pub fn spectrum_breadth(&self, drug_idx: usize) -> f64 {
+        self.spectrum_breadth[drug_idx]
+    }
+
+    #[inline]
+    pub fn half_life_days(&self, drug_idx: usize) -> f64 {
+        self.half_life_days[drug_idx]
+    }
+
+    #[inline]
+    pub fn toxicity_per_unit_level_per_day(&self, drug_idx: usize) -> f64 {
+        self.toxicity_per_unit_level_per_day[drug_idx]
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct BacteriaParameters {
+    pub acquisition_log_odds_baseline: Vec<f64>,
+    pub log_odds_vaccinated: Vec<f64>,
+    pub log_odds_microbiome_present: Vec<f64>,
+    pub log_odds_hospital_acquired: Vec<f64>,
+    pub microbiome_clearance_probability_per_day: Vec<f64>,
+    pub base_bacteria_level_change: Vec<f64>,
+    pub immunity_effect_on_level_change: Vec<f64>,
+    pub max_level: Vec<f64>,
+    pub immunity_base_response: Vec<f64>,
+    pub immunity_increase_per_infection_day: Vec<f64>,
+    pub immunity_increase_per_unit_level: Vec<f64>,
+    pub immunity_age_modifier: Vec<f64>,
+    pub immunity_immunodeficiency_modifier: Vec<f64>,
+    pub max_immune_response: Vec<f64>,
+    pub microbiome_vs_infection_log_odds: Vec<f64>,
+    pub drug_cessation_probability: Vec<f64>,
+    pub treatment_recognition_year: Vec<Option<f64>>,
+    pub sepsis_baseline_log_odds: Vec<f64>,
+    pub sepsis_log_odds_infection_level: Vec<f64>,
+    pub sepsis_log_odds_infection_duration: Vec<f64>,
+}
+
+impl BacteriaParameters {
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
+        let mut acquisition_log_odds_baseline = Vec::with_capacity(num_bacteria);
+        let mut log_odds_vaccinated = Vec::with_capacity(num_bacteria);
+        let mut log_odds_microbiome_present = Vec::with_capacity(num_bacteria);
+        let mut log_odds_hospital_acquired = Vec::with_capacity(num_bacteria);
+        let mut microbiome_clearance_probability_per_day = Vec::with_capacity(num_bacteria);
+        let mut base_bacteria_level_change = Vec::with_capacity(num_bacteria);
+        let mut immunity_effect_on_level_change = Vec::with_capacity(num_bacteria);
+        let mut max_level = Vec::with_capacity(num_bacteria);
+        let mut immunity_base_response = Vec::with_capacity(num_bacteria);
+        let mut immunity_increase_per_infection_day = Vec::with_capacity(num_bacteria);
+        let mut immunity_increase_per_unit_level = Vec::with_capacity(num_bacteria);
+        let mut immunity_age_modifier = Vec::with_capacity(num_bacteria);
+        let mut immunity_immunodeficiency_modifier = Vec::with_capacity(num_bacteria);
+        let mut max_immune_response = Vec::with_capacity(num_bacteria);
+    let mut microbiome_vs_infection_log_odds = Vec::with_capacity(num_bacteria);
+    let mut drug_cessation_probability = Vec::with_capacity(num_bacteria);
+    let mut treatment_recognition_year = Vec::with_capacity(num_bacteria);
+    let mut sepsis_baseline_log_odds = Vec::with_capacity(num_bacteria);
+        let mut sepsis_log_odds_infection_level = Vec::with_capacity(num_bacteria);
+        let mut sepsis_log_odds_infection_duration = Vec::with_capacity(num_bacteria);
+
+        for &bacteria in BACTERIA_LIST.iter() {
+            let prefix = bacteria;
+            acquisition_log_odds_baseline.push(get_or_default(map, &format!("{}_acquisition_log_odds_baseline", prefix), get_or_default(map, "acquisition_log_odds_baseline", -4.0)));
+            log_odds_vaccinated.push(get_or_default(map, &format!("{}_log_odds_vaccinated", prefix.replace(' ', "_")), get_or_default(map, "log_odds_vaccinated", 0.0)));
+            log_odds_microbiome_present.push(get_or_default(map, &format!("{}_log_odds_microbiome_present", prefix.replace(' ', "_")), get_or_default(map, "log_odds_microbiome_present", 0.0)));
+            log_odds_hospital_acquired.push(get_or_default(map, &format!("{}_log_odds_hospital_acquired", prefix.replace(' ', "_")), get_or_default(map, "log_odds_hospital_acquired", 0.0)));
+            microbiome_clearance_probability_per_day.push(get_or_default(map, &format!("{}_microbiome_clearance_probability_per_day", prefix), get_or_default(map, "default_microbiome_clearance_probability_per_day", 0.05)));
+            base_bacteria_level_change.push(get_or_default(map, &format!("{}_base_bacteria_level_change", prefix), 0.5));
+            immunity_effect_on_level_change.push(get_or_default(map, &format!("{}_immunity_effect_on_level_change", prefix), 0.08));
+            max_level.push(get_or_default(map, &format!("{}_max_level", prefix), 5.0));
+            immunity_base_response.push(get_or_default(map, &format!("{}_immunity_base_response", prefix), 0.03));
+            immunity_increase_per_infection_day.push(get_or_default(map, &format!("{}_immunity_increase_per_infection_day", prefix), 0.1));
+            immunity_increase_per_unit_level.push(get_or_default(map, &format!("{}_immunity_increase_per_unit_higher_bacteria_level", prefix), 0.05));
+            immunity_age_modifier.push(get_or_default(map, &format!("{}_immunity_age_modifier", prefix), 1.0));
+            immunity_immunodeficiency_modifier.push(get_or_default(map, &format!("{}_immunity_immunodeficiency_modifier", prefix), 0.1));
+            max_immune_response.push(get_or_default(map, &format!("{}_max_immune_response", prefix), 10.0));
+            microbiome_vs_infection_log_odds.push(get_or_default(
+                map,
+                &format!("{}_log_odds_microbiome_vs_infection", prefix.replace(' ', "_")),
+                get_or_default(map, "log_odds_microbiome_vs_infection", -6.0),
+            ));
+            let cessation_key = format!("{}_drug_cessation_probability", prefix.to_lowercase().replace(' ', "_"));
+            let default_cessation = get_or_default(map, "random_drug_cessation_probability", 0.001);
+            drug_cessation_probability.push(get_or_default(map, &cessation_key, default_cessation));
+            let recognition_key = format!("{}_treatment_recognition_year", prefix.replace(' ', "_"));
+            treatment_recognition_year.push(map.get(&recognition_key).copied());
+            sepsis_baseline_log_odds.push(get_or_default(map, &format!("{}_sepsis_baseline_log_odds", prefix), get_or_default(map, "sepsis_baseline_log_odds", -5.0)));
+            sepsis_log_odds_infection_level.push(get_or_default(map, &format!("{}_log_odds_sepsis_infection_level", prefix), get_or_default(map, "log_odds_sepsis_infection_level", 0.1)));
+            sepsis_log_odds_infection_duration.push(get_or_default(map, &format!("{}_log_odds_sepsis_infection_duration", prefix), get_or_default(map, "log_odds_sepsis_infection_duration", 0.01)));
+        }
+
+        BacteriaParameters {
+            acquisition_log_odds_baseline,
+            log_odds_vaccinated,
+            log_odds_microbiome_present,
+            log_odds_hospital_acquired,
+            microbiome_clearance_probability_per_day,
+            base_bacteria_level_change,
+            immunity_effect_on_level_change,
+            max_level,
+            immunity_base_response,
+            immunity_increase_per_infection_day,
+            immunity_increase_per_unit_level,
+            immunity_age_modifier,
+            immunity_immunodeficiency_modifier,
+            max_immune_response,
+            microbiome_vs_infection_log_odds,
+            drug_cessation_probability,
+            treatment_recognition_year,
+            sepsis_baseline_log_odds,
+            sepsis_log_odds_infection_level,
+            sepsis_log_odds_infection_duration,
+        }
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn base_level_change(&self, bacteria_idx: usize) -> f64 {
+        self.base_bacteria_level_change[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn sepsis_baseline_log_odds(&self, bacteria_idx: usize) -> f64 {
+        self.sepsis_baseline_log_odds[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn sepsis_log_odds_infection_level(&self, bacteria_idx: usize) -> f64 {
+        self.sepsis_log_odds_infection_level[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn sepsis_log_odds_infection_duration(&self, bacteria_idx: usize) -> f64 {
+        self.sepsis_log_odds_infection_duration[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn microbiome_vs_infection_log_odds(&self, bacteria_idx: usize) -> f64 {
+        self.microbiome_vs_infection_log_odds[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn treatment_recognition_year(&self, bacteria_idx: usize) -> Option<f64> {
+        self.treatment_recognition_year[bacteria_idx]
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct DrugBacteriaMatrix {
+    pub potency_when_no_r: Vec<f64>,
+    pub initiation_multiplier: Vec<f64>,
+    pub resistance_emergence_rate: Vec<f64>,
+    pub mic_lt2_threshold: Vec<f64>,
+    num_bacteria: usize,
+    num_drugs: usize,
+}
+
+impl DrugBacteriaMatrix {
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize, num_drugs: usize) -> Self {
+        let mut potency_when_no_r = Vec::with_capacity(num_bacteria * num_drugs);
+        let mut initiation_multiplier = Vec::with_capacity(num_bacteria * num_drugs);
+        let mut resistance_emergence_rate = Vec::with_capacity(num_bacteria * num_drugs);
+        let mut mic_lt2_threshold = Vec::with_capacity(num_bacteria * num_drugs);
+
+        for &bacteria in BACTERIA_LIST.iter() {
+            for &drug in DRUG_SHORT_NAMES.iter() {
+                let key_prefix = format!("drug_{}_for_bacteria_{}", drug, bacteria);
+                let potency = get_or_default(map, &format!("{}_potency_when_no_r", key_prefix), 0.1);
+                potency_when_no_r.push(potency);
+                initiation_multiplier.push(get_or_default(map, &format!("{}_initiation_multiplier", key_prefix), 1.0));
+                resistance_emergence_rate.push(get_or_default(map, &format!("{}_resistance_emergence_rate_per_day_baseline", key_prefix), 0.003));
+                let threshold = 1.0 - 0.5 / potency;
+                mic_lt2_threshold.push(threshold);
+            }
+        }
+
+        DrugBacteriaMatrix {
+            potency_when_no_r,
+            initiation_multiplier,
+            resistance_emergence_rate,
+            mic_lt2_threshold,
+            num_bacteria,
+            num_drugs,
+        }
+    }
+
+    #[inline]
+    fn index(&self, bacteria_idx: usize, drug_idx: usize) -> usize {
+        bacteria_idx * self.num_drugs + drug_idx
+    }
+
+    #[inline]
+    pub fn potency(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
+        let idx = self.index(bacteria_idx, drug_idx);
+        self.potency_when_no_r[idx]
+    }
+
+    #[inline]
+    pub fn initiation_multiplier(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
+        self.initiation_multiplier[self.index(bacteria_idx, drug_idx)]
+    }
+
+    #[inline]
+    pub fn resistance_emergence_rate(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
+        self.resistance_emergence_rate[self.index(bacteria_idx, drug_idx)]
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn mic_lt2_threshold(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
+        self.mic_lt2_threshold[self.index(bacteria_idx, drug_idx)]
+    }
+}
+
+#[derive(Debug)]
+pub struct RegionBacteriaAcquisition {
+    values: Vec<f64>,
+    num_bacteria: usize,
+}
+
+impl RegionBacteriaAcquisition {
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
+        let mut values = Vec::with_capacity(REGION_NAMES.len() * num_bacteria);
+
+        for &region in REGION_NAMES.iter().chain(std::iter::once(&HOME_REGION_NAME)) {
+            for &bacteria in BACTERIA_LIST.iter() {
+                let bacteria_clean = bacteria.replace(' ', "_");
+                let key = format!("{}_{}_acquisition_log_odds", region, bacteria_clean);
+                let default_key = format!("{}_acquisition_log_odds_default", region);
+                let val = map.get(&key).copied().unwrap_or_else(|| get_or_default(map, &default_key, 0.0));
+                values.push(val);
+            }
+        }
+
+        RegionBacteriaAcquisition { values, num_bacteria }
+    }
+
+    fn region_index(region: Region) -> usize {
+        match region {
+            Region::NorthAmerica => 0,
+            Region::SouthAmerica => 1,
+            Region::Africa => 2,
+            Region::Asia => 3,
+            Region::Europe => 4,
+            Region::Oceania => 5,
+            Region::Home => 6,
+        }
+    }
+
+    #[inline]
+    fn index(region_idx: usize, bacteria_idx: usize, num_bacteria: usize) -> usize {
+        region_idx * num_bacteria + bacteria_idx
+    }
+
+    #[inline]
+    pub fn acquisition_log_odds(&self, region: Region, bacteria_idx: usize) -> f64 {
+        let idx = Self::index(Self::region_index(region), bacteria_idx, self.num_bacteria);
+        self.values[idx]
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct AgeTables {
+    pub bacteria_age_log_odds: Vec<f64>,
+    pub region_age_log_odds: Vec<f64>,
+    pub default_age_log_odds: Vec<f64>,
+    num_bacteria: usize,
+}
+
+impl AgeTables {
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
+        let mut bacteria_age_log_odds = Vec::with_capacity(num_bacteria * AGE_BUCKETS.len());
+        let mut region_age_log_odds = Vec::with_capacity((REGION_NAMES.len() + 1) * AGE_BUCKETS.len());
+        let mut default_age_log_odds = Vec::with_capacity(AGE_BUCKETS.len());
+
+        for &bacteria in BACTERIA_LIST.iter() {
+            let bacteria_clean = bacteria.replace(' ', "_");
+            for &age in AGE_BUCKETS.iter() {
+                let key = format!("{}_log_odds_{}", bacteria_clean, age);
+                let default_key = format!("default_log_odds_{}", age);
+                let value = map.get(&key).copied().unwrap_or_else(|| get_or_default(map, &default_key, 0.0));
+                bacteria_age_log_odds.push(value);
+            }
+        }
+
+        for &region in REGION_NAMES.iter().chain(std::iter::once(&HOME_REGION_NAME)) {
+            for &age in AGE_BUCKETS.iter() {
+                let key = format!("{}_log_odds_{}", region, age);
+                region_age_log_odds.push(get_or_default(map, &key, 0.0));
+            }
+        }
+
+        for &age in AGE_BUCKETS.iter() {
+            default_age_log_odds.push(get_or_default(map, &format!("default_log_odds_{}", age), 0.0));
+        }
+
+        AgeTables {
+            bacteria_age_log_odds,
+            region_age_log_odds,
+            default_age_log_odds,
+            num_bacteria,
+        }
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn bacteria_age_log_odds(&self, bacteria_idx: usize, age_bucket: usize) -> f64 {
+        self.bacteria_age_log_odds[bacteria_idx * AGE_BUCKETS.len() + age_bucket]
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn region_age_log_odds(&self, region_idx: usize, age_bucket: usize) -> f64 {
+        self.region_age_log_odds[region_idx * AGE_BUCKETS.len() + age_bucket]
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn default_log_odds(&self, age_bucket: usize) -> f64 {
+        self.default_age_log_odds[age_bucket]
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct AgeCategoryParameters {
+    bacteria_age_log_odds: Vec<f64>,
+    region_age_log_odds: Vec<f64>,
+    bacteria_region_age_log_odds: Vec<f64>,
+    default_age_log_odds: [f64; AGE_CATEGORY_NAMES.len()],
+    num_bacteria: usize,
+}
+
+impl AgeCategoryParameters {
+    const AGE_CATEGORY_COUNT: usize = AGE_CATEGORY_NAMES.len();
+
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
+        let age_count = Self::AGE_CATEGORY_COUNT;
+
+        let mut default_age_log_odds = [0.0; AGE_CATEGORY_NAMES.len()];
+        for (idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
+            default_age_log_odds[idx] = get_or_default(map, &format!("default_log_odds_{}", category), 0.0);
+        }
+
+        let mut bacteria_age_log_odds = Vec::with_capacity(num_bacteria * age_count);
+        for &bacteria in BACTERIA_LIST.iter() {
+            let bacteria_clean = bacteria.replace(' ', "_");
+            for (age_idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
+                let key = format!("{}_log_odds_{}", bacteria_clean, category);
+                let value = map.get(&key).copied().unwrap_or(default_age_log_odds[age_idx]);
+                bacteria_age_log_odds.push(value);
+            }
+        }
+
+        let mut region_age_log_odds = Vec::with_capacity(RegionParameters::REGION_COUNT * age_count);
+        for region in REGION_VARIANTS.iter() {
+            let region_key = region.to_string();
+            for &category in AGE_CATEGORY_NAMES.iter() {
+                region_age_log_odds.push(get_or_default(map, &format!("{}_log_odds_{}", region_key, category), 0.0));
+            }
+        }
+
+        let mut bacteria_region_age_log_odds =
+            Vec::with_capacity(RegionParameters::REGION_COUNT * num_bacteria * age_count);
+        for region in REGION_VARIANTS.iter() {
+            let region_key = region.to_string();
+            let region_idx = RegionParameters::region_index(*region);
+            for (_bacteria_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+                let bacteria_clean = bacteria.replace(' ', "_");
+                for (age_idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
+                    let fallback = region_age_log_odds[region_idx * age_count + age_idx];
+                    let key = format!("{}_{}_log_odds_{}", bacteria_clean, region_key, category);
+                    let value = map.get(&key).copied().unwrap_or(fallback);
+                    bacteria_region_age_log_odds.push(value);
+                }
+            }
+        }
+
+        AgeCategoryParameters {
+            bacteria_age_log_odds,
+            region_age_log_odds,
+            bacteria_region_age_log_odds,
+            default_age_log_odds,
+            num_bacteria,
+        }
+    }
+
+    #[inline]
+    fn age_count() -> usize {
+        Self::AGE_CATEGORY_COUNT
+    }
+
+    #[inline]
+    pub fn age_category_index(age_days: i32) -> usize {
+        match age_days {
+            0..=730 => 0,          // infant (0-2 years)
+            731..=2190 => 1,       // preschool (3-5 years)
+            2191..=6574 => 2,      // school (6-17 years)
+            6575..=10949 => 3,     // young adult (18-29 years)
+            10950..=23359 => 4,    // middle age (30-64 years)
+            23360..=28854 => 5,    // elderly (65-79 years)
+            _ => 6,                // very elderly (80+ years)
+        }
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn age_category_name(age_idx: usize) -> &'static str {
+        AGE_CATEGORY_NAMES[age_idx]
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn default_log_odds(&self, age_idx: usize) -> f64 {
+        self.default_age_log_odds[age_idx]
+    }
+
+    #[inline]
+    pub fn bacteria_age_log_odds(&self, bacteria_idx: usize, age_idx: usize) -> f64 {
+        self.bacteria_age_log_odds[bacteria_idx * Self::age_count() + age_idx]
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn region_age_log_odds(&self, region: Region, age_idx: usize) -> f64 {
+        let region_idx = RegionParameters::region_index(region);
+        self.region_age_log_odds[region_idx * Self::age_count() + age_idx]
+    }
+
+    #[inline]
+    pub fn bacteria_region_age_log_odds(
+        &self,
+        region: Region,
+        bacteria_idx: usize,
+        age_idx: usize,
+    ) -> f64 {
+        let region_idx = RegionParameters::region_index(region);
+        let age_count = Self::age_count();
+        let idx = (region_idx * self.num_bacteria + bacteria_idx) * age_count + age_idx;
+        self.bacteria_region_age_log_odds[idx]
+    }
+}
+
+#[derive(Debug)]
+pub struct HgtMatrix {
+    values: Vec<f64>,
+    num_bacteria: usize,
+}
+
+impl HgtMatrix {
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
+        let mut values = Vec::with_capacity(num_bacteria * num_bacteria);
+        for &donor in BACTERIA_LIST.iter() {
+            for &recipient in BACTERIA_LIST.iter() {
+                if donor == recipient {
+                    values.push(0.0);
+                    continue;
+                }
+                let key = format!("hgt_prob_{}_to_{}", donor, recipient);
+                values.push(get_or_default(map, &key, 0.0));
+            }
+        }
+
+        HgtMatrix { values, num_bacteria }
+    }
+
+    #[inline]
+    pub fn probability(&self, donor_idx: usize, recipient_idx: usize) -> f64 {
+        self.values[donor_idx * self.num_bacteria + recipient_idx]
+    }
+}
+
+#[derive(Debug)]
+pub struct ResistanceMechanismParameters {
+    pub emergence_rate: Vec<f64>,
+    pub enhancement_multiplier: Vec<f64>,
+    pub reversion_rate: Vec<f64>,
+}
+
+impl ResistanceMechanismParameters {
+    fn from_map(map: &HashMap<String, f64>) -> Self {
+        let mut emergence_rate = Vec::with_capacity(ResistanceMechanism::all().len());
+        let mut enhancement_multiplier = Vec::with_capacity(ResistanceMechanism::all().len());
+        let mut reversion_rate = Vec::with_capacity(ResistanceMechanism::all().len());
+
+        for mechanism in ResistanceMechanism::all() {
+            let name = mechanism.as_str();
+            emergence_rate.push(get_or_default(map, &format!("resistance_mechanism_{}_emergence_rate", name), 0.0));
+            enhancement_multiplier.push(get_or_default(map, &format!("resistance_mechanism_{}_enhancement_multiplier", name), 0.0));
+            reversion_rate.push(get_or_default(map, &format!("resistance_mechanism_{}_reversion_rate", name), 0.0001));
+        }
+
+        ResistanceMechanismParameters {
+            emergence_rate,
+            enhancement_multiplier,
+            reversion_rate,
+        }
+    }
+
+    #[inline]
+    pub fn emergence_rate(&self, mechanism_idx: usize) -> f64 {
+        self.emergence_rate[mechanism_idx]
+    }
+
+    #[inline]
+    pub fn enhancement_multiplier(&self, mechanism_idx: usize) -> f64 {
+        self.enhancement_multiplier[mechanism_idx]
+    }
+
+    #[inline]
+    pub fn reversion_rate(&self, mechanism_idx: usize) -> f64 {
+        self.reversion_rate[mechanism_idx]
+    }
+}
+
+fn get_or_default(map: &HashMap<String, f64>, key: &str, default: f64) -> f64 {
+    map.get(key).copied().unwrap_or(default)
+}
+
+fn get_required(map: &HashMap<String, f64>, key: &str) -> f64 {
+    map.get(key)
+        .copied()
+        .unwrap_or_else(|| panic!("Missing {} in config", key))
+}
 
 // --- Global Simulation Parameters ---
 lazy_static! {
@@ -926,13 +2269,17 @@ lazy_static! {
         map.insert("chlamydia trachomatis_symptom_onset_threshold_level".to_string(), 1.5);    // Moderate threshold
         
         // NEISSERIA MENINGITIDIS - Often asymptomatic carriage  
-        map.insert("neisseria_meningitidis_daily_symptom_onset_probability".to_string(), 0.02); // 2% per day - usually carriage
+    map.insert("neisseria_meningitidis_daily_symptom_onset_probability".to_string(), 0.25); // 25% per day - increase clinical visibility
         map.insert("neisseria_meningitidis_symptom_onset_threshold_level".to_string(), 3.0);    // High threshold for invasive disease
         
         // MORAXELLA CATARRHALIS - Often just colonization
         map.insert("moraxella_catarrhalis_daily_symptom_onset_probability".to_string(), 0.05);  // 5% per day - often colonizer
         map.insert("moraxella_catarrhalis_symptom_onset_threshold_level".to_string(), 2.0);     // Moderate threshold
         
+    // PSEUDOMONAS AERUGINOSA - Clinically apparent when burden high
+    map.insert("pseudomonas aeruginosa_daily_symptom_onset_probability".to_string(), 0.2);   // 20% per day - improve detection of invasive disease
+    map.insert("pseudomonas aeruginosa_symptom_onset_threshold_level".to_string(), 0.8);     // Higher burden needed before symptoms manifest
+
         // ACUTE INFECTIONS - High symptomatic rates
         map.insert("streptococcus pneumoniae_daily_symptom_onset_probability".to_string(), 0.8); // 80% per day - usually symptomatic
         map.insert("streptococcus pyogenes_daily_symptom_onset_probability".to_string(), 0.7);   // 70% per day - usually symptomatic
@@ -1269,7 +2616,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -14.5); // -14.5 Default baseline log-odds for infection acquisition
+        map.insert("acquisition_log_odds_baseline".to_string(), -14.0); // -14.0 Default baseline log-odds for infection acquisition
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -1323,7 +2670,7 @@ lazy_static! {
         map.insert("campylobacter_jejuni_log_odds_hospital_acquired".to_string(), -0.4); // 0.67x (foodborne, lower in hospital)
         
         // effect of region on bacteria acquisition risk (vs north america)
-        map.insert("south_america_bacteria_acquisition_log_odds_default".to_string(), 0.4);
+        map.insert("south_america_shigella_spp_acquisition_log_odds".to_string(), 0.4);
         map.insert("africa_shigella_spp_acquisition_log_odds".to_string(), 3.0);
         map.insert("europe_shigella_spp_acquisition_log_odds".to_string(), 0.5); 
         map.insert("asia_shigella_spp_acquisition_log_odds".to_string(), 2.0);
@@ -1769,7 +3116,7 @@ lazy_static! {
 
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
-        map.insert("sepsis_baseline_odds".to_string(), -11.0); // -10.0 Baseline log odds (very low baseline probability)
+    map.insert("sepsis_baseline_log_odds".to_string(), -11.0); // Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
@@ -2363,292 +3710,8 @@ lazy_static! {
         map.insert("haemophilus_influenzae_north_america_log_odds_preschool".to_string(), 0.5); // Much lower
         map.insert("haemophilus_influenzae_north_america_log_odds_school".to_string(), 0.1);    // Very low
 
-        // Region-specific bacterial infection risk multipliers
-        // Based on real-world epidemiological patterns and regional prevalence
-        // Format: "{region}_{bacteria_name}_infection_risk_multiplier"
-        // Note: Region names use underscore format (e.g., "north_america", "south_america")
-        // and bacteria names have spaces replaced with underscores
-        
-        // Acinetobacter baumannii - higher in tropical/subtropical regions, hospitals
-        map.insert("north_america_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("south_america_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 1.5);
-        map.insert("africa_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 2.0);
-        map.insert("asia_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("europe_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_acinetobacter_baumannii_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Citrobacter spp. - more common in tropical regions
-        map.insert("north_america_citrobacter_spp._infection_risk_multiplier".to_string(), 0.9);
-        map.insert("south_america_citrobacter_spp._infection_risk_multiplier".to_string(), 1.4);
-        map.insert("africa_citrobacter_spp._infection_risk_multiplier".to_string(), 1.8);
-        map.insert("asia_citrobacter_spp._infection_risk_multiplier".to_string(), 1.6);
-        map.insert("europe_citrobacter_spp._infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_citrobacter_spp._infection_risk_multiplier".to_string(), 1.1);
-        
-        // Enterobacter spp. - globally distributed but higher in developing regions
-        map.insert("north_america_enterobacter_spp._infection_risk_multiplier".to_string(), 1.0);
-        map.insert("south_america_enterobacter_spp._infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_enterobacter_spp._infection_risk_multiplier".to_string(), 1.7);
-        map.insert("asia_enterobacter_spp._infection_risk_multiplier".to_string(), 1.5);
-        map.insert("europe_enterobacter_spp._infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_enterobacter_spp._infection_risk_multiplier".to_string(), 1.0);
-        
-        // Enterococcus faecalis - globally distributed, slightly higher in temperate regions
-        map.insert("north_america_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("south_america_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_enterococcus_faecalis_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("asia_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("europe_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("oceania_enterococcus_faecalis_infection_risk_multiplier".to_string(), 1.1);
-        
-        // Enterococcus faecium - higher in developed regions with heavy antibiotic use
-        map.insert("north_america_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("south_america_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_enterococcus_faecium_infection_risk_multiplier".to_string(), 0.7);
-        map.insert("asia_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("europe_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("oceania_enterococcus_faecium_infection_risk_multiplier".to_string(), 1.2);
-        
-        // Escherichia coli - globally distributed, slightly higher in developing regions
-        map.insert("north_america_escherichia_coli_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("south_america_escherichia_coli_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_escherichia_coli_infection_risk_multiplier".to_string(), 1.6);
-        map.insert("asia_escherichia_coli_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("europe_escherichia_coli_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_escherichia_coli_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Klebsiella pneumoniae - higher in tropical/subtropical regions
-        map.insert("north_america_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("south_america_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("africa_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("asia_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.6);
-        map.insert("europe_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_klebsiella_pneumoniae_infection_risk_multiplier".to_string(), 1.1);
-        
-        // Pseudomonas aeruginosa - higher in humid/warm climates and developed healthcare systems
-        map.insert("north_america_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("south_america_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("asia_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("europe_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("oceania_pseudomonas_aeruginosa_infection_risk_multiplier".to_string(), 1.2);
-        
-        // Staphylococcus aureus - globally distributed, slightly higher in crowded/poor sanitation areas
-        map.insert("north_america_staphylococcus_aureus_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("south_america_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("africa_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.5);
-        map.insert("asia_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("europe_staphylococcus_aureus_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_staphylococcus_aureus_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Streptococcus pneumoniae - slightly higher in cold/dry climates and crowded conditions
-        map.insert("north_america_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("south_america_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("asia_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("europe_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("oceania_streptococcus_pneumoniae_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Salmonella enterica serovar typhi - much higher in developing regions with poor sanitation
-        map.insert("north_america_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 0.2);
-        map.insert("south_america_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 2.0);
-        map.insert("africa_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 5.0);
-        map.insert("asia_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 4.0);
-        map.insert("europe_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 0.1);
-        map.insert("oceania_salmonella_enterica_serovar_typhi_infection_risk_multiplier".to_string(), 0.8);
-        
-        // Salmonella enterica serovar paratyphi a - similar pattern to typhi
-        map.insert("north_america_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 0.3);
-        map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("africa_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 3.5);
-        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 4.5);
-        map.insert("europe_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 0.2);
-        map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Invasive non-typhoidal salmonella - highest in sub-Saharan Africa
-        map.insert("north_america_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 0.5);
-        map.insert("south_america_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 1.2);
-        map.insert("africa_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 8.0);
-        map.insert("asia_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 1.5);
-        map.insert("europe_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 0.3);
-        map.insert("oceania_invasive_non-typhoidal_salmonella_spp._infection_risk_multiplier".to_string(), 1.0);
-        
-        // Shigella spp. - higher in regions with poor sanitation
-        map.insert("north_america_shigella_spp._infection_risk_multiplier".to_string(), 0.6);
-        map.insert("south_america_shigella_spp._infection_risk_multiplier".to_string(), 1.8);
-        map.insert("africa_shigella_spp._infection_risk_multiplier".to_string(), 3.0);
-        map.insert("asia_shigella_spp._infection_risk_multiplier".to_string(), 2.5);
-        map.insert("europe_shigella_spp._infection_risk_multiplier".to_string(), 0.4);
-        map.insert("oceania_shigella_spp._infection_risk_multiplier".to_string(), 1.0);
-        
-        // Neisseria gonorrhoeae - varies by region with different sexual health practices
-        map.insert("north_america_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("south_america_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("africa_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 2.0);
-        map.insert("asia_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("europe_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_neisseria_gonorrhoeae_infection_risk_multiplier".to_string(), 1.3);
-        
-        // Vibrio cholerae - much higher in regions with poor water/sanitation
-        map.insert("north_america_vibrio_cholerae_infection_risk_multiplier".to_string(), 0.1);
-        map.insert("south_america_vibrio_cholerae_infection_risk_multiplier".to_string(), 2.5);
-        map.insert("africa_vibrio_cholerae_infection_risk_multiplier".to_string(), 6.0);
-        map.insert("asia_vibrio_cholerae_infection_risk_multiplier".to_string(), 4.0);
-        map.insert("europe_vibrio_cholerae_infection_risk_multiplier".to_string(), 0.05);
-        map.insert("oceania_vibrio_cholerae_infection_risk_multiplier".to_string(), 1.5);
-        
-        // Chlamydia trachomatis - sexually transmitted, varies by region
-        map.insert("north_america_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("south_america_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("asia_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 0.7);
-        map.insert("europe_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("oceania_chlamydia_trachomatis_infection_risk_multiplier".to_string(), 1.4);
-        
-        // Campylobacter jejuni - higher in regions with poor food safety
-        map.insert("north_america_campylobacter_jejuni_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("south_america_campylobacter_jejuni_infection_risk_multiplier".to_string(), 1.5);
-        map.insert("africa_campylobacter_jejuni_infection_risk_multiplier".to_string(), 2.2);
-        map.insert("asia_campylobacter_jejuni_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("europe_campylobacter_jejuni_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_campylobacter_jejuni_infection_risk_multiplier".to_string(), 1.1);
-        
-        // Add region-specific multipliers for remaining bacteria types
-        // Using more conservative variations for less well-studied regional patterns
-        
-        // Morganella spp.
-        map.insert("north_america_morganella_spp._infection_risk_multiplier".to_string(), 1.0);
-        map.insert("south_america_morganella_spp._infection_risk_multiplier".to_string(), 1.2);
-        map.insert("africa_morganella_spp._infection_risk_multiplier".to_string(), 1.4);
-        map.insert("asia_morganella_spp._infection_risk_multiplier".to_string(), 1.3);
-        map.insert("europe_morganella_spp._infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_morganella_spp._infection_risk_multiplier".to_string(), 1.0);
-        
-        // Proteus spp.
-        map.insert("north_america_proteus_spp._infection_risk_multiplier".to_string(), 0.9);
-        map.insert("south_america_proteus_spp._infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_proteus_spp._infection_risk_multiplier".to_string(), 1.6);
-        map.insert("asia_proteus_spp._infection_risk_multiplier".to_string(), 1.4);
-        map.insert("europe_proteus_spp._infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_proteus_spp._infection_risk_multiplier".to_string(), 1.0);
-        
-        // Serratia spp.
-        map.insert("north_america_serratia_spp._infection_risk_multiplier".to_string(), 1.0);
-        map.insert("south_america_serratia_spp._infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_serratia_spp._infection_risk_multiplier".to_string(), 1.5);
-        map.insert("asia_serratia_spp._infection_risk_multiplier".to_string(), 1.4);
-        map.insert("europe_serratia_spp._infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_serratia_spp._infection_risk_multiplier".to_string(), 1.0);
-        
-        // MDR Mycobacterium tuberculosis - regional acquisition risk multipliers
-        // Reflects risk of acquiring MDR TB through primary transmission OR treatment failure
-        // Based on MDR TB transmission networks, treatment quality, and healthcare infrastructure
-        map.insert("north_america_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 0.15);
-        map.insert("south_america_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 1.6);
-        map.insert("asia_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 2.8);
-        map.insert("europe_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 3.2);
-        map.insert("oceania_mdr_mycobacterium_tuberculosis_infection_risk_multiplier".to_string(), 0.1);
-        
-        // Streptococcus pyogenes - Group A Strep, higher in crowded/poor sanitation areas
-        map.insert("north_america_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("south_america_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("asia_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("europe_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_streptococcus_pyogenes_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Streptococcus agalactiae - Group B Strep, neonatal pathogen, regional obstetric care variation
-        map.insert("north_america_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("south_america_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("africa_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.6);
-        map.insert("asia_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("europe_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("oceania_streptococcus_agalactiae_infection_risk_multiplier".to_string(), 1.0);
-        
-        // Haemophilus influenzae - post-vaccine era, higher in unvaccinated populations
-        map.insert("north_america_haemophilus_influenzae_infection_risk_multiplier".to_string(), 0.5);
-        map.insert("south_america_haemophilus_influenzae_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_haemophilus_influenzae_infection_risk_multiplier".to_string(), 2.5);
-        map.insert("asia_haemophilus_influenzae_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("europe_haemophilus_influenzae_infection_risk_multiplier".to_string(), 0.4);
-        map.insert("oceania_haemophilus_influenzae_infection_risk_multiplier".to_string(), 0.6);
-        
-        // Neisseria meningitidis - seasonal/climate patterns, meningitis belt in Africa
-        map.insert("north_america_neisseria_meningitidis_infection_risk_multiplier".to_string(), 0.7);
-        map.insert("south_america_neisseria_meningitidis_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("africa_neisseria_meningitidis_infection_risk_multiplier".to_string(), 4.0);
-        map.insert("asia_neisseria_meningitidis_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("europe_neisseria_meningitidis_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_neisseria_meningitidis_infection_risk_multiplier".to_string(), 0.6);
-        
-        // Listeria monocytogenes - foodborne, varies by food safety and refrigeration
-        map.insert("north_america_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("south_america_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("africa_listeria_monocytogenes_infection_risk_multiplier".to_string(), 2.0);
-        map.insert("asia_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.6);
-        map.insert("europe_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("oceania_listeria_monocytogenes_infection_risk_multiplier".to_string(), 1.2);
-        
-        // Clostridioides difficile - healthcare-associated, antibiotic use patterns
-        map.insert("north_america_clostridioides_difficile_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("south_america_clostridioides_difficile_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("africa_clostridioides_difficile_infection_risk_multiplier".to_string(), 0.6);
-        map.insert("asia_clostridioides_difficile_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("europe_clostridioides_difficile_infection_risk_multiplier".to_string(), 1.4);
-        map.insert("oceania_clostridioides_difficile_infection_risk_multiplier".to_string(), 1.2);
-        
-        // Enterobacter cloacae - similar to Enterobacter spp. but more healthcare-associated
-        map.insert("north_america_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("south_america_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.3);
-        map.insert("africa_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.7);
-        map.insert("asia_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.5);
-        map.insert("europe_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("oceania_enterobacter_cloacae_infection_risk_multiplier".to_string(), 1.1);
-        
-        // Yersinia enterocolitica - foodborne, cold-climate pathogen, pork products
-        map.insert("north_america_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("south_america_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("africa_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 0.6);
-        map.insert("asia_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("europe_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("oceania_yersinia_enterocolitica_infection_risk_multiplier".to_string(), 1.3);
-        
-        // Moraxella catarrhalis - respiratory pathogen, COPD exacerbations
-        map.insert("north_america_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("south_america_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 0.9);
-        map.insert("africa_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("asia_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("europe_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("oceania_moraxella_catarrhalis_infection_risk_multiplier".to_string(), 1.1);
-        
-        // Treponema pallidum - syphilis, sexually transmitted, varies by region
-        map.insert("north_america_treponema_pallidum_infection_risk_multiplier".to_string(), 1.0);
-        map.insert("south_america_treponema_pallidum_infection_risk_multiplier".to_string(), 1.2);
-        map.insert("africa_treponema_pallidum_infection_risk_multiplier".to_string(), 2.5);
-        map.insert("asia_treponema_pallidum_infection_risk_multiplier".to_string(), 1.1);
-        map.insert("europe_treponema_pallidum_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("oceania_treponema_pallidum_infection_risk_multiplier".to_string(), 1.4);
-        
-        // Bordetella pertussis - whooping cough, varies by vaccination coverage
-        map.insert("north_america_bordetella_pertussis_infection_risk_multiplier".to_string(), 0.8);
-        map.insert("south_america_bordetella_pertussis_infection_risk_multiplier".to_string(), 1.5);
-        map.insert("africa_bordetella_pertussis_infection_risk_multiplier".to_string(), 3.0);
-        map.insert("asia_bordetella_pertussis_infection_risk_multiplier".to_string(), 2.0);
-        map.insert("europe_bordetella_pertussis_infection_risk_multiplier".to_string(), 0.6);
-        map.insert("oceania_bordetella_pertussis_infection_risk_multiplier".to_string(), 0.7);
-        
-        // Helicobacter pylori - chronic gastric colonization, varies by sanitation/development
-        map.insert("north_america_helicobacter_pylori_infection_risk_multiplier".to_string(), 0.5);
-        map.insert("south_america_helicobacter_pylori_infection_risk_multiplier".to_string(), 1.8);
-        map.insert("africa_helicobacter_pylori_infection_risk_multiplier".to_string(), 2.5);
-        map.insert("asia_helicobacter_pylori_infection_risk_multiplier".to_string(), 2.2);
-        map.insert("europe_helicobacter_pylori_infection_risk_multiplier".to_string(), 0.7);
-        map.insert("oceania_helicobacter_pylori_infection_risk_multiplier".to_string(), 0.8);
-        
-        // Default multiplier for Home region and any missing region-bacteria combinations
-        map.insert("home_infection_risk_multiplier_default".to_string(), 1.0);
-        
+
+
         // Region-specific drug availability multipliers
         // Format: "{region}_drug_{drug_name}_availability"
         // Values: 1.0 = fully available, 0.5 = limited availability, 0.0 = not available
@@ -2918,6 +3981,14 @@ lazy_static! {
 
         map
     };
+
+    pub static ref PARAMETER_STORE: ParameterStore = ParameterStore::from_parameter_map(&PARAMETERS);
+}
+
+/// Helper accessor for the indexed parameter store.
+#[allow(dead_code)]
+pub fn parameter_store() -> &'static ParameterStore {
+    &PARAMETER_STORE
 }
 
 /// Retrieves a global simulation parameter.
@@ -2937,6 +4008,7 @@ pub fn get_bacteria_param(bacteria_name: &str, param_suffix: &str) -> Option<f64
 /// Retrieves a drug-specific simulation parameter.
 /// It looks up "drug_{drug_name}_{param_suffix}".
 /// Returns `Some(value)` if found, `None` otherwise.
+#[allow(dead_code)]
 pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
     let specific_key = format!("drug_{}_{}", drug_name, param_suffix);
     PARAMETERS.get(&specific_key).copied()
@@ -3119,6 +4191,7 @@ pub fn get_cross_resistance_groups() -> &'static HashMap<&'static str, Vec<Vec<&
 
 /// Retrieves a string parameter (like template names).
 /// Returns `Some(value)` if found, `None` otherwise.
+#[allow(dead_code)]
 pub fn get_string_param(key: &str) -> Option<String> {
     STRING_PARAMETERS.get(key).cloned()
 }
@@ -3126,6 +4199,7 @@ pub fn get_string_param(key: &str) -> Option<String> {
 /// Calculates the age-based infection risk multiplier for a given bacteria and age.
 /// Uses the template system with bacteria-specific scaling.
 /// Returns a multiplier (1.0 = baseline risk, >1.0 = increased risk, <1.0 = decreased risk)
+#[allow(dead_code)]
 pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
     let age_years = age_days as f64 / 365.0;
     
@@ -3437,6 +4511,7 @@ pub fn sample_age_and_region_from_distribution(rng: &mut impl rand::Rng) -> (cra
 /// Helper function to get drug interaction multiplier between two drugs
 /// Returns the multiplier for drug1's level when co-administered with drug2
 /// Returns 1.0 (no interaction) if no specific interaction is defined
+#[allow(dead_code)]
 pub fn get_drug_interaction_multiplier(drug1: &str, drug2: &str) -> f64 {
     let interaction_key = format!(
         "drug_level_multiplier_{}_when_coadministered_with_{}", 
@@ -3446,6 +4521,7 @@ pub fn get_drug_interaction_multiplier(drug1: &str, drug2: &str) -> f64 {
 }
 
 /// Helper function to check if two drugs have a defined interaction
+#[allow(dead_code)]
 pub fn drugs_have_interaction(drug1: &str, drug2: &str) -> bool {
     let interaction_key = format!(
         "drug_level_multiplier_{}_when_coadministered_with_{}", 
@@ -3455,6 +4531,7 @@ pub fn drugs_have_interaction(drug1: &str, drug2: &str) -> bool {
 }
 
 /// Helper function to list all active drug interactions for debugging/analysis
+#[allow(dead_code)]
 pub fn get_all_active_interactions() -> Vec<(String, String, f64)> {
     let mut interactions = Vec::new();
     
