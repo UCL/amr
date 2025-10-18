@@ -26,6 +26,8 @@ use crate::config::{
 };
 use rand::Rng;
 use rand::seq::SliceRandom;
+
+use crate::simulation::simulation::MajorityRCache;
 use std::collections::HashMap;
 
 /// Helper function to update the current number of drugs counter
@@ -537,7 +539,7 @@ pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
     rng: &mut impl Rng,
-    majority_r_positive_values_by_combo: &HashMap<(usize, bool, usize, usize), Vec<f64>>, // <-- update type
+    majority_r_cache: &MajorityRCache,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
     cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
@@ -1427,37 +1429,39 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     // Check resistance rates for likely bacterial causes
                     for b_idx in 0..BACTERIA_LIST.len() {
                         // Get regional resistance data for this bacteria-drug combination
-                        if let Some(resistance_values) = majority_r_positive_values_by_combo.get(&(region_idx, hospital_status, b_idx, drug_idx)) {
-                            if !resistance_values.is_empty() {
-                                // Calculate resistance prevalence: proportion of cases with resistance > 0
-                                let resistance_cases = resistance_values.len() as f64;
-                                
-                                // Estimate total cases by checking all drugs for this bacteria in this region
-                                // (This gives us denominator for prevalence calculation)
-                                let mut total_cases_estimate = resistance_cases;
-                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                    if let Some(other_resistance_values) = majority_r_positive_values_by_combo.get(&(region_idx, hospital_status, b_idx, d_idx)) {
-                                        total_cases_estimate = total_cases_estimate.max(other_resistance_values.len() as f64);
-                                    }
-                                }
-                                
-                                if total_cases_estimate > 0.0 {
-                                    let resistance_prevalence = resistance_cases / total_cases_estimate;
-                                    
-                                    // Apply graduated penalties based on regional resistance levels
-                                    let resistance_penalty = if resistance_prevalence >= very_high_threshold {
-                                        very_high_penalty  // Very high resistance - avoid drug
-                                    } else if resistance_prevalence >= high_threshold {
-                                        high_penalty       // High resistance - large penalty
-                                    } else if resistance_prevalence >= moderate_threshold {
-                                        moderate_penalty   // Moderate resistance - moderate penalty
-                                    } else {
-                                        1.0                // Low resistance - no penalty
-                                    };
-                                    
-                                    // Use the most restrictive penalty across all bacteria
-                                    regional_resistance_penalty = regional_resistance_penalty.min(resistance_penalty);
-                                }
+                        let resistance_values =
+                            majority_r_cache.bucket(region_idx, hospital_status, b_idx, drug_idx);
+                        if !resistance_values.is_empty() {
+                            // Calculate resistance prevalence: proportion of cases with resistance > 0
+                            let resistance_cases = resistance_values.len() as f64;
+
+                            // Estimate total cases by checking all drugs for this bacteria in this region
+                            // (This gives us denominator for prevalence calculation)
+                            let mut total_cases_estimate = resistance_cases;
+                            for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                let other_resistance_values =
+                                    majority_r_cache.bucket(region_idx, hospital_status, b_idx, d_idx);
+                                total_cases_estimate =
+                                    total_cases_estimate.max(other_resistance_values.len() as f64);
+                            }
+
+                            if total_cases_estimate > 0.0 {
+                                let resistance_prevalence = resistance_cases / total_cases_estimate;
+
+                                // Apply graduated penalties based on regional resistance levels
+                                let resistance_penalty = if resistance_prevalence >= very_high_threshold {
+                                    very_high_penalty // Very high resistance - avoid drug
+                                } else if resistance_prevalence >= high_threshold {
+                                    high_penalty // High resistance - large penalty
+                                } else if resistance_prevalence >= moderate_threshold {
+                                    moderate_penalty // Moderate resistance - moderate penalty
+                                } else {
+                                    1.0 // Low resistance - no penalty
+                                };
+
+                                // Use the most restrictive penalty across all bacteria
+                                regional_resistance_penalty =
+                                    regional_resistance_penalty.min(resistance_penalty);
                             }
                         }
                     }
@@ -2005,15 +2009,18 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 hospital_status_bool // Community-acquired microbiome samples based on current status
                             };
 
-                            if let Some(majority_r_values_from_population) =
-                                majority_r_positive_values_by_combo.get(&(region_idx, sampling_hospital_status, b_idx, d_idx))
+                            let majority_r_values_from_population = majority_r_cache.bucket(
+                                region_idx,
+                                sampling_hospital_status,
+                                b_idx,
+                                d_idx,
+                            );
+                            if let Some(&acquired_resistance_level) =
+                                majority_r_values_from_population.choose(rng)
                             {
-                                if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(rng) {
-                                    let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
-                                    resistance_data.microbiome_r = clamped_level;
-                                } else {
-                                    resistance_data.microbiome_r = 0.0;
-                                }
+                                let clamped_level =
+                                    acquired_resistance_level.min(max_resistance_level).max(0.0);
+                                resistance_data.microbiome_r = clamped_level;
                             } else {
                                 resistance_data.microbiome_r = 0.0;
                             }
@@ -2302,33 +2309,38 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             hospital_status_bool // Community-acquired infections sample based on current status
                         };
 
-                        if let Some(majority_r_values_from_population) =
-                            majority_r_positive_values_by_combo.get(&(region_idx, sampling_hospital_status, b_idx, d_idx))
+                        let majority_r_values_from_population = majority_r_cache.bucket(
+                            region_idx,
+                            sampling_hospital_status,
+                            b_idx,
+                            d_idx,
+                        );
+                        if let Some(&acquired_resistance_level) =
+                            majority_r_values_from_population.choose(rng)
                         {
-                            if let Some(&acquired_resistance_level) = majority_r_values_from_population.choose(rng) {
-                                let clamped_level = acquired_resistance_level.min(max_resistance_level).max(0.0);
-                                resistance_data.any_r = clamped_level;
-                                resistance_data.majority_r = clamped_level;
-                                // Inline mechanism assignment
-                                use crate::simulation::population::ResistanceMechanism;
-                                let mechanism_prob =
-                                    store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                                    let enhancement = store
-                                        .resistance_mechanism
-                                        .enhancement_multiplier(mech_idx);
+                            let clamped_level =
+                                acquired_resistance_level.min(max_resistance_level).max(0.0);
+                            resistance_data.any_r = clamped_level;
+                            resistance_data.majority_r = clamped_level;
+                            // Inline mechanism assignment
+                            use crate::simulation::population::ResistanceMechanism;
+                            let mechanism_prob =
+                                store.globals.mechanism_assignment_probability_on_any_r_gain;
+                            for (mech_idx, _mechanism) in
+                                ResistanceMechanism::all().iter().enumerate()
+                            {
+                                let enhancement =
+                                    store.resistance_mechanism.enhancement_multiplier(mech_idx);
 
-                                    if enhancement <= resistance_data.any_r {
-                                        if rng.gen_bool(mechanism_prob) {
-                                            individual.resistance_mechanisms[b_idx][mech_idx] = true;
-                                        }
+                                if enhancement <= resistance_data.any_r {
+                                    if rng.gen_bool(mechanism_prob) {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                     }
                                 }
-                                individual.how_resistance_acquired[b_idx][d_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity);
-                            } else {
-                                resistance_data.any_r = 0.0;
-                                resistance_data.majority_r = 0.0;
                             }
+                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
+                            );
                         } else {
                             resistance_data.any_r = 0.0;
                             resistance_data.majority_r = 0.0;

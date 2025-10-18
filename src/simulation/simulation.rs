@@ -17,6 +17,7 @@ use crate::simulation::journey_logger::JourneyLogger;
 use crate::rules::apply_rules;
 use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use std::collections::HashMap;
+use std::mem;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use rayon::prelude::*;
@@ -43,6 +44,59 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
         Region::Home => individual.region_living,
         other => other,
     }
+}
+
+/// Cache of majority_r samples indexed by (region, hospital status, bacteria, drug).
+#[derive(Clone)]
+pub struct MajorityRCache {
+    buckets: Vec<Vec<f64>>,
+    num_regions: usize,
+    num_bacteria: usize,
+    num_drugs: usize,
+}
+
+impl MajorityRCache {
+    pub fn new(num_regions: usize, num_bacteria: usize, num_drugs: usize) -> Self {
+        let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
+        MajorityRCache {
+            buckets: vec![Vec::new(); total_buckets],
+            num_regions,
+            num_bacteria,
+            num_drugs,
+        }
+    }
+
+    #[inline]
+    fn index(&self, region_idx: usize, hospital: bool, bacteria_idx: usize, drug_idx: usize) -> usize {
+        debug_assert!(region_idx < self.num_regions, "region_idx {} out of range {}", region_idx, self.num_regions);
+        debug_assert!(bacteria_idx < self.num_bacteria, "bacteria_idx {} out of range {}", bacteria_idx, self.num_bacteria);
+        debug_assert!(drug_idx < self.num_drugs, "drug_idx {} out of range {}", drug_idx, self.num_drugs);
+        (((region_idx * 2) + hospital as usize) * self.num_bacteria + bacteria_idx) * self.num_drugs + drug_idx
+    }
+
+    #[inline]
+    pub fn bucket(&self, region_idx: usize, hospital: bool, bacteria_idx: usize, drug_idx: usize) -> &[f64] {
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        &self.buckets[idx]
+    }
+
+    #[inline]
+    fn bucket_mut(&mut self, region_idx: usize, hospital: bool, bacteria_idx: usize, drug_idx: usize) -> &mut Vec<f64> {
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        &mut self.buckets[idx]
+    }
+
+    #[inline]
+    pub fn push(&mut self, region_idx: usize, hospital: bool, bacteria_idx: usize, drug_idx: usize, value: f64) {
+        self.bucket_mut(region_idx, hospital, bacteria_idx, drug_idx).push(value);
+    }
+
+    pub fn clear_all(&mut self) {
+        for bucket in &mut self.buckets {
+            bucket.clear();
+        }
+    }
+
 }
 
 // Compact structure for time step summary data
@@ -227,8 +281,9 @@ pub struct Simulation {
     pub drug_indices: HashMap<&'static str, usize>,
     /// Maps bacteria index to cross-resistance groups (each group is a Vec of drug indices).
     pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>,
-    /// Stores majority_r positive values for each (bacteria, is_microbiome, drug, time_step) combo.
-    pub current_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>>,
+    /// Stores majority_r positive samples indexed by region/hospital/bacteria/drug.
+    pub majority_r_cache_prev: MajorityRCache,
+    pub majority_r_cache_next: MajorityRCache,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
     /// Pre-computed parameter keys to avoid string allocation during simulation.
@@ -241,6 +296,8 @@ pub struct Simulation {
     pub prev_majority_r_entries_len: usize,
     /// Journey logger for tracking infection episodes
     pub journey_logger: JourneyLogger,
+    /// Optional fixed RNG seed for deterministic runs
+    pub rng_seed: Option<u64>,
 }
 
 impl Simulation {
@@ -282,8 +339,10 @@ impl Simulation {
         // Precompute potency matrix to avoid repeated string formatting/hash lookups in hot loop
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
-    let mut potency_matrix = Vec::with_capacity(num_bacteria * num_drugs);
-    let mut mic_lt2_majority_r_thresholds = Vec::with_capacity(num_bacteria * num_drugs);
+        let num_regions_including_home = 7; // Region enum variants including Region::Home sentinel
+
+        let mut potency_matrix = Vec::with_capacity(num_bacteria * num_drugs);
+        let mut mic_lt2_majority_r_thresholds = Vec::with_capacity(num_bacteria * num_drugs);
         for b_idx in 0..num_bacteria {
             for d_idx in 0..num_drugs {
                 let bacteria_name = BACTERIA_LIST[b_idx];
@@ -305,13 +364,15 @@ impl Simulation {
             bacteria_indices,
             drug_indices,
             cross_resistance_groups, 
-            current_majority_r_positive_values_by_combo: HashMap::new(), // Initialize empty
+            majority_r_cache_prev: MajorityRCache::new(num_regions_including_home, num_bacteria, num_drugs),
+            majority_r_cache_next: MajorityRCache::new(num_regions_including_home, num_bacteria, num_drugs),
             summary_log: Vec::new(), // Initialize empty log
             param_cache: crate::rules::ParameterKeyCache::new(),
             potency_matrix,
             mic_lt2_majority_r_thresholds,
             prev_majority_r_entries_len: 0,
             journey_logger: JourneyLogger::new(),
+            rng_seed: None,
         }
     }
 
@@ -365,12 +426,8 @@ impl Simulation {
             // Thread-local aggregation will replace most atomics; keep only minimal atomics if needed (none for now).
 
             // Use previous time step's resistance data for new acquisitions
-            let previous_majority_r_positive_values_by_combo = if t == 0 {
-                HashMap::new() // Empty for first time step
-            } else {
-            // Use the data collected in the previous iteration
-                std::mem::take(&mut self.current_majority_r_positive_values_by_combo)
-            };
+            self.majority_r_cache_next.clear_all();
+            let previous_majority_r_cache_addr = (&self.majority_r_cache_prev as *const MajorityRCache) as usize;
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
@@ -466,9 +523,16 @@ impl Simulation {
                 syndrome_deaths_sepsis_by_region: Vec<usize>,
             }
             impl LocalTotals {
-                fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize) -> Self {
+                fn new(num_bacteria: usize, num_drugs: usize, majority_r_capacity: usize, seed: Option<u64>) -> Self {
+                    let rng = match seed {
+                        Some(seed_value) => {
+                            // Derive per-thread seeds from base to maintain deterministic replay
+                            SmallRng::seed_from_u64(seed_value)
+                        }
+                        None => SmallRng::from_entropy(),
+                    };
                     Self {
-                        rng: SmallRng::from_entropy(),
+                        rng,
                         mic_lt2_counts: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         microbiome_r_positive_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
@@ -631,388 +695,435 @@ impl Simulation {
         let mic_lt2_thresholds = &self.mic_lt2_majority_r_thresholds;
         let threads = rayon::current_num_threads().max(1);
         let per_thread_cap = (self.prev_majority_r_entries_len / threads).saturating_add(8);
+        let seed_option = self.rng_seed;
         let totals = self.population.individuals.par_iter_mut()
-            .fold(|| LocalTotals::new(num_bacteria, num_drugs, per_thread_cap), |mut lt, individual| {
-                        // Pre-rules MIC snapshot
-                        if individual.date_of_death.is_none() && individual.age >= 0 {
-                                // Check if individual is infected with any bacteria
-                                let is_infected = individual.level.iter().any(|&level| level > 0.001);
-                                if is_infected {
-                                    // Count infected individual by region (only once per individual)
-                                    let effective_region = get_effective_region(individual);
-                                    let region_idx = region_to_index(effective_region);
-                                    lt.infected_count_by_region[region_idx] += 1;
-                                }
-                                
-                                for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > 0.001 {
-                                    let base = b_idx * num_drugs;
-                                    // Count if infected with this bacteria and on any drug
-                                    if individual.cur_use_drug.iter().any(|&x| x) {
-                                        lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
-                                    }
-                                    for d_idx in 0..num_drugs {
-                                        let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        let threshold = mic_lt2_thresholds[base + d_idx];
-                                        if resistance_data.majority_r < threshold { lt.mic_lt2_counts[base + d_idx] += 1; }
-                                        // per-bacteria, per-drug currently on drug
-                                        if individual.cur_use_drug[d_idx] {
-                                            lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
-                                        }
-                                        // Sum any_r values for infected individuals
-                                        lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
-                                        // Calculate and sum MIC values for infected individuals
-                                        // MIC = 1 / ((1 - majority_r) * potency)
-                                        let potency = self.potency_matrix[base + d_idx];
-                                        let mic = 1.0 / ((1.0 - resistance_data.majority_r) * potency);
-                                        lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
-                                        // Count individuals with any_r > 0 for infected individuals
-                                        if resistance_data.any_r > 0.0 {
-                                            lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
-                                        }
-                                        // Sum any_r values for hospital-acquired infected individuals
-                                        if individual.infection_hospital_acquired[b_idx] {
-                                            lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
-                                        }
-                                        // Sum any_r values by region (pooled across all bacteria and drugs)
-                                        let effective_region = get_effective_region(individual);
-                                        let region_idx = region_to_index(effective_region);
-                                        lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
-                                    }
-                                    
-                                    // Count resistance mechanisms for this bacteria
-                                    let num_mechanisms = ResistanceMechanism::all().len();
-                                    for (mech_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                                        if individual.resistance_mechanisms[b_idx][mech_idx] {
-                                            let flat_idx = b_idx * num_mechanisms + mech_idx;
-                                            lt.infected_with_bacteria_and_mechanism[flat_idx] += 1;
-                                        }
-                                    }
-                                    
-                                    // Count infected people with test status flags
-                                    if individual.test_identified_infection[b_idx] {
-                                        lt.infected_with_test_identified_by_bacteria[b_idx] += 1;
-                                    }
-                                    if individual.test_for_resistance[b_idx] {
-                                        lt.infected_with_test_for_resistance_by_bacteria[b_idx] += 1;
-                                    }
-                                }                                // Count microbiome_r > 0 for all bacteria-drug combinations (regardless of infection status)
-                                for d_idx in 0..num_drugs {
-                                    let resistance_data = &individual.resistances[b_idx][d_idx];
-                                    if resistance_data.microbiome_r > 0.0 {
-                                        let idx = b_idx * num_drugs + d_idx;
-                                        lt.microbiome_r_positive_by_bacteria_drug[idx] += 1;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Reset drug scores for this time step (initialize to -1 indicating no drug selection)
-                        individual.bacteria_on_selection_day = -1;
-                        for d_idx in 0..num_drugs {
-                            individual.drug_score_on_selection_day[d_idx] = -1.0;
-                        }
-
-                        // Apply rules
-                        apply_rules(
-                            individual,
-                            t,
-                            &mut lt.rng,
-                            &previous_majority_r_positive_values_by_combo,
-                            &self.bacteria_indices,
-                            &self.drug_indices,
-                            &self.cross_resistance_groups,
-                            &self.param_cache,
-                        );
-
-                        // Death accounting
-                        if let Some(death_time) = individual.date_of_death {
-                            if death_time == t {
-                                lt.total_deaths += 1;
-                                
-                                // Get region for this death
-                                let effective_region = get_effective_region(individual);
-                                let region_idx = region_to_index(effective_region);
-                                
-                                // Get age group for this death (ages in days, convert to years)
-                                let age_years = individual.age as f64 / 365.0;
-                                let age_group_idx = if (0.0..6.0).contains(&age_years) { 
-                                    0 // 0-5 years
-                                } else if (6.0..15.0).contains(&age_years) { 
-                                    1 // 6-14 years
-                                } else if (15.0..50.0).contains(&age_years) { 
-                                    2 // 15-49 years
-                                } else if (50.0..80.0).contains(&age_years) { 
-                                    3 // 50-79 years
-                                } else { 
-                                    4 // 80+ years
-                                };
-                                
-                                if let Some(ref cause) = individual.cause_of_death {
-                                    match cause.as_str() {
-                                        "background_mortality" => {
-                                            lt.deaths_background += 1;
-                                            lt.deaths_by_region[region_idx * 3 + 0] += 1; // background death
-                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // background death by age
-                                        },
-                                        "sepsis_related" => {
-                                            lt.deaths_sepsis += 1;
-                                            lt.deaths_by_region[region_idx * 3 + 1] += 1; // sepsis death
-                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 1] += 1; // sepsis death by age
-                                            
-                                            // Track sepsis deaths by syndrome and region
-                                            for b_idx in 0..BACTERIA_LIST.len() {
-                                                if individual.sepsis[b_idx] {
-                                                    let syndrome_id = individual.infectious_syndrome[b_idx];
-                                                    if syndrome_id >= 1 && syndrome_id <= 10 {
-                                                        let syndrome_idx = (syndrome_id - 1) as usize;
-                                                        let index = syndrome_idx * 6 + region_idx;
-                                                        lt.syndrome_deaths_sepsis_by_region[index] += 1;
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "drug_toxicity_related" => {
-                                            lt.deaths_drug_toxicity += 1;
-                                            lt.deaths_by_region[region_idx * 3 + 2] += 1; // toxicity death
-                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 2] += 1; // toxicity death by age
-                                        },
-                                        _ => {
-                                            lt.deaths_background += 1;
-                                            lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
-                                            lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
-                                        },
-                                    }
-                                } else { 
-                                    lt.deaths_background += 1; 
-                                    lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
-                                    lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
-                                }
-                                // Count deaths by bacteria
-                                for b_idx in 0..num_bacteria {
-                                    if individual.level[b_idx] > 0.001 {
-                                        lt.deaths_by_bacteria[b_idx] += 1;
-                                    }
-                                }
-                                
-                                // Count deaths by bacteria and home region for currently infected individuals
-                                let home_region_idx = region_to_index(individual.region_living);
-                                for b_idx in 0..num_bacteria {
-                                    if individual.level[b_idx] > 0.001 {
-                                        lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
-                                    }
-                                }
-                            }
-                        }
-
-                        if individual.date_of_death.is_none() && individual.age >= 0 {
-                            // Integrated living population & age groups (only count individuals who have been born)
-                            lt.living_population += 1;
-                            
-                            // Count living population by region
+            .fold(
+                || {
+                    let thread_seed = seed_option.map(|base| {
+                        let thread_idx = rayon::current_thread_index().unwrap_or(0) as u64;
+                        base ^ thread_idx.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    });
+                    LocalTotals::new(num_bacteria, num_drugs, per_thread_cap, thread_seed)
+                },
+                |mut lt, individual| {
+                    // Pre-rules MIC snapshot
+                    if individual.date_of_death.is_none() && individual.age >= 0 {
+                        // Check if individual is infected with any bacteria
+                        let is_infected = individual.level.iter().any(|&level| level > 0.001);
+                        if is_infected {
+                            // Count infected individual by region (only once per individual)
                             let effective_region = get_effective_region(individual);
                             let region_idx = region_to_index(effective_region);
-                            lt.living_population_by_region[region_idx] += 1;
-                            
+                            lt.infected_count_by_region[region_idx] += 1;
+                        }
+
+                        for b_idx in 0..num_bacteria {
+                            if individual.level[b_idx] > 0.001 {
+                                let base = b_idx * num_drugs;
+                                // Count if infected with this bacteria and on any drug
+                                if individual.cur_use_drug.iter().any(|&x| x) {
+                                    lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
+                                }
+                                for d_idx in 0..num_drugs {
+                                    let resistance_data = &individual.resistances[b_idx][d_idx];
+                                    let threshold = mic_lt2_thresholds[base + d_idx];
+                                    if resistance_data.majority_r < threshold {
+                                        lt.mic_lt2_counts[base + d_idx] += 1;
+                                    }
+                                    // per-bacteria, per-drug currently on drug
+                                    if individual.cur_use_drug[d_idx] {
+                                        lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
+                                    }
+                                    // Sum any_r values for infected individuals
+                                    lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
+                                    // Calculate and sum MIC values for infected individuals
+                                    let potency = self.potency_matrix[base + d_idx];
+                                    let mic = 1.0 / ((1.0 - resistance_data.majority_r) * potency);
+                                    lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
+                                    // Count individuals with any_r > 0 for infected individuals
+                                    if resistance_data.any_r > 0.0 {
+                                        lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
+                                    }
+                                    // Sum any_r values for hospital-acquired infected individuals
+                                    if individual.infection_hospital_acquired[b_idx] {
+                                        lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
+                                    }
+                                    // Sum any_r values by region (pooled across all bacteria and drugs)
+                                    let effective_region = get_effective_region(individual);
+                                    let region_idx = region_to_index(effective_region);
+                                    lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
+                                }
+
+                                // Count resistance mechanisms for this bacteria
+                                let num_mechanisms = ResistanceMechanism::all().len();
+                                for (mech_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                    if individual.resistance_mechanisms[b_idx][mech_idx] {
+                                        let flat_idx = b_idx * num_mechanisms + mech_idx;
+                                        lt.infected_with_bacteria_and_mechanism[flat_idx] += 1;
+                                    }
+                                }
+
+                                // Count infected people with test status flags
+                                if individual.test_identified_infection[b_idx] {
+                                    lt.infected_with_test_identified_by_bacteria[b_idx] += 1;
+                                }
+                                if individual.test_for_resistance[b_idx] {
+                                    lt.infected_with_test_for_resistance_by_bacteria[b_idx] += 1;
+                                }
+                            }
+
+                            // Count microbiome_r > 0 for all bacteria-drug combinations (regardless of infection status)
+                            for d_idx in 0..num_drugs {
+                                let resistance_data = &individual.resistances[b_idx][d_idx];
+                                if resistance_data.microbiome_r > 0.0 {
+                                    let idx = b_idx * num_drugs + d_idx;
+                                    lt.microbiome_r_positive_by_bacteria_drug[idx] += 1;
+                                }
+                            }
+                        }
+                    }
+
+                    // Reset drug scores for this time step (initialize to -1 indicating no drug selection)
+                    individual.bacteria_on_selection_day = -1;
+                    for d_idx in 0..num_drugs {
+                        individual.drug_score_on_selection_day[d_idx] = -1.0;
+                    }
+
+                    // Apply rules
+                    apply_rules(
+                        individual,
+                        t,
+                        &mut lt.rng,
+                        unsafe { &*(previous_majority_r_cache_addr as *const MajorityRCache) },
+                        &self.bacteria_indices,
+                        &self.drug_indices,
+                        &self.cross_resistance_groups,
+                        &self.param_cache,
+                    );
+
+                    // Death accounting
+                    if let Some(death_time) = individual.date_of_death {
+                        if death_time == t {
+                            lt.total_deaths += 1;
+
+                            // Get region for this death
+                            let effective_region = get_effective_region(individual);
+                            let region_idx = region_to_index(effective_region);
+
+                            // Get age group for this death (ages in days, convert to years)
                             let age_years = individual.age as f64 / 365.0;
-                            if (0.0..6.0).contains(&age_years) { 
-                                lt.num_age_0_5 += 1; 
-                                lt.age_distribution_by_region[region_idx * 5 + 0] += 1;
-                            }
-                            else if (6.0..15.0).contains(&age_years) { 
-                                lt.num_age_6_14 += 1; 
-                                lt.age_distribution_by_region[region_idx * 5 + 1] += 1;
-                            }
-                            else if (15.0..50.0).contains(&age_years) { 
-                                lt.num_age_15_49 += 1; 
-                                lt.age_distribution_by_region[region_idx * 5 + 2] += 1;
-                            }
-                            else if (50.0..80.0).contains(&age_years) { 
-                                lt.num_age_50_79 += 1; 
-                                lt.age_distribution_by_region[region_idx * 5 + 3] += 1;
-                            }
-                            else if age_years >= 80.0 { 
-                                lt.num_age_80plus += 1; 
-                                lt.age_distribution_by_region[region_idx * 5 + 4] += 1;
-                            }
-                            // Drug usage post-rules
-                            let mut on_any_drug = false;
-                            for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
-                                if is_using { 
-                                    lt.currently_on_drug_by_drug[d_idx] += 1; 
-                                    // Count drug usage by region
-                                    let idx = region_idx * DRUG_SHORT_NAMES.len() + d_idx;
-                                    lt.currently_on_drug_by_region_drug[idx] += 1;
-                                    on_any_drug = true; 
-                                }
-                            }
-                            if on_any_drug { lt.currently_taking_drug_count += 1; }
+                            let age_group_idx = if (0.0..6.0).contains(&age_years) {
+                                0 // 0-5 years
+                            } else if (6.0..15.0).contains(&age_years) {
+                                1 // 6-14 years
+                            } else if (15.0..50.0).contains(&age_years) {
+                                2 // 15-49 years
+                            } else if (50.0..80.0).contains(&age_years) {
+                                3 // 50-79 years
+                            } else {
+                                4 // 80+ years
+                            };
 
-                            // Check if this person started any drug today
-                            let mut started_drug_today = false;
-                            for &initiation_date in individual.date_drug_initiated.iter() {
-                                if initiation_date == t as i32 {
-                                    started_drug_today = true;
-                                    break;
-                                }
-                            }
-                            if started_drug_today {
-                                lt.new_drug_initiations_count += 1;
-                                
-                                // Check if this person is currently infected with non-H. pylori pathogens (exclude H. pylori at index 32)
-                                let is_currently_infected_non_h_pylori = individual.level.iter().enumerate()
-                                    .any(|(b_idx, &level)| b_idx != 32 && level > 0.0);
-                                if is_currently_infected_non_h_pylori {
-                                    lt.new_drug_initiations_count_infected += 1;
-                                }
-                            }
-
-                            if individual.presence_microbiome.iter().any(|&x| x) { lt.num_with_any_bacteria_microbiome += 1; }
-                            
-                            // Count presence_microbiome by individual bacteria
-                            for (b_idx, &has_bacteria) in individual.presence_microbiome.iter().enumerate() {
-                                if has_bacteria {
-                                    lt.presence_microbiome_by_bacteria[b_idx] += 1;
-                                    // Also count by region
-                                    let region_idx = individual.region_living as usize;
-                                    lt.presence_microbiome_by_bacteria_by_region[b_idx][region_idx] += 1;
-                                }
-                            }
-
-                            // Track drug failure events: check for day 5 post-drug-initiation
-                            let region_idx = individual.region_living as usize;
-                            for (d_idx, &drug_init_day) in individual.date_drug_initiated.iter().enumerate() {
-                                if drug_init_day != i32::MIN && t as i32 - drug_init_day == 5 {
-                                    // This is day 5 post-drug-initiation for this drug
-                                    // Check all bacteria for infection status
-                                    for b_idx in 0..individual.level.len() {
-                                        lt.drug_treatment_day5_events_by_bacteria_region[b_idx][region_idx] += 1;
-                                        
-                                        // Check if this is a failure: still on drug AND still infected
-                                        if individual.cur_use_drug[d_idx] && individual.level[b_idx] > 0.0 {
-                                            lt.drug_failure_events_by_bacteria_region[b_idx][region_idx] += 1;
-                                        }
+                            if let Some(ref cause) = individual.cause_of_death {
+                                match cause.as_str() {
+                                    "background_mortality" => {
+                                        lt.deaths_background += 1;
+                                        lt.deaths_by_region[region_idx * 3 + 0] += 1; // background death
+                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // background death by age
                                     }
-                                }
-                            }
+                                    "sepsis_related" => {
+                                        lt.deaths_sepsis += 1;
+                                        lt.deaths_by_region[region_idx * 3 + 1] += 1; // sepsis death
+                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 1] += 1; // sepsis death by age
 
-                            // Infection & resistance
-                            let mut individual_max_infection_duration = 0;
-                            let mut individual_has_any_r_positive = false;
-                            let mut was_newly_infected = false;
-                            let mut was_newly_infected_with_resistance = false;
-                            let mut individual_has_any_infection_counted_for_syndrome = false;
-                            let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
-                            {
-                                for b_idx in 0..num_bacteria {
-                                    if individual.level[b_idx] > 0.001 {
-                                        // Track non-H. pylori infections separately (exclude H. pylori at index 32)
-                                        if b_idx != 32 { // 32 = helicobacter pylori index
-                                            individual_has_any_non_h_pylori_infection = true;
-                                        }
-                                        lt.infections_by_bacteria[b_idx] += 1;
-                                    }
-                                    
-                                    // Count infections prevented by existing therapy (even if not currently infected)
-                                    if individual.infection_prevented_by_drug[b_idx] {
-                                        lt.infections_prevented_by_drug_by_bacteria[b_idx] += 1;
-                                    }
-                                }
-                                for b_idx in 0..num_bacteria {
-                                    if individual.level[b_idx] > 0.001 {
-                                        
-                                        // Count syndrome for this infected individual (take first one if multiple infections)
-                                        if !individual_has_any_infection_counted_for_syndrome {
-                                            let syndrome_id = individual.infectious_syndrome[b_idx];
-                                            if syndrome_id >= 1 && syndrome_id <= 10 {
-                                                lt.infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
-                                                individual_has_any_infection_counted_for_syndrome = true;
-                                            }
-                                        }
-                                        
-                                        // Count syndrome for this bacteria specifically (all infections, not just first)
-                                        let syndrome_id = individual.infectious_syndrome[b_idx];
-                                        if syndrome_id >= 1 && syndrome_id <= 10 {
-                                            let flat_idx = b_idx * 10 + (syndrome_id - 1) as usize;
-                                            lt.infected_by_syndrome_by_bacteria[flat_idx] += 1;
-                                        }
-                                        
-                                        // sum activity_r for this bacteria, ONLY for individuals on drug
-                                        let mut activity_r_sum = 0.0;
-                                        let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
-                                        // Only count infection duration for non-H. pylori pathogens (exclude H. pylori at index 32)
-                                        if b_idx != 32 && days_since_infection > individual_max_infection_duration { individual_max_infection_duration = days_since_infection; }
-                                        if individual.date_last_infected[b_idx] == t as i32 { 
-                                            was_newly_infected = true; 
-                                            // Count new active infections by bacteria and home region
-                                            let home_region_idx = region_to_index(individual.region_living);
-                                            let flat_idx = b_idx * 6 + home_region_idx;
-                                            lt.newly_infected_by_bacteria_region[flat_idx] += 1;
-                                        }
-                                        let base = b_idx * num_drugs;
-                                        for d_idx in 0..num_drugs {
-                                            let resistance_data = &individual.resistances[b_idx][d_idx];
-                                            // Only sum activity_r if individual is currently on this drug
-                                            if individual.cur_use_drug[d_idx] {
-                                                activity_r_sum += resistance_data.activity_r;
-                                            }
-                                            if resistance_data.majority_r > 0.0 { lt.resistance_by_bacteria_drug[base + d_idx] += 1; lt.majority_r_entries.push(((individual.region_cur_in as usize, individual.hospital_status.is_hospitalized(), b_idx, d_idx), resistance_data.majority_r)); }
-                                            if resistance_data.any_r > 0.0 {
-                                                individual_has_any_r_positive = true;
-                                                if individual.date_last_infected[b_idx] == t as i32 && !was_newly_infected_with_resistance {
-                                                    lt.newly_infected_with_resistance_count += 1;
-                                                    was_newly_infected_with_resistance = true;
-                                                }
-                                                // Count newly acquired resistance by acquisition type per bacteria-drug combination
-                                                if let Some(acq_type) = individual.how_resistance_acquired[b_idx][d_idx] {
-                                                    use crate::simulation::population::ResistanceAcquisitionType;
-                                                    let index = b_idx * num_drugs + d_idx;
-                                                    match acq_type {
-                                                        ResistanceAcquisitionType::AtInfectionCommunity => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1,
-                                                        ResistanceAcquisitionType::AtInfectionEnv => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1,
-                                                        ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1, // Count TB-specific resistance with environmental
-                                                        ResistanceAcquisitionType::Hgt => lt.new_resistance_hgt_by_bacteria_drug[index] += 1,
-                                                        ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
-                                                    }
+                                        // Track sepsis deaths by syndrome and region
+                                        for b_idx in 0..BACTERIA_LIST.len() {
+                                            if individual.sepsis[b_idx] {
+                                                let syndrome_id = individual.infectious_syndrome[b_idx];
+                                                if (1..=10).contains(&syndrome_id) {
+                                                    let syndrome_idx = (syndrome_id - 1) as usize;
+                                                    let index = syndrome_idx * 6 + region_idx;
+                                                    lt.syndrome_deaths_sepsis_by_region[index] += 1;
                                                 }
                                             }
                                         }
-                                        // Only include individuals who are on any drug for this bacteria
-                                        if individual.cur_use_drug.iter().any(|&x| x) {
-                                            lt.activity_r_sum_by_bacteria[b_idx] += activity_r_sum;
-                                        }
+                                    }
+                                    "drug_toxicity_related" => {
+                                        lt.deaths_drug_toxicity += 1;
+                                        lt.deaths_by_region[region_idx * 3 + 2] += 1; // toxicity death
+                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 2] += 1; // toxicity death by age
+                                    }
+                                    _ => {
+                                        lt.deaths_background += 1;
+                                        lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
+                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
                                     }
                                 }
+                            } else {
+                                lt.deaths_background += 1;
+                                lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
+                                lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
                             }
-                            // Exclude H. pylori from cross-bacteria infection statistics for clinical metrics
-                            if individual_has_any_non_h_pylori_infection && on_any_drug { lt.currently_infected_and_on_drug_count += 1; }
-                            if individual_has_any_non_h_pylori_infection { lt.total_currently_infected += 1; }
-                            if individual_has_any_r_positive { lt.total_with_resistance += 1; }
-                            if individual_max_infection_duration > 10 { lt.infected_10_days_count += 1; }
-                            if individual_max_infection_duration > 30 { lt.infected_30_days_count += 1; }
-                            if was_newly_infected { lt.newly_infected_count += 1; }
-                            let active_drug_count = individual.cur_use_drug.iter().filter(|&&x| x).count();
-                            if active_drug_count >= 2 { lt.taking_two_drugs_count += 1; }
-                            if individual.hospital_status.is_hospitalized() { lt.number_in_hospital += 1; }
-                            if individual.immunodeficiency_type.is_some() { lt.number_severely_immunosuppressed += 1; }
-                            if individual.sepsis.iter().any(|&s| s) { lt.number_with_sepsis += 1; }
-                            
-                            // Track sepsis by bacteria and new sepsis cases
+                            // Count deaths by bacteria
                             for b_idx in 0..num_bacteria {
-                                if individual.sepsis[b_idx] {
-                                    // Current sepsis with this bacteria
-                                    lt.number_with_sepsis_by_bacteria[b_idx] += 1;
-                                    
-                                    // Count as new sepsis case if sepsis started today and person is currently infected
-                                    if individual.level[b_idx] > 0.001 && individual.sepsis_onset_day[b_idx] == t as i32 {
-                                        lt.new_sepsis_cases_by_bacteria[b_idx] += 1;
+                                if individual.level[b_idx] > 0.001 {
+                                    lt.deaths_by_bacteria[b_idx] += 1;
+                                }
+                            }
+
+                            // Count deaths by bacteria and home region for currently infected individuals
+                            let home_region_idx = region_to_index(individual.region_living);
+                            for b_idx in 0..num_bacteria {
+                                if individual.level[b_idx] > 0.001 {
+                                    lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
+                                }
+                            }
+                        }
+                    }
+
+                    if individual.date_of_death.is_none() && individual.age >= 0 {
+                        // Integrated living population & age groups (only count individuals who have been born)
+                        lt.living_population += 1;
+
+                        // Count living population by region
+                        let effective_region = get_effective_region(individual);
+                        let region_idx = region_to_index(effective_region);
+                        lt.living_population_by_region[region_idx] += 1;
+
+                        let age_years = individual.age as f64 / 365.0;
+                        if (0.0..6.0).contains(&age_years) {
+                            lt.num_age_0_5 += 1;
+                            lt.age_distribution_by_region[region_idx * 5 + 0] += 1;
+                        } else if (6.0..15.0).contains(&age_years) {
+                            lt.num_age_6_14 += 1;
+                            lt.age_distribution_by_region[region_idx * 5 + 1] += 1;
+                        } else if (15.0..50.0).contains(&age_years) {
+                            lt.num_age_15_49 += 1;
+                            lt.age_distribution_by_region[region_idx * 5 + 2] += 1;
+                        } else if (50.0..80.0).contains(&age_years) {
+                            lt.num_age_50_79 += 1;
+                            lt.age_distribution_by_region[region_idx * 5 + 3] += 1;
+                        } else if age_years >= 80.0 {
+                            lt.num_age_80plus += 1;
+                            lt.age_distribution_by_region[region_idx * 5 + 4] += 1;
+                        }
+                        // Drug usage post-rules
+                        let mut on_any_drug = false;
+                        for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
+                            if is_using {
+                                lt.currently_on_drug_by_drug[d_idx] += 1;
+                                // Count drug usage by region
+                                let idx = region_idx * DRUG_SHORT_NAMES.len() + d_idx;
+                                lt.currently_on_drug_by_region_drug[idx] += 1;
+                                on_any_drug = true;
+                            }
+                        }
+                        if on_any_drug {
+                            lt.currently_taking_drug_count += 1;
+                        }
+
+                        // Check if this person started any drug today
+                        let mut started_drug_today = false;
+                        for &initiation_date in individual.date_drug_initiated.iter() {
+                            if initiation_date == t as i32 {
+                                started_drug_today = true;
+                                break;
+                            }
+                        }
+                        if started_drug_today {
+                            lt.new_drug_initiations_count += 1;
+
+                            // Check if this person is currently infected with non-H. pylori pathogens (exclude H. pylori at index 32)
+                            let is_currently_infected_non_h_pylori = individual
+                                .level
+                                .iter()
+                                .enumerate()
+                                .any(|(b_idx, &level)| b_idx != 32 && level > 0.0);
+                            if is_currently_infected_non_h_pylori {
+                                lt.new_drug_initiations_count_infected += 1;
+                            }
+                        }
+
+                        if individual.presence_microbiome.iter().any(|&x| x) {
+                            lt.num_with_any_bacteria_microbiome += 1;
+                        }
+
+                        // Count presence_microbiome by individual bacteria
+                        for (b_idx, &has_bacteria) in individual.presence_microbiome.iter().enumerate() {
+                            if has_bacteria {
+                                lt.presence_microbiome_by_bacteria[b_idx] += 1;
+                                // Also count by region
+                                let region_idx = individual.region_living as usize;
+                                lt.presence_microbiome_by_bacteria_by_region[b_idx][region_idx] += 1;
+                            }
+                        }
+
+                        // Track drug failure events: check for day 5 post-drug-initiation
+                        let region_idx = individual.region_living as usize;
+                        for (d_idx, &drug_init_day) in individual.date_drug_initiated.iter().enumerate() {
+                            if drug_init_day != i32::MIN && t as i32 - drug_init_day == 5 {
+                                // This is day 5 post-drug-initiation for this drug
+                                // Check all bacteria for infection status
+                                for b_idx in 0..individual.level.len() {
+                                    lt.drug_treatment_day5_events_by_bacteria_region[b_idx][region_idx] += 1;
+
+                                    // Check if this is a failure: still on drug AND still infected
+                                    if individual.cur_use_drug[d_idx] && individual.level[b_idx] > 0.0 {
+                                        lt.drug_failure_events_by_bacteria_region[b_idx][region_idx] += 1;
                                     }
                                 }
                             }
                         }
-                        lt
-                    })
-                    .reduce(|| LocalTotals::new(num_bacteria, num_drugs, per_thread_cap), |mut a, b| { a.merge(b); a });
+
+                        // Infection & resistance
+                        let mut individual_max_infection_duration = 0;
+                        let mut individual_has_any_r_positive = false;
+                        let mut was_newly_infected = false;
+                        let mut was_newly_infected_with_resistance = false;
+                        let mut individual_has_any_infection_counted_for_syndrome = false;
+                        let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
+                        {
+                            for b_idx in 0..num_bacteria {
+                                if individual.level[b_idx] > 0.001 {
+                                    // Track non-H. pylori infections separately (exclude H. pylori at index 32)
+                                    if b_idx != 32 {
+                                        individual_has_any_non_h_pylori_infection = true;
+                                    }
+                                    lt.infections_by_bacteria[b_idx] += 1;
+                                }
+
+                                // Count infections prevented by existing therapy (even if not currently infected)
+                                if individual.infection_prevented_by_drug[b_idx] {
+                                    lt.infections_prevented_by_drug_by_bacteria[b_idx] += 1;
+                                }
+                            }
+                            for b_idx in 0..num_bacteria {
+                                if individual.level[b_idx] > 0.001 {
+                                    // Count syndrome for this infected individual (take first one if multiple infections)
+                                    if !individual_has_any_infection_counted_for_syndrome {
+                                        let syndrome_id = individual.infectious_syndrome[b_idx];
+                                        if (1..=10).contains(&syndrome_id) {
+                                            lt.infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
+                                            individual_has_any_infection_counted_for_syndrome = true;
+                                        }
+                                    }
+
+                                    // Count syndrome for this bacteria specifically (all infections, not just first)
+                                    let syndrome_id = individual.infectious_syndrome[b_idx];
+                                    if (1..=10).contains(&syndrome_id) {
+                                        let flat_idx = b_idx * 10 + (syndrome_id - 1) as usize;
+                                        lt.infected_by_syndrome_by_bacteria[flat_idx] += 1;
+                                    }
+
+                                    // sum activity_r for this bacteria, ONLY for individuals on drug
+                                    let mut activity_r_sum = 0.0;
+                                    let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
+                                    // Only count infection duration for non-H. pylori pathogens (exclude H. pylori at index 32)
+                                    if b_idx != 32 && days_since_infection > individual_max_infection_duration {
+                                        individual_max_infection_duration = days_since_infection;
+                                    }
+                                    if individual.date_last_infected[b_idx] == t as i32 {
+                                        was_newly_infected = true;
+                                        // Count new active infections by bacteria and home region
+                                        let home_region_idx = region_to_index(individual.region_living);
+                                        let flat_idx = b_idx * 6 + home_region_idx;
+                                        lt.newly_infected_by_bacteria_region[flat_idx] += 1;
+                                    }
+                                    let base = b_idx * num_drugs;
+                                    for d_idx in 0..num_drugs {
+                                        let resistance_data = &individual.resistances[b_idx][d_idx];
+                                        // Only sum activity_r if individual is currently on this drug
+                                        if individual.cur_use_drug[d_idx] {
+                                            activity_r_sum += resistance_data.activity_r;
+                                        }
+                                        if resistance_data.majority_r > 0.0 {
+                                            lt.resistance_by_bacteria_drug[base + d_idx] += 1;
+                                            lt.majority_r_entries.push(((individual.region_cur_in as usize, individual.hospital_status.is_hospitalized(), b_idx, d_idx), resistance_data.majority_r));
+                                        }
+                                        if resistance_data.any_r > 0.0 {
+                                            individual_has_any_r_positive = true;
+                                            if individual.date_last_infected[b_idx] == t as i32 && !was_newly_infected_with_resistance {
+                                                lt.newly_infected_with_resistance_count += 1;
+                                                was_newly_infected_with_resistance = true;
+                                            }
+                                            // Count newly acquired resistance by acquisition type per bacteria-drug combination
+                                            if let Some(acq_type) = individual.how_resistance_acquired[b_idx][d_idx] {
+                                                use crate::simulation::population::ResistanceAcquisitionType;
+                                                let index = b_idx * num_drugs + d_idx;
+                                                match acq_type {
+                                                    ResistanceAcquisitionType::AtInfectionCommunity => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1,
+                                                    ResistanceAcquisitionType::AtInfectionEnv => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1,
+                                                    ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1, // Count TB-specific resistance with environmental
+                                                    ResistanceAcquisitionType::Hgt => lt.new_resistance_hgt_by_bacteria_drug[index] += 1,
+                                                    ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Only include individuals who are on any drug for this bacteria
+                                    if individual.cur_use_drug.iter().any(|&x| x) {
+                                        lt.activity_r_sum_by_bacteria[b_idx] += activity_r_sum;
+                                    }
+                                }
+                            }
+                        }
+                        // Exclude H. pylori from cross-bacteria infection statistics for clinical metrics
+                        if individual_has_any_non_h_pylori_infection && on_any_drug {
+                            lt.currently_infected_and_on_drug_count += 1;
+                        }
+                        if individual_has_any_non_h_pylori_infection {
+                            lt.total_currently_infected += 1;
+                        }
+                        if individual_has_any_r_positive {
+                            lt.total_with_resistance += 1;
+                        }
+                        if individual_max_infection_duration > 10 {
+                            lt.infected_10_days_count += 1;
+                        }
+                        if individual_max_infection_duration > 30 {
+                            lt.infected_30_days_count += 1;
+                        }
+                        if was_newly_infected {
+                            lt.newly_infected_count += 1;
+                        }
+                        let active_drug_count = individual.cur_use_drug.iter().filter(|&&x| x).count();
+                        if active_drug_count >= 2 {
+                            lt.taking_two_drugs_count += 1;
+                        }
+                        if individual.hospital_status.is_hospitalized() {
+                            lt.number_in_hospital += 1;
+                        }
+                        if individual.immunodeficiency_type.is_some() {
+                            lt.number_severely_immunosuppressed += 1;
+                        }
+                        if individual.sepsis.iter().any(|&s| s) {
+                            lt.number_with_sepsis += 1;
+                        }
+
+                        // Track sepsis by bacteria and new sepsis cases
+                        for b_idx in 0..num_bacteria {
+                            if individual.sepsis[b_idx] {
+                                // Current sepsis with this bacteria
+                                lt.number_with_sepsis_by_bacteria[b_idx] += 1;
+
+                                // Count as new sepsis case if sepsis started today and person is currently infected
+                                if individual.level[b_idx] > 0.001 && individual.sepsis_onset_day[b_idx] == t as i32 {
+                                    lt.new_sepsis_cases_by_bacteria[b_idx] += 1;
+                                }
+                            }
+                        }
+                    }
+
+                    lt
+                },
+            )
+            .reduce(
+                || LocalTotals::new(num_bacteria, num_drugs, per_thread_cap, None),
+                |mut a, b| {
+                    a.merge(b);
+                    a
+                },
+            );
 
                 // Collect infection resolution data after rules have been applied
                 let infection_resolution_totals = self.population.individuals.par_iter()
@@ -1137,12 +1248,17 @@ impl Simulation {
                 let mut resistance_by_bacteria_drug: Vec<Vec<usize>> = Vec::with_capacity(num_bacteria);
                 for b_idx in 0..num_bacteria { resistance_by_bacteria_drug.push(resistance_by_bacteria_drug_flat[b_idx*num_drugs..(b_idx+1)*num_drugs].to_vec()); }
 
-                // Pre-size HashMap: heuristic half number of entries (since entries will group by key)
-                let mut new_majority_r_positive_values_by_combo: HashMap<(usize, bool, usize, usize), Vec<f64>> = HashMap::with_capacity(majority_r_entries.len() / 2 + 1);
-                for (key, val) in majority_r_entries { new_majority_r_positive_values_by_combo.entry(key).or_insert_with(Vec::new).push(val); }
-                // Update capacity hint for next timestep (sum of vector lengths)
-                let total_entries: usize = new_majority_r_positive_values_by_combo.values().map(|v| v.len()).sum();
+                // Populate majority_r cache with new samples for next timestep
+                let mut total_entries: usize = 0;
+                {
+                    let next_majority_r_cache = &mut self.majority_r_cache_next;
+                    for ((region_idx, hospital_flag, bacteria_idx, drug_idx), value) in majority_r_entries {
+                        next_majority_r_cache.push(region_idx, hospital_flag, bacteria_idx, drug_idx, value);
+                        total_entries += 1;
+                    }
+                }
                 self.prev_majority_r_entries_len = total_entries;
+                mem::swap(&mut self.majority_r_cache_prev, &mut self.majority_r_cache_next);
             
             // let rules_time = rules_start.elapsed();
             // if t % 10 == 0 { // Log every 10th timestep
@@ -1152,8 +1268,7 @@ impl Simulation {
             // Collect remaining statistics that need sequential access
             // No need for sequential pass for per-bacteria/drug majority_r counts
 
-            // Store for next iteration
-            self.current_majority_r_positive_values_by_combo = new_majority_r_positive_values_by_combo;
+            // Store for next iteration (already populated in majority_r_cache)
 
             // Create summary for this time step
             let infected_10_count = infected_10_days_count;

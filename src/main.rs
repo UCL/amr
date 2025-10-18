@@ -27,7 +27,7 @@ mod config;
 //
 // proportion currently infected with h pylori / mdr tb
 //
-// calculate total number of sepsis deaths in 2019 (pre covid) scaled up to the worl population size to compare with gbd 
+// calculate total number of sepsis deaths in 2019 (pre covid) scaled up to the world population size to compare with gbd 
 // 14.1 million
 //
 // proportion of sepsis deaths by syndrome (and region and age) to compare with gbd
@@ -35,7 +35,6 @@ mod config;
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
-//
 //
 // ok that pseudomonas aeruginosa can continue for > 90 days with full immune response and no clearance ?
 // 
@@ -134,11 +133,13 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size =  100_000 ; 
-    let time_steps = 38_325 ;  
+    let population_size = 500 ; 
+    let time_steps = 38_325    ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false  ; // Set to true to enable infection journey logging
+    let log_infection_journeys = true   ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.01      ; // Log 1% of infections for analysis (0.0-1.0)
+    let use_fixed_seed = false ; // Toggle to enable deterministic RNG seeding
+    let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):
@@ -150,6 +151,9 @@ fn main() {
     // None - logs all bacteria types
 
     let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
+    if use_fixed_seed {
+        simulation.rng_seed = Some(fixed_seed_value);
+    }
     
     // Configure infection journey logging
     if log_infection_journeys {
