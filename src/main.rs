@@ -36,8 +36,6 @@ mod config;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// review acquisition risk model: note that these parameters "asia_helicobacter_pylori_infection_risk_multiplier"
-// not used at all
 //
 // ok that pseudomonas aeruginosa can continue for > 90 days with full immune response and no clearance ?
 // 
@@ -140,7 +138,7 @@ fn main() {
     let time_steps = 38_325 ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.00001   ; // Log 1% of infections for analysis (0.0-1.0)
+    let infection_journey_sample_rate = 0.01      ; // Log 1% of infections for analysis (0.0-1.0)
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
     
     // Examples of bacteria filter values (use lowercase with underscores):
