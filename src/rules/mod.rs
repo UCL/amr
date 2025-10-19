@@ -1413,55 +1413,47 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 // Apply regional resistance surveillance penalty for empirical therapy
                 if !has_any_identified_infection {
                     let mut regional_resistance_penalty = 1.0_f64;
-                    let region_idx = individual.region_cur_in as usize;
-                    let hospital_status = individual.hospital_status.is_hospitalized();
-                    
-                    // Get configurable resistance penalty thresholds and penalties
-                    let very_high_threshold = store.globals.regional_resistance_threshold_very_high;
-                    let high_threshold = store.globals.regional_resistance_threshold_high;
-                    let moderate_threshold = store.globals.regional_resistance_threshold_moderate;
+                    if !majority_r_cache.is_empty() {
+                        let region_idx = individual.region_cur_in as usize;
+                        let hospital_status = individual.hospital_status.is_hospitalized();
 
-                    let very_high_penalty = store.globals.regional_resistance_penalty_very_high;
-                    let high_penalty = store.globals.regional_resistance_penalty_high;
-                    let moderate_penalty = store.globals.regional_resistance_penalty_moderate;
-                    
-                    // For empirical therapy, clinicians consider local resistance patterns
-                    // Check resistance rates for likely bacterial causes
-                    for b_idx in 0..BACTERIA_LIST.len() {
-                        // Get regional resistance data for this bacteria-drug combination
-                        let resistance_values =
-                            majority_r_cache.bucket(region_idx, hospital_status, b_idx, drug_idx);
-                        if !resistance_values.is_empty() {
-                            // Calculate resistance prevalence: proportion of cases with resistance > 0
-                            let resistance_cases = resistance_values.len() as f64;
+                        let very_high_threshold = store.globals.regional_resistance_threshold_very_high;
+                        let high_threshold = store.globals.regional_resistance_threshold_high;
+                        let moderate_threshold = store.globals.regional_resistance_threshold_moderate;
 
-                            // Estimate total cases by checking all drugs for this bacteria in this region
-                            // (This gives us denominator for prevalence calculation)
-                            let mut total_cases_estimate = resistance_cases;
-                            for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                let other_resistance_values =
-                                    majority_r_cache.bucket(region_idx, hospital_status, b_idx, d_idx);
-                                total_cases_estimate =
-                                    total_cases_estimate.max(other_resistance_values.len() as f64);
-                            }
+                        let very_high_penalty = store.globals.regional_resistance_penalty_very_high;
+                        let high_penalty = store.globals.regional_resistance_penalty_high;
+                        let moderate_penalty = store.globals.regional_resistance_penalty_moderate;
 
-                            if total_cases_estimate > 0.0 {
-                                let resistance_prevalence = resistance_cases / total_cases_estimate;
+                        for b_idx in 0..BACTERIA_LIST.len() {
+                            let resistance_values =
+                                majority_r_cache.bucket(region_idx, hospital_status, b_idx, drug_idx);
+                            if !resistance_values.is_empty() {
+                                let resistance_cases = resistance_values.len() as f64;
+                                let mut total_cases_estimate = resistance_cases;
+                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                    let other_resistance_values =
+                                        majority_r_cache.bucket(region_idx, hospital_status, b_idx, d_idx);
+                                    total_cases_estimate =
+                                        total_cases_estimate.max(other_resistance_values.len() as f64);
+                                }
 
-                                // Apply graduated penalties based on regional resistance levels
-                                let resistance_penalty = if resistance_prevalence >= very_high_threshold {
-                                    very_high_penalty // Very high resistance - avoid drug
-                                } else if resistance_prevalence >= high_threshold {
-                                    high_penalty // High resistance - large penalty
-                                } else if resistance_prevalence >= moderate_threshold {
-                                    moderate_penalty // Moderate resistance - moderate penalty
-                                } else {
-                                    1.0 // Low resistance - no penalty
-                                };
+                                if total_cases_estimate > 0.0 {
+                                    let resistance_prevalence = resistance_cases / total_cases_estimate;
 
-                                // Use the most restrictive penalty across all bacteria
-                                regional_resistance_penalty =
-                                    regional_resistance_penalty.min(resistance_penalty);
+                                    let resistance_penalty = if resistance_prevalence >= very_high_threshold {
+                                        very_high_penalty
+                                    } else if resistance_prevalence >= high_threshold {
+                                        high_penalty
+                                    } else if resistance_prevalence >= moderate_threshold {
+                                        moderate_penalty
+                                    } else {
+                                        1.0
+                                    };
+
+                                    regional_resistance_penalty =
+                                        regional_resistance_penalty.min(resistance_penalty);
+                                }
                             }
                         }
                     }
