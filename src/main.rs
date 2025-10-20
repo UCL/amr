@@ -17,13 +17,14 @@ mod rules;
 mod config;
 
 //
-//
-//
+// checked total number of death with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
+// number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated
+// percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate) 
 //
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
-// review output plots 
+// review output plots and consider any changes in format or additions
 //
 // maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
 //
@@ -142,8 +143,8 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 100_000 ; 
-    let time_steps = 38_325    ;  
+    let population_size = 500_000 ; 
+    let time_steps = 200    ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.001      ; // Log 1% of infections for analysis (0.0-1.0)

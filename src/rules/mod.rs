@@ -1203,17 +1203,17 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             ("Pseudomonas aeruginosa", "ceftazidime") => score *= 20.0,
                             ("Pseudomonas aeruginosa", "cefepime") => score *= 22.0,
                             ("Pseudomonas aeruginosa", "meropenem") => score *= 25.0,
-                            ("Pseudomonas aeruginosa", "imipenem") => score *= 20.0,
+                            ("Pseudomonas aeruginosa", "imipenem_c") => score *= 20.0,
                             ("Pseudomonas aeruginosa", "ciprofloxacin") => score *= 18.0,
                             ("Pseudomonas aeruginosa", "tobramycin") => score *= 15.0,
                             ("Pseudomonas aeruginosa", "colistin") => score *= 12.0,
-                            ("Pseudomonas aeruginosa", "penicillin" | "ampicillin" | "amoxicillin" | "cephalexin" | "ceftriaxone" | "vancomycin") => {
+                            ("Pseudomonas aeruginosa", "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin" | "ceftriaxone" | "vancomycin") => {
                                 score = 0.0; // Completely block - no intrinsic activity
                                 break;
                             },
                             
                             // Staphylococcus aureus - DRAMATICALLY strengthen MSSA vs MRSA logic
-                            ("Staphylococcus aureus", "penicillin") => {
+                            ("Staphylococcus aureus", "penicilling") => {
                                 // Early periods: penicillin should dominate (MSSA era)
                                 if time_step < 7300 { // First ~20 years
                                     score *= 50.0; // MASSIVE boost for MSSA
@@ -1221,7 +1221,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     score *= 2.0; // Minimal in MRSA era
                                 }
                             },
-                            ("Staphylococcus aureus", "methicillin" | "flucloxacillin") => {
+                            ("Staphylococcus aureus", "amoxicillin_clavulanate" | "ampicillin_sulbactam") => {
                                 if time_step < 10950 { // First ~30 years
                                     score *= 40.0; // Major boost before MRSA dominance
                                 } else {
@@ -1235,7 +1235,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     score *= 35.0; // MASSIVE boost for MRSA
                                 }
                             },
-                            ("Staphylococcus aureus", "linezolid" | "daptomycin") => {
+                            ("Staphylococcus aureus", "linezolid" | "tedizolid") => {
                                 if time_step >= 10950 { // Late period only
                                     score *= 25.0; // Strong alternatives to vancomycin
                                 } else {
@@ -1247,7 +1247,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                             // E. coli - MASSIVELY strengthen first-line agents
                             ("Escherichia coli", "ciprofloxacin") => score *= 35.0, // Major UTI drug
                             ("Escherichia coli", "nitrofurantoin") => score *= 30.0, // Cystitis first-line
-                            ("Escherichia coli", "trimethoprim_sulfamethoxazole") => score *= 25.0,
+                            ("Escherichia coli", "trim_sulf") => score *= 25.0,
                             ("Escherichia coli", "ceftriaxone") => score *= 20.0, // Serious infections
                             ("Escherichia coli", "ampicillin") => {
                                 if time_step < 7300 { // Early susceptible era
@@ -1256,7 +1256,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     score *= 3.0; // Resistance emerged
                                 }
                             },
-                            ("Escherichia coli", "meropenem" | "imipenem") => {
+                            ("Escherichia coli", "meropenem" | "imipenem_c") => {
                                 // Carbapenems should be rare for E. coli except ESBL era
                                 if time_step >= 14600 { // Later periods for ESBL
                                     score *= 8.0;
@@ -1273,7 +1273,7 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     score *= 8.0;
                                 }
                             },
-                            ("Klebsiella pneumoniae", "meropenem" | "imipenem") => {
+                            ("Klebsiella pneumoniae", "meropenem" | "imipenem_c") => {
                                 if time_step >= 10950 { // ESBL era
                                     score *= 30.0;
                                 } else {
@@ -1316,14 +1316,14 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                     score *= 3.0;
                                 }
                             },
-                            ("Enterococcus faecium", "quinupristin_dalfopristin") => {
+                            ("Enterococcus faecium", "quinu_dalfo") => {
                                 if time_step >= 16425 { // Very late introduction
                                     score *= 20.0;
                                 }
                             },
                             
                             // Acinetobacter baumannii - highly resistant pathogen
-                            ("Acinetobacter baumannii", "meropenem" | "imipenem") => {
+                            ("Acinetobacter baumannii", "meropenem" | "imipenem_c") => {
                                 if time_step < 18250 { // Before extensive carbapenem resistance
                                     score *= 40.0;
                                 } else {
@@ -1356,13 +1356,13 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     if individual.level[b_idx] > 0.001 {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         let first_second_line_drugs = match bacteria_name {
-                            "Pseudomonas aeruginosa" => vec!["piperacillin_tazobactam", "meropenem", "ceftazidime", "cefepime", "ciprofloxacin", "tobramycin"],
-                            "Staphylococcus aureus" => vec!["penicillin", "methicillin", "flucloxacillin", "vancomycin", "linezolid", "daptomycin", "clindamycin"],
-                            "Escherichia coli" => vec!["ciprofloxacin", "nitrofurantoin", "trimethoprim_sulfamethoxazole", "ceftriaxone", "ampicillin", "cefuroxime"],
-                            "Klebsiella pneumoniae" => vec!["ceftriaxone", "meropenem", "imipenem", "ciprofloxacin", "piperacillin_tazobactam", "ertapenem"],
-                            "Enterococcus faecalis" => vec!["ampicillin", "vancomycin", "linezolid", "daptomycin"],
-                            "Enterococcus faecium" => vec!["vancomycin", "linezolid", "daptomycin", "quinupristin_dalfopristin"],
-                            "Acinetobacter baumannii" => vec!["meropenem", "imipenem", "colistin", "ampicillin_sulbactam", "tigecycline"],
+                            "Pseudomonas aeruginosa" => vec!["piperacillin_tazobactam", "meropenem", "imipenem_c", "ceftazidime", "cefepime", "ciprofloxacin", "tobramycin"],
+                            "Staphylococcus aureus" => vec!["penicilling", "amoxicillin_clavulanate", "ampicillin_sulbactam", "vancomycin", "linezolid", "tedizolid", "clindamycin"],
+                            "Escherichia coli" => vec!["ciprofloxacin", "nitrofurantoin", "trim_sulf", "ceftriaxone", "ampicillin", "cefuroxime"],
+                            "Klebsiella pneumoniae" => vec!["ceftriaxone", "meropenem", "imipenem_c", "ciprofloxacin", "piperacillin_tazobactam", "ertapenem"],
+                            "Enterococcus faecalis" => vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"],
+                            "Enterococcus faecium" => vec!["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"],
+                            "Acinetobacter baumannii" => vec!["meropenem", "imipenem_c", "colistin", "ampicillin_sulbactam", "minocycline"],
                             _ => vec![], // For other bacteria, no specific restriction
                         };
                         

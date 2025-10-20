@@ -8,10 +8,16 @@ edition = "2021"
 name = "executable_amr" # You can choose a name for your executable
 path = "src/main.rs"
 
+[features]
+default = []
+# Enable "plots" when the plotting helpers are needed; it keeps heavy GUI deps out of
+# the normal build so rebuilds stay fast.
+plots = ["dep:plotters"]
+
 [dependencies]
 rand = { version = "0.8", features = ["small_rng"] }
 rayon = "1.7"
 lazy_static = "1.4"
-plotters = "0.3"
 chrono = "0.4" 
+plotters = { version = "0.3", optional = true, default-features = false }
 

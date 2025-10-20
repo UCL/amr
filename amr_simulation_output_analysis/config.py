@@ -39,7 +39,7 @@ class PlotConfig:
     proportion_of_population_with_microbiome_presence_bacteria: bool = False
     proportion_of_microbiome_presence_with_resistance_by_drug: bool = False
     mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
-    source_of_new_resistance_by_drug_bacteria: bool = False
+    source_of_new_resistance_by_drug_bacteria: bool = True
     infection_resolution_by_bacteria: bool = False
     drug_score_analysis_by_bacteria: bool = False
     drug_score_summary: bool = False  # Individual drug score time series plots
@@ -70,8 +70,9 @@ class PlotConfig:
     empirical_overlay: bool = True  # Whether to show empirical data overlays
     
     # Smoothing and styling
-    smoothing_window_days: int = 1095  # 3 years
-    smoothing_window: int = 1095  # Alias for smoothing_window_days
+    smoothing_window_days: int = 1  # 3 years
+    smoothing_window: int = 1  # Alias for smoothing_window_days
+    drug_score_smoothing_window_days: int = 180  # Shorter window just for drug score plots
     plot_style: str = 'seaborn-v0_8'
     bbox_inches: str = 'tight'
     

@@ -832,7 +832,7 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
     regional_drug_columns = []
     
     # Pattern 1: {region}_currently_on_drug_{drug} (used by africa, asia, europe, oceania)
-    pattern1 = re.compile(r'^([^_]+)_currently_on_drug_(.+)$')
+    pattern1 = re.compile(r'^([a-z_]+)_currently_on_drug_(.+)$')
     
     # Pattern 2: {region}_{drug}_currently_on_drug (used by north_america, south_america)  
     # Fixed to handle multi-word regions like 'north_america' and 'south_america'
@@ -3209,22 +3209,32 @@ def create_drug_score_summary_plots(df: pd.DataFrame, config: PlotConfig) -> Non
         
         # For each time step, calculate mean drug scores (total_score / selection_count)
         drug_data = {}
+        window_days = max(1, getattr(config, 'drug_score_smoothing_window_days', 1))
         
         for col in score_cols:
             drug_name = col.replace(f"{bacteria_col_prefix}_drug_score_sum_", "")
             
-            # Calculate mean scores: sum_score / selection_count for each time step
-            mask = df_copy[selection_col] > 0
-            if mask.sum() == 0:
+            if window_days > 1:
+                # Smooth within a shorter drug-specific window so single-day spikes do not dominate.
+                rolling_scores = df_copy[col].rolling(window=window_days, min_periods=1).sum()
+                rolling_selections = df_copy[selection_col].rolling(window=window_days, min_periods=1).sum()
+            else:
+                # Fall back to raw daily values when smoothing is disabled.
+                rolling_scores = df_copy[col]
+                rolling_selections = df_copy[selection_col]
+
+            valid_mask = rolling_selections > 0
+            if valid_mask.sum() == 0:
                 continue
-                
-            mean_scores = df_copy.loc[mask, col] / df_copy.loc[mask, selection_col]
-            mean_scores = mean_scores.fillna(0)
+
+            mean_scores = (rolling_scores / rolling_selections.replace(0, np.nan)).fillna(0)
+            mean_scores = mean_scores[valid_mask]
+            years = df_copy.loc[valid_mask, 'years_from_start'].values
             
             # Only include drugs with meaningful activity (some non-zero scores)
             if mean_scores.sum() > 0.01:  # threshold to avoid noise
                 drug_data[drug_name] = {
-                    'years': df_copy.loc[mask, 'years_from_start'].values,
+                    'years': years,
                     'scores': mean_scores.values
                 }
         
@@ -3632,6 +3642,11 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
     output_dir.mkdir(parents=True, exist_ok=True)
     
     logger.info("Creating source of new resistance plots for each bacteria-drug combination")
+
+    # Capture drug short names once so we can correctly split bacteria/drug labels
+    # when drug identifiers themselves contain underscores (e.g., imipenem_c).
+    drug_short_names = extract_drug_list_from_csv(df)
+    drug_suffixes = sorted((f"_{drug}" for drug in drug_short_names), key=len, reverse=True)
     
     # Identify bacteria-drug pairs from new resistance acquisition columns
     bacteria_drug_pairs = []
@@ -3689,13 +3704,31 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
                     linewidth=2, alpha=0.8)
         
         # Format the plot
-        bacteria_parts = bacteria_drug.split('_')[:-1]  # Remove drug name
-        drug_name = bacteria_drug.split('_')[-1]        # Get drug name
-        bacteria_display = ' '.join(bacteria_parts).replace('_', ' ').title()
-        drug_display = drug_name.replace('_', ' ').title()
+        matched_suffix = None
+        for suffix in drug_suffixes:
+            if bacteria_drug.endswith(suffix):
+                matched_suffix = suffix
+                break
+
+        if matched_suffix is None:
+            logger.warning(
+                "Could not determine drug component for %s; skipping label formatting",
+                bacteria_drug,
+            )
+            bacteria_display = bacteria_drug.replace('_', ' ').title()
+            drug_display = ""
+        else:
+            bacteria_name = bacteria_drug[: -len(matched_suffix)]
+            drug_name = matched_suffix[1:]
+            bacteria_display = bacteria_name.replace('_', ' ').title()
+            drug_display = drug_name.replace('_', ' ').title()
         
-        plt.title(f"New Resistance Acquisition Sources Over Time\n{bacteria_display} - {drug_display}", 
-                 fontsize=14, fontweight='bold')
+        if drug_display:
+            title = f"New Resistance Acquisition Sources Over Time\n{bacteria_display} - {drug_display}"
+        else:
+            title = f"New Resistance Acquisition Sources Over Time\n{bacteria_display}"
+
+        plt.title(title, fontsize=14, fontweight='bold')
         plt.xlabel('Time (Years)', fontsize=12)
         plt.ylabel('New Resistance Cases per Timestep (Smoothed)', fontsize=12)
         plt.grid(True, alpha=0.3)

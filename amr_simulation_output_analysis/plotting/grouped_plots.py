@@ -336,18 +336,7 @@ def create_grouped_plots(df, config=None):
             axes4[0].grid(True, alpha=0.3)
             axes4[0].legend()
             
-            # Add summary statistics
-            mean_val = newly_infected_with_resistance_proportion.mean()
-            max_val = newly_infected_with_resistance_proportion.max()
-            total_new = df['newly_infected_count'].sum()
-            total_new_with_r = df['newly_infected_with_resistance_count'].sum()
-            
-            textstr = (f'Overall: {total_new_with_r}/{total_new} '
-                      f'({total_new_with_r/max(total_new,1)*100:.1f}%)\n'
-                      f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}')
-            props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
-            axes4[0].text(0.02, 0.98, textstr, transform=axes4[0].transAxes, fontsize=9,
-                        verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes4[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
                         ha='center', va='center', fontsize=12, color='gray')
@@ -370,13 +359,7 @@ def create_grouped_plots(df, config=None):
             axes4[1].grid(True, alpha=0.3)
             axes4[1].legend()
             
-            # Add summary statistics
-            mean_val = test_identified_prop.mean()
-            max_val = test_identified_prop.max()
-            textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
-            props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-            axes4[1].text(0.02, 0.98, textstr, transform=axes4[1].transAxes, fontsize=9,
-                        verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes4[1].text(0.5, 0.5, 'Data not available\n(test_identified columns)', 
                         ha='center', va='center', fontsize=12, color='gray')
@@ -400,13 +383,7 @@ def create_grouped_plots(df, config=None):
             axes4[2].grid(True, alpha=0.3)
             axes4[2].legend()
             
-            # Add summary statistics
-            mean_val = test_resistance_prop.mean()
-            max_val = test_resistance_prop.max()
-            textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
-            props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
-            axes4[2].text(0.02, 0.98, textstr, transform=axes4[2].transAxes, fontsize=9,
-                        verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes4[2].text(0.5, 0.5, 'Data not available\n(test_for_resistance columns)', 
                         ha='center', va='center', fontsize=12, color='gray')
@@ -564,19 +541,7 @@ def create_grouped_plots(df, config=None):
                 axes5[2].legend(fontsize=8)
                 axes5[2].grid(True, alpha=0.3)
                 
-                # Add summary statistics
-                mean_infected = df['total_currently_infected'].mean()
-                mean_on_drug = df['currently_taking_drug_count'].mean()
-                max_infected = df['total_currently_infected'].max()
-                max_on_drug = df['currently_taking_drug_count'].max()
-                
-                textstr = (f'Mean Infected: {mean_infected:.0f}\n'
-                          f'Mean On Drug: {mean_on_drug:.0f}\n'
-                          f'Max Infected: {max_infected:.0f}\n'
-                          f'Max On Drug: {max_on_drug:.0f}')
-                props = dict(boxstyle='round', facecolor='lightyellow', alpha=0.8)
-                axes5[2].text(0.02, 0.98, textstr, transform=axes5[2].transAxes, fontsize=8,
-                            verticalalignment='top', bbox=props)
+                # Removed the inset summary box to keep the plot uncluttered
             else:
                 axes5[2].text(0.5, 0.5, 'Data not available\n(total_currently_infected or currently_taking_drug_count)', 
                             ha='center', va='center', fontsize=12, color='gray')
@@ -666,13 +631,7 @@ def create_grouped_plots(df, config=None):
             axes6[0].grid(True, alpha=0.3)
             axes6[0].legend()
             
-            # Add summary statistics
-            mean_val = overall_ratio.mean()
-            max_val = overall_ratio.max()
-            textstr = f'Mean: {mean_val:.3f}\nMax: {max_val:.3f}'
-            props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-            axes6[0].text(0.02, 0.98, textstr, transform=axes6[0].transAxes, fontsize=9,
-                        verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
             
             # 2. Total Activity R Sum Over Time (top-right)
             total_activity_r_smooth = total_activity_r_sum.rolling(
@@ -795,16 +754,7 @@ def create_grouped_plots(df, config=None):
             axes7[0].grid(True, alpha=0.3)
             axes7[0].legend()
             
-            # Add summary statistics
-            mean_prop = overall_proportions.mean()
-            max_prop = overall_proportions.max()
-            total_evals = total_evaluations.sum()
-            total_used = total_drug_used.sum()
-            
-            textstr = f'Mean: {mean_prop:.3f}\nMax: {max_prop:.3f}\nTotal evals: {total_evals:,}\nTotal used: {total_used:,}'
-            props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-            axes7[0].text(0.02, 0.98, textstr, transform=axes7[0].transAxes, 
-                        fontsize=9, verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
             
             # 2. Number of Day 7 Evaluations Over Time (top-right)
             eval_counts_smooth = total_evaluations.rolling(
@@ -999,16 +949,7 @@ def create_grouped_plots(df, config=None):
             axes8[0].grid(True, alpha=0.3)
             axes8[0].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
             
-            # Add summary statistics
-            total_syndrome_infections = syndrome_data.sum()
-            if total_syndrome_infections > 0:
-                syndrome_percentages = (syndrome_data.sum(axis=0) / total_syndrome_infections * 100)
-                most_common_idx = np.argmax(syndrome_percentages)
-                most_common_name = syndrome_names.get(most_common_idx + 1, f'syndrome_{most_common_idx + 1}')
-                textstr = f'Total infections: {int(total_syndrome_infections):,}\nMost common: S{most_common_idx+1} ({most_common_name})\n{syndrome_percentages[most_common_idx]:.1f}% of infections'
-                props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-                axes8[0].text(0.02, 0.98, textstr, transform=axes8[0].transAxes, 
-                            fontsize=9, verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
             
             # Handle other panels with fallback for missing data
             # 2. Regional Population Distribution (top-right)
@@ -1062,15 +1003,7 @@ def create_grouped_plots(df, config=None):
                 axes8[1].ticklabel_format(style='plain', axis='y')
                 axes8[1].yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x):,}'))
                 
-                # Add summary statistics
-                if total_population.sum() > 0:
-                    final_populations = region_data[-1]  # Final time point populations
-                    most_populous_idx = np.argmax(final_populations)
-                    final_total = total_population[-1]
-                    textstr = f'Final total: {int(final_total):,}\nLargest: {region_labels[most_populous_idx]}\n({int(final_populations[most_populous_idx]):,} people)'
-                    props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
-                    axes8[1].text(0.02, 0.98, textstr, transform=axes8[1].transAxes, 
-                                fontsize=9, verticalalignment='top', bbox=props)
+                # Removed the inset summary box to keep the plot uncluttered
             else:
                 # No region data found
                 axes8[1].text(0.5, 0.5, f'No region data found\nExpected columns: north_america_population, etc.\nFound columns: {len(region_cols)}', 
@@ -1132,22 +1065,14 @@ def create_grouped_plots(df, config=None):
                                         color=color, alpha=0.7, label=label)
                     bottom += smoothed_data[mask]
                 
-                axes8[3].set_title('Cumulative Deaths by Cause Over Time\n(Stacked Area Chart)')
+                axes8[3].set_title('Number of Daily Deaths by Cause\n(Stacked Area Chart)')
                 axes8[3].set_xlabel('Time (Years)')
-                axes8[3].set_ylabel('Cumulative Deaths')
+                axes8[3].set_ylabel('Number of Deaths')
                 axes8[3].set_ylim(bottom=0)
                 axes8[3].grid(True, alpha=0.3)
                 axes8[3].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
                 
-                # Add summary statistics
-                if bottom.sum() > 0:
-                    final_deaths = death_data.iloc[-1]
-                    total_final = final_deaths.sum()
-                    sepsis_pct = (final_deaths['deaths_sepsis'] / total_final * 100) if total_final > 0 else 0
-                    textstr = f'Total deaths: {int(total_final):,}\nSepsis: {sepsis_pct:.1f}%'
-                    props = dict(boxstyle='round', facecolor='lightcoral', alpha=0.8)
-                    axes8[3].text(0.02, 0.98, textstr, transform=axes8[3].transAxes, 
-                                fontsize=9, verticalalignment='top', bbox=props)
+                # Removed the previous summary textbox so the panel focuses purely on trend lines
             else:
                 axes8[3].text(0.5, 0.5, 'No death cause data\navailable', ha='center', va='center', fontsize=12, color='gray')
                 axes8[3].set_axis_off()
@@ -1204,21 +1129,7 @@ def create_grouped_plots(df, config=None):
             axes9[0].grid(True, alpha=0.3)
             axes9[0].legend()
             
-            # Add summary statistics
-            mean_initiations = df['new_drug_initiations_count'].mean()
-            max_initiations = df['new_drug_initiations_count'].max()
-            total_initiations = df['new_drug_initiations_count'].sum()
-            
-            textstr = f'All: Mean {mean_initiations:.1f}/day, Total {total_initiations:,}'
-            
-            if 'new_drug_initiations_count_infected' in df.columns:
-                mean_infected = df['new_drug_initiations_count_infected'].mean()
-                total_infected = df['new_drug_initiations_count_infected'].sum()
-                textstr += f'\nInfected: Mean {mean_infected:.1f}/day, Total {total_infected:,}'
-            
-            props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
-            axes9[0].text(0.02, 0.98, textstr, transform=axes9[0].transAxes, 
-                         fontsize=9, verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes9[0].text(0.5, 0.5, 'New drug initiations data\nnot available', 
                          ha='center', va='center', fontsize=12, color='gray')
@@ -1250,25 +1161,7 @@ def create_grouped_plots(df, config=None):
             axes9[1].grid(True, alpha=0.3)
             axes9[1].legend(loc='upper right')
             
-            # Add summary statistics
-            total_on_drugs = df[polypharmacy_cols].sum(axis=1)
-            recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
-            if len(recent_data) > 0:
-                recent_total = recent_data[polypharmacy_cols].sum(axis=1)
-                recent_mean_total = recent_total.mean()
-                recent_mean_1 = recent_data['people_on_1_drug'].mean()
-                recent_mean_2 = recent_data['people_on_2_drugs'].mean()  
-                recent_mean_3plus = recent_data['people_on_3plus_drugs'].mean()
-                
-                if recent_mean_total > 0:
-                    pct_1 = (recent_mean_1 / recent_mean_total) * 100
-                    pct_2 = (recent_mean_2 / recent_mean_total) * 100
-                    pct_3plus = (recent_mean_3plus / recent_mean_total) * 100
-                    
-                    textstr = f'Recent Years (20-41):\n1 drug: {pct_1:.1f}%\n2 drugs: {pct_2:.1f}%\n≥3 drugs: {pct_3plus:.1f}%'
-                    props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-                    axes9[1].text(0.02, 0.98, textstr, transform=axes9[1].transAxes, 
-                                 fontsize=9, verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes9[1].text(0.5, 0.5, 'Polypharmacy data\nnot available', 
                          ha='center', va='center', fontsize=12, color='gray')
@@ -1297,32 +1190,14 @@ def create_grouped_plots(df, config=None):
             axes9[2].plot(df['time_in_years'], failure_proportion_smooth * 100, linewidth=2, color='darkred', 
                          label='Previous Treatment Failure %')
             
-            axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure (capped at 100%)')
+            axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure')
             axes9[2].set_xlabel('Time (Years)')
             axes9[2].set_ylabel('Percentage (%)')
             axes9[2].set_ylim(bottom=0, top=100)  # Set explicit upper limit at 100%
             axes9[2].grid(True, alpha=0.3)
             axes9[2].legend()
             
-            # Add summary statistics with corrected calculation
-            recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
-            if len(recent_data) > 0:
-                # Apply the same capping as in the main calculation
-                numerator = recent_data['infected_on_drug_with_previous_failure']
-                denominator = recent_data['currently_infected_and_on_drug_count'].replace(0, float('nan'))
-                recent_failure_prop = np.minimum(numerator / denominator, 1.0)
-                
-                recent_mean = recent_failure_prop.mean() * 100
-                recent_max = recent_failure_prop.max() * 100
-                
-                # Also show absolute numbers
-                recent_mean_numerator = numerator.mean()
-                recent_mean_denominator = recent_data['currently_infected_and_on_drug_count'].mean()
-                
-                textstr = f'Recent Years (20-41):\nMean: {recent_mean:.1f}%\nMax: {recent_max:.1f}%\nTypical: {recent_mean_numerator:.0f}/{recent_mean_denominator:.0f}'
-                props = dict(boxstyle='round', facecolor='mistyrose', alpha=0.8)
-                axes9[2].text(0.02, 0.98, textstr, transform=axes9[2].transAxes, 
-                             fontsize=9, verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
         else:
             axes9[2].text(0.5, 0.5, 'Treatment failure data\nnot available', 
                          ha='center', va='center', fontsize=12, color='gray')
@@ -1400,17 +1275,7 @@ def create_grouped_plots(df, config=None):
             if plotted_count > 0:
                 axes10[0].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=8)
             
-            # Add summary statistics
-            total_all_preventions = sum([total for _, total, _ in bacteria_preventions])
-            recent_data = df[df['time_in_years'] >= 20]  # Last ~20 years
-            if len(recent_data) > 0:
-                recent_preventions = recent_data[prevention_cols].sum().sum()
-                recent_daily_avg = recent_preventions / len(recent_data)
-                
-                textstr = f'Total Preventions: {total_all_preventions:,}\nRecent Daily Avg: {recent_daily_avg:.1f}/day'
-                props = dict(boxstyle='round', facecolor='lightgreen', alpha=0.8)
-                axes10[0].text(0.02, 0.98, textstr, transform=axes10[0].transAxes, 
-                              fontsize=9, verticalalignment='top', bbox=props)
+            # Removed the inset summary box to keep the plot uncluttered
             
             # Bottom panel: Total preventions across all bacteria
             total_preventions_per_day = df[prevention_cols].sum(axis=1)
@@ -1430,14 +1295,7 @@ def create_grouped_plots(df, config=None):
             axes10[1].set_ylim(bottom=0)
             axes10[1].grid(True, alpha=0.3)
             
-            # Add peak information
-            max_prevention_day = total_preventions_smooth.max()
-            max_prevention_time = df['time_in_years'][total_preventions_smooth.idxmax()]
-            
-            textstr2 = f'Peak: {max_prevention_day:.2f}/day at year {max_prevention_time:.1f}'
-            props2 = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-            axes10[1].text(0.02, 0.98, textstr2, transform=axes10[1].transAxes, 
-                          fontsize=9, verticalalignment='top', bbox=props2)
+            # Removed the inset summary box to keep the plot uncluttered
             
         else:
             # Show message if no prevention data available
