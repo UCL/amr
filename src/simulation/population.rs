@@ -290,7 +290,9 @@ pub struct Individual {
     /// Tracks if infection was prevented by existing therapy for each bacteria this timestep
     /// Reset to false at start of each timestep, set to true if prevention occurs
     pub infection_prevented_by_drug: Vec<bool>,               
-    pub presence_microbiome: Vec<bool>,            
+    pub presence_microbiome: Vec<bool>,
+    /// Day when microbiome carriage was acquired (0 if never acquired or cleared)
+    pub date_microbiome_acquired: Vec<i32>,
     pub vaccination_status: Vec<bool>,             
     /// Per-bacteria vaccination status: true if vaccinated against that pathogen
     /// Initialized as false (unvaccinated) and updated dynamically based on age-appropriate schedules
@@ -380,6 +382,7 @@ impl Individual {
         let sepsis = vec![false; num_bacteria];
         let sepsis_onset_day = vec![-1; num_bacteria]; // -1 indicates never had sepsis
         let presence_microbiome = vec![false; num_bacteria];
+        let date_microbiome_acquired = vec![0; num_bacteria]; // 0 means never acquired or cleared
         let infection_hospital_acquired = vec![false; num_bacteria];
         let cur_infection_from_environment = vec![false; num_bacteria];
         let infection_has_caused_symptoms = vec![false; num_bacteria];
@@ -469,6 +472,7 @@ impl Individual {
             sepsis_onset_day,
             infection_prevented_by_drug: vec![false; num_bacteria],
             presence_microbiome,
+            date_microbiome_acquired,
             vaccination_status, 
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],

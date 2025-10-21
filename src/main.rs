@@ -35,6 +35,10 @@ mod config;
 //
 // proportion of sepsis deaths by syndrome (and region and age) to compare with gbd
 //
+// get out more graphs on microbiome presence and microbiome_r and check on whether
+// happy with logic
+//
+//
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
@@ -143,8 +147,8 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 500_000 ; 
-    let time_steps = 200    ;  
+    let population_size = 125_000 ; 
+    let time_steps = 38_325    ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.001      ; // Log 1% of infections for analysis (0.0-1.0)

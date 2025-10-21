@@ -207,6 +207,13 @@ pub struct GlobalScalars {
     pub sepsis_age_mortality_multiplier_elderly: f64,
     pub sepsis_immunosuppressed_multiplier: f64,
     pub drug_toxicity_death_risk_per_day: f64,
+    // Enhanced microbiome/carriage model parameters
+    pub antibiotic_disruption_log_odds_per_active_drug: f64,
+    pub antibiotic_disruption_decay_half_life_days: f64,
+    pub carriage_duration_log_odds_coefficient: f64,
+    pub carriage_duration_max_log_odds_effect: f64,
+    pub antibiotic_clearance_log_odds_per_unit_activity: f64,
+    pub carrier_resistance_inheritance_probability: f64,
 }
 
 impl GlobalScalars {
@@ -440,6 +447,36 @@ impl GlobalScalars {
                 map,
                 "drug_toxicity_death_risk_per_day",
                 0.0,
+            ),
+            antibiotic_disruption_log_odds_per_active_drug: get_or_default(
+                map,
+                "antibiotic_disruption_log_odds_per_active_drug",
+                0.3,
+            ),
+            antibiotic_disruption_decay_half_life_days: get_or_default(
+                map,
+                "antibiotic_disruption_decay_half_life_days",
+                30.0,
+            ),
+            carriage_duration_log_odds_coefficient: get_or_default(
+                map,
+                "carriage_duration_log_odds_coefficient",
+                -0.01,
+            ),
+            carriage_duration_max_log_odds_effect: get_or_default(
+                map,
+                "carriage_duration_max_log_odds_effect",
+                -2.0,
+            ),
+            antibiotic_clearance_log_odds_per_unit_activity: get_or_default(
+                map,
+                "antibiotic_clearance_log_odds_per_unit_activity",
+                0.5,
+            ),
+            carrier_resistance_inheritance_probability: get_or_default(
+                map,
+                "carrier_resistance_inheritance_probability",
+                0.85,
             ),
         }
     }
@@ -2886,54 +2923,62 @@ lazy_static! {
         map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), 0.2);
         
         // Bacteria-specific microbiome vs infection acquisition log odds
-        // High carriage bacteria (common gut/skin commensals)
-        map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 2.5); // Very high carriage rate
-        map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 2.2); // High gut carriage
-        map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 2.0); // High gut carriage
-        map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 1.8); // Moderate-high gut carriage
-        map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 1.5); // ~30% nasal carriage
+        // These values shift from infection baseline (-13.25) to carriage probabilities
+        // Target log-odds for final carriage probability: -1.0 = ~27%, 0.0 = ~50%, +1.0 = ~73%
         
-        // Moderate carriage bacteria (opportunistic commensals)
-        map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 1.3);
-        map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 1.2);
-        map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 1.1);
-        map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 1.0);
-        map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 0.8);
-        map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 0.7);
+        // High carriage bacteria (common gut/skin commensals) - need ~+12 to +14 to reach realistic carriage rates
+        map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 14.0); // 60-80% gut carriage → final ~+0.75 log-odds
+        map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 13.5); // 40-60% gut carriage → final ~+0.25 log-odds
+        map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 13.0); // 30-50% gut carriage → final ~-0.25 log-odds
+        map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 12.5); // 20-40% gut carriage → final ~-0.75 log-odds
+        map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 12.3); // 20-30% nasal carriage → final ~-1.0 log-odds
         
-        // Respiratory tract commensals (episodic carriage)
-        map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 1.2); // Nasopharyngeal carriage
-        map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 1.0); // Respiratory carriage
-        map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 0.9); // Upper respiratory carriage
-        map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 0.5); // Transient throat carriage
-        map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 0.8); // GI/genital carriage
+        // Moderate carriage bacteria (opportunistic commensals) - need ~+11 to +12 for 10-20% carriage
+        map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 11.8); // 10-20% carriage
+        map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 11.5); // 10-15% carriage
+        map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 11.2); // 8-12% carriage
+        map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 11.0); // 5-10% carriage
+        map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 10.5); // 3-8% carriage
+        map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 10.0); // 2-5% carriage
         
-        // Healthcare-associated, low community carriage
-        map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 0.3); // Mainly hospital environment
-        map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 0.2); // Low carriage, environmental
-        map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 0.8); // Spore-forming, gut carriage
+        // Respiratory tract commensals (episodic carriage) - need ~+11 to +13 for realistic nasopharyngeal carriage
+        map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 12.5); // 20-40% carriage (esp. children)
+        map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 12.0); // 15-30% respiratory carriage
+        map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 11.5); // 10-20% upper respiratory
+        map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 10.5); // 5-15% transient throat carriage
+        map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 11.0); // 10-30% GI/genital carriage
         
-        // Foodborne/environmental, minimal carriage
-        map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), -1.0); // Chronic carriage rare
-        map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), -1.2); // Minimal carriage
-        map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), -0.5); // Some gut carriage
-        map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), -0.8); // Minimal carriage
-        map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), -2.0); // Almost no carriage
-        map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), -1.0); // Minimal human carriage
-        map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), -0.7); // Low carriage
-        map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), -1.5); // Rare carriage
+        // Healthcare-associated, low community carriage - need ~+9 to +11 for <5% carriage
+        map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 9.5); // 1-3% mainly hospital
+        map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 9.0); // <2% low carriage
+        map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 10.5); // 3-5% spore-forming gut
         
-        // Sexually transmitted, no meaningful carriage
-        map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), -2.5); // No carriage
-        map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), -2.0); // Intracellular, no carriage
-        map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), -3.0); // No carriage
+        // Foodborne/environmental, minimal carriage - need ~+8 to +10 for <2% carriage
+        map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), 8.0); // <1% chronic carriage
+        map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), 7.5); // <0.5% minimal
+        map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), 9.0); // 1-2% gut carriage
+        map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), 8.5); // <1% minimal carriage
+        map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 7.0); // <0.1% almost none
+        map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 8.0); // <1% minimal human
+        map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 8.5); // <1% low carriage
+        map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 7.5); // <0.5% rare
+        
+        // Sexually transmitted, no meaningful carriage - keep negative (below infection baseline)
+        map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), 6.0); // ~0.01% essentially none
+        map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 6.5); // ~0.01% intracellular
+        map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 5.0); // <0.001% no carriage
         
         // Other specialized pathogens
-        map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 0.5); // Nasopharyngeal carriage
+        map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 10.5); // 5-10% nasopharyngeal
+        
+        // MDR-TB: Latent infection rather than true carriage (different biology)
+        // TB "carriage" is actually latent infection (LTBI), ~25% global prevalence
+        // For this model, we'll use moderate carriage to represent LTBI risk
+        map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), 11.5); // 10-20% representing LTBI pool
         
         // Microbiome acquisition now uses infection acquisition parameters plus bacteria-specific offset
-        // Fallback parameter for backward compatibility
-        map.insert("log_odds_microbiome_vs_infection".to_string(), 1.0); // Fallback if bacteria-specific parameter not found
+        // Fallback parameter for backward compatibility (should rarely be used if bacteria-specific params set)
+        map.insert("log_odds_microbiome_vs_infection".to_string(), 10.0); // Fallback: ~2-5% carriage if no bacteria-specific param
 
         // Environmental resistance level for new acquisitions
         map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01 
@@ -3371,6 +3416,72 @@ lazy_static! {
         map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
         // Probability of clearing microbiome when drug treatment successfully clears infection  
         map.insert("microbiome_clearance_probability_on_drug_treatment".to_string(), 0.8); // 80% chance drugs clear microbiome when they clear infection
+        
+        // ===========================================================================================
+        // --- Enhanced Microbiome/Carriage Model Parameters ---
+        // ===========================================================================================
+        // These parameters implement a biologically realistic model of bacterial carriage (asymptomatic
+        // colonization) and its critical role in antimicrobial resistance dynamics. Carriage matters
+        // because: (1) it's 10-100x more common than infection, (2) carriers are the primary reservoir
+        // for resistance transmission, and (3) when carriers develop infections, they overwhelmingly
+        // inherit their carried strain's resistance profile (carrier amplification effect).
+        
+        // --- ANTIBIOTIC DISRUPTION EFFECT ON CARRIAGE ACQUISITION ---
+        // Mechanism: Antibiotics kill commensal bacteria, disrupting colonization resistance and creating
+        // ecological niches for pathogen colonization. This is why C. difficile infections spike during
+        // broad-spectrum antibiotic use, and why MRSA/ESBL colonization increases during antibiotic courses.
+        // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
+        // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
+        map.insert("antibiotic_disruption_log_odds_per_active_drug".to_string(), 0.3); 
+        // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
+        // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
+        
+        map.insert("antibiotic_disruption_decay_half_life_days".to_string(), 30.0); 
+        // Half-life for decay of disruption effect after antibiotics stop (reserved for future implementation)
+        // Empirical basis: Microbiome recovery takes weeks to months; colonization risk elevated for 1-3 months post-antibiotics
+        
+        // --- DURATION EFFECTS ON CARRIAGE CLEARANCE ---
+        // Mechanism: Newly acquired bacteria are susceptible to immune clearance and microbial competition.
+        // Over time, successful colonizers establish stable niches, form biofilms, and evade immunity,
+        // becoming progressively harder to eliminate (established vs. transient colonization).
+        // Empirical basis: MRSA decolonization success ~70% for recent carriers vs ~30% for chronic carriers.
+        // S. aureus carriage often persists months to years once established.
+        map.insert("carriage_duration_log_odds_coefficient".to_string(), -0.01); 
+        // NEGATIVE coefficient: each day of carriage reduces clearance log-odds by 0.01
+        // At 100 days: -1.0 log-odds reduction (clearance ~2.7x less likely)
+        // At 200 days: -2.0 log-odds reduction (clearance ~7.4x less likely, hits cap)
+        
+        map.insert("carriage_duration_max_log_odds_effect".to_string(), -2.0); 
+        // Cap duration effect at -2.0 log-odds (~7.4x reduction in clearance probability)
+        // Prevents unrealistic complete persistence; even chronic carriers can occasionally clear colonization
+        
+        // --- ANTIBIOTIC EFFECT ON CARRIAGE CLEARANCE ---
+        // Mechanism: Antibiotics with activity against colonizing bacteria suppress or eliminate them,
+        // even at sub-therapeutic concentrations. This is why prophylaxis prevents colonization and
+        // why treatment courses often clear carriage as a side effect.
+        // Empirical basis: Decolonization protocols use topical antibiotics (mupirocin for MRSA nasal carriage).
+        // Systemic treatment often clears S. aureus carriage. However, resistant strains persist.
+        map.insert("antibiotic_clearance_log_odds_per_unit_activity".to_string(), 0.5); 
+        // Each unit of activity_r adds +0.5 to clearance log-odds
+        // activity_r already accounts for drug level, potency, and resistance, so this scales appropriately
+        // Example: activity_r=2.0 → +1.0 log-odds → ~2.7x higher clearance probability
+        
+        // --- CARRIER RESISTANCE INHERITANCE (CARRIER AMPLIFICATION EFFECT) ---
+        // Mechanism: When carriers develop infections, the infecting strain is usually their carried strain
+        // (endogenous infection), inheriting its resistance profile. This creates a "carrier amplification
+        // effect" where resistance rates in infections exceed population prevalence.
+        // Empirical basis: 
+        // - MRSA carriers: 80-90% of S. aureus infections are MRSA (vs ~30% in non-carriers)
+        // - ESBL-E. coli carriers: 70-80% of UTIs are ESBL-positive (vs ~10-15% in non-carriers)
+        // - VRE carriers: >90% of subsequent bacteremias are VRE
+        // Population impact: Carriers maintain resistance without selective pressure (asymptomatic), then
+        // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
+        // spread in populations, more important than de novo emergence during treatment.
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.85); 
+        // 85% probability that carrier's infection inherits microbiome resistance profile
+        // Default 0.85 represents high but not absolute endogenous infection rate (some infections still exogenous)
+        // This parameter has MASSIVE impact on population resistance dynamics - most important in the model
+        
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed
 
         //  Probability per day of death due to adverse drug effect (toxicity)

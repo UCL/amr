@@ -1949,8 +1949,15 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
             }
 
             // --- microbiome presence (Carriage) ---
+            // Carriage (asymptomatic colonization) is modeled separately from infection because:
+            // 1. It's vastly more common than infection (e.g., 20-30% carry S. aureus, only ~1% infected)
+            // 2. Carriers are the primary reservoir for resistance transmission in the population
+            // 3. Antibiotic use disrupts normal microbiome, creating niches for pathogen colonization
+            // 4. When carriers develop infections, they're highly likely to have resistant infections (carrier amplification)
             if !individual.presence_microbiome[b_idx] {
-                // Use the same log-odds formula as infection acquisition, with an extra microbiome-vs-infection log-odds parameter
+                // Logistic model for carriage acquisition (consistent framework with infection acquisition)
+                // Baseline includes same demographic and geographic risk factors as infection, but with different 
+                // baseline probability (typically higher for carriage than infection)
                 let mut log_odds = store.bacteria.acquisition_log_odds_baseline[b_idx]
                     + store.age_categories.bacteria_age_log_odds(b_idx, age_idx)
                     + store.region_bacteria.acquisition_log_odds(region, b_idx)
@@ -1969,19 +1976,48 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                 }
 
                 // Add the extra log-odds for microbiome vs infection (bacteria-specific)
+                // This parameter shifts the baseline rate between carriage and infection (typically positive for carriage)
                 log_odds += store.bacteria.microbiome_vs_infection_log_odds(b_idx);
+
+                // --- Antibiotic disruption effect on carriage acquisition ---
+                // MECHANISM: Antibiotics kill commensal bacteria, disrupting colonization resistance and creating
+                // ecological niches that pathogenic bacteria can exploit. This is why C. difficile infections
+                // spike during/after broad-spectrum antibiotic use, and why antibiotic courses increase MRSA
+                // and ESBL-producing bacteria colonization risk.
+                // EMPIRICAL BASIS: Studies show 5-15x increased colonization risk during antibiotic therapy,
+                // persisting for weeks to months after cessation (we model acute effect here).
+                let mut antibiotic_disruption_log_odds = 0.0;
+                let disruption_per_drug = store.globals.antibiotic_disruption_log_odds_per_active_drug;
+                
+                for (_d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
+                    if drug_level > 0.1 { // Only count drugs with meaningful levels
+                        antibiotic_disruption_log_odds += disruption_per_drug;
+                    }
+                }
+                log_odds += antibiotic_disruption_log_odds;
 
                 // Convert log-odds to probability
                 let microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
 
                 if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
                     individual.presence_microbiome[b_idx] = true;
+                    // Track acquisition date for duration-dependent clearance modeling
+                    // RATIONALE: Recent colonization is more easily cleared by immune response or antibiotics,
+                    // while established colonization (months to years) is much more persistent.
+                    // This mirrors clinical observations that recent MRSA carriers respond better to 
+                    // decolonization protocols than chronic carriers.
+                    individual.date_microbiome_acquired[b_idx] = time_step as i32;
 
                     // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
                     let env_majority_r_level = get_global_param("environmental_majority_r_level_for_new_acquisition").unwrap_or(0.0);
                     let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0);
 
-                    let is_from_environment = true; // Microbiome acquisition is always from environment in this model
+                    let microbiome_env_prob = get_bacteria_param(bacteria, "microbiome_environmental_acquisition_proportion")
+                        .or_else(|| get_bacteria_param(bacteria, "environmental_acquisition_proportion"))
+                        .unwrap_or(0.5)
+                        .clamp(0.0, 1.0);
+
+                    let is_from_environment = rng.gen::<f64>() < microbiome_env_prob;
                     let is_hospital_acquired = individual.hospital_status.is_hospitalized();
 
                     let region_idx = individual.region_cur_in as usize;
@@ -2021,10 +2057,63 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                     // --- end microbiome_r assignment ---
                 }
             } else {
-                let microbiome_clearance_prob = get_bacteria_param(bacteria, "microbiome_clearance_probability_per_day")
-                    .unwrap_or_else(|| get_global_param("default_microbiome_clearance_probability_per_day").expect("Missing default_microbiome_clearance_probability_per_day in config"));
-                if rng.gen_bool(microbiome_clearance_prob) {
+                // --- Enhanced microbiome clearance with logistic model ---
+                // RATIONALE FOR LOGISTIC FRAMEWORK: Clearance is influenced by multiple independent factors
+                // (duration of carriage, antibiotic pressure, immune response) that combine multiplicatively
+                // in probability space, which translates to additive effects in log-odds space.
+                // This allows us to model complex interactions while maintaining interpretable parameters.
+                
+                // Baseline clearance probability (bacteria-specific or default)
+                // Represents spontaneous clearance rate from immune surveillance and microbial competition
+                let baseline_clearance_prob = get_bacteria_param(bacteria, "microbiome_clearance_probability_per_day")
+                    .or_else(|| get_global_param("default_microbiome_clearance_probability_per_day"))
+                    .unwrap_or(0.01);
+                
+                // Convert baseline probability to log-odds for additive modeling
+                let baseline_log_odds = (baseline_clearance_prob / (1.0 - baseline_clearance_prob)).ln();
+                let mut clearance_log_odds = baseline_log_odds;
+                
+                // --- Duration effect: longer carriage = harder to clear (established colonization) ---
+                // MECHANISM: Newly acquired bacteria are more susceptible to immune clearance and competition.
+                // Over time, successful colonizers establish stable niches, develop biofilms, and evade
+                // immune responses, making them progressively harder to eliminate.
+                // EMPIRICAL BASIS: MRSA decolonization success: ~70% for recent carriers vs ~30% for chronic carriers.
+                // S. aureus carriage often persists for months to years once established.
+                // IMPLEMENTATION: Negative coefficient (longer duration → lower clearance probability),
+                // with maximum effect cap to prevent unrealistic persistence.
+                if individual.date_microbiome_acquired[b_idx] > 0 {
+                    let days_carried = (time_step as i32 - individual.date_microbiome_acquired[b_idx]) as f64;
+                    let duration_coefficient = store.globals.carriage_duration_log_odds_coefficient; // Negative value
+                    let max_duration_effect = store.globals.carriage_duration_max_log_odds_effect; // Negative cap
+                    let duration_effect = (days_carried * duration_coefficient).max(max_duration_effect);
+                    clearance_log_odds += duration_effect;
+                }
+                
+                // --- Antibiotic effect: active drugs targeting this bacteria increase clearance ---
+                // MECHANISM: Antibiotics with activity against the colonizing pathogen can suppress or eliminate it,
+                // even at sub-therapeutic concentrations insufficient to treat infection. This is why antibiotic
+                // prophylaxis can prevent colonization, and why treatment of infections often clears carriage.
+                // EMPIRICAL BASIS: Decolonization protocols use antibiotics (e.g., mupirocin for MRSA nasal carriage).
+                // Treatment courses often clear S. aureus carriage as a side effect.
+                // IMPLEMENTATION: activity_r already accounts for drug level, potency, and resistance.
+                // Each unit of activity proportionally increases clearance log-odds.
+                for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
+                    if drug_level > 0.1 {
+                        let resistance_data = &individual.resistances[b_idx][d_idx];
+                        let activity = resistance_data.activity_r;
+                        if activity > 0.1 { // Only count drugs with meaningful activity
+                            let clearance_boost = activity * store.globals.antibiotic_clearance_log_odds_per_unit_activity;
+                            clearance_log_odds += clearance_boost;
+                        }
+                    }
+                }
+                
+                // Convert log-odds back to probability
+                let clearance_probability = 1.0 / (1.0 + (-clearance_log_odds).exp());
+                
+                if rng.gen_bool(clearance_probability.clamp(0.0, 1.0)) {
                     individual.presence_microbiome[b_idx] = false;
+                    individual.date_microbiome_acquired[b_idx] = 0; // Reset acquisition date for potential re-acquisition
                 }
 
                 // --- de novo resistance emergence in microbiome when on drug ---
@@ -2364,6 +2453,54 @@ let available_drugs: Vec<usize> = DRUG_SHORT_NAMES.iter().enumerate()
                                 }
                             }
                             individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
+                        }
+                    }
+                }
+                
+                // --- Carrier resistance inheritance (THE KEY MECHANISM FOR RESISTANCE AMPLIFICATION) ---
+                // WHY THIS MATTERS: Carriage is the primary mechanism by which resistance spreads in populations.
+                // Carriers are asymptomatic reservoirs who aren't on antibiotics, so resistant strains face no
+                // selective disadvantage in their microbiome. When carriers develop infections, the infecting
+                // strain is usually the one they carry, inheriting its resistance profile.
+                //
+                // EMPIRICAL BASIS:
+                // - MRSA carriers: 80-90% of their S. aureus infections are MRSA (vs ~30% in non-carriers)
+                // - ESBL-producing E. coli carriers: 70-80% of their UTIs are ESBL-positive
+                // - VRE carriers: >90% of subsequent bacteremias are VRE
+                //
+                // POPULATION-LEVEL IMPACT: This creates a "carrier amplification effect" where:
+                // 1. Antibiotics select for resistance in infections → some become carriers
+                // 2. Carriers maintain resistance without antibiotic pressure (no fitness cost)
+                // 3. When carriers get infected, resistance rates are much higher than population prevalence
+                // 4. This amplifies observed resistance rates beyond what direct selection would predict
+                //
+                // MECHANISM: When infection occurs, the bacteria causing infection typically comes from
+                // the person's own microbiome (endogenous infection) rather than the environment.
+                // We model this with high probability (default 85%) that carriers' infections inherit
+                // their microbiome resistance profile.
+                //
+                // IMPLEMENTATION NOTE: This inheritance occurs AFTER environmental/population-based resistance
+                // assignment, overriding it when carriage is present. This ensures carriers preferentially
+                // develop infections with their carried strain rather than acquiring new strains.
+                if individual.presence_microbiome[b_idx] {
+                    let inheritance_prob = store.globals.carrier_resistance_inheritance_probability;
+                    if rng.gen_bool(inheritance_prob) {
+                        // Inherit microbiome resistance for all drugs
+                        for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                            let microbiome_resistance = individual.resistances[b_idx][d_idx].microbiome_r;
+                            if microbiome_resistance > 0.0 {
+                                let infection_resistance_data = &mut individual.resistances[b_idx][d_idx];
+                                // Inherit the higher of current infection resistance or microbiome resistance
+                                // (ensures we don't lose resistance already assigned from other sources)
+                                let inherited_level = microbiome_resistance.max(infection_resistance_data.any_r);
+                                infection_resistance_data.any_r = inherited_level;
+                                infection_resistance_data.majority_r = inherited_level;
+                                
+                                // Track that this resistance came from microbiome carriage
+                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                    crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR,
+                                );
+                            }
                         }
                     }
                 }
