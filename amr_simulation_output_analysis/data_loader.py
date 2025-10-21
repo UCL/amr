@@ -236,6 +236,31 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
             df['number_with_sepsis'], 
             df['total_currently_infected']
         )
+
+    # Derive carrier vs non-carrier infection metrics for each bacteria
+    carrier_suffix = '_infected_carrier_count'
+    for carrier_col in [col for col in df.columns if col.endswith(carrier_suffix)]:
+        slug = carrier_col[:-len(carrier_suffix)]
+        non_carrier_col = f"{slug}_infected_non_carrier_count"
+        res_carrier_col = f"{slug}_resistant_infected_carrier_count"
+        res_non_carrier_col = f"{slug}_resistant_infected_non_carrier_count"
+
+        if not all(col in df.columns for col in [non_carrier_col, res_carrier_col, res_non_carrier_col]):
+            logger.debug(
+                "Skipping derived carrier metrics for %s due to missing columns", slug
+            )
+            continue
+
+        carrier_total = df[carrier_col] + df[non_carrier_col]
+        df[f"{slug}_carrier_share"] = safe_divide(
+            df[carrier_col], carrier_total, default=np.nan
+        )
+        df[f"{slug}_carrier_resistance_rate"] = safe_divide(
+            df[res_carrier_col], df[carrier_col], default=np.nan
+        )
+        df[f"{slug}_non_carrier_resistance_rate"] = safe_divide(
+            df[res_non_carrier_col], df[non_carrier_col], default=np.nan
+        )
     
     # Calculate death cause proportions (if available)
     death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']

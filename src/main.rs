@@ -147,7 +147,7 @@ fn main() {
     validate_bacteria_configuration();
     
     // Create and run the simulation
-    let population_size = 125_000 ; 
+    let population_size = 5_000 ; 
     let time_steps = 38_325    ;  
     let log_individuals = false  ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging

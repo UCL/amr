@@ -160,6 +160,10 @@ pub struct TimeStepSummary {
     pub num_with_any_bacteria_microbiome: usize, // number of people with any presence_microbiome=true
     pub presence_microbiome_by_bacteria: Vec<usize>, // per-bacteria counts of people with this bacteria in microbiome
     pub presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>, // [bacteria][region] counts of people with bacteria in microbiome by region
+    pub infected_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of infected individuals who are current carriers
+    pub infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of infected individuals without carriage
+    pub resistant_infected_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among carriers
+    pub resistant_infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among non-carriers
     pub infected_with_test_identified_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_identified_infection = true
     pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_for_resistance = true
     
@@ -476,6 +480,10 @@ impl Simulation {
                 num_with_any_bacteria_microbiome: usize,
                 presence_microbiome_by_bacteria: Vec<usize>,
                 presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>,
+                infected_carrier_count_by_bacteria: Vec<usize>,
+                infected_non_carrier_count_by_bacteria: Vec<usize>,
+                resistant_infected_carrier_count_by_bacteria: Vec<usize>,
+                resistant_infected_non_carrier_count_by_bacteria: Vec<usize>,
                 drug_failure_events_by_bacteria_region: Vec<Vec<usize>>,
                 drug_treatment_day5_events_by_bacteria_region: Vec<Vec<usize>>,
                 infected_with_test_identified_by_bacteria: Vec<usize>,
@@ -577,6 +585,10 @@ impl Simulation {
                         num_with_any_bacteria_microbiome: 0,
                         presence_microbiome_by_bacteria: vec![0; num_bacteria],
                         presence_microbiome_by_bacteria_by_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
+                        infected_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        resistant_infected_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        resistant_infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
                         drug_failure_events_by_bacteria_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
                         drug_treatment_day5_events_by_bacteria_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
@@ -618,6 +630,10 @@ impl Simulation {
                     for (a,b) in self.mic_lt2_counts.iter_mut().zip(other.mic_lt2_counts) { *a += b; }
                     for (a,b) in self.currently_on_drug_by_bacteria_drug.iter_mut().zip(other.currently_on_drug_by_bacteria_drug) { *a += b; }
                     for (a,b) in self.microbiome_r_positive_by_bacteria_drug.iter_mut().zip(other.microbiome_r_positive_by_bacteria_drug) { *a += b; }
+                    for (a,b) in self.infected_carrier_count_by_bacteria.iter_mut().zip(other.infected_carrier_count_by_bacteria) { *a += b; }
+                    for (a,b) in self.infected_non_carrier_count_by_bacteria.iter_mut().zip(other.infected_non_carrier_count_by_bacteria) { *a += b; }
+                    for (a,b) in self.resistant_infected_carrier_count_by_bacteria.iter_mut().zip(other.resistant_infected_carrier_count_by_bacteria) { *a += b; }
+                    for (a,b) in self.resistant_infected_non_carrier_count_by_bacteria.iter_mut().zip(other.resistant_infected_non_carrier_count_by_bacteria) { *a += b; }
                     for (a,b) in self.infected_and_on_any_drug_by_bacteria.iter_mut().zip(other.infected_and_on_any_drug_by_bacteria) { *a += b; }
                     for (a,b) in self.infections_by_bacteria.iter_mut().zip(other.infections_by_bacteria) { *a += b; }
                     for (a,b) in self.infections_prevented_by_drug_by_bacteria.iter_mut().zip(other.infections_prevented_by_drug_by_bacteria) { *a += b; }
@@ -1011,6 +1027,8 @@ impl Simulation {
                             }
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > 0.001 {
+                                    let is_carrier = individual.presence_microbiome[b_idx];
+                                    let mut infection_any_r_positive = false;
                                     // Count syndrome for this infected individual (take first one if multiple infections)
                                     if !individual_has_any_infection_counted_for_syndrome {
                                         let syndrome_id = individual.infectious_syndrome[b_idx];
@@ -1053,6 +1071,7 @@ impl Simulation {
                                             lt.majority_r_entries.push(((individual.region_cur_in as usize, individual.hospital_status.is_hospitalized(), b_idx, d_idx), resistance_data.majority_r));
                                         }
                                         if resistance_data.any_r > 0.0 {
+                                            infection_any_r_positive = true;
                                             individual_has_any_r_positive = true;
                                             if individual.date_last_infected[b_idx] == t as i32 && !was_newly_infected_with_resistance {
                                                 lt.newly_infected_with_resistance_count += 1;
@@ -1070,6 +1089,17 @@ impl Simulation {
                                                     ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
                                                 }
                                             }
+                                        }
+                                    }
+                                    if is_carrier {
+                                        lt.infected_carrier_count_by_bacteria[b_idx] += 1;
+                                        if infection_any_r_positive {
+                                            lt.resistant_infected_carrier_count_by_bacteria[b_idx] += 1;
+                                        }
+                                    } else {
+                                        lt.infected_non_carrier_count_by_bacteria[b_idx] += 1;
+                                        if infection_any_r_positive {
+                                            lt.resistant_infected_non_carrier_count_by_bacteria[b_idx] += 1;
                                         }
                                     }
                                     // Only include individuals who are on any drug for this bacteria
@@ -1210,6 +1240,10 @@ impl Simulation {
                     num_with_any_bacteria_microbiome,
                     presence_microbiome_by_bacteria,
                     presence_microbiome_by_bacteria_by_region,
+                    infected_carrier_count_by_bacteria,
+                    infected_non_carrier_count_by_bacteria,
+                    resistant_infected_carrier_count_by_bacteria,
+                    resistant_infected_non_carrier_count_by_bacteria,
                     drug_failure_events_by_bacteria_region,
                     drug_treatment_day5_events_by_bacteria_region,
                     infected_with_test_identified_by_bacteria,
@@ -1309,6 +1343,10 @@ impl Simulation {
                 num_with_any_bacteria_microbiome,
                 presence_microbiome_by_bacteria,
                 presence_microbiome_by_bacteria_by_region,
+                infected_carrier_count_by_bacteria,
+                infected_non_carrier_count_by_bacteria,
+                resistant_infected_carrier_count_by_bacteria,
+                resistant_infected_non_carrier_count_by_bacteria,
                 drug_failure_events_by_bacteria_region,
                 drug_treatment_day5_events_by_bacteria_region,
                 infected_with_test_identified_by_bacteria,
@@ -1922,6 +1960,27 @@ impl Simulation {
                 header.push_str(region);
             }
         }
+        // Add per-bacteria infected carrier/non-carrier columns
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_infected_carrier_count");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_infected_non_carrier_count");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_resistant_infected_carrier_count");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_resistant_infected_non_carrier_count");
+        }
         // Add per-bacteria per-region drug failure events columns
         for bacteria in BACTERIA_LIST.iter() {
             for region in &["north_america", "south_america", "africa", "asia", "europe", "oceania"] {
@@ -2328,6 +2387,10 @@ impl Simulation {
             for bacteria_vec in &summary.presence_microbiome_by_bacteria_by_region {
                 for value in bacteria_vec { row.push(','); row.push_str(&value.to_string()); }
             }
+            for value in &summary.infected_carrier_count_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.infected_non_carrier_count_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.resistant_infected_carrier_count_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
+            for value in &summary.resistant_infected_non_carrier_count_by_bacteria { row.push(','); row.push_str(&value.to_string()); }
             // Add regional drug failure events data
             for bacteria_vec in &summary.drug_failure_events_by_bacteria_region {
                 for value in bacteria_vec { row.push(','); row.push_str(&value.to_string()); }

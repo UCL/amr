@@ -83,7 +83,10 @@ def main():
     # Main comprehensive analysis - equivalent to original analyze_simulation.py
     print("Running comprehensive AMR analysis...")
     try:
-        create_all_plots()
+        config = PlotConfig()
+        # Ensure newly added carrier-share plot (and any future toggles) stay enabled when running standalone
+        config.carrier_infection_share = True
+        create_all_plots(config)
         print("   [OK] Comprehensive analysis completed successfully!\n")
     except Exception as e:
         print(f"   [ERROR] Error: {e}\n")

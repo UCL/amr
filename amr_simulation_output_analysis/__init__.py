@@ -86,6 +86,7 @@ def create_all_plots(config=None):
         config.resistance_mechanism_by_bacteria,
         config.proportion_of_population_with_microbiome_presence_bacteria,
         config.proportion_of_microbiome_presence_with_resistance_by_drug,
+    config.carrier_infection_share,
         config.mean_any_r_by_drug_for_each_bacteria_hospital,
         config.source_of_new_resistance_by_drug_bacteria,
         config.drug_score_analysis_by_bacteria,

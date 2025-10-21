@@ -391,6 +391,9 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     if config.proportion_of_population_with_microbiome_presence_bacteria:
         create_proportion_of_population_with_microbiome_presence_bacteria_plots(data, config)
     
+    if config.carrier_infection_share:
+        create_carrier_infection_share_plot(data, config)
+
     if config.mean_mic_by_drug_for_each_bacteria:
         create_mean_mic_by_drug_for_each_bacteria_plots(data, config)
     
@@ -3846,6 +3849,84 @@ def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df: 
         logger.debug(f"✓ {output_file} saved")
     
     logger.info(f"✓ Created {plot_count} microbiome presence proportion plots")
+
+
+@safe_plot_creation
+def create_carrier_infection_share_plot(df: pd.DataFrame, config: PlotConfig) -> None:
+    """Plot carrier share of active infections for the most prevalent bacteria."""
+    output_dir = config.output_dir / 'carrier_infection_share'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    share_suffix = '_carrier_share'
+    share_columns = [col for col in df.columns if col.endswith(share_suffix)]
+    if not share_columns:
+        logger.warning("No *_carrier_share columns found in dataset; run preprocessing to add derived metrics")
+        return
+
+    smoothing_window = config.smoothing_window_days
+    time_axis = df.get('time_in_years')
+    if time_axis is None:
+        logger.warning("time_in_years column missing; cannot generate carrier infection share plot")
+        return
+
+    records = []
+    for share_col in share_columns:
+        slug = share_col[:-len(share_suffix)]
+        infection_col = f"{slug}_currently_infected"
+        if infection_col not in df.columns:
+            logger.debug("Skipping %s – no infection count column", slug)
+            continue
+
+        share_series = pd.Series(df[share_col], dtype=float)
+        infection_series = pd.Series(df[infection_col], dtype=float)
+
+        share_smoothed = share_series.rolling(window=smoothing_window, min_periods=1, center=True).mean()
+        infection_smoothed = infection_series.rolling(window=smoothing_window, min_periods=1, center=True).mean()
+
+        if share_smoothed.dropna().empty:
+            continue
+
+        records.append((slug, share_smoothed, infection_smoothed))
+
+    if not records:
+        logger.warning("Carrier infection share plot skipped; no bacteria with sufficient data")
+        return
+
+    # Focus on the bacteria with the largest median infection burden
+    records.sort(key=lambda item: item[2].median(skipna=True), reverse=True)
+    top_records = records[:6]
+
+    color_cycle = plt.cm.tab10.colors if len(plt.cm.tab10.colors) >= len(top_records) else plt.cm.tab20.colors
+    plt.figure(figsize=FIGURE_SIZE_SINGLE)
+
+    plotted = False
+    for idx, (slug, share_smoothed, _) in enumerate(top_records):
+        valid_share = share_smoothed.dropna()
+        if valid_share.empty:
+            continue
+
+        color = color_cycle[idx % len(color_cycle)]
+        display_name = slug.replace('_', ' ').title()
+        plt.plot(time_axis, share_smoothed, linewidth=2, color=color, label=display_name)
+        plotted = True
+
+    if not plotted:
+        logger.warning("Carrier infection share plot skipped; no valid smoothed data")
+        plt.close()
+        return
+
+    plt.title('Share of Active Infections Occurring in Current Carriers', fontsize=14)
+    plt.xlabel('Time (Years)', fontsize=12)
+    plt.ylabel('Proportion of Infections in Carriers', fontsize=12)
+    plt.ylim(0, 1)
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=9)
+    plt.tight_layout()
+
+    output_path = output_dir / 'carrier_infection_share.png'
+    plt.savefig(output_path, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+    plt.close()
+    logger.info("✓ Created carrier infection share plot: %s", output_path)
 
 
 @safe_plot_creation
