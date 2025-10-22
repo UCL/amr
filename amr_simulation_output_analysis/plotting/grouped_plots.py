@@ -297,17 +297,32 @@ def create_grouped_plots(df, config=None):
             axes3[2].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
             axes3[2].set_axis_off()
             
-        # 4. Proportion of people with any potentially pathogenic bacteria in their microbiome
-        if 'num_with_any_bacteria_microbiome' in df.columns and 'total_population' in df.columns:
-            any_microbiome_proportion = safe_divide(df['num_with_any_bacteria_microbiome'], df['total_population'], 0)
-            axes3[3].plot(df['time_in_years'], pd.Series(any_microbiome_proportion).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='purple', linewidth=2)
+        # 4. Microbiome acquisition events by antibiotic exposure
+        on_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_on_drug')]
+        off_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_off_drug')]
+        if on_cols and off_cols and 'total_population' in df.columns:
+            total_on = df[on_cols].sum(axis=1)
+            total_off = df[off_cols].sum(axis=1)
+
+            rate_on = pd.Series(
+                safe_divide(total_on, df['total_population'], 0) * 1e5,
+                index=df.index
+            ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            rate_off = pd.Series(
+                safe_divide(total_off, df['total_population'], 0) * 1e5,
+                index=df.index
+            ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+
+            axes3[3].plot(df['time_in_years'], rate_on, color='firebrick', linewidth=2, label='On Antibiotics')
+            axes3[3].plot(df['time_in_years'], rate_off, color='steelblue', linewidth=2, label='No Antibiotics')
             axes3[3].set_xlabel('Time (Years)')
-            axes3[3].set_ylabel('Proportion of Population')
-            axes3[3].set_title('Proportion with Any Potentially Pathogenic Bacteria in Microbiome')
-            axes3[3].set_ylim(0, 1)
+            axes3[3].set_ylabel('New Carriers per 100k Population (Smoothed)')
+            axes3[3].set_title('Microbiome Acquisition Rate by Antibiotic Exposure')
+            axes3[3].set_ylim(bottom=0)
             axes3[3].grid(True, alpha=0.3)
+            axes3[3].legend()
         else:
-            axes3[3].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
+            axes3[3].text(0.5, 0.5, 'Microbiome acquisition data not available', ha='center', va='center', fontsize=12, color='gray')
             axes3[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])

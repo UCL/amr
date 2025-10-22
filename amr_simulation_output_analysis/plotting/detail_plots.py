@@ -10,9 +10,11 @@ visualizations for different aspects of the AMR simulation data.
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from matplotlib.patches import Patch
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import logging
+import math
 
 from ..config import PlotConfig
 from ..data_loader import DataCache
@@ -388,11 +390,26 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
         create_source_of_new_resistance_by_drug_bacteria_plots(data, config)
     
     # Microbiome analysis plots
+    if config.microbiome_acquisition_on_off_drug:
+        create_microbiome_acquisition_on_off_drug_plots(data, config)
+
+    if config.microbiome_clearance_on_off_drug:
+        create_microbiome_clearance_on_off_drug_plots(data, config)
+
     if config.proportion_of_population_with_microbiome_presence_bacteria:
         create_proportion_of_population_with_microbiome_presence_bacteria_plots(data, config)
-    
+
+    if config.microbiome_resistance_microbiome_vs_infection:
+        create_microbiome_resistance_microbiome_vs_infection_plots(data, config)
+
     if config.carrier_infection_share:
         create_carrier_infection_share_plot(data, config)
+
+    if config.carrier_vs_non_carrier_incidence:
+        create_carrier_vs_non_carrier_incidence_plots(data, config)
+
+    if config.carriage_duration_distribution:
+        create_carriage_duration_distribution_plot(data, config)
 
     if config.mean_mic_by_drug_for_each_bacteria:
         create_mean_mic_by_drug_for_each_bacteria_plots(data, config)
@@ -3757,6 +3774,266 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
 # === MICROBIOME ANALYSIS FUNCTIONS ===
 
 @safe_plot_creation
+def create_microbiome_acquisition_on_off_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """Plot microbiome acquisition rates split by antibiotic exposure for each bacteria."""
+    output_dir = config.output_dir / 'microbiome_acquisition_on_off_drug'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    on_suffix = '_microbiome_acquisitions_on_drug'
+    off_suffix = '_microbiome_acquisitions_off_drug'
+
+    bacteria_entries: List[tuple[str, str, str]] = []
+    for col in df.columns:
+        if col.endswith(on_suffix):
+            slug = col[:-len(on_suffix)]
+            off_col = f"{slug}{off_suffix}"
+            if off_col in df.columns:
+                bacteria_entries.append((slug, col, off_col))
+
+    if not bacteria_entries:
+        logger.warning("No microbiome acquisition columns detected; skipping plot generation")
+        return
+
+    if 'time_in_years' not in df.columns:
+        logger.warning("time_in_years column missing; cannot create microbiome acquisition plots")
+        return
+
+    if 'total_population' not in df.columns:
+        logger.warning("total_population column missing; cannot normalize microbiome acquisition plots")
+        return
+
+    time_axis = pd.Series(df['time_in_years'], index=df.index, dtype=float)
+    population = df['total_population'].to_numpy(dtype=float)
+    smoothing_window = getattr(config, 'smoothing_window_days', SMOOTHING_WINDOW_DAYS)
+
+    total_on_counts = np.zeros(len(df), dtype=float)
+    total_off_counts = np.zeros(len(df), dtype=float)
+    plot_counter = 0
+
+    for slug, on_col, off_col in sorted(bacteria_entries):
+        on_counts = df[on_col].to_numpy(dtype=float)
+        off_counts = df[off_col].to_numpy(dtype=float)
+
+        total_on_counts += on_counts
+        total_off_counts += off_counts
+
+        on_rate = safe_divide(on_counts, population, default=0) * 1e5
+        off_rate = safe_divide(off_counts, population, default=0) * 1e5
+
+        on_series = pd.Series(on_rate, index=df.index, dtype=float).rolling(
+            window=smoothing_window, min_periods=1, center=True
+        ).mean()
+        off_series = pd.Series(off_rate, index=df.index, dtype=float).rolling(
+            window=smoothing_window, min_periods=1, center=True
+        ).mean()
+
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        ax.plot(time_axis, on_series, color='firebrick', linewidth=2, label='On Antibiotics')
+        ax.plot(time_axis, off_series, color='steelblue', linewidth=2, label='No Antibiotics')
+
+        share_on = safe_divide(on_counts, on_counts + off_counts, default=np.nan)
+        mean_share_on = float(np.nanmean(share_on)) if not np.isnan(share_on).all() else float('nan')
+
+        if not np.isnan(mean_share_on):
+            ax.text(
+                0.02,
+                0.98,
+                f"Mean share on antibiotics: {mean_share_on*100:.1f}%",
+                transform=ax.transAxes,
+                fontsize=10,
+                verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
+            )
+
+        display_name = slug.replace('_', ' ').title()
+        ax.set_title(f"{display_name}: Microbiome Acquisition Rate by Antibiotic Exposure")
+        ax.set_xlabel('Time (Years)')
+        ax.set_ylabel('New Carriers per 100k Population (Smoothed)')
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        output_file = output_dir / f"{slug}_microbiome_acquisition_on_off_drug.png"
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+        plt.close(fig)
+        plot_counter += 1
+
+    # Summary plot aggregating across all bacteria
+    total_on_rate = safe_divide(total_on_counts, population, default=0) * 1e5
+    total_off_rate = safe_divide(total_off_counts, population, default=0) * 1e5
+
+    total_on_series = pd.Series(total_on_rate, index=df.index, dtype=float).rolling(
+        window=smoothing_window, min_periods=1, center=True
+    ).mean()
+    total_off_series = pd.Series(total_off_rate, index=df.index, dtype=float).rolling(
+        window=smoothing_window, min_periods=1, center=True
+    ).mean()
+
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+    ax.plot(time_axis, total_on_series, color='firebrick', linewidth=2, label='On Antibiotics')
+    ax.plot(time_axis, total_off_series, color='steelblue', linewidth=2, label='No Antibiotics')
+
+    combined = total_on_counts + total_off_counts
+    overall_share_on = safe_divide(total_on_counts, combined, default=np.nan)
+    overall_mean_share_on = float(np.nanmean(overall_share_on)) if not np.isnan(overall_share_on).all() else float('nan')
+    if not np.isnan(overall_mean_share_on):
+        ax.text(
+            0.02,
+            0.98,
+            f"Average share on antibiotics: {overall_mean_share_on*100:.1f}%",
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
+        )
+
+    ax.set_title('Microbiome Acquisition Rate by Antibiotic Exposure (All Bacteria)')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('New Carriers per 100k Population (Smoothed)')
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    summary_file = output_dir / 'summary_microbiome_acquisition_on_off_drug.png'
+    plt.tight_layout()
+    plt.savefig(summary_file, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+    plt.close(fig)
+
+    logger.info("✓ Created %d microbiome acquisition plots plus summary", plot_counter)
+
+
+@safe_plot_creation
+def create_microbiome_clearance_on_off_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """Plot microbiome clearance rates split by antibiotic exposure for each bacteria."""
+    output_dir = config.output_dir / 'microbiome_clearance_on_off_drug'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    on_suffix = '_microbiome_clearances_on_drug'
+    off_suffix = '_microbiome_clearances_off_drug'
+
+    bacteria_entries: List[tuple[str, str, str]] = []
+    for col in df.columns:
+        if col.endswith(on_suffix):
+            slug = col[:-len(on_suffix)]
+            off_col = f"{slug}{off_suffix}"
+            if off_col in df.columns:
+                bacteria_entries.append((slug, col, off_col))
+
+    if not bacteria_entries:
+        logger.warning("No microbiome clearance columns detected; skipping plot generation")
+        return
+
+    if 'time_in_years' not in df.columns:
+        logger.warning("time_in_years column missing; cannot create microbiome clearance plots")
+        return
+
+    if 'total_population' not in df.columns:
+        logger.warning("total_population column missing; cannot normalize microbiome clearance plots")
+        return
+
+    time_axis = pd.Series(df['time_in_years'], index=df.index, dtype=float)
+    population = df['total_population'].to_numpy(dtype=float)
+    smoothing_window = getattr(config, 'smoothing_window_days', SMOOTHING_WINDOW_DAYS)
+
+    total_on_counts = np.zeros(len(df), dtype=float)
+    total_off_counts = np.zeros(len(df), dtype=float)
+    plot_counter = 0
+
+    for slug, on_col, off_col in sorted(bacteria_entries):
+        on_counts = df[on_col].to_numpy(dtype=float)
+        off_counts = df[off_col].to_numpy(dtype=float)
+
+        total_on_counts += on_counts
+        total_off_counts += off_counts
+
+        on_rate = safe_divide(on_counts, population, default=0) * 1e5
+        off_rate = safe_divide(off_counts, population, default=0) * 1e5
+
+        on_series = pd.Series(on_rate, index=df.index, dtype=float).rolling(
+            window=smoothing_window, min_periods=1, center=True
+        ).mean()
+        off_series = pd.Series(off_rate, index=df.index, dtype=float).rolling(
+            window=smoothing_window, min_periods=1, center=True
+        ).mean()
+
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        ax.plot(time_axis, on_series, color='firebrick', linewidth=2, label='On Antibiotics')
+        ax.plot(time_axis, off_series, color='steelblue', linewidth=2, label='No Antibiotics')
+
+        share_on = safe_divide(on_counts, on_counts + off_counts, default=np.nan)
+        mean_share_on = float(np.nanmean(share_on)) if not np.isnan(share_on).all() else float('nan')
+
+        if not np.isnan(mean_share_on):
+            ax.text(
+                0.02,
+                0.98,
+                f"Mean share cleared while on antibiotics: {mean_share_on*100:.1f}%",
+                transform=ax.transAxes,
+                fontsize=10,
+                verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
+            )
+
+        display_name = slug.replace('_', ' ').title()
+        ax.set_title(f"{display_name}: Microbiome Clearance Rate by Antibiotic Exposure")
+        ax.set_xlabel('Time (Years)')
+        ax.set_ylabel('Clearances per 100k Population (Smoothed)')
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+        output_file = output_dir / f"{slug}_microbiome_clearance_on_off_drug.png"
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+        plt.close(fig)
+        plot_counter += 1
+
+    # Summary plot aggregating across all bacteria
+    total_on_rate = safe_divide(total_on_counts, population, default=0) * 1e5
+    total_off_rate = safe_divide(total_off_counts, population, default=0) * 1e5
+
+    total_on_series = pd.Series(total_on_rate, index=df.index, dtype=float).rolling(
+        window=smoothing_window, min_periods=1, center=True
+    ).mean()
+    total_off_series = pd.Series(total_off_rate, index=df.index, dtype=float).rolling(
+        window=smoothing_window, min_periods=1, center=True
+    ).mean()
+
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+    ax.plot(time_axis, total_on_series, color='firebrick', linewidth=2, label='On Antibiotics')
+    ax.plot(time_axis, total_off_series, color='steelblue', linewidth=2, label='No Antibiotics')
+
+    combined = total_on_counts + total_off_counts
+    overall_share_on = safe_divide(total_on_counts, combined, default=np.nan)
+    overall_mean_share_on = float(np.nanmean(overall_share_on)) if not np.isnan(overall_share_on).all() else float('nan')
+    if not np.isnan(overall_mean_share_on):
+        ax.text(
+            0.02,
+            0.98,
+            f"Average share cleared while on antibiotics: {overall_mean_share_on*100:.1f}%",
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
+        )
+
+    ax.set_title('Microbiome Clearance Rate by Antibiotic Exposure (All Bacteria)')
+    ax.set_xlabel('Time (Years)')
+    ax.set_ylabel('Clearances per 100k Population (Smoothed)')
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    summary_file = output_dir / 'summary_microbiome_clearance_on_off_drug.png'
+    plt.tight_layout()
+    plt.savefig(summary_file, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+    plt.close(fig)
+
+    logger.info("✓ Created %d microbiome clearance plots plus summary", plot_counter)
+
+
+@safe_plot_creation
 def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
     For each bacteria, plot the proportion of the population with presence_microbiome = true by region.
@@ -3852,6 +4129,81 @@ def create_proportion_of_population_with_microbiome_presence_bacteria_plots(df: 
 
 
 @safe_plot_creation
+def create_microbiome_resistance_microbiome_vs_infection_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """Plot resistant share in microbiome versus resistant share among active infections for each bacteria."""
+    output_dir = config.output_dir / 'microbiome_resistance_microbiome_vs_infection'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    micro_suffix = '_resistant_microbiome_share'
+    infection_suffix = '_resistant_infection_share'
+    smoothing_window = max(1, getattr(config, 'smoothing_window_days', SMOOTHING_WINDOW_DAYS))
+
+    time_axis = df.get('time_in_years')
+    if time_axis is None:
+        logger.warning("time_in_years column missing; cannot create microbiome resistance comparison plots")
+        return
+
+    share_columns = sorted(col for col in df.columns if col.endswith(micro_suffix))
+    if not share_columns:
+        logger.warning("No *_resistant_microbiome_share columns found; ensure preprocessing generated resistant shares")
+        return
+
+    plots_created = 0
+
+    for micro_col in share_columns:
+        slug = micro_col[:-len(micro_suffix)]
+        infection_col = f"{slug}{infection_suffix}"
+
+        if infection_col not in df.columns:
+            logger.debug("Skipping %s microbiome vs infection plot; missing infection share column", slug)
+            continue
+
+        micro_series = pd.Series(df[micro_col], dtype=float)
+        infection_series = pd.Series(df[infection_col], dtype=float)
+
+        if micro_series.dropna().empty and infection_series.dropna().empty:
+            continue
+
+        micro_smoothed = micro_series.rolling(window=smoothing_window, min_periods=1, center=True).mean() * 100.0
+        infection_smoothed = infection_series.rolling(window=smoothing_window, min_periods=1, center=True).mean() * 100.0
+
+        if micro_smoothed.dropna().empty and infection_smoothed.dropna().empty:
+            continue
+
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        ax.plot(time_axis, micro_smoothed, color='tab:green', linewidth=2, label='Resistant microbiome %')
+        ax.plot(time_axis, infection_smoothed, color='tab:red', linewidth=2, label='Resistant infection %')
+
+        display_name = slug.replace('_', ' ').replace('.', ' ').title()
+        ax.set_title(f"{display_name}: Resistant Share – Microbiome vs Infection", fontsize=14)
+        ax.set_xlabel('Time (Years)', fontsize=12)
+        ax.set_ylabel('Share with Resistance (%)', fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper left', fontsize=9)
+
+        ymax_candidates = []
+        if not micro_smoothed.dropna().empty:
+            ymax_candidates.append(float(micro_smoothed.max()))
+        if not infection_smoothed.dropna().empty:
+            ymax_candidates.append(float(infection_smoothed.max()))
+        upper_bound = min(100.0, max(5.0, (max(ymax_candidates) * 1.1) if ymax_candidates else 5.0))
+        ax.set_ylim(0, upper_bound)
+
+        plt.tight_layout()
+        file_stub = slug.replace(' ', '_').replace('/', '_').replace('.', '_')
+        output_path = output_dir / f"{file_stub}_microbiome_vs_infection_resistance.{config.figure_format}"
+        fig.savefig(output_path, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+        plt.close(fig)
+        plots_created += 1
+        logger.debug("Saved microbiome resistance comparison plot: %s", output_path)
+
+    if plots_created == 0:
+        logger.warning("Microbiome resistance comparison plots skipped; no bacteria with valid data")
+    else:
+        logger.info("✓ Created %d microbiome resistance comparison plots", plots_created)
+
+
+@safe_plot_creation
 def create_carrier_infection_share_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Plot carrier share of active infections for the most prevalent bacteria."""
     output_dir = config.output_dir / 'carrier_infection_share'
@@ -3927,6 +4279,266 @@ def create_carrier_infection_share_plot(df: pd.DataFrame, config: PlotConfig) ->
     plt.savefig(output_path, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
     plt.close()
     logger.info("✓ Created carrier infection share plot: %s", output_path)
+
+
+@safe_plot_creation
+def create_carrier_vs_non_carrier_incidence_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """Plot incidence rates among carriers versus non-carriers for high-burden bacteria."""
+    output_dir = config.output_dir / 'carrier_incidence'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    time_axis = df.get('time_in_years')
+    if time_axis is None:
+        logger.warning("time_in_years column missing; skipping carrier incidence plots")
+        return
+
+    carrier_rate_suffix = '_newly_infected_carrier_per_100k_carriers'
+    non_carrier_rate_suffix = '_newly_infected_non_carrier_per_100k_non_carriers'
+    share_suffix = '_new_infection_share_from_carriers'
+    carrier_total_suffix = '_newly_infected_carrier_rolling_year'
+    non_total_suffix = '_newly_infected_non_carrier_rolling_year'
+
+    carrier_rate_columns = [col for col in df.columns if col.endswith(carrier_rate_suffix)]
+    if not carrier_rate_columns:
+        logger.warning("No carrier incidence columns found; ensure preprocessing generated per-100k rates")
+        return
+
+    smoothing_window = max(1, config.smoothing_window_days)
+    records = []
+
+    for carrier_rate_col in carrier_rate_columns:
+        slug = carrier_rate_col[:-len(carrier_rate_suffix)]
+        non_carrier_rate_col = f"{slug}{non_carrier_rate_suffix}"
+        if non_carrier_rate_col not in df.columns:
+            logger.debug("Skipping %s – missing non-carrier incidence column", slug)
+            continue
+
+        carrier_series = pd.Series(df[carrier_rate_col], dtype=float)
+        non_carrier_series = pd.Series(df[non_carrier_rate_col], dtype=float)
+
+        carrier_smoothed = carrier_series.rolling(window=smoothing_window, min_periods=1, center=True).mean()
+        non_carrier_smoothed = non_carrier_series.rolling(window=smoothing_window, min_periods=1, center=True).mean()
+
+        share_smoothed = None
+        share_col = f"{slug}{share_suffix}"
+        if share_col in df.columns:
+            share_series = pd.Series(df[share_col], dtype=float)
+            rolling_share = share_series.rolling(window=smoothing_window, min_periods=1, center=True).mean()
+            if not rolling_share.dropna().empty:
+                share_smoothed = rolling_share
+
+        carrier_total_col = f"{slug}{carrier_total_suffix}"
+        non_total_col = f"{slug}{non_total_suffix}"
+        if carrier_total_col in df.columns and non_total_col in df.columns:
+            total_series = pd.Series(df[carrier_total_col], dtype=float) + pd.Series(df[non_total_col], dtype=float)
+            rank_value = total_series.rolling(window=smoothing_window, min_periods=1, center=True).mean().median(skipna=True)
+        else:
+            combined = carrier_smoothed + non_carrier_smoothed
+            rank_value = combined.median(skipna=True)
+
+        if pd.isna(rank_value):
+            rank_value = 0.0
+
+        records.append({
+            'slug': slug,
+            'carrier_series': carrier_smoothed,
+            'non_carrier_series': non_carrier_smoothed,
+            'share_series': share_smoothed,
+            'rank': float(rank_value)
+        })
+
+    valid_records = [rec for rec in records if not (rec['carrier_series'].dropna().empty and rec['non_carrier_series'].dropna().empty)]
+    if not valid_records:
+        logger.warning("Carrier incidence plots skipped; no bacteria with valid incidence series")
+        return
+
+    valid_records.sort(key=lambda rec: rec['rank'], reverse=True)
+    top_records = valid_records[:6]
+
+    plot_count = 0
+    for rec in top_records:
+        carrier_series = rec['carrier_series']
+        non_carrier_series = rec['non_carrier_series']
+        share_series = rec['share_series']
+        slug = rec['slug']
+
+        display_name = slug.replace('_', ' ').replace('.', ' ').title()
+        file_stub = slug.replace(' ', '_').replace('/', '_').replace('.', '_')
+
+        has_share = share_series is not None and not share_series.dropna().empty
+
+        if has_share:
+            fig, (ax1, ax2) = plt.subplots(
+                2,
+                1,
+                figsize=FIGURE_SIZE_DOUBLE,
+                sharex=True,
+                gridspec_kw={'height_ratios': [2, 1], 'hspace': 0.35}
+            )
+        else:
+            fig, ax1 = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+            ax2 = None
+
+        ax1.plot(time_axis, carrier_series, label='Carriers (per 100k carriers)', color='tab:orange', linewidth=2)
+        ax1.plot(time_axis, non_carrier_series, label='Non-Carriers (per 100k non-carriers)', color='tab:blue', linewidth=2)
+        ax1.set_ylabel('Incidence per 100k (Smoothed)')
+        ax1.set_title(f'Incidence Among Carriers vs Non-Carriers – {display_name}')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(loc='upper right', fontsize=9)
+
+        carrier_max_vals = carrier_series.dropna()
+        non_carrier_max_vals = non_carrier_series.dropna()
+        carrier_max = carrier_max_vals.max() if not carrier_max_vals.empty else 0.0
+        non_carrier_max = non_carrier_max_vals.max() if not non_carrier_max_vals.empty else 0.0
+        max_rate = max(carrier_max, non_carrier_max)
+        if max_rate > 0:
+            ax1.set_ylim(0, max_rate * 1.1)
+
+        if has_share and ax2 is not None:
+            ax2.plot(time_axis, share_series, color='tab:purple', linewidth=2)
+            ax2.set_ylabel('Share from Carriers')
+            ax2.set_xlabel('Time (Years)')
+            ax2.set_ylim(0, 1)
+            ax2.grid(True, alpha=0.3)
+        else:
+            ax1.set_xlabel('Time (Years)')
+
+        plt.tight_layout()
+
+        output_path = output_dir / f"{file_stub}_carrier_vs_non_carrier_incidence.{config.figure_format}"
+        fig.savefig(output_path, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+        plt.close(fig)
+        plot_count += 1
+        logger.debug("✓ Carrier incidence plot saved: %s", output_path)
+
+    logger.info("✓ Created %d carrier incidence plots", plot_count)
+
+
+@safe_plot_creation
+def create_carriage_duration_distribution_plot(df: pd.DataFrame, config: PlotConfig) -> None:
+    """Visualize carriage duration distributions for high-prevalence bacteria."""
+    output_dir = config.output_dir / 'carriage_duration_distribution'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    time_axis = df.get('time_in_years')
+    if time_axis is None:
+        logger.warning("time_in_years column missing; skipping carriage duration distribution plot")
+        return
+
+    duration_labels = ["0_29", "30_89", "90_179", "180_359", "360_plus"]
+    duration_display = {
+        "0_29": "0-29 days",
+        "30_89": "30-89 days",
+        "90_179": "90-179 days",
+        "180_359": "180-359 days",
+        "360_plus": "360+ days",
+    }
+    base_suffix = f"_carriage_duration_share_{duration_labels[0]}"
+    share_anchor_columns = [col for col in df.columns if col.endswith(base_suffix)]
+
+    if not share_anchor_columns:
+        logger.warning("No carriage duration share columns found; run preprocessing after simulation update")
+        return
+
+    smoothing_window = config.smoothing_window_days
+    records = []
+
+    for base_col in share_anchor_columns:
+        slug = base_col[:-len(base_suffix)]
+        share_columns = {label: f"{slug}_carriage_duration_share_{label}" for label in duration_labels}
+        if not all(col in df.columns for col in share_columns.values()):
+            logger.debug("Skipping %s – incomplete carriage duration share columns", slug)
+            continue
+
+        total_col = f"{slug}_carriage_duration_total"
+        if total_col not in df.columns:
+            logger.debug("Skipping %s – missing total carriage duration column", slug)
+            continue
+
+        share_series = {}
+        has_data = False
+        for label, col_name in share_columns.items():
+            series = pd.Series(df[col_name], dtype=float)
+            smoothed = series.rolling(window=smoothing_window, min_periods=1, center=True).mean()
+            share_series[label] = smoothed
+            if not smoothed.dropna().empty:
+                has_data = True
+
+        if not has_data:
+            continue
+
+        total_smoothed = pd.Series(df[total_col], dtype=float).rolling(
+            window=smoothing_window, min_periods=1, center=True
+        ).mean()
+
+        records.append((slug, share_series, total_smoothed))
+
+    if not records:
+        logger.warning("Carriage duration distribution plot skipped; no bacteria with valid data")
+        return
+
+    records.sort(
+        key=lambda item: item[2].median(skipna=True) if not item[2].dropna().empty else 0,
+        reverse=True,
+    )
+
+    top_n = min(len(records), 6)
+    columns = 2 if top_n > 1 else 1
+    rows = math.ceil(top_n / columns)
+
+    fig, axes = plt.subplots(rows, columns, figsize=(12, 3.5 * rows), sharex=True)
+    if isinstance(axes, np.ndarray):
+        axes_flat: List[Any] = list(axes.ravel())
+    else:
+        axes_flat = [axes]
+
+    time_values = np.asarray(time_axis, dtype=float)
+    colors = plt.cm.viridis(np.linspace(0.25, 0.9, len(duration_labels)))
+    left_col_indices = {idx for idx in range(0, top_n, columns)}
+
+    for idx in range(top_n):
+        slug, share_series, total_smoothed = records[idx]
+        ax = axes_flat[idx]
+        display_name = slug.replace('_', ' ').title()
+
+        stack_arrays = [share_series[label].fillna(0).to_numpy() for label in duration_labels]
+        ax.stackplot(
+            time_values,
+            *stack_arrays,
+            colors=colors,
+        )
+
+        ax.set_title(display_name, fontsize=12)
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+
+        if idx in left_col_indices:
+            ax.set_ylabel('Share of Carriers', fontsize=10)
+
+        if idx >= (rows - 1) * columns:
+            ax.set_xlabel('Time (Years)', fontsize=10)
+
+        # Secondary axis showing carrier counts to provide context
+        if not total_smoothed.dropna().empty:
+            ax2 = ax.twinx()
+            ax2.plot(time_values, total_smoothed.fillna(0), color='black', linestyle='--', linewidth=1)
+            ax2.set_ylabel('Carriers', fontsize=9, color='black')
+            ax2.set_ylim(bottom=0)
+            ax2.grid(False)
+            ax2.tick_params(axis='y', labelsize=8, colors='black')
+
+    # Hide any unused axes
+    for extra_ax in axes_flat[top_n:]:
+        extra_ax.set_visible(False)
+
+    legend_handles = [Patch(facecolor=colors[i], label=duration_display[label]) for i, label in enumerate(duration_labels)]
+    fig.legend(handles=legend_handles, loc='lower center', ncol=len(duration_labels), bbox_to_anchor=(0.5, 0.02), fontsize=9)
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+
+    output_path = output_dir / 'carriage_duration_distribution.png'
+    fig.savefig(output_path, dpi=config.plot_dpi, bbox_inches=config.bbox_inches)
+    plt.close(fig)
+    logger.info("✓ Created carriage duration distribution plot: %s", output_path)
 
 
 @safe_plot_creation

@@ -261,7 +261,65 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         df[f"{slug}_non_carrier_resistance_rate"] = safe_divide(
             df[res_non_carrier_col], df[non_carrier_col], default=np.nan
         )
+
+    # Derive resistant microbiome shares and resistant infection shares for comparison plots
+    resistant_microbiome_suffix = '_presence_microbiome_resistant'
+    base_microbiome_suffix = '_presence_microbiome'
+    resistant_columns = [col for col in df.columns if col.endswith(resistant_microbiome_suffix)]
+
+    for resistant_col in resistant_columns:
+        slug = resistant_col[:-len(resistant_microbiome_suffix)]
+        base_col = f"{slug}{base_microbiome_suffix}"
+        infected_carrier_col = f"{slug}_infected_carrier_count"
+        infected_non_carrier_col = f"{slug}_infected_non_carrier_count"
+        resistant_infected_carrier_col = f"{slug}_resistant_infected_carrier_count"
+        resistant_infected_non_carrier_col = f"{slug}_resistant_infected_non_carrier_count"
+
+        if base_col not in df.columns:
+            logger.debug("Skipping resistant microbiome share for %s; missing base presence column", slug)
+            continue
+
+        carriers_total = df[base_col].astype(float)
+        resistant_carriers = df[resistant_col].astype(float)
+        micro_share = safe_divide(resistant_carriers.to_numpy(), carriers_total.to_numpy(), default=np.nan)
+        df[f"{slug}_resistant_microbiome_share"] = pd.Series(micro_share, index=df.index, dtype=float)
+
+        # Require infection counts to compute resistant infection share; skip if any missing
+        missing_infection_columns = [col for col in [infected_carrier_col, infected_non_carrier_col,
+                                                     resistant_infected_carrier_col, resistant_infected_non_carrier_col]
+                                     if col not in df.columns]
+        if missing_infection_columns:
+            logger.debug("Skipping resistant infection share for %s; missing columns %s", slug, missing_infection_columns)
+            continue
+
+        infected_total = (df[infected_carrier_col].astype(float) + df[infected_non_carrier_col].astype(float)).to_numpy()
+        resistant_infected_total = (df[resistant_infected_carrier_col].astype(float) +
+                                    df[resistant_infected_non_carrier_col].astype(float)).to_numpy()
+        infection_share = safe_divide(resistant_infected_total, infected_total, default=np.nan)
+        df[f"{slug}_resistant_infection_share"] = pd.Series(infection_share, index=df.index, dtype=float)
     
+    # Derive carriage duration distribution proportions for each bacteria
+    duration_labels = ["0_29", "30_89", "90_179", "180_359", "360_plus"]
+    duration_prefix = "_carriage_duration_days_"
+    base_suffix = f"{duration_prefix}{duration_labels[0]}"
+    duration_base_columns = [col for col in df.columns if col.endswith(base_suffix)]
+
+    for base_col in duration_base_columns:
+        slug = base_col[:-len(base_suffix)]
+        duration_cols = [f"{slug}{duration_prefix}{label}" for label in duration_labels]
+
+        if not all(col in df.columns for col in duration_cols):
+            logger.debug("Skipping carriage duration derivation for %s due to missing columns", slug)
+            continue
+
+        total_col = f"{slug}_carriage_duration_total"
+        df[total_col] = df[duration_cols].sum(axis=1)
+
+        total_counts = df[total_col]
+        for label, col_name in zip(duration_labels, duration_cols):
+            share_col = f"{slug}_carriage_duration_share_{label}"
+            df[share_col] = safe_divide(df[col_name], total_counts, default=np.nan)
+
     # Calculate death cause proportions (if available)
     death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
     if all(col in df.columns for col in death_cause_cols):
@@ -269,6 +327,166 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         df['prop_deaths_sepsis'] = safe_divide(df['deaths_sepsis'], df['total_deaths'])
         df['prop_deaths_drug_toxicity'] = safe_divide(df['deaths_drug_toxicity'], df['total_deaths'])
     
+    # Derive microbiome acquisition metrics by antibiotic exposure
+    on_suffix = '_microbiome_acquisitions_on_drug'
+    off_suffix = '_microbiome_acquisitions_off_drug'
+    on_columns = [col for col in df.columns if col.endswith(on_suffix)]
+
+    if on_columns:
+        off_columns = [f"{col[:-len(on_suffix)]}{off_suffix}" for col in on_columns]
+        missing_off = [col for col in off_columns if col not in df.columns]
+        if missing_off:
+            logger.warning("Missing matching off-drug acquisition columns: %s", missing_off)
+
+        total_population = df['total_population'] if 'total_population' in df.columns else None
+
+        for on_col in on_columns:
+            slug = on_col[:-len(on_suffix)]
+            off_col = f"{slug}{off_suffix}"
+            if off_col not in df.columns:
+                continue
+
+            total_col = f"{slug}_microbiome_acquisitions_total"
+            share_on_col = f"{slug}_microbiome_acquisitions_share_on_drug"
+            share_off_col = f"{slug}_microbiome_acquisitions_share_off_drug"
+
+            df[total_col] = df[on_col] + df[off_col]
+            df[share_on_col] = safe_divide(df[on_col], df[total_col], default=np.nan)
+            df[share_off_col] = safe_divide(df[off_col], df[total_col], default=np.nan)
+
+            if total_population is not None:
+                base_index = df.index
+                on_rate = safe_divide(df[on_col], total_population, default=0) * 1e5
+                off_rate = safe_divide(df[off_col], total_population, default=0) * 1e5
+                total_rate = safe_divide(df[total_col], total_population, default=0) * 1e5
+
+                df[f"{slug}_microbiome_acquisitions_on_drug_per_100k"] = pd.Series(on_rate, index=base_index)
+                df[f"{slug}_microbiome_acquisitions_off_drug_per_100k"] = pd.Series(off_rate, index=base_index)
+                df[f"{slug}_microbiome_acquisitions_total_per_100k"] = pd.Series(total_rate, index=base_index)
+
+        # Aggregate totals across bacteria for quick access
+        df['microbiome_acquisitions_on_drug_all_bacteria'] = df[on_columns].sum(axis=1)
+        matching_off_cols = [col for col in off_columns if col in df.columns]
+        if matching_off_cols:
+            df['microbiome_acquisitions_off_drug_all_bacteria'] = df[matching_off_cols].sum(axis=1)
+            df['microbiome_acquisitions_total_all_bacteria'] = (
+                df['microbiome_acquisitions_on_drug_all_bacteria'] +
+                df['microbiome_acquisitions_off_drug_all_bacteria']
+            )
+
+            if total_population is not None:
+                df['microbiome_acquisitions_on_drug_per_100k_population'] = pd.Series(
+                    safe_divide(df['microbiome_acquisitions_on_drug_all_bacteria'], total_population, default=0) * 1e5,
+                    index=df.index
+                )
+                df['microbiome_acquisitions_off_drug_per_100k_population'] = pd.Series(
+                    safe_divide(df['microbiome_acquisitions_off_drug_all_bacteria'], total_population, default=0) * 1e5,
+                    index=df.index
+                )
+                df['microbiome_acquisitions_total_per_100k_population'] = pd.Series(
+                    safe_divide(df['microbiome_acquisitions_total_all_bacteria'], total_population, default=0) * 1e5,
+                    index=df.index
+                )
+
+    # Derive microbiome clearance metrics by antibiotic exposure
+    clr_on_suffix = '_microbiome_clearances_on_drug'
+    clr_off_suffix = '_microbiome_clearances_off_drug'
+    clr_on_columns = [col for col in df.columns if col.endswith(clr_on_suffix)]
+
+    if clr_on_columns:
+        clr_off_columns = [f"{col[:-len(clr_on_suffix)]}{clr_off_suffix}" for col in clr_on_columns]
+        missing_clr_off = [col for col in clr_off_columns if col not in df.columns]
+        if missing_clr_off:
+            logger.warning("Missing matching off-drug clearance columns: %s", missing_clr_off)
+
+        total_population = df['total_population'] if 'total_population' in df.columns else None
+
+        for clr_on_col in clr_on_columns:
+            slug = clr_on_col[:-len(clr_on_suffix)]
+            clr_off_col = f"{slug}{clr_off_suffix}"
+            if clr_off_col not in df.columns:
+                continue
+
+            total_col = f"{slug}_microbiome_clearances_total"
+            share_on_col = f"{slug}_microbiome_clearances_share_on_drug"
+            share_off_col = f"{slug}_microbiome_clearances_share_off_drug"
+
+            df[total_col] = df[clr_on_col] + df[clr_off_col]
+            df[share_on_col] = safe_divide(df[clr_on_col], df[total_col], default=np.nan)
+            df[share_off_col] = safe_divide(df[clr_off_col], df[total_col], default=np.nan)
+
+            if total_population is not None:
+                base_index = df.index
+                on_rate = safe_divide(df[clr_on_col], total_population, default=0) * 1e5
+                off_rate = safe_divide(df[clr_off_col], total_population, default=0) * 1e5
+                total_rate = safe_divide(df[total_col], total_population, default=0) * 1e5
+
+                df[f"{slug}_microbiome_clearances_on_drug_per_100k"] = pd.Series(on_rate, index=base_index)
+                df[f"{slug}_microbiome_clearances_off_drug_per_100k"] = pd.Series(off_rate, index=base_index)
+                df[f"{slug}_microbiome_clearances_total_per_100k"] = pd.Series(total_rate, index=base_index)
+
+        df['microbiome_clearances_on_drug_all_bacteria'] = df[clr_on_columns].sum(axis=1)
+        matching_clr_off_cols = [col for col in clr_off_columns if col in df.columns]
+        if matching_clr_off_cols:
+            df['microbiome_clearances_off_drug_all_bacteria'] = df[matching_clr_off_cols].sum(axis=1)
+            df['microbiome_clearances_total_all_bacteria'] = (
+                df['microbiome_clearances_on_drug_all_bacteria'] +
+                df['microbiome_clearances_off_drug_all_bacteria']
+            )
+
+            if total_population is not None:
+                df['microbiome_clearances_on_drug_per_100k_population'] = pd.Series(
+                    safe_divide(df['microbiome_clearances_on_drug_all_bacteria'], total_population, default=0) * 1e5,
+                    index=df.index
+                )
+                df['microbiome_clearances_off_drug_per_100k_population'] = pd.Series(
+                    safe_divide(df['microbiome_clearances_off_drug_all_bacteria'], total_population, default=0) * 1e5,
+                    index=df.index
+                )
+                df['microbiome_clearances_total_per_100k_population'] = pd.Series(
+                    safe_divide(df['microbiome_clearances_total_all_bacteria'], total_population, default=0) * 1e5,
+                    index=df.index
+                )
+
+    # Derive annual infection incidence split by carriage status for each bacteria
+    carrier_inc_suffix = '_newly_infected_carrier'
+    non_carrier_inc_suffix = '_newly_infected_non_carrier'
+    carrier_inc_columns = [col for col in df.columns if col.endswith(carrier_inc_suffix)]
+
+    if carrier_inc_columns:
+        total_population_series = df['total_population'] if 'total_population' in df.columns else None
+
+        for carrier_col in carrier_inc_columns:
+            slug = carrier_col[:-len(carrier_inc_suffix)]
+            non_carrier_col = f"{slug}{non_carrier_inc_suffix}"
+            presence_col = f"{slug}_presence_microbiome"
+
+            if non_carrier_col not in df.columns:
+                logger.debug("Skipping carrier incidence derivation for %s due to missing non-carrier column", slug)
+                continue
+            if presence_col not in df.columns:
+                logger.debug("Skipping carrier incidence derivation for %s due to missing presence column", slug)
+                continue
+
+            carrier_rolling = df[carrier_col].rolling(window=365, min_periods=1).sum()
+            non_carrier_rolling = df[non_carrier_col].rolling(window=365, min_periods=1).sum()
+            total_rolling = carrier_rolling + non_carrier_rolling
+
+            df[f"{slug}_newly_infected_carrier_rolling_year"] = carrier_rolling
+            df[f"{slug}_newly_infected_non_carrier_rolling_year"] = non_carrier_rolling
+            share_carrier = safe_divide(carrier_rolling, total_rolling, default=np.nan)
+            df[f"{slug}_new_infection_share_from_carriers"] = pd.Series(share_carrier, index=df.index)
+
+            if total_population_series is not None:
+                carriers_population = df[presence_col].astype(float)
+                non_carrier_population = (total_population_series.astype(float) - carriers_population).clip(lower=0)
+
+                carrier_rate = safe_divide(carrier_rolling, carriers_population, default=np.nan) * 1e5
+                non_carrier_rate = safe_divide(non_carrier_rolling, non_carrier_population, default=np.nan) * 1e5
+
+                df[f"{slug}_newly_infected_carrier_per_100k_carriers"] = pd.Series(carrier_rate, index=df.index)
+                df[f"{slug}_newly_infected_non_carrier_per_100k_non_carriers"] = pd.Series(non_carrier_rate, index=df.index)
+
     logger.info(f"Data preprocessing complete. Shape: {df.shape}")
     return df
 

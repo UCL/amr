@@ -86,6 +86,8 @@ def main():
         config = PlotConfig()
         # Ensure newly added carrier-share plot (and any future toggles) stay enabled when running standalone
         config.carrier_infection_share = True
+        config.carriage_duration_distribution = True
+        config.microbiome_resistance_microbiome_vs_infection = True
         create_all_plots(config)
         print("   [OK] Comprehensive analysis completed successfully!\n")
     except Exception as e:

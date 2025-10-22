@@ -30,17 +30,17 @@ def load_empirical_calibration_data():
             
         from enhanced_empirical_loader import load_integrated_empirical_data
         
-        print("\n🚀 Loading integrated empirical data (WHO GLASS, ECDC EARS-Net, Australian NNDSS, CDDEP ResistanceMap)...")
+        print("\n[INFO] Loading integrated empirical data (WHO GLASS, ECDC EARS-Net, Australian NNDSS, CDDEP ResistanceMap)...")
         integrated_data = load_integrated_empirical_data()
         
         # Show enhanced coverage
         total_records = sum(len(df) if df is not None else 0 for df in integrated_data.values())
-        print(f"✅ Enhanced empirical data loaded: {total_records:,} total records from integrated surveillance sources")
+        print(f"[OK] Enhanced empirical data loaded: {total_records:,} total records from integrated surveillance sources")
         
         return integrated_data
         
     except Exception as e:
-        print(f"⚠️  Enhanced loader unavailable ({e}), using standard calibration data...")
+        print(f"[WARN] Enhanced loader unavailable ({e}), using standard calibration data...")
     
     # Fallback to standard calibration loading
     empirical_data = {
@@ -80,7 +80,7 @@ def load_empirical_calibration_data():
     
     # Generate empirical data if missing or forced regeneration
     if HAS_EMPIRICAL_ENHANCEMENT and (not empirical_files_exist or FORCE_REGENERATE_EMPIRICAL):
-        print("\n🚀 Generating empirical data with real surveillance patterns...")
+        print("\n[INFO] Generating empirical data with real surveillance patterns...")
         try:
             enhance_empirical_data(force_regenerate=FORCE_REGENERATE_EMPIRICAL)
             print("Empirical data ready with WHO GLASS, ECDC, CDC, and GBD patterns")

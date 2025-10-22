@@ -1,4 +1,3 @@
-
 // src/main.rs
 //
 // Entry point for the AMR simulation.
@@ -11,26 +10,26 @@
 //
 //
 //
- 
-mod simulation;
-mod rules;
+
 mod config;
+mod rules;
+mod simulation;
 
 //
 // checked total number of death with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
 // number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated
-// percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate) 
+// percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate)
 //
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
 // review output plots and consider any changes in format or additions
 //
-// maybe for each drug for each bacteria only plot those drugs with potency above a certain value  
+// maybe for each drug for each bacteria only plot those drugs with potency above a certain value
 //
 // proportion currently infected with h pylori / mdr tb
 //
-// calculate total number of sepsis deaths in 2019 (pre covid) scaled up to the world population size to compare with gbd 
+// calculate total number of sepsis deaths in 2019 (pre covid) scaled up to the world population size to compare with gbd
 // 14.1 million
 //
 // proportion of sepsis deaths by syndrome (and region and age) to compare with gbd
@@ -48,16 +47,16 @@ mod config;
 // review whether immune response is implausibly strong for some syndromes and bacteria, especially
 // for young children or the elderly
 //
-// should we have possibility of syndrome progressing to bloodstream (with much higher sepsis risk ?)  
+// should we have possibility of syndrome progressing to bloodstream (with much higher sepsis risk ?)
 //
 // ok that pseudomonas aeruginosa can continue for > 90 days with full immune response and no clearance ?
-// 
-// consider whether infection from the environment should also depend on concurrent majority_r 
+//
+// consider whether infection from the environment should also depend on concurrent majority_r
 //
 // introduce a new mechanism of death which is "non sepsis but caused by infection"
 // (for h pylori and mdr tb for example, which currently don't increase death risk)
 //
-// bring back in mic suseptible based potency measures which are commented out in config.rs - this will 
+// bring back in mic suseptible based potency measures which are commented out in config.rs - this will
 // require re-scaling of activity_r scales
 //
 // consider realistic / plausible microbiome levels by bacteria
@@ -69,10 +68,10 @@ mod config;
 //
 // make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
 //
-// think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin, 
-// carbapenems) strongly select for VREfm (enterococcus faecium resistance) 
+// think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin,
+// carbapenems) strongly select for VREfm (enterococcus faecium resistance)
 //
-// 
+//
 //
 //
 //
@@ -92,7 +91,7 @@ mod config;
 // bear in mind that strep pneu for example has a vaccine against it but this has resulted in growth of non-vaccine-covered serotypes
 // we may still decide we need to model drug-specific drug levels but not clear how we would get data
 // consider whether infection from the environment should also depend on concurrent majority_r - or do we need
-// to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ? 
+// to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ?
 // (maybe someone can do this in a future interation.....)
 //
 //
@@ -100,14 +99,14 @@ mod config;
 //
 //
 //
-// calibration data: approx drug usage per 100_000 per calendar year 
+// calibration data: approx drug usage per 100_000 per calendar year
 //                   incidence of infection with each bacteria by age and calendar year
 //                   deaths from each bacteria per 100_000 by region and calendar year
-//                   resistance distribution for each used drug for each bacteria by calendar year  
+//                   resistance distribution for each used drug for each bacteria by calendar year
 //
 // https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
 //
-// add age and region-specific all cause death rates from wpp/who and try to subtract bacterial  
+// add age and region-specific all cause death rates from wpp/who and try to subtract bacterial
 // infection rates so they are background death rates
 //
 //
@@ -118,7 +117,7 @@ mod config;
 //
 //
 //
-// 
+//
 //
 // decide on time zero for mda azithromycin project
 //
@@ -130,35 +129,35 @@ mod config;
 //
 // for mda project can base in africa with an "other" region all groued together
 //
-// to(maybe)do: perhaps introduce an effect whereby drug treatment leads to an increase in risk of microbiome_r > 0 due to   
-//              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug 
+// to(maybe)do: perhaps introduce an effect whereby drug treatment leads to an increase in risk of microbiome_r > 0 due to
+//              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug
 //              - but not sure yet if this is needed / justified
 //
 // consider adding tb, consider adding fungi
 //
-// 
+//
 
-use crate::simulation::simulation::Simulation;
-use crate::simulation::population::BACTERIA_LIST;
 use crate::config::get_global_param;
+use crate::simulation::population::BACTERIA_LIST;
+use crate::simulation::simulation::Simulation;
 
 fn main() {
     // Validate bacteria configuration
     validate_bacteria_configuration();
-    
+
     // Create and run the simulation
-    let population_size = 5_000 ; 
-    let time_steps = 38_325    ;  
-    let log_individuals = false  ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false  ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.001      ; // Log 1% of infections for analysis (0.0-1.0)
-    let use_fixed_seed = false ; // Toggle to enable deterministic RNG seeding
+    let population_size = 3_000;
+    let time_steps = 38_325;
+    let log_individuals = false; // Set to false to disable detailed individual logging
+    let log_infection_journeys = false; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.001; // Log 1% of infections for analysis (0.0-1.0)
+    let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
-    
+
     // Examples of bacteria filter values (use lowercase with underscores):
     // Some("escherichia_coli")
-    // Some("staphylococcus_aureus") 
+    // Some("staphylococcus_aureus")
     // Some("pseudomonas_aeruginosa")
     // Some("acinetobacter_baumannii")
     // Some("enterococcus_faecium")
@@ -168,7 +167,7 @@ fn main() {
     if use_fixed_seed {
         simulation.rng_seed = Some(fixed_seed_value);
     }
-    
+
     // Configure infection journey logging
     if log_infection_journeys {
         // Enable journey logging with optional bacteria filter
@@ -187,10 +186,10 @@ fn main() {
     simulation.run();
 
     let duration = start.elapsed();
-    
+
     // Print summary statistics from logged data
     simulation.print_summary_statistics();
-    
+
     // DEVELOPMENT: Use a fixed filename for easier analysis in Python
     // NOTE: The random filename logic below is commented out for now. Restore for large-scale runs.
     // use rand::Rng;
@@ -208,15 +207,13 @@ fn main() {
 
     println!("main.rs  final outputs ");
 
-
     // --- FINAL SUMMARY/STATISTICS/REPORTING SECTION ---
     // This section previously performed detailed summary, statistics, and plotting at the end of the simulation.
     // It has been commented out for performance reasons, as more information is now collected during the time steps.
     // You can uncomment this block if you need the final summary/statistics/plots again.
     // (See previous git history for the full code.)
 
-// END OF ADDITIONAL FINAL PRINTOUTS */
-
+    // END OF ADDITIONAL FINAL PRINTOUTS */
 
     // Log the simulation run details
     if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
@@ -224,18 +221,23 @@ fn main() {
     }
 
     println!("\n--- simulation ended ---");
-    println!("--- total simulation time: {:.3} seconds", duration.as_secs_f64());
+    println!(
+        "--- total simulation time: {:.3} seconds",
+        duration.as_secs_f64()
+    );
     println!("                          ");
-
-
 }
 
 // Function to log simulation run details
-fn log_simulation_run(population_size: usize, time_steps: usize, duration_secs: f64) -> Result<(), Box<dyn std::error::Error>> {
+fn log_simulation_run(
+    population_size: usize,
+    time_steps: usize,
+    duration_secs: f64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use chrono::Utc;
     use std::fs::OpenOptions;
     use std::io::Write;
-    use chrono::Utc;
-    
+
     let timestamp = Utc::now();
     let log_entry = format!(
         "{},{},{},{:.3}\n",
@@ -244,40 +246,43 @@ fn log_simulation_run(population_size: usize, time_steps: usize, duration_secs: 
         time_steps,
         duration_secs
     );
-    
+
     // Check if log file exists, if not create it with headers
     let log_path = "simulation_run_log.csv";
     let file_exists = std::path::Path::new(log_path).exists();
-    
+
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(log_path)?;
-    
+
     // Write header if file is new
     if !file_exists {
-        writeln!(file, "timestamp,population_size,time_steps,duration_seconds")?;
+        writeln!(
+            file,
+            "timestamp,population_size,time_steps,duration_seconds"
+        )?;
     }
-    
+
     // Write the log entry
     file.write_all(log_entry.as_bytes())?;
-    
+
     println!("Simulation run logged to {}", log_path);
-    
+
     Ok(())
 }
 
 /// Validates the current bacteria configuration and provides helpful warnings
 fn validate_bacteria_configuration() {
     let num_bacteria = BACTERIA_LIST.len();
-    
+
     println!("=== BACTERIA CONFIGURATION VALIDATION ===");
     println!("Number of bacteria in simulation: {}", num_bacteria);
-    
+
     if num_bacteria == 0 {
         panic!("ERROR: BACTERIA_LIST cannot be empty!");
     }
-    
+
     if num_bacteria == 1 {
         println!("⚠️  SINGLE-BACTERIA MODE: This limits biological realism but is valid for:");
         println!("   • Pathogen-specific resistance studies");
@@ -291,7 +296,7 @@ fn validate_bacteria_configuration() {
     } else {
         println!("✓ MULTI-BACTERIA MODE: Full ecosystem modeling enabled");
     }
-    
+
     // Check for potential HGT configuration issues
     if num_bacteria == 1 {
         for bacteria in BACTERIA_LIST.iter() {
@@ -308,7 +313,7 @@ fn validate_bacteria_configuration() {
             }
         }
     }
-    
+
     println!("Bacteria included:");
     for (i, bacteria) in BACTERIA_LIST.iter().enumerate() {
         println!("   {}. {}", i + 1, bacteria);
