@@ -126,18 +126,24 @@ def print_aligned_csv(filename, max_rows=30):
         # For infection_resolution_this_timestep, show by bacteria and resolution type
         if var_name.lower() == "infection_resolution_this_timestep":
             # This is a flattened array: bacteria_count * resolution_type_count values
-            # Resolution types: ImmuneClearance, DrugAssistedClearance, DeathFromSepsis, DeathFromBackground, DeathFromToxicity
-            resolution_types = ["ImmuneClearance", "DrugAssistedClearance", "DeathFromSepsis", "DeathFromBackground", "DeathFromToxicity"]
+            # Resolution types (data order) mapped to display labels
+            resolution_types = [
+                ("ImmuneClearance", "Clearance (no drug)"),
+                ("DrugAssistedClearance", "Drug-Assisted Clearance"),
+                ("DeathFromSepsis", "Death from Sepsis"),
+                ("DeathFromBackground", "Death from Background Causes"),
+                ("DeathFromToxicity", "Death from Drug Toxicity"),
+            ]
             num_resolution_types = len(resolution_types)
-            
+
             for bact_idx, bacteria_name in enumerate(bacteria_names):
-                for res_idx, res_type in enumerate(resolution_types):
+                for res_idx, (res_type, display_label) in enumerate(resolution_types):
                     flat_idx = bact_idx * num_resolution_types + res_idx
                     if flat_idx < len(parts):
                         try:
                             count = int(parts[flat_idx].strip())
                             if count > 0:  # Only show non-zero resolution counts
-                                results.append(f"{bacteria_name} {res_type}: {count}")
+                                results.append(f"{bacteria_name} {display_label}: {count}")
                         except ValueError:
                             continue
             

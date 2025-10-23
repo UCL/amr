@@ -83,6 +83,9 @@ pub struct ActiveJourney {
     pub snapshots: Vec<InfectionJourneySnapshot>,
     pub primary_bacteria_cleared_day: Option<u32>, // Day when primary bacteria cleared
     pub has_de_novo_resistance: bool, // Track if de novo resistance emerged during this journey
+    pub initial_failure_day: Option<i32>,
+    pub last_recorded_failure_day: Option<i32>,
+    pub treatment_failures_count: u32,
 }
 
 pub struct JourneyLogger {
@@ -254,7 +257,15 @@ impl JourneyLogger {
             primary_bacteria_idx,
             None,
             false,
+            0,
         );
+
+        let current_failure_day = individual.date_last_drug_failure[primary_bacteria_idx];
+        let initial_failure_day = if current_failure_day >= 0 {
+            Some(current_failure_day)
+        } else {
+            None
+        };
 
         let journey = ActiveJourney {
             journey_id,
@@ -263,6 +274,9 @@ impl JourneyLogger {
             snapshots: vec![snapshot],
             primary_bacteria_cleared_day: None,
             has_de_novo_resistance: false,
+            initial_failure_day,
+            last_recorded_failure_day: initial_failure_day,
+            treatment_failures_count: 0,
         };
 
         self.active_journeys.insert(individual.id, journey);
@@ -300,6 +314,8 @@ impl JourneyLogger {
                 journey.has_de_novo_resistance = true;
             }
 
+            JourneyLogger::refresh_treatment_failure_tracking(journey, individual);
+
             let snapshot = JourneyLogger::create_snapshot(
                 individual,
                 journey.journey_id,
@@ -308,6 +324,7 @@ impl JourneyLogger {
                 journey.primary_bacteria_idx,
                 None,
                 journey.has_de_novo_resistance,
+                journey.treatment_failures_count,
             );
 
             journey.snapshots.push(snapshot);
@@ -336,12 +353,12 @@ impl JourneyLogger {
             if primary_bacteria_level <= 0.001 {
                 if journey.primary_bacteria_cleared_day.is_none() {
                     // First time we detected clearance - record the day
-                    journey.primary_bacteria_cleared_day = Some(journey.day_count);
+                    journey.primary_bacteria_cleared_day = Some(journey.day_count.saturating_add(1));
                 }
 
                 // Check if 7 days have passed since clearance
                 if let Some(cleared_day) = journey.primary_bacteria_cleared_day {
-                    return journey.day_count >= cleared_day + 7;
+                    return journey.day_count >= cleared_day.saturating_add(7);
                 }
             } else {
                 // Bacteria level increased again - reset clearance tracking
@@ -358,6 +375,8 @@ impl JourneyLogger {
             // Determine resolution type
             let resolution_type = self.determine_resolution_type(individual);
 
+            JourneyLogger::refresh_treatment_failure_tracking(&mut journey, individual);
+
             // Create final snapshot with resolution
             let final_snapshot = JourneyLogger::create_snapshot(
                 individual,
@@ -367,6 +386,7 @@ impl JourneyLogger {
                 journey.primary_bacteria_idx,
                 Some(resolution_type.clone()),
                 journey.has_de_novo_resistance,
+                journey.treatment_failures_count,
             );
 
             journey.snapshots.push(final_snapshot);
@@ -391,6 +411,7 @@ impl JourneyLogger {
         primary_bacteria_idx: usize,
         resolution_type: Option<String>,
         has_de_novo_resistance: bool,
+        treatment_failures_count: u32,
     ) -> InfectionJourneySnapshot {
         // Collect all active bacteria
         let all_bacteria_levels: Vec<(String, f64)> = individual
@@ -573,7 +594,7 @@ impl JourneyLogger {
             all_bacteria_levels,
             current_drugs,
             days_on_current_treatment: individual.days_on_current_treatment[primary_bacteria_idx],
-            treatment_failures_count: 0, // Will need to track this
+            treatment_failures_count,
             resistance_any_r,
             resistance_majority_r,
             resistance_activity_r,
@@ -613,6 +634,25 @@ impl JourneyLogger {
                 "DrugAssistedClearance".to_string()
             } else {
                 "ImmuneClearance".to_string()
+            }
+        }
+    }
+
+    fn refresh_treatment_failure_tracking(journey: &mut ActiveJourney, individual: &Individual) {
+        let failure_day = individual.date_last_drug_failure[journey.primary_bacteria_idx];
+
+        if failure_day >= 0 {
+            let failure_day_opt = Some(failure_day);
+
+            if journey.initial_failure_day == failure_day_opt && journey.treatment_failures_count == 0 {
+                // Ignore historical failure recorded before journey started
+                journey.last_recorded_failure_day = failure_day_opt;
+                return;
+            }
+
+            if journey.last_recorded_failure_day != failure_day_opt {
+                journey.last_recorded_failure_day = failure_day_opt;
+                journey.treatment_failures_count += 1;
             }
         }
     }

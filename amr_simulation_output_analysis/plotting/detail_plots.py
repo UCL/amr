@@ -4722,8 +4722,29 @@ def create_infection_resolution_by_bacteria_plots(
     
     # Find bacteria with infection resolution data
     bacteria_with_resolution_data = set()
-    resolution_types = ['immune_clearance', 'drug_assisted_clearance', 'death_from_sepsis', 
-                       'death_from_background', 'death_from_toxicity']
+    resolution_type_config = {
+        'immune_clearance': {
+            'label': 'Clearance (no drug)',
+            'color': '#2ca02c',
+        },
+        'drug_assisted_clearance': {
+            'label': 'Drug-Assisted Clearance',
+            'color': '#1f77b4',
+        },
+        'death_from_sepsis': {
+            'label': 'Death from Sepsis',
+            'color': '#d62728',
+        },
+        'death_from_background': {
+            'label': 'Death from Background Causes',
+            'color': '#ff7f0e',
+        },
+        'death_from_toxicity': {
+            'label': 'Death from Drug Toxicity',
+            'color': '#9467bd',
+        },
+    }
+    resolution_types = list(resolution_type_config.keys())
     
     for col in df.columns:
         if 'infection_resolution' in col:
@@ -4740,21 +4761,8 @@ def create_infection_resolution_by_bacteria_plots(
     logger.info(f"Found {len(bacteria_with_resolution_data)} bacteria with resolution data")
     
     # Color scheme for the 5 resolution types
-    colors = {
-        'immune_clearance': '#2ca02c',      # green - good outcome
-        'drug_assisted_clearance': '#1f77b4',  # blue - treatment success
-        'death_from_sepsis': '#d62728',     # red - worst outcome
-        'death_from_background': '#ff7f0e', # orange - unrelated death
-        'death_from_toxicity': '#9467bd'    # purple - treatment complication
-    }
-    
-    labels = {
-        'immune_clearance': 'Immune Clearance',
-        'drug_assisted_clearance': 'Drug-Assisted Clearance',
-        'death_from_sepsis': 'Death from Sepsis',
-        'death_from_background': 'Death from Background Causes',
-        'death_from_toxicity': 'Death from Drug Toxicity'
-    }
+    colors = {key: value['color'] for key, value in resolution_type_config.items()}
+    labels = {key: value['label'] for key, value in resolution_type_config.items()}
     
     plots_created = 0
     

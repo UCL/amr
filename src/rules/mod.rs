@@ -111,10 +111,17 @@ fn assess_treatment_failure(
         return false;
     }
 
-    // Check if we're on the assessment day
-    if individual.days_on_current_treatment[bacteria_idx]
-        != store.globals.treatment_failure_assessment_day
-    {
+    let bacteria_name = BACTERIA_LIST[bacteria_idx];
+    let syndrome_id = individual.infectious_syndrome[bacteria_idx];
+    let base_assessment_day = store.globals.treatment_failure_assessment_day;
+    let assessment_day = treatment_failure_assessment_day_for(
+        bacteria_name,
+        syndrome_id,
+        base_assessment_day,
+    );
+
+    // Check if we've reached the assessment window for this organism/syndrome
+    if individual.days_on_current_treatment[bacteria_idx] < assessment_day {
         return false;
     }
 
@@ -164,7 +171,6 @@ fn assess_treatment_failure(
 
     // Try to find an alternative drug using the same selection logic as initial prescription
     // but excluding recently failed drugs
-    let bacteria_name = BACTERIA_LIST[bacteria_idx];
     let failure_memory_days = store.globals.drug_failure_memory_days;
 
     // Build list of available alternative drugs
@@ -277,6 +283,29 @@ fn assess_treatment_failure(
     }
 
     false // No switch occurred
+}
+
+fn treatment_failure_assessment_day_for(
+    bacteria_name: &str,
+    syndrome_id: i32,
+    default_day: i32,
+) -> i32 {
+    let mut final_day = default_day.max(1);
+
+    // Rapid infection syndromes: respiratory (3), bloodstream (4), intra-abdominal (5), CNS (6)
+    let fast_track_syndromes = [3, 4, 5, 6];
+    if fast_track_syndromes.contains(&syndrome_id) {
+        final_day = final_day.min(3).max(2);
+    }
+
+    // Chronic or slow pathogens: TB and indolent infections get longer assessment windows
+    if bacteria_name == "mdr mycobacterium tuberculosis" {
+        final_day = final_day.max(10);
+    } else if bacteria_name == "helicobacter pylori" || syndrome_id == 9 {
+        final_day = final_day.max(6);
+    }
+
+    final_day
 }
 
 /// Assess restart window for patients who stopped drugs while still infected
@@ -653,10 +682,6 @@ pub fn apply_rules(
             }
         }
     }
-
-    // current toxicity
-    individual.current_toxicity =
-        (individual.current_toxicity + rng.gen_range(-0.5..=0.5)).max(0.0);
 
     // Get parameters from config.rs once per individual for this time step
     let baseline_rate = store.globals.hospital_baseline_rate_per_day;

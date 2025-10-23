@@ -449,8 +449,29 @@ def create_grouped_plots(df, config=None):
         fig5.suptitle('Grouped Figure 5: Infection Resolution Outcomes', fontsize=16)
         
         # Check for resolution data columns
-        resolution_types = ['immune_clearance', 'drug_assisted_clearance', 'death_from_sepsis', 
-                           'death_from_background', 'death_from_toxicity']
+        resolution_type_config = {
+            'immune_clearance': {
+                'label': 'Clearance (no drug)',
+                'color': 'green',
+            },
+            'drug_assisted_clearance': {
+                'label': 'Drug-Assisted Clearance',
+                'color': 'blue',
+            },
+            'death_from_sepsis': {
+                'label': 'Death from Sepsis',
+                'color': 'red',
+            },
+            'death_from_background': {
+                'label': 'Death from Background Causes',
+                'color': 'gray',
+            },
+            'death_from_toxicity': {
+                'label': 'Death from Drug Toxicity',
+                'color': 'orange',
+            },
+        }
+        resolution_types = list(resolution_type_config.keys())
         resolution_cols = [col for col in df.columns if any(col.endswith(f'_{res_type}') for res_type in resolution_types)]
         
         if resolution_cols:
@@ -481,22 +502,10 @@ def create_grouped_plots(df, config=None):
             has_resolutions = total_resolutions > 0
             
             # 1. Percentage distribution of resolution types (top-left)
-            colors = {
-                'immune_clearance': 'green',
-                'drug_assisted_clearance': 'blue',
-                'death_from_sepsis': 'red',
-                'death_from_background': 'gray',
-                'death_from_toxicity': 'orange'
-            }
-            
-            labels = {
-                'immune_clearance': 'Immune Clearance',
-                'drug_assisted_clearance': 'Drug-Assisted Clearance',
-                'death_from_sepsis': 'Death from Sepsis',
-                'death_from_background': 'Death from Background Causes',
-                'death_from_toxicity': 'Death from Drug Toxicity'
-            }
-            
+            # Legend metadata keyed by resolution type for consistent labels/colors
+            labels = {key: value['label'] for key, value in resolution_type_config.items()}
+            colors = {key: value['color'] for key, value in resolution_type_config.items()}
+
             # Only plot timesteps where we have resolutions
             time_with_resolutions = df['time_in_years'][has_resolutions]
             
@@ -968,8 +977,18 @@ def create_grouped_plots(df, config=None):
             
             # Handle other panels with fallback for missing data
             # 2. Regional Population Distribution (top-right)
-            region_cols = [col for col in df.columns if col.endswith('_population') 
-                          and col != 'total_population' and not col.endswith('_hospital_population')]
+            region_prefixes = [
+                'north_america',
+                'south_america',
+                'africa',
+                'asia',
+                'europe',
+                'oceania',
+                'home',
+            ]
+            region_cols = [
+                f"{prefix}_population" for prefix in region_prefixes if f"{prefix}_population" in df.columns
+            ]
             
             if region_cols:
                 print(f"Processing region data for {len(region_cols)} regions")

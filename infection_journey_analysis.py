@@ -672,7 +672,7 @@ class InfectionJourneyAnalyzer:
                 check_row = journey_data.iloc[check_idx]
                 
                 # Check if key values are identical (indicating simulation stopped)
-                        if (
+                if (
                             abs(check_row['primary_bacteria_level'] - current_row['primary_bacteria_level']) < 0.001
                             and abs(check_row['clearance_hazard'] - current_row['clearance_hazard']) < 0.001
                             and abs(check_row['toxicity_level'] - current_row['toxicity_level']) < 0.001
@@ -680,7 +680,7 @@ class InfectionJourneyAnalyzer:
                             and check_row['is_treated'] == current_row['is_treated']
                         ):
                             static_count += 1
-                        else:
+                else:
                             break
             
             # If we found 5+ consecutive identical days, death likely occurred
