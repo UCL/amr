@@ -93,6 +93,8 @@ pub enum InfectionResolutionType {
     DrugAssistedClearance,
     /// Individual died from sepsis related to this infection
     DeathFromSepsis,
+    /// Individual died from infection (non-sepsis pathway)
+    DeathFromInfectionNonSepsis,
     /// Individual died from background causes while infected
     DeathFromBackground,
     /// Individual died from drug toxicity while infected
@@ -105,6 +107,9 @@ impl InfectionResolutionType {
             InfectionResolutionType::ImmuneClearance => "immune_clearance",
             InfectionResolutionType::DrugAssistedClearance => "drug_assisted_clearance",
             InfectionResolutionType::DeathFromSepsis => "death_from_sepsis",
+            InfectionResolutionType::DeathFromInfectionNonSepsis => {
+                "death_from_infection_non_sepsis"
+            }
             InfectionResolutionType::DeathFromBackground => "death_from_background",
             InfectionResolutionType::DeathFromToxicity => "death_from_toxicity",
         }
@@ -116,6 +121,7 @@ impl InfectionResolutionType {
             InfectionResolutionType::ImmuneClearance,
             InfectionResolutionType::DrugAssistedClearance,
             InfectionResolutionType::DeathFromSepsis,
+            InfectionResolutionType::DeathFromInfectionNonSepsis,
             InfectionResolutionType::DeathFromBackground,
             InfectionResolutionType::DeathFromToxicity,
         ]

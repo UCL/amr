@@ -169,7 +169,12 @@ def create_sepsis_plot(df: pd.DataFrame, config: PlotConfig) -> None:
 @safe_plot_creation
 def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     """Create death causes analysis plot if data is available."""
-    death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    death_cause_cols = [
+        'deaths_background',
+        'deaths_sepsis',
+        'deaths_infection_non_sepsis',
+        'deaths_drug_toxicity',
+    ]
     missing_cols = [col for col in death_cause_cols if col not in df.columns]
     
     if missing_cols:
@@ -185,6 +190,15 @@ def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     ax1.plot(df['time_in_years'], pd.Series(df['deaths_sepsis']).rolling(
         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
         label='Sepsis', linewidth=2, color='red')
+    ax1.plot(
+        df['time_in_years'],
+        pd.Series(df['deaths_infection_non_sepsis']).rolling(
+            window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+        ).mean(),
+        label='Infection (non-sepsis)',
+        linewidth=2,
+        color='#ff1493',
+    )
     ax1.plot(df['time_in_years'], pd.Series(df['deaths_drug_toxicity']).rolling(
         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
         label='Drug Toxicity', linewidth=2, color='orange')
@@ -199,33 +213,64 @@ def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     ax1.grid(True, alpha=0.3)
     
     # Proportional (stacked area) - check if proportion columns exist
-    if all(f'prop_deaths_{cause}' in df.columns for cause in ['background', 'sepsis', 'drug_toxicity']):
+    if all(
+        f'prop_deaths_{cause}'
+        in df.columns
+        for cause in ['background', 'sepsis', 'infection_non_sepsis', 'drug_toxicity']
+    ):
         ax2.stackplot(df['time_in_years'], 
                       pd.Series(df['prop_deaths_background']).rolling(
                           window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
                       pd.Series(df['prop_deaths_sepsis']).rolling(
-                          window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
+                          window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
+                      pd.Series(df['prop_deaths_infection_non_sepsis']).rolling(
+                          window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
                       pd.Series(df['prop_deaths_drug_toxicity']).rolling(
                           window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
-                      labels=['Background', 'Sepsis', 'Drug Toxicity'],
-                      colors=['gray', 'red', 'orange'],
+                      labels=[
+                          'Background',
+                          'Sepsis',
+                          'Infection (non-sepsis)',
+                          'Drug Toxicity',
+                      ],
+                      colors=['gray', 'red', '#ff1493', 'orange'],
                       alpha=0.7)
         ax2.legend(loc='upper right')
     else:
         # Calculate proportions manually if columns don't exist
-        total_deaths = df['deaths_background'] + df['deaths_sepsis'] + df['deaths_drug_toxicity']
+        total_deaths = (
+            df['deaths_background']
+            + df['deaths_sepsis']
+            + df['deaths_infection_non_sepsis']
+            + df['deaths_drug_toxicity']
+        )
         total_deaths = total_deaths.replace(0, np.nan)  # Avoid division by zero
         
         prop_bg = safe_divide(df['deaths_background'], total_deaths, 0)
         prop_sepsis = safe_divide(df['deaths_sepsis'], total_deaths, 0)
+        prop_infection_ns = safe_divide(
+            df['deaths_infection_non_sepsis'], total_deaths, 0
+        )
         prop_tox = safe_divide(df['deaths_drug_toxicity'], total_deaths, 0)
         
         ax2.stackplot(df['time_in_years'], 
                       pd.Series(prop_bg).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
-                      pd.Series(prop_sepsis).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
-                      pd.Series(prop_tox).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(),
-                      labels=['Background', 'Sepsis', 'Drug Toxicity'],
-                      colors=['gray', 'red', 'orange'],
+                      pd.Series(prop_sepsis).rolling(
+                          window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                      ).mean(),
+                      pd.Series(prop_infection_ns).rolling(
+                          window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                      ).mean(),
+                      pd.Series(prop_tox).rolling(
+                          window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+                      ).mean(),
+                      labels=[
+                          'Background',
+                          'Sepsis',
+                          'Infection (non-sepsis)',
+                          'Drug Toxicity',
+                      ],
+                      colors=['gray', 'red', '#ff1493', 'orange'],
                       alpha=0.7)
         ax2.legend(loc='upper right')
     
@@ -238,6 +283,7 @@ def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     # Add summary statistics
     total_background = df['deaths_background'].sum()
     total_sepsis = df['deaths_sepsis'].sum()
+    total_infection_ns = df['deaths_infection_non_sepsis'].sum()
     total_toxicity = df['deaths_drug_toxicity'].sum()
     total_all = df['total_deaths'].sum()
     
@@ -245,6 +291,7 @@ def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
         textstr = (f'Total Deaths Summary:\n'
                   f'Background: {total_background} ({total_background/total_all*100:.1f}%)\n'
                   f'Sepsis: {total_sepsis} ({total_sepsis/total_all*100:.1f}%)\n'
+                  f'Infection (non-sepsis): {total_infection_ns} ({total_infection_ns/total_all*100:.1f}%)\n'
                   f'Drug Toxicity: {total_toxicity} ({total_toxicity/total_all*100:.1f}%)\n'
                   f'Total: {total_all}')
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
@@ -2117,6 +2164,7 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             f"{region}_population",
             f"{region}_deaths_background", 
             f"{region}_deaths_sepsis",
+            f"{region}_deaths_infection_non_sepsis",
             f"{region}_deaths_drug_toxicity"
         ])
     
@@ -2132,14 +2180,23 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
         pop_col = f"{region}_population"
         death_bg_col = f"{region}_deaths_background"
         death_sepsis_col = f"{region}_deaths_sepsis"
+        death_infection_ns_col = f"{region}_deaths_infection_non_sepsis"
         death_tox_col = f"{region}_deaths_drug_toxicity"
         
-        if all(col in df.columns for col in [pop_col, death_bg_col, death_sepsis_col, death_tox_col]):
+        if all(
+            col in df.columns
+            for col in [pop_col, death_bg_col, death_sepsis_col, death_infection_ns_col, death_tox_col]
+        ):
             # Create the plot
             fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
             
             # Calculate total deaths for this region
-            total_deaths = df[death_bg_col] + df[death_sepsis_col] + df[death_tox_col]
+            total_deaths = (
+                df[death_bg_col]
+                + df[death_sepsis_col]
+                + df[death_infection_ns_col]
+                + df[death_tox_col]
+            )
             
             # Calculate death proportion (deaths per population)
             death_proportion = total_deaths / df[pop_col].replace(0, 1)  # Avoid division by zero
@@ -2156,16 +2213,51 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             # Optional: Plot death causes separately
             death_bg_prop = df[death_bg_col] / df[pop_col].replace(0, 1)
             death_sepsis_prop = df[death_sepsis_col] / df[pop_col].replace(0, 1)
+            death_infection_ns_prop = df[death_infection_ns_col] / df[pop_col].replace(0, 1)
             death_tox_prop = df[death_tox_col] / df[pop_col].replace(0, 1)
             
             # Smooth individual death types
             smooth_bg = pd.Series(death_bg_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
             smooth_sepsis = pd.Series(death_sepsis_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            smooth_tox = pd.Series(death_tox_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            smooth_infection_ns = pd.Series(death_infection_ns_prop).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
+            smooth_tox = pd.Series(death_tox_prop).rolling(
+                window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
+            ).mean()
             
-            ax.plot(df['time_in_years'], smooth_bg, label='Background Mortality', linewidth=1, color='gray', alpha=0.7)
-            ax.plot(df['time_in_years'], smooth_sepsis, label='Sepsis Deaths', linewidth=1, color='orange', alpha=0.7)
-            ax.plot(df['time_in_years'], smooth_tox, label='Drug Toxicity Deaths', linewidth=1, color='purple', alpha=0.7)
+            ax.plot(
+                df['time_in_years'],
+                smooth_bg,
+                label='Background Mortality',
+                linewidth=1,
+                color='gray',
+                alpha=0.7,
+            )
+            ax.plot(
+                df['time_in_years'],
+                smooth_sepsis,
+                label='Sepsis Deaths',
+                linewidth=1,
+                color='red',
+                alpha=0.7,
+            )
+            ax.plot(
+                df['time_in_years'],
+                smooth_infection_ns,
+                label='Infection (non-sepsis) Deaths',
+                linewidth=1,
+                color='#ff1493',
+                alpha=0.7,
+            )
+            ax.plot(
+                df['time_in_years'],
+                smooth_tox,
+                label='Drug Toxicity Deaths',
+                linewidth=1,
+                color='orange',
+                alpha=0.7,
+            )
             
             # Formatting
             region_title = region.replace('_', ' ').title()
@@ -2911,11 +3003,22 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
     regions = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
     age_groups = ['prop_age_0_5', 'prop_age_6_14', 'prop_age_15_49', 'prop_age_50_79', 'prop_age_80plus']
     age_labels = ['0-5 years', '6-14 years', '15-49 years', '50-79 years', '80+ years']
-    death_types = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
-    death_labels = ['Background', 'Sepsis', 'Drug Toxicity', 'All-cause']
-    
+    death_types = [
+        'deaths_background',
+        'deaths_sepsis',
+        'deaths_infection_non_sepsis',
+        'deaths_drug_toxicity',
+    ]
+    death_labels = [
+        'Background',
+        'Sepsis',
+        'Infection (non-sepsis)',
+        'Drug Toxicity',
+        'All-cause',
+    ]
+
     # Colors for death types
-    death_colors = ['gray', 'red', 'orange', 'black']  # Background, Sepsis, Drug Toxicity, Total
+    death_colors = ['gray', 'red', '#ff1493', 'orange', 'black']
     
     plots_created = 0
     
@@ -2966,7 +3069,9 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
             death_rates = []
             
             # Plot death rates for each death type
-            for death_idx, (death_type, death_label, color) in enumerate(zip(death_types, death_labels[:3], death_colors[:3])):
+            for death_idx, (death_type, death_label, color) in enumerate(
+                zip(death_types, death_labels[:4], death_colors[:4])
+            ):
                 death_col = f"{region}_{age_group}_{death_type}"
                 
                 if death_col in df.columns:
@@ -2986,8 +3091,14 @@ def create_age_specific_death_rate_by_region_plots_working(df: pd.DataFrame, con
             # Calculate and plot total deaths (all-cause)
             if death_rates:
                 total_deaths = sum(death_rates)
-                ax.plot(df['time_in_years'], total_deaths, 
-                       label='All-cause', linewidth=2, color=death_colors[3], alpha=0.9)
+                ax.plot(
+                    df['time_in_years'],
+                    total_deaths,
+                    label='All-cause',
+                    linewidth=2,
+                    color=death_colors[-1],
+                    alpha=0.9,
+                )
             
             # Formatting
             ax.set_title(f'{age_label}')
@@ -4739,9 +4850,13 @@ def create_infection_resolution_by_bacteria_plots(
             'label': 'Death from Background Causes',
             'color': '#ff7f0e',
         },
+        'death_from_infection_non_sepsis': {
+            'label': 'Death from Infection (non-sepsis)',
+            'color': '#ff1493',
+        },
         'death_from_toxicity': {
             'label': 'Death from Drug Toxicity',
-            'color': '#9467bd',
+            'color': '#8c564b',
         },
     }
     resolution_types = list(resolution_type_config.keys())
@@ -4958,7 +5073,12 @@ def create_death_causes_plot(
     
     df = data_cache.get_preprocessed_data()
     
-    death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+    death_cause_cols = [
+        'deaths_background',
+        'deaths_sepsis',
+        'deaths_infection_non_sepsis',
+        'deaths_drug_toxicity',
+    ]
     missing_cols = [col for col in death_cause_cols if col not in df.columns]
     
     if missing_cols:
@@ -4978,11 +5098,24 @@ def create_death_causes_plot(
                  window=config.smoothing_window, min_periods=1, center=True
              ).mean(), 
              label='Sepsis', linewidth=2, color='red')
-    ax1.plot(df['time_in_years'], 
-             pd.Series(df['deaths_drug_toxicity']).rolling(
-                 window=config.smoothing_window, min_periods=1, center=True
-             ).mean(), 
-             label='Drug Toxicity', linewidth=2, color='orange')
+    ax1.plot(
+        df['time_in_years'],
+        pd.Series(df['deaths_infection_non_sepsis']).rolling(
+            window=config.smoothing_window, min_periods=1, center=True
+        ).mean(),
+        label='Infection (non-sepsis)',
+        linewidth=2,
+        color='#ff1493',
+    )
+    ax1.plot(
+        df['time_in_years'],
+        pd.Series(df['deaths_drug_toxicity']).rolling(
+            window=config.smoothing_window, min_periods=1, center=True
+        ).mean(),
+        label='Drug Toxicity',
+        linewidth=2,
+        color='orange',
+    )
     ax1.plot(df['time_in_years'], 
              pd.Series(df['total_deaths']).rolling(
                  window=config.smoothing_window, min_periods=1, center=True
@@ -4996,19 +5129,29 @@ def create_death_causes_plot(
     ax1.grid(True, alpha=0.3)
     
     # Proportional (stacked area)
-    ax2.stackplot(df['time_in_years'], 
-                  pd.Series(df['prop_deaths_background']).rolling(
-                      window=config.smoothing_window, min_periods=1, center=True
-                  ).mean(),
-                  pd.Series(df['prop_deaths_sepsis']).rolling(
-                      window=config.smoothing_window, min_periods=1, center=True
-                  ).mean(), 
-                  pd.Series(df['prop_deaths_drug_toxicity']).rolling(
-                      window=config.smoothing_window, min_periods=1, center=True
-                  ).mean(),
-                  labels=['Background', 'Sepsis', 'Drug Toxicity'],
-                  colors=['gray', 'red', 'orange'],
-                  alpha=0.7)
+    ax2.stackplot(
+        df['time_in_years'],
+        pd.Series(df['prop_deaths_background']).rolling(
+            window=config.smoothing_window, min_periods=1, center=True
+        ).mean(),
+        pd.Series(df['prop_deaths_sepsis']).rolling(
+            window=config.smoothing_window, min_periods=1, center=True
+        ).mean(),
+        pd.Series(df['prop_deaths_infection_non_sepsis']).rolling(
+            window=config.smoothing_window, min_periods=1, center=True
+        ).mean(),
+        pd.Series(df['prop_deaths_drug_toxicity']).rolling(
+            window=config.smoothing_window, min_periods=1, center=True
+        ).mean(),
+        labels=[
+            'Background',
+            'Sepsis',
+            'Infection (non-sepsis)',
+            'Drug Toxicity',
+        ],
+    colors=['gray', 'red', '#ff1493', 'orange'],
+        alpha=0.7,
+    )
     
     ax2.set_title('Proportion of Deaths by Cause Over Time')
     ax2.set_xlabel('Time (Years)')
@@ -5020,6 +5163,7 @@ def create_death_causes_plot(
     # Add summary statistics
     total_background = df['deaths_background'].sum()
     total_sepsis = df['deaths_sepsis'].sum()
+    total_infection_ns = df['deaths_infection_non_sepsis'].sum()
     total_toxicity = df['deaths_drug_toxicity'].sum()
     total_all = df['total_deaths'].sum()
     
@@ -5027,6 +5171,7 @@ def create_death_causes_plot(
         textstr = (f'Total Deaths Summary:\n'
                   f'Background: {total_background} ({total_background/total_all*100:.1f}%)\n'
                   f'Sepsis: {total_sepsis} ({total_sepsis/total_all*100:.1f}%)\n'
+                  f'Infection (non-sepsis): {total_infection_ns} ({total_infection_ns/total_all*100:.1f}%)\n'
                   f'Drug Toxicity: {total_toxicity} ({total_toxicity/total_all*100:.1f}%)\n'
                   f'Total: {total_all}')
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
@@ -5062,7 +5207,7 @@ def create_resistance_plot(
             pd.Series(df['resistance_among_infected']).rolling(
                 window=config.smoothing_window, min_periods=1, center=True
             ).mean(), 
-            color='purple', linewidth=2)
+            color='#ff1493', linewidth=2)
     ax.set_title('Proportion with Resistance Among Currently Infected (excl. H. pylori)')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')

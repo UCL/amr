@@ -621,6 +621,9 @@ impl JourneyLogger {
             if let Some(ref cause) = individual.cause_of_death {
                 match cause.as_str() {
                     "sepsis_related" => "DeathFromSepsis".to_string(),
+                    "infection_non_sepsis_related" => {
+                        "DeathFromInfectionNonSepsis".to_string()
+                    }
                     "drug_toxicity_related" => "DeathFromToxicity".to_string(),
                     _ => "DeathFromBackground".to_string(),
                 }

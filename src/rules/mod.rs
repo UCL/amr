@@ -1907,6 +1907,80 @@ pub fn apply_rules(
         individual.background_all_cause_mortality_rate = background_risk.min(1.0);
         let mut prob_not_dying = 1.0 - background_risk;
 
+        let mut infection_non_sepsis_prob_not_dying = 1.0;
+        let mut has_infection_non_sepsis_risk = false;
+
+        let non_sepsis_level_threshold =
+            store.globals.infection_non_sepsis_minimum_bacteria_level;
+        let non_sepsis_level_coefficient =
+            store.globals.infection_non_sepsis_log_odds_per_level;
+
+        for (b_idx, level) in individual.level.iter().enumerate() {
+            if *level <= non_sepsis_level_threshold {
+                continue;
+            }
+
+            // Skip infections already progressing through sepsis pathway
+            if individual.sepsis[b_idx] {
+                continue;
+            }
+
+            has_infection_non_sepsis_risk = true;
+
+            let mut log_odds = store.globals.infection_non_sepsis_base_log_odds;
+            log_odds += store
+                .bacteria
+                .infection_non_sepsis_mortality_log_odds(b_idx);
+
+            let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
+            log_odds += store
+                .syndrome
+                .non_sepsis_mortality_log_odds(syndrome_id);
+
+            log_odds += non_sepsis_level_coefficient * level;
+
+            if matches!(individual.hospital_status, HospitalStatus::InHospital) {
+                log_odds += store.globals.infection_non_sepsis_log_odds_in_hospital;
+            }
+
+            let age_years = individual.age as f64 / 365.0;
+            let age_adjustment = if age_years < 1.0 {
+                store.globals.infection_non_sepsis_log_odds_age_infant
+            } else if age_years < 18.0 {
+                store.globals.infection_non_sepsis_log_odds_age_child
+            } else if age_years < 65.0 {
+                store.globals.infection_non_sepsis_log_odds_age_adult
+            } else {
+                store.globals.infection_non_sepsis_log_odds_age_elderly
+            };
+            log_odds += age_adjustment;
+
+            if individual.immunodeficiency_type.is_some() {
+                log_odds += store.globals.infection_non_sepsis_log_odds_immunosuppressed;
+            }
+
+            let probability = 1.0 / (1.0 + (-log_odds).exp());
+            let probability = probability.clamp(0.0, 1.0);
+            infection_non_sepsis_prob_not_dying *= 1.0 - probability;
+        }
+
+        let infection_non_sepsis_risk = if has_infection_non_sepsis_risk {
+            1.0 - infection_non_sepsis_prob_not_dying.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
+        individual.current_infection_related_death_risk = infection_non_sepsis_risk;
+
+        if infection_non_sepsis_risk > 0.0 {
+            prob_not_dying *= 1.0 - infection_non_sepsis_risk;
+            if cause.is_none() {
+                cause = Some("infection_non_sepsis_related".to_string());
+            }
+        } else {
+            individual.current_infection_related_death_risk = 0.0;
+        }
+
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
         if has_sepsis {
             // Calculate age-adjusted sepsis mortality risk
@@ -1973,6 +2047,9 @@ pub fn apply_rules(
             if let Some(ref death_cause) = individual.cause_of_death {
                 let resolution_type = match death_cause.as_str() {
                     "sepsis_related" => InfectionResolutionType::DeathFromSepsis,
+                    "infection_non_sepsis_related" => {
+                        InfectionResolutionType::DeathFromInfectionNonSepsis
+                    }
                     "drug_toxicity_related" => InfectionResolutionType::DeathFromToxicity,
                     _ => InfectionResolutionType::DeathFromBackground,
                 };
@@ -1984,8 +2061,9 @@ pub fn apply_rules(
                             InfectionResolutionType::ImmuneClearance => 0,
                             InfectionResolutionType::DrugAssistedClearance => 1,
                             InfectionResolutionType::DeathFromSepsis => 2,
-                            InfectionResolutionType::DeathFromBackground => 3,
-                            InfectionResolutionType::DeathFromToxicity => 4,
+                            InfectionResolutionType::DeathFromInfectionNonSepsis => 3,
+                            InfectionResolutionType::DeathFromBackground => 4,
+                            InfectionResolutionType::DeathFromToxicity => 5,
                         };
 
                         individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
@@ -3720,13 +3798,14 @@ pub fn apply_rules(
                         InfectionResolutionType::ImmuneClearance
                     };
 
-                    let resolution_idx = match resolution_type {
-                        InfectionResolutionType::ImmuneClearance => 0,
-                        InfectionResolutionType::DrugAssistedClearance => 1,
-                        InfectionResolutionType::DeathFromSepsis => 2,
-                        InfectionResolutionType::DeathFromBackground => 3,
-                        InfectionResolutionType::DeathFromToxicity => 4,
-                    };
+                        let resolution_idx = match resolution_type {
+                            InfectionResolutionType::ImmuneClearance => 0,
+                            InfectionResolutionType::DrugAssistedClearance => 1,
+                            InfectionResolutionType::DeathFromSepsis => 2,
+                            InfectionResolutionType::DeathFromInfectionNonSepsis => 3,
+                            InfectionResolutionType::DeathFromBackground => 4,
+                            InfectionResolutionType::DeathFromToxicity => 5,
+                        };
                     individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
 
                     // If infection was cleared by drugs and bacteria is present in microbiome,

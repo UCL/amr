@@ -131,6 +131,10 @@ def print_aligned_csv(filename, max_rows=30):
                 ("ImmuneClearance", "Clearance (no drug)"),
                 ("DrugAssistedClearance", "Drug-Assisted Clearance"),
                 ("DeathFromSepsis", "Death from Sepsis"),
+                (
+                    "DeathFromInfectionNonSepsis",
+                    "Death from Infection (Non-Sepsis)",
+                ),
                 ("DeathFromBackground", "Death from Background Causes"),
                 ("DeathFromToxicity", "Death from Drug Toxicity"),
             ]

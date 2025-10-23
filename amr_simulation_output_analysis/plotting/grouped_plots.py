@@ -212,6 +212,7 @@ def create_grouped_plots(df, config=None):
             'deaths_past_year',
             'deaths_background_past_year',
             'deaths_sepsis_past_year',
+            'deaths_infection_non_sepsis_past_year',
             'deaths_drug_toxicity_past_year',
         ]
         if all(col in df.columns for col in required_cols):
@@ -219,10 +220,20 @@ def create_grouped_plots(df, config=None):
             deaths_all = pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
             deaths_bg = pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
             deaths_sepsis = pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+            deaths_infection_ns = pd.Series(
+                df['deaths_infection_non_sepsis_past_year_proportion'][mask]
+            ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
             deaths_tox = pd.Series(df['deaths_drug_toxicity_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
             axes2[3].plot(df['time_in_years'][mask], deaths_all, label='All-cause', color='black', linewidth=2)
             axes2[3].plot(df['time_in_years'][mask], deaths_bg, label='Background', color='gray', linewidth=2)
             axes2[3].plot(df['time_in_years'][mask], deaths_sepsis, label='Sepsis', color='red', linewidth=2)
+            axes2[3].plot(
+                df['time_in_years'][mask],
+                deaths_infection_ns,
+                label='Infection (non-sepsis)',
+                color='#ff1493',
+                linewidth=2,
+            )
             axes2[3].plot(df['time_in_years'][mask], deaths_tox, label='Drug Toxicity', color='orange', linewidth=2)
             axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
             axes2[3].set_xlabel('Time (Years)')
@@ -452,23 +463,27 @@ def create_grouped_plots(df, config=None):
         resolution_type_config = {
             'immune_clearance': {
                 'label': 'Clearance (no drug)',
-                'color': 'green',
+                'color': '#2ca02c',
             },
             'drug_assisted_clearance': {
                 'label': 'Drug-Assisted Clearance',
-                'color': 'blue',
+                'color': '#1f77b4',
             },
             'death_from_sepsis': {
                 'label': 'Death from Sepsis',
-                'color': 'red',
+                'color': '#d62728',
             },
             'death_from_background': {
                 'label': 'Death from Background Causes',
-                'color': 'gray',
+                'color': '#ff7f0e',
+            },
+            'death_from_infection_non_sepsis': {
+                'label': 'Death from Infection (non-sepsis)',
+                'color': '#ff1493',
             },
             'death_from_toxicity': {
                 'label': 'Death from Drug Toxicity',
-                'color': 'orange',
+                'color': '#8c564b',
             },
         }
         resolution_types = list(resolution_type_config.keys())
@@ -1086,11 +1101,21 @@ def create_grouped_plots(df, config=None):
                 axes8[2].set_axis_off()
             
             # Panel 4: Infection Resolution Patterns (Deaths by Cause)
-            death_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
+            death_cols = [
+                'deaths_background',
+                'deaths_sepsis',
+                'deaths_infection_non_sepsis',
+                'deaths_drug_toxicity',
+            ]
             if all(col in df.columns for col in death_cols):
                 death_data = df[death_cols]
-                colors = ['lightgray', 'red', 'orange']
-                labels = ['Background Deaths', 'Sepsis Deaths', 'Drug Toxicity Deaths']
+                colors = ['lightgray', 'red', 'purple', 'orange']
+                labels = [
+                    'Background Deaths',
+                    'Sepsis Deaths',
+                    'Infection (non-sepsis) Deaths',
+                    'Drug Toxicity Deaths',
+                ]
                 
                 bottom = np.zeros(len(df['time_in_years'][mask]))
                 for i, (col, color, label) in enumerate(zip(death_cols, colors, labels)):

@@ -197,6 +197,15 @@ pub struct GlobalScalars {
     pub sepsis_log_odds_age_adult: f64,
     pub sepsis_log_odds_age_elderly: f64,
     pub sepsis_log_odds_immunosuppressed: f64,
+    pub infection_non_sepsis_base_log_odds: f64,
+    pub infection_non_sepsis_log_odds_per_level: f64,
+    pub infection_non_sepsis_log_odds_age_infant: f64,
+    pub infection_non_sepsis_log_odds_age_child: f64,
+    pub infection_non_sepsis_log_odds_age_adult: f64,
+    pub infection_non_sepsis_log_odds_age_elderly: f64,
+    pub infection_non_sepsis_log_odds_immunosuppressed: f64,
+    pub infection_non_sepsis_log_odds_in_hospital: f64,
+    pub infection_non_sepsis_minimum_bacteria_level: f64,
     pub background_mortality_baseline_log_odds: f64,
     pub mortality_baseline_1930_multiplier: f64,
     pub mortality_baseline_2035_multiplier: f64,
@@ -492,6 +501,51 @@ impl GlobalScalars {
             sepsis_log_odds_age_adult: get_required(map, "sepsis_log_odds_age_adult"),
             sepsis_log_odds_age_elderly: get_required(map, "sepsis_log_odds_age_elderly"),
             sepsis_log_odds_immunosuppressed: get_required(map, "sepsis_log_odds_immunosuppressed"),
+            infection_non_sepsis_base_log_odds: get_or_default(
+                map,
+                "infection_non_sepsis_base_log_odds",
+                -9.0,
+            ),
+            infection_non_sepsis_log_odds_per_level: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_per_level",
+                0.0,
+            ),
+            infection_non_sepsis_log_odds_age_infant: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_age_infant",
+                0.0,
+            ),
+            infection_non_sepsis_log_odds_age_child: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_age_child",
+                0.0,
+            ),
+            infection_non_sepsis_log_odds_age_adult: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_age_adult",
+                0.0,
+            ),
+            infection_non_sepsis_log_odds_age_elderly: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_age_elderly",
+                0.0,
+            ),
+            infection_non_sepsis_log_odds_immunosuppressed: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_immunosuppressed",
+                0.0,
+            ),
+            infection_non_sepsis_log_odds_in_hospital: get_or_default(
+                map,
+                "infection_non_sepsis_log_odds_in_hospital",
+                0.0,
+            ),
+            infection_non_sepsis_minimum_bacteria_level: get_or_default(
+                map,
+                "infection_non_sepsis_minimum_bacteria_level",
+                0.5,
+            ),
             background_mortality_baseline_log_odds: get_required(
                 map,
                 "background_mortality_baseline_log_odds",
@@ -806,6 +860,7 @@ impl VaccinationParameters {
 pub struct SyndromeParameters {
     sepsis_log_odds: Vec<f64>,
     initiation_multiplier: Vec<f64>,
+    non_sepsis_mortality_log_odds: Vec<f64>,
 }
 
 impl SyndromeParameters {
@@ -815,6 +870,7 @@ impl SyndromeParameters {
         let len = Self::MAX_SYNDROME_ID + 1;
         let mut sepsis_log_odds = vec![0.0; len];
         let mut initiation_multiplier = vec![1.0; len];
+        let mut non_sepsis_mortality_log_odds = vec![0.0; len];
 
         for syndrome_id in 1..=Self::MAX_SYNDROME_ID {
             sepsis_log_odds[syndrome_id] = get_or_default(
@@ -827,11 +883,17 @@ impl SyndromeParameters {
                 &format!("syndrome_{}_initiation_multiplier", syndrome_id),
                 1.0,
             );
+            non_sepsis_mortality_log_odds[syndrome_id] = get_or_default(
+                map,
+                &format!("syndrome_{}_non_sepsis_infection_death_log_odds", syndrome_id),
+                0.0,
+            );
         }
 
         SyndromeParameters {
             sepsis_log_odds,
             initiation_multiplier,
+            non_sepsis_mortality_log_odds,
         }
     }
 
@@ -849,6 +911,15 @@ impl SyndromeParameters {
             .get(syndrome_id)
             .copied()
             .unwrap_or(1.0)
+    }
+
+    #[inline]
+    pub fn non_sepsis_mortality_log_odds(&self, syndrome_id: usize) -> f64 {
+        self
+            .non_sepsis_mortality_log_odds
+            .get(syndrome_id)
+            .copied()
+            .unwrap_or(0.0)
     }
 }
 
@@ -1027,6 +1098,7 @@ pub struct BacteriaParameters {
     pub sepsis_baseline_log_odds: Vec<f64>,
     pub sepsis_log_odds_infection_level: Vec<f64>,
     pub sepsis_log_odds_infection_duration: Vec<f64>,
+    pub infection_non_sepsis_mortality_log_odds: Vec<f64>,
 }
 
 impl BacteriaParameters {
@@ -1051,6 +1123,7 @@ impl BacteriaParameters {
         let mut sepsis_baseline_log_odds = Vec::with_capacity(num_bacteria);
         let mut sepsis_log_odds_infection_level = Vec::with_capacity(num_bacteria);
         let mut sepsis_log_odds_infection_duration = Vec::with_capacity(num_bacteria);
+    let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
 
         for &bacteria in BACTERIA_LIST.iter() {
             let prefix = bacteria;
@@ -1158,6 +1231,11 @@ impl BacteriaParameters {
                 &format!("{}_log_odds_sepsis_infection_duration", prefix),
                 get_or_default(map, "log_odds_sepsis_infection_duration", 0.01),
             ));
+            infection_non_sepsis_mortality_log_odds.push(get_or_default(
+                map,
+                &format!("{}_non_sepsis_infection_death_log_odds", prefix),
+                0.0,
+            ));
         }
 
         BacteriaParameters {
@@ -1181,6 +1259,7 @@ impl BacteriaParameters {
             sepsis_baseline_log_odds,
             sepsis_log_odds_infection_level,
             sepsis_log_odds_infection_duration,
+            infection_non_sepsis_mortality_log_odds,
         }
     }
 
@@ -1203,6 +1282,11 @@ impl BacteriaParameters {
     #[inline]
     pub fn sepsis_log_odds_infection_duration(&self, bacteria_idx: usize) -> f64 {
         self.sepsis_log_odds_infection_duration[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn infection_non_sepsis_mortality_log_odds(&self, bacteria_idx: usize) -> f64 {
+        self.infection_non_sepsis_mortality_log_odds[bacteria_idx]
     }
 
     #[inline]

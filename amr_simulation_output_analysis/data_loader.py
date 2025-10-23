@@ -209,6 +209,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         ('deaths_past_year', 'deaths_past_year_proportion'),
         ('deaths_background_past_year', 'deaths_background_past_year_proportion'),
         ('deaths_sepsis_past_year', 'deaths_sepsis_past_year_proportion'),
+        ('deaths_infection_non_sepsis_past_year', 'deaths_infection_non_sepsis_past_year_proportion'),
         ('deaths_drug_toxicity_past_year', 'deaths_drug_toxicity_past_year_proportion')
     ]
     
@@ -321,11 +322,21 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
             df[share_col] = safe_divide(df[col_name], total_counts, default=np.nan)
 
     # Calculate death cause proportions (if available)
-    death_cause_cols = ['deaths_background', 'deaths_sepsis', 'deaths_drug_toxicity']
-    if all(col in df.columns for col in death_cause_cols):
-        df['prop_deaths_background'] = safe_divide(df['deaths_background'], df['total_deaths'])
-        df['prop_deaths_sepsis'] = safe_divide(df['deaths_sepsis'], df['total_deaths'])
-        df['prop_deaths_drug_toxicity'] = safe_divide(df['deaths_drug_toxicity'], df['total_deaths'])
+    death_cause_props = [
+        ('deaths_background', 'prop_deaths_background'),
+        ('deaths_sepsis', 'prop_deaths_sepsis'),
+        (
+            'deaths_infection_non_sepsis',
+            'prop_deaths_infection_non_sepsis',
+        ),
+        ('deaths_drug_toxicity', 'prop_deaths_drug_toxicity'),
+    ]
+    if all(col in df.columns for col, _ in death_cause_props):
+        denominator = df['total_deaths'] if 'total_deaths' in df.columns else df[
+            [col for col, _ in death_cause_props]
+        ].sum(axis=1)
+        for col, prop in death_cause_props:
+            df[prop] = safe_divide(df[col], denominator)
     
     # Derive microbiome acquisition metrics by antibiotic exposure
     on_suffix = '_microbiome_acquisitions_on_drug'

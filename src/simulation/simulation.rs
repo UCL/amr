@@ -15,7 +15,8 @@ use crate::config::{self, get_global_param}; // Import the config module and get
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    Population, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    InfectionResolutionType, Population, Region, ResistanceMechanism, BACTERIA_LIST,
+    DRUG_SHORT_NAMES,
 };
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -28,6 +29,11 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 const CARRIAGE_DURATION_BIN_LABELS: [&str; 5] = ["0_29", "30_89", "90_179", "180_359", "360_plus"];
+const NUM_DEATH_CAUSES: usize = 4;
+const DEATH_CAUSE_BACKGROUND_IDX: usize = 0;
+const DEATH_CAUSE_SEPSIS_IDX: usize = 1;
+const DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX: usize = 2;
+const DEATH_CAUSE_DRUG_TOXICITY_IDX: usize = 3;
 
 #[inline]
 fn carriage_duration_bin(days: i32) -> usize {
@@ -385,10 +391,12 @@ pub struct TimeStepSummary {
     pub total_deaths: usize,
     pub deaths_background: usize,    // Deaths from background mortality
     pub deaths_sepsis: usize,        // Deaths from sepsis
+    pub deaths_infection_non_sepsis: usize, // Deaths from infection without sepsis
     pub deaths_drug_toxicity: usize, // Deaths from drug toxicity
     pub deaths_past_year: usize,     // all-cause     // Rolling 1-year (365 days) death counts
     pub deaths_background_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
+    pub deaths_infection_non_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_drug_toxicity_past_year: usize, // Rolling 1-year (365 days) death counts
     pub total_with_resistance: usize,
     pub total_currently_infected: usize, // Number of living people currently infected with bacteria (excl. H. pylori)
@@ -488,6 +496,7 @@ pub struct TimeStepSummary {
     pub infection_resolution_immune_clearance_by_bacteria: Vec<usize>,
     pub infection_resolution_drug_assisted_clearance_by_bacteria: Vec<usize>,
     pub infection_resolution_death_from_sepsis_by_bacteria: Vec<usize>,
+    pub infection_resolution_death_from_infection_non_sepsis_by_bacteria: Vec<usize>,
     pub infection_resolution_death_from_background_by_bacteria: Vec<usize>,
     pub infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
 
@@ -515,12 +524,12 @@ pub struct TimeStepSummary {
     // [region_idx * 5 + age_group_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
     pub age_distribution_by_region: Vec<usize>, // [region][age_group] = number of living individuals in this region and age group
 
-    // regional death tracking: counts by region and death type (6 regions * 3 death types = 18 values)
-    // [region_idx * 3 + death_type_idx] where death_type_idx: 0=background, 1=sepsis, 2=drug_toxicity
+    // regional death tracking: counts by region and death type (6 regions * 4 death types)
+    // [region_idx * NUM_DEATH_CAUSES + death_type_idx]
     pub deaths_by_region: Vec<usize>, // [region][death_type] = number of deaths in this region by cause
 
-    // age-specific death tracking by region: counts by region, age group, and death type (6 regions * 5 age groups * 3 death types = 90 values)
-    // [region_idx * 15 + age_group_idx * 3 + death_type_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
+    // age-specific death tracking by region: counts by region, age group, and death type (6 regions * 5 age groups * 4 death types)
+    // [region_idx * (5 * NUM_DEATH_CAUSES) + age_group_idx * NUM_DEATH_CAUSES + death_type_idx]
     pub deaths_by_region_age: Vec<usize>, // [region][age_group][death_type] = number of deaths
 
     // syndrome population by region: counts by syndrome and region (10 syndromes * 6 regions = 60 values)
@@ -530,6 +539,7 @@ pub struct TimeStepSummary {
     // syndrome deaths from sepsis by region: counts by syndrome and region (10 syndromes * 6 regions = 60 values)
     // [syndrome_idx * 6 + region_idx] where syndrome_idx: 0-9 (syndromes 1-10), region_idx: 0-5
     pub syndrome_deaths_sepsis_by_region: Vec<usize>, // [syndrome][region] = number of sepsis deaths with this syndrome in this region
+    pub syndrome_deaths_infection_non_sepsis_by_region: Vec<usize>, // [syndrome][region] = number of infection (non-sepsis) deaths with this syndrome
 
     // regional drug usage tracking: counts by region and drug (6 regions * num_drugs values)
     // [region_idx * num_drugs + drug_idx] = number of people currently taking this drug in this region
@@ -763,6 +773,7 @@ impl Simulation {
                 total_deaths: usize,
                 deaths_background: usize,
                 deaths_sepsis: usize,
+                deaths_infection_non_sepsis: usize,
                 deaths_drug_toxicity: usize,
                 currently_taking_drug_count: usize,
                 infected_10_days_count: usize,
@@ -833,6 +844,7 @@ impl Simulation {
                 infection_resolution_immune_clearance_by_bacteria: Vec<usize>,
                 infection_resolution_drug_assisted_clearance_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_sepsis_by_bacteria: Vec<usize>,
+                infection_resolution_death_from_infection_non_sepsis_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_background_by_bacteria: Vec<usize>,
                 infection_resolution_death_from_toxicity_by_bacteria: Vec<usize>,
                 /// counts of infected individuals by syndrome (1-10)
@@ -843,14 +855,16 @@ impl Simulation {
                 living_population_by_region: Vec<usize>,
                 /// age distribution by region (6 regions * 5 age groups = 30 values)
                 age_distribution_by_region: Vec<usize>,
-                /// death tracking by region (6 regions * 3 death types = 18 values)
+                /// death tracking by region (6 regions * NUM_DEATH_CAUSES)
                 deaths_by_region: Vec<usize>,
-                /// age-specific death tracking by region (6 regions * 5 age groups * 3 death types = 90 values)
+                /// age-specific death tracking by region (6 regions * 5 age groups * NUM_DEATH_CAUSES)
                 deaths_by_region_age: Vec<usize>,
                 /// drug usage by region (6 regions * num_drugs)
                 currently_on_drug_by_region_drug: Vec<usize>,
                 /// syndrome deaths from sepsis by region (10 syndromes * 6 regions = 60 values)
                 syndrome_deaths_sepsis_by_region: Vec<usize>,
+                /// syndrome deaths from infection (non-sepsis) by region (10 syndromes * 6 regions = 60 values)
+                syndrome_deaths_infection_non_sepsis_by_region: Vec<usize>,
             }
             impl LocalTotals {
                 fn new(
@@ -881,6 +895,7 @@ impl Simulation {
                         total_deaths: 0,
                         deaths_background: 0,
                         deaths_sepsis: 0,
+                        deaths_infection_non_sepsis: 0,
                         deaths_drug_toxicity: 0,
                         currently_taking_drug_count: 0,
                         infected_10_days_count: 0,
@@ -973,6 +988,10 @@ impl Simulation {
                             num_bacteria
                         ],
                         infection_resolution_death_from_sepsis_by_bacteria: vec![0; num_bacteria],
+                        infection_resolution_death_from_infection_non_sepsis_by_bacteria: vec![
+                            0;
+                            num_bacteria
+                        ],
                         infection_resolution_death_from_background_by_bacteria: vec![
                             0;
                             num_bacteria
@@ -982,10 +1001,11 @@ impl Simulation {
                         infected_by_syndrome_by_bacteria: vec![0; num_bacteria * 10], // bacteria * syndromes
                         living_population_by_region: vec![0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania
                         age_distribution_by_region: vec![0; 6 * 5], // 6 regions * 5 age groups = 30 values
-                        deaths_by_region: vec![0; 6 * 3], // 6 regions * 3 death types = 18 values
-                        deaths_by_region_age: vec![0; 6 * 5 * 3], // 6 regions * 5 age groups * 3 death types = 90 values
+                        deaths_by_region: vec![0; 6 * NUM_DEATH_CAUSES],
+                        deaths_by_region_age: vec![0; 6 * 5 * NUM_DEATH_CAUSES],
                         currently_on_drug_by_region_drug: vec![0; 6 * num_drugs], // 6 regions * num_drugs
                         syndrome_deaths_sepsis_by_region: vec![0; 10 * 6], // 10 syndromes * 6 regions = 60 values
+                        syndrome_deaths_infection_non_sepsis_by_region: vec![0; 10 * 6],
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -1080,6 +1100,7 @@ impl Simulation {
                     self.total_deaths += other.total_deaths;
                     self.deaths_background += other.deaths_background;
                     self.deaths_sepsis += other.deaths_sepsis;
+                    self.deaths_infection_non_sepsis += other.deaths_infection_non_sepsis;
                     self.deaths_drug_toxicity += other.deaths_drug_toxicity;
                     self.currently_taking_drug_count += other.currently_taking_drug_count;
                     self.infected_10_days_count += other.infected_10_days_count;
@@ -1339,6 +1360,13 @@ impl Simulation {
                         *a += b;
                     }
                     for (a, b) in self
+                        .infection_resolution_death_from_infection_non_sepsis_by_bacteria
+                        .iter_mut()
+                        .zip(other.infection_resolution_death_from_infection_non_sepsis_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
                         .infection_resolution_death_from_background_by_bacteria
                         .iter_mut()
                         .zip(other.infection_resolution_death_from_background_by_bacteria)
@@ -1401,6 +1429,13 @@ impl Simulation {
                         .syndrome_deaths_sepsis_by_region
                         .iter_mut()
                         .zip(other.syndrome_deaths_sepsis_by_region)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .syndrome_deaths_infection_non_sepsis_by_region
+                        .iter_mut()
+                        .zip(other.syndrome_deaths_infection_non_sepsis_by_region)
                     {
                         *a += b;
                     }
@@ -1548,13 +1583,21 @@ impl Simulation {
                                 match cause.as_str() {
                                     "background_mortality" => {
                                         lt.deaths_background += 1;
-                                        lt.deaths_by_region[region_idx * 3 + 0] += 1; // background death
-                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // background death by age
+                                        lt.deaths_by_region
+                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX]
+                                            += 1;
+                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                            + age_group_idx * NUM_DEATH_CAUSES
+                                            + DEATH_CAUSE_BACKGROUND_IDX] += 1;
                                     }
                                     "sepsis_related" => {
                                         lt.deaths_sepsis += 1;
-                                        lt.deaths_by_region[region_idx * 3 + 1] += 1; // sepsis death
-                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 1] += 1; // sepsis death by age
+                                        lt.deaths_by_region
+                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_SEPSIS_IDX]
+                                            += 1;
+                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                            + age_group_idx * NUM_DEATH_CAUSES
+                                            + DEATH_CAUSE_SEPSIS_IDX] += 1;
 
                                         // Track sepsis deaths by syndrome and region
                                         for b_idx in 0..BACTERIA_LIST.len() {
@@ -1568,21 +1611,52 @@ impl Simulation {
                                             }
                                         }
                                     }
+                                    "infection_non_sepsis_related" => {
+                                        lt.deaths_infection_non_sepsis += 1;
+                                        lt.deaths_by_region[region_idx * NUM_DEATH_CAUSES
+                                            + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
+                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                            + age_group_idx * NUM_DEATH_CAUSES
+                                            + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
+
+                                        // Track non-sepsis infection deaths by syndrome and region
+                                        for b_idx in 0..BACTERIA_LIST.len() {
+                                            if individual.level[b_idx] > 0.001 && !individual.sepsis[b_idx] {
+                                                let syndrome_id = individual.infectious_syndrome[b_idx];
+                                                if (1..=10).contains(&syndrome_id) {
+                                                    let syndrome_idx = (syndrome_id - 1) as usize;
+                                                    let index = syndrome_idx * 6 + region_idx;
+                                                    lt.syndrome_deaths_infection_non_sepsis_by_region[index] += 1;
+                                                }
+                                            }
+                                        }
+                                    }
                                     "drug_toxicity_related" => {
                                         lt.deaths_drug_toxicity += 1;
-                                        lt.deaths_by_region[region_idx * 3 + 2] += 1; // toxicity death
-                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 2] += 1; // toxicity death by age
+                                        lt.deaths_by_region
+                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_DRUG_TOXICITY_IDX]
+                                            += 1;
+                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                            + age_group_idx * NUM_DEATH_CAUSES
+                                            + DEATH_CAUSE_DRUG_TOXICITY_IDX] += 1;
                                     }
                                     _ => {
                                         lt.deaths_background += 1;
-                                        lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
-                                        lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
+                                        lt.deaths_by_region
+                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX]
+                                            += 1;
+                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                            + age_group_idx * NUM_DEATH_CAUSES
+                                            + DEATH_CAUSE_BACKGROUND_IDX] += 1;
                                     }
                                 }
                             } else {
                                 lt.deaths_background += 1;
-                                lt.deaths_by_region[region_idx * 3 + 0] += 1; // default to background
-                                lt.deaths_by_region_age[region_idx * 15 + age_group_idx * 3 + 0] += 1; // default to background by age
+                                lt.deaths_by_region
+                                    [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                    + age_group_idx * NUM_DEATH_CAUSES
+                                    + DEATH_CAUSE_BACKGROUND_IDX] += 1;
                             }
                             // Count deaths by bacteria
                             for b_idx in 0..num_bacteria {
@@ -1900,56 +1974,60 @@ impl Simulation {
             );
 
             // Collect infection resolution data after rules have been applied
+            let num_resolution_types = InfectionResolutionType::all().len();
             let infection_resolution_totals = self
                 .population
                 .individuals
                 .par_iter()
-                .fold(
-                    || {
-                        (
-                            vec![0usize; num_bacteria], // immune_clearance
-                            vec![0usize; num_bacteria], // drug_assisted_clearance
-                            vec![0usize; num_bacteria], // death_from_sepsis
-                            vec![0usize; num_bacteria], // death_from_background
-                            vec![0usize; num_bacteria], // death_from_toxicity
-                        )
-                    },
-                    |mut acc, individual| {
-                        for (b_idx, resolution_counts) in individual
-                            .infection_resolution_this_timestep
-                            .iter()
-                            .enumerate()
-                        {
-                            acc.0[b_idx] += resolution_counts[0] as usize;
-                            acc.1[b_idx] += resolution_counts[1] as usize;
-                            acc.2[b_idx] += resolution_counts[2] as usize;
-                            acc.3[b_idx] += resolution_counts[3] as usize;
-                            acc.4[b_idx] += resolution_counts[4] as usize;
+                .map(|individual| {
+                    let mut per_type = vec![vec![0usize; num_bacteria]; num_resolution_types];
+                    for (b_idx, resolution_counts) in individual
+                        .infection_resolution_this_timestep
+                        .iter()
+                        .enumerate()
+                    {
+                        for (res_idx, count) in resolution_counts.iter().enumerate() {
+                            per_type[res_idx][b_idx] += *count as usize;
                         }
-                        acc
-                    },
-                )
+                    }
+                    per_type
+                })
                 .reduce(
-                    || {
-                        (
-                            vec![0usize; num_bacteria],
-                            vec![0usize; num_bacteria],
-                            vec![0usize; num_bacteria],
-                            vec![0usize; num_bacteria],
-                            vec![0usize; num_bacteria],
-                        )
-                    },
+                    || vec![vec![0usize; num_bacteria]; num_resolution_types],
                     |mut a, b| {
-                        for i in 0..num_bacteria {
-                            a.0[i] += b.0[i];
-                            a.1[i] += b.1[i];
-                            a.2[i] += b.2[i];
-                            a.3[i] += b.3[i];
-                            a.4[i] += b.4[i];
+                        for res_idx in 0..num_resolution_types {
+                            for b_idx in 0..num_bacteria {
+                                a[res_idx][b_idx] += b[res_idx][b_idx];
+                            }
                         }
                         a
                     },
                 );
+
+            let mut infection_resolution_iter = infection_resolution_totals.into_iter();
+            let infection_resolution_immune_clearance_by_bacteria = infection_resolution_iter
+                .next()
+                .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_drug_assisted_clearance_by_bacteria =
+                infection_resolution_iter
+                    .next()
+                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_sepsis_by_bacteria =
+                infection_resolution_iter
+                    .next()
+                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_infection_non_sepsis_by_bacteria =
+                infection_resolution_iter
+                    .next()
+                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_background_by_bacteria =
+                infection_resolution_iter
+                    .next()
+                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_toxicity_by_bacteria =
+                infection_resolution_iter
+                    .next()
+                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
 
             // Destructure to move out (avoid cloning large vectors)
             let LocalTotals {
@@ -1967,6 +2045,7 @@ impl Simulation {
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
+                deaths_infection_non_sepsis,
                 deaths_drug_toxicity,
                 currently_taking_drug_count,
                 infected_10_days_count,
@@ -2026,6 +2105,7 @@ impl Simulation {
                 infection_resolution_immune_clearance_by_bacteria: _,
                 infection_resolution_drug_assisted_clearance_by_bacteria: _,
                 infection_resolution_death_from_sepsis_by_bacteria: _,
+                infection_resolution_death_from_infection_non_sepsis_by_bacteria: _,
                 infection_resolution_death_from_background_by_bacteria: _,
                 infection_resolution_death_from_toxicity_by_bacteria: _,
                 infected_by_syndrome,
@@ -2036,16 +2116,8 @@ impl Simulation {
                 deaths_by_region_age,
                 currently_on_drug_by_region_drug,
                 syndrome_deaths_sepsis_by_region,
+                syndrome_deaths_infection_non_sepsis_by_region,
             } = totals;
-
-            // Use the separately collected infection resolution data
-            let (
-                infection_resolution_immune_clearance_by_bacteria,
-                infection_resolution_drug_assisted_clearance_by_bacteria,
-                infection_resolution_death_from_sepsis_by_bacteria,
-                infection_resolution_death_from_background_by_bacteria,
-                infection_resolution_death_from_toxicity_by_bacteria,
-            ) = infection_resolution_totals;
 
             // Rebuild 2D resistance structure for summary
             let mut resistance_by_bacteria_drug: Vec<Vec<usize>> = Vec::with_capacity(num_bacteria);
@@ -2158,6 +2230,7 @@ impl Simulation {
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
+                deaths_infection_non_sepsis,
                 deaths_drug_toxicity,
                 // Rolling 1-year (365 days) death counts
                 deaths_past_year: {
@@ -2198,6 +2271,22 @@ impl Simulation {
                         .sum::<usize>()
                         + deaths_sepsis
                         - self.summary_log.last().map_or(0, |s| s.deaths_sepsis)
+                },
+                deaths_infection_non_sepsis_past_year: {
+                    let start = if self.summary_log.len() >= 365 {
+                        self.summary_log.len() - 365
+                    } else {
+                        0
+                    };
+                    self.summary_log[start..]
+                        .iter()
+                        .map(|s| s.deaths_infection_non_sepsis)
+                        .sum::<usize>()
+                        + deaths_infection_non_sepsis
+                        - self
+                            .summary_log
+                            .last()
+                            .map_or(0, |s| s.deaths_infection_non_sepsis)
                 },
                 deaths_drug_toxicity_past_year: {
                     let start = if self.summary_log.len() >= 365 {
@@ -2241,6 +2330,7 @@ impl Simulation {
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
                 infection_resolution_death_from_sepsis_by_bacteria,
+                infection_resolution_death_from_infection_non_sepsis_by_bacteria,
                 infection_resolution_death_from_background_by_bacteria,
                 infection_resolution_death_from_toxicity_by_bacteria,
 
@@ -2374,6 +2464,9 @@ impl Simulation {
                     syndrome_pop_by_region
                 },
                 syndrome_deaths_sepsis_by_region: { syndrome_deaths_sepsis_by_region },
+                syndrome_deaths_infection_non_sepsis_by_region: {
+                    syndrome_deaths_infection_non_sepsis_by_region
+                },
                 currently_on_drug_by_region_drug,
 
                 // Calculate polypharmacy distribution (1, 2, or ≥3 drugs)
@@ -2628,7 +2721,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+    header.push_str("time_step,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -2999,6 +3092,11 @@ impl Simulation {
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
             header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_infection_resolution_death_from_infection_non_sepsis");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_infection_resolution_death_from_background");
         }
         for bacteria in BACTERIA_LIST.iter() {
@@ -3080,7 +3178,12 @@ impl Simulation {
         }
 
         // Add regional death columns to header
-        let death_type_names = ["deaths_background", "deaths_sepsis", "deaths_drug_toxicity"];
+        let death_type_names = [
+            "deaths_background",
+            "deaths_sepsis",
+            "deaths_infection_non_sepsis",
+            "deaths_drug_toxicity",
+        ];
         for region_name in &region_names {
             for death_type_name in &death_type_names {
                 header.push(',');
@@ -3164,7 +3267,7 @@ impl Simulation {
 
             // Write basic summary data
             let time_in_years = summary.time_step as f64 / 365.0;
-            row.push_str(&format!("{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
+            row.push_str(&format!("{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
                 summary.time_step,
                 time_in_years,
                 summary.total_population,
@@ -3186,10 +3289,12 @@ impl Simulation {
                 summary.total_deaths,
                 summary.deaths_background,
                 summary.deaths_sepsis,
+                summary.deaths_infection_non_sepsis,
                 summary.deaths_drug_toxicity,
                 summary.deaths_past_year,
                 summary.deaths_background_past_year,
                 summary.deaths_sepsis_past_year,
+                summary.deaths_infection_non_sepsis_past_year,
                 summary.deaths_drug_toxicity_past_year,
                 summary.num_age_0_5,
                 summary.num_age_6_14,
@@ -3406,6 +3511,10 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
+            for value in &summary.infection_resolution_death_from_infection_non_sepsis_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
             for value in &summary.infection_resolution_death_from_background_by_bacteria {
                 row.push(',');
                 row.push_str(&value.to_string());
@@ -3483,9 +3592,9 @@ impl Simulation {
             // Add regional death data (as counts)
             for region_idx in 0..6 {
                 // 6 regions
-                for death_type_idx in 0..3 {
-                    // 3 death types: background, sepsis, drug_toxicity
-                    let death_count = summary.deaths_by_region[region_idx * 3 + death_type_idx];
+                for death_type_idx in 0..NUM_DEATH_CAUSES {
+                    let death_count = summary.deaths_by_region
+                        [region_idx * NUM_DEATH_CAUSES + death_type_idx];
                     row.push(',');
                     row.push_str(&death_count.to_string());
                 }
@@ -3496,10 +3605,11 @@ impl Simulation {
                 // 6 regions
                 for age_group_idx in 0..5 {
                     // 5 age groups
-                    for death_type_idx in 0..3 {
-                        // 3 death types: background, sepsis, drug_toxicity
+                    for death_type_idx in 0..NUM_DEATH_CAUSES {
                         let death_count = summary.deaths_by_region_age
-                            [region_idx * 15 + age_group_idx * 3 + death_type_idx];
+                            [region_idx * (5 * NUM_DEATH_CAUSES)
+                                + age_group_idx * NUM_DEATH_CAUSES
+                                + death_type_idx];
                         row.push(',');
                         row.push_str(&death_count.to_string());
                     }
