@@ -245,10 +245,18 @@ class InfectionJourneyAnalyzer:
         if sepsis_mask.any():
             ax1.legend(fontsize=8)
         
-        # Immunity and toxicity levels with step plotting
-        ax2.step(days, journey_data['immunity_level'], where='post', color='green', linewidth=4, label='immunity', alpha=0.8)
+        # Clearance hazard and toxicity levels with step plotting
+        ax2.step(
+            days,
+            journey_data['clearance_hazard'],
+            where='post',
+            color='green',
+            linewidth=4,
+            label='clearance hazard',
+            alpha=0.8,
+        )
         ax2.step(days, journey_data['toxicity_level'], where='post', color='red', linewidth=4, label='toxicity', alpha=0.8)
-        ax2.set_title('immunity & toxicity levels', fontsize=18)
+        ax2.set_title('clearance hazard & toxicity levels', fontsize=18)
         ax2.set_xlabel('day of journey', fontsize=15)
         ax2.set_ylabel('level', fontsize=15)
         ax2.set_xticks(range(1, int(days.max()) + 1))
@@ -508,13 +516,13 @@ class InfectionJourneyAnalyzer:
         # Print detailed day-by-day progression
         if self.verbose:
             print(f"\nDay-by-Day Progression:")
-            print(f"{'Day':>3} {'Bacteria':>8} {'Immunity':>8} {'Toxicity':>8} {'Treated':>7} {'Sepsis':>6} {'Hospital':>10}")
+            print(f"{'Day':>3} {'Bacteria':>8} {'Hazard':>8} {'Toxicity':>8} {'Treated':>7} {'Sepsis':>6} {'Hospital':>10}")
             print("-" * 65)
             
             for _, row in journey_data.iterrows():
                 treated = 'Yes' if row['is_treated'] else 'No'
                 sepsis = 'Yes' if row['sepsis'] else 'No'
-                print(f"{row['day_of_journey']:>3} {row['primary_bacteria_level']:>8.3f} {row['immunity_level']:>8.3f} "
+                print(f"{row['day_of_journey']:>3} {row['primary_bacteria_level']:>8.3f} {row['clearance_hazard']:>8.3f} "
                       f"{row['toxicity_level']:>8.3f} {treated:>7} {sepsis:>6} {row['hospital_status']:>10}")
     
     def plot_infection_states_over_time(self, max_days=30):
@@ -664,14 +672,16 @@ class InfectionJourneyAnalyzer:
                 check_row = journey_data.iloc[check_idx]
                 
                 # Check if key values are identical (indicating simulation stopped)
-                if (abs(check_row['primary_bacteria_level'] - current_row['primary_bacteria_level']) < 0.001 and
-                    abs(check_row['immunity_level'] - current_row['immunity_level']) < 0.001 and
-                    abs(check_row['toxicity_level'] - current_row['toxicity_level']) < 0.001 and
-                    check_row['sepsis'] == current_row['sepsis'] and
-                    check_row['is_treated'] == current_row['is_treated']):
-                    static_count += 1
-                else:
-                    break
+                        if (
+                            abs(check_row['primary_bacteria_level'] - current_row['primary_bacteria_level']) < 0.001
+                            and abs(check_row['clearance_hazard'] - current_row['clearance_hazard']) < 0.001
+                            and abs(check_row['toxicity_level'] - current_row['toxicity_level']) < 0.001
+                            and check_row['sepsis'] == current_row['sepsis']
+                            and check_row['is_treated'] == current_row['is_treated']
+                        ):
+                            static_count += 1
+                        else:
+                            break
             
             # If we found 5+ consecutive identical days, death likely occurred
             if static_count >= 5:
@@ -919,7 +929,7 @@ class InfectionJourneyAnalyzer:
                 
                 # Day-by-day progression (show ALL days until death)
                 f.write("Day-by-day progression:\n")
-                f.write("day | bacteria | immunity | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes\n")
+                f.write("day | bacteria | hazard | toxicity | drugs (level)        | majority_r | activity_r | sepsis | hospital    | death                 | notes\n")
                 f.write("-" * 165 + "\n")
                 
                 # Identify key milestone days for annotations
@@ -1008,7 +1018,7 @@ class InfectionJourneyAnalyzer:
                         
                         note_str = "; ".join(notes) if notes else ""
                         
-                        f.write(f"{day:3d} | {row['primary_bacteria_level']:8.3f} | {row['immunity_level']:8.3f} | "
+                        f.write(f"{day:3d} | {row['primary_bacteria_level']:8.3f} | {row['clearance_hazard']:8.3f} | "
                                f"{row['toxicity_level']:8.3f} | {drug_str} | {maj_r_str:10} | {act_r_str:10} | {sepsis.lower():6} | "
                                f"{row['hospital_status']:11} | {death_status:21} | {note_str}\n")
                 except KeyboardInterrupt:

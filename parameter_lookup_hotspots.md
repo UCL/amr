@@ -67,10 +67,11 @@ For every bacteria in `BACTERIA_LIST` (~30 entries):
 - `get_drug_param(drug, "toxicity_per_unit_level_per_day")` with fallback to `default_drug_toxicity_per_unit_level_per_day`.
 - Bounding and clearance use `max_toxicity_level` and `toxicity_clearance_rate_per_day`.
 
-### Immune response updates (per individual × bacteria)
+### Clearance hazard updates (per individual × bacteria)
 
-- Multiple bacteria-specific keys retrieved each day: `base_bacteria_level_change`, `immunity_effect_on_level_change`, `max_level`, `immunity_base_response`, `immunity_increase_per_infection_day`, `immunity_increase_per_unit_higher_bacteria_level`, `immunity_age_modifier`, `immunity_immunodeficiency_modifier`, `max_immune_response`.
-- Global fallback keys: `immune_decay_rate_per_day`, `immune_response_recovery_rate_per_day` (later in the file).
+- Clearance timing pulls `default_clearance_delay_days` plus optional `{bacteria}_clearance_delay_days` overrides when infections start a new resolution window.
+- Daily resolution hazard reads `default_clearance_hazard_after_delay`, `{bacteria}_clearance_hazard_multiplier`, and age modifiers `clearance_age_multiplier_{infant|preschool|school|young_adult|middle_age|elderly|very_elderly}` before applying immunodeficiency multipliers.
+- Level-based adjustments rely on `clearance_level_reference` and `clearance_level_exponent` to dampen hazards when bacteria levels remain high.
 
 ## Other modules
 

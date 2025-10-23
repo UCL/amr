@@ -337,7 +337,10 @@ pub struct Individual {
     pub infectious_syndrome: Vec<i32>,
     pub level: Vec<f64>,
 
-    pub immune_resp: Vec<f64>,
+    /// Daily immune clearance hazard recorded for reporting (0 = none, 1 = guaranteed)
+    pub clearance_hazard: Vec<f64>,
+    /// Simulation day (time_step) when hazard-based clearance becomes active (-1 = not armed)
+    pub clearance_ready_day: Vec<i32>,
     // note we say sepsis but we mean sepsis or other life threatening condition directly caused by the infection
     pub sepsis: Vec<bool>,
     /// Day when sepsis started for each bacteria (-1 if never had sepsis)
@@ -438,7 +441,8 @@ impl Individual {
         let date_last_infected_keep = vec![0; num_bacteria];
         let infectious_syndrome = vec![0; num_bacteria];
         let level = vec![0.0; num_bacteria];
-        let immune_resp = vec![0.0001; num_bacteria];
+        let clearance_hazard = vec![0.0; num_bacteria];
+        let clearance_ready_day = vec![-1; num_bacteria];
         let sepsis = vec![false; num_bacteria];
         let sepsis_onset_day = vec![-1; num_bacteria]; // -1 indicates never had sepsis
         let presence_microbiome = vec![false; num_bacteria];
@@ -526,7 +530,8 @@ impl Individual {
             date_last_infected_keep,
             infectious_syndrome,
             level,
-            immune_resp,
+            clearance_hazard,
+            clearance_ready_day,
             sepsis,
             sepsis_onset_day,
             infection_prevented_by_drug: vec![false; num_bacteria],

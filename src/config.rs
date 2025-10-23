@@ -73,6 +73,7 @@ pub struct ParameterStore {
     pub vaccination: VaccinationParameters,
     pub drug: DrugParameters,
     pub bacteria: BacteriaParameters,
+    pub clearance: ClearanceParameters,
     pub drug_bacteria: DrugBacteriaMatrix,
     pub region_bacteria: RegionBacteriaAcquisition,
     pub age_categories: AgeCategoryParameters,
@@ -95,6 +96,7 @@ impl ParameterStore {
         let vaccination = VaccinationParameters::from_map(map);
         let drug = DrugParameters::from_map(map, num_drugs);
         let bacteria = BacteriaParameters::from_map(map, num_bacteria);
+        let clearance = ClearanceParameters::from_map(map, num_bacteria);
         let drug_bacteria = DrugBacteriaMatrix::from_map(map, num_bacteria, num_drugs);
         let region_bacteria = RegionBacteriaAcquisition::from_map(map, num_bacteria);
         let age_categories = AgeCategoryParameters::from_map(map, num_bacteria);
@@ -111,6 +113,7 @@ impl ParameterStore {
             vaccination,
             drug,
             bacteria,
+            clearance,
             drug_bacteria,
             region_bacteria,
             age_categories,
@@ -1013,14 +1016,7 @@ pub struct BacteriaParameters {
     pub microbiome_environmental_acquisition_proportion: Vec<Option<f64>>,
     pub initial_infection_level: Vec<f64>,
     pub base_bacteria_level_change: Vec<f64>,
-    pub immunity_effect_on_level_change: Vec<f64>,
     pub max_level: Vec<f64>,
-    pub immunity_base_response: Vec<f64>,
-    pub immunity_increase_per_infection_day: Vec<f64>,
-    pub immunity_increase_per_unit_level: Vec<f64>,
-    pub immunity_age_modifier: Vec<f64>,
-    pub immunity_immunodeficiency_modifier: Vec<f64>,
-    pub max_immune_response: Vec<f64>,
     pub daily_symptom_onset_probability: Vec<f64>,
     pub symptom_onset_threshold_level: Vec<f64>,
     pub symptom_onset_delay_days: Vec<f64>,
@@ -1044,14 +1040,7 @@ impl BacteriaParameters {
         let mut microbiome_environmental_acquisition_proportion = Vec::with_capacity(num_bacteria);
         let mut initial_infection_level = Vec::with_capacity(num_bacteria);
         let mut base_bacteria_level_change = Vec::with_capacity(num_bacteria);
-        let mut immunity_effect_on_level_change = Vec::with_capacity(num_bacteria);
         let mut max_level = Vec::with_capacity(num_bacteria);
-        let mut immunity_base_response = Vec::with_capacity(num_bacteria);
-        let mut immunity_increase_per_infection_day = Vec::with_capacity(num_bacteria);
-        let mut immunity_increase_per_unit_level = Vec::with_capacity(num_bacteria);
-        let mut immunity_age_modifier = Vec::with_capacity(num_bacteria);
-        let mut immunity_immunodeficiency_modifier = Vec::with_capacity(num_bacteria);
-        let mut max_immune_response = Vec::with_capacity(num_bacteria);
         let mut daily_symptom_onset_probability = Vec::with_capacity(num_bacteria);
         let mut symptom_onset_threshold_level = Vec::with_capacity(num_bacteria);
         let mut symptom_onset_delay_days = Vec::with_capacity(num_bacteria);
@@ -1116,45 +1105,7 @@ impl BacteriaParameters {
                 &format!("{}_base_bacteria_level_change", prefix),
                 0.5,
             ));
-            immunity_effect_on_level_change.push(get_or_default(
-                map,
-                &format!("{}_immunity_effect_on_level_change", prefix),
-                0.08,
-            ));
             max_level.push(get_or_default(map, &format!("{}_max_level", prefix), 5.0));
-            immunity_base_response.push(get_or_default(
-                map,
-                &format!("{}_immunity_base_response", prefix),
-                0.03,
-            ));
-            immunity_increase_per_infection_day.push(get_or_default(
-                map,
-                &format!("{}_immunity_increase_per_infection_day", prefix),
-                0.1,
-            ));
-            immunity_increase_per_unit_level.push(get_or_default(
-                map,
-                &format!(
-                    "{}_immunity_increase_per_unit_higher_bacteria_level",
-                    prefix
-                ),
-                0.05,
-            ));
-            immunity_age_modifier.push(get_or_default(
-                map,
-                &format!("{}_immunity_age_modifier", prefix),
-                1.0,
-            ));
-            immunity_immunodeficiency_modifier.push(get_or_default(
-                map,
-                &format!("{}_immunity_immunodeficiency_modifier", prefix),
-                0.1,
-            ));
-            max_immune_response.push(get_or_default(
-                map,
-                &format!("{}_max_immune_response", prefix),
-                10.0,
-            ));
             daily_symptom_onset_probability.push(get_or_default(
                 map,
                 &format!("{}_daily_symptom_onset_probability", prefix),
@@ -1219,14 +1170,7 @@ impl BacteriaParameters {
             microbiome_environmental_acquisition_proportion,
             initial_infection_level,
             base_bacteria_level_change,
-            immunity_effect_on_level_change,
             max_level,
-            immunity_base_response,
-            immunity_increase_per_infection_day,
-            immunity_increase_per_unit_level,
-            immunity_age_modifier,
-            immunity_immunodeficiency_modifier,
-            max_immune_response,
             daily_symptom_onset_probability,
             symptom_onset_threshold_level,
             symptom_onset_delay_days,
@@ -1244,11 +1188,6 @@ impl BacteriaParameters {
     #[allow(dead_code)]
     pub fn base_level_change(&self, bacteria_idx: usize) -> f64 {
         self.base_bacteria_level_change[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn immunity_effect_on_level_change(&self, bacteria_idx: usize) -> f64 {
-        self.immunity_effect_on_level_change[bacteria_idx]
     }
 
     #[inline]
@@ -1300,36 +1239,6 @@ impl BacteriaParameters {
     }
 
     #[inline]
-    pub fn immunity_base_response(&self, bacteria_idx: usize) -> f64 {
-        self.immunity_base_response[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn immunity_increase_per_infection_day(&self, bacteria_idx: usize) -> f64 {
-        self.immunity_increase_per_infection_day[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn immunity_increase_per_unit_level(&self, bacteria_idx: usize) -> f64 {
-        self.immunity_increase_per_unit_level[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn immunity_age_modifier(&self, bacteria_idx: usize) -> f64 {
-        self.immunity_age_modifier[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn immunity_immunodeficiency_modifier(&self, bacteria_idx: usize) -> f64 {
-        self.immunity_immunodeficiency_modifier[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn max_immune_response(&self, bacteria_idx: usize) -> f64 {
-        self.max_immune_response[bacteria_idx]
-    }
-
-    #[inline]
     pub fn max_level(&self, bacteria_idx: usize) -> f64 {
         self.max_level[bacteria_idx]
     }
@@ -1352,6 +1261,115 @@ impl BacteriaParameters {
     #[inline]
     pub fn symptom_onset_level_multiplier(&self, bacteria_idx: usize) -> f64 {
         self.symptom_onset_level_multiplier[bacteria_idx]
+    }
+}
+
+#[derive(Debug)]
+pub struct ClearanceParameters {
+    base_delay_days: f64,
+    base_daily_hazard: f64,
+    per_bacteria_delay_days: Vec<Option<f64>>,
+    per_bacteria_hazard_multiplier: Vec<f64>,
+    age_multipliers: [f64; AGE_CATEGORY_NAMES.len()],
+    immunodeficient_multiplier: f64,
+    level_reference: f64,
+    level_exponent: f64,
+}
+
+impl ClearanceParameters {
+    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
+        let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
+        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.2);
+
+        let mut age_multipliers = [1.0; AGE_CATEGORY_NAMES.len()];
+        for (idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
+            let key = format!("clearance_age_multiplier_{}", category);
+            age_multipliers[idx] = get_or_default(map, &key, 1.0);
+        }
+
+        let mut per_bacteria_delay_days = Vec::with_capacity(num_bacteria);
+        let mut per_bacteria_hazard_multiplier = Vec::with_capacity(num_bacteria);
+        for &bacteria in BACTERIA_LIST.iter() {
+            per_bacteria_delay_days.push(
+                map.get(&format!("{}_clearance_delay_days", bacteria)).copied(),
+            );
+            per_bacteria_hazard_multiplier.push(get_or_default(
+                map,
+                &format!("{}_clearance_hazard_multiplier", bacteria),
+                1.0,
+            ));
+        }
+
+        let immunodeficient_multiplier =
+            get_or_default(map, "clearance_immunodeficient_multiplier", 0.5);
+        let level_reference = get_or_default(map, "clearance_level_reference", 1.0);
+        let level_exponent = get_or_default(map, "clearance_level_exponent", 0.0);
+
+        ClearanceParameters {
+            base_delay_days,
+            base_daily_hazard,
+            per_bacteria_delay_days,
+            per_bacteria_hazard_multiplier,
+            age_multipliers,
+            immunodeficient_multiplier,
+            level_reference,
+            level_exponent,
+        }
+    }
+
+    #[inline]
+    pub fn delay_days(&self, bacteria_idx: usize) -> f64 {
+        self.per_bacteria_delay_days[bacteria_idx]
+            .unwrap_or(self.base_delay_days)
+            .max(0.0)
+    }
+
+    #[inline]
+    pub fn hazard(&self, bacteria_idx: usize) -> f64 {
+        (self.base_daily_hazard * self.per_bacteria_hazard_multiplier[bacteria_idx])
+            .clamp(0.0, 1.0)
+    }
+
+    #[inline]
+    pub fn age_multiplier(&self, age_days: i32) -> f64 {
+        let idx = AgeCategoryParameters::age_category_index(age_days).min(self.age_multipliers.len() - 1);
+        self.age_multipliers[idx]
+    }
+
+    #[inline]
+    pub fn immunodeficient_multiplier(&self, is_immunodeficient: bool) -> f64 {
+        if is_immunodeficient {
+            self.immunodeficient_multiplier
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    pub fn level_modifier(&self, level: f64) -> f64 {
+        if self.level_exponent <= 0.0 {
+            return 1.0;
+        }
+
+        let ratio = self.level_reference
+            / (self.level_reference + level.max(0.0) + f64::EPSILON);
+        ratio.powf(self.level_exponent)
+    }
+
+    #[inline]
+    pub fn hazard_for(&self, bacteria_idx: usize, age_days: i32, is_immunodeficient: bool, level: f64) -> f64 {
+        let base = self.hazard(bacteria_idx);
+        if base <= 0.0 {
+            return 0.0;
+        }
+
+        let age_factor = self.age_multiplier(age_days).max(0.0);
+        let immuno_factor = self
+            .immunodeficient_multiplier(is_immunodeficient)
+            .max(0.0);
+        let level_factor = self.level_modifier(level).max(0.0);
+
+        (base * age_factor * immuno_factor * level_factor).clamp(0.0, 1.0)
     }
 }
 
@@ -1802,78 +1820,16 @@ lazy_static! {
             map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1  // proportion of new infections from environment
             map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 // base change in bacteria level per day
             map.insert(format!("{}_max_level", bacteria), 5.0); // max bacteria level (arbitrary standardized scale)
-            map.insert(format!("{}_immunity_effect_on_level_change", bacteria), 0.08); // 0.1  0.005 / 0.05 is strong effect // effect of the immune response on bacteria level
-            map.insert(format!("{}_immunity_base_response", bacteria), 0.03); // 0.01  0.001 // base immune response
-            map.insert(format!("{}_immunity_increase_per_unit_higher_bacteria_level", bacteria), 0.05); // effect of bacteria level on immune response
-            map.insert(format!("{}_immunity_increase_per_infection_day", bacteria), 0.1); // effect of time infected on immune response
-            map.insert(format!("{}_immunity_age_modifier", bacteria), 1.0); // effect of age on immune response
-            map.insert(format!("{}_immunity_immunodeficiency_modifier", bacteria), 0.1); // effect of being immunodeficient on immune response
-            map.insert(format!("{}_max_immune_response", bacteria), 10.0); // Maximum immune response level (arbitrary scale)
 
             // --- Symptom Onset Parameters (Clinical Presentation) ---
             map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.15); // Default: 15% chance per day of developing symptoms
             map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.5); // Minimum bacteria level needed for symptom onset
             map.insert(format!("{}_symptom_onset_delay_days", bacteria), 1.0); // Minimum days infected before symptoms can start
             map.insert(format!("{}_symptom_onset_level_multiplier", bacteria), 1.0); // How much higher bacteria levels increase symptom probability
-
-        // --- Evidence-Based Bacteria-Specific Immune Clearance Effectiveness ---
-        // Based on natural history studies, pre-antibiotic era mortality data, and known biological mechanisms
-        // References provided in comments
-
-        // VERY PERSISTENT BACTERIA (Minimal immune clearance - historical evidence of persistence without treatment)
-        // MDR Mycobacterium tuberculosis: Tiemersma et al. Bull WHO 2011; Daniel TM. Respirology 2006
-        // Pre-chemotherapy: ~70% mortality over 10 years, <5% spontaneous clearance
-        // MDR-TB represents established drug-resistant strains with guaranteed rifampicin resistance
-        map.insert("mdr mycobacterium tuberculosis_immunity_effect_on_level_change".to_string(), 0.01);
-
-        // Helicobacter pylori: Kusters et al. Clin Microbiol Rev 2006; Brown LM. Cancer Epidemiol Biomarkers Prev 2000
-        // Virtually never clears spontaneously - lifetime persistence in >90% of untreated individuals
-        map.insert("helicobacter pylori_immunity_effect_on_level_change".to_string(), 0.02);
-
-        // MODERATELY PERSISTENT BACTERIA
-        // Staphylococcus aureus: Lowy FD. N Engl J Med 1998; Wertheim et al. Lancet Infect Dis 2005
-        // Variable clearance depending on site; biofilm formation reduces immune clearance
-        map.insert("staphylococcus aureus_immunity_effect_on_level_change".to_string(), 0.06);
-
-        // Pseudomonas aeruginosa: Lyczak et al. Microbes Infect 2000; Sadikot et al. Am J Respir Crit Care Med 2005
-        // Biofilm formation and immune evasion; chronic persistence common
-        map.insert("pseudomonas aeruginosa_immunity_effect_on_level_change".to_string(), 0.05);
-
-        // Bordetella pertussis: Mattoo & Cherry. Clin Microbiol Rev 2005; von König et al. Vaccine 2002
-        // "100-day cough" - prolonged carriage and symptoms even with immune response
-        map.insert("bordetella pertussis_immunity_effect_on_level_change".to_string(), 0.04);
-
-        // MODERATELY CLEARABLE BACTERIA
-        // Klebsiella pneumoniae: Podschun & Ullmann. Clin Microbiol Rev 1998
-        // Capsule formation provides some immune evasion but less persistent than biofilm formers
-        map.insert("klebsiella pneumoniae_immunity_effect_on_level_change".to_string(), 0.08);
-
-        // Enterococcus faecium: Murray BE. N Engl J Med 2000; Arias & Murray. Nat Rev Microbiol 2012
-        // Moderate persistence, some immune evasion capabilities
-        map.insert("enterococcus faecium_immunity_effect_on_level_change".to_string(), 0.07);
-
-        // WELL-CLEARABLE BACTERIA (Strong immune response effectiveness)
-        // Escherichia coli: Foxman B. Nat Rev Urol 2010; Hooton TM et al. N Engl J Med 2012
-        // UTI natural history: 25-42% spontaneous resolution within 1 week in healthy women
-        map.insert("escherichia coli_immunity_effect_on_level_change".to_string(), 0.12);
-
-        // Streptococcus pneumoniae: Austrian R. Rev Infect Dis 1981; Musher DM. Clin Microbiol Rev 1992
-        // Pre-antibiotic pneumonia: ~70% survival with recovery typically within 1-2 weeks if survived crisis
-        map.insert("streptococcus pneumoniae_immunity_effect_on_level_change".to_string(), 0.15);
-
-        // Neisseria meningitidis: Stephens et al. N Engl J Med 2007; Caugant & Maiden. FEMS Microbiol Rev 2009
-        // Rapid clearance in healthy individuals; asymptomatic carriage often transient
-        map.insert("neisseria meningitidis_immunity_effect_on_level_change".to_string(), 0.14);
-
-        // Haemophilus influenzae: Turk DC. J Med Microbiol 1984; Murphy et al. Rev Infect Dis 1987
-        // Generally well-cleared by competent immune system; encapsulated strains more persistent
-        map.insert("haemophilus influenzae_immunity_effect_on_level_change".to_string(), 0.13);
-
-        // --- Evidence-Based Bacteria-Specific Treatment Response Effectiveness ---
-        // Multiplies total_reduction_due_to_antibiotic to account for differential treatment response
-        // Based on clinical treatment outcome studies and required treatment durations
-        // NOTE: Treatment response differences are now handled through bacteria-drug specific potency adjustments
-        // rather than universal modifiers, providing more mechanistic accuracy
+            // --- Clearance tuning ---
+            // To specialize hazard-based immune clearance, override keys like
+            // "{bacteria}_clearance_delay_days" or "{bacteria}_clearance_hazard_multiplier"
+            // in template or scenario-specific configurations.
 
             // Age-related bactera-specific infection risk parameters
             map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
@@ -2025,9 +1981,6 @@ lazy_static! {
         map.insert("minimal_potency_threshold_for_drug_selection".to_string(), 0.10); // Minimum potency to consider drug (blocks ineffective drugs)
         map.insert("effective_potency_threshold_for_targeted_therapy".to_string(), 0.10); // Threshold for "good activity" in targeted therapy
         map.insert("effective_potency_threshold_for_empirical_therapy".to_string(), 0.10); // Threshold for "effective activity" in empirical therapy
-
-        // Global Immune System Parameters
-        map.insert("immune_decay_rate_per_day".to_string(), 0.02); // Rate at which immunity decays when not actively fighting infection
 
         // Drug Evaluation Timing Parameters
         map.insert("drug_evaluation_days_post_infection".to_string(), 7.0); // Number of days after infection to evaluate drug initiation

@@ -145,20 +145,21 @@ def print_aligned_csv(filename, max_rows=30):
                 results.append(f"{var_name}: no resolutions this timestep")
             return results
         
-        # For immune_resp, only show values for bacteria the person is infected with
-        if var_name.lower() == "immune_resp" and current_row is not None:
-            # Find the level column to check infection status
+        # For clearance_hazard, only show values for bacteria the person is infected with
+        if var_name.lower() == "clearance_hazard" and current_row is not None:
             try:
-                level_idx = next(i for i, var in enumerate(header) if var.strip().lower() == "level")
+                level_idx = next(
+                    i for i, var in enumerate(header) if var.strip().lower() == "level"
+                )
                 level_cell = current_row[level_idx]
                 if ";" in level_cell:
                     level_parts = level_cell.split(";")
-                    # Only show immune_resp for bacteria with level > 0
+                    # Only show clearance_hazard for bacteria with level > 0
                     for i, value in enumerate(parts):
                         if i < len(bacteria_names) and i < len(level_parts):
                             try:
                                 level_val = float(level_parts[i].strip())
-                                if level_val > 0:  # Only show if infected
+                                if level_val > 0:
                                     value_stripped = value.strip()
                                     bacteria_name = bacteria_names[i]
                                     try:
@@ -167,10 +168,14 @@ def print_aligned_csv(filename, max_rows=30):
                                             formatted_val = f"{val_float:.6f}"
                                         else:
                                             formatted_val = f"{val_float:.3f}"
-                                        results.append(f"{bacteria_name} {var_name}: {formatted_val}")
+                                        results.append(
+                                            f"{bacteria_name} {var_name}: {formatted_val}"
+                                        )
                                     except ValueError:
                                         if value_stripped:
-                                            results.append(f"{bacteria_name} {var_name}: {value_stripped}")
+                                            results.append(
+                                                f"{bacteria_name} {var_name}: {value_stripped}"
+                                            )
                             except ValueError:
                                 continue
                     if not results:

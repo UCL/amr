@@ -232,7 +232,7 @@ impl IndividualLogger {
         };
 
         if !self.header_written {
-            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,immune_resp,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs") {
+            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs") {
                 eprintln!(
                     "Error writing header for {}: {}",
                     self.path.display(),
@@ -327,7 +327,7 @@ impl IndividualLogger {
             row.push(immunodeficiency_status.to_string());
             row.push(format!("{:?}", ind.date_of_death));
             row.push(Self::fmt_vec(&ind.level));
-            row.push(Self::fmt_vec(&ind.immune_resp));
+            row.push(Self::fmt_vec(&ind.clearance_hazard));
             row.push(Self::fmt_vec(&ind.presence_microbiome));
             row.push(Self::fmt_vec(&ind.cur_level_drug));
             row.push(Self::fmt_vec(&ind.cur_use_drug));
@@ -2534,7 +2534,7 @@ impl Simulation {
             // println!("date_of_death: {:?}", individual_0.date_of_death);
             // // Arrays
             // println!("level: {:?}", individual_0.level);
-            // println!("immune_resp: {:?}", individual_0.immune_resp);
+            // println!("clearance_hazard: {:?}", individual_0.clearance_hazard);
             // println!("presence_microbiome: {:?}", individual_0.presence_microbiome);
             // println!("cur_level_drug: {:?}", individual_0.cur_level_drug);
             // println!("cur_use_drug: {:?}", individual_0.cur_use_drug);

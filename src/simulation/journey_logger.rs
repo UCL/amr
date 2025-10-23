@@ -56,7 +56,7 @@ pub struct InfectionJourneySnapshot {
 
     // Clinical status
     pub hospital_status: String,
-    pub immunity_level: f64,
+    pub clearance_hazard: f64,
     pub toxicity_level: f64,
     pub background_mortality_risk: f64,
 
@@ -172,7 +172,7 @@ impl JourneyLogger {
     }
 
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,immunity_level,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
+    "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
     }
 
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -582,7 +582,7 @@ impl JourneyLogger {
             drug_selection_scores,
             selected_drug,
             hospital_status: format!("{:?}", individual.hospital_status),
-            immunity_level: individual.immune_resp[primary_bacteria_idx],
+            clearance_hazard: individual.clearance_hazard[primary_bacteria_idx],
             toxicity_level: individual.current_toxicity,
             background_mortality_risk: individual.background_all_cause_mortality_rate,
             infection_identified: individual.test_identified_infection[primary_bacteria_idx],
@@ -716,7 +716,7 @@ impl JourneyLogger {
             drug_selection_scores_str,
             selected_drug_str,
             snapshot.hospital_status,
-            snapshot.immunity_level,
+            snapshot.clearance_hazard,
             snapshot.toxicity_level,
             snapshot.background_mortality_risk,
             snapshot.infection_identified,

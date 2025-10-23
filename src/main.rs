@@ -16,26 +16,16 @@ mod rules;
 mod simulation;
 
 //
-// checked total number of death with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
+// total number of death with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
 // number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated
 // percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate)
 //
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
-// review output plots and consider any changes in format or additions
-//
-// maybe for each drug for each bacteria only plot those drugs with potency above a certain value
-//
-// proportion currently infected with h pylori / mdr tb
-//
-// calculate total number of sepsis deaths in 2019 (pre covid) scaled up to the world population size to compare with gbd
-// 14.1 million
 //
 // proportion of sepsis deaths by syndrome (and region and age) to compare with gbd
 //
-// get out more graphs on microbiome presence and microbiome_r and check on whether
-// happy with logic
 //
 //
 //
@@ -58,10 +48,6 @@ mod simulation;
 //
 // bring back in mic suseptible based potency measures which are commented out in config.rs - this will
 // require re-scaling of activity_r scales
-//
-// consider realistic / plausible microbiome levels by bacteria
-//
-// grouped figure 4d y-axis - wrong or expressed as percent ?
 //
 // need to better account for how death rate can be high in some infections despite treatment ?
 // (and I think this means despite treatment with a non resistant drug)
@@ -146,7 +132,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 3_000;
+    let population_size = 100_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false; // Set to true to enable infection journey logging

@@ -23,7 +23,7 @@ The level of any antibiotic given is conveyed on a standardized scale of 0-10, w
 
 We account for the fact that testing to identify the bacteria and to identify levels of drug resistance of drugs to the bacteria may take place.  We have variables that indicate whether the bacteria has been identified in a test, narrowing the range of likely antibiotics used, and, separately, whether a test has been done to assess levels of resistance, making choice of a drug to which the bacteria is sensitive more likely. 
 
-We have a variable for the current level of immunity the person carries to each specific bacteria.  If infected with a bacteria the level of immunity grows dependent on bacteria level and days since infection.  We do not have a variable indicating whether the person is currently severely immunosuppressed but we can add this.  If added, this will determine both risk of death if infected and the level of immunity to each bacteria. 
+We track a per-bacteria clearance hazard for each person.  After infection a configurable delay elapses before the hazard switches on, and then a daily hazard determines whether the infection resolves.  The hazard scales with age category, immunodeficiency status, and current infection level, allowing explicit tuning of clearance dynamics without storing immunity levels directly. 
 
 People live in a certain region, but they may visit other regions.  Currently the regions are broadly aligned with continents but there could be flexibility over this.
 
@@ -148,7 +148,7 @@ config = PlotConfig(
 - **Resistance Emergence**: Dynamic resistance development in infections and microbiomes
 - **Drug Pharmacodynamics**: Multi-drug interactions with realistic decay and efficacy
 - **Testing and Diagnosis**: Laboratory delays, identification accuracy, resistance testing
-- **Immunity Development**: Bacteria-specific immunity acquisition and maintenance
+- **Clearance Dynamics**: Bacteria-specific clearance hazards with age and immunodeficiency modifiers
 
 ### Population Dynamics
 - **Demographics**: Age, sex, region with realistic population structures

@@ -2440,6 +2440,7 @@ pub fn apply_rules(
                     individual.level[b_idx] = initial_level;
                     individual.date_last_infected[b_idx] = time_step as i32;
                     individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
+                    individual.clearance_ready_day[b_idx] = -1;
 
                     // --- probabilistic syndrome assignment ---
                     let syndrome_id = assign_syndrome_for_bacteria(bacteria, rng);
@@ -3353,11 +3354,29 @@ pub fn apply_rules(
         // bacteria level change (growth/decay)
         // This entire block should only execute if the individual is currently infected with this bacteria
         if is_infected {
-            let immunity_level = individual.immune_resp[b_idx];
             let baseline_change = store.bacteria.base_level_change(b_idx);
-            let reduction_due_to_immune_resp =
-                store.bacteria.immunity_effect_on_level_change(b_idx);
             let mut total_reduction_due_to_antibiotic = 0.0;
+            let mut immune_hazard = 0.0;
+            let mut immune_clearance_triggered = false;
+
+            let clearance_ready_day = individual.clearance_ready_day[b_idx];
+            if clearance_ready_day != -1 && (time_step as i32) >= clearance_ready_day {
+                immune_hazard = store
+                    .clearance
+                    .hazard_for(
+                        b_idx,
+                        individual.age,
+                        individual.immunodeficiency_type.is_some(),
+                        individual.level[b_idx],
+                    )
+                    .clamp(0.0, 1.0);
+
+                if immune_hazard > 0.0 && rng.gen_bool(immune_hazard) {
+                    immune_clearance_triggered = true;
+                }
+            }
+
+            individual.clearance_hazard[b_idx] = immune_hazard;
 
             // --- Mechanism-specific fitness cost reversion logic ---
             let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
@@ -3525,12 +3544,8 @@ pub fn apply_rules(
                 println!(" ");
                 println!("mod.rs");
                 println!("bacteria: {}", bacteria);
-                println!("immunity level: {:.4}", immunity_level);
+                println!("immune clearance hazard: {:.4}", immune_hazard);
                 println!("baseline change: {:.4}", baseline_change);
-                println!(
-                    "reduction due to immune response: {:.4}",
-                    immunity_level * reduction_due_to_immune_resp
-                );
             }
 
             for (drug_idx, _drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
@@ -3644,9 +3659,7 @@ pub fn apply_rules(
                 );
             }
 
-            let decay = baseline_change
-                - (immunity_level * reduction_due_to_immune_resp)
-                - adjusted_antibiotic_effect;
+            let decay = baseline_change - adjusted_antibiotic_effect;
 
             let max_level = store.bacteria.max_level(b_idx);
             let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
@@ -3654,7 +3667,7 @@ pub fn apply_rules(
             // Check for infection clearance before updating the level
             let old_level = individual.level[b_idx];
 
-            if new_level < 0.0001 {
+            if new_level < 0.0001 || immune_clearance_triggered {
                 // Check if there was an infection before clearance (previous level > 0.001)
                 let was_previously_infected = old_level > 0.001;
 
@@ -3674,7 +3687,9 @@ pub fn apply_rules(
                                 activity_r > 0.0
                             });
 
-                    let resolution_type = if has_active_drugs {
+                    let resolution_type = if immune_clearance_triggered {
+                        InfectionResolutionType::ImmuneClearance
+                    } else if has_active_drugs {
                         InfectionResolutionType::DrugAssistedClearance
                     } else {
                         InfectionResolutionType::ImmuneClearance
@@ -3717,7 +3732,8 @@ pub fn apply_rules(
                 individual.level[b_idx] = 0.0;
                 individual.infectious_syndrome[b_idx] = 0;
                 individual.date_last_infected[b_idx] = 0;
-                individual.immune_resp[b_idx] = 0.0;
+                individual.clearance_hazard[b_idx] = 0.0;
+                individual.clearance_ready_day[b_idx] = -1;
                 individual.sepsis[b_idx] = false;
                 individual.infection_hospital_acquired[b_idx] = false;
                 individual.cur_infection_from_environment[b_idx] = false;
@@ -3741,27 +3757,13 @@ pub fn apply_rules(
         apply_cross_resistance(individual, b_idx, cross_resistance_groups);
         // --- END NEW ---
 
-        // immunity dynamics: increase during infection, decay without infection
+    // Clearance dynamics: arm hazard once infection persists, reset when cleared
         if is_infected {
-            // immunity increase with maximum cap (only when infected)
-            let infection_start_time = individual.date_last_infected[b_idx];
-            let time_since_infection = (time_step as i32) - infection_start_time;
-            let age = individual.age;
-            let mut immune_increase = store.bacteria.immunity_base_response(b_idx);
-            immune_increase += time_since_infection as f64
-                * store.bacteria.immunity_increase_per_infection_day(b_idx);
-            immune_increase +=
-                individual.level[b_idx] * store.bacteria.immunity_increase_per_unit_level(b_idx);
-            let age_modifier = store.bacteria.immunity_age_modifier(b_idx);
-            immune_increase *= age_modifier.powf((age as f64 / 365.0) / 50.0);
-            let immunodeficient_modifier = store.bacteria.immunity_immunodeficiency_modifier(b_idx);
-            if individual.immunodeficiency_type.is_some() {
-                immune_increase *= immunodeficient_modifier;
+            if individual.clearance_ready_day[b_idx] == -1 {
+                let delay_days = store.clearance.delay_days(b_idx) as i32;
+                individual.clearance_ready_day[b_idx] =
+                    individual.date_last_infected[b_idx].saturating_add(delay_days.max(0));
             }
-            let max_immune_response = store.bacteria.max_immune_response(b_idx);
-            individual.immune_resp[b_idx] = (individual.immune_resp[b_idx] + immune_increase)
-                .max(0.0001)
-                .min(max_immune_response);
 
             // --- Symptom onset logic for infected bacteria ---
             if !individual.infection_has_caused_symptoms[b_idx] {
@@ -3789,10 +3791,8 @@ pub fn apply_rules(
                 }
             }
         } else {
-            // immunity decay when not infected
-            let immunity_decay_rate = get_global_param("immune_decay_rate_per_day").unwrap_or(0.02);
-            individual.immune_resp[b_idx] =
-                (individual.immune_resp[b_idx] - immunity_decay_rate).max(0.0);
+            individual.clearance_ready_day[b_idx] = -1;
+            individual.clearance_hazard[b_idx] = 0.0;
         }
     }
 

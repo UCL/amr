@@ -28,6 +28,7 @@ pub struct ParameterStore {
     pub globals: GlobalScalars,
     pub drug: DrugParameters,
     pub bacteria: BacteriaParameters,
+    pub clearance: ClearanceParameters,
     pub drug_bacteria: DrugBacteriaMatrix,
     pub region_bacteria: RegionBacteriaParameters,
     pub age_bacteria: AgeBacteriaParameters,
@@ -83,18 +84,43 @@ pub struct BacteriaParameters {
     pub log_odds_microbiome_present: Vec<f32>,
     pub log_odds_hospital_acquired: Vec<f32>,
     pub microbiome_clearance_probability_per_day: Vec<f32>,
-    pub immunity_effect_on_level_change: Vec<f32>,
+    pub environmental_acquisition_proportion: Vec<f32>,
+    pub microbiome_environmental_acquisition_proportion: Vec<Option<f32>>,
+    pub initial_infection_level: Vec<f32>,
     pub base_bacteria_level_change: Vec<f32>,
     pub max_level: Vec<f32>,
-    pub immunity_base_response: Vec<f32>,
-    pub immunity_increase_per_infection_day: Vec<f32>,
-    pub immunity_increase_per_unit_level: Vec<f32>,
-    pub immunity_age_modifier: Vec<f32>,
-    pub immunity_immunodeficiency_modifier: Vec<f32>,
-    pub max_immune_response: Vec<f32>,
+    pub daily_symptom_onset_probability: Vec<f32>,
+    pub symptom_onset_threshold_level: Vec<f32>,
+    pub symptom_onset_delay_days: Vec<f32>,
+    pub symptom_onset_level_multiplier: Vec<f32>,
+    pub microbiome_vs_infection_log_odds: Vec<f32>,
+    pub drug_cessation_probability: Vec<f32>,
+    pub treatment_recognition_year: Vec<Option<f32>>,
+    pub sepsis_baseline_log_odds: Vec<f32>,
+    pub sepsis_log_odds_infection_level: Vec<f32>,
+    pub sepsis_log_odds_infection_duration: Vec<f32>,
     // … add other bacteria-only fields as they’re identified …
 }
 ```
+
+### Clearance parameters
+
+The immunity accumulator is gone; infection resolution now uses a dedicated clearance store:
+
+```rust
+pub struct ClearanceParameters {
+    pub base_delay_days: f32,
+    pub base_daily_hazard: f32,
+    pub per_bacteria_delay_days: Vec<Option<f32>>,
+    pub per_bacteria_hazard_multiplier: Vec<f32>,
+    pub age_multipliers: [f32; NUM_AGE_CATEGORIES],
+    pub immunodeficient_multiplier: f32,
+    pub level_reference: f32,
+    pub level_exponent: f32,
+}
+```
+
+Convenience methods (e.g., `hazard_for`) combine age, immunodeficiency, and current bacteria level into a single probability used inside the rules engine.
 
 ### Drug × bacteria matrices
 
