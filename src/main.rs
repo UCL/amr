@@ -33,18 +33,7 @@ mod simulation;
 // -- model structure developments to consider ------------------------------------------------------------
 //
 //
-// should we have possibility of syndrome progressing to bloodstream (with much higher sepsis risk ?)
-//
 // consider whether infection from the environment should also depend on concurrent majority_r
-//
-// introduce a new mechanism of death which is "non sepsis but caused by infection"
-// (for h pylori and mdr tb for example, which currently don't increase death risk)
-//
-// bring back in mic suseptible based potency measures which are commented out in config.rs - this will
-// require re-scaling of activity_r scales
-//
-// need to better account for how death rate can be high in some infections despite treatment ?
-// (and I think this means despite treatment with a non resistant drug)
 //
 // make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
 //
@@ -126,7 +115,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =     3_000;
+    let population_size =     100_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false; // Set to true to enable infection journey logging

@@ -1,11 +1,3 @@
-/*
-
-
-*/
-
-// note "empiric based potency when no r" values are in commented out section at bottom
-//
-//
 // Centralized configuration and parameter management for the AMR simulation.
 //
 // Contains:
@@ -936,7 +928,7 @@ impl ImmunodeficiencyParameters {
             0.01,
         );
         let chronic_onset_rate_per_day =
-            get_or_default(map, "chronic_immunosuppression_onset_rate_per_day", 0.0001);
+            get_or_default(map, "chronic_immunosuppression_onset_rate_per_day", 0.00005);
         let chronic_recovery_rate_per_day = get_or_default(
             map,
             "chronic_immunosuppression_recovery_rate_per_day",
@@ -2123,13 +2115,15 @@ lazy_static! {
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
-        // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
-        // Instead of uniform potency, use clinically relevant potency categories:
+    // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
+    // Instead of uniform potency, use clinically relevant potency categories:
         // 1.00+ = Excellent potency (first-line therapy)
         // 0.50-0.99 = Good potency (reliable option)
         // 0.25-0.49 = Moderate potency (situational use)
         // 0.05-0.24 = Poor potency (usually ineffective)
         // 0.05 = Very poor/no activity
+
+    // Potency values stay on this qualitative scale rather than raw 1/MIC inputs.
 
         // Define drug classes for easier management
         // Polymyxins (currently only Colistin)
