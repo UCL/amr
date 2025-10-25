@@ -2653,8 +2653,32 @@ pub fn apply_rules(
 
                             // Only assign environmental resistance if a selecting drug has been introduced
                             if any_selecting_drug_introduced {
-                                resistance_data.majority_r = env_majority_r_level;
-                                resistance_data.any_r = env_majority_r_level;
+                                let sampling_hospital_status = if is_hospital_acquired {
+                                    true
+                                } else {
+                                    hospital_status_bool
+                                };
+
+                                let majority_r_values_from_population = majority_r_cache.bucket(
+                                    region_idx,
+                                    sampling_hospital_status,
+                                    b_idx,
+                                    d_idx,
+                                );
+
+                                if let Some(&acquired_resistance_level) =
+                                    majority_r_values_from_population.choose(rng)
+                                {
+                                    let clamped_level = acquired_resistance_level
+                                        .min(max_resistance_level)
+                                        .max(0.0);
+                                    resistance_data.any_r = clamped_level;
+                                    resistance_data.majority_r = clamped_level;
+                                } else {
+                                    resistance_data.any_r = env_majority_r_level;
+                                    resistance_data.majority_r = env_majority_r_level;
+                                }
+
                                 // Inline mechanism assignment
                                 use crate::simulation::population::ResistanceMechanism;
                                 let mechanism_prob =
@@ -2671,7 +2695,9 @@ pub fn apply_rules(
                                         }
                                     }
                                 }
-                                individual.how_resistance_acquired[b_idx][d_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv);
+                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv,
+                                );
                             } else {
                                 resistance_data.majority_r = 0.0;
                                 resistance_data.any_r = 0.0;

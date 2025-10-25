@@ -34,12 +34,10 @@ mod simulation;
 //
 //
 // consider whether infection from the environment should also depend on concurrent majority_r
+// yes this as default - but have excpetions that are directly determined as now
+// - stis cannot come from environment - same for mdr tb and pertussis 
 //
-// make sure risk of c diff with use of many antibiotics is accounted for, including its risk of recurrence
-//
-// think if model able to capture why prior use of broad-spectrum antibiotics (especially cephalosporins, vancomycin,
-// carbapenems) strongly select for VREfm (enterococcus faecium resistance)
-//
+// dalbavancin
 //
 //
 //
@@ -116,7 +114,7 @@ fn main() {
 
     // Create and run the simulation
     let population_size =     100_000;
-    let time_steps = 38_325;
+    let time_steps = 100 ;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.001; // Log 1% of infections for analysis (0.0-1.0)

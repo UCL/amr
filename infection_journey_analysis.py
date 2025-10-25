@@ -271,6 +271,7 @@ class InfectionJourneyAnalyzer:
         if drug_data['has_drugs']:
             # Plot drug levels with vertical offset to prevent overlapping lines
             drug_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # More distinct colors: blue, orange, green, red, purple
+            max_activity_value = 0.0  # Track true activity_r to scale axis sensibly
             
             # Collect all drug data first to detect overlaps
             drug_plot_data = []
@@ -326,6 +327,7 @@ class InfectionJourneyAnalyzer:
                     
                     # Apply very small y-axis offset to activity values, but ensure they don't go negative
                     original_activity_r = activity_r[mask]
+                    max_activity_value = max(max_activity_value, float(original_activity_r.max()))
                     
                     # Since Rust now only logs activity_r when both drug AND bacteria present,
                     # we can show all logged activity_r data (including zeros due to complete resistance)
@@ -354,7 +356,8 @@ class InfectionJourneyAnalyzer:
             ax3.set_title('drug and activity levels', fontsize=18)
             ax3.set_xticks(range(int(days.min()), int(days.max()) + 1))
             ax3.set_ylim(bottom=0)  # Ensure drug level y-axis starts at 0
-            ax3_twin.set_ylim(0, 10)  # Standardized activity_r scale: base_potency(~1.0) × drug_level(max 10) × (1-resistance)
+            activity_upper = 5.0 if max_activity_value <= 5.0 else max_activity_value * 1.1
+            ax3_twin.set_ylim(0, activity_upper)  # Default to 0-5 unless observed activity exceeds threshold
             ax3.grid(True, alpha=0.3)
             
             # Combine legends and place at top right
