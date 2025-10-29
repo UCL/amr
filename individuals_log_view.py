@@ -293,7 +293,7 @@ def print_aligned_csv(filename, max_rows=30):
     individual_id = selected_row[2] if len(selected_row) > 2 else None
 
     # Print only rows for this individual id
-    DRUG_SHORT_NAMES = [
+    DRUG_SHORT_NAMES = [  # TODO: add dalbavancin-specific formatting once config parameters are finalized
         "sulfanilamide", "penicilling", "ampicillin", "amoxicillin",
         "piperacillin", "ticarcillin", "cephalexin", "cefazolin",
         "cefuroxime", "ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "meropenem", "imipenem_c",
@@ -303,7 +303,7 @@ def print_aligned_csv(filename, max_rows=30):
         "linezolid", "tedizolid", "quinu_dalfo", "trim_sulf", "chlorampheni", "nitrofurantoin",
         "retapamulin", "fusidic_a", "metronidazole", "furazolidone",
         "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", "ticarcillin_clavulanate",
-        "ceftazidime_avibactam", "meropenem_vaborbactam", "colistin"
+        "ceftazidime_avibactam", "meropenem_vaborbactam", "colistin", "dalbavancin"
     ]
     resistance_vars = ["any_r", "activity_r", "majority_r", "test_r", "microbiome_r"]
     for row in data_rows:

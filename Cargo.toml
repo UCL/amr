@@ -20,4 +20,5 @@ rayon = "1.7"
 lazy_static = "1.4"
 chrono = "0.4" 
 plotters = { version = "0.3", optional = true, default-features = false }
+csv = "1.3"
 

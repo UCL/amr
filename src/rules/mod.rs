@@ -114,11 +114,8 @@ fn assess_treatment_failure(
     let bacteria_name = BACTERIA_LIST[bacteria_idx];
     let syndrome_id = individual.infectious_syndrome[bacteria_idx];
     let base_assessment_day = store.globals.treatment_failure_assessment_day;
-    let assessment_day = treatment_failure_assessment_day_for(
-        bacteria_name,
-        syndrome_id,
-        base_assessment_day,
-    );
+    let assessment_day =
+        treatment_failure_assessment_day_for(bacteria_name, syndrome_id, base_assessment_day);
 
     // Check if we've reached the assessment window for this organism/syndrome
     if individual.days_on_current_treatment[bacteria_idx] < assessment_day {
@@ -1910,10 +1907,8 @@ pub fn apply_rules(
         let mut infection_non_sepsis_prob_not_dying = 1.0;
         let mut has_infection_non_sepsis_risk = false;
 
-        let non_sepsis_level_threshold =
-            store.globals.infection_non_sepsis_minimum_bacteria_level;
-        let non_sepsis_level_coefficient =
-            store.globals.infection_non_sepsis_log_odds_per_level;
+        let non_sepsis_level_threshold = store.globals.infection_non_sepsis_minimum_bacteria_level;
+        let non_sepsis_level_coefficient = store.globals.infection_non_sepsis_log_odds_per_level;
 
         for (b_idx, level) in individual.level.iter().enumerate() {
             if *level <= non_sepsis_level_threshold {
@@ -1933,9 +1928,7 @@ pub fn apply_rules(
                 .infection_non_sepsis_mortality_log_odds(b_idx);
 
             let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
-            log_odds += store
-                .syndrome
-                .non_sepsis_mortality_log_odds(syndrome_id);
+            log_odds += store.syndrome.non_sepsis_mortality_log_odds(syndrome_id);
 
             log_odds += non_sepsis_level_coefficient * level;
 
@@ -2299,6 +2292,14 @@ pub fn apply_rules(
                                 let clamped_level =
                                     acquired_resistance_level.min(max_resistance_level).max(0.0);
                                 resistance_data.microbiome_r = clamped_level;
+                            } else if let Some(fallback_level) = majority_r_cache.fallback_mean(
+                                region_idx,
+                                sampling_hospital_status,
+                                b_idx,
+                                d_idx,
+                            ) {
+                                resistance_data.microbiome_r =
+                                    fallback_level.min(max_resistance_level).max(0.0);
                             } else {
                                 resistance_data.microbiome_r = 0.0;
                             }
@@ -2559,34 +2560,12 @@ pub fn apply_rules(
 
                     // --- any_r and majority_r setting logic on new infection acquisition ---
                     let max_resistance_level = store.globals.max_resistance_level;
-                    let mut env_majority_r_level = store
-                        .globals
-                        .environmental_majority_r_level_for_new_acquisition;
 
                     // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
                     let is_tb = bacteria == "mdr mycobacterium tuberculosis";
 
                     // Time-dependent MDR TB incidence (historically accurate)
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
-                    let mdr_tb_incidence_multiplier = if is_tb {
-                        if simulation_year < 1944.0 {
-                            // Pre-antibiotic era: virtually no MDR TB possible
-                            store.globals.mdr_tb_pre_antibiotic_era_multiplier
-                        } else if simulation_year < 1966.0 {
-                            // Early antibiotic era (streptomycin monotherapy): low MDR rates
-                            store.globals.mdr_tb_early_antibiotic_era_multiplier
-                        } else {
-                            // Modern era (rifampicin available): full MDR TB rates
-                            store.globals.mdr_tb_modern_era_multiplier
-                        }
-                    } else {
-                        1.0 // No modification for other bacteria
-                    };
-
-                    if is_tb {
-                        env_majority_r_level = (env_majority_r_level * mdr_tb_incidence_multiplier)
-                            .min(max_resistance_level);
-                    }
 
                     let guaranteed_rifampicin_resistance = if is_tb && simulation_year >= 1966.0 {
                         // Only apply guaranteed rifampicin resistance after rifampicin is available
@@ -2666,17 +2645,25 @@ pub fn apply_rules(
                                     d_idx,
                                 );
 
-                                if let Some(&acquired_resistance_level) =
-                                    majority_r_values_from_population.choose(rng)
-                                {
-                                    let clamped_level = acquired_resistance_level
-                                        .min(max_resistance_level)
-                                        .max(0.0);
+                                let assigned_level = majority_r_values_from_population
+                                    .choose(rng)
+                                    .copied()
+                                    .or_else(|| {
+                                        majority_r_cache.fallback_mean(
+                                            region_idx,
+                                            sampling_hospital_status,
+                                            b_idx,
+                                            d_idx,
+                                        )
+                                    });
+
+                                if let Some(level) = assigned_level {
+                                    let clamped_level = level.min(max_resistance_level).max(0.0);
                                     resistance_data.any_r = clamped_level;
                                     resistance_data.majority_r = clamped_level;
                                 } else {
-                                    resistance_data.any_r = env_majority_r_level;
-                                    resistance_data.majority_r = env_majority_r_level;
+                                    resistance_data.any_r = 0.0;
+                                    resistance_data.majority_r = 0.0;
                                 }
 
                                 // Inline mechanism assignment
@@ -2718,11 +2705,19 @@ pub fn apply_rules(
                                 b_idx,
                                 d_idx,
                             );
-                            if let Some(&acquired_resistance_level) =
-                                majority_r_values_from_population.choose(rng)
-                            {
-                                let clamped_level =
-                                    acquired_resistance_level.min(max_resistance_level).max(0.0);
+                            let assigned_level = majority_r_values_from_population
+                                .choose(rng)
+                                .copied()
+                                .or_else(|| {
+                                    majority_r_cache.fallback_mean(
+                                        region_idx,
+                                        sampling_hospital_status,
+                                        b_idx,
+                                        d_idx,
+                                    )
+                                });
+                            if let Some(level) = assigned_level {
+                                let clamped_level = level.min(max_resistance_level).max(0.0);
                                 resistance_data.any_r = clamped_level;
                                 resistance_data.majority_r = clamped_level;
                                 // Inline mechanism assignment
@@ -3824,14 +3819,14 @@ pub fn apply_rules(
                         InfectionResolutionType::ImmuneClearance
                     };
 
-                        let resolution_idx = match resolution_type {
-                            InfectionResolutionType::ImmuneClearance => 0,
-                            InfectionResolutionType::DrugAssistedClearance => 1,
-                            InfectionResolutionType::DeathFromSepsis => 2,
-                            InfectionResolutionType::DeathFromInfectionNonSepsis => 3,
-                            InfectionResolutionType::DeathFromBackground => 4,
-                            InfectionResolutionType::DeathFromToxicity => 5,
-                        };
+                    let resolution_idx = match resolution_type {
+                        InfectionResolutionType::ImmuneClearance => 0,
+                        InfectionResolutionType::DrugAssistedClearance => 1,
+                        InfectionResolutionType::DeathFromSepsis => 2,
+                        InfectionResolutionType::DeathFromInfectionNonSepsis => 3,
+                        InfectionResolutionType::DeathFromBackground => 4,
+                        InfectionResolutionType::DeathFromToxicity => 5,
+                    };
                     individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
 
                     // If infection was cleared by drugs and bacteria is present in microbiome,
@@ -3887,7 +3882,7 @@ pub fn apply_rules(
         apply_cross_resistance(individual, b_idx, cross_resistance_groups);
         // --- END NEW ---
 
-    // Clearance dynamics: arm hazard once infection persists, reset when cleared
+        // Clearance dynamics: arm hazard once infection persists, reset when cleared
         if is_infected {
             if individual.clearance_ready_day[b_idx] == -1 {
                 let delay_days = store.clearance.delay_days(b_idx) as i32;

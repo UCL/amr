@@ -77,21 +77,37 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
 #[derive(Clone)]
 pub struct MajorityRCache {
     buckets: Vec<Vec<f64>>,
+    running_mean: Vec<f64>,
+    has_running_mean: Vec<bool>,
+    step_sum: Vec<f64>,
+    step_count: Vec<u32>,
     num_regions: usize,
     num_bacteria: usize,
     num_drugs: usize,
     total_samples: usize,
+    active_memory: usize,
+    retention: f64,
+    alpha: f64,
 }
 
 impl MajorityRCache {
-    pub fn new(num_regions: usize, num_bacteria: usize, num_drugs: usize) -> Self {
+    pub fn new(num_regions: usize, num_bacteria: usize, num_drugs: usize, retention: f64) -> Self {
         let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
+        let retention = retention.clamp(0.0, 0.9999);
+        let alpha = 1.0 - retention;
         MajorityRCache {
             buckets: vec![Vec::new(); total_buckets],
+            running_mean: vec![0.0; total_buckets],
+            has_running_mean: vec![false; total_buckets],
+            step_sum: vec![0.0; total_buckets],
+            step_count: vec![0; total_buckets],
             num_regions,
             num_bacteria,
             num_drugs,
             total_samples: 0,
+            active_memory: 0,
+            retention,
+            alpha,
         }
     }
 
@@ -126,6 +142,11 @@ impl MajorityRCache {
     }
 
     #[inline]
+    fn total_buckets(&self) -> usize {
+        self.buckets.len()
+    }
+
+    #[inline]
     pub fn bucket(
         &self,
         region_idx: usize,
@@ -135,6 +156,22 @@ impl MajorityRCache {
     ) -> &[f64] {
         let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
         &self.buckets[idx]
+    }
+
+    #[inline]
+    pub fn fallback_mean(
+        &self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        drug_idx: usize,
+    ) -> Option<f64> {
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        if self.has_running_mean[idx] {
+            Some(self.running_mean[idx])
+        } else {
+            None
+        }
     }
 
     #[inline]
@@ -161,18 +198,63 @@ impl MajorityRCache {
         self.bucket_mut(region_idx, hospital, bacteria_idx, drug_idx)
             .push(value);
         self.total_samples += 1;
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        self.step_sum[idx] += value;
+        self.step_count[idx] += 1;
     }
 
-    pub fn clear_all(&mut self) {
+    pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
+        debug_assert_eq!(self.total_buckets(), prev.total_buckets());
+        self.total_samples = 0;
+        self.active_memory = prev.active_memory;
+        self.running_mean.copy_from_slice(&prev.running_mean);
+        self.has_running_mean
+            .copy_from_slice(&prev.has_running_mean);
         for bucket in &mut self.buckets {
             bucket.clear();
         }
-        self.total_samples = 0;
+        for sum in &mut self.step_sum {
+            *sum = 0.0;
+        }
+        for count in &mut self.step_count {
+            *count = 0;
+        }
+    }
+
+    pub fn finalize_step(&mut self) {
+        const MEMORY_FLOOR: f64 = 1.0e-6;
+        let mut active_memory = 0usize;
+        for idx in 0..self.total_buckets() {
+            if self.step_count[idx] > 0 {
+                let avg = self.step_sum[idx] / self.step_count[idx] as f64;
+                if self.has_running_mean[idx] {
+                    self.running_mean[idx] =
+                        self.retention * self.running_mean[idx] + self.alpha * avg;
+                } else {
+                    self.running_mean[idx] = avg;
+                    self.has_running_mean[idx] = true;
+                }
+            } else if self.has_running_mean[idx] {
+                self.running_mean[idx] *= self.retention;
+                if self.running_mean[idx].abs() < MEMORY_FLOOR {
+                    self.running_mean[idx] = 0.0;
+                    self.has_running_mean[idx] = false;
+                }
+            }
+
+            if self.has_running_mean[idx] {
+                active_memory += 1;
+            }
+
+            self.step_sum[idx] = 0.0;
+            self.step_count[idx] = 0;
+        }
+        self.active_memory = active_memory;
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.total_samples == 0
+        self.total_samples == 0 && self.active_memory == 0
     }
 }
 struct IndividualLogger {
@@ -389,11 +471,11 @@ pub struct TimeStepSummary {
     pub time_step: usize,
     pub total_population: usize,
     pub total_deaths: usize,
-    pub deaths_background: usize,    // Deaths from background mortality
-    pub deaths_sepsis: usize,        // Deaths from sepsis
+    pub deaths_background: usize, // Deaths from background mortality
+    pub deaths_sepsis: usize,     // Deaths from sepsis
     pub deaths_infection_non_sepsis: usize, // Deaths from infection without sepsis
     pub deaths_drug_toxicity: usize, // Deaths from drug toxicity
-    pub deaths_past_year: usize,     // all-cause     // Rolling 1-year (365 days) death counts
+    pub deaths_past_year: usize,  // all-cause     // Rolling 1-year (365 days) death counts
     pub deaths_background_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_infection_non_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
@@ -661,6 +743,10 @@ impl Simulation {
         }
 
         let individual_logger = IndividualLogger::from_flag(log_individuals);
+        let memory_retention = config::parameter_store()
+            .globals
+            .majority_r_memory_retention_per_day
+            .clamp(0.0, 0.9999);
 
         Simulation {
             // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
@@ -674,11 +760,13 @@ impl Simulation {
                 num_regions_including_home,
                 num_bacteria,
                 num_drugs,
+                memory_retention,
             ),
             majority_r_cache_next: MajorityRCache::new(
                 num_regions_including_home,
                 num_bacteria,
                 num_drugs,
+                memory_retention,
             ),
             summary_log: Vec::new(), // Initialize empty log
             param_cache: crate::rules::ParameterKeyCache::new(),
@@ -753,7 +841,8 @@ impl Simulation {
             // Thread-local aggregation will replace most atomics; keep only minimal atomics if needed (none for now).
 
             // Use previous time step's resistance data for new acquisitions
-            self.majority_r_cache_next.clear_all();
+            self.majority_r_cache_next
+                .prepare_for_new_step(&self.majority_r_cache_prev);
             let previous_majority_r_cache_addr =
                 (&self.majority_r_cache_prev as *const MajorityRCache) as usize;
 
@@ -1496,7 +1585,13 @@ impl Simulation {
                                         }
                                         lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
                                         let potency = self.potency_matrix[base + d_idx];
-                                        let mic = 1.0 / ((1.0 - resistance_data.majority_r) * potency);
+                                        let mic = if potency <= 1e-9 {
+                                            1e12
+                                        } else {
+                                            let susceptible_fraction =
+                                                (1.0 - resistance_data.majority_r).clamp(1e-6, 1.0);
+                                            1.0 / (susceptible_fraction * potency)
+                                        };
                                         lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
                                         if resistance_data.any_r > 0.0 {
                                             lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
@@ -2012,22 +2107,19 @@ impl Simulation {
                 infection_resolution_iter
                     .next()
                     .unwrap_or_else(|| vec![0usize; num_bacteria]);
-            let infection_resolution_death_from_sepsis_by_bacteria =
-                infection_resolution_iter
-                    .next()
-                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_sepsis_by_bacteria = infection_resolution_iter
+                .next()
+                .unwrap_or_else(|| vec![0usize; num_bacteria]);
             let infection_resolution_death_from_infection_non_sepsis_by_bacteria =
                 infection_resolution_iter
                     .next()
                     .unwrap_or_else(|| vec![0usize; num_bacteria]);
-            let infection_resolution_death_from_background_by_bacteria =
-                infection_resolution_iter
-                    .next()
-                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
-            let infection_resolution_death_from_toxicity_by_bacteria =
-                infection_resolution_iter
-                    .next()
-                    .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_background_by_bacteria = infection_resolution_iter
+                .next()
+                .unwrap_or_else(|| vec![0usize; num_bacteria]);
+            let infection_resolution_death_from_toxicity_by_bacteria = infection_resolution_iter
+                .next()
+                .unwrap_or_else(|| vec![0usize; num_bacteria]);
 
             // Destructure to move out (avoid cloning large vectors)
             let LocalTotals {
@@ -2150,6 +2242,7 @@ impl Simulation {
                 &mut self.majority_r_cache_prev,
                 &mut self.majority_r_cache_next,
             );
+            self.majority_r_cache_prev.finalize_step();
 
             // let rules_time = rules_start.elapsed();
             // if t % 10 == 0 { // Log every 10th timestep
@@ -2721,7 +2814,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-    header.push_str("time_step,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -3228,6 +3321,18 @@ impl Simulation {
             }
         }
 
+        // Add syndrome deaths from infection (non-sepsis) by region columns to header
+        for syndrome_id in 1..=10 {
+            // syndromes 1-10
+            for region_name in &region_names {
+                header.push(',');
+                header.push_str(&format!(
+                    "syndrome_{}_deaths_infection_non_sepsis_{}",
+                    syndrome_id, region_name
+                ));
+            }
+        }
+
         // Add regional drug usage columns to header (region x drug)
         for region_name in &region_names {
             for drug in DRUG_SHORT_NAMES.iter() {
@@ -3593,8 +3698,8 @@ impl Simulation {
             for region_idx in 0..6 {
                 // 6 regions
                 for death_type_idx in 0..NUM_DEATH_CAUSES {
-                    let death_count = summary.deaths_by_region
-                        [region_idx * NUM_DEATH_CAUSES + death_type_idx];
+                    let death_count =
+                        summary.deaths_by_region[region_idx * NUM_DEATH_CAUSES + death_type_idx];
                     row.push(',');
                     row.push_str(&death_count.to_string());
                 }
@@ -3606,10 +3711,10 @@ impl Simulation {
                 for age_group_idx in 0..5 {
                     // 5 age groups
                     for death_type_idx in 0..NUM_DEATH_CAUSES {
-                        let death_count = summary.deaths_by_region_age
-                            [region_idx * (5 * NUM_DEATH_CAUSES)
-                                + age_group_idx * NUM_DEATH_CAUSES
-                                + death_type_idx];
+                        let death_count = summary.deaths_by_region_age[region_idx
+                            * (5 * NUM_DEATH_CAUSES)
+                            + age_group_idx * NUM_DEATH_CAUSES
+                            + death_type_idx];
                         row.push(',');
                         row.push_str(&death_count.to_string());
                     }
@@ -3635,6 +3740,18 @@ impl Simulation {
                     // 6 regions
                     let death_count =
                         summary.syndrome_deaths_sepsis_by_region[syndrome_idx * 6 + region_idx];
+                    row.push(',');
+                    row.push_str(&death_count.to_string());
+                }
+            }
+
+            // Add syndrome deaths from infection (non-sepsis) by region data
+            for syndrome_idx in 0..10 {
+                // syndromes 1-10 -> indices 0-9
+                for region_idx in 0..6 {
+                    // 6 regions
+                    let death_count = summary.syndrome_deaths_infection_non_sepsis_by_region
+                        [syndrome_idx * 6 + region_idx];
                     row.push(',');
                     row.push_str(&death_count.to_string());
                 }

@@ -16,15 +16,28 @@ mod rules;
 mod simulation;
 
 //
-// total number of death with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
+// total number of deaths with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
 // number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated
 // percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate)
+// amr_x_measure: for each bacteria, the proportion of infections for which x or fewer drugs are "fully active"
+// estimates of prevalence of any resistance on scale 0-1 for all drug-bacteria combination with non-negligible potency
+//
+// aiming for 5% severely immunosuppressed
+// aiming for 0.3% hospitalized
+//
+// get the above outputs for a single recent year (depends on data) as a high level summary output
+//
+//
+// try to get estimate of prevalence of each bacteria in microbiome (need this to be by age, region and hospital status)
+// try to get estimate of prevalence of resistance in microbiome bacteria by region and hospital status
+// try to get estimate of proportion infected with each bacteria in past year
+//
+//
+//
 //
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
-//
-// proportion of sepsis deaths by syndrome (and region and age) to compare with gbd
 //
 //
 //
@@ -32,12 +45,11 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
+// think about number infected by region and hospital and hence what to do when 0 or low number infected
+// so can't calculate population majority_r (probably best to go back over past e.g. 100 time steps)
 //
-// consider whether infection from the environment should also depend on concurrent majority_r
-// yes this as default - but have excpetions that are directly determined as now
-// - stis cannot come from environment - same for mdr tb and pertussis 
-//
-// dalbavancin
+// consider having incidence of infection rising in situations if they occur in future in which infections
+// cannot be treated
 //
 //
 //
@@ -113,8 +125,8 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =     100_000;
-    let time_steps = 100 ;
+    let population_size = 1_000;
+    let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.001; // Log 1% of infections for analysis (0.0-1.0)
@@ -181,7 +193,6 @@ fn main() {
     // (See previous git history for the full code.)
 
     // END OF ADDITIONAL FINAL PRINTOUTS */
-
     // Log the simulation run details
     if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
         eprintln!("Error logging simulation run: {}", e);

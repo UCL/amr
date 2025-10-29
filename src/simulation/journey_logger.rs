@@ -175,7 +175,7 @@ impl JourneyLogger {
     }
 
     fn get_csv_header() -> &'static str {
-    "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
+        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
     }
 
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -353,7 +353,8 @@ impl JourneyLogger {
             if primary_bacteria_level <= 0.001 {
                 if journey.primary_bacteria_cleared_day.is_none() {
                     // First time we detected clearance - record the day
-                    journey.primary_bacteria_cleared_day = Some(journey.day_count.saturating_add(1));
+                    journey.primary_bacteria_cleared_day =
+                        Some(journey.day_count.saturating_add(1));
                 }
 
                 // Check if 7 days have passed since clearance
@@ -621,9 +622,7 @@ impl JourneyLogger {
             if let Some(ref cause) = individual.cause_of_death {
                 match cause.as_str() {
                     "sepsis_related" => "DeathFromSepsis".to_string(),
-                    "infection_non_sepsis_related" => {
-                        "DeathFromInfectionNonSepsis".to_string()
-                    }
+                    "infection_non_sepsis_related" => "DeathFromInfectionNonSepsis".to_string(),
                     "drug_toxicity_related" => "DeathFromToxicity".to_string(),
                     _ => "DeathFromBackground".to_string(),
                 }
@@ -647,7 +646,9 @@ impl JourneyLogger {
         if failure_day >= 0 {
             let failure_day_opt = Some(failure_day);
 
-            if journey.initial_failure_day == failure_day_opt && journey.treatment_failures_count == 0 {
+            if journey.initial_failure_day == failure_day_opt
+                && journey.treatment_failures_count == 0
+            {
                 // Ignore historical failure recorded before journey started
                 journey.last_recorded_failure_day = failure_day_opt;
                 return;

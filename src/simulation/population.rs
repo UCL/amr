@@ -251,6 +251,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "minocycline",
     "vancomycin",
     "teicoplanin",
+    "dalbavancin",
     "linezolid",
     "tedizolid",
     "quinu_dalfo",
@@ -612,7 +613,7 @@ impl Population {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
             // Set severely immunosuppressed
-            if rng.gen_bool(0.10) {
+            if rng.gen_bool(0.05) {
                 // Randomly assign chronic or temporary (simplified for initial setup)
                 if rng.gen_bool(0.5) {
                     individual.immunodeficiency_type = Some(ImmunodeficiencyType::Chronic);

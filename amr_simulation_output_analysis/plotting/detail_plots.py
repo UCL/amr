@@ -2831,13 +2831,13 @@ def create_age_distribution_by_region_plots(df: pd.DataFrame, config: PlotConfig
 @safe_plot_creation
 def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     """
-    Create death rate plots by syndrome for each region.
-    
+    Create direct infection death rate plots by syndrome for each region.
+
     Creates one plot per region showing death rates for all 10 syndromes.
-    Death rate = syndrome sepsis deaths / syndrome population
+    Death rate = (syndrome sepsis deaths + infection non-sepsis deaths) / syndrome population
     Files: {region}_death_rate_by_syndrome.png
     """
-    logger.info("Creating death rate by syndrome and region plots")
+    logger.info("Creating direct infection death rate by syndrome and region plots")
     
     # Create output directory
     output_dir = Path(config.output_dir) / 'death_rate_by_syndrome_region'
@@ -2877,21 +2877,36 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
     for region_idx, (region, region_display) in enumerate(zip(region_names, region_display_names)):
         for syndrome_id in range(1, 11):  # syndromes 1-10
             pop_col = f"syndrome_{syndrome_id}_population_{region}"
-            death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
-            
-            if pop_col in df.columns and death_col in df.columns:
-                population = df[pop_col]
-                deaths = df[death_col]
-                
-                # Ensure numeric types
-                population = pd.to_numeric(population, errors='coerce')
-                deaths = pd.to_numeric(deaths, errors='coerce')
-                
-                # Calculate death rate where population > 0
-                mask = population > 0
-                if mask.any():
-                    death_rates = deaths[mask] / population[mask]
-                    all_death_rates.extend(death_rates.dropna().values)
+            sepsis_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
+            infection_col = f"syndrome_{syndrome_id}_deaths_infection_non_sepsis_{region}"
+
+            if pop_col not in df.columns:
+                continue
+
+            has_sepsis = sepsis_col in df.columns
+            has_infection = infection_col in df.columns
+            if not has_sepsis and not has_infection:
+                continue
+
+            population = pd.to_numeric(df[pop_col], errors='coerce')
+            deaths_total = pd.Series(0.0, index=df.index)
+
+            if has_sepsis:
+                deaths_total = deaths_total.add(
+                    pd.to_numeric(df[sepsis_col], errors='coerce'),
+                    fill_value=0.0,
+                )
+
+            if has_infection:
+                deaths_total = deaths_total.add(
+                    pd.to_numeric(df[infection_col], errors='coerce'),
+                    fill_value=0.0,
+                )
+
+            mask = population > 0
+            if mask.any():
+                death_rates = deaths_total[mask] / population[mask]
+                all_death_rates.extend(death_rates.dropna().values)
     
     # Determine reasonable fixed Y-axis scale that shows meaningful variation
     # but allows occasional outliers to exceed the scale
@@ -2920,43 +2935,61 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
         # Plot the lines
         for syndrome_id in range(1, 11):  # syndromes 1-10
             pop_col = f"syndrome_{syndrome_id}_population_{region}"
-            death_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
-            
-            if pop_col not in df.columns or death_col not in df.columns:
+            sepsis_col = f"syndrome_{syndrome_id}_deaths_sepsis_{region}"
+            infection_col = f"syndrome_{syndrome_id}_deaths_infection_non_sepsis_{region}"
+
+            if pop_col not in df.columns:
                 continue
-            
-            population = df[pop_col]
-            deaths = df[death_col]
-            
-            # Ensure numeric types
-            population = pd.to_numeric(population, errors='coerce')
-            deaths = pd.to_numeric(deaths, errors='coerce')
-            
-            # Calculate death rate (skip where population = 0)
-            death_rate = pd.Series(index=df.index, dtype=float)
+
+            has_sepsis = sepsis_col in df.columns
+            has_infection = infection_col in df.columns
+            if not has_sepsis and not has_infection:
+                continue
+
+            population = pd.to_numeric(df[pop_col], errors='coerce')
+            deaths_total = pd.Series(0.0, index=df.index, dtype=float)
+
+            if has_sepsis:
+                deaths_total = deaths_total.add(
+                    pd.to_numeric(df[sepsis_col], errors='coerce'),
+                    fill_value=0.0,
+                )
+
+            if has_infection:
+                deaths_total = deaths_total.add(
+                    pd.to_numeric(df[infection_col], errors='coerce'),
+                    fill_value=0.0,
+                )
+
+            death_rate = pd.Series(np.nan, index=df.index, dtype=float)
             mask = population > 0
-            death_rate[mask] = deaths[mask] / population[mask]
-            death_rate[~mask] = float('nan')  # Missing data points where population = 0
-            
-            # Apply smoothing if there are enough data points
+            if mask.any():
+                death_rate.loc[mask] = deaths_total[mask] / population[mask]
+
             if len(death_rate.dropna()) > config.smoothing_window_days:
-                death_rate_smooth = death_rate.rolling(window=config.smoothing_window_days, center=True).mean()
+                death_rate_smooth = death_rate.rolling(
+                    window=config.smoothing_window_days, center=True
+                ).mean()
             else:
                 death_rate_smooth = death_rate
-            
-            # Plot the line
+
             syndrome_name = syndrome_names.get(syndrome_id, f'Syndrome {syndrome_id}')
             color = syndrome_colors[(syndrome_id - 1) % len(syndrome_colors)]
-            ax.plot(df['time_in_years'], death_rate_smooth, 
-                   label=syndrome_name, color=color, linewidth=2)
-            
+            ax.plot(
+                df['time_in_years'],
+                death_rate_smooth,
+                label=syndrome_name,
+                color=color,
+                linewidth=2,
+            )
+
             found_data = True
         
         if found_data:
             # Format the plot
             ax.set_xlabel('Time (Years)')
-            ax.set_ylabel('Death Rate (Sepsis Deaths / Syndrome Population)')
-            ax.set_title(f'Death Rate by Syndrome - {region_display}')
+            ax.set_ylabel('Death Rate (Direct Infection Deaths / Syndrome Population)')
+            ax.set_title(f'Direct Infection Death Rate by Syndrome - {region_display}')
             
             ax.legend(loc='best')
             ax.grid(True, alpha=0.3)
@@ -2979,10 +3012,16 @@ def create_death_rate_by_syndrome_region_plots(df: pd.DataFrame, config: PlotCon
             logger.warning(f"No syndrome data found for {region_display}")
     
     if plots_created == 0:
-        logger.warning("No syndrome death rate plots created - missing required data columns")
-        logger.warning("Expected columns like: syndrome_1_population_north_america and syndrome_1_deaths_sepsis_north_america")
+            logger.warning("No syndrome death rate plots created - missing required data columns")
+            logger.warning(
+                "Expected columns like: syndrome_1_population_north_america, "
+                "syndrome_1_deaths_sepsis_north_america, and "
+                "syndrome_1_deaths_infection_non_sepsis_north_america"
+            )
     else:
-        logger.info(f"✓ Created {plots_created} syndrome death rate by region plots")
+            logger.info(
+                f"✓ Created {plots_created} direct infection death rate by region plots"
+            )
 
 
 @safe_plot_creation

@@ -6,11 +6,29 @@
 //   - Age-specific vaccination, HGT, and other model parameters
 //   - Reference for template and override logic
 //
+// ===================== TABLE OF CONTENTS =====================
+//   1) Core indices & constants ..................................... ~20
+//   2) Parameter store & struct definitions .......................... ~60
+//   3) Global scalar defaults & helpers .............................. ~200
+//   4) Immunodeficiency / region / syndrome / sex parameters ......... ~430
+//   5) Vaccination & age category tables ............................. ~700
+//   6) Drug parameter blocks (initiation, failure, restart) .......... ~860
+//   7) Bacteria-level parameters & microbiome logic .................. ~1200
+//   8) Clearance, acquisition, and age tables ........................ ~1500
+//   9) Drug-bacteria potency & cross-resistance mappings ............. ~2030
+//  10) Regional drug availability & introduction timing .............. ~4230
+//  11) Demographic distribution defaults ............................. ~4380
+//  12) Helper lookups (drug intro, availability, etc.) ............... ~4960
+//  13) HGT matrices & resistance mechanism settings .................. ~5100
+// ===============================================================
 
 // src/config.rs
 use crate::simulation::population::{Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES};
+use csv::{ReaderBuilder, Trim};
 use lazy_static::lazy_static;
 use std::collections::HashMap; // Import both lists and helper enums
+use std::fs::File;
+use std::path::PathBuf;
 
 lazy_static! {
     pub static ref BACTERIA_INDEX: HashMap<&'static str, usize> = {
@@ -222,6 +240,7 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
+    pub majority_r_memory_retention_per_day: f64,
 }
 
 impl GlobalScalars {
@@ -275,28 +294,28 @@ impl GlobalScalars {
             hospital_baseline_rate_per_day: get_or_default(
                 map,
                 "hospitalization_baseline_rate_per_day",
-                0.0005,
+                0.00006,
             ),
             hospital_age_multiplier_per_day: get_or_default(
                 map,
                 "hospitalization_age_multiplier_per_day",
-                0.0,
+                0.0000005,
             ),
             hospital_recovery_rate_per_day: get_or_default(
                 map,
                 "hospitalization_recovery_rate_per_day",
-                0.1,
+                0.25,
             ),
             hospital_max_days: get_or_default(map, "hospitalization_max_days", 30.0),
             hospital_sepsis_admission_multiplier: get_or_default(
                 map,
                 "hospitalization_sepsis_admission_multiplier",
-                10.0,
+                80.0,
             ),
             hospital_prevent_discharge_with_sepsis: get_or_default(
                 map,
                 "hospitalization_prevent_discharge_with_sepsis",
-                1.0,
+                0.0,
             ),
             travel_probability_per_day: get_or_default(map, "travel_probability_per_day", 0.0005),
             antibiotic_infection_prevention_efficacy: get_or_default(
@@ -637,6 +656,11 @@ impl GlobalScalars {
                 "carrier_resistance_inheritance_probability",
                 0.85,
             ),
+            majority_r_memory_retention_per_day: get_or_default(
+                map,
+                "majority_r_memory_retention_per_day",
+                0.98,
+            ),
         }
     }
 }
@@ -877,7 +901,10 @@ impl SyndromeParameters {
             );
             non_sepsis_mortality_log_odds[syndrome_id] = get_or_default(
                 map,
-                &format!("syndrome_{}_non_sepsis_infection_death_log_odds", syndrome_id),
+                &format!(
+                    "syndrome_{}_non_sepsis_infection_death_log_odds",
+                    syndrome_id
+                ),
                 0.0,
             );
         }
@@ -907,8 +934,7 @@ impl SyndromeParameters {
 
     #[inline]
     pub fn non_sepsis_mortality_log_odds(&self, syndrome_id: usize) -> f64 {
-        self
-            .non_sepsis_mortality_log_odds
+        self.non_sepsis_mortality_log_odds
             .get(syndrome_id)
             .copied()
             .unwrap_or(0.0)
@@ -920,7 +946,7 @@ impl ImmunodeficiencyParameters {
         let temporary_onset_rate_per_day = get_or_default(
             map,
             "temporary_immunosuppression_onset_rate_per_day",
-            0.0002,
+            0.00005,
         );
         let temporary_recovery_rate_per_day = get_or_default(
             map,
@@ -928,11 +954,11 @@ impl ImmunodeficiencyParameters {
             0.01,
         );
         let chronic_onset_rate_per_day =
-            get_or_default(map, "chronic_immunosuppression_onset_rate_per_day", 0.00005);
+            get_or_default(map, "chronic_immunosuppression_onset_rate_per_day", 0.00006);
         let chronic_recovery_rate_per_day = get_or_default(
             map,
             "chronic_immunosuppression_recovery_rate_per_day",
-            0.0005,
+            0.0012,
         );
 
         let chronic_probability_age_bands = [
@@ -1115,7 +1141,7 @@ impl BacteriaParameters {
         let mut sepsis_baseline_log_odds = Vec::with_capacity(num_bacteria);
         let mut sepsis_log_odds_infection_level = Vec::with_capacity(num_bacteria);
         let mut sepsis_log_odds_infection_duration = Vec::with_capacity(num_bacteria);
-    let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
+        let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
 
         for &bacteria in BACTERIA_LIST.iter() {
             let prefix = bacteria;
@@ -1367,7 +1393,8 @@ impl ClearanceParameters {
         let mut per_bacteria_hazard_multiplier = Vec::with_capacity(num_bacteria);
         for &bacteria in BACTERIA_LIST.iter() {
             per_bacteria_delay_days.push(
-                map.get(&format!("{}_clearance_delay_days", bacteria)).copied(),
+                map.get(&format!("{}_clearance_delay_days", bacteria))
+                    .copied(),
             );
             per_bacteria_hazard_multiplier.push(get_or_default(
                 map,
@@ -1402,13 +1429,13 @@ impl ClearanceParameters {
 
     #[inline]
     pub fn hazard(&self, bacteria_idx: usize) -> f64 {
-        (self.base_daily_hazard * self.per_bacteria_hazard_multiplier[bacteria_idx])
-            .clamp(0.0, 1.0)
+        (self.base_daily_hazard * self.per_bacteria_hazard_multiplier[bacteria_idx]).clamp(0.0, 1.0)
     }
 
     #[inline]
     pub fn age_multiplier(&self, age_days: i32) -> f64 {
-        let idx = AgeCategoryParameters::age_category_index(age_days).min(self.age_multipliers.len() - 1);
+        let idx =
+            AgeCategoryParameters::age_category_index(age_days).min(self.age_multipliers.len() - 1);
         self.age_multipliers[idx]
     }
 
@@ -1427,22 +1454,25 @@ impl ClearanceParameters {
             return 1.0;
         }
 
-        let ratio = self.level_reference
-            / (self.level_reference + level.max(0.0) + f64::EPSILON);
+        let ratio = self.level_reference / (self.level_reference + level.max(0.0) + f64::EPSILON);
         ratio.powf(self.level_exponent)
     }
 
     #[inline]
-    pub fn hazard_for(&self, bacteria_idx: usize, age_days: i32, is_immunodeficient: bool, level: f64) -> f64 {
+    pub fn hazard_for(
+        &self,
+        bacteria_idx: usize,
+        age_days: i32,
+        is_immunodeficient: bool,
+        level: f64,
+    ) -> f64 {
         let base = self.hazard(bacteria_idx);
         if base <= 0.0 {
             return 0.0;
         }
 
         let age_factor = self.age_multiplier(age_days).max(0.0);
-        let immuno_factor = self
-            .immunodeficient_multiplier(is_immunodeficient)
-            .max(0.0);
+        let immuno_factor = self.immunodeficient_multiplier(is_immunodeficient).max(0.0);
         let level_factor = self.level_modifier(level).max(0.0);
 
         (base * age_factor * immuno_factor * level_factor).clamp(0.0, 1.0)
@@ -1471,7 +1501,7 @@ impl DrugBacteriaMatrix {
             for &drug in DRUG_SHORT_NAMES.iter() {
                 let key_prefix = format!("drug_{}_for_bacteria_{}", drug, bacteria);
                 let potency =
-                    get_or_default(map, &format!("{}_potency_when_no_r", key_prefix), 0.1);
+                    get_or_default(map, &format!("{}_potency_when_no_r", key_prefix), 0.1).max(0.0);
                 potency_when_no_r.push(potency);
                 initiation_multiplier.push(get_or_default(
                     map,
@@ -1483,7 +1513,7 @@ impl DrugBacteriaMatrix {
                     &format!("{}_resistance_emergence_rate_per_day_baseline", key_prefix),
                     0.003,
                 ));
-                let threshold = 1.0 - 0.5 / potency;
+                let threshold = 2.0 * potency.min(1.0) - 1.0;
                 mic_lt2_threshold.push(threshold);
             }
         }
@@ -1882,6 +1912,204 @@ fn get_required(map: &HashMap<String, f64>, key: &str) -> f64 {
         .unwrap_or_else(|| panic!("Missing {} in config", key))
 }
 
+fn normalize_label(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut prev_space = false;
+    for ch in input.trim().to_lowercase().chars() {
+        match ch {
+            'a'..='z' | '0'..='9' | '.' => {
+                result.push(ch);
+                prev_space = false;
+            }
+            '_' => {
+                if !prev_space {
+                    result.push(' ');
+                    prev_space = true;
+                }
+            }
+            '-' | '/' => {
+                if !prev_space {
+                    result.push(' ');
+                    prev_space = true;
+                }
+            }
+            ch if ch.is_whitespace() => {
+                if !prev_space {
+                    result.push(' ');
+                    prev_space = true;
+                }
+            }
+            _ => {
+                // Ignore other punctuation
+            }
+        }
+    }
+    result.trim().to_string()
+}
+
+fn normalize_drug_label(input: &str) -> String {
+    input.trim().to_lowercase().replace([' ', '-'], "_")
+}
+
+fn build_bacteria_lookup() -> HashMap<String, &'static str> {
+    let mut lookup = HashMap::new();
+    for &name in BACTERIA_LIST.iter() {
+        let normalized = normalize_label(name);
+        lookup.insert(normalized.clone(), name);
+        lookup.insert(normalized.replace(' ', "_"), name);
+    }
+    lookup
+}
+
+fn build_drug_lookup() -> HashMap<String, &'static str> {
+    let mut lookup = HashMap::new();
+    for &drug in DRUG_SHORT_NAMES.iter() {
+        let normalized = normalize_drug_label(drug);
+        lookup.insert(normalized.clone(), drug);
+        lookup.insert(normalized.replace('_', " "), drug);
+    }
+    lookup
+}
+
+fn find_potency_csv_path() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from("potency_values.csv"),
+        PathBuf::from("data").join("potency_values.csv"),
+    ];
+
+    for candidate in candidates.iter() {
+        if candidate.exists() {
+            return Some(candidate.clone());
+        }
+    }
+
+    None
+}
+
+fn apply_potency_overrides_from_csv(map: &mut HashMap<String, f64>) {
+    let Some(path) = find_potency_csv_path() else {
+        println!("potency_values.csv not found; using built-in potency defaults");
+        return;
+    };
+
+    let file = match File::open(&path) {
+        Ok(file) => file,
+        Err(err) => {
+            eprintln!("Failed to open potency CSV at {}: {}", path.display(), err);
+            return;
+        }
+    };
+
+    let mut reader = ReaderBuilder::new()
+        .has_headers(true)
+        .trim(Trim::All)
+        .from_reader(file);
+
+    let headers = match reader.headers() {
+        Ok(record) => record.clone(),
+        Err(err) => {
+            eprintln!("Failed to read potency CSV headers: {}", err);
+            return;
+        }
+    };
+
+    let bacteria_lookup = build_bacteria_lookup();
+    let drug_lookup = build_drug_lookup();
+
+    let mut column_drugs: Vec<Option<&'static str>> =
+        Vec::with_capacity(headers.len().saturating_sub(1));
+    for header in headers.iter().skip(1) {
+        let normalized = normalize_drug_label(header);
+        if let Some(&drug) = drug_lookup.get(&normalized) {
+            column_drugs.push(Some(drug));
+        } else {
+            eprintln!("Unknown drug column '{}' in potency CSV; skipping", header);
+            column_drugs.push(None);
+        }
+    }
+
+    let mut override_count = 0usize;
+
+    for result in reader.records() {
+        let record = match result {
+            Ok(record) => record,
+            Err(err) => {
+                eprintln!("Failed to read potency CSV row: {}", err);
+                continue;
+            }
+        };
+
+        if record.is_empty() {
+            continue;
+        }
+
+        let raw_bacteria = record.get(0).unwrap_or("").trim();
+        if raw_bacteria.is_empty() {
+            continue;
+        }
+
+        let normalized_bacteria = normalize_label(raw_bacteria);
+        let Some(&canonical_bacteria) = bacteria_lookup
+            .get(&normalized_bacteria)
+            .or_else(|| bacteria_lookup.get(&normalized_bacteria.replace(' ', "_")))
+        else {
+            eprintln!(
+                "Unknown bacteria '{}' in potency CSV; skipping row",
+                raw_bacteria
+            );
+            continue;
+        };
+
+        for (idx, maybe_drug) in column_drugs.iter().enumerate() {
+            let Some(drug) = maybe_drug else {
+                continue;
+            };
+
+            let value_str = record.get(idx + 1).unwrap_or("").trim();
+            if value_str.is_empty() {
+                continue;
+            }
+
+            match value_str.parse::<f64>() {
+                Ok(mut potency) => {
+                    if !potency.is_finite() {
+                        eprintln!(
+                            "Non-finite potency for {} / {}; skipping",
+                            drug, raw_bacteria
+                        );
+                        continue;
+                    }
+
+                    if potency < 0.0 {
+                        potency = 0.0;
+                    } else if potency > 1.0 {
+                        potency = 1.0;
+                    }
+
+                    let key = format!(
+                        "drug_{}_for_bacteria_{}_potency_when_no_r",
+                        drug, canonical_bacteria
+                    );
+                    map.insert(key, potency);
+                    override_count += 1;
+                }
+                Err(_) => {
+                    eprintln!(
+                        "Invalid potency '{}' for {} / {}; skipping",
+                        value_str, drug, raw_bacteria
+                    );
+                }
+            }
+        }
+    }
+
+    println!(
+        "Applied {} potency overrides from {}",
+        override_count,
+        path.display()
+    );
+}
+
 // --- Global Simulation Parameters ---
 lazy_static! {
     pub static ref PARAMETERS: HashMap<String, f64> = {
@@ -2149,7 +2377,7 @@ lazy_static! {
         let aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
         let fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
         let tetracyclines = vec!["tetracycline", "doxyclycline", "minocycline"];
-        let glycopeptides = vec!["vancomycin", "teicoplanin"];
+    let glycopeptides = vec!["vancomycin", "teicoplanin"]; // TODO: add dalbavancin potency overrides once parameters are curated
         let oxazolidinones = vec!["linezolid", "tedizolid"];
         let _folate_antagonists = vec!["trim_sulf"];
         let _other_antibiotics = vec!["quinu_dalfo", "chlorampheni", "nitrofurantoin", "retapamulin", "fusidic_a", "metronidazole", "furazolidone"];
@@ -2774,47 +3002,6 @@ lazy_static! {
         map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
         map.insert("drug_levofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 0.8);
 
-        // --- BACTERIA-SPECIFIC TREATMENT RESPONSE ADJUSTMENTS ---
-        // Apply clinical treatment response modifiers to existing drug potencies
-        // Replaces the previous universal treatment_response_modifier system with drug-specific adjustments
-        // Based on clinical outcome studies, biofilm formation, intracellular persistence, etc.
-
-        // Define treatment response multipliers (formerly treatment_response_modifier values)
-        let treatment_response_multipliers: HashMap<&str, f64> = [
-            // POOR TREATMENT RESPONSE (Slow clearance even with appropriate antibiotics)
-            ("helicobacter pylori", 0.4),       // Triple therapy failure, biofilm formation
-            ("pseudomonas aeruginosa", 0.6),    // Biofilm formation, efflux pumps
-            ("staphylococcus aureus", 0.7),     // Biofilm infections, intracellular persistence
-            ("acinetobacter baumannii", 0.6),   // MDR common, biofilm formation
-            ("bordetella pertussis", 0.5),      // Limited effect if started after catarrhal stage
-
-            // MODERATE TREATMENT RESPONSE
-            ("enterococcus faecium", 0.8),      // VRE strains challenging
-            ("klebsiella pneumoniae", 0.8),     // Carbapenem resistance, capsule protection
-            ("enterococcus faecalis", 0.9),     // More susceptible than E. faecium
-
-            // GOOD TREATMENT RESPONSE (Rapid clearance with appropriate antibiotics)
-            ("streptococcus pneumoniae", 1.3),  // Rapid response to appropriate therapy
-            ("escherichia coli", 1.2),          // UTI clears rapidly with appropriate antibiotics
-            ("haemophilus influenzae", 1.2),    // Generally responds well
-            ("streptococcus pyogenes", 1.3),    // Rapid response, uniformly penicillin susceptible
-            ("neisseria meningitidis", 1.2),    // Rapid response to appropriate antibiotics
-            ("streptococcus agalactiae", 1.2),  // Good response to penicillin/ampicillin
-        ].iter().cloned().collect();
-
-        // Apply treatment response multipliers to all drug-bacteria combinations
-        for (&bacteria, &multiplier) in treatment_response_multipliers.iter() {
-            if BACTERIA_LIST.contains(&bacteria) {
-                for &drug in DRUG_SHORT_NAMES.iter() {
-                    let potency_key = format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria);
-                    if let Some(&current_potency) = map.get(&potency_key) {
-                        let adjusted_potency = current_potency * multiplier;
-                        map.insert(potency_key, adjusted_potency);
-                    }
-                }
-            }
-        }
-
         // --- CLINICALLY APPROPRIATE DRUG-BACTERIA INITIATION MULTIPLIER OVERRIDES ---
         // Based on analysis of drug usage patterns, boost initiation probability for clinically appropriate combinations
         // Higher values = more likely to be selected as first-line therapy
@@ -3340,59 +3527,77 @@ lazy_static! {
         map.insert("south_america_treponema_pallidum_acquisition_log_odds".to_string(), 1.0);
         map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), 0.2);
 
-        // Bacteria-specific microbiome vs infection acquisition log odds
-        // These values shift from infection baseline (-13.25) to carriage probabilities
-        // Target log-odds for final carriage probability: -1.0 = ~27%, 0.0 = ~50%, +1.0 = ~73%
+    // Bacteria-specific microbiome vs infection acquisition log odds
+    // Values chosen so average carriage prevalence aligns with clinical carriage estimates
+    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 8.25); // ~80% gut carriage
+    map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 6.45); // ~40% gut carriage
+    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 4.65); // ~10% gut carriage
+    map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 5.46); // ~20% gut carriage
+    map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 6.00); // ~30% nasal carriage
+    map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 4.41); // ~8% carriage
+    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 4.15); // ~6% carriage
+    map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% carriage
+    map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% carriage
+    map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); // ~3% carriage
+    map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); // ~3% carriage
+    map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 5.75); // ~25% carriage (weighted across ages)
+    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 5.12); // ~15% respiratory carriage
+    map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 4.86); // ~12% respiratory carriage
+    map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 4.65); // ~10% transient carriage
+    map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 5.12); // ~15% GI/genital carriage
+    map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage in high-risk settings
+    map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% community carriage
+    map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% colonization
+    map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), 1.55); // ~0.5% chronic carriage
+    map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), 1.05); // ~0.3% carriage
+    map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage
+    map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% carriage
+    map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage during outbreaks
+    map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage
+    map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% carriage
+    map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% transient carriage
+    map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), 1.05); // ~0.3% asymptomatic mucosal carriage
+    map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% prevalent infection at any time
+    map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 0.0); // ~0.1% persistent carriage equivalent
+    map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 4.86); // ~12% nasopharyngeal carriage
+    map.insert("helicobacter_pylori_log_odds_microbiome_vs_infection".to_string(), 6.65); // ~45% gastric colonization
+    map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), 5.75); // ~25% latent infection pool
 
-        // High carriage bacteria (common gut/skin commensals) - need ~+12 to +14 to reach realistic carriage rates
-        map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 14.0); // 60-80% gut carriage → final ~+0.75 log-odds
-        map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 13.5); // 40-60% gut carriage → final ~+0.25 log-odds
-        map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 13.0); // 30-50% gut carriage → final ~-0.25 log-odds
-        map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 12.5); // 20-40% gut carriage → final ~-0.75 log-odds
-        map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 12.3); // 20-30% nasal carriage → final ~-1.0 log-odds
-
-        // Moderate carriage bacteria (opportunistic commensals) - need ~+11 to +12 for 10-20% carriage
-        map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 11.8); // 10-20% carriage
-        map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 11.5); // 10-15% carriage
-        map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 11.2); // 8-12% carriage
-        map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 11.0); // 5-10% carriage
-        map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 10.5); // 3-8% carriage
-        map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 10.0); // 2-5% carriage
-
-        // Respiratory tract commensals (episodic carriage) - need ~+11 to +13 for realistic nasopharyngeal carriage
-        map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 12.5); // 20-40% carriage (esp. children)
-        map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 12.0); // 15-30% respiratory carriage
-        map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 11.5); // 10-20% upper respiratory
-        map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 10.5); // 5-15% transient throat carriage
-        map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 11.0); // 10-30% GI/genital carriage
-
-        // Healthcare-associated, low community carriage - need ~+9 to +11 for <5% carriage
-        map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 9.5); // 1-3% mainly hospital
-        map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 9.0); // <2% low carriage
-        map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 10.5); // 3-5% spore-forming gut
-
-        // Foodborne/environmental, minimal carriage - need ~+8 to +10 for <2% carriage
-        map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), 8.0); // <1% chronic carriage
-        map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), 7.5); // <0.5% minimal
-        map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), 9.0); // 1-2% gut carriage
-        map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), 8.5); // <1% minimal carriage
-        map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 7.0); // <0.1% almost none
-        map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 8.0); // <1% minimal human
-        map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 8.5); // <1% low carriage
-        map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 7.5); // <0.5% rare
-
-        // Sexually transmitted, no meaningful carriage - keep negative (below infection baseline)
-        map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), 6.0); // ~0.01% essentially none
-        map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 6.5); // ~0.01% intracellular
-        map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 5.0); // <0.001% no carriage
-
-        // Other specialized pathogens
-        map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 10.5); // 5-10% nasopharyngeal
-
-        // MDR-TB: Latent infection rather than true carriage (different biology)
-        // TB "carriage" is actually latent infection (LTBI), ~25% global prevalence
-        // For this model, we'll use moderate carriage to represent LTBI risk
-        map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), 11.5); // 10-20% representing LTBI pool
+    // Bacteria-specific microbiome clearance probabilities (per day)
+    map.insert("escherichia coli_microbiome_clearance_probability_per_day".to_string(), 0.02);
+    map.insert("enterococcus faecalis_microbiome_clearance_probability_per_day".to_string(), 0.025);
+    map.insert("enterococcus faecium_microbiome_clearance_probability_per_day".to_string(), 0.06);
+    map.insert("klebsiella pneumoniae_microbiome_clearance_probability_per_day".to_string(), 0.06);
+    map.insert("staphylococcus aureus_microbiome_clearance_probability_per_day".to_string(), 0.04);
+    map.insert("enterobacter spp._microbiome_clearance_probability_per_day".to_string(), 0.07);
+    map.insert("enterobacter_cloacae_microbiome_clearance_probability_per_day".to_string(), 0.08);
+    map.insert("citrobacter spp._microbiome_clearance_probability_per_day".to_string(), 0.08);
+    map.insert("proteus spp._microbiome_clearance_probability_per_day".to_string(), 0.08);
+    map.insert("serratia spp._microbiome_clearance_probability_per_day".to_string(), 0.1);
+    map.insert("morganella spp._microbiome_clearance_probability_per_day".to_string(), 0.1);
+    map.insert("streptococcus pneumoniae_microbiome_clearance_probability_per_day".to_string(), 0.05);
+    map.insert("haemophilus influenzae_microbiome_clearance_probability_per_day".to_string(), 0.06);
+    map.insert("moraxella_catarrhalis_microbiome_clearance_probability_per_day".to_string(), 0.07);
+    map.insert("streptococcus pyogenes_microbiome_clearance_probability_per_day".to_string(), 0.08);
+    map.insert("streptococcus agalactiae_microbiome_clearance_probability_per_day".to_string(), 0.06);
+    map.insert("acinetobacter baumannii_microbiome_clearance_probability_per_day".to_string(), 0.1);
+    map.insert("pseudomonas aeruginosa_microbiome_clearance_probability_per_day".to_string(), 0.12);
+    map.insert("clostridioides_difficile_microbiome_clearance_probability_per_day".to_string(), 0.05);
+    map.insert("salmonella enterica serovar typhi_microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("salmonella enterica serovar paratyphi a_microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("invasive non-typhoidal salmonella spp._microbiome_clearance_probability_per_day".to_string(), 0.12);
+    map.insert("shigella spp._microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("vibrio cholerae_microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("campylobacter_jejuni_microbiome_clearance_probability_per_day".to_string(), 0.12);
+    map.insert("yersinia_enterocolitica_microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("listeria_monocytogenes_microbiome_clearance_probability_per_day".to_string(), 0.1);
+    map.insert("neisseria_gonorrhoeae_microbiome_clearance_probability_per_day".to_string(), 0.2);
+    map.insert("chlamydia trachomatis_microbiome_clearance_probability_per_day".to_string(), 0.2);
+    map.insert("treponema pallidum_microbiome_clearance_probability_per_day".to_string(), 0.25);
+    map.insert("neisseria_meningitidis_microbiome_clearance_probability_per_day".to_string(), 0.07);
+    map.insert("helicobacter pylori_microbiome_clearance_probability_per_day".to_string(), 0.02);
+    map.insert("mdr mycobacterium tuberculosis_microbiome_clearance_probability_per_day".to_string(), 0.04);
+    map.insert("bordetella pertussis_microbiome_clearance_probability_per_day".to_string(), 0.2);
 
         // Microbiome acquisition now uses infection acquisition parameters plus bacteria-specific offset
         // Fallback parameter for backward compatibility (should rarely be used if bacteria-specific params set)
@@ -3486,13 +3691,13 @@ lazy_static! {
         map.insert("syndrome_7_initiation_multiplier".to_string(), 8.0);  // Gastrointestinal syndrome
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)
 
-        // Hospitalization Parameters
-        map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.0000005); // 0.0000001  Baseline daily probability of hospitalization
-        map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000005); // 0.0000001  Increase in daily hospitalization probability per year of age
-        map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.2); // 0.2  Daily probability of recovering from hospitalization
-        map.insert("hospitalization_max_days".to_string(), 30.0); // 30.0  Max days in hospital before forced discharge (as fallback)
-        map.insert("hospitalization_sepsis_admission_multiplier".to_string(), 1000.0); // Strong predictor: sepsis patients very likely to be hospitalized
-        map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 1.0); // 1.0 = true, 0.0 = false: prevent discharge of patients with active sepsis
+    // Hospitalization Parameters
+    map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00006); // Baseline daily probability tuned for ~0.3% prevalence
+    map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000005); // Incremental daily hospitalization probability per year of age
+    map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.25); // Daily probability of recovering from hospitalization (~4 day avg stay)
+    map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
+    map.insert("hospitalization_sepsis_admission_multiplier".to_string(), 80.0); // Sepsis substantially increases admission odds
+    map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 0.0); // 1.0 = block discharge with sepsis, 0.0 = allow discharge
 
         // Testing Framework Parameters
         // Base testing rates (modern era baseline)
@@ -3774,12 +3979,12 @@ lazy_static! {
 
         //  Immunosuppression Onset and Recovery Rates
         // Temporary immunodeficiency (e.g., chemotherapy, short-term steroids)
-        map.insert("temporary_immunosuppression_onset_rate_per_day".to_string(), 0.0002);   // Slightly lower onset rate for temporary
+        map.insert("temporary_immunosuppression_onset_rate_per_day".to_string(), 0.00005);  // Calibrated onset for ~5% prevalence
         map.insert("temporary_immunosuppression_recovery_rate_per_day".to_string(), 0.01);   // Faster recovery (10x faster)
 
         // Chronic immunodeficiency (e.g., HIV, genetic disorders, organ transplant)
-        map.insert("chronic_immunosuppression_onset_rate_per_day".to_string(), 0.0001);     // Lower onset rate for chronic
-        map.insert("chronic_immunosuppression_recovery_rate_per_day".to_string(), 0.0005);  // Much slower recovery (10x slower)
+        map.insert("chronic_immunosuppression_onset_rate_per_day".to_string(), 0.00006);     // Lower onset rate for chronic
+        map.insert("chronic_immunosuppression_recovery_rate_per_day".to_string(), 0.0012);   // Faster chronic recovery to offset prevalence
 
         // Age effect on immunodeficiency type assignment (probability of chronic vs temporary at onset)
         map.insert("chronic_immunodeficiency_probability_age_0_1".to_string(), 0.3);   // Infants: higher chance of genetic/congenital
@@ -3896,6 +4101,10 @@ lazy_static! {
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
         map.insert("carrier_resistance_inheritance_probability".to_string(), 0.85);
+        map.insert(
+            "majority_r_memory_retention_per_day".to_string(),
+            0.98,
+        );
         // 85% probability that carrier's infection inherits microbiome resistance profile
         // Default 0.85 represents high but not absolute endogenous infection rate (some infections still exogenous)
         // This parameter has MASSIVE impact on population resistance dynamics - most important in the model
@@ -4262,6 +4471,7 @@ lazy_static! {
                 // Newer, expensive drugs may have limited availability
                 "tedizolid" | "ceftaroline" => 0.3,
                 "teicoplanin" => 0.7, // More available in Asia than tedizolid
+                // TODO: set dalbavancin availability for Asia once launch data added
                 _ => 1.0, // Most other drugs widely available
             };
             map.insert(format!("asia_drug_{}_availability", drug), availability);
@@ -4271,18 +4481,20 @@ lazy_static! {
         for &drug in DRUG_SHORT_NAMES.iter() {
             let availability = match drug {
                 "tedizolid" | "ceftaroline" => 0.5, // Somewhat limited
+                // TODO: set dalbavancin availability for Oceania when introduced
                 _ => 1.0,
             };
             map.insert(format!("oceania_drug_{}_availability", drug), availability);
         }
 
         // South America - Variable access, newer/expensive drugs limited
-        for &drug in DRUG_SHORT_NAMES.iter() {
+    for &drug in DRUG_SHORT_NAMES.iter() {
             let availability = match drug {
                 // Very limited access to newest drugs
-                "tedizolid" | "ceftaroline" => 0.1,
+        "tedizolid" | "ceftaroline" => 0.1,
                 "teicoplanin" => 0.3,
                 "linezolid" => 0.5,
+        // TODO: configure dalbavancin availability for South America
                 // Limited access to some carbapenems
                 "ertapenem" => 0.6,
                 "meropenem" | "imipenem_c" => 0.7,
@@ -4324,6 +4536,7 @@ lazy_static! {
                 "ertapenem" => 0.1,
                 "linezolid" => 0.1,
                 "tedizolid" | "ceftaroline" | "teicoplanin" => 0.0,
+                // TODO: define dalbavancin availability for Africa once rollout planned
                 "aztreonam" => 0.1,
                 "cefepime" => 0.3,
                 "moxifloxacin" => 0.2,
@@ -4486,7 +4699,9 @@ lazy_static! {
         map.insert("demo_oceania_age_24000_28000".to_string(), 0.001);
         map.insert("demo_oceania_age_28000_32000".to_string(), 0.001);
 
-        map
+    apply_potency_overrides_from_csv(&mut map);
+
+    map
     };
 
     // --- String Parameters (for template names, etc.) ---
@@ -5003,6 +5218,8 @@ lazy_static! {
         // Polymyxins
         map.insert("colistin", 8020);        // 1952 (22 years after 1930) - clinical introduction
 
+        map.insert("dalbavancin", 30660);   // 2014 (84 years after 1930)
+
         map
     };
 }
@@ -5147,775 +5364,3 @@ pub fn get_all_active_interactions() -> Vec<(String, String, f64)> {
 
     interactions
 }
-
-/*
-
-/// Adds empirical MIC-based potency values for drug-bacteria combinations
-/// Uses potency = 1.0 / empirical_mic_susceptible (mg/L) approach
-/// Replaces categorical potency assignments with evidence-based MIC values
-fn add_empirical_mic_based_potencies(map: &mut HashMap<String, f64>) {
-    // Empirical MIC values from clinical data (mg/L for susceptible strains)
-    // Sources: EUCAST, CLSI, clinical microbiology literature
-
-    // ESCHERICHIA COLI - Major gram-negative pathogen
-    map.insert("drug_ampicillin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_amoxicillin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_piperacillin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_cefazolin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefepime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_meropenem_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_imipenem_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ertapenem_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_gentamicin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_tobramycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_amikacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_moxifloxacin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L (TMP/SMX)
-    map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-
-    // KLEBSIELLA PNEUMONIAE - Major ESBL producer
-    map.insert("drug_ampicillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic resistance)
-    map.insert("drug_amoxicillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic resistance)
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_piperacillin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_cefazolin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefepime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_imipenem_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_gentamicin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_tobramycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_amikacin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-
-    // PSEUDOMONAS AERUGINOSA - Intrinsically resistant organism
-    map.insert("drug_ampicillin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 256.0);  // MIC: >256 mg/L (intrinsic resistance)
-    map.insert("drug_amoxicillin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 256.0);  // MIC: >256 mg/L (intrinsic resistance)
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 256.0);  // MIC: >256 mg/L (intrinsic resistance)
-    map.insert("drug_piperacillin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_cefazolin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic resistance)
-    map.insert("drug_cefuroxime_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic resistance)
-    map.insert("drug_ceftriaxone_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic resistance)
-    map.insert("drug_ceftazidime_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_imipenem_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ertapenem_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic resistance)
-    map.insert("drug_gentamicin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_tobramycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_amikacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // STAPHYLOCOCCUS AUREUS (MSSA) - Major gram-positive pathogen
-    map.insert("drug_penicillin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (beta-lactamase)
-    map.insert("drug_ampicillin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (beta-lactamase)
-    map.insert("drug_amoxicillin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (beta-lactamase)
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_piperacillin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_cefazolin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftaroline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L (anti-MRSA)
-    map.insert("drug_vancomycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_teicoplanin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_linezolid_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_clindamycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_erythromycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_azithromycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_tetracycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_doxyclycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_minocycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1/19 mg/L
-    map.insert("drug_rifampicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-
-    // STREPTOCOCCUS PNEUMONIAE - Major respiratory pathogen
-    map.insert("drug_penicillin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (PSSP)
-    map.insert("drug_ampicillin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_amoxicillin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefazolin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftaroline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_vancomycin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_erythromycin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_azithromycin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_clindamycin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_tetracycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_doxyclycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_moxifloxacin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-
-    // STREPTOCOCCUS PYOGENES - Group A Strep, never penicillin resistant
-    map.insert("drug_penicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L (excellent)
-    map.insert("drug_ampicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_amoxicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_cefazolin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_vancomycin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_erythromycin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_azithromycin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_clindamycin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_tetracycline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // ENTEROCOCCUS FAECALIS - VRE concerns but generally more susceptible than E. faecium
-    map.insert("drug_ampicillin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_penicillin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_vancomycin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_teicoplanin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_daptomycin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_nitrofurantoin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    // Enterococci intrinsically resistant to many drugs
-    map.insert("drug_ceftriaxone_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_ceftazidime_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // ENTEROCOCCUS FAECIUM - More resistant than E. faecalis
-    map.insert("drug_ampicillin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L (higher resistance)
-    map.insert("drug_penicillin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_teicoplanin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_daptomycin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    // Intrinsic resistance same as E. faecalis
-    map.insert("drug_ceftriaxone_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_ceftazidime_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // ACINETOBACTER BAUMANNII - Highly resistant organism
-    map.insert("drug_ampicillin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_amoxicillin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_cefazolin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_cefuroxime_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_cefepime_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_meropenem_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (susceptible strains)
-    map.insert("drug_imipenem_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_gentamicin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_tobramycin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_amikacin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_colistin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (last resort)
-    map.insert("drug_tigecycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // HAEMOPHILUS INFLUENZAE - Respiratory pathogen, beta-lactamase production
-    map.insert("drug_ampicillin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (BLNAS)
-    map.insert("drug_amoxicillin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (BLNAS)
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefepime_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_azithromycin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_doxyclycline_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1/19 mg/L
-
-
-    // ENTEROBACTER SPECIES - AmpC beta-lactamase producers
-    map.insert("drug_ampicillin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_amoxicillin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_cefazolin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefepime_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_meropenem_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_gentamicin_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-
-    // PROTEUS SPECIES - Swarming gram-negative
-    map.insert("drug_ampicillin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_gentamicin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    // Proteus intrinsically resistant to colistin
-    map.insert("drug_colistin_for_bacteria_proteus_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // ENTEROBACTER CLOACAE - Specific enterobacter species
-    map.insert("drug_ampicillin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_ceftriaxone_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefepime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_meropenem_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // SERRATIA SPECIES - Gram-negative with intrinsic resistances
-    map.insert("drug_ampicillin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_cefazolin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_gentamicin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    // Serratia intrinsically resistant to colistin
-    map.insert("drug_colistin_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // CITROBACTER SPECIES - Another enterobacteriaceae
-    map.insert("drug_ampicillin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_ceftriaxone_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_gentamicin_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-
-    // MORGANELLA MORGANII - Gram-negative rod
-    map.insert("drug_ampicillin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_ceftriaxone_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    // Morganella intrinsically resistant to colistin
-    map.insert("drug_colistin_for_bacteria_morganella_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // SALMONELLA ENTERICA SEROVAR TYPHI - Typhoid fever
-    map.insert("drug_ampicillin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_salmonella_enterica_serovar_typhi_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-
-    // SALMONELLA ENTERICA SEROVAR PARATYPHI - Paratyphoid fever
-    map.insert("drug_ampicillin_for_bacteria_salmonella_enterica_serovar_paratyphi_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_paratyphi_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_salmonella_enterica_serovar_paratyphi_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-
-    // SALMONELLA ENTERICA (NON-TYPHOIDAL) - Food poisoning
-    map.insert("drug_ampicillin_for_bacteria_salmonella_enterica_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_salmonella_enterica_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_salmonella_enterica_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-
-    // NEISSERIA GONORRHOEAE - Gonorrhea
-    map.insert("drug_penicillin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_azithromycin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_spectinomycin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-
-    // NEISSERIA MENINGITIDIS - Meningococcal disease
-    map.insert("drug_penicillin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // CHLAMYDIA TRACHOMATIS - Chlamydial infections
-    map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_doxycycline_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_erythromycin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // VIBRIO CHOLERAE - Cholera
-    map.insert("drug_doxycycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-
-    // LISTERIA MONOCYTOGENES - Listeriosis
-    map.insert("drug_ampicillin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_penicillin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_gentamicin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L (synergy)
-    map.insert("drug_trim_sulf_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5/9.5 mg/L
-    // Listeria intrinsically resistant to cephalosporins
-    map.insert("drug_ceftriaxone_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // CLOSTRIDIOIDES DIFFICILE - C. diff colitis
-    map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_fidaxomicin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-
-    // CAMPYLOBACTER JEJUNI - Campylobacteriosis
-    map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_gentamicin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // YERSINIA PESTIS - Plague
-    map.insert("drug_doxycycline_for_bacteria_yersinia_pestis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_yersinia_pestis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_gentamicin_for_bacteria_yersinia_pestis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_streptomycin_for_bacteria_yersinia_pestis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_yersinia_pestis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-
-    // MORAXELLA CATARRHALIS - Respiratory tract infections
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_azithromycin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1/19 mg/L
-    // Moraxella produces beta-lactamase - ampicillin resistance
-    map.insert("drug_ampicillin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-
-    // TREPONEMA PALLIDUM - Syphilis (difficult to culture, estimated MICs)
-    map.insert("drug_penicillin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.01);  // MIC: 0.01 mg/L (very sensitive)
-    map.insert("drug_doxycycline_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_azithromycin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-
-    // BORDETELLA PERTUSSIS - Whooping cough
-    map.insert("drug_azithromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_erythromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1/19 mg/L
-
-    // HELICOBACTER PYLORI - Gastric ulcers
-    map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_tetracycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // EXPANDED COVERAGE - Adding more drug combinations for major pathogens
-
-    // Additional E. COLI combinations
-    map.insert("drug_chloramphenicol_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_fosfomycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_ertapenem_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_imipenem_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_doripenem_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_cefepime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_cefoxitin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-
-    // Additional KLEBSIELLA PNEUMONIAE combinations
-    map.insert("drug_chloramphenicol_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_imipenem_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_doripenem_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefepime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_tigecycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // Additional PSEUDOMONAS AERUGINOSA combinations
-    map.insert("drug_doripenem_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_aztreonam_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_polymyxin_b_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_amikacin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_netilmicin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-
-    // Additional STAPHYLOCOCCUS AUREUS combinations
-    map.insert("drug_rifampin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_fusidic_acid_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_mupirocin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_fosfomycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_nitrofurantoin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-
-    // Additional STREPTOCOCCUS PNEUMONIAE combinations
-    map.insert("drug_cefuroxime_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefepime_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_rifampin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_moxifloxacin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-
-    // Additional ENTEROCOCCUS combinations
-    map.insert("drug_nitrofurantoin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_fosfomycin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_doxycycline_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-
-    // Additional ACINETOBACTER BAUMANNII combinations
-    map.insert("drug_chloramphenicol_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_rifampin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_polymyxin_b_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_aztreonam_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // More comprehensive coverage for CITROBACTER
-    map.insert("drug_meropenem_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ertapenem_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefepime_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_citrobacter_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-
-    // More comprehensive coverage for ENTEROBACTER CLOACAE
-    map.insert("drug_ertapenem_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_doripenem_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_aztreonam_for_bacteria_enterobacter_cloacae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-
-    // High-priority missing bacteria - SHIGELLA SPECIES
-    map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_azithromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    // Shigella intrinsically resistant to ampicillin
-    map.insert("drug_ampicillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-    // HAEMOPHILUS PARAINFLUENZAE
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_parainfluenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_haemophilus_parainfluenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_haemophilus_parainfluenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_haemophilus_parainfluenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // STENOTROPHOMONAS MALTOPHILIA - Multidrug resistant gram-negative
-    map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    // Stenotrophomonas intrinsically resistant to many antibiotics
-    map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_ceftriaxone_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // BURKHOLDERIA CEPACIA COMPLEX - Cystic fibrosis pathogen
-    map.insert("drug_trim_sulf_for_bacteria_burkholderia_cepacia_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_burkholderia_cepacia_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_meropenem_for_bacteria_burkholderia_cepacia_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_burkholderia_cepacia_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_minocycline_for_bacteria_burkholderia_cepacia_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-
-    // PROVIDENCIA STUARTII - Opportunistic pathogen
-    map.insert("drug_ciprofloxacin_for_bacteria_providencia_stuartii_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_gentamicin_for_bacteria_providencia_stuartii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_meropenem_for_bacteria_providencia_stuartii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_providencia_stuartii_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    // Providencia intrinsically resistant to colistin
-    map.insert("drug_colistin_for_bacteria_providencia_stuartii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // BACTEROIDES FRAGILIS - Anaerobic bacteria
-    map.insert("drug_metronidazole_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_clindamycin_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_meropenem_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    // Bacteroides resistant to aminoglycosides (anaerobic)
-    map.insert("drug_gentamicin_for_bacteria_bacteroides_fragilis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (no aerobic respiration)
-
-    // CLOSTRIDIUM PERFRINGENS - Gas gangrene
-    map.insert("drug_penicillin_for_bacteria_clostridium_perfringens_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_clindamycin_for_bacteria_clostridium_perfringens_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_metronidazole_for_bacteria_clostridium_perfringens_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_clostridium_perfringens_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-
-    // PEPTOSTREPTOCOCCUS ANAEROBIUS - Anaerobic gram-positive
-    map.insert("drug_penicillin_for_bacteria_peptostreptococcus_spp._potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_clindamycin_for_bacteria_peptostreptococcus_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_metronidazole_for_bacteria_peptostreptococcus_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_vancomycin_for_bacteria_peptostreptococcus_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // SYSTEMATIC EXPANSION - Adding more combinations for existing major bacteria
-    // Focus on covering more drugs per bacteria to maximize parameter count
-
-    // E. COLI - Additional systematic coverage
-    map.insert("drug_azithromycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_erythromycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_clindamycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (poor activity)
-    map.insert("drug_vancomycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (gram-negative)
-    map.insert("drug_linezolid_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_daptomycin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (gram-negative)
-    map.insert("drug_tigecycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_minocycline_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_rifampin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-
-    // KLEBSIELLA PNEUMONIAE - Additional systematic coverage
-    map.insert("drug_azithromycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_erythromycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_clindamycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_vancomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (gram-negative)
-    map.insert("drug_linezolid_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_daptomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_minocycline_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_rifampin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_nitrofurantoin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_fosfomycin_for_bacteria_klebsiella_pneumoniae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-    // PSEUDOMONAS AERUGINOSA - Additional systematic coverage
-    map.insert("drug_tigecycline_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L (poor)
-    map.insert("drug_azithromycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_erythromycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_clindamycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_vancomycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_linezolid_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_daptomycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_nitrofurantoin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_fosfomycin_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_pseudomonas_aeruginosa_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-    // STAPHYLOCOCCUS AUREUS - Additional systematic coverage
-    map.insert("drug_azithromycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_tigecycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_minocycline_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefazolin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (MSSA)
-    map.insert("drug_ceftriaxone_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_cefepime_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ertapenem_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_meropenem_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // STREPTOCOCCUS PNEUMONIAE - Additional systematic coverage
-    map.insert("drug_tigecycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_minocycline_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_nitrofurantoin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_fosfomycin_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_ertapenem_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_meropenem_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_imipenem_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_streptococcus_pneumoniae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // STREPTOCOCCUS PYOGENES - Additional systematic coverage
-    map.insert("drug_chloramphenicol_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_tigecycline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_minocycline_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_meropenem_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ertapenem_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_imipenem_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_cefepime_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-
-    // ENTEROCOCCUS FAECALIS - Additional systematic coverage
-    map.insert("drug_tigecycline_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_minocycline_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_rifampin_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    // Enterococcus intrinsically resistant to many antibiotics
-    map.insert("drug_ceftriaxone_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_cefepime_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_aztreonam_for_bacteria_enterococcus_faecalis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // ENTEROCOCCUS FAECIUM - Often more resistant than E. faecalis
-    map.insert("drug_ampicillin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L (often resistant)
-    map.insert("drug_vancomycin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L (VRE concern)
-    map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_daptomycin_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_tigecycline_for_bacteria_enterococcus_faecium_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-
-    // ACINETOBACTER BAUMANNII - Additional systematic coverage
-    map.insert("drug_tigecycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_minocycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_doxycycline_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_doripenem_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ertapenem_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_cefepime_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    // Acinetobacter often resistant to many drugs
-    map.insert("drug_vancomycin_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (gram-negative)
-    map.insert("drug_linezolid_for_bacteria_acinetobacter_baumannii_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-    // HAEMOPHILUS INFLUENZAE - Additional systematic coverage
-    map.insert("drug_chloramphenicol_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_meropenem_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ertapenem_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_imipenem_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_doxycycline_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_tigecycline_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    // H. influenzae intrinsically resistant to vancomycin
-    map.insert("drug_vancomycin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (gram-negative)
-
-    // PROTEUS MIRABILIS - Additional systematic coverage
-    map.insert("drug_chloramphenicol_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_meropenem_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ertapenem_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_imipenem_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_doripenem_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_cefepime_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ceftazidime_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_aztreonam_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_tigecycline_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    // Proteus intrinsically resistant to colistin and nitrofurantoin
-    map.insert("drug_colistin_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_nitrofurantoin_for_bacteria_proteus_mirabilis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // STREPTOCOCCUS AGALACTIAE (Group B Strep) - Important neonatal pathogen
-    map.insert("drug_penicillin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.125);  // MIC: 0.125 mg/L
-    map.insert("drug_ampicillin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_vancomycin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_erythromycin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_clindamycin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_linezolid_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // COAGULASE-NEGATIVE STAPHYLOCOCCI (CoNS) - Common contaminant/pathogen
-    map.insert("drug_vancomycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_methicillin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L (often resistant)
-    map.insert("drug_linezolid_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_daptomycin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_rifampin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_gentamicin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_staphylococcus_epidermidis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // ENTEROBACTER SPP. - Additional combinations
-    map.insert("drug_tigecycline_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_minocycline_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_aztreonam_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ertapenem_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_doripenem_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_polymyxin_b_for_bacteria_enterobacter_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // SERRATIA SPP. - Additional combinations
-    map.insert("drug_tigecycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_minocycline_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_chloramphenicol_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_aztreonam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ertapenem_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_doripenem_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_piperacillin_tazobactam_for_bacteria_serratia_spp._potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-
-    // REMAINING HIGH-VALUE BACTERIA - Quick additions for maximum coverage boost
-
-    // PREVOTELLA SPP. - Anaerobic gram-negative
-    map.insert("drug_metronidazole_for_bacteria_prevotella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_clindamycin_for_bacteria_prevotella_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_prevotella_spp._potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_meropenem_for_bacteria_prevotella_spp._potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-
-    // FUSOBACTERIUM NUCLEATUM - Anaerobic gram-negative
-    map.insert("drug_metronidazole_for_bacteria_fusobacterium_nucleatum_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_clindamycin_for_bacteria_fusobacterium_nucleatum_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_penicillin_for_bacteria_fusobacterium_nucleatum_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_meropenem_for_bacteria_fusobacterium_nucleatum_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // SALMONELLA ENTERICA SEROVAR PARATYPHI A - Paratyphoid fever
-    map.insert("drug_ampicillin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_salmonella_enterica_serovar_paratyphi_a_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // INVASIVE NON-TYPHOIDAL SALMONELLA
-    map.insert("drug_ampicillin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_invasive_non-typhoidal_salmonella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // SHIGELLA SPECIES - Dysentery pathogen
-    map.insert("drug_ampicillin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_shigella_spp._potency_when_no_r".to_string(), 1.0 / 8.0);  // MIC: 8/152 mg/L
-
-    // VIBRIO CHOLERAE - Cholera pathogen
-    map.insert("drug_doxyclycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_tetracycline_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4/76 mg/L
-
-    // CAMPYLOBACTER JEJUNI - Gastroenteritis pathogen
-    map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_tetracycline_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    // Campylobacter intrinsically resistant to many beta-lactams
-    map.insert("drug_ampicillin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-    // YERSINIA ENTEROCOLITICA - Enteric pathogen
-    map.insert("drug_doxyclycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    // Yersinia intrinsically resistant to penicillins
-    map.insert("drug_penicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_ampicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-
-    // NEISSERIA GONORRHOEAE - STI pathogen with high resistance
-    map.insert("drug_penicillin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L (resistance common)
-    map.insert("drug_ceftriaxone_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_cefixime_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_azithromycin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L (resistance common)
-    map.insert("drug_doxyclycline_for_bacteria_neisseria_gonorrhoeae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-
-    // STREPTOCOCCUS AGALACTIAE - Group B Strep
-    map.insert("drug_penicillin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.12);  // MIC: 0.12 mg/L
-    map.insert("drug_ampicillin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_vancomycin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_erythromycin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_clindamycin_for_bacteria_streptococcus_agalactiae_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-
-    // CHLAMYDIA TRACHOMATIS - Intracellular pathogen
-    map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_doxyclycline_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_erythromycin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    // Chlamydia lacks peptidoglycan - beta-lactams ineffective
-    map.insert("drug_penicillin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (no cell wall)
-    map.insert("drug_ampicillin_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_chlamydia_trachomatis_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L
-
-    // NEISSERIA MENINGITIDIS - Meningococcal disease
-    map.insert("drug_penicillin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_ampicillin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-    map.insert("drug_ciprofloxacin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L
-    map.insert("drug_rifampicin_for_bacteria_neisseria_meningitidis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L (prophylaxis)
-
-    // LISTERIA MONOCYTOGENES - Intracellular gram-positive rod
-    map.insert("drug_ampicillin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_penicillin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    map.insert("drug_erythromycin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    // Listeria intrinsically resistant to cephalosporins
-    map.insert("drug_ceftriaxone_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-    map.insert("drug_cefazolin_for_bacteria_listeria_monocytogenes_potency_when_no_r".to_string(), 1.0 / 128.0);  // MIC: >128 mg/L (intrinsic)
-
-    // CLOSTRIDIOIDES DIFFICILE - C. diff colitis
-    map.insert("drug_vancomycin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L (oral)
-    map.insert("drug_metronidazole_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_fidaxomicin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    // C. diff spore-former, most antibiotics poor
-    map.insert("drug_ampicillin_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_clostridioides_difficile_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-
-    // MORAXELLA CATARRHALIS - Respiratory pathogen
-    map.insert("drug_amoxicillin_clavulanate_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2 mg/L
-    map.insert("drug_cefuroxime_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_azithromycin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_doxyclycline_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 2.0);  // MIC: 2/38 mg/L
-    // Moraxella produces beta-lactamase
-    map.insert("drug_ampicillin_for_bacteria_moraxella_catarrhalis_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L (beta-lactamase)
-
-    // TREPONEMA PALLIDUM - Syphilis spirochete
-    map.insert("drug_penicillin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.06);  // MIC: 0.06 mg/L (excellent)
-    map.insert("drug_doxyclycline_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_azithromycin_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_treponema_pallidum_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-
-    // BORDETELLA PERTUSSIS - Whooping cough
-    map.insert("drug_azithromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_clarithromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_erythromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_trim_sulf_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4/76 mg/L
-    // Bordetella poor response to beta-lactams
-    map.insert("drug_penicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 64.0);  // MIC: 64 mg/L
-    map.insert("drug_ampicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-
-    // HELICOBACTER PYLORI - Peptic ulcer disease
-    map.insert("drug_clarithromycin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 0.25);  // MIC: 0.25 mg/L
-    map.insert("drug_amoxicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 0.5);  // MIC: 0.5 mg/L
-    map.insert("drug_metronidazole_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 4.0);  // MIC: 4 mg/L
-    map.insert("drug_tetracycline_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    map.insert("drug_levofloxacin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 1.0);  // MIC: 1 mg/L
-    // H. pylori poor response to many antibiotics
-    map.insert("drug_penicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 32.0);  // MIC: 32 mg/L
-    map.insert("drug_ceftriaxone_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 1.0 / 16.0);  // MIC: 16 mg/L
-
-    println!("Loaded {} empirical MIC-based potency parameters",
-             map.keys().filter(|k| k.contains("_potency_when_no_r")).count());
-}
-
-*/
