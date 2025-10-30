@@ -246,28 +246,54 @@ class InfectionJourneyAnalyzer:
             ax1.legend(fontsize=8)
         
         # Clearance hazard and toxicity levels with step plotting
-        ax2.step(
+        clearance_series = journey_data['clearance_hazard']
+        toxicity_series = journey_data['toxicity_level']
+        hazard_line = ax2.step(
             days,
-            journey_data['clearance_hazard'],
+            clearance_series,
             where='post',
             color='green',
             linewidth=4,
             label='clearance hazard',
             alpha=0.8,
         )
-        ax2.step(days, journey_data['toxicity_level'], where='post', color='red', linewidth=4, label='toxicity', alpha=0.8)
         ax2.set_title('clearance hazard & toxicity levels', fontsize=18)
         ax2.set_xlabel('day of journey', fontsize=15)
-        ax2.set_ylabel('level', fontsize=15)
+        ax2.set_ylabel('clearance hazard', fontsize=15, color='green')
+        ax2.tick_params(axis='y', labelcolor='green')
         ax2.set_xticks(range(1, int(days.max()) + 1))
         ax2.set_xlim(0.5, int(days.max()) + 0.5)
-        ax2.set_ylim(bottom=0)  # Ensure y-axis starts at 0
-        ax2.legend()
+        hazard_max = max(0.05, float(clearance_series.max()) * 1.1 if not clearance_series.empty else 0.05)
+        ax2.set_ylim(0, hazard_max)
         ax2.grid(True, alpha=0.3)
+
+        ax2_twin = ax2.twinx()
+        toxicity_line = ax2_twin.step(
+            days,
+            toxicity_series,
+            where='post',
+            color='red',
+            linewidth=4,
+            label='toxicity',
+            alpha=0.8,
+        )
+        ax2_twin.set_ylabel('toxicity level', fontsize=15, color='red')
+        ax2_twin.tick_params(axis='y', labelcolor='red')
+        tox_max = max(1.0, float(toxicity_series.max()) * 1.1 if not toxicity_series.empty else 1.0)
+        ax2_twin.set_ylim(0, tox_max)
+
+        lines = hazard_line + toxicity_line
+        labels = [line.get_label() for line in lines]
+        ax2.legend(lines, labels, loc='upper right', fontsize=8)
         
         # Drug levels and resistance (activity_r)
         # Note: drug_data already parsed above for markers
-        
+        bacteria_levels = journey_data['primary_bacteria_level'].values
+        clearance_day = None
+        clearance_rows = journey_data[journey_data['primary_bacteria_level'] <= 0.001]
+        if not clearance_rows.empty:
+            clearance_day = clearance_rows['day_of_journey'].iloc[0]
+
         if drug_data['has_drugs']:
             # Plot drug levels with vertical offset to prevent overlapping lines
             drug_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # More distinct colors: blue, orange, green, red, purple
@@ -277,14 +303,18 @@ class InfectionJourneyAnalyzer:
             drug_plot_data = []
             for i, (drug_name, drug_levels) in enumerate(drug_data['drug_levels'].items()):
                 mask = ~pd.isna(drug_levels)
-                if mask.any():
-                    drug_plot_data.append({
-                        'name': drug_name,
-                        'levels': drug_levels[mask].copy(),
-                        'days': days[mask],
-                        'color': drug_colors[i % len(drug_colors)],
-                        'index': i
-                    })
+                day_series = journey_data.loc[drug_levels.index, 'day_of_journey']
+                if clearance_day is not None:
+                    mask &= day_series <= clearance_day
+                if not mask.any():
+                    continue
+                drug_plot_data.append({
+                    'name': drug_name,
+                    'levels': drug_levels[mask].copy(),
+                    'days': day_series[mask].to_numpy(),
+                    'color': drug_colors[i % len(drug_colors)],
+                    'index': i
+                })
             
             # Apply both vertical and horizontal offsets to prevent overlapping
             for drug_data_item in drug_plot_data:
@@ -314,41 +344,75 @@ class InfectionJourneyAnalyzer:
             # Plot activity_r on secondary y-axis with matching colors and horizontal offsets
             ax3_twin = ax3.twinx()
             for i, (drug_name, activity_r) in enumerate(drug_data['activity_r'].items()):
-                mask = ~pd.isna(activity_r)  # Show activity_r even when zero - removed (activity_r > 0) condition
-                if mask.any():
-                    # Use same color as corresponding drug level line
-                    color = drug_colors[i % len(drug_colors)]
-                    
-                    # Apply same offsets as drug levels to keep them aligned and separated
-                    x_offset_magnitude = 0.3 * ((i // 2) + 1)
-                    x_offset_direction = 1 if i % 2 == 0 else -1
-                    x_offset = x_offset_magnitude * x_offset_direction
-                    days_offset_activity = days[mask] + x_offset
-                    
-                    # Apply very small y-axis offset to activity values, but ensure they don't go negative
-                    original_activity_r = activity_r[mask]
-                    max_activity_value = max(max_activity_value, float(original_activity_r.max()))
-                    
-                    # Since Rust now only logs activity_r when both drug AND bacteria present,
-                    # we can show all logged activity_r data (including zeros due to complete resistance)
-                    activity_level_offset_magnitude = 0.002 * ((i // 2) + 1)  # Very small offset to avoid negative values
-                    activity_level_offset_direction = 1 if i % 2 == 0 else -1
-                    activity_level_offset = activity_level_offset_magnitude * activity_level_offset_direction
-                    activity_r_offset = original_activity_r + activity_level_offset
-                    
-                    # Handle visibility: show positive values normally, but make zeros visible as tiny values
-                    # This allows us to see when drugs are completely ineffective due to resistance
-                    activity_r_offset = np.where(original_activity_r > 0.0,
-                                               activity_r_offset.clip(lower=0.0001),  # Real values: ensure they stay positive
-                                               np.full_like(activity_r_offset, 0.0001))  # Zeros: show as tiny but visible
-                    
-                    # Use stepped dashed lines with circle markers for each day, 1.5x thicker than drug levels (linewidth=4 * 1.5 = 6)
-                    ax3_twin.step(days_offset_activity, activity_r_offset, where='post', color=color, linestyle='--',
-                                 label=f'{drug_name} activity r', linewidth=6, alpha=0.8, zorder=10)
-                    # Add circle markers for each day (with same offsets)
-                    ax3_twin.plot(days_offset_activity, activity_r_offset, color=color, marker='o', 
-                                 markersize=6, linestyle='', markerfacecolor='white', 
-                                 markeredgecolor=color, markeredgewidth=2, zorder=11)
+                mask = ~pd.isna(activity_r)
+                day_series = journey_data.loc[activity_r.index, 'day_of_journey']
+                if clearance_day is not None:
+                    mask &= day_series <= clearance_day
+                if not mask.any():
+                    continue
+                # Use same color as corresponding drug level line
+                color = drug_colors[i % len(drug_colors)]
+
+                # Apply same offsets as drug levels to keep them aligned and separated
+                # Use a smaller horizontal offset so activity traces stay close to the recorded day
+                x_offset_magnitude = 0.12 * ((i // 2) + 1)
+                x_offset_direction = 1 if i % 2 == 0 else -1
+                x_offset = x_offset_magnitude * x_offset_direction
+                original_days = day_series[mask].to_numpy()
+                original_activity_r = activity_r[mask].to_numpy()
+
+                # Trim any final zero logged on the bacteria-clearance day so lines stop cleanly
+                if clearance_day is not None and len(original_days) > 0:
+                    tolerance = 1e-9
+                    if original_days[-1] >= clearance_day - tolerance and original_activity_r[-1] <= tolerance:
+                        original_days = original_days[:-1]
+                        original_activity_r = original_activity_r[:-1]
+
+                if len(original_days) == 0:
+                    continue
+
+                days_offset_activity = original_days + x_offset
+
+                # Apply very small y-axis offset to activity values, but ensure they don't go negative
+                max_activity_value = max(max_activity_value, float(original_activity_r.max()))
+                activity_level_offset_magnitude = 0.002 * ((i // 2) + 1)  # Very small offset to avoid negative values
+                activity_level_offset_direction = 1 if i % 2 == 0 else -1
+                activity_level_offset = activity_level_offset_magnitude * activity_level_offset_direction
+                activity_r_offset = original_activity_r + activity_level_offset
+
+                # Handle visibility: show positive values normally, but make zeros visible as tiny values
+                # This allows us to see when drugs are completely ineffective due to resistance
+                activity_r_offset = np.where(
+                    original_activity_r > 0.0,
+                    np.clip(activity_r_offset, 0.0001, np.inf),  # Real values: ensure they stay positive
+                    np.full_like(activity_r_offset, 0.0001),
+                )  # Zeros: show as tiny but visible
+
+                # Use stepped dashed lines with circle markers for each day, 1.5x thicker than drug levels (linewidth=4 * 1.5 = 6)
+                ax3_twin.step(
+                    days_offset_activity,
+                    activity_r_offset,
+                    where='post',
+                    color=color,
+                    linestyle='--',
+                    label=f'{drug_name} activity r',
+                    linewidth=6,
+                    alpha=0.8,
+                    zorder=10,
+                )
+                # Add circle markers for each day (with same offsets)
+                ax3_twin.plot(
+                    days_offset_activity,
+                    activity_r_offset,
+                    color=color,
+                    marker='o',
+                    markersize=6,
+                    linestyle='',
+                    markerfacecolor='white',
+                    markeredgecolor=color,
+                    markeredgewidth=2,
+                    zorder=11,
+                )
             
             ax3.set_xlabel('day of journey', fontsize=15)
             ax3.set_ylabel('drug level', fontsize=15)
@@ -1124,7 +1188,7 @@ class InfectionJourneyAnalyzer:
                 start_row = start_info['row_data']
                 
                 # Find any_r resistance value on drug start day
-                any_r_value = None
+                any_r_value = 0.0
                 if pd.notna(start_row['resistance_any_r']) and start_row['resistance_any_r'] != '':
                     any_r_entries = start_row['resistance_any_r'].split(';')
                     for entry in any_r_entries:
@@ -1137,10 +1201,10 @@ class InfectionJourneyAnalyzer:
                                 continue
                 
                 # Format the drug information
-                if any_r_value is not None:
-                    drug_info.append(f"potency: {potency:.1f} {drug_name}: any_r: {any_r_value:.3f}")
-                else:
-                    drug_info.append(f"potency: {potency:.1f} {drug_name}: any_r: no data")
+                resistance_label = "resistant" if any_r_value > 0.0 else "susceptible"
+                drug_info.append(
+                    f"potency: {potency:.1f} {drug_name}: any_r: {any_r_value:.3f} ({resistance_label})"
+                )
         
         return drug_info
     

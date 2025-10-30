@@ -27,9 +27,8 @@ mod simulation;
 //
 // get the above outputs for a single recent year (depends on data) as a high level summary output
 //
-//
-// try to get estimate of prevalence of each bacteria in microbiome (need this to be by age, region and hospital status)
-// try to get estimate of prevalence of resistance in microbiome bacteria by region and hospital status
+// try to get estimate of prevalence of each bacteria in microbiome (ok just by region and age and hospital status ?)
+// try to get estimate of prevalence of resistance in microbiome bacteria (needs to be by region and hospital status ?)
 // try to get estimate of proportion infected with each bacteria in past year
 //
 //
@@ -45,17 +44,18 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// think about number infected by region and hospital and hence what to do when 0 or low number infected
-// so can't calculate population majority_r (probably best to go back over past e.g. 100 time steps)
+// review infection journies:
 //
-// consider having incidence of infection rising in situations if they occur in future in which infections
-// cannot be treated
+//    consider bacterial growth rate
+//    consider determinants of toxicity (do we need to be more specific about toxicity ?)
+//    consider infection clearance rate determinants 
 //
 //
 //
 //
 // consider (but probably only for future iterations):
 //
+// consider having incidence of infection rising in situations if they occur in future in which infections cannot be treated
 // reduced bacterial growth rates for resistant strains ?
 // competition between sensitive and resistant strains in microbiome ?
 // mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
@@ -125,11 +125,11 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 1_000;
+    let population_size = 2_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.001; // Log 1% of infections for analysis (0.0-1.0)
+    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.005; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria

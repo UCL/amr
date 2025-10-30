@@ -86,6 +86,7 @@ pub struct ActiveJourney {
     pub initial_failure_day: Option<i32>,
     pub last_recorded_failure_day: Option<i32>,
     pub treatment_failures_count: u32,
+    pub drug_supported_clearance: bool,
 }
 
 pub struct JourneyLogger {
@@ -277,6 +278,7 @@ impl JourneyLogger {
             initial_failure_day,
             last_recorded_failure_day: initial_failure_day,
             treatment_failures_count: 0,
+            drug_supported_clearance: false,
         };
 
         self.active_journeys.insert(individual.id, journey);
@@ -316,6 +318,7 @@ impl JourneyLogger {
 
             JourneyLogger::refresh_treatment_failure_tracking(journey, individual);
 
+            let previous_snapshot = journey.snapshots.last().cloned();
             let snapshot = JourneyLogger::create_snapshot(
                 individual,
                 journey.journey_id,
@@ -326,6 +329,15 @@ impl JourneyLogger {
                 journey.has_de_novo_resistance,
                 journey.treatment_failures_count,
             );
+
+            if !journey.drug_supported_clearance {
+                if JourneyLogger::detect_drug_supported_clearance(
+                    previous_snapshot.as_ref(),
+                    &snapshot,
+                ) {
+                    journey.drug_supported_clearance = true;
+                }
+            }
 
             journey.snapshots.push(snapshot);
 
@@ -374,11 +386,12 @@ impl JourneyLogger {
             journey.day_count += 1;
 
             // Determine resolution type
-            let resolution_type = self.determine_resolution_type(individual);
+            let resolution_type = self.determine_resolution_type(individual, &journey);
 
             JourneyLogger::refresh_treatment_failure_tracking(&mut journey, individual);
 
             // Create final snapshot with resolution
+            let previous_snapshot = journey.snapshots.last().cloned();
             let final_snapshot = JourneyLogger::create_snapshot(
                 individual,
                 journey.journey_id,
@@ -389,6 +402,15 @@ impl JourneyLogger {
                 journey.has_de_novo_resistance,
                 journey.treatment_failures_count,
             );
+
+            if !journey.drug_supported_clearance {
+                if JourneyLogger::detect_drug_supported_clearance(
+                    previous_snapshot.as_ref(),
+                    &final_snapshot,
+                ) {
+                    journey.drug_supported_clearance = true;
+                }
+            }
 
             journey.snapshots.push(final_snapshot);
 
@@ -617,7 +639,7 @@ impl JourneyLogger {
         }
     }
 
-    fn determine_resolution_type(&self, individual: &Individual) -> String {
+    fn determine_resolution_type(&self, individual: &Individual, journey: &ActiveJourney) -> String {
         if individual.date_of_death.is_some() {
             if let Some(ref cause) = individual.cause_of_death {
                 match cause.as_str() {
@@ -630,14 +652,67 @@ impl JourneyLogger {
                 "DeathFromBackground".to_string()
             }
         } else {
-            // Check if any drugs are active
-            let has_active_drugs = individual.cur_use_drug.iter().any(|&taking| taking);
-            if has_active_drugs {
+            if journey.drug_supported_clearance {
                 "DrugAssistedClearance".to_string()
             } else {
-                "ImmuneClearance".to_string()
+                // Fallback: if drugs are still active at resolution, classify as drug-assisted
+                let has_active_drugs = individual.cur_use_drug.iter().any(|&taking| taking);
+                if has_active_drugs {
+                    "DrugAssistedClearance".to_string()
+                } else {
+                    "ImmuneClearance".to_string()
+                }
             }
         }
+    }
+
+    fn detect_drug_supported_clearance(
+        previous: Option<&InfectionJourneySnapshot>,
+        current: &InfectionJourneySnapshot,
+    ) -> bool {
+        // Any positive activity signal confirms drug contribution
+        if current
+            .resistance_activity_r
+            .iter()
+            .any(|(_, value)| *value > 0.0)
+        {
+            return true;
+        }
+
+        if let Some(prev_snapshot) = previous {
+            if prev_snapshot
+                .resistance_activity_r
+                .iter()
+                .any(|(_, value)| *value > 0.0)
+            {
+                return true;
+            }
+
+            let prev_level = prev_snapshot.primary_bacteria_level;
+            let current_level = current.primary_bacteria_level;
+
+            // Clearance to (or below) detection threshold while drug present
+            if prev_level > 0.001 && current_level <= 0.001 {
+                if !current.current_drugs.is_empty() || !prev_snapshot.current_drugs.is_empty() {
+                    return true;
+                }
+            }
+
+            // New drug started with immediate notable decline
+            if prev_snapshot.current_drugs.is_empty() && !current.current_drugs.is_empty() {
+                if prev_level > 0.001 {
+                    let level_drop = prev_level - current_level;
+                    if level_drop > 0.0 {
+                        let relative_drop = level_drop / prev_level;
+                        if relative_drop >= 0.1 || current_level <= 0.001 {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        false
     }
 
     fn refresh_treatment_failure_tracking(journey: &mut ActiveJourney, individual: &Individual) {

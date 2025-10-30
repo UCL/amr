@@ -30,6 +30,8 @@ use std::collections::HashMap; // Import both lists and helper enums
 use std::fs::File;
 use std::path::PathBuf;
 
+// ---------------- 1) Core indices & constants ----------------
+
 lazy_static! {
     pub static ref BACTERIA_INDEX: HashMap<&'static str, usize> = {
         BACTERIA_LIST
@@ -73,6 +75,7 @@ const AGE_CATEGORY_NAMES: [&str; 7] = [
     "very_elderly",
 ];
 
+// ---------------- 2) Parameter store & struct definitions ----------------
 #[derive(Debug)]
 pub struct ParameterStore {
     pub globals: GlobalScalars,
@@ -134,6 +137,7 @@ impl ParameterStore {
     }
 }
 
+// ---------------- 3) Global scalar defaults & helpers ----------------
 #[derive(Debug)]
 pub struct GlobalScalars {
     pub drug_base_initiation_rate_per_day: f64,
@@ -665,6 +669,7 @@ impl GlobalScalars {
     }
 }
 
+// ---------------- 4) Immunodeficiency / region / syndrome / sex parameters ----------------
 #[derive(Debug)]
 pub struct ImmunodeficiencyParameters {
     temporary_onset_rate_per_day: f64,
@@ -797,6 +802,7 @@ impl SexParameters {
     }
 }
 
+// ---------------- 5) Vaccination & age category tables ----------------
 #[derive(Debug)]
 pub struct VaccinationParameters {
     daily_probabilities: Vec<f64>,
@@ -1012,6 +1018,7 @@ impl ImmunodeficiencyParameters {
     }
 }
 
+// ---------------- 6) Drug parameter blocks (initiation, failure, restart) ----------------
 #[derive(Debug)]
 pub struct DrugParameters {
     pub initial_level: Vec<f64>,
@@ -1093,6 +1100,7 @@ impl DrugParameters {
     }
 }
 
+// ---------------- 7) Bacteria-level parameters & microbiome logic ----------------
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct BacteriaParameters {
@@ -1366,6 +1374,7 @@ impl BacteriaParameters {
     }
 }
 
+// ---------------- 8) Clearance, acquisition, and age tables ----------------
 #[derive(Debug)]
 pub struct ClearanceParameters {
     base_delay_days: f64,
@@ -2343,15 +2352,16 @@ lazy_static! {
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
-    // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
-    // Instead of uniform potency, use clinically relevant potency categories:
+        // ---------------- 9) Drug-bacteria potency & cross-resistance mappings ----------------
+        // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
+        // Instead of uniform potency, use clinically relevant potency categories:
         // 1.00+ = Excellent potency (first-line therapy)
         // 0.50-0.99 = Good potency (reliable option)
         // 0.25-0.49 = Moderate potency (situational use)
         // 0.05-0.24 = Poor potency (usually ineffective)
         // 0.05 = Very poor/no activity
 
-    // Potency values stay on this qualitative scale rather than raw 1/MIC inputs.
+        // Potency values stay on this qualitative scale rather than raw 1/MIC inputs.
 
         // Define drug classes for easier management
         // Polymyxins (currently only Colistin)
@@ -4450,6 +4460,7 @@ lazy_static! {
 
 
 
+        // ---------------- 10) Regional drug availability & introduction timing ----------------
         // Region-specific drug availability multipliers
         // Format: "{region}_drug_{drug_name}_availability"
         // Values: 1.0 = fully available, 0.5 = limited availability, 0.0 = not available
@@ -4562,6 +4573,7 @@ lazy_static! {
         // If `Region::Home` refers to a generic home location not tied to a specific geographical region,
         // you might need to reconsider its role or default it to 1.0 or an average.
 
+        // ---------------- 11) Demographic distribution defaults ----------------
         // Demographic distribution parameters (108 total: 6 regions × 18 age bands)
         // Each parameter represents probability of being in that region-age combination
         // All 108 parameters should sum to 1.0
@@ -4729,6 +4741,7 @@ lazy_static! {
     pub static ref PARAMETER_STORE: ParameterStore = ParameterStore::from_parameter_map(&PARAMETERS);
 }
 
+// ---------------- 12) Helper lookups (drug intro, availability, etc.) ----------------
 /// Helper accessor for the indexed parameter store.
 #[allow(dead_code)]
 pub fn parameter_store() -> &'static ParameterStore {
@@ -4869,6 +4882,7 @@ lazy_static! {
     };
 }
 
+// ---------------- 13) HGT matrices & resistance mechanism settings ----------------
 // --- CROSS-RESISTANCE CONFIGURATION ---
 // NOTE: These groups are DIFFERENT from the potency drug classes above!
 // Potency classes = therapeutic effectiveness groupings
