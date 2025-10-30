@@ -50,21 +50,18 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> lo
     
     return logger
 
-def safe_divide(numerator: Union[np.ndarray, pd.Series, float], 
-               denominator: Union[np.ndarray, pd.Series, float], 
+def safe_divide(numerator: Union[np.ndarray, pd.Series, float],
+               denominator: Union[np.ndarray, pd.Series, float],
                default: float = 0) -> Union[np.ndarray, pd.Series, float]:
-    """
-    Safe division avoiding division by zero.
-    
-    Args:
-        numerator: Numerator values
-        denominator: Denominator values  
-        default: Value to return when denominator is zero
-        
-    Returns:
-        Result of division with safe handling of zero denominators
-    """
-    return np.where(denominator > 0, numerator / denominator, default)
+    """Safe division avoiding division by zero and suppressing runtime warnings."""
+    numerator_arr = np.asarray(numerator, dtype=float)
+    denominator_arr = np.asarray(denominator, dtype=float)
+    result = np.full_like(numerator_arr, default, dtype=float)
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        np.divide(numerator_arr, denominator_arr, out=result, where=denominator_arr != 0)
+
+    return result
 
 def validate_dataframe(df: pd.DataFrame, required_columns: List[str] = None) -> bool:
     """

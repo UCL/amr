@@ -294,12 +294,12 @@ impl GlobalScalars {
             hospital_baseline_rate_per_day: get_or_default(
                 map,
                 "hospitalization_baseline_rate_per_day",
-                0.00006,
+                0.00003,
             ),
             hospital_age_multiplier_per_day: get_or_default(
                 map,
                 "hospitalization_age_multiplier_per_day",
-                0.0000005,
+                0.00000005,
             ),
             hospital_recovery_rate_per_day: get_or_default(
                 map,
@@ -3692,9 +3692,9 @@ lazy_static! {
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)
 
     // Hospitalization Parameters
-    map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00006); // Baseline daily probability tuned for ~0.3% prevalence
-    map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.0000005); // Incremental daily hospitalization probability per year of age
-    map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.25); // Daily probability of recovering from hospitalization (~4 day avg stay)
+    map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00003); // Baseline daily probability tuned for ~0.3%-0.5% prevalence
+    map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.00000005); // Incremental daily hospitalization probability per day of age (~0.07%/day at age 40)
+    map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.28); // Slightly shorter stays (~3.6 day avg) to reinforce target occupancy
     map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
     map.insert("hospitalization_sepsis_admission_multiplier".to_string(), 80.0); // Sepsis substantially increases admission odds
     map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 0.0); // 1.0 = block discharge with sepsis, 0.0 = allow discharge
