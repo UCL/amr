@@ -304,8 +304,6 @@ class InfectionJourneyAnalyzer:
             for i, (drug_name, drug_levels) in enumerate(drug_data['drug_levels'].items()):
                 mask = ~pd.isna(drug_levels)
                 day_series = journey_data.loc[drug_levels.index, 'day_of_journey']
-                if clearance_day is not None:
-                    mask &= day_series <= clearance_day
                 if not mask.any():
                     continue
                 drug_plot_data.append({
@@ -340,6 +338,17 @@ class InfectionJourneyAnalyzer:
                 ax3.step(days_offset, levels, where='post', 
                         color=drug_data_item['color'], label=f"{drug_data_item['name']} level", 
                         linewidth=4, alpha=0.8)
+                ax3.plot(
+                    days_offset,
+                    levels,
+                    linestyle='',
+                    marker='o',
+                    markersize=6,
+                    markerfacecolor='white',
+                    markeredgecolor=drug_data_item['color'],
+                    markeredgewidth=2,
+                    alpha=0.9,
+                )
             
             # Plot activity_r on secondary y-axis with matching colors and horizontal offsets
             ax3_twin = ax3.twinx()

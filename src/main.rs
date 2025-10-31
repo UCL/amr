@@ -50,6 +50,10 @@ mod simulation;
 //    consider determinants of toxicity (do we need to be more specific about toxicity ?)
 //    consider infection clearance rate determinants 
 //
+// check we have drug-induced resistance emergence emergence risk for microbiome bacteria
+//  - do we need any_r and majority_r also for microbiome if drugs select for resistant bacteria ?
+//  - check with iamr email to see if already capture as suggested 
+//  - ? need a bacteria level for microbiome and activity_r_microbiome ? or can it be simpler ?
 //
 //
 //

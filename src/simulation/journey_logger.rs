@@ -857,41 +857,75 @@ impl JourneyLogger {
 
     // Detect if de novo resistance has emerged during active treatment
     fn detect_de_novo_resistance_emergence(&self, individual: &Individual) -> bool {
-        // Check if any resistance acquisition events occurred while on active treatment
-        // Look for resistance acquisition types that indicate de novo emergence:
-        // - AtInfectionEnv: acquired during infection in environment
-        // - AtInfectionTB: acquired during infection in tissue/blood
-        // - FromMicrobiomeR: transferred from resistant microbiome
-        // - Hgt: horizontal gene transfer
+        // Require an active journey to compare against previously logged resistance levels.
+        let journey = if let Some(journey) = self.active_journeys.get(&individual.id) {
+            journey
+        } else {
+            return false;
+        };
 
-        // Check if individual is currently on drugs
-        let on_active_treatment = individual.cur_use_drug.iter().any(|&taking| taking);
-
-        if !on_active_treatment {
+        // Need to be on treatment for a de novo emergence to be considered.
+        if !individual.cur_use_drug.iter().any(|&taking| taking) {
             return false;
         }
 
-        // Check how_resistance_acquired field for de novo patterns
-        // This is a 2D Vec indexed by [bacteria][drug]
-        for (_bacteria_idx, bacteria_resistances) in
-            individual.how_resistance_acquired.iter().enumerate()
+        // Compare current resistance levels against the most recent snapshot.
+        let Some(previous_snapshot) = journey.snapshots.last() else {
+            return false;
+        };
+
+        let primary_bacteria_idx = journey.primary_bacteria_idx;
+        const RESISTANCE_EPSILON: f64 = 1e-6;
+
+        // Focus on the primary bacteria for this journey only.
+        for (drug_idx, acquisition_type_opt) in individual.how_resistance_acquired
+            [primary_bacteria_idx]
+            .iter()
+            .enumerate()
         {
-            for (_drug_idx, acquisition_type_opt) in bacteria_resistances.iter().enumerate() {
-                if let Some(acquisition_type) = acquisition_type_opt {
-                    // Check if this resistance was acquired during treatment
-                    match acquisition_type {
-                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv |
-                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB |
-                        crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR |
-                        crate::simulation::population::ResistanceAcquisitionType::Hgt => {
-                            return true;
-                        },
-                        _ => {
-                            // Other types like AtInfectionCommunity are less concerning
-                            // as they represent pre-existing resistance
-                        }
-                    }
-                }
+            if !individual.cur_use_drug[drug_idx] {
+                continue;
+            }
+
+            let Some(acquisition_type) = acquisition_type_opt else {
+                continue;
+            };
+
+            let is_de_novo_source = matches!(
+                acquisition_type,
+                crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
+                    | crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB
+                    | crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR
+                    | crate::simulation::population::ResistanceAcquisitionType::Hgt
+            );
+
+            if !is_de_novo_source {
+                continue;
+            }
+
+            let drug_name = DRUG_SHORT_NAMES[drug_idx];
+
+            let prev_any = previous_snapshot
+                .resistance_any_r
+                .iter()
+                .find(|(name, _)| name == drug_name)
+                .map(|(_, value)| *value)
+                .unwrap_or(0.0);
+            let current_any = individual.resistances[primary_bacteria_idx][drug_idx].any_r;
+
+            let prev_majority = previous_snapshot
+                .resistance_majority_r
+                .iter()
+                .find(|(name, _)| name == drug_name)
+                .map(|(_, value)| *value)
+                .unwrap_or(0.0);
+            let current_majority = individual.resistances[primary_bacteria_idx][drug_idx].majority_r;
+
+            let any_increased = current_any > prev_any + RESISTANCE_EPSILON;
+            let majority_increased = current_majority > prev_majority + RESISTANCE_EPSILON;
+
+            if any_increased || majority_increased {
+                return true;
             }
         }
 
