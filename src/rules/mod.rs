@@ -18,7 +18,7 @@ use crate::config::{
 };
 use crate::simulation::population::{
     HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType, Region,
-    BACTERIA_LIST, DRUG_SHORT_NAMES,
+    MICROBIOME_MAJORITY_THRESHOLD, BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -3828,6 +3828,18 @@ pub fn apply_rules(
                         InfectionResolutionType::DeathFromToxicity => 5,
                     };
                     individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
+
+                    if individual.resistances[b_idx]
+                        .iter()
+                        .any(|resistance| resistance.any_r > 0.0)
+                    {
+                        let category = individual.microbiome_resistance_level(
+                            b_idx,
+                            MICROBIOME_MAJORITY_THRESHOLD,
+                        );
+                        let category_idx = category.as_index();
+                        individual.cleared_any_r_microbiome_categories[b_idx][category_idx] += 1;
+                    }
 
                     // If infection was cleared by drugs and bacteria is present in microbiome,
                     // consider clearing it from microbiome as well

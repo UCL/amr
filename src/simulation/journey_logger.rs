@@ -639,7 +639,11 @@ impl JourneyLogger {
         }
     }
 
-    fn determine_resolution_type(&self, individual: &Individual, journey: &ActiveJourney) -> String {
+    fn determine_resolution_type(
+        &self,
+        individual: &Individual,
+        journey: &ActiveJourney,
+    ) -> String {
         if individual.date_of_death.is_some() {
             if let Some(ref cause) = individual.cause_of_death {
                 match cause.as_str() {
@@ -919,7 +923,8 @@ impl JourneyLogger {
                 .find(|(name, _)| name == drug_name)
                 .map(|(_, value)| *value)
                 .unwrap_or(0.0);
-            let current_majority = individual.resistances[primary_bacteria_idx][drug_idx].majority_r;
+            let current_majority =
+                individual.resistances[primary_bacteria_idx][drug_idx].majority_r;
 
             let any_increased = current_any > prev_any + RESISTANCE_EPSILON;
             let majority_increased = current_majority > prev_majority + RESISTANCE_EPSILON;

@@ -15,7 +15,8 @@ use crate::config::{self, get_global_param}; // Import the config module and get
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    InfectionResolutionType, Population, Region, ResistanceMechanism, BACTERIA_LIST,
+    InfectionResolutionType, MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism,
+    MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT, BACTERIA_LIST,
     DRUG_SHORT_NAMES,
 };
 use rand::rngs::SmallRng;
@@ -34,6 +35,17 @@ const DEATH_CAUSE_BACKGROUND_IDX: usize = 0;
 const DEATH_CAUSE_SEPSIS_IDX: usize = 1;
 const DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX: usize = 2;
 const DEATH_CAUSE_DRUG_TOXICITY_IDX: usize = 3;
+const CLEARANCE_MICROBIOME_CATEGORY_COUNT: usize = MICROBIOME_RESISTANCE_LEVEL_COUNT;
+const CLEARANCE_CATEGORY_SUFFIXES: [&str; CLEARANCE_MICROBIOME_CATEGORY_COUNT] = [
+    "_cleared_any_r_no_microbiome",
+    "_cleared_any_r_microbiome_no_res",
+    "_cleared_any_r_microbiome_minority",
+    "_cleared_any_r_microbiome_majority",
+];
+const LIVING_MICROBIOME_SUFFIXES: [&str; 2] = [
+    "_living_microbiome_minority",
+    "_living_microbiome_majority",
+];
 
 #[inline]
 fn carriage_duration_bin(days: i32) -> usize {
@@ -515,6 +527,9 @@ pub struct TimeStepSummary {
     pub num_with_any_bacteria_microbiome: usize, // number of people with any presence_microbiome=true
     pub presence_microbiome_by_bacteria: Vec<usize>, // per-bacteria counts of people with this bacteria in microbiome
     pub presence_microbiome_resistant_by_bacteria: Vec<usize>, // per-bacteria counts of carriers with any resistance in microbiome
+    pub living_microbiome_minority_by_bacteria: Vec<usize>, // per-bacteria counts of carriers with minority resistance
+    pub living_microbiome_majority_by_bacteria: Vec<usize>, // per-bacteria counts of carriers with majority resistance
+    pub cleared_any_r_microbiome_categories: Vec<usize>, // flattened [bacteria][microbiome-context] resistant clearances
     pub presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>, // [bacteria][region] counts of people with bacteria in microbiome by region
     pub carriage_duration_bins_by_bacteria: Vec<Vec<usize>>, // per-bacteria carriage duration histogram bins
     pub microbiome_acquisitions_on_drug_by_bacteria: Vec<usize>, // new carriage events while on any antibiotic
@@ -853,6 +868,7 @@ impl Simulation {
                 mic_lt2_counts: Vec<usize>,
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
                 microbiome_r_positive_by_bacteria_drug: Vec<usize>,
+                cleared_any_r_microbiome_categories: Vec<usize>,
                 infections_by_bacteria: Vec<usize>,
                 infections_prevented_by_drug_by_bacteria: Vec<usize>,
                 deaths_by_bacteria: Vec<usize>,
@@ -887,6 +903,8 @@ impl Simulation {
                 num_with_any_bacteria_microbiome: usize,
                 presence_microbiome_by_bacteria: Vec<usize>,
                 presence_microbiome_resistant_by_bacteria: Vec<usize>,
+                living_microbiome_minority_by_bacteria: Vec<usize>,
+                living_microbiome_majority_by_bacteria: Vec<usize>,
                 presence_microbiome_by_bacteria_by_region: Vec<Vec<usize>>,
                 carriage_duration_bins_by_bacteria: Vec<Vec<usize>>,
                 microbiome_acquisitions_on_drug_by_bacteria: Vec<usize>,
@@ -974,6 +992,10 @@ impl Simulation {
                         mic_lt2_counts: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         microbiome_r_positive_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
+                        cleared_any_r_microbiome_categories: vec![
+                            0;
+                            num_bacteria * CLEARANCE_MICROBIOME_CATEGORY_COUNT
+                        ],
                         infected_and_on_any_drug_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria: vec![0; num_bacteria],
                         infections_prevented_by_drug_by_bacteria: vec![0; num_bacteria],
@@ -1009,6 +1031,8 @@ impl Simulation {
                         num_with_any_bacteria_microbiome: 0,
                         presence_microbiome_by_bacteria: vec![0; num_bacteria],
                         presence_microbiome_resistant_by_bacteria: vec![0; num_bacteria],
+                        living_microbiome_minority_by_bacteria: vec![0; num_bacteria],
+                        living_microbiome_majority_by_bacteria: vec![0; num_bacteria],
                         presence_microbiome_by_bacteria_by_region: vec![vec![0; 6]; num_bacteria], // [bacteria][region]
                         carriage_duration_bins_by_bacteria: vec![
                             vec![
@@ -1112,6 +1136,13 @@ impl Simulation {
                         .microbiome_r_positive_by_bacteria_drug
                         .iter_mut()
                         .zip(other.microbiome_r_positive_by_bacteria_drug)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .cleared_any_r_microbiome_categories
+                        .iter_mut()
+                        .zip(other.cleared_any_r_microbiome_categories)
                     {
                         *a += b;
                     }
@@ -1256,6 +1287,20 @@ impl Simulation {
                         .presence_microbiome_resistant_by_bacteria
                         .iter_mut()
                         .zip(other.presence_microbiome_resistant_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .living_microbiome_minority_by_bacteria
+                        .iter_mut()
+                        .zip(other.living_microbiome_minority_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .living_microbiome_majority_by_bacteria
+                        .iter_mut()
+                        .zip(other.living_microbiome_majority_by_bacteria)
                     {
                         *a += b;
                     }
@@ -1538,6 +1583,8 @@ impl Simulation {
             let threads = rayon::current_num_threads().max(1);
             let per_thread_cap = (self.prev_majority_r_entries_len / threads).saturating_add(8);
             let seed_option = self.rng_seed;
+            let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
+                .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let totals = self.population.individuals.par_iter_mut()
             .fold(
                 || {
@@ -1845,6 +1892,18 @@ impl Simulation {
                                     lt.presence_microbiome_by_bacteria[b_idx] += 1;
                                     let region_idx = individual.region_living as usize;
                                     lt.presence_microbiome_by_bacteria_by_region[b_idx][region_idx] += 1;
+                                    match individual.microbiome_resistance_level(
+                                        b_idx,
+                                        microbiome_majority_threshold,
+                                    ) {
+                                        MicrobiomeResistanceLevel::MicrobiomeMinorityResistance => {
+                                            lt.living_microbiome_minority_by_bacteria[b_idx] += 1;
+                                        }
+                                        MicrobiomeResistanceLevel::MicrobiomeMajorityResistance => {
+                                            lt.living_microbiome_majority_by_bacteria[b_idx] += 1;
+                                        }
+                                        _ => {}
+                                    }
                                     let has_resistant_microbiome = individual.resistances[b_idx]
                                         .iter()
                                         .any(|resistance| resistance.microbiome_r > 0.0);
@@ -1895,6 +1954,21 @@ impl Simulation {
                                             lt.drug_failure_events_by_bacteria_region[b_idx][home_region_idx] += 1;
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        for (b_idx, category_counts) in individual
+                            .cleared_any_r_microbiome_categories
+                            .iter_mut()
+                            .enumerate()
+                        {
+                            let base = b_idx * CLEARANCE_MICROBIOME_CATEGORY_COUNT;
+                            for (cat_idx, count) in category_counts.iter_mut().enumerate() {
+                                if *count > 0 {
+                                    lt.cleared_any_r_microbiome_categories[base + cat_idx] +=
+                                        *count as usize;
+                                    *count = 0;
                                 }
                             }
                         }
@@ -2128,6 +2202,7 @@ impl Simulation {
                 mic_lt2_counts: infected_and_standardized_mic_lt2_by_bacteria_drug,
                 currently_on_drug_by_bacteria_drug,
                 microbiome_r_positive_by_bacteria_drug,
+                cleared_any_r_microbiome_categories,
                 infections_by_bacteria: infections_by_bacteria_vec,
                 infections_prevented_by_drug_by_bacteria,
                 deaths_by_bacteria,
@@ -2162,6 +2237,8 @@ impl Simulation {
                 num_with_any_bacteria_microbiome,
                 presence_microbiome_by_bacteria,
                 presence_microbiome_resistant_by_bacteria,
+                living_microbiome_minority_by_bacteria,
+                living_microbiome_majority_by_bacteria,
                 presence_microbiome_by_bacteria_by_region,
                 carriage_duration_bins_by_bacteria,
                 microbiome_acquisitions_on_drug_by_bacteria,
@@ -2281,6 +2358,9 @@ impl Simulation {
                 num_with_any_bacteria_microbiome,
                 presence_microbiome_by_bacteria,
                 presence_microbiome_resistant_by_bacteria,
+                living_microbiome_minority_by_bacteria,
+                living_microbiome_majority_by_bacteria,
+                cleared_any_r_microbiome_categories,
                 presence_microbiome_by_bacteria_by_region,
                 carriage_duration_bins_by_bacteria,
                 microbiome_acquisitions_on_drug_by_bacteria,
@@ -2864,6 +2944,15 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_presence_microbiome_resistant");
         }
+        // Add per-bacteria living microbiome resistance tier columns
+        for bacteria in BACTERIA_LIST.iter() {
+            let slug = bacteria.replace(" ", "_");
+            for suffix in LIVING_MICROBIOME_SUFFIXES {
+                header.push(',');
+                header.push_str(&slug);
+                header.push_str(suffix);
+            }
+        }
         // Add per-bacteria per-region presence_microbiome columns
         for bacteria in BACTERIA_LIST.iter() {
             for region in &[
@@ -2909,6 +2998,15 @@ impl Simulation {
             header.push(',');
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_microbiome_clearances_off_drug");
+        }
+        // Add per-bacteria resistant clearance categories by microbiome context
+        for bacteria in BACTERIA_LIST.iter() {
+            let slug = bacteria.replace(" ", "_");
+            for suffix in CLEARANCE_CATEGORY_SUFFIXES {
+                header.push(',');
+                header.push_str(&slug);
+                header.push_str(suffix);
+            }
         }
         // Add per-bacteria infected carrier/non-carrier columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -3449,6 +3547,16 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
+            for (&minor, &major) in summary
+                .living_microbiome_minority_by_bacteria
+                .iter()
+                .zip(&summary.living_microbiome_majority_by_bacteria)
+            {
+                row.push(',');
+                row.push_str(&minor.to_string());
+                row.push(',');
+                row.push_str(&major.to_string());
+            }
             // Add regional presence_microbiome data
             for bacteria_vec in &summary.presence_microbiome_by_bacteria_by_region {
                 for value in bacteria_vec {
@@ -3477,6 +3585,15 @@ impl Simulation {
             for value in &summary.microbiome_clearances_off_drug_by_bacteria {
                 row.push(',');
                 row.push_str(&value.to_string());
+            }
+            for b_idx in 0..BACTERIA_LIST.len() {
+                let base = b_idx * CLEARANCE_MICROBIOME_CATEGORY_COUNT;
+                for cat_idx in 0..CLEARANCE_MICROBIOME_CATEGORY_COUNT {
+                    row.push(',');
+                    row.push_str(
+                        &summary.cleared_any_r_microbiome_categories[base + cat_idx].to_string(),
+                    );
+                }
             }
             for value in &summary.infected_carrier_count_by_bacteria {
                 row.push(',');

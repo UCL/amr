@@ -327,6 +327,28 @@ pub struct Resistance {
                          // it will always take the same value as any_r
 }
 
+pub const MICROBIOME_RESISTANCE_LEVEL_COUNT: usize = 4;
+pub const MICROBIOME_MAJORITY_THRESHOLD: f64 = 0.5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MicrobiomeResistanceLevel {
+    NoMicrobiome,
+    MicrobiomePresentNoResistance,
+    MicrobiomeMinorityResistance,
+    MicrobiomeMajorityResistance,
+}
+
+impl MicrobiomeResistanceLevel {
+    pub const fn as_index(self) -> usize {
+        match self {
+            MicrobiomeResistanceLevel::NoMicrobiome => 0,
+            MicrobiomeResistanceLevel::MicrobiomePresentNoResistance => 1,
+            MicrobiomeResistanceLevel::MicrobiomeMinorityResistance => 2,
+            MicrobiomeResistanceLevel::MicrobiomeMajorityResistance => 3,
+        }
+    }
+}
+
 /// Represents a single individual in the simulation, with all per-person and per-bacteria/drug state variables.
 #[derive(Debug, Clone)]
 pub struct Individual {
@@ -364,6 +386,8 @@ pub struct Individual {
     pub microbiome_acquired_on_drug_today: Vec<bool>,
     /// Flags microbiome clearance events for this timestep
     pub microbiome_cleared_today: Vec<bool>,
+    /// Counts of resistant infection clearances by microbiome resistance context (reset after aggregation)
+    pub cleared_any_r_microbiome_categories: Vec<[u32; MICROBIOME_RESISTANCE_LEVEL_COUNT]>,
     pub vaccination_status: Vec<bool>,
     /// Per-bacteria vaccination status: true if vaccinated against that pathogen
     /// Initialized as false (unvaccinated) and updated dynamically based on age-appropriate schedules
@@ -457,6 +481,8 @@ impl Individual {
         let microbiome_acquired_today = vec![false; num_bacteria];
         let microbiome_acquired_on_drug_today = vec![false; num_bacteria];
         let microbiome_cleared_today = vec![false; num_bacteria];
+        let cleared_any_r_microbiome_categories =
+            vec![[0u32; MICROBIOME_RESISTANCE_LEVEL_COUNT]; num_bacteria];
         let infection_hospital_acquired = vec![false; num_bacteria];
         let cur_infection_from_environment = vec![false; num_bacteria];
         let infection_has_caused_symptoms = vec![false; num_bacteria];
@@ -547,6 +573,7 @@ impl Individual {
             microbiome_acquired_today,
             microbiome_acquired_on_drug_today,
             microbiome_cleared_today,
+            cleared_any_r_microbiome_categories,
             vaccination_status,
             cur_use_drug: vec![false; num_drugs],
             cur_level_drug: vec![0.0; num_drugs],
@@ -582,6 +609,40 @@ impl Individual {
             restart_window_assessed,
             date_last_drug_failure,
             current_number_of_drugs,
+        }
+    }
+
+    pub fn microbiome_resistance_level(
+        &self,
+        bacteria_idx: usize,
+        majority_threshold: f64,
+    ) -> MicrobiomeResistanceLevel {
+        if !self.presence_microbiome.get(bacteria_idx).copied().unwrap_or(false) {
+            return MicrobiomeResistanceLevel::NoMicrobiome;
+        }
+
+        let mut has_resistance = false;
+        let mut has_majority = false;
+        let threshold = majority_threshold.max(0.0);
+
+        if let Some(resistances) = self.resistances.get(bacteria_idx) {
+            for resistance in resistances {
+                if resistance.microbiome_r > 0.0 {
+                    has_resistance = true;
+                    if resistance.microbiome_r >= threshold {
+                        has_majority = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if !has_resistance {
+            MicrobiomeResistanceLevel::MicrobiomePresentNoResistance
+        } else if has_majority {
+            MicrobiomeResistanceLevel::MicrobiomeMajorityResistance
+        } else {
+            MicrobiomeResistanceLevel::MicrobiomeMinorityResistance
         }
     }
 }

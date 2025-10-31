@@ -37,7 +37,7 @@ mod simulation;
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
-//
+// enhance journey plots to give microbiome and resistance
 //
 //
 //
@@ -48,11 +48,11 @@ mod simulation;
 //
 //    consider bacterial growth rate
 //    consider determinants of toxicity (do we need to be more specific about toxicity ?)
-//    consider infection clearance rate determinants 
+//    consider infection clearance rate determinants
 //
 // check we have drug-induced resistance emergence emergence risk for microbiome bacteria
 //  - do we need any_r and majority_r also for microbiome if drugs select for resistant bacteria ?
-//  - check with iamr email to see if already capture as suggested 
+//  - check with iamr email to see if already capture as suggested
 //  - ? need a bacteria level for microbiome and activity_r_microbiome ? or can it be simpler ?
 //
 //
@@ -129,10 +129,10 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 2_000;
+    let population_size = 5_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.005; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
