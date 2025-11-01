@@ -5302,20 +5302,36 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
     for bacteria in bacteria_names:
         logger.info(f"Creating death rate plot for {bacteria}...")
         
-        # Look for death columns for this bacteria
-        death_cols = [col for col in df.columns if bacteria in col and 'death' in col]
+        # Deaths recorded via infection resolution (exclude background deaths)
+        resolution_death_suffixes = [
+            "infection_resolution_death_from_sepsis",
+            "infection_resolution_death_from_infection_non_sepsis",
+            "infection_resolution_death_from_toxicity",
+        ]
         infection_col = f"{bacteria}_currently_infected"
         
         if infection_col not in df.columns:
             logger.warning(f"Missing infection column: {infection_col}")
             continue
             
-        # Look for all death columns for this bacteria (deaths per time step, not cumulative)
-        current_death_cols = []
-        for col in death_cols:
-            # Skip cumulative columns, we want deaths per time step
-            if 'cumulative' not in col.lower() and 'deaths_' in col:
-                current_death_cols.append(col)
+        # Use the infection-resolution death counts, excluding background causes
+        current_death_cols = [
+            f"{bacteria}_{suffix}"
+            for suffix in resolution_death_suffixes
+            if f"{bacteria}_{suffix}" in df.columns
+        ]
+
+        if not current_death_cols:
+            # Fallback to legacy cause-specific columns while still excluding background deaths
+            legacy_cols = [
+                col
+                for col in df.columns
+                if bacteria in col
+                and 'death_from_' in col
+                and 'background' not in col.lower()
+                and 'cumulative' not in col.lower()
+            ]
+            current_death_cols.extend(legacy_cols)
         
         if not current_death_cols:
             logger.warning(f"No current death columns found for {bacteria}. Available: {death_cols}")
@@ -5324,11 +5340,19 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
         # Calculate death rate
         infections = df[infection_col]
         
-        # Sum all types of deaths for this bacteria (sepsis, background, toxicity, etc.)
+        # Sum all relevant deaths for this bacteria (sepsis, infection, toxicity)
         total_deaths = df[current_death_cols].sum(axis=1)
-        
-        # Calculate rate as deaths per infected (but avoid division by zero)
-        death_rate = np.where(infections > 0, total_deaths / infections, 0)
+
+        # Exposure-adjusted rate using a 30-day rolling window of infection person-days
+        window_days = 30
+        deaths_window = total_deaths.rolling(window_days, min_periods=1).sum()
+        infection_days_window = infections.rolling(window_days, min_periods=1).sum()
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            death_rate = deaths_window / infection_days_window
+
+        # When there is no exposure in the window, treat the rate as missing rather than zero
+        death_rate = death_rate.mask(infection_days_window <= 0, np.nan)
         
         if death_rate.max() == 0:
             logger.info(f"No deaths recorded for {bacteria}, skipping plot")

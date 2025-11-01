@@ -39,7 +39,7 @@ mod simulation;
 //
 // enhance journey plots to give microbiome and resistance
 //
-// think of other outputs which can convey how / whether various parts of the model are working (e.g. the effects of a on b)  
+// think of other outputs which can convey how / whether various parts of the model are working (e.g. the effects of a on b)
 //
 //
 //
@@ -54,17 +54,17 @@ mod simulation;
 //    consider infection clearance rate determinants
 //
 // check we have drug-induced resistance emergence for microbiome bacteria
-// 
+//
 // introduce a decline in infection risk over time, due to cleaner conditions ?
 //
 // hospital status and region and age affect carriage risk ?
 //
 // should presence of resistance at acquisition depend on the microbiome_r as well / instead of the infection majority_r ?
 //
-// make sure mechanisms are bacteria specific 
+// make sure mechanisms are bacteria specific
 //
 // review acquisition of a specific resistance mechanism - should depend on distribution in current infected (or carrying)
-// for that bacteria 
+// for that bacteria
 //
 //
 //

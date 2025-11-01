@@ -617,7 +617,12 @@ impl Individual {
         bacteria_idx: usize,
         majority_threshold: f64,
     ) -> MicrobiomeResistanceLevel {
-        if !self.presence_microbiome.get(bacteria_idx).copied().unwrap_or(false) {
+        if !self
+            .presence_microbiome
+            .get(bacteria_idx)
+            .copied()
+            .unwrap_or(false)
+        {
             return MicrobiomeResistanceLevel::NoMicrobiome;
         }
 

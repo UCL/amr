@@ -16,8 +16,8 @@ use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
     InfectionResolutionType, MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism,
-    MICROBIOME_MAJORITY_THRESHOLD, MICROBIOME_RESISTANCE_LEVEL_COUNT, BACTERIA_LIST,
-    DRUG_SHORT_NAMES,
+    BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
+    MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -42,10 +42,8 @@ const CLEARANCE_CATEGORY_SUFFIXES: [&str; CLEARANCE_MICROBIOME_CATEGORY_COUNT] =
     "_cleared_any_r_microbiome_minority",
     "_cleared_any_r_microbiome_majority",
 ];
-const LIVING_MICROBIOME_SUFFIXES: [&str; 2] = [
-    "_living_microbiome_minority",
-    "_living_microbiome_majority",
-];
+const LIVING_MICROBIOME_SUFFIXES: [&str; 2] =
+    ["_living_microbiome_minority", "_living_microbiome_majority"];
 
 #[inline]
 fn carriage_duration_bin(days: i32) -> usize {

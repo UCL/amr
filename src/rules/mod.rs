@@ -18,7 +18,7 @@ use crate::config::{
 };
 use crate::simulation::population::{
     HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType, Region,
-    MICROBIOME_MAJORITY_THRESHOLD, BACTERIA_LIST, DRUG_SHORT_NAMES,
+    BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -2290,7 +2290,9 @@ pub fn apply_rules(
 
                         if resistance_data.microbiome_r > 0.0 {
                             resistance_data.microbiome_r = (resistance_data.microbiome_r
-                                * store.globals.microbiome_resistance_multiplier_on_acquisition)
+                                * store
+                                    .globals
+                                    .microbiome_resistance_multiplier_on_acquisition)
                                 .min(max_resistance_level)
                                 .max(0.0);
                         }
@@ -2389,6 +2391,126 @@ pub fn apply_rules(
                             }
                         }
                     }
+
+                    use crate::simulation::population::ResistanceMechanism;
+
+                    // --- mechanism emergence in microbiome under drug pressure ---
+                    for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                        let drug_level = individual.cur_level_drug[d_idx];
+                        if drug_level <= 0.0 {
+                            continue;
+                        }
+
+                        for (mechanism_idx, mechanism) in
+                            ResistanceMechanism::all().iter().enumerate()
+                        {
+                            if individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                                continue;
+                            }
+
+                            // Check if mechanism is relevant for this drug/bacteria combination
+                            let mechanism_applicable = match (mechanism, DRUG_SHORT_NAMES[d_idx]) {
+                                (ResistanceMechanism::ESBL, drug) => matches!(
+                                    drug,
+                                    "penicilling"
+                                        | "ampicillin"
+                                        | "amoxicillin"
+                                        | "piperacillin"
+                                        | "ticarcillin"
+                                        | "cephalexin"
+                                        | "cefazolin"
+                                        | "cefuroxime"
+                                        | "ceftriaxone"
+                                        | "ceftazidime"
+                                        | "cefepime"
+                                        | "ceftaroline"
+                                        | "aztreonam"
+                                        | "amoxicillin_clavulanate"
+                                        | "piperacillin_tazobactam"
+                                        | "ampicillin_sulbactam"
+                                        | "ticarcillin_clavulanate"
+                                ),
+                                (ResistanceMechanism::Carbapenemase, drug) => matches!(
+                                    drug,
+                                    "meropenem"
+                                        | "imipenem_c"
+                                        | "ertapenem"
+                                        | "meropenem_vaborbactam"
+                                ),
+                                (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
+                                    matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
+                                }
+                                (ResistanceMechanism::Qnr, drug) => matches!(
+                                    drug,
+                                    "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
+                                ),
+                                (ResistanceMechanism::ErmMethylation, drug) => matches!(
+                                    drug,
+                                    "erythromycin" | "azithromycin" | "clarithromycin"
+                                ),
+                                (ResistanceMechanism::VanType, drug) => {
+                                    matches!(drug, "vancomycin" | "teicoplanin")
+                                }
+                                (ResistanceMechanism::MecA, drug) => {
+                                    bacteria == "staphylococcus aureus"
+                                        && matches!(
+                                            drug,
+                                            "penicilling"
+                                                | "ampicillin"
+                                                | "amoxicillin"
+                                                | "cephalexin"
+                                                | "cefazolin"
+                                                | "cefuroxime"
+                                                | "ceftriaxone"
+                                                | "ceftazidime"
+                                                | "cefepime"
+                                                | "meropenem"
+                                                | "imipenem_c"
+                                                | "ertapenem"
+                                        )
+                                }
+                                (ResistanceMechanism::EffluxOverexpression, _) => true,
+                                (ResistanceMechanism::ReducedPermeability, _) => !matches!(
+                                    bacteria,
+                                    "staphylococcus aureus"
+                                        | "streptococcus pneumoniae"
+                                        | "streptococcus pyogenes"
+                                        | "streptococcus agalactiae"
+                                        | "enterococcus faecalis"
+                                        | "enterococcus faecium"
+                                ),
+                                (ResistanceMechanism::TargetSiteMutation, _) => true,
+                                (ResistanceMechanism::AmpC, drug) => matches!(
+                                    drug,
+                                    "penicilling"
+                                        | "ampicillin"
+                                        | "amoxicillin"
+                                        | "piperacillin"
+                                        | "ticarcillin"
+                                        | "cephalexin"
+                                        | "cefazolin"
+                                        | "cefuroxime"
+                                        | "ceftriaxone"
+                                        | "amoxicillin_clavulanate"
+                                        | "piperacillin_tazobactam"
+                                        | "ampicillin_sulbactam"
+                                        | "ticarcillin_clavulanate"
+                                ),
+                            };
+
+                            if !mechanism_applicable {
+                                continue;
+                            }
+
+                            let mechanism_emergence_rate =
+                                store.resistance_mechanism.emergence_rate(mechanism_idx);
+
+                            if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
+                                individual.resistance_mechanisms[b_idx][mechanism_idx] = true;
+                            }
+                        }
+                    }
+                    // --- end mechanism emergence in microbiome ---
                 }
                 // --- end de novo resistance emergence in microbiome ---
             }
@@ -3828,10 +3950,8 @@ pub fn apply_rules(
                         .iter()
                         .any(|resistance| resistance.any_r > 0.0)
                     {
-                        let category = individual.microbiome_resistance_level(
-                            b_idx,
-                            MICROBIOME_MAJORITY_THRESHOLD,
-                        );
+                        let category = individual
+                            .microbiome_resistance_level(b_idx, MICROBIOME_MAJORITY_THRESHOLD);
                         let category_idx = category.as_index();
                         individual.cleared_any_r_microbiome_categories[b_idx][category_idx] += 1;
                     }
