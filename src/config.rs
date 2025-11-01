@@ -180,8 +180,6 @@ pub struct GlobalScalars {
     pub log_odds_bacteria_with_low_sepsis_risk: f64,
     pub log_odds_sepsis_region_a: f64,
     pub log_odds_sepsis_region_b: f64,
-    #[allow(dead_code)]
-    pub environmental_majority_r_level_for_new_acquisition: f64,
     pub mdr_tb_pre_antibiotic_era_multiplier: f64,
     pub mdr_tb_early_antibiotic_era_multiplier: f64,
     pub mdr_tb_modern_era_multiplier: f64,
@@ -236,10 +234,11 @@ pub struct GlobalScalars {
     pub sepsis_immunosuppressed_multiplier: f64,
     pub drug_toxicity_death_risk_per_day: f64,
     // Enhanced microbiome/carriage model parameters
-    pub antibiotic_disruption_log_odds_per_active_drug: f64,
     #[allow(dead_code)]
     // TODO: apply decay half-life when modeling antibiotic disruption over time
     pub antibiotic_disruption_decay_half_life_days: f64,
+    pub microbiome_resistance_multiplier_on_acquisition: f64,
+    pub infection_from_microbiome_dampening: f64,
     pub carriage_duration_log_odds_coefficient: f64,
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
@@ -406,11 +405,6 @@ impl GlobalScalars {
             ),
             log_odds_sepsis_region_a: get_or_default(map, "log_odds_sepsis_region_a", -0.3),
             log_odds_sepsis_region_b: get_or_default(map, "log_odds_sepsis_region_b", 0.2),
-            environmental_majority_r_level_for_new_acquisition: get_or_default(
-                map,
-                "environmental_majority_r_level_for_new_acquisition",
-                0.0,
-            ),
             mdr_tb_pre_antibiotic_era_multiplier: get_or_default(
                 map,
                 "mdr_tb_pre_antibiotic_era_multiplier",
@@ -630,15 +624,20 @@ impl GlobalScalars {
                 "drug_toxicity_death_risk_per_day",
                 0.0,
             ),
-            antibiotic_disruption_log_odds_per_active_drug: get_or_default(
-                map,
-                "antibiotic_disruption_log_odds_per_active_drug",
-                0.3,
-            ),
             antibiotic_disruption_decay_half_life_days: get_or_default(
                 map,
                 "antibiotic_disruption_decay_half_life_days",
                 30.0,
+            ),
+            microbiome_resistance_multiplier_on_acquisition: get_or_default(
+                map,
+                "microbiome_resistance_multiplier_on_acquisition",
+                1.0,
+            ),
+            infection_from_microbiome_dampening: get_or_default(
+                map,
+                "infection_from_microbiome_dampening",
+                1.0,
             ),
             carriage_duration_log_odds_coefficient: get_or_default(
                 map,
@@ -1026,6 +1025,7 @@ pub struct DrugParameters {
     pub spectrum_breadth: Vec<f64>,
     pub half_life_days: Vec<f64>,
     pub toxicity_per_unit_level_per_day: Vec<f64>,
+    pub microbiome_disruption_log_odds: Vec<f64>,
 }
 
 impl DrugParameters {
@@ -1035,6 +1035,7 @@ impl DrugParameters {
         let mut spectrum_breadth = Vec::with_capacity(num_drugs);
         let mut half_life_days = Vec::with_capacity(num_drugs);
         let mut toxicity_per_unit_level_per_day = Vec::with_capacity(num_drugs);
+        let mut microbiome_disruption_log_odds = Vec::with_capacity(num_drugs);
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             let prefix = format!("drug_{}", drug);
@@ -1063,6 +1064,11 @@ impl DrugParameters {
                 &format!("{}_toxicity_per_unit_level_per_day", prefix),
                 get_or_default(map, "default_drug_toxicity_per_unit_level_per_day", 0.001),
             ));
+            microbiome_disruption_log_odds.push(get_or_default(
+                map,
+                &format!("{}_microbiome_disruption_log_odds", prefix),
+                get_or_default(map, "default_microbiome_disruption_log_odds", 0.0),
+            ));
         }
 
         DrugParameters {
@@ -1071,6 +1077,7 @@ impl DrugParameters {
             spectrum_breadth,
             half_life_days,
             toxicity_per_unit_level_per_day,
+            microbiome_disruption_log_odds,
         }
     }
 
@@ -1098,6 +1105,11 @@ impl DrugParameters {
     pub fn toxicity_per_unit_level_per_day(&self, drug_idx: usize) -> f64 {
         self.toxicity_per_unit_level_per_day[drug_idx]
     }
+
+    #[inline]
+    pub fn microbiome_disruption_log_odds(&self, drug_idx: usize) -> f64 {
+        self.microbiome_disruption_log_odds[drug_idx]
+    }
 }
 
 // ---------------- 7) Bacteria-level parameters & microbiome logic ----------------
@@ -1110,7 +1122,6 @@ pub struct BacteriaParameters {
     pub log_odds_hospital_acquired: Vec<f64>,
     pub microbiome_clearance_probability_per_day: Vec<f64>,
     pub environmental_acquisition_proportion: Vec<f64>,
-    pub microbiome_environmental_acquisition_proportion: Vec<Option<f64>>,
     pub initial_infection_level: Vec<f64>,
     pub base_bacteria_level_change: Vec<f64>,
     pub max_level: Vec<f64>,
@@ -1135,7 +1146,6 @@ impl BacteriaParameters {
         let mut log_odds_hospital_acquired = Vec::with_capacity(num_bacteria);
         let mut microbiome_clearance_probability_per_day = Vec::with_capacity(num_bacteria);
         let mut environmental_acquisition_proportion = Vec::with_capacity(num_bacteria);
-        let mut microbiome_environmental_acquisition_proportion = Vec::with_capacity(num_bacteria);
         let mut initial_infection_level = Vec::with_capacity(num_bacteria);
         let mut base_bacteria_level_change = Vec::with_capacity(num_bacteria);
         let mut max_level = Vec::with_capacity(num_bacteria);
@@ -1187,13 +1197,6 @@ impl BacteriaParameters {
                 &format!("{}_environmental_acquisition_proportion", prefix),
                 0.1,
             ));
-            microbiome_environmental_acquisition_proportion.push(
-                map.get(&format!(
-                    "{}_microbiome_environmental_acquisition_proportion",
-                    prefix
-                ))
-                .copied(),
-            );
             initial_infection_level.push(get_or_default(
                 map,
                 &format!("{}_initial_infection_level", prefix),
@@ -1271,7 +1274,6 @@ impl BacteriaParameters {
             log_odds_hospital_acquired,
             microbiome_clearance_probability_per_day,
             environmental_acquisition_proportion,
-            microbiome_environmental_acquisition_proportion,
             initial_infection_level,
             base_bacteria_level_change,
             max_level,
@@ -1333,14 +1335,6 @@ impl BacteriaParameters {
     #[inline]
     pub fn environmental_acquisition_proportion(&self, bacteria_idx: usize) -> f64 {
         self.environmental_acquisition_proportion[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn microbiome_environmental_acquisition_proportion(
-        &self,
-        bacteria_idx: usize,
-    ) -> Option<f64> {
-        self.microbiome_environmental_acquisition_proportion[bacteria_idx]
     }
 
     #[inline]
@@ -3614,7 +3608,6 @@ lazy_static! {
         map.insert("log_odds_microbiome_vs_infection".to_string(), 10.0); // Fallback: ~2-5% carriage if no bacteria-specific param
 
         // Environmental resistance level for new acquisitions
-        map.insert("environmental_majority_r_level_for_new_acquisition".to_string(), 0.001); // 0.01
 
 
         map.insert("max_resistance_level".to_string(), 1.0);
@@ -4065,7 +4058,9 @@ lazy_static! {
         // broad-spectrum antibiotic use, and why MRSA/ESBL colonization increases during antibiotic courses.
         // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
         // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
-        map.insert("antibiotic_disruption_log_odds_per_active_drug".to_string(), 0.3);
+    map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
+    map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 1.0);
+    map.insert("infection_from_microbiome_dampening".to_string(), 1.0);
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
 

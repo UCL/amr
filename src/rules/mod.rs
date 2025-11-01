@@ -2220,14 +2220,13 @@ pub fn apply_rules(
                 // persisting for weeks to months after cessation (we model acute effect here).
                 let mut antibiotic_disruption_log_odds = 0.0;
                 let mut acquisition_on_drug = false;
-                let disruption_per_drug =
-                    store.globals.antibiotic_disruption_log_odds_per_active_drug;
 
-                for (_d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
+                for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
                     if drug_level > 0.1 {
                         // Only count drugs with meaningful levels
-                        antibiotic_disruption_log_odds += disruption_per_drug;
                         acquisition_on_drug = true;
+                        antibiotic_disruption_log_odds +=
+                            store.drug.microbiome_disruption_log_odds(d_idx);
                     }
                 }
                 log_odds += antibiotic_disruption_log_odds;
@@ -2247,20 +2246,8 @@ pub fn apply_rules(
                     individual.microbiome_acquired_on_drug_today[b_idx] = acquisition_on_drug;
 
                     // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
-                    let env_majority_r_level = store
-                        .globals
-                        .environmental_majority_r_level_for_new_acquisition;
                     let max_resistance_level = store.globals.max_resistance_level;
 
-                    let microbiome_env_prob = store
-                        .bacteria
-                        .microbiome_environmental_acquisition_proportion(b_idx)
-                        .unwrap_or_else(|| {
-                            store.bacteria.environmental_acquisition_proportion(b_idx)
-                        })
-                        .clamp(0.0, 1.0);
-
-                    let is_from_environment = rng.gen::<f64>() < microbiome_env_prob;
                     let is_hospital_acquired = individual.hospital_status.is_hospitalized();
 
                     let region_idx = individual.region_cur_in as usize;
@@ -2270,39 +2257,42 @@ pub fn apply_rules(
                         let d_idx = *drug_indices.get(drug_name_static).unwrap();
                         let resistance_data = &mut individual.resistances[b_idx][d_idx];
 
-                        if is_from_environment {
-                            resistance_data.microbiome_r = env_majority_r_level;
+                        // --- region/hospital-specific sampling for microbiome (same logic as infections) ---
+                        let sampling_hospital_status = if is_hospital_acquired {
+                            true // Hospital-acquired microbiome samples from hospitalized population
                         } else {
-                            // --- region/hospital-specific sampling for microbiome (same logic as infections) ---
-                            let sampling_hospital_status = if is_hospital_acquired {
-                                true // Hospital-acquired microbiome samples from hospitalized population
-                            } else {
-                                hospital_status_bool // Community-acquired microbiome samples based on current status
-                            };
+                            hospital_status_bool // Community-acquired microbiome samples based on current status
+                        };
 
-                            let majority_r_values_from_population = majority_r_cache.bucket(
-                                region_idx,
-                                sampling_hospital_status,
-                                b_idx,
-                                d_idx,
-                            );
-                            if let Some(&acquired_resistance_level) =
-                                majority_r_values_from_population.choose(rng)
-                            {
-                                let clamped_level =
-                                    acquired_resistance_level.min(max_resistance_level).max(0.0);
-                                resistance_data.microbiome_r = clamped_level;
-                            } else if let Some(fallback_level) = majority_r_cache.fallback_mean(
-                                region_idx,
-                                sampling_hospital_status,
-                                b_idx,
-                                d_idx,
-                            ) {
-                                resistance_data.microbiome_r =
-                                    fallback_level.min(max_resistance_level).max(0.0);
-                            } else {
-                                resistance_data.microbiome_r = 0.0;
-                            }
+                        let majority_r_values_from_population = majority_r_cache.bucket(
+                            region_idx,
+                            sampling_hospital_status,
+                            b_idx,
+                            d_idx,
+                        );
+                        if let Some(&acquired_resistance_level) =
+                            majority_r_values_from_population.choose(rng)
+                        {
+                            let clamped_level =
+                                acquired_resistance_level.min(max_resistance_level).max(0.0);
+                            resistance_data.microbiome_r = clamped_level;
+                        } else if let Some(fallback_level) = majority_r_cache.fallback_mean(
+                            region_idx,
+                            sampling_hospital_status,
+                            b_idx,
+                            d_idx,
+                        ) {
+                            resistance_data.microbiome_r =
+                                fallback_level.min(max_resistance_level).max(0.0);
+                        } else {
+                            resistance_data.microbiome_r = 0.0;
+                        }
+
+                        if resistance_data.microbiome_r > 0.0 {
+                            resistance_data.microbiome_r = (resistance_data.microbiome_r
+                                * store.globals.microbiome_resistance_multiplier_on_acquisition)
+                                .min(max_resistance_level)
+                                .max(0.0);
                         }
                     }
                     // --- end microbiome_r assignment ---
@@ -2808,6 +2798,7 @@ pub fn apply_rules(
                         let inheritance_prob =
                             store.globals.carrier_resistance_inheritance_probability;
                         if rng.gen_bool(inheritance_prob) {
+                            let max_resistance_level = store.globals.max_resistance_level;
                             // Inherit microbiome resistance for all drugs
                             for d_idx in 0..DRUG_SHORT_NAMES.len() {
                                 let microbiome_resistance =
@@ -2815,10 +2806,14 @@ pub fn apply_rules(
                                 if microbiome_resistance > 0.0 {
                                     let infection_resistance_data =
                                         &mut individual.resistances[b_idx][d_idx];
-                                    // Inherit the higher of current infection resistance or microbiome resistance
+                                    // Inherit the higher of existing infection resistance or dampened microbiome resistance
                                     // (ensures we don't lose resistance already assigned from other sources)
-                                    let inherited_level =
-                                        microbiome_resistance.max(infection_resistance_data.any_r);
+                                    let dampened_microbiome_resistance = (microbiome_resistance
+                                        * store.globals.infection_from_microbiome_dampening)
+                                        .min(max_resistance_level)
+                                        .max(0.0);
+                                    let inherited_level = dampened_microbiome_resistance
+                                        .max(infection_resistance_data.any_r);
                                     infection_resistance_data.any_r = inherited_level;
                                     infection_resistance_data.majority_r = inherited_level;
 

@@ -55,7 +55,7 @@ For every bacteria in `BACTERIA_LIST` (~30 entries):
 - Additional modifiers: `log_odds_vaccinated`, `log_odds_microbiome_present`, `log_odds_hospital_acquired`, `log_odds_microbiome_vs_infection` (mix of bacteria and global keys).
 - Age × region interaction keys: `"{bacteria_clean}_{region}_log_odds_{age_category}"` with fallback to region-only key `"{region}_log_odds_{age_category}"`.
 - Historical MDR-TB multipliers: `mdr_tb_pre_antibiotic_era_multiplier`, `mdr_tb_early_antibiotic_era_multiplier`, `mdr_tb_modern_era_multiplier`.
-- Microbiome acquisition/clearance uses `environmental_majority_r_level_for_new_acquisition`, `max_resistance_level`, `default_microbiome_clearance_probability_per_day`, `microbiome_resistance_emergence_rate_per_day_baseline`, `any_r_emergence_level_on_first_emergence`.
+- Microbiome acquisition/clearance uses `max_resistance_level`, `default_microbiome_clearance_probability_per_day`, `microbiome_resistance_emergence_rate_per_day_baseline`, `any_r_emergence_level_on_first_emergence`, `microbiome_resistance_multiplier_on_acquisition`, `infection_from_microbiome_dampening`, and drug-specific `drug_*_microbiome_disruption_log_odds`.
 
 ### Resistance transfer & HGT (nested over donor × recipient × drug)
 
