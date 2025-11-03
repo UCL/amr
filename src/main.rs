@@ -37,11 +37,13 @@ mod simulation;
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
-// enhance journey plots to give microbiome and resistance
-//
 // think of other outputs which can convey how / whether various parts of the model are working (e.g. the effects of a on b)
+// at least a partial answer here might be "tests"
 //
+// microbiome plot for journyes should show all bacteria the person has + with resistance, or at least
+// 2 or 3 example bacteria ? 
 //
+// immune clearance rate too high ?
 //
 //
 //
@@ -53,18 +55,7 @@ mod simulation;
 //    consider determinants of toxicity (do we need to be more specific about toxicity ?)
 //    consider infection clearance rate determinants
 //
-// check we have drug-induced resistance emergence for microbiome bacteria
-//
 // introduce a decline in infection risk over time, due to cleaner conditions ?
-//
-// hospital status and region and age affect carriage risk ?
-//
-// should presence of resistance at acquisition depend on the microbiome_r as well / instead of the infection majority_r ?
-//
-// make sure mechanisms are bacteria specific
-//
-// review acquisition of a specific resistance mechanism - should depend on distribution in current infected (or carrying)
-// for that bacteria
 //
 //
 //
@@ -144,8 +135,8 @@ fn main() {
     let population_size = 1_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = true; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.01; // Log 1% of infections for analysis (0.0-1.0)
+    let log_infection_journeys = true ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.2 ; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria

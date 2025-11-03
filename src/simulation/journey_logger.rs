@@ -47,6 +47,8 @@ pub struct InfectionJourneySnapshot {
     pub resistance_any_r: Vec<(String, f64)>, // (drug_name, any_r_level)
     pub resistance_majority_r: Vec<(String, f64)>, // (drug_name, majority_r_level)
     pub resistance_activity_r: Vec<(String, f64)>, // (drug_name, activity_r_level)
+    pub resistances_microbiome_r: Vec<(String, f64)>, // (drug_name, microbiome_r_level)
+    pub presence_microbiome: Vec<(String, bool)>,   // (bacteria_name, present)
     pub resistance_mechanisms: Vec<String>,   // active mechanisms
 
     // Drug selection information (captured when treatment starts)
@@ -176,7 +178,7 @@ impl JourneyLogger {
     }
 
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
+        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistances_microbiome_r,presence_microbiome,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
     }
 
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -497,7 +499,12 @@ impl JourneyLogger {
         let resistance_any_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
             .iter()
             .enumerate()
-            .filter(|(idx, _)| individual.resistances[primary_bacteria_idx][*idx].any_r > 0.0)
+            .filter(|(idx, _)| {
+                let resistance_value = individual.resistances[primary_bacteria_idx][*idx].any_r;
+                let drug_active = individual.cur_use_drug[*idx]
+                    || individual.cur_level_drug[*idx] > 0.001;
+                resistance_value > 0.0 || drug_active
+            })
             .map(|(idx, &drug_name)| {
                 (
                     drug_name.to_string(),
@@ -509,7 +516,12 @@ impl JourneyLogger {
         let resistance_majority_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
             .iter()
             .enumerate()
-            .filter(|(idx, _)| individual.resistances[primary_bacteria_idx][*idx].majority_r > 0.0)
+            .filter(|(idx, _)| {
+                let resistance_value = individual.resistances[primary_bacteria_idx][*idx].majority_r;
+                let drug_active = individual.cur_use_drug[*idx]
+                    || individual.cur_level_drug[*idx] > 0.001;
+                resistance_value > 0.0 || drug_active
+            })
             .map(|(idx, &drug_name)| {
                 (
                     drug_name.to_string(),
@@ -533,6 +545,26 @@ impl JourneyLogger {
                 )
             })
             .collect();
+
+        let primary_bacteria_name = BACTERIA_LIST[primary_bacteria_idx].to_string();
+        let primary_microbiome_present = individual.presence_microbiome[primary_bacteria_idx];
+
+        let mut resistances_microbiome_r: Vec<(String, f64)> = Vec::new();
+        for (idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+            let microbiome_value = individual.resistances[primary_bacteria_idx][idx].microbiome_r;
+            if primary_microbiome_present || microbiome_value > 0.0 {
+                resistances_microbiome_r.push((drug_name.to_string(), microbiome_value));
+            }
+        }
+
+        let mut presence_microbiome: Vec<(String, bool)> = Vec::new();
+        presence_microbiome.push((primary_bacteria_name.clone(), primary_microbiome_present));
+
+        for (idx, &present) in individual.presence_microbiome.iter().enumerate() {
+            if idx != primary_bacteria_idx && present {
+                presence_microbiome.push((BACTERIA_LIST[idx].to_string(), true));
+            }
+        }
 
         // Collect active resistance mechanisms
         let resistance_mechanisms: Vec<String> = individual.resistance_mechanisms
@@ -609,7 +641,7 @@ impl JourneyLogger {
             region_living: format!("{:?}", individual.region_living),
             region_current: format!("{:?}", individual.region_cur_in),
             immunodeficiency: format!("{:?}", individual.immunodeficiency_type),
-            primary_bacteria: BACTERIA_LIST[primary_bacteria_idx].to_string(),
+            primary_bacteria: primary_bacteria_name.clone(),
             primary_bacteria_level: individual.level[primary_bacteria_idx],
             syndrome: individual.infectious_syndrome[primary_bacteria_idx],
             sepsis: individual.sepsis[primary_bacteria_idx],
@@ -621,6 +653,8 @@ impl JourneyLogger {
             resistance_any_r,
             resistance_majority_r,
             resistance_activity_r,
+            resistances_microbiome_r,
+            presence_microbiome,
             resistance_mechanisms,
             drug_selection_bacteria,
             drug_selection_scores,
@@ -777,6 +811,20 @@ impl JourneyLogger {
             .collect::<Vec<_>>()
             .join(";");
 
+        let resistances_microbiome_r_str = snapshot
+            .resistances_microbiome_r
+            .iter()
+            .map(|(drug, level)| format!("{}:{:.6}", drug, level))
+            .collect::<Vec<_>>()
+            .join(";");
+
+        let presence_microbiome_str = snapshot
+            .presence_microbiome
+            .iter()
+            .map(|(name, present)| format!("{}:{}", name, present))
+            .collect::<Vec<_>>()
+            .join(";");
+
         let mechanisms_str = snapshot.resistance_mechanisms.join(";");
 
         let drug_selection_bacteria_str = snapshot
@@ -812,7 +860,7 @@ impl JourneyLogger {
             .join(";");
 
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},{},\"{}\"",
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},{},\"{}\"",
             snapshot.journey_id,
             snapshot.individual_id,
             snapshot.time_step,
@@ -834,6 +882,8 @@ impl JourneyLogger {
             resistance_any_r_str,
             resistance_majority_r_str,
             resistance_activity_r_str,
+            resistances_microbiome_r_str,
+            presence_microbiome_str,
             mechanisms_str,
             drug_selection_bacteria_str,
             drug_selection_scores_str,

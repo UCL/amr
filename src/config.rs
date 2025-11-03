@@ -1384,7 +1384,7 @@ pub struct ClearanceParameters {
 impl ClearanceParameters {
     fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
         let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
-        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.2);
+        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.05);
 
         let mut age_multipliers = [1.0; AGE_CATEGORY_NAMES.len()];
         for (idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
@@ -2346,7 +2346,7 @@ lazy_static! {
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
-        // ---------------- 9) Drug-bacteria potency & cross-resistance mappings ----------------
+// ---------------- 9) Drug-bacteria potency & cross-resistance mappings ----------------
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
         // Instead of uniform potency, use clinically relevant potency categories:
         // 1.00+ = Excellent potency (first-line therapy)

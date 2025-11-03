@@ -1136,9 +1136,13 @@ pub fn apply_rules(
             let half_life_days = store.drug.half_life_days(drug_idx);
             let decay_constant = (2.0_f64).ln() / half_life_days; // k = ln(2) / t_half
             let decay_factor = (-decay_constant).exp(); // e^(-k*t) where t=1 day
-            let new_level = individual.cur_level_drug[drug_idx] * decay_factor;
+            let new_drug_level = individual.cur_level_drug[drug_idx] * decay_factor;
             // Set levels below 0.001 (0.1% of standard dose) to exactly zero to avoid floating point artifacts
-            individual.cur_level_drug[drug_idx] = if new_level < 0.001 { 0.0 } else { new_level };
+            individual.cur_level_drug[drug_idx] = if new_drug_level < 0.001 {
+                0.0
+            } else {
+                new_drug_level
+            };
         }
     }
 
@@ -3903,12 +3907,12 @@ pub fn apply_rules(
             let decay = baseline_change - adjusted_antibiotic_effect;
 
             let max_level = store.bacteria.max_level(b_idx);
-            let new_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
+            let new_bacteria_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
 
             // Check for infection clearance before updating the level
             let old_level = individual.level[b_idx];
 
-            if new_level < 0.0001 || immune_clearance_triggered {
+            if new_bacteria_level < 0.0001 || immune_clearance_triggered {
                 // Check if there was an infection before clearance (previous level > 0.001)
                 let was_previously_infected = old_level > 0.001;
 
@@ -3995,7 +3999,7 @@ pub fn apply_rules(
                 individual.infection_has_caused_symptoms[b_idx] = false; // Reset symptom status when infection clears
             } else {
                 // Update level for infections that are continuing
-                individual.level[b_idx] = new_level;
+                individual.level[b_idx] = new_bacteria_level;
             }
         }
 
