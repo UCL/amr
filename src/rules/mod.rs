@@ -3293,31 +3293,32 @@ pub fn apply_rules(
                     }
                     // --- end resistance mechanism emergence logic ---
 
-                    // calculate activity_r (should always be updated) - but only when both drug and bacteria are present
+                    // calculate activity_r (keep it while drug levels remain detectable)
                     // First check what the bacteria level will be after this timestep
                     let current_bacteria_level = individual.level[bacteria_full_idx];
 
-                    if drug_current_level > 0.0 && current_bacteria_level > 0.001 {
+                    if drug_current_level > 0.0 {
                         // Fetch potency from indexed parameter store
                         let base_potency =
                             store.drug_bacteria.potency(bacteria_full_idx, drug_index);
 
-                        // Calculate resistance mechanism enhancement
-                        let mut mechanism_resistance_boost = 0.0;
-                        if let Some(bacteria_full_idx) =
-                            BACTERIA_LIST.iter().position(|&b| b == bacteria)
-                        {
-                            use crate::simulation::population::ResistanceMechanism;
-
-                            for (mechanism_idx, mechanism) in
-                                ResistanceMechanism::all().iter().enumerate()
-                            {
-                                if individual.resistance_mechanisms[bacteria_full_idx]
-                                    [mechanism_idx]
+                        if current_bacteria_level > 0.001 {
+                                // Calculate resistance mechanism enhancement
+                                let mut mechanism_resistance_boost = 0.0;
+                                if let Some(bacteria_full_idx) =
+                                    BACTERIA_LIST.iter().position(|&b| b == bacteria)
                                 {
-                                    // Check if this mechanism affects the current drug
-                                    let mechanism_affects_drug =
-                                        match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
+                                    use crate::simulation::population::ResistanceMechanism;
+
+                                    for (mechanism_idx, mechanism) in
+                                        ResistanceMechanism::all().iter().enumerate()
+                                    {
+                                        if individual.resistance_mechanisms[bacteria_full_idx]
+                                            [mechanism_idx]
+                                        {
+                                            // Check if this mechanism affects the current drug
+                                            let mechanism_affects_drug =
+                                                match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
                                             // ESBL affects beta-lactams (except carbapenems)
                                             (ResistanceMechanism::ESBL, drug) => {
                                                 matches!(
@@ -3473,6 +3474,7 @@ pub fn apply_rules(
                             if resistance_data.majority_r > 0.0 {
                                 resistance_data.majority_r = resistance_data.any_r;
                             }
+                        }
                         }
 
                         // Calculate activity_r using the updated resistance levels

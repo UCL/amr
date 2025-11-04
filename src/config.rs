@@ -3605,18 +3605,18 @@ lazy_static! {
 
         // Microbiome acquisition now uses infection acquisition parameters plus bacteria-specific offset
         // Fallback parameter for backward compatibility (should rarely be used if bacteria-specific params set)
-        map.insert("log_odds_microbiome_vs_infection".to_string(), 10.0); // Fallback: ~2-5% carriage if no bacteria-specific param
+    map.insert("log_odds_microbiome_vs_infection".to_string(), 2.0); // Fallback: modest carriage boost if no bacteria-specific param
 
         // Environmental resistance level for new acquisitions
 
 
         map.insert("max_resistance_level".to_string(), 1.0);
-        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.01); // 0.01
+        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.25); // increased to accelerate majority_r emergence under therapy
 
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.005); // Separate baseline for microbiome resistance emergence
+    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.03); // Separate baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 

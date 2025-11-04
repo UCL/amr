@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for saving files only
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
 # import se                syndrome_name = self.syndrome_names.get(journey['syndrome'], f\"Syndrome {journey['syndrome']}\")\n                f.write(f\"Syndrome: {syndrome_name}\\n\")               syndrome_name = self.syndrome_names.get(journey['syndrome'], f\"Syndrome {journey['syndrome']}\")\n                f.write(f\"Syndrome: {syndrome_name}\\n\")born as sns  # Commented out to avoid import issues
 from datetime import datetime
 import warnings
@@ -203,7 +204,7 @@ class InfectionJourneyAnalyzer:
         # or recalculate drug levels - we should use the logged values directly.
         
         # Create timeline visualization with extended grid for resistance panels
-        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        fig, axes = plt.subplots(2, 3, figsize=(18, 11))
         (ax1, ax2, ax3), (ax4, ax5, ax6) = axes
         
         # Highlight special cases in title
@@ -212,7 +213,13 @@ class InfectionJourneyAnalyzer:
             title_prefix = "⭐ DE NOVO RESISTANCE ⭐ "
         elif highlight_sepsis_death:
             title_prefix = "💀 DEATH FROM SEPSIS 💀 "
-        fig.suptitle(f'{title_prefix}journey timeline - id: {journey_id}', fontsize=21, fontweight='bold')  # 14 * 1.5 = 21
+        fig.suptitle(
+            f'{title_prefix}journey timeline - id: {journey_id}',
+            fontsize=21,
+            fontweight='bold',
+            y=0.97,
+        )
+        fig.subplots_adjust(top=0.91, hspace=0.35)
         
         days = journey_data['day_of_journey'].to_numpy(dtype=float)
         max_day = int(days.max())
@@ -282,7 +289,7 @@ class InfectionJourneyAnalyzer:
         elif drug_data['has_drugs']:
             clearance_driver = 'drug_inactive'
         
-        ax1.set_title('primary bacteria level', fontsize=18)  # Default ~12 * 1.5 = 18
+        ax1.set_title('primary bacteria level', fontsize=18, pad=16)  # Default ~12 * 1.5 = 18
         ax1.set_xlabel('day of journey', fontsize=15)  # 20 * 0.75 = 15
         ax1.set_ylabel('bacteria level', fontsize=15)
         ax1.set_xticks(day_ticks)
@@ -331,7 +338,7 @@ class InfectionJourneyAnalyzer:
             label='clearance hazard',
             alpha=0.8,
         )
-        ax2.set_title('clearance hazard & toxicity levels', fontsize=18)
+        ax2.set_title('clearance hazard & toxicity levels', fontsize=18, pad=16)
         ax2.set_xlabel('day of journey', fontsize=15)
         ax2.set_ylabel('clearance hazard', fontsize=15, color='green')
         ax2.tick_params(axis='y', labelcolor='green')
@@ -449,17 +456,6 @@ class InfectionJourneyAnalyzer:
                     linewidth=4,
                     alpha=0.8,
                 )
-                ax3.plot(
-                    days_offset,
-                    levels,
-                    linestyle='',
-                    marker='o',
-                    markersize=6,
-                    markerfacecolor='white',
-                    markeredgecolor=drug_data_item['color'],
-                    markeredgewidth=2,
-                    alpha=0.9,
-                )
 
             # Plot activity_r on secondary y-axis with matching colors and horizontal offsets
             ax3_twin = ax3.twinx()
@@ -574,9 +570,18 @@ class InfectionJourneyAnalyzer:
             ax3.set_xlabel('day of journey', fontsize=15)
             ax3.set_ylabel('drug level', fontsize=15)
             ax3_twin.set_ylabel('activity r', fontsize=15)
-            ax3.set_title('drug and activity levels', fontsize=18, pad=28)
+            ax3.set_title('drug and activity levels', fontsize=18, pad=16)
             ax3.set_ylim(bottom=0)  # Ensure drug level y-axis starts at 0
-            activity_upper = max(1.0, max_activity_value * 1.2 if max_activity_value > 0.0 else 1.0)
+            current_drug_upper = ax3.get_ylim()[1]
+            if current_drug_upper < 12.0:
+                ax3.set_ylim(0, 12.0)
+
+            if max_activity_value > 0.0:
+                activity_upper = max_activity_value * 1.2
+            else:
+                activity_upper = 1.0
+            if activity_upper < 1.2:
+                activity_upper = 1.2
             ax3_twin.set_ylim(0, activity_upper)
 
             activity_message = None
@@ -590,28 +595,25 @@ class InfectionJourneyAnalyzer:
                 activity_message = 'activity r not logged on the clearance day'
             ax3.grid(True, alpha=0.3)
 
-            # Combine legends and place near top of axes
+            # Combine legends and keep them inside the axes
             lines1, labels1 = ax3.get_legend_handles_labels()
             lines2, labels2 = ax3_twin.get_legend_handles_labels()
             if lines1 or lines2:
                 ax3.legend(
                     lines1 + lines2,
                     labels1 + labels2,
-                    loc='upper center',
-                    bbox_to_anchor=(0.5, 1.18),
-                    borderaxespad=0.0,
+                    loc='upper right',
                     fontsize=8,
-                    ncol=2,
                     frameon=False,
                 )
             if activity_message:
                 ax3.text(
-                    0.5,
-                    1.08,
+                    0.02,
+                    0.95,
                     activity_message,
                     transform=ax3.transAxes,
-                    ha='center',
-                    va='bottom',
+                    ha='left',
+                    va='top',
                     fontsize=8,
                     linespacing=1.3,
                     color='#555555',
@@ -629,7 +631,7 @@ class InfectionJourneyAnalyzer:
                 va='center',
                 fontsize=12,
             )
-            ax3.set_title('drug and activity levels', fontsize=18, pad=28)
+            ax3.set_title('drug and activity levels', fontsize=18, pad=16)
             ax3.set_xlabel('day of journey', fontsize=15)
             ax3.set_xticks(day_ticks)
             ax3.set_xlim(0.5, max_day + 0.5)
@@ -670,7 +672,7 @@ class InfectionJourneyAnalyzer:
             bacteria_present_mask = bacteria_positive_mask
 
         infection_points_plotted = False
-        legend_entries_added = set()
+        drug_handles = {}
 
         if infection_drug_names:
             if drug_index_lookup:
@@ -713,7 +715,6 @@ class InfectionJourneyAnalyzer:
                             - 0.02
                         )
                         any_values = any_series.loc[any_mask].clip(0.0, 1.0).to_numpy()
-                        label = drug_name if drug_name not in legend_entries_added else '_nolegend_'
                         ax4.plot(
                             any_days,
                             any_values,
@@ -725,11 +726,23 @@ class InfectionJourneyAnalyzer:
                             markeredgecolor=color,
                             markeredgewidth=1.6,
                             alpha=0.95,
-                            label=label,
+                            label='_nolegend_',
                         )
                         infection_points_plotted = True
-                        if label != '_nolegend_':
-                            legend_entries_added.add(drug_name)
+                        if drug_name not in drug_handles:
+                            drug_handles[drug_name] = Line2D(
+                                [0],
+                                [0],
+                                color=color,
+                                linestyle='',
+                                marker='o',
+                                markersize=6,
+                                markerfacecolor='white',
+                                markeredgecolor=color,
+                                markeredgewidth=1.6,
+                                alpha=0.95,
+                                label=drug_name,
+                            )
 
                 if has_majority_values:
                     majority_mask = (~majority_series.isna()) & per_drug_mask_base
@@ -754,13 +767,72 @@ class InfectionJourneyAnalyzer:
                             label='_nolegend_',
                         )
                         infection_points_plotted = True
+                        if drug_name not in drug_handles:
+                            drug_handles[drug_name] = Line2D(
+                                [0],
+                                [0],
+                                color=color,
+                                linestyle='',
+                                marker='o',
+                                markersize=6,
+                                markerfacecolor='white',
+                                markeredgecolor=color,
+                                markeredgewidth=1.6,
+                                alpha=0.95,
+                                label=drug_name,
+                            )
 
         ax4.set_ylabel('resistance level (0-1)', fontsize=15)
         ax4.set_ylim(0, 1.05)
 
         if infection_points_plotted:
-            if legend_entries_added:
-                ax4.legend(loc='upper right', fontsize=8, title='drug')
+            legends = []
+            if drug_handles:
+                drug_legend = ax4.legend(
+                    list(drug_handles.values()),
+                    [handle.get_label() for handle in drug_handles.values()],
+                    loc='upper right',
+                    fontsize=8,
+                    title='drug',
+                )
+                legends.append(drug_legend)
+
+            marker_handles = [
+                Line2D(
+                    [0],
+                    [0],
+                    color='#444444',
+                    linestyle='',
+                    marker='o',
+                    markersize=6,
+                    markerfacecolor='white',
+                    markeredgecolor='#444444',
+                    markeredgewidth=1.4,
+                    label='any_r',
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    color='#444444',
+                    linestyle='',
+                    marker='^',
+                    markersize=6,
+                    markerfacecolor='white',
+                    markeredgecolor='#444444',
+                    markeredgewidth=1.4,
+                    label='majority_r',
+                ),
+            ]
+            metric_legend = ax4.legend(
+                marker_handles,
+                [handle.get_label() for handle in marker_handles],
+                loc='upper left',
+                fontsize=8,
+                title='metric',
+            )
+            if legends:
+                ax4.add_artist(legends[0])
+            ax4.add_artist(metric_legend)
         else:
             if infection_has_series:
                 explanation = 'resistance levels show only when bacteria is present\nand treatment is active'
@@ -779,99 +851,207 @@ class InfectionJourneyAnalyzer:
                 linespacing=1.4,
             )
 
-        ax4.set_title('infection resistance levels (circle=any_r, triangle=majority_r)', fontsize=18)
+        ax4.set_title('infection resistance levels', fontsize=18, pad=14)
         ax4.set_xlabel('day of journey', fontsize=15)
         ax4.set_xticks(day_ticks)
         ax4.set_xlim(0.5, max_day + 0.5)
         ax4.grid(True, alpha=0.3)
 
-        # Microbiome resistance panel
-        microbiome_any_series, microbiome_any_source = self._extract_resistance_series(
-            journey_data,
-            ['resistances_microbiome_r', 'resistance_microbiome_r']
-        )
-
-        microbiome_presence_series, microbiome_presence_status = (
-            self._extract_microbiome_presence_series(journey_data)
-        )
-
-        microbiome_has_series = (
-            microbiome_any_source is not None
-            and not microbiome_any_series.isna().all()
-        )
-        microbiome_presence_has_values = (
-            microbiome_presence_status == 'parsed'
-            and not microbiome_presence_series.isna().all()
-        )
+        # Microbiome presence panel (timeline of species with resistance status)
+        microbiome_series = self._collect_microbiome_resistance_series(journey_data)
 
         has_microbiome_plot = False
-        if microbiome_has_series:
-            microbiome_any_values = np.clip(
-                microbiome_any_series.fillna(0.0).to_numpy(), 0.0, 1.0
-            )
-            ax5.step(
-                days,
-                microbiome_any_values,
-                where='post',
-                color='#2ca02c',
-                linewidth=4,
-                label='microbiome_r (max)',
-                alpha=0.85,
-            )
-            has_microbiome_plot = True
+        species_positions = []
+        species_labels = []
+        species_colors = []
+        species_annotation = {}
+        if microbiome_series:
+            cmap = plt.cm.get_cmap('tab10')
+            day_values = days
+            next_day_values = np.append(day_values[1:], day_values[-1] + 1.0)
+            detection_threshold = 1e-4
+            style_map = {
+                'present': (':', 1.8),
+                'minor': ('--', 2.4),
+                'major': ('-', 2.8),
+            }
+            base_line_y = 0.35
+            line_spacing = 0.32
+            label_offset = 0.12
 
-        if microbiome_presence_has_values:
-            presence_values = np.clip(
-                microbiome_presence_series.fillna(0.0).to_numpy(), 0.0, 1.0
-            )
-            ax5.step(
-                days,
-                presence_values,
-                where='post',
-                color='#9467bd',
-                linewidth=3,
-                linestyle=':',
-                label='presence (primary bacteria)',
-                alpha=0.85,
-            )
-            has_microbiome_plot = True
+            for idx, (species, components) in enumerate(
+                sorted(microbiome_series.items(), key=lambda item: item[0])
+            ):
+                minor_series = components['minor']
+                major_series = components['major']
+                presence_series = components.get('presence')
 
-        if not has_microbiome_plot:
-            reason_lines = []
-            if microbiome_any_source is None and microbiome_presence_status == 'missing_column':
-                reason_lines.append('microbiome tracking columns were not exported for this run')
-            else:
-                reason_lines.append('primary bacteria absent from microbiome snapshots in this simulation')
-                if microbiome_any_source is None:
-                    reason_lines.append('resistance_microbiome column missing in export')
-                if microbiome_presence_status == 'missing_column':
-                    reason_lines.append('presence_microbiome column missing in export')
-                elif microbiome_presence_status == 'empty':
-                    reason_lines.append('presence_microbiome column recorded only other species')
+                minor_values = minor_series.to_numpy(dtype=float)
+                major_values = major_series.to_numpy(dtype=float)
+                presence_values = (
+                    presence_series.to_numpy(dtype=float)
+                    if presence_series is not None
+                    else np.full(minor_values.shape, np.nan)
+                )
 
+                states = []
+                for i in range(len(day_values)):
+                    minor_val = 0.0 if np.isnan(minor_values[i]) else minor_values[i]
+                    major_val = 0.0 if np.isnan(major_values[i]) else major_values[i]
+                    presence_val = 0.0
+                    if not np.isnan(presence_values[i]):
+                        presence_val = presence_values[i]
+
+                    has_presence = (
+                        presence_val > 0.5
+                        or major_val > detection_threshold
+                        or minor_val > detection_threshold
+                    )
+
+                    if not has_presence:
+                        states.append('absent')
+                    elif major_val > detection_threshold:
+                        states.append('major')
+                    elif minor_val > detection_threshold:
+                        states.append('minor')
+                    else:
+                        states.append('present')
+
+                if all(state == 'absent' for state in states):
+                    continue
+
+                has_microbiome_plot = True
+                y_pos = base_line_y + len(species_positions) * line_spacing
+                species_positions.append(y_pos)
+                species_labels.append(species.replace('_', ' '))
+                color = cmap(idx % cmap.N)
+                species_colors.append(color)
+                species_annotation[species.replace('_', ' ')] = {'y': y_pos, 'color': color}
+
+                current_state = 'absent'
+                start_idx = None
+                for i, state in enumerate(states):
+                    if state == 'absent':
+                        if current_state != 'absent':
+                            end_idx = i - 1
+                            linestyle, linewidth = style_map[current_state]
+                            ax5.hlines(
+                                y=y_pos,
+                                xmin=day_values[start_idx],
+                                xmax=next_day_values[end_idx],
+                                colors=color,
+                                linestyles=linestyle,
+                                linewidth=linewidth,
+                            )
+                            current_state = 'absent'
+                            start_idx = None
+                        continue
+
+                    if current_state == 'absent':
+                        current_state = state
+                        start_idx = i
+                    elif state != current_state:
+                        end_idx = i - 1
+                        linestyle, linewidth = style_map[current_state]
+                        ax5.hlines(
+                            y=y_pos,
+                            xmin=day_values[start_idx],
+                            xmax=next_day_values[end_idx],
+                            colors=color,
+                            linestyles=linestyle,
+                            linewidth=linewidth,
+                        )
+                        current_state = state
+                        start_idx = i
+
+                if current_state != 'absent' and start_idx is not None:
+                    end_idx = len(states) - 1
+                    linestyle, linewidth = style_map[current_state]
+                    ax5.hlines(
+                        y=y_pos,
+                        xmin=day_values[start_idx],
+                        xmax=next_day_values[end_idx],
+                        colors=color,
+                        linestyles=linestyle,
+                        linewidth=linewidth,
+                    )
+
+        if has_microbiome_plot:
+            ax5.set_yticks(species_positions)
+            ax5.set_yticklabels([''] * len(species_positions))
+
+            style_handles = [
+                Line2D(
+                    [0],
+                    [0],
+                    color='#222222',
+                    linewidth=1.8,
+                    linestyle=':',
+                    label='present, no resistance',
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    color='#222222',
+                    linewidth=2.4,
+                    linestyle='--',
+                    label='minor resistance',
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    color='#222222',
+                    linewidth=2.8,
+                    linestyle='-',
+                    label='major resistance',
+                ),
+            ]
+
+            ax5.legend(
+                style_handles,
+                [handle.get_label() for handle in style_handles],
+                loc='upper right',
+                fontsize=8,
+                title='highest resistance level across all drugs',
+                ncol=2,
+                columnspacing=0.8,
+                handlelength=2.2,
+            )
+            total_height = base_line_y + max(len(species_positions) - 1, 0) * line_spacing
+            ax5.set_ylim(0.0, total_height + line_spacing + label_offset + 0.12)
+            ax5.margins(y=0)
+
+            x_limits = ax5.get_xlim()
+            for species_name, info in species_annotation.items():
+                ax5.text(
+                    x_limits[0] + 0.02 * (x_limits[1] - x_limits[0]),
+                    info['y'] + label_offset,
+                    species_name,
+                    color=info['color'],
+                    fontsize=9,
+                    ha='left',
+                    va='bottom',
+                )
+        else:
             ax5.text(
                 0.5,
                 0.5,
-                '\n'.join(reason_lines),
+                'no microbiome species recorded for this journey',
                 transform=ax5.transAxes,
                 ha='center',
                 va='center',
                 fontsize=9,
                 linespacing=1.4,
             )
-            microbiome_ylim = (0, 1.0)
-        else:
-            microbiome_ylim = (0, 1.05)
+            ax5.set_yticks([])
+            ax5.set_ylim(0, 1)
 
-        ax5.set_title('microbiome resistance & presence', fontsize=18)
+        ax5.set_title('microbiome presence & resistance', fontsize=18, pad=14)
         ax5.set_xlabel('day of journey', fontsize=15)
-        ax5.set_ylabel('level (0-1)', fontsize=15)
+        ax5.set_ylabel('', fontsize=15)
         ax5.set_xticks(day_ticks)
         ax5.set_xlim(0.5, max_day + 0.5)
-        ax5.set_ylim(*microbiome_ylim)
-        if has_microbiome_plot:
-            ax5.legend(loc='upper right', fontsize=8)
-        ax5.grid(True, alpha=0.3)
+        ax5.grid(True, axis='x', alpha=0.3)
         
         # Clinical summary text (replacing hospital status plot)
         ax6.axis('off')  # Turn off axis for text display
@@ -900,7 +1080,12 @@ class InfectionJourneyAnalyzer:
             
         # Find bacteria clearance day for duration calculation
         bacteria_clearance_day = None
-        original_data = self.df[self.df['journey_id'] == journey_id].copy()  # Use original data without extension
+        original_data = (
+            self.df[self.df['journey_id'] == journey_id]
+            .copy()
+            .sort_values('day_of_journey')
+            .reset_index(drop=True)
+        )
         bacteria_levels = original_data['primary_bacteria_level'].values
         if len(bacteria_levels) > 0:
             cleared_indices = np.where(bacteria_levels <= 0.001)[0]
@@ -912,7 +1097,7 @@ class InfectionJourneyAnalyzer:
         
         # Get drug failure day information
         drug_failure_info = self._get_drug_failure_info(original_data)
-        
+
         # Get other bacteria present during journey
         other_bacteria_info = self._get_other_bacteria_info(original_data)
         
@@ -962,11 +1147,37 @@ class InfectionJourneyAnalyzer:
         if has_de_novo and 'resistance_sources' in journey_data.columns:
             resistance_sources_info = self._get_resistance_sources_info(journey_data)
         
+        # Summarize microbiome resistance across the full journey
+        original_microbiome_series = self._collect_microbiome_resistance_series(
+            original_data
+        )
+        microbiome_summary_lines = self._summarize_microbiome_resistance(
+            original_data,
+            original_microbiome_series,
+        )
+
+        immunodeficiency_status = None
+        if 'immunodeficiency' in journey_data.columns and not journey_data['immunodeficiency'].empty:
+            immunodeficiency_status = journey_data['immunodeficiency'].iloc[0]
+
+        if immunodeficiency_status is None or (isinstance(immunodeficiency_status, float) and np.isnan(immunodeficiency_status)):
+            immunosuppression_text = "severely immunosuppressed: no"
+        else:
+            immunodeficiency_str = str(immunodeficiency_status).strip()
+            if immunodeficiency_str.lower() == 'none' or immunodeficiency_str == '' or immunodeficiency_str.lower() == 'nan':
+                immunosuppression_text = "severely immunosuppressed: no"
+            elif immunodeficiency_str.startswith('Some(') and immunodeficiency_str.endswith(')'):
+                subtype = immunodeficiency_str[5:-1].strip().lower()
+                immunosuppression_text = f"severely immunosuppressed: yes ({subtype})"
+            else:
+                immunosuppression_text = f"severely immunosuppressed: yes ({immunodeficiency_str.lower()})"
+
         clinical_info = [
             f"year: {calendar_year}",
             f"bacteria: {journey_data['primary_bacteria'].iloc[0]}",
             f"region: {journey_data['region_living'].iloc[0]}",
             f"age: {journey_data['age_at_onset'].iloc[0]/365.25:.1f} years",
+            immunosuppression_text,
             f"syndrome: {syndrome_name}",
             f"sepsis: {'day ' + str(sepsis_day) if sepsis_day else 'none'}",
             f"symptoms: {'day ' + str(symptom_onset_day) if symptom_onset_day else 'asymptomatic'}",
@@ -992,6 +1203,12 @@ class InfectionJourneyAnalyzer:
                 clinical_info.append('clearance driver: drug activity recorded during clearance')
             elif clearance_driver == 'drug_inactive':
                 clinical_info.append('clearance driver: drug given but no activity recorded (likely immune)')
+
+        if microbiome_summary_lines:
+            clinical_info.append('microbiome species:')
+            clinical_info.extend([f"  {line}" for line in microbiome_summary_lines])
+        else:
+            clinical_info.append('microbiome species: none recorded')
         
         # Add other bacteria information early (prioritize visibility)
         if other_bacteria_info:
@@ -1387,42 +1604,169 @@ class InfectionJourneyAnalyzer:
 
         return max_val if found_numeric else np.nan
 
-    def _extract_microbiome_presence_series(self, journey_data):
-        """
-        Return (series, status) where status indicates why data may be missing.
-        status values: 'missing_column', 'parsed', or 'empty'.
-        """
-        if 'presence_microbiome' not in journey_data.columns:
-            empty_series = pd.Series([np.nan] * len(journey_data), index=journey_data.index, dtype=float)
-            return empty_series, 'missing_column'
+    def _parse_key_value_map(self, cell):
+        """Parse semicolon-delimited key:value strings into a dictionary."""
+        result = {}
+        if pd.isna(cell) or str(cell).strip() == "":
+            return result
 
-        primary_bacteria = journey_data['primary_bacteria'].iloc[0]
-        values = []
-        any_value_recorded = False
+        for entry in str(cell).split(';'):
+            if ':' not in entry:
+                continue
+            key_part, value_part = entry.split(':', 1)
+            key = key_part.strip()
+            if not key:
+                continue
+            try:
+                value = float(value_part.strip())
+            except ValueError:
+                continue
+            result[key] = value
 
-        for cell in journey_data['presence_microbiome']:
-            presence_value = np.nan
-            if isinstance(cell, str) and cell.strip():
-                entries = cell.split(';')
-                keyed_entries = [entry for entry in entries if ':' in entry]
+        return result
 
-                if keyed_entries:
-                    for entry in keyed_entries:
-                        name_part, value_part = entry.split(':', 1)
-                        if name_part.strip() == primary_bacteria:
-                            presence_value = 1.0 if value_part.strip().lower() in ('true', '1') else 0.0
-                            any_value_recorded = True
-                            break
-                elif len(entries) == 1:
-                    token = entries[0].strip().lower()
-                    if token in ('true', 'false', '1', '0'):
-                        presence_value = 1.0 if token in ('true', '1') else 0.0
-                        any_value_recorded = True
+    def _parse_presence_map(self, cell):
+        """Parse semicolon-delimited key:value strings into a boolean dictionary."""
+        presence = {}
+        if pd.isna(cell) or str(cell).strip() == "":
+            return presence
 
-            values.append(presence_value)
+        for entry in str(cell).split(';'):
+            if ':' not in entry:
+                continue
+            key_part, value_part = entry.split(':', 1)
+            key = key_part.strip()
+            if not key:
+                continue
+            normalized_value = value_part.strip().lower()
+            if normalized_value in {"true", "1", "yes"}:
+                presence[key] = True
+            elif normalized_value in {"false", "0", "no"}:
+                presence[key] = False
 
-        status = 'parsed' if any_value_recorded else 'empty'
-        return pd.Series(values, index=journey_data.index, dtype=float), status
+        return presence
+
+    def _collect_microbiome_resistance_series(self, journey_data):
+        """Collect minority and majority microbiome resistance series per species."""
+        has_minor = 'microbiome_resistance_minor' in journey_data.columns
+        has_major = 'microbiome_resistance_major' in journey_data.columns
+        has_presence = 'presence_microbiome' in journey_data.columns
+
+        if not (has_minor or has_major or has_presence):
+            return {}
+
+        species_data = {}
+        for row_idx, row in journey_data.iterrows():
+            minor_map = self._parse_key_value_map(row['microbiome_resistance_minor']) if has_minor else {}
+            major_map = self._parse_key_value_map(row['microbiome_resistance_major']) if has_major else {}
+            presence_map = self._parse_presence_map(row['presence_microbiome']) if has_presence else {}
+
+            species_set = set(minor_map) | set(major_map) | set(presence_map)
+            if not species_set:
+                continue
+
+            for species in species_set:
+                if species not in species_data:
+                    species_data[species] = {
+                        'minor': pd.Series(
+                            data=np.nan,
+                            index=journey_data.index,
+                            dtype=float,
+                        ),
+                        'major': pd.Series(
+                            data=np.nan,
+                            index=journey_data.index,
+                            dtype=float,
+                        ),
+                        'presence': pd.Series(
+                            data=0.0,
+                            index=journey_data.index,
+                            dtype=float,
+                        ),
+                    }
+
+                if species in minor_map:
+                    species_data[species]['minor'].iat[row_idx] = minor_map[species]
+                if species in major_map:
+                    species_data[species]['major'].iat[row_idx] = major_map[species]
+                if species in presence_map:
+                    species_data[species]['presence'].iat[row_idx] = 1.0 if presence_map[species] else 0.0
+
+        # Remove species with no recorded values
+        filtered_species = {}
+        for species, components in species_data.items():
+            presence_series = components.get('presence')
+            has_presence = bool(presence_series is not None and presence_series.gt(0).any())
+            if (
+                components['minor'].notna().any()
+                or components['major'].notna().any()
+                or has_presence
+            ):
+                filtered_species[species] = components
+
+        return filtered_species
+
+    def _summarize_microbiome_resistance(self, journey_data, microbiome_series):
+        """Create human-readable summary lines for microbiome resistance dynamics."""
+        if not microbiome_series:
+            return []
+
+        summary_lines = []
+        days = journey_data['day_of_journey'].to_numpy(dtype=float)
+        detection_threshold = 1e-4
+
+        for species, components in sorted(microbiome_series.items(), key=lambda item: item[0]):
+            minor_values = components['minor'].to_numpy(dtype=float)
+            major_values = components['major'].to_numpy(dtype=float)
+            presence_series = components.get('presence')
+            presence_values = (
+                presence_series.to_numpy(dtype=float)
+                if presence_series is not None
+                else None
+            )
+
+            detection_mask = (
+                (~np.isnan(minor_values) & (minor_values > detection_threshold))
+                | (~np.isnan(major_values) & (major_values > detection_threshold))
+            )
+            presence_mask = (
+                (presence_values > 0.5)
+                if presence_values is not None
+                else np.zeros_like(minor_values, dtype=bool)
+            )
+
+            if not detection_mask.any() and not presence_mask.any():
+                continue
+
+            if detection_mask.any():
+                first_day = int(days[detection_mask][0])
+                last_day = int(days[detection_mask][-1])
+            else:
+                first_day = int(days[presence_mask][0])
+                last_day = int(days[presence_mask][-1])
+
+            minor_peak = 0.0 if np.isnan(minor_values).all() else float(
+                np.nanmax(np.clip(minor_values, 0.0, 1.0))
+            )
+            major_peak = 0.0 if np.isnan(major_values).all() else float(
+                np.nanmax(np.clip(major_values, 0.0, 1.0))
+            )
+
+            if first_day == last_day:
+                day_phrase = f"day {first_day}"
+            else:
+                day_phrase = f"days {first_day}-{last_day}"
+
+            if detection_mask.any():
+                summary_lines.append(
+                    f"{species.replace('_', ' ')}: minor {minor_peak:.2f}, major {major_peak:.2f} ({day_phrase})"
+                )
+            else:
+                summary_lines.append(
+                    f"{species.replace('_', ' ')}: present ({day_phrase}), no resistance recorded"
+                )
+
+        return summary_lines
     
     def _determine_actual_resolution(self, journey_data):
         """Determine the actual resolution based on the data"""
@@ -1492,8 +1836,12 @@ class InfectionJourneyAnalyzer:
             
             for idx, (_, journey) in enumerate(journeys_to_process.iterrows(), 1):
                 journey_id = journey['journey_id']
-                journey_data = self.df[self.df['journey_id'] == journey_id].copy()
-                journey_data = journey_data.sort_values('day_of_journey')
+                journey_data = (
+                    self.df[self.df['journey_id'] == journey_id]
+                    .copy()
+                    .sort_values('day_of_journey')
+                    .reset_index(drop=True)
+                )
                 
                 f.write(f"JOURNEY #{idx} (ID: {journey_id})\n")
                 f.write("-" * 60 + "\n")
@@ -1527,6 +1875,17 @@ class InfectionJourneyAnalyzer:
                     for info_line in other_bacteria_info:
                         if info_line.strip():  # Skip empty lines
                             f.write(f"{info_line}\n")
+                    f.write("\n")
+
+                microbiome_series = self._collect_microbiome_resistance_series(journey_data)
+                microbiome_summary = self._summarize_microbiome_resistance(
+                    journey_data,
+                    microbiome_series,
+                )
+                if microbiome_summary:
+                    f.write("Microbiome species:\n")
+                    for line in microbiome_summary:
+                        f.write(f"  {line}\n")
                     f.write("\n")
                 
                 # Add testing and symptom information

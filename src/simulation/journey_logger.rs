@@ -7,7 +7,12 @@
 // rich data for debugging and patient journey analysis.
 //
 
-use crate::simulation::population::{Individual, BACTERIA_LIST, DRUG_SHORT_NAMES};
+use crate::simulation::population::{
+    Individual,
+    BACTERIA_LIST,
+    DRUG_SHORT_NAMES,
+    MICROBIOME_MAJORITY_THRESHOLD,
+};
 use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
@@ -48,6 +53,8 @@ pub struct InfectionJourneySnapshot {
     pub resistance_majority_r: Vec<(String, f64)>, // (drug_name, majority_r_level)
     pub resistance_activity_r: Vec<(String, f64)>, // (drug_name, activity_r_level)
     pub resistances_microbiome_r: Vec<(String, f64)>, // (drug_name, microbiome_r_level)
+    pub microbiome_resistance_minor: Vec<(String, f64)>, // (bacteria_name, minority_level)
+    pub microbiome_resistance_major: Vec<(String, f64)>, // (bacteria_name, majority_level)
     pub presence_microbiome: Vec<(String, bool)>,   // (bacteria_name, present)
     pub resistance_mechanisms: Vec<String>,   // active mechanisms
 
@@ -178,7 +185,7 @@ impl JourneyLogger {
     }
 
     fn get_csv_header() -> &'static str {
-        "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistances_microbiome_r,presence_microbiome,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
+    "journey_id,individual_id,time_step,day_of_journey,age_at_onset,sex,region_living,region_current,immunodeficiency,primary_bacteria,primary_bacteria_level,syndrome,sepsis,hospital_acquired,all_bacteria_levels,current_drugs,days_on_current_treatment,treatment_failures,resistance_any_r,resistance_majority_r,resistance_activity_r,resistances_microbiome_r,microbiome_resistance_minor,microbiome_resistance_major,presence_microbiome,resistance_mechanisms,drug_selection_bacteria,drug_selection_scores,selected_drug,hospital_status,clearance_hazard,toxicity_level,background_mortality_risk,infection_identified,infection_has_caused_symptoms,resistance_testing_done,resolution_type,has_de_novo_resistance,resistance_sources"
     }
 
     pub fn check_individual(&mut self, individual: &Individual, time_step: usize) {
@@ -261,6 +268,7 @@ impl JourneyLogger {
             None,
             false,
             0,
+            None,
         );
 
         let current_failure_day = individual.date_last_drug_failure[primary_bacteria_idx];
@@ -330,6 +338,7 @@ impl JourneyLogger {
                 None,
                 journey.has_de_novo_resistance,
                 journey.treatment_failures_count,
+                previous_snapshot.as_ref(),
             );
 
             if !journey.drug_supported_clearance {
@@ -403,6 +412,7 @@ impl JourneyLogger {
                 Some(resolution_type.clone()),
                 journey.has_de_novo_resistance,
                 journey.treatment_failures_count,
+                previous_snapshot.as_ref(),
             );
 
             if !journey.drug_supported_clearance {
@@ -437,7 +447,15 @@ impl JourneyLogger {
         resolution_type: Option<String>,
         has_de_novo_resistance: bool,
         treatment_failures_count: u32,
+        previous_snapshot: Option<&InfectionJourneySnapshot>,
     ) -> InfectionJourneySnapshot {
+        let previous_primary_level = previous_snapshot
+            .map(|snapshot| snapshot.primary_bacteria_level)
+            .unwrap_or(0.0);
+        let current_primary_level = individual.level[primary_bacteria_idx];
+        let bacteria_cleared_this_step =
+            previous_primary_level > 0.001 && current_primary_level <= 0.001;
+
         // Collect all active bacteria
         let all_bacteria_levels: Vec<(String, f64)> = individual
             .level
@@ -496,7 +514,7 @@ impl JourneyLogger {
         }
 
         // Collect resistance for primary bacteria
-        let resistance_any_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
+        let mut resistance_any_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
             .iter()
             .enumerate()
             .filter(|(idx, _)| {
@@ -513,7 +531,17 @@ impl JourneyLogger {
             })
             .collect();
 
-        let resistance_majority_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
+        if bacteria_cleared_this_step
+            && !resistance_any_r.iter().any(|(_, value)| *value > 0.0)
+        {
+            if let Some(snapshot) = previous_snapshot {
+                if !snapshot.resistance_any_r.is_empty() {
+                    resistance_any_r = snapshot.resistance_any_r.clone();
+                }
+            }
+        }
+
+        let mut resistance_majority_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
             .iter()
             .enumerate()
             .filter(|(idx, _)| {
@@ -530,13 +558,25 @@ impl JourneyLogger {
             })
             .collect();
 
-        let resistance_activity_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
+        if bacteria_cleared_this_step
+            && !resistance_majority_r
+                .iter()
+                .any(|(_, value)| *value > 0.0)
+        {
+            if let Some(snapshot) = previous_snapshot {
+                if !snapshot.resistance_majority_r.is_empty() {
+                    resistance_majority_r = snapshot.resistance_majority_r.clone();
+                }
+            }
+        }
+
+        let mut resistance_activity_r: Vec<(String, f64)> = DRUG_SHORT_NAMES
             .iter()
             .enumerate()
             .filter(|(idx, _)| {
-                // Log activity_r when drug is being used, regardless of current bacteria level
-                // This ensures we capture the activity_r that caused bacterial clearance
-                individual.cur_use_drug[*idx] // Drug is being used (bacteria level may be 0 due to clearance)
+                // Log activity_r when drug has measurable level, even if no longer actively prescribed.
+                // This captures residual exposure that might still influence clearance risk.
+                individual.cur_use_drug[*idx] || individual.cur_level_drug[*idx] > 0.001
             })
             .map(|(idx, &drug_name)| {
                 (
@@ -546,6 +586,18 @@ impl JourneyLogger {
             })
             .collect();
 
+        if bacteria_cleared_this_step
+            && !resistance_activity_r
+                .iter()
+                .any(|(_, value)| *value > 0.0)
+        {
+            if let Some(snapshot) = previous_snapshot {
+                if !snapshot.resistance_activity_r.is_empty() {
+                    resistance_activity_r = snapshot.resistance_activity_r.clone();
+                }
+            }
+        }
+
         let primary_bacteria_name = BACTERIA_LIST[primary_bacteria_idx].to_string();
         let primary_microbiome_present = individual.presence_microbiome[primary_bacteria_idx];
 
@@ -554,6 +606,41 @@ impl JourneyLogger {
             let microbiome_value = individual.resistances[primary_bacteria_idx][idx].microbiome_r;
             if primary_microbiome_present || microbiome_value > 0.0 {
                 resistances_microbiome_r.push((drug_name.to_string(), microbiome_value));
+            }
+        }
+
+        let mut microbiome_resistance_minor: Vec<(String, f64)> = Vec::new();
+        let mut microbiome_resistance_major: Vec<(String, f64)> = Vec::new();
+
+        for (idx, &present) in individual.presence_microbiome.iter().enumerate() {
+            if !present {
+                continue;
+            }
+
+            if let Some(resistances) = individual.resistances.get(idx) {
+                let mut minority_max = 0.0;
+                let mut majority_max = 0.0;
+
+                for resistance in resistances {
+                    let value = resistance.microbiome_r;
+                    if value >= MICROBIOME_MAJORITY_THRESHOLD {
+                        if value > majority_max {
+                            majority_max = value;
+                        }
+                    } else if value > 0.0 && value > minority_max {
+                        minority_max = value;
+                    }
+                }
+
+                if minority_max > 0.0 {
+                    microbiome_resistance_minor
+                        .push((BACTERIA_LIST[idx].to_string(), minority_max));
+                }
+
+                if majority_max > 0.0 {
+                    microbiome_resistance_major
+                        .push((BACTERIA_LIST[idx].to_string(), majority_max));
+                }
             }
         }
 
@@ -654,6 +741,8 @@ impl JourneyLogger {
             resistance_majority_r,
             resistance_activity_r,
             resistances_microbiome_r,
+            microbiome_resistance_minor,
+            microbiome_resistance_major,
             presence_microbiome,
             resistance_mechanisms,
             drug_selection_bacteria,
@@ -718,6 +807,17 @@ impl JourneyLogger {
         }
 
         if let Some(prev_snapshot) = previous {
+            if prev_snapshot.primary_bacteria_level > 0.001
+                && current.primary_bacteria_level <= 0.001
+                && !current.current_drugs.is_empty()
+                && current
+                    .resistance_activity_r
+                    .iter()
+                    .any(|(_, value)| *value > 0.0)
+            {
+                return true;
+            }
+
             if prev_snapshot
                 .resistance_activity_r
                 .iter()
@@ -731,7 +831,12 @@ impl JourneyLogger {
 
             // Clearance to (or below) detection threshold while drug present
             if prev_level > 0.001 && current_level <= 0.001 {
-                if !current.current_drugs.is_empty() || !prev_snapshot.current_drugs.is_empty() {
+                if !current.current_drugs.is_empty()
+                    && current
+                        .resistance_activity_r
+                        .iter()
+                        .any(|(_, value)| *value > 0.0)
+                {
                     return true;
                 }
             }
@@ -818,6 +923,20 @@ impl JourneyLogger {
             .collect::<Vec<_>>()
             .join(";");
 
+        let microbiome_resistance_minor_str = snapshot
+            .microbiome_resistance_minor
+            .iter()
+            .map(|(name, level)| format!("{}:{:.6}", name, level))
+            .collect::<Vec<_>>()
+            .join(";");
+
+        let microbiome_resistance_major_str = snapshot
+            .microbiome_resistance_major
+            .iter()
+            .map(|(name, level)| format!("{}:{:.6}", name, level))
+            .collect::<Vec<_>>()
+            .join(";");
+
         let presence_microbiome_str = snapshot
             .presence_microbiome
             .iter()
@@ -860,7 +979,7 @@ impl JourneyLogger {
             .join(";");
 
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},{},\"{}\"",
+            "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",{},{},{:.6},{:.6},{:.6},{},{},{},{},{},\"{}\"",
             snapshot.journey_id,
             snapshot.individual_id,
             snapshot.time_step,
@@ -883,6 +1002,8 @@ impl JourneyLogger {
             resistance_majority_r_str,
             resistance_activity_r_str,
             resistances_microbiome_r_str,
+            microbiome_resistance_minor_str,
+            microbiome_resistance_major_str,
             presence_microbiome_str,
             mechanisms_str,
             drug_selection_bacteria_str,
