@@ -875,9 +875,9 @@ class InfectionJourneyAnalyzer:
                 'minor': ('--', 2.4),
                 'major': ('-', 2.8),
             }
-            base_line_y = 0.35
-            line_spacing = 0.32
-            label_offset = 0.12
+            base_line_y = 0.04
+            line_spacing = 0.18
+            label_offset = 0.05
 
             for idx, (species, components) in enumerate(
                 sorted(microbiome_series.items(), key=lambda item: item[0])
@@ -1017,8 +1017,9 @@ class InfectionJourneyAnalyzer:
                 columnspacing=0.8,
                 handlelength=2.2,
             )
-            total_height = base_line_y + max(len(species_positions) - 1, 0) * line_spacing
-            ax5.set_ylim(0.0, total_height + line_spacing + label_offset + 0.12)
+            stack_height = base_line_y + max(len(species_positions) - 1, 0) * line_spacing
+            upper_margin = label_offset + 0.05
+            ax5.set_ylim(0.0, stack_height + upper_margin)
             ax5.margins(y=0)
 
             x_limits = ax5.get_xlim()

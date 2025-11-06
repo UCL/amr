@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from matplotlib.patches import Patch
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 import logging
 import math
 
@@ -41,6 +41,18 @@ OUTPUT_FILES = {
     'sepsis_prop': 'sepsis_among_infected_proportion.png',
     'resistance_prop': 'resistance_among_infected.png',
 }
+
+
+def _normalize_identifier(name: str) -> str:
+    """Normalize entity names so include filters match consistently."""
+    return name.strip().lower().replace(' ', '_').replace('-', '_')
+
+
+def _build_normalized_filter(values: Optional[List[str]]) -> Optional[Set[str]]:
+    """Return a set of normalized names for faster membership checks."""
+    if not values:
+        return None
+    return {_normalize_identifier(value) for value in values if value is not None}
 
 
 @safe_plot_creation
@@ -1276,6 +1288,31 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
     # Load empirical calibration data
     from ..empirical.data_loader import load_empirical_calibration_data
     empirical_data = load_empirical_calibration_data()
+
+    # Static prevalence estimates (2025) used for point overlays
+    prevalence_lookup: Dict[tuple, float] = {}
+    prevalence_year = 2025
+    prevalence_path = Path("resistance_prevalence_values.csv")
+    if prevalence_path.exists():
+        try:
+            prevalence_raw = pd.read_csv(prevalence_path, na_values='.')
+            prevalence_long = prevalence_raw.melt(
+                id_vars='Bacteria',
+                var_name='Drug',
+                value_name='estimate'
+            ).dropna(subset=['estimate'])
+            prevalence_long['Bacteria'] = prevalence_long['Bacteria'].apply(_normalize_identifier)
+            prevalence_long['Drug'] = prevalence_long['Drug'].apply(_normalize_identifier)
+            prevalence_lookup = {
+                (row.Bacteria, row.Drug): float(row.estimate)
+                for row in prevalence_long.itertuples()
+            }
+            if prevalence_lookup:
+                print(f"  [INFO] Loaded {len(prevalence_lookup)} static resistance prevalence estimates for {prevalence_year}")
+        except Exception as exc:
+            print(f"  [WARNING] Could not load resistance prevalence estimates: {exc}")
+    else:
+        print("  [INFO] resistance_prevalence_values.csv not found; skipping static overlays")
     
     # Create output directory
     output_dir = config.output_dir / "mean_any_r_by_drug_for_each_bacteria"
@@ -1292,8 +1329,28 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         print("  [WARNING] No sum_any_r columns found in data.")
         return
     
-    bacteria_list = sorted(list(bacteria_names))
-    print(f"  [CHART] Found {len(bacteria_list)} bacteria to analyze")
+    bacteria_list_all = sorted(list(bacteria_names))
+    print(f"  [CHART] Found {len(bacteria_list_all)} bacteria to analyze")
+    bacteria_lookup = {_normalize_identifier(name): name for name in bacteria_list_all}
+    allowed_bacteria_filter = _build_normalized_filter(config.include_bacteria)
+    if allowed_bacteria_filter is not None:
+        missing_bacteria = [name for name in config.include_bacteria if _normalize_identifier(name) not in bacteria_lookup]
+        if missing_bacteria:
+            print(f"  [WARNING] Requested bacteria not present in data: {', '.join(sorted(set(missing_bacteria)))}")
+        filtered_bacteria = []
+        for requested in config.include_bacteria:
+            normalized = _normalize_identifier(requested)
+            actual_name = bacteria_lookup.get(normalized)
+            if actual_name and actual_name not in filtered_bacteria:
+                filtered_bacteria.append(actual_name)
+        if not filtered_bacteria:
+            print("  [WARNING] No bacteria matched include_bacteria filter; skipping plots.")
+            return
+        if len(filtered_bacteria) != len(bacteria_list_all):
+            print(f"  [INFO] Restricting to {len(filtered_bacteria)} bacteria based on include_bacteria filter")
+        bacteria_list = filtered_bacteria
+    else:
+        bacteria_list = bacteria_list_all
     
     # Extract all available drugs from sum_any_r columns
     all_drugs = set()
@@ -1302,8 +1359,28 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
             drug = col.split('_sum_any_r_')[1]
             all_drugs.add(drug)
     
-    all_drugs = sorted(list(all_drugs))
-    print(f"  [DRUGS] Found {len(all_drugs)} drugs to analyze")
+    all_drugs_all = sorted(list(all_drugs))
+    print(f"  [DRUGS] Found {len(all_drugs_all)} drugs to analyze")
+    drug_lookup = {_normalize_identifier(name): name for name in all_drugs_all}
+    allowed_drug_filter = _build_normalized_filter(config.include_drugs)
+    if allowed_drug_filter is not None:
+        missing_drugs = [name for name in config.include_drugs if _normalize_identifier(name) not in drug_lookup]
+        if missing_drugs:
+            print(f"  [WARNING] Requested drugs not present in data: {', '.join(sorted(set(missing_drugs)))}")
+        filtered_drugs = []
+        for requested in config.include_drugs:
+            normalized = _normalize_identifier(requested)
+            actual_name = drug_lookup.get(normalized)
+            if actual_name and actual_name not in filtered_drugs:
+                filtered_drugs.append(actual_name)
+        if not filtered_drugs:
+            print("  [WARNING] No drugs matched include_drugs filter; skipping plots.")
+            return
+        if len(filtered_drugs) != len(all_drugs_all):
+            print(f"  [INFO] Restricting to {len(filtered_drugs)} drugs based on include_drugs filter")
+        all_drugs_filtered = filtered_drugs
+    else:
+        all_drugs_filtered = all_drugs_all
     
     plots_created = 0
     SMOOTHING_WINDOW_DAYS = config.smoothing_window_days
@@ -1317,18 +1394,31 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
             print(f"    [WARNING] Skipping {bacteria} - no infection data column")
             continue
         
-        # Find relevant drugs for this bacteria (those with sum_any_r data)
-        relevant_drugs = []
-        for drug in all_drugs:
+        available_drug_columns = {}
+        for drug in all_drugs_all:
             sum_any_r_col = f"{bacteria}_sum_any_r_{drug}"
             if sum_any_r_col in df.columns:
-                relevant_drugs.append(drug)
-        
-        if not relevant_drugs:
+                available_drug_columns[drug] = sum_any_r_col
+
+        relevant_drugs_all = list(available_drug_columns.keys())
+        if not relevant_drugs_all:
             print(f"    [WARNING] Skipping {bacteria} - no sum_any_r data found")
             continue
-        
-        print(f"    Found {len(relevant_drugs)} drugs with sum_any_r data")
+
+        if allowed_drug_filter is not None:
+            relevant_drugs = [drug for drug in all_drugs_filtered if drug in available_drug_columns]
+        else:
+            relevant_drugs = relevant_drugs_all
+
+        if not relevant_drugs:
+            formatted_available = ', '.join(drug.replace('_', ' ').title() for drug in relevant_drugs_all)
+            print(f"    [WARNING] Skipping {bacteria} - include_drugs filter excluded all available drugs ({formatted_available})")
+            continue
+
+        if allowed_drug_filter is None:
+            print(f"    Found {len(relevant_drugs)} drugs with sum_any_r data")
+        else:
+            print(f"    Found {len(relevant_drugs_all)} drugs with sum_any_r data (filtered to {len(relevant_drugs)} by include_drugs)")
         
         # Create the plot with larger size to accommodate more drugs
         plt.figure(figsize=(20, 12))  # Even larger figure for all drugs
@@ -1338,14 +1428,14 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         style_labels = []
         drug_handles = []   # For drug color legend
         drug_labels = []
+        static_marker_handle = None
         
-        # Show ALL drugs (no filtering) to display complete data
         selected_drugs = relevant_drugs
-        
-        print(f"    Processing all {len(selected_drugs)} drugs with sum_any_r data")
+
+        print(f"    Processing {len(selected_drugs)} drugs with sum_any_r data")
         
         for drug in selected_drugs:
-            sum_any_r_col = f"{bacteria}_sum_any_r_{drug}"
+            sum_any_r_col = available_drug_columns[drug]
             
             # Vectorized calculation
             infected_counts = df[infection_col]
@@ -1413,10 +1503,51 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                             (resistance_df['drug'] == normalized_drug)
                         ]
                         print(f"      DEBUG: Trying normalized names: {len(empirical_filtered)} records found")
+
+                    if len(empirical_filtered) == 0:
+                        # As a last resort, normalize the empirical dataframe columns for matching
+                        if '_normalized_bacteria' not in resistance_df.columns:
+                            resistance_df['_normalized_bacteria'] = resistance_df['bacteria'].apply(
+                                lambda name: normalize_name_for_empirical_matching(
+                                    name, entity_type='bacteria', data_source='resistance'
+                                )
+                            )
+                        if '_normalized_drug' not in resistance_df.columns:
+                            resistance_df['_normalized_drug'] = resistance_df['drug'].apply(
+                                lambda name: normalize_name_for_empirical_matching(
+                                    name, entity_type='drug', data_source='resistance'
+                                )
+                            )
+
+                        empirical_filtered = resistance_df[
+                            (resistance_df['_normalized_bacteria'] == normalized_bacteria) &
+                            (resistance_df['_normalized_drug'] == normalized_drug)
+                        ]
+                        print(
+                            f"      DEBUG: Matching against normalized dataframe columns: {len(empirical_filtered)} records found"
+                        )
                     
                     print(f"      DEBUG: Found {len(empirical_filtered)} empirical records for {drug}")
                     
                     if len(empirical_filtered) > 0:
+                        if not config.show_synthetic_fallback_data and 'source_quality' in empirical_filtered.columns:
+                            real_mask = ~empirical_filtered['source_quality'].isin([
+                                'na',
+                                'synthetic_fallback',
+                                'empirical_pattern_extrapolated',
+                                'synthetic'
+                            ])
+                            empirical_filtered = empirical_filtered[real_mask]
+                            print(
+                                f"      DEBUG: Filtered empirical data by source quality; remaining rows: {len(empirical_filtered)}"
+                            )
+
+                        if len(empirical_filtered) == 0:
+                            print(
+                                "      DEBUG: No empirical rows remain after removing synthetic fallback data"
+                            )
+                            continue
+
                         # Group by year and average across regions
                         yearly_data = empirical_filtered.groupby('year').agg({
                             'mean': 'mean',
@@ -1471,6 +1602,25 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
                 else:
                     print(f"      DEBUG: empirical_data['resistance'] is None")
                 
+                # Overlay single-year prevalence estimate if available
+                norm_bacteria = _normalize_identifier(bacteria)
+                norm_drug = _normalize_identifier(drug)
+                static_value = prevalence_lookup.get((norm_bacteria, norm_drug))
+                if static_value is not None:
+                    estimate_year = max(0, prevalence_year - config.start_year)
+                    marker = plt.scatter(
+                        [estimate_year],
+                        [static_value],
+                        color=drug_color,
+                        marker='D',
+                        s=64,
+                        edgecolors='black',
+                        linewidths=0.6,
+                        zorder=6
+                    )
+                    if static_marker_handle is None:
+                        static_marker_handle = marker
+
                 lines_plotted += 1
         
         # Customize the plot
@@ -1488,6 +1638,14 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         
         # Create legends if we have data
         if lines_plotted > 0:
+            if static_marker_handle is not None:
+                if 'Simulation' not in style_labels and len(drug_handles) > 0:
+                    style_handles.append(drug_handles[0])
+                    style_labels.append('Simulation')
+                if '2025 Estimate' not in style_labels:
+                    style_handles.append(static_marker_handle)
+                    style_labels.append('2025 Estimate')
+
             # Always create style legend showing simulation vs empirical distinction
             # If we have empirical data, show both; otherwise just show simulation
             if len(style_handles) > 0:
@@ -1591,8 +1749,28 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         print("  [WARNING] No bacteria infection columns found (*_currently_infected)")
         return
     
-    bacteria_names = [col.replace('_currently_infected', '') for col in bacteria_cols]
-    print(f"  [CHART] Found {len(bacteria_names)} bacteria to analyze")
+    bacteria_list_all = sorted({col.replace('_currently_infected', '') for col in bacteria_cols})
+    print(f"  [CHART] Found {len(bacteria_list_all)} bacteria to analyze")
+    bacteria_lookup = {_normalize_identifier(name): name for name in bacteria_list_all}
+    allowed_bacteria_filter = _build_normalized_filter(config.include_bacteria)
+    if allowed_bacteria_filter is not None:
+        missing_bacteria = [name for name in config.include_bacteria if _normalize_identifier(name) not in bacteria_lookup]
+        if missing_bacteria:
+            print(f"  [WARNING] Requested bacteria not present in data: {', '.join(sorted(set(missing_bacteria)))}")
+        filtered_bacteria = []
+        for requested in config.include_bacteria:
+            normalized = _normalize_identifier(requested)
+            actual_name = bacteria_lookup.get(normalized)
+            if actual_name and actual_name not in filtered_bacteria:
+                filtered_bacteria.append(actual_name)
+        if not filtered_bacteria:
+            print("  [WARNING] No bacteria matched include_bacteria filter; skipping plots.")
+            return
+        if len(filtered_bacteria) != len(bacteria_list_all):
+            print(f"  [INFO] Restricting to {len(filtered_bacteria)} bacteria based on include_bacteria filter")
+        bacteria_names = filtered_bacteria
+    else:
+        bacteria_names = bacteria_list_all
     
     # Extract all available drugs from MIC sum columns
     mic_sum_cols = [col for col in df.columns if '_sum_mic_' in col]
@@ -1615,8 +1793,28 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             drug = col.split('_drug_score_sum_')[1]
             all_drugs.add(drug)
     
-    all_drugs = sorted(list(all_drugs))
-    print(f"  [DRUGS] Found {len(all_drugs)} drugs to analyze")
+    all_drugs_all = sorted(list(all_drugs))
+    print(f"  [DRUGS] Found {len(all_drugs_all)} drugs to analyze")
+    drug_lookup = {_normalize_identifier(name): name for name in all_drugs_all}
+    allowed_drug_filter = _build_normalized_filter(config.include_drugs)
+    if allowed_drug_filter is not None:
+        missing_drugs = [name for name in config.include_drugs if _normalize_identifier(name) not in drug_lookup]
+        if missing_drugs:
+            print(f"  [WARNING] Requested drugs not present in data: {', '.join(sorted(set(missing_drugs)))}")
+        filtered_drugs = []
+        for requested in config.include_drugs:
+            normalized = _normalize_identifier(requested)
+            actual_name = drug_lookup.get(normalized)
+            if actual_name and actual_name not in filtered_drugs:
+                filtered_drugs.append(actual_name)
+        if not filtered_drugs:
+            print("  [WARNING] No drugs matched include_drugs filter; skipping plots.")
+            return
+        if len(filtered_drugs) != len(all_drugs_all):
+            print(f"  [INFO] Restricting to {len(filtered_drugs)} drugs based on include_drugs filter")
+        all_drugs_filtered = filtered_drugs
+    else:
+        all_drugs_filtered = all_drugs_all
     
     # Ensure time_in_years column exists
     if 'time_in_years' not in df.columns:
@@ -1635,22 +1833,33 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             print(f"    [WARNING] Skipping {bacteria} - no infection data column")
             continue
         
-        # Find relevant drugs for this bacteria (those with MIC sum data)
-        relevant_drugs = []
-        for drug in all_drugs:
-            # Try both column naming patterns
+        available_drug_columns = {}
+        for drug in all_drugs_all:
             mic_sum_col = f"{bacteria}_sum_mic_{drug}"
             if mic_sum_col not in df.columns:
                 mic_sum_col = f"{bacteria}_drug_score_sum_{drug}"
-            
             if mic_sum_col in df.columns:
-                relevant_drugs.append(drug)
-        
-        if not relevant_drugs:
+                available_drug_columns[drug] = mic_sum_col
+
+        relevant_drugs_all = list(available_drug_columns.keys())
+        if not relevant_drugs_all:
             print(f"    [WARNING] Skipping {bacteria} - no MIC sum data found")
             continue
-        
-        print(f"    Found {len(relevant_drugs)} drugs with MIC sum data")
+
+        if allowed_drug_filter is not None:
+            relevant_drugs = [drug for drug in all_drugs_filtered if drug in available_drug_columns]
+        else:
+            relevant_drugs = relevant_drugs_all
+
+        if not relevant_drugs:
+            formatted_available = ', '.join(drug.replace('_', ' ').title() for drug in relevant_drugs_all)
+            print(f"    [WARNING] Skipping {bacteria} - include_drugs filter excluded all available drugs ({formatted_available})")
+            continue
+
+        if allowed_drug_filter is None:
+            print(f"    Found {len(relevant_drugs)} drugs with MIC sum data")
+        else:
+            print(f"    Found {len(relevant_drugs_all)} drugs with MIC sum data (filtered to {len(relevant_drugs)} by include_drugs)")
         
         # Create the plot
         plt.figure(figsize=(12, 8))
@@ -1662,10 +1871,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         drug_labels = []
         
         for drug in relevant_drugs:
-            # Try both column naming patterns
-            mic_sum_col = f"{bacteria}_sum_mic_{drug}"
-            if mic_sum_col not in df.columns:
-                mic_sum_col = f"{bacteria}_drug_score_sum_{drug}"
+            mic_sum_col = available_drug_columns[drug]
             
             # Vectorized calculation
             infected_counts = df[infection_col]
@@ -5617,18 +5823,90 @@ def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfi
             bacteria_dict[bacteria] = []
         bacteria_dict[bacteria].append((drug, col))
     
+    all_bacteria = sorted(bacteria_dict.keys())
+    allowed_bacteria_filter = _build_normalized_filter(config.include_bacteria)
+    if allowed_bacteria_filter is not None:
+        bacteria_lookup = {_normalize_identifier(name): name for name in all_bacteria}
+        missing_bacteria = [name for name in config.include_bacteria if _normalize_identifier(name) not in bacteria_lookup]
+        if missing_bacteria:
+            logger.warning(
+                "Requested bacteria not present in hospital resistance data: %s",
+                ', '.join(sorted(set(missing_bacteria)))
+            )
+        filtered_bacteria = []
+        for requested in config.include_bacteria:
+            normalized = _normalize_identifier(requested)
+            actual_name = bacteria_lookup.get(normalized)
+            if actual_name and actual_name not in filtered_bacteria:
+                filtered_bacteria.append(actual_name)
+        if not filtered_bacteria:
+            logger.warning("No bacteria matched include_bacteria filter; skipping hospital resistance plots")
+            return
+        if len(filtered_bacteria) != len(all_bacteria):
+            logger.info("Restricting hospital resistance plots to %d bacteria via include_bacteria", len(filtered_bacteria))
+        bacteria_sequence = filtered_bacteria
+    else:
+        bacteria_sequence = all_bacteria
+
+    all_hospital_drugs = sorted({drug for _, drug, _ in bacteria_drug_combos})
+    allowed_drug_filter = _build_normalized_filter(config.include_drugs)
+    if allowed_drug_filter is not None:
+        drug_lookup = {_normalize_identifier(name): name for name in all_hospital_drugs}
+        missing_drugs = [name for name in config.include_drugs if _normalize_identifier(name) not in drug_lookup]
+        if missing_drugs:
+            logger.warning(
+                "Requested drugs not present in hospital resistance data: %s",
+                ', '.join(sorted(set(missing_drugs)))
+            )
+
     plots_created = 0
     
     # Create one plot per bacteria showing all drugs
-    for bacteria, drug_data in bacteria_dict.items():
+    for bacteria in bacteria_sequence:
+        drug_data_all = list(bacteria_dict.get(bacteria, []))
+        if not drug_data_all:
+            logger.warning("No hospital resistance data available for %s", bacteria)
+            continue
+        
         logger.info(f"Creating hospital resistance plot for {bacteria}...")
         
         fig, ax = plt.subplots(figsize=(12, 8))
         
-        colors = plt.cm.Set1(np.linspace(0, 1, len(drug_data)))
+        if allowed_drug_filter is not None:
+            normalized_lookup = {_normalize_identifier(drug): (drug, col) for drug, col in drug_data_all}
+            filtered_drug_data = []
+            for requested in config.include_drugs:
+                normalized = _normalize_identifier(requested)
+                pair = normalized_lookup.get(normalized)
+                if pair and pair not in filtered_drug_data:
+                    filtered_drug_data.append(pair)
+        else:
+            filtered_drug_data = drug_data_all
+
+        if not filtered_drug_data:
+            available = ', '.join(sorted({drug for drug, _ in drug_data_all}))
+            if available:
+                logger.warning(
+                    "Skipping %s: include_drugs filter excluded all available hospital drugs (%s)",
+                    bacteria,
+                    available
+                )
+            else:
+                logger.warning("Skipping %s: no hospital drug data after filtering", bacteria)
+            plt.close(fig)
+            continue
+
+        if allowed_drug_filter is not None and len(filtered_drug_data) != len(drug_data_all):
+            logger.info(
+                "Restricting %s hospital resistance plot to %d drugs via include_drugs",
+                bacteria,
+                len(filtered_drug_data)
+            )
+
+        colors = plt.cm.Set1(np.linspace(0, 1, len(filtered_drug_data)))
         lines_plotted = 0
         
-        for i, (drug, col) in enumerate(drug_data):
+        for i, (drug, col) in enumerate(filtered_drug_data):
             if col not in df.columns:
                 continue
             
@@ -5662,7 +5940,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_hospital_plots(config: PlotConfi
             bacteria_normalized = config._normalize_bacteria_name(bacteria)
             
             # Look for hospital-specific resistance data
-            for drug, _ in drug_data:
+            for drug, _ in filtered_drug_data:
                 drug_normalized = config._normalize_drug_name(drug)
                 possible_cols = [
                     f"hospital_{bacteria_normalized}_{drug_normalized}",

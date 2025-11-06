@@ -91,6 +91,27 @@ class DataCache:
                 logger.info("Data preprocessing completed and cached")
         
         return self._preprocessed_data
+
+    def get_data(self, dataset: str = 'preprocessed', force_reload: bool = False) -> Optional[pd.DataFrame]:
+        """Backward-compatible accessor for cached datasets."""
+        key = (dataset or 'preprocessed').lower()
+
+        if key in {'preprocessed', 'analysis', 'main'}:
+            return self.get_preprocessed_data(force_reload=force_reload)
+        if key in {'raw', 'simulation'}:
+            return self.get_simulation_data(force_reload=force_reload)
+
+        raise ValueError(f"Unsupported dataset key: {dataset}")
+
+    def get_empirical_data(self, force_reload: bool = False) -> Dict[str, Optional[pd.DataFrame]]:
+        """Load and cache empirical calibration datasets."""
+        if not self._empirical_data or force_reload:
+            from .empirical.data_loader import load_empirical_calibration_data
+
+            loaded = load_empirical_calibration_data()
+            self._empirical_data = loaded if loaded is not None else {}
+
+        return self._empirical_data
     
     def get_bacteria_list(self, force_reload: bool = False) -> list:
         """Get cached bacteria list extracted from CSV headers."""
@@ -126,7 +147,7 @@ class DataCache:
         """Clear all cached data to free memory."""
         self._simulation_data = None
         self._preprocessed_data = None
-        self._empirical_data.clear()
+        self._empirical_data = {}
         self._bacteria_list = None
         self._drug_list = None
         self._resistance_mechanisms = None

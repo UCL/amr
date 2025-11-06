@@ -3616,7 +3616,7 @@ lazy_static! {
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.03); // Separate baseline for microbiome resistance emergence
+    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.005); // Separate baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 

@@ -27,7 +27,7 @@ class PlotConfig:
     incidence_of_infection: bool = False
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
-    mean_any_r_by_drug_for_each_bacteria: bool = False
+    mean_any_r_by_drug_for_each_bacteria: bool = True
     proportion_of_people_taking_each_drug: bool = False
     for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
     proportion_of_people_infected_with_each_bacteria: bool = False
@@ -58,7 +58,7 @@ class PlotConfig:
     proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
 
     # Empirical data display options
-    show_synthetic_fallback_data: bool = True  # Whether to display synthetic fallback empirical overlays
+    show_synthetic_fallback_data: bool = False  # Whether to display synthetic fallback empirical overlays
     show_empirical_source_attribution: bool = True  # Whether to show data source info boxes
     
     # Individual plot controls - DISABLED since they're included in grouped figures
@@ -67,6 +67,14 @@ class PlotConfig:
     sepsis_among_infected: bool = False  # Included in grouped figures
     death_causes: bool = False  # Included in grouped figures  
     resistance_among_infected: bool = False  # Included in grouped figures
+
+    # Per-entity filters (limit which series appear on per-bacteria/per-drug plots)
+    # Example: include_bacteria=['staph_aureus', 'e_coli']; include_drugs=['ciprofloxacin'] (see src/population.rs for canonical short names)
+    # default:
+    #  include_bacteria: Optional[List[str]] = None
+    #  include_drugs: Optional[List[str]] = None
+    include_bacteria: Optional[List[str]] = None  # Only render requested bacteria when provided
+    include_drugs: Optional[List[str]] = field(default_factory=lambda: ['erythromycin', 'penicilling', 'meropenem'])  # Only render requested drugs when provided
 
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))

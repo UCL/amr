@@ -16,20 +16,20 @@ mod rules;
 mod simulation;
 
 //
-// total number of deaths with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd)
-// number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated
-// percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate)
-// amr_x_measure: for each bacteria, the proportion of infections for which x or fewer drugs are "fully active"
-// estimates of prevalence of any resistance on scale 0-1 for all drug-bacteria combination with non-negligible potency
+// DECIDE ON MINIMUM CALIBRATION TARGETS
+//
+// total number of deaths with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd) - (by bacteria ?)
+// number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated (by drug ?)
+// percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate) (by bacteria ?)
+// values in resistance_prevalence_values.csv for 2025 for all relevant bacteria / drug combination
+//
 //
 // aiming for 5% severely immunosuppressed
 // aiming for 0.3% hospitalized
 //
-// get the above outputs for a single recent year (depends on data) as a high level summary output
-//
+// below are not for our minimum calibration:
 // try to get estimate of prevalence of each bacteria in microbiome (ok just by region and age and hospital status ?)
 // try to get estimate of prevalence of resistance in microbiome bacteria (needs to be by region and hospital status ?)
-// try to get estimate of proportion infected with each bacteria in past year
 //
 //
 //
@@ -134,8 +134,8 @@ fn main() {
     let population_size = 1_000_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.2 ; // Log 1% of infections for analysis (0.0-1.0)
+    let log_infection_journeys = false ; // Set to true to enable infection journey logging
+    let infection_journey_sample_rate = 0.0003 ; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
