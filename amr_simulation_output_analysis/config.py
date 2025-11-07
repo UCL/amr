@@ -27,7 +27,7 @@ class PlotConfig:
     incidence_of_infection: bool = False
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
-    mean_any_r_by_drug_for_each_bacteria: bool = True
+    mean_any_r_by_drug_for_each_bacteria: bool = False
     proportion_of_people_taking_each_drug: bool = False
     for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
     proportion_of_people_infected_with_each_bacteria: bool = False
@@ -74,7 +74,8 @@ class PlotConfig:
     #  include_bacteria: Optional[List[str]] = None
     #  include_drugs: Optional[List[str]] = None
     include_bacteria: Optional[List[str]] = None  # Only render requested bacteria when provided
-    include_drugs: Optional[List[str]] = field(default_factory=lambda: ['erythromycin', 'penicilling', 'meropenem'])  # Only render requested drugs when provided
+    # include_drugs: Optional[List[str]] = field(default_factory=lambda: ['erythromycin', 'penicilling', 'meropenem'])  # Only render requested drugs when provided
+    include_drugs: Optional[List[str]] = None
 
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))

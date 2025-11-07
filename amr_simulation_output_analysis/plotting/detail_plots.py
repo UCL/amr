@@ -1465,8 +1465,8 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
             # Plot if there's any data
             valid_data = mean_any_r_smooth.dropna()
             if len(valid_data) > 0:
-                # Plot simulation data (solid line) - cycle through colors for all drugs
-                drug_color = plt.cm.tab20(lines_plotted % 20)  # Cycle through tab20 colors
+                # Plot simulation data (solid line) using consistent per-drug colors across plots
+                drug_color = get_consistent_color_for_drug(drug, all_drugs_all)
                 sim_line = plt.plot(df['time_in_years'], mean_any_r_smooth, 
                         color=drug_color, linewidth=2, alpha=0.8, 
                         label=drug.replace('_', ' ').title())[0]
@@ -1901,8 +1901,8 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
             # [TOOL] IMPROVED: Plot if there's any data, even if very low values
             valid_data = mean_mic_smooth.dropna()
             if len(valid_data) > 0:  # Removed the `valid_data.max() > 0` condition that was too strict
-                # Plot simulation data (solid line)
-                drug_color = plt.cm.tab20(lines_plotted % 20)
+                # Plot simulation data (solid line) using consistent per-drug color mapping
+                drug_color = get_consistent_color_for_drug(drug, all_drugs_all)
                 sim_line = plt.plot(df['time_in_years'], mean_mic_smooth, 
                         color=drug_color, linewidth=1.5, alpha=0.8, 
                         label=drug.replace('_', ' ').title())[0]
@@ -2043,7 +2043,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
                 fallback_lines = []
                 fallback_labels = []
                 for i, drug in enumerate(relevant_drugs[:20]):  # Limit to 20 for readability
-                    color = plt.cm.tab20(i % 20)
+                    color = get_consistent_color_for_drug(drug, all_drugs_all)
                     line = plt.Line2D([0], [0], color=color, linewidth=2, alpha=0.8)
                     fallback_lines.append(line)
                     fallback_labels.append(drug.replace('_', ' ').title())
@@ -4989,8 +4989,8 @@ def create_mean_mic_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: Pl
             # Only plot if there's meaningful data
             valid_data = mean_mic_smooth.dropna()
             if len(valid_data) > 0 and valid_data.max() > 0:
-                # Plot simulation data
-                drug_color = plt.cm.tab20(lines_plotted % 20)
+                # Plot simulation data with consistent per-drug color mapping
+                drug_color = get_consistent_color_for_drug(drug, all_drugs)
                 sim_line = plt.plot(df['time_in_years'], mean_mic_smooth, 
                         color=drug_color, linewidth=1.5, alpha=0.8, 
                         label=drug.replace('_', ' ').title())[0]

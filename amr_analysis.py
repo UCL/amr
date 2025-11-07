@@ -23,9 +23,9 @@ Configure the analysis by modifying the PlotConfig settings in config.py.
 
 import logging
 from amr_simulation_output_analysis import create_all_plots, PlotConfig
+from amr_simulation_output_analysis.calibration_summary import generate_calibration_summary
 from amr_simulation_output_analysis.data_loader import DataCache
 import pandas as pd
-import logging
 
 # Configure logging
 logging.basicConfig(
@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 
 def generate_summary_statistics():
-    """Generate summary statistics CSV file like the original script."""
+    """Compute and print summary statistics for quick inspection."""
     print("Generating summary statistics...")
     
     # Load the simulation data
@@ -70,10 +70,9 @@ def generate_summary_statistics():
             summary_stats[f'{col}_min'] = [df[col].min()]
             summary_stats[f'{col}_max'] = [df[col].max()]
     
-    # Save summary statistics
     summary_df = pd.DataFrame(summary_stats)
-    summary_df.to_csv('summary_statistics.csv', index=False)
-    print("[OK] Summary statistics saved to 'summary_statistics.csv'")
+    print(summary_df.to_string(index=False))
+    return summary_df
 
 def main():
     """Main comprehensive analysis function."""
@@ -95,18 +94,27 @@ def main():
     
     # Generate summary statistics (equivalent to original script)
     try:
-        generate_summary_statistics()
-        print("   [OK] Summary statistics generated successfully!\n")
+        summary_df = generate_summary_statistics()
+        if summary_df is not None:
+            print("   [OK] Summary statistics reported above.\n")
     except Exception as e:
         print(f"   [ERROR] Error generating summary statistics: {e}\n")
+
+    # Generate calibration summary file (not printed to console)
+    try:
+        summary_path = generate_calibration_summary(config)
+        if summary_path is not None:
+            print(f"   [OK] Calibration snapshot written to {summary_path}\n")
+    except Exception as e:
+        print(f"   [ERROR] Error generating calibration snapshot: {e}\n")
     
     # Summary
     print("=== Analysis Complete ===")
     print("Generated outputs:")
     print("- All 9 grouped figures (Figures 1-9)")
     print("- 2,000+ individual plots across 27+ categories")
-    print("- summary_statistics.csv")
-    print("\nAll outputs saved to 'output_graphs/' directory and current folder.")
+    print("- Summary statistics printed to console")
+    print("\nAll plots saved to 'output_graphs/' directory.")
     print("This provides complete functional parity with the original analyze_simulation.py script!")
 
 if __name__ == "__main__":

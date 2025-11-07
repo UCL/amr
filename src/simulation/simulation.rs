@@ -232,7 +232,6 @@ impl MajorityRCache {
     }
 
     pub fn finalize_step(&mut self) {
-        const MEMORY_FLOOR: f64 = 1.0e-6;
         let mut active_memory = 0usize;
         for idx in 0..self.total_buckets() {
             if self.step_count[idx] > 0 {
@@ -243,12 +242,6 @@ impl MajorityRCache {
                 } else {
                     self.running_mean[idx] = avg;
                     self.has_running_mean[idx] = true;
-                }
-            } else if self.has_running_mean[idx] {
-                self.running_mean[idx] *= self.retention;
-                if self.running_mean[idx].abs() < MEMORY_FLOOR {
-                    self.running_mean[idx] = 0.0;
-                    self.has_running_mean[idx] = false;
                 }
             }
 

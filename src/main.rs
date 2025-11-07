@@ -40,8 +40,11 @@ mod simulation;
 // think of other outputs which can convey how / whether various parts of the model are working (e.g. the effects of a on b)
 // at least a partial answer here might be "tests"
 //
-// microbiome plot for journyes should show all bacteria the person has + with resistance, or at least
+// microbiome plot for journeys should show all bacteria the person has + with resistance, or at least
 // 2 or 3 example bacteria ? 
+//
+// when immune clearance probability comes up put a diamond to end the green line
+//
 //
 //
 //
