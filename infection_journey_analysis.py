@@ -369,6 +369,22 @@ class InfectionJourneyAnalyzer:
                 zorder=6,
             )
 
+        immune_clearance_marker = None
+        if clearance_driver == 'immune' and clearance_day is not None and hazard_values.size:
+            # Highlight when the immune system, rather than drugs, completed clearance
+            immune_clearance_marker = ax2.scatter(
+                [hazard_days[-1]],
+                [hazard_values[-1]],
+                color='green',
+                s=110,
+                marker='D',
+                edgecolors='black',
+                linewidths=0.8,
+                alpha=1.0,
+                label='immune clearance',
+                zorder=7,
+            )
+
         ax2_twin = ax2.twinx()
         toxicity_line, = ax2_twin.step(
             days,
@@ -386,6 +402,9 @@ class InfectionJourneyAnalyzer:
 
         legend_handles = [hazard_line, toxicity_line]
         legend_labels = [hazard_line.get_label(), toxicity_line.get_label()]
+        if immune_clearance_marker is not None:
+            legend_handles.append(immune_clearance_marker)
+            legend_labels.append('immune clearance')
         ax2.legend(legend_handles, legend_labels, loc='upper right', fontsize=8)
         
         # Drug levels and resistance (activity_r)
@@ -617,7 +636,11 @@ class InfectionJourneyAnalyzer:
                     fontsize=8,
                     linespacing=1.3,
                     color='#555555',
-                    bbox={'facecolor': 'white', 'alpha': 0.85, 'boxstyle': 'round,pad=0.3'},
+                    bbox={
+                        'facecolor': (1.0, 1.0, 1.0, 0.0),
+                        'edgecolor': 'none',
+                        'boxstyle': 'round,pad=0.3',
+                    },
                 )
             ax3.set_xticks(day_ticks)
             ax3.set_xlim(0.5, max_day + 0.5)
@@ -647,6 +670,13 @@ class InfectionJourneyAnalyzer:
             ['resistances_majority_r', 'resistance_majority_r']
         )
 
+        if clearance_day is not None:
+            resistance_mask_series = journey_data['day_of_journey'] < clearance_day
+            clearance_mask_series = resistance_mask_series
+        else:
+            resistance_mask_series = pd.Series(True, index=journey_data.index)
+            clearance_mask_series = resistance_mask_series
+
         infection_any_per_drug = drug_data.get('infection_resistance_any', {})
         infection_majority_per_drug = drug_data.get('infection_resistance_majority', {})
         infection_per_drug_has_values = any(
@@ -663,11 +693,11 @@ class InfectionJourneyAnalyzer:
         drug_presence_strings = journey_data['current_drugs'].fillna('').astype(str)
         bacteria_positive_mask = journey_data['primary_bacteria_level'] > 0.001
         if clearance_day is not None:
-            clearance_mask_series = journey_data['day_of_journey'] <= clearance_day
             clearance_day_mask_series = journey_data['day_of_journey'] == clearance_day
             bacteria_present_mask = bacteria_positive_mask | clearance_day_mask_series
+            infection_any_series = infection_any_series.where(resistance_mask_series, np.nan)
+            infection_majority_series = infection_majority_series.where(resistance_mask_series, np.nan)
         else:
-            clearance_mask_series = pd.Series(True, index=journey_data.index)
             clearance_day_mask_series = pd.Series(False, index=journey_data.index)
             bacteria_present_mask = bacteria_positive_mask
 
@@ -684,6 +714,13 @@ class InfectionJourneyAnalyzer:
             for drug_name in infection_drug_names:
                 any_series = infection_any_per_drug.get(drug_name)
                 majority_series = infection_majority_per_drug.get(drug_name)
+
+                if clearance_day is not None:
+                    mask = journey_data['day_of_journey'] < clearance_day
+                    if any_series is not None:
+                        any_series = any_series.where(mask, np.nan)
+                    if majority_series is not None:
+                        majority_series = majority_series.where(mask, np.nan)
 
                 has_any_values = any_series is not None and not any_series.isna().all()
                 has_majority_values = majority_series is not None and not majority_series.isna().all()

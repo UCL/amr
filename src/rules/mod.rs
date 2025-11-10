@@ -1359,11 +1359,11 @@ pub fn apply_rules(
                             (
                                 "Streptococcus pneumoniae",
                                 "meropenem"
-                                    | "meropenem_vaborbactam"
-                                    | "imipenem_c"
-                                    | "colistin"
-                                    | "linezolid"
-                                    | "tedizolid",
+                                | "meropenem_vaborbactam"
+                                | "imipenem_c"
+                                | "colistin"
+                                | "linezolid"
+                                | "tedizolid",
                             ) => {
                                 score *= 0.15;
                             }
@@ -1379,11 +1379,11 @@ pub fn apply_rules(
                             (
                                 "Streptococcus pyogenes",
                                 "meropenem"
-                                    | "meropenem_vaborbactam"
-                                    | "imipenem_c"
-                                    | "colistin"
-                                    | "linezolid"
-                                    | "tedizolid",
+                                | "meropenem_vaborbactam"
+                                | "imipenem_c"
+                                | "colistin"
+                                | "linezolid"
+                                | "tedizolid",
                             ) => {
                                 score *= 0.1;
                             }
@@ -1399,10 +1399,7 @@ pub fn apply_rules(
                             }
                             (
                                 "Haemophilus influenzae",
-                                "meropenem"
-                                    | "meropenem_vaborbactam"
-                                    | "imipenem_c"
-                                    | "colistin",
+                                "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "colistin",
                             ) => score *= 0.25,
 
                             // Neisseria meningitidis - penicillin and third-gen cephalosporins preferred
@@ -1415,10 +1412,10 @@ pub fn apply_rules(
                             (
                                 "Neisseria_meningitidis",
                                 "meropenem"
-                                    | "meropenem_vaborbactam"
-                                    | "imipenem_c"
-                                    | "colistin"
-                                    | "linezolid",
+                                | "meropenem_vaborbactam"
+                                | "imipenem_c"
+                                | "colistin"
+                                | "linezolid",
                             ) => score *= 0.2,
 
                             // E. coli - MASSIVELY strengthen first-line agents
@@ -1586,12 +1583,9 @@ pub fn apply_rules(
                                 "cefuroxime",
                                 "ceftriaxone",
                             ],
-                            "Neisseria_meningitidis" => vec![
-                                "penicilling",
-                                "ampicillin",
-                                "ceftriaxone",
-                                "cefepime",
-                            ],
+                            "Neisseria_meningitidis" => {
+                                vec!["penicilling", "ampicillin", "ceftriaxone", "cefepime"]
+                            }
                             "Escherichia coli" => vec![
                                 "ciprofloxacin",
                                 "nitrofurantoin",
@@ -2301,6 +2295,7 @@ pub fn apply_rules(
 
     // --- update per-bacteria fields ---
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+        let allows_microbiome = bacteria != "helicobacter pylori";
         let is_infected = individual.level[b_idx] > 0.001;
 
         if !is_infected {
@@ -2322,7 +2317,7 @@ pub fn apply_rules(
             }
 
             // Microbiome presence effect
-            if individual.presence_microbiome[b_idx] {
+            if allows_microbiome && individual.presence_microbiome[b_idx] {
                 log_odds += store.bacteria.log_odds_microbiome_present[b_idx];
             }
 
@@ -2353,120 +2348,133 @@ pub fn apply_rules(
             // 2. Carriers are the primary reservoir for resistance transmission in the population
             // 3. Antibiotic use disrupts normal microbiome, creating niches for pathogen colonization
             // 4. When carriers develop infections, they're highly likely to have resistant infections (carrier amplification)
-            if !individual.presence_microbiome[b_idx] {
-                // Logistic model for carriage acquisition (consistent framework with infection acquisition)
-                // Baseline includes same demographic and geographic risk factors as infection, but with different
-                // baseline probability (typically higher for carriage than infection)
-                let mut log_odds = store.bacteria.acquisition_log_odds_baseline[b_idx]
-                    + store.age_categories.bacteria_age_log_odds(b_idx, age_idx)
-                    + store.region_bacteria.acquisition_log_odds(region, b_idx)
-                    + store
-                        .age_categories
-                        .bacteria_region_age_log_odds(region, b_idx, age_idx);
+            if allows_microbiome {
+                if !individual.presence_microbiome[b_idx] {
+                    // Logistic model for carriage acquisition (consistent framework with infection acquisition)
+                    // Baseline includes same demographic and geographic risk factors as infection, but with different
+                    // baseline probability (typically higher for carriage than infection)
+                    let mut log_odds = store.bacteria.acquisition_log_odds_baseline[b_idx]
+                        + store.age_categories.bacteria_age_log_odds(b_idx, age_idx)
+                        + store.region_bacteria.acquisition_log_odds(region, b_idx)
+                        + store
+                            .age_categories
+                            .bacteria_region_age_log_odds(region, b_idx, age_idx);
 
-                // Vaccination status (binary effect)
-                if individual.vaccination_status[b_idx] {
-                    log_odds += store.bacteria.log_odds_vaccinated[b_idx];
-                }
-
-                // Hospital-acquired effect
-                if individual.hospital_status.is_hospitalized() {
-                    log_odds += store.bacteria.log_odds_hospital_acquired[b_idx];
-                }
-
-                // Add the extra log-odds for microbiome vs infection (bacteria-specific)
-                // This parameter shifts the baseline rate between carriage and infection (typically positive for carriage)
-                log_odds += store.bacteria.microbiome_vs_infection_log_odds(b_idx);
-
-                // --- Antibiotic disruption effect on carriage acquisition ---
-                // MECHANISM: Antibiotics kill commensal bacteria, disrupting colonization resistance and creating
-                // ecological niches that pathogenic bacteria can exploit. This is why C. difficile infections
-                // spike during/after broad-spectrum antibiotic use, and why antibiotic courses increase MRSA
-                // and ESBL-producing bacteria colonization risk.
-                // EMPIRICAL BASIS: Studies show 5-15x increased colonization risk during antibiotic therapy,
-                // persisting for weeks to months after cessation (we model acute effect here).
-                let mut antibiotic_disruption_log_odds = 0.0;
-                let mut acquisition_on_drug = false;
-
-                for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
-                    if drug_level > 0.1 {
-                        // Only count drugs with meaningful levels
-                        acquisition_on_drug = true;
-                        antibiotic_disruption_log_odds +=
-                            store.drug.microbiome_disruption_log_odds(d_idx);
+                    // Vaccination status (binary effect)
+                    if individual.vaccination_status[b_idx] {
+                        log_odds += store.bacteria.log_odds_vaccinated[b_idx];
                     }
-                }
-                log_odds += antibiotic_disruption_log_odds;
 
-                // Convert log-odds to probability
-                let microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+                    // Hospital-acquired effect
+                    if individual.hospital_status.is_hospitalized() {
+                        log_odds += store.bacteria.log_odds_hospital_acquired[b_idx];
+                    }
 
-                if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
-                    individual.presence_microbiome[b_idx] = true;
-                    // Track acquisition date for duration-dependent clearance modeling
-                    // RATIONALE: Recent colonization is more easily cleared by immune response or antibiotics,
-                    // while established colonization (months to years) is much more persistent.
-                    // This mirrors clinical observations that recent MRSA carriers respond better to
-                    // decolonization protocols than chronic carriers.
-                    individual.date_microbiome_acquired[b_idx] = time_step as i32;
-                    individual.microbiome_acquired_today[b_idx] = true;
-                    individual.microbiome_acquired_on_drug_today[b_idx] = acquisition_on_drug;
+                    // Add the extra log-odds for microbiome vs infection (bacteria-specific)
+                    // This parameter shifts the baseline rate between carriage and infection (typically positive for carriage)
+                    log_odds += store.bacteria.microbiome_vs_infection_log_odds(b_idx);
 
-                    // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
-                    let max_resistance_level = store.globals.max_resistance_level;
+                    // --- Antibiotic disruption effect on carriage acquisition ---
+                    // MECHANISM: Antibiotics kill commensal bacteria, disrupting colonization resistance and creating
+                    // ecological niches that pathogenic bacteria can exploit. This is why C. difficile infections
+                    // spike during/after broad-spectrum antibiotic use, and why antibiotic courses increase MRSA
+                    // and ESBL-producing bacteria colonization risk.
+                    // EMPIRICAL BASIS: Studies show 5-15x increased colonization risk during antibiotic therapy,
+                    // persisting for weeks to months after cessation (we model acute effect here).
+                    let mut antibiotic_disruption_log_odds = 0.0;
+                    let mut acquisition_on_drug = false;
 
-                    let is_hospital_acquired = individual.hospital_status.is_hospitalized();
-
-                    let region_idx = individual.region_cur_in as usize;
-                    let hospital_status_bool = individual.hospital_status.is_hospitalized();
-
-                    for drug_name_static in DRUG_SHORT_NAMES.iter() {
-                        let d_idx = *drug_indices.get(drug_name_static).unwrap();
-                        let resistance_data = &mut individual.resistances[b_idx][d_idx];
-
-                        // --- region/hospital-specific sampling for microbiome (same logic as infections) ---
-                        let sampling_hospital_status = if is_hospital_acquired {
-                            true // Hospital-acquired microbiome samples from hospitalized population
-                        } else {
-                            hospital_status_bool // Community-acquired microbiome samples based on current status
-                        };
-
-                        let majority_r_values_from_population = majority_r_cache.bucket(
-                            region_idx,
-                            sampling_hospital_status,
-                            b_idx,
-                            d_idx,
-                        );
-                        if let Some(&acquired_resistance_level) =
-                            majority_r_values_from_population.choose(rng)
-                        {
-                            let clamped_level =
-                                acquired_resistance_level.min(max_resistance_level).max(0.0);
-                            resistance_data.microbiome_r = clamped_level;
-                        } else if let Some(fallback_level) = majority_r_cache.fallback_mean(
-                            region_idx,
-                            sampling_hospital_status,
-                            b_idx,
-                            d_idx,
-                        ) {
-                            resistance_data.microbiome_r =
-                                fallback_level.min(max_resistance_level).max(0.0);
-                        } else {
-                            resistance_data.microbiome_r = 0.0;
-                        }
-
-                        if resistance_data.microbiome_r > 0.0 {
-                            resistance_data.microbiome_r = (resistance_data.microbiome_r
-                                * store
-                                    .globals
-                                    .microbiome_resistance_multiplier_on_acquisition)
-                                .min(max_resistance_level)
-                                .max(0.0);
+                    for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
+                        if drug_level > 0.1 {
+                            // Only count drugs with meaningful levels
+                            acquisition_on_drug = true;
+                            antibiotic_disruption_log_odds +=
+                                store.drug.microbiome_disruption_log_odds(d_idx);
                         }
                     }
-                    // --- end microbiome_r assignment ---
+                    log_odds += antibiotic_disruption_log_odds;
+
+                    // Convert log-odds to probability
+                    let microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+
+                    if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
+                        individual.presence_microbiome[b_idx] = true;
+                        // Track acquisition date for duration-dependent clearance modeling
+                        // RATIONALE: Recent colonization is more easily cleared by immune response or antibiotics,
+                        // while established colonization (months to years) is much more persistent.
+                        // This mirrors clinical observations that recent MRSA carriers respond better to
+                        // decolonization protocols than chronic carriers.
+                        individual.date_microbiome_acquired[b_idx] = time_step as i32;
+                        individual.microbiome_acquired_today[b_idx] = true;
+                        individual.microbiome_acquired_on_drug_today[b_idx] = acquisition_on_drug;
+
+                        // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
+                        let max_resistance_level = store.globals.max_resistance_level;
+
+                        let is_hospital_acquired = individual.hospital_status.is_hospitalized();
+
+                        let region_idx = individual.region_cur_in as usize;
+                        let hospital_status_bool = individual.hospital_status.is_hospitalized();
+
+                        for drug_name_static in DRUG_SHORT_NAMES.iter() {
+                            let d_idx = *drug_indices.get(drug_name_static).unwrap();
+                            let resistance_data = &mut individual.resistances[b_idx][d_idx];
+
+                            // --- region/hospital-specific sampling for microbiome (same logic as infections) ---
+                            let sampling_hospital_status = if is_hospital_acquired {
+                                true // Hospital-acquired microbiome samples from hospitalized population
+                            } else {
+                                hospital_status_bool // Community-acquired microbiome samples based on current status
+                            };
+
+                            let majority_r_values_from_population = majority_r_cache.bucket(
+                                region_idx,
+                                sampling_hospital_status,
+                                b_idx,
+                                d_idx,
+                            );
+                            if let Some(&acquired_resistance_level) =
+                                majority_r_values_from_population.choose(rng)
+                            {
+                                let clamped_level =
+                                    acquired_resistance_level.min(max_resistance_level).max(0.0);
+                                resistance_data.microbiome_r = clamped_level;
+                            } else if let Some(fallback_level) = majority_r_cache.fallback_mean(
+                                region_idx,
+                                sampling_hospital_status,
+                                b_idx,
+                                d_idx,
+                            ) {
+                                resistance_data.microbiome_r =
+                                    fallback_level.min(max_resistance_level).max(0.0);
+                            } else {
+                                resistance_data.microbiome_r = 0.0;
+                            }
+
+                            if resistance_data.microbiome_r > 0.0 {
+                                resistance_data.microbiome_r = (resistance_data.microbiome_r
+                                    * store
+                                        .globals
+                                        .microbiome_resistance_multiplier_on_acquisition)
+                                    .min(max_resistance_level)
+                                    .max(0.0);
+                            }
+                        }
+                        // --- end microbiome_r assignment ---
+                    }
                 }
             } else {
+                individual.presence_microbiome[b_idx] = false;
+                individual.date_microbiome_acquired[b_idx] = 0;
+                individual.microbiome_acquired_today[b_idx] = false;
+                individual.microbiome_acquired_on_drug_today[b_idx] = false;
+                individual.microbiome_cleared_today[b_idx] = false;
+                for resistance_data in individual.resistances[b_idx].iter_mut() {
+                    resistance_data.microbiome_r = 0.0;
+                }
+            }
+
+            if allows_microbiome && individual.presence_microbiome[b_idx] {
                 // --- Enhanced microbiome clearance with logistic model ---
                 // RATIONALE FOR LOGISTIC FRAMEWORK: Clearance is influenced by multiple independent factors
                 // (duration of carriage, antibiotic pressure, immune response) that combine multiplicatively
@@ -3466,178 +3474,182 @@ pub fn apply_rules(
                             store.drug_bacteria.potency(bacteria_full_idx, drug_index);
 
                         if current_bacteria_level > 0.001 {
-                                // Calculate resistance mechanism enhancement
-                                let mut mechanism_resistance_boost = 0.0;
-                                if let Some(bacteria_full_idx) =
-                                    BACTERIA_LIST.iter().position(|&b| b == bacteria)
-                                {
-                                    use crate::simulation::population::ResistanceMechanism;
+                            // Calculate resistance mechanism enhancement
+                            let mut mechanism_resistance_boost = 0.0;
+                            if let Some(bacteria_full_idx) =
+                                BACTERIA_LIST.iter().position(|&b| b == bacteria)
+                            {
+                                use crate::simulation::population::ResistanceMechanism;
 
-                                    for (mechanism_idx, mechanism) in
-                                        ResistanceMechanism::all().iter().enumerate()
+                                for (mechanism_idx, mechanism) in
+                                    ResistanceMechanism::all().iter().enumerate()
+                                {
+                                    if individual.resistance_mechanisms[bacteria_full_idx]
+                                        [mechanism_idx]
                                     {
-                                        if individual.resistance_mechanisms[bacteria_full_idx]
-                                            [mechanism_idx]
-                                        {
-                                            // Check if this mechanism affects the current drug
-                                            let mechanism_affects_drug =
-                                                match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
-                                            // ESBL affects beta-lactams (except carbapenems)
-                                            (ResistanceMechanism::ESBL, drug) => {
-                                                matches!(
-                                                    drug,
-                                                    "penicilling"
-                                                        | "ampicillin"
-                                                        | "amoxicillin"
-                                                        | "piperacillin"
-                                                        | "ticarcillin"
-                                                        | "cephalexin"
-                                                        | "cefazolin"
-                                                        | "cefuroxime"
-                                                        | "ceftriaxone"
-                                                        | "ceftazidime"
-                                                        | "cefepime"
-                                                        | "ceftaroline"
-                                                        | "aztreonam"
-                                                        | "amoxicillin_clavulanate"
-                                                        | "piperacillin_tazobactam"
-                                                        | "ampicillin_sulbactam"
-                                                        | "ticarcillin_clavulanate"
-                                                )
-                                            }
-                                            // Carbapenemase affects carbapenems
-                                            (ResistanceMechanism::Carbapenemase, drug) => {
-                                                matches!(
-                                                    drug,
-                                                    "meropenem"
-                                                        | "imipenem_c"
-                                                        | "ertapenem"
-                                                        | "meropenem_vaborbactam"
-                                                )
-                                            }
-                                            // 16S methyltransferase affects aminoglycosides
-                                            (
-                                                ResistanceMechanism::SixteenSMethyltransferase,
-                                                drug,
-                                            ) => {
-                                                matches!(
-                                                    drug,
-                                                    "gentamicin" | "tobramycin" | "amikacin"
-                                                )
-                                            }
-                                            // Qnr affects quinolones
-                                            (ResistanceMechanism::Qnr, drug) => {
-                                                matches!(
-                                                    drug,
-                                                    "ciprofloxacin"
-                                                        | "levofloxacin"
-                                                        | "moxifloxacin"
-                                                        | "ofloxacin"
-                                                )
-                                            }
-                                            // Erm methylation affects macrolides
-                                            (ResistanceMechanism::ErmMethylation, drug) => {
-                                                matches!(
-                                                    drug,
-                                                    "erythromycin"
-                                                        | "azithromycin"
-                                                        | "clarithromycin"
-                                                )
-                                            }
-                                            // Van-type affects glycopeptides
-                                            (ResistanceMechanism::VanType, drug) => {
-                                                matches!(drug, "vancomycin" | "teicoplanin")
-                                            }
-                                            // mecA affects beta-lactams in Staph aureus
-                                            (ResistanceMechanism::MecA, drug) => {
-                                                bacteria == "staphylococcus aureus"
-                                                    && matches!(
+                                        // Check if this mechanism affects the current drug
+                                        let mechanism_affects_drug =
+                                            match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
+                                                // ESBL affects beta-lactams (except carbapenems)
+                                                (ResistanceMechanism::ESBL, drug) => {
+                                                    matches!(
                                                         drug,
                                                         "penicilling"
                                                             | "ampicillin"
                                                             | "amoxicillin"
+                                                            | "piperacillin"
+                                                            | "ticarcillin"
                                                             | "cephalexin"
                                                             | "cefazolin"
                                                             | "cefuroxime"
                                                             | "ceftriaxone"
                                                             | "ceftazidime"
                                                             | "cefepime"
-                                                            | "meropenem"
+                                                            | "ceftaroline"
+                                                            | "aztreonam"
+                                                            | "amoxicillin_clavulanate"
+                                                            | "piperacillin_tazobactam"
+                                                            | "ampicillin_sulbactam"
+                                                            | "ticarcillin_clavulanate"
+                                                    )
+                                                }
+                                                // Carbapenemase affects carbapenems
+                                                (ResistanceMechanism::Carbapenemase, drug) => {
+                                                    matches!(
+                                                        drug,
+                                                        "meropenem"
                                                             | "imipenem_c"
                                                             | "ertapenem"
+                                                            | "meropenem_vaborbactam"
                                                     )
-                                            }
-                                            // Efflux overexpression can affect multiple drug classes
-                                            (ResistanceMechanism::EffluxOverexpression, _) => true,
-                                            // Reduced permeability affects many drugs, especially in Gram-negatives
-                                            (ResistanceMechanism::ReducedPermeability, _) => {
-                                                !matches!(
-                                                    bacteria,
-                                                    "staphylococcus aureus"
-                                                        | "streptococcus pneumoniae"
-                                                        | "streptococcus pyogenes"
-                                                        | "streptococcus agalactiae"
-                                                        | "enterococcus faecalis"
-                                                        | "enterococcus faecium"
-                                                )
-                                            }
-                                            // Target site mutations can affect various drugs
-                                            (ResistanceMechanism::TargetSiteMutation, _) => true,
-                                            // AmpC affects beta-lactams
-                                            (ResistanceMechanism::AmpC, drug) => {
-                                                matches!(
+                                                }
+                                                // 16S methyltransferase affects aminoglycosides
+                                                (
+                                                    ResistanceMechanism::SixteenSMethyltransferase,
                                                     drug,
-                                                    "penicilling"
-                                                        | "ampicillin"
-                                                        | "amoxicillin"
-                                                        | "piperacillin"
-                                                        | "ticarcillin"
-                                                        | "cephalexin"
-                                                        | "cefazolin"
-                                                        | "cefuroxime"
-                                                        | "ceftriaxone"
-                                                        | "amoxicillin_clavulanate"
-                                                        | "piperacillin_tazobactam"
-                                                        | "ampicillin_sulbactam"
-                                                        | "ticarcillin_clavulanate"
-                                                )
+                                                ) => {
+                                                    matches!(
+                                                        drug,
+                                                        "gentamicin" | "tobramycin" | "amikacin"
+                                                    )
+                                                }
+                                                // Qnr affects quinolones
+                                                (ResistanceMechanism::Qnr, drug) => {
+                                                    matches!(
+                                                        drug,
+                                                        "ciprofloxacin"
+                                                            | "levofloxacin"
+                                                            | "moxifloxacin"
+                                                            | "ofloxacin"
+                                                    )
+                                                }
+                                                // Erm methylation affects macrolides
+                                                (ResistanceMechanism::ErmMethylation, drug) => {
+                                                    matches!(
+                                                        drug,
+                                                        "erythromycin"
+                                                            | "azithromycin"
+                                                            | "clarithromycin"
+                                                    )
+                                                }
+                                                // Van-type affects glycopeptides
+                                                (ResistanceMechanism::VanType, drug) => {
+                                                    matches!(drug, "vancomycin" | "teicoplanin")
+                                                }
+                                                // mecA affects beta-lactams in Staph aureus
+                                                (ResistanceMechanism::MecA, drug) => {
+                                                    bacteria == "staphylococcus aureus"
+                                                        && matches!(
+                                                            drug,
+                                                            "penicilling"
+                                                                | "ampicillin"
+                                                                | "amoxicillin"
+                                                                | "cephalexin"
+                                                                | "cefazolin"
+                                                                | "cefuroxime"
+                                                                | "ceftriaxone"
+                                                                | "ceftazidime"
+                                                                | "cefepime"
+                                                                | "meropenem"
+                                                                | "imipenem_c"
+                                                                | "ertapenem"
+                                                        )
+                                                }
+                                                // Efflux overexpression can affect multiple drug classes
+                                                (ResistanceMechanism::EffluxOverexpression, _) => {
+                                                    true
+                                                }
+                                                // Reduced permeability affects many drugs, especially in Gram-negatives
+                                                (ResistanceMechanism::ReducedPermeability, _) => {
+                                                    !matches!(
+                                                        bacteria,
+                                                        "staphylococcus aureus"
+                                                            | "streptococcus pneumoniae"
+                                                            | "streptococcus pyogenes"
+                                                            | "streptococcus agalactiae"
+                                                            | "enterococcus faecalis"
+                                                            | "enterococcus faecium"
+                                                    )
+                                                }
+                                                // Target site mutations can affect various drugs
+                                                (ResistanceMechanism::TargetSiteMutation, _) => {
+                                                    true
+                                                }
+                                                // AmpC affects beta-lactams
+                                                (ResistanceMechanism::AmpC, drug) => {
+                                                    matches!(
+                                                        drug,
+                                                        "penicilling"
+                                                            | "ampicillin"
+                                                            | "amoxicillin"
+                                                            | "piperacillin"
+                                                            | "ticarcillin"
+                                                            | "cephalexin"
+                                                            | "cefazolin"
+                                                            | "cefuroxime"
+                                                            | "ceftriaxone"
+                                                            | "amoxicillin_clavulanate"
+                                                            | "piperacillin_tazobactam"
+                                                            | "ampicillin_sulbactam"
+                                                            | "ticarcillin_clavulanate"
+                                                    )
+                                                }
+                                            };
+
+                                        if mechanism_affects_drug {
+                                            let mechanism_enhancement = store
+                                                .resistance_mechanism
+                                                .enhancement_multiplier(mechanism_idx);
+
+                                            // Only add enhancement if it would actually increase resistance
+                                            // Mechanisms can't decrease resistance, but they also don't add if any_r is already higher
+                                            let normalized_any_r =
+                                                resistance_data.any_r / max_resistance_level;
+                                            if mechanism_enhancement > normalized_any_r {
+                                                let additional_resistance =
+                                                    mechanism_enhancement - normalized_any_r;
+                                                mechanism_resistance_boost += additional_resistance;
                                             }
-                                        };
-
-                                    if mechanism_affects_drug {
-                                        let mechanism_enhancement = store
-                                            .resistance_mechanism
-                                            .enhancement_multiplier(mechanism_idx);
-
-                                        // Only add enhancement if it would actually increase resistance
-                                        // Mechanisms can't decrease resistance, but they also don't add if any_r is already higher
-                                        let normalized_any_r =
-                                            resistance_data.any_r / max_resistance_level;
-                                        if mechanism_enhancement > normalized_any_r {
-                                            let additional_resistance =
-                                                mechanism_enhancement - normalized_any_r;
-                                            mechanism_resistance_boost += additional_resistance;
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Apply mechanism enhancements to resistance levels if they would increase resistance
-                        if mechanism_resistance_boost > 0.0 {
-                            let normalized_any_r = resistance_data.any_r / max_resistance_level;
-                            let new_resistance_level =
-                                (normalized_any_r + mechanism_resistance_boost).min(1.0);
-                            let new_any_r = new_resistance_level * max_resistance_level;
+                            // Apply mechanism enhancements to resistance levels if they would increase resistance
+                            if mechanism_resistance_boost > 0.0 {
+                                let normalized_any_r = resistance_data.any_r / max_resistance_level;
+                                let new_resistance_level =
+                                    (normalized_any_r + mechanism_resistance_boost).min(1.0);
+                                let new_any_r = new_resistance_level * max_resistance_level;
 
-                            // Update any_r to the new level
-                            resistance_data.any_r = new_any_r;
+                                // Update any_r to the new level
+                                resistance_data.any_r = new_any_r;
 
-                            // If majority_r > 0, it must equal any_r (maintain the relationship)
-                            if resistance_data.majority_r > 0.0 {
-                                resistance_data.majority_r = resistance_data.any_r;
+                                // If majority_r > 0, it must equal any_r (maintain the relationship)
+                                if resistance_data.majority_r > 0.0 {
+                                    resistance_data.majority_r = resistance_data.any_r;
+                                }
                             }
-                        }
                         }
 
                         // Calculate activity_r using the updated resistance levels

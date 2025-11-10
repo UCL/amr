@@ -41,7 +41,7 @@ mod simulation;
 // at least a partial answer here might be "tests"
 //
 // microbiome plot for journeys should show all bacteria the person has + with resistance, or at least
-// 2 or 3 example bacteria ? 
+// 2 or 3 example bacteria ?
 //
 // when immune clearance probability comes up put a diamond to end the green line
 //
@@ -138,7 +138,7 @@ fn main() {
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging
-    let infection_journey_sample_rate = 0.0003 ; // Log 1% of infections for analysis (0.0-1.0)
+    let infection_journey_sample_rate = 0.10; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria

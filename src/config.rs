@@ -252,22 +252,22 @@ impl GlobalScalars {
             drug_base_initiation_rate_per_day: get_or_default(
                 map,
                 "drug_base_initiation_rate_per_day",
-                0.0005,
+                0.0014,
             ),
             drug_infection_present_multiplier: get_or_default(
                 map,
                 "drug_infection_present_multiplier",
-                200.0,
+                260.0,
             ),
             already_on_drug_initiation_multiplier: get_or_default(
                 map,
                 "already_on_drug_initiation_multiplier",
-                1.0,
+                1.2,
             ),
             drug_test_identified_multiplier: get_or_default(
                 map,
                 "drug_test_identified_multiplier",
-                2.0,
+                2.5,
             ),
             double_dose_probability_if_identified_infection: get_or_default(
                 map,
@@ -277,12 +277,12 @@ impl GlobalScalars {
             random_drug_cessation_probability: get_or_default(
                 map,
                 "random_drug_cessation_probability",
-                0.001,
+                0.0045,
             ),
             random_drug_cessation_probability_if_no_active_infection: get_or_default(
                 map,
                 "random_drug_cessation_probability_if_no_active_infection",
-                0.25,
+                0.15,
             ),
             immunodeficiency_prophylactic_drug_multiplier: get_or_default(
                 map,
@@ -292,7 +292,7 @@ impl GlobalScalars {
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                0.01,
+                0.0025,
             ),
             hospital_baseline_rate_per_day: get_or_default(
                 map,
@@ -324,13 +324,13 @@ impl GlobalScalars {
             antibiotic_infection_prevention_efficacy: get_or_default(
                 map,
                 "antibiotic_infection_prevention_efficacy",
-                0.85,
+                0.7,
             ),
             max_resistance_level: get_or_default(map, "max_resistance_level", 1.0),
             resistance_emergence_bacteria_level_multiplier: get_or_default(
                 map,
                 "resistance_emergence_bacteria_level_multiplier",
-                0.05,
+                0.08,
             ),
             any_r_emergence_level_on_first_emergence: get_or_default(
                 map,
@@ -419,7 +419,7 @@ impl GlobalScalars {
             microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
                 map,
                 "microbiome_resistance_emergence_rate_per_day_baseline",
-                0.0001,
+                0.000025,
             ),
             max_toxicity_level: get_or_default(map, "max_toxicity_level", 20.0),
             toxicity_clearance_rate_per_day: get_or_default(
@@ -495,7 +495,7 @@ impl GlobalScalars {
             any_r_increase_rate_per_day_when_drug_present: get_or_default(
                 map,
                 "any_r_increase_rate_per_day_when_drug_present",
-                0.015,
+                0.045,
             ),
             sepsis_minimum_duration_days: get_or_default(map, "sepsis_minimum_duration_days", 1.0)
                 as i32,
@@ -632,12 +632,12 @@ impl GlobalScalars {
             microbiome_resistance_multiplier_on_acquisition: get_or_default(
                 map,
                 "microbiome_resistance_multiplier_on_acquisition",
-                1.0,
+                0.35,
             ),
             infection_from_microbiome_dampening: get_or_default(
                 map,
                 "infection_from_microbiome_dampening",
-                1.0,
+                0.85,
             ),
             carriage_duration_log_odds_coefficient: get_or_default(
                 map,
@@ -657,7 +657,7 @@ impl GlobalScalars {
             carrier_resistance_inheritance_probability: get_or_default(
                 map,
                 "carrier_resistance_inheritance_probability",
-                0.85,
+                0.55,
             ),
             majority_r_memory_retention_per_day: get_or_default(
                 map,
@@ -1166,7 +1166,7 @@ impl BacteriaParameters {
             acquisition_log_odds_baseline.push(get_or_default(
                 map,
                 &format!("{}_acquisition_log_odds_baseline", prefix),
-                get_or_default(map, "acquisition_log_odds_baseline", -4.0),
+                get_or_default(map, "acquisition_log_odds_baseline", -11.0),
             ));
             log_odds_vaccinated.push(get_or_default(
                 map,
@@ -1384,7 +1384,7 @@ pub struct ClearanceParameters {
 impl ClearanceParameters {
     fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
         let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
-    let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.045);
+        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.045);
 
         let mut age_multipliers = [1.0; AGE_CATEGORY_NAMES.len()];
         for (idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
@@ -1514,7 +1514,7 @@ impl DrugBacteriaMatrix {
                 resistance_emergence_rate.push(get_or_default(
                     map,
                     &format!("{}_resistance_emergence_rate_per_day_baseline", key_prefix),
-                    0.00003,
+                    0.0001,
                 ));
                 let threshold = 2.0 * potency.min(1.0) - 1.0;
                 mic_lt2_threshold.push(threshold);
@@ -2175,13 +2175,13 @@ lazy_static! {
 
 
         // General Drug Parameters
-        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0005 ); // 0.0001
-        map.insert("drug_infection_present_multiplier".to_string(), 200.0); // Reduced from 300 to make treatment initiation less aggressive
-        map.insert("drug_test_identified_multiplier".to_string(), 2.0);
+    map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0014); // Higher baseline daily initiation to reach usage targets
+    map.insert("drug_infection_present_multiplier".to_string(), 260.0); // Encourage more treatment starts when infection detected
+    map.insert("drug_test_identified_multiplier".to_string(), 2.5);
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
 
         // Drug Selection Algorithm Parameters
-        map.insert("drug_selection_temperature".to_string(), 0.3); // MUCH more deterministic: strongly favor best choices
+    map.insert("drug_selection_temperature".to_string(), 0.3); // MUCH more deterministic: strongly favor best choices
 
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -2281,7 +2281,7 @@ lazy_static! {
         map.insert("drug_fusidic_a_half_life_days".to_string(), 0.375); // ~9 hours
         map.insert("drug_metronidazole_half_life_days".to_string(), 0.33); // ~8 hours
         map.insert("drug_furazolidone_half_life_days".to_string(), 0.25); // ~6 hours
-        map.insert("already_on_drug_initiation_multiplier".to_string(), 1.000); // 0.0001
+    map.insert("already_on_drug_initiation_multiplier".to_string(), 1.2); // modest boost for layered therapy when already on treatment
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.25); // Increased from 0.1 to 0.25 for more aggressive dosing
 
         // Clinical Decision-Making Potency Thresholds
@@ -3220,8 +3220,8 @@ lazy_static! {
         map.insert("mdr_mycobacterium_tuberculosis_africa_adherence_modifier".to_string(), 0.8);        // Resource constraints limit DOT effectiveness → 20% better adherence
 
         // DEFAULT CESSATION RATES (for bacteria without specific overrides)
-        map.insert("random_drug_cessation_probability".to_string(), 0.0075); // 0.75% daily = 90% complete 14-day course
-        map.insert("random_drug_cessation_probability_if_no_active_infection".to_string(), 0.2); // Higher probability if no active infection
+    map.insert("random_drug_cessation_probability".to_string(), 0.0045); // 0.45% daily = ~94% complete 14-day course
+    map.insert("random_drug_cessation_probability_if_no_active_infection".to_string(), 0.15); // Higher probability if no active infection
 
         // SHORT-COURSE INFECTIONS (3-7 days typical treatment)
         // UTI, simple pneumonia, skin infections - target 90% completion for 3-7 day courses
@@ -3262,7 +3262,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -13.0); // -13.0 Default baseline log-odds for infection acquisition
+    map.insert("acquisition_log_odds_baseline".to_string(), -11.0); // -11.0 Default baseline log-odds for infection acquisition (higher incidence)
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -3611,18 +3611,19 @@ lazy_static! {
 
 
         map.insert("max_resistance_level".to_string(), 1.0);
-    map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.05); // keep majority_r emergence slow under therapy
+    map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.18); // faster majority_r emergence under sustained therapy
 
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0001); // Lower baseline for microbiome resistance emergence
-        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
+    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.000025); // Lower baseline for microbiome resistance emergence
+        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
+        map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
 
         //  Microbiome Resistance Transfer Parameter
-    map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.01); // Probability per day for resistance transfer between infection and microbiome
+    map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0025); // Probability per day for resistance transfer between infection and microbiome
 
         // --- Multi-Drug Resistance Emergence Penalty Parameters ---
         // When multiple drugs are active, resistance emergence is reduced because mutations
@@ -3997,7 +3998,7 @@ lazy_static! {
 
         // Prophylactic antibiotic use in immunocompromised patients
         map.insert("immunodeficiency_prophylactic_drug_multiplier".to_string(), 8.0);  // 8x higher drug initiation rate for immunocompromised (prophylaxis)
-        map.insert("antibiotic_infection_prevention_efficacy".to_string(), 0.85);      // 85% efficacy: existing antibiotic prevents new susceptible infections
+        map.insert("antibiotic_infection_prevention_efficacy".to_string(), 0.7);       // 70% efficacy: allow more breakthrough infections despite prophylaxis
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
@@ -4059,8 +4060,8 @@ lazy_static! {
         // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
         // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
     map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
-    map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 1.0);
-    map.insert("infection_from_microbiome_dampening".to_string(), 1.0);
+    map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.35);
+    map.insert("infection_from_microbiome_dampening".to_string(), 0.85);
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
 
@@ -4105,13 +4106,13 @@ lazy_static! {
         // Population impact: Carriers maintain resistance without selective pressure (asymptomatic), then
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
-        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.85);
+    map.insert("carrier_resistance_inheritance_probability".to_string(), 0.55);
         map.insert(
             "majority_r_memory_retention_per_day".to_string(),
             0.93,
         );
-        // 85% probability that carrier's infection inherits microbiome resistance profile
-        // Default 0.85 represents high but not absolute endogenous infection rate (some infections still exogenous)
+        // 55% probability that carrier's infection inherits microbiome resistance profile
+        // Default 0.55 keeps endogenous infections common without locking in microbiome resistance
         // This parameter has MASSIVE impact on population resistance dynamics - most important in the model
 
         map.insert("default_drug_toxicity_per_unit_level_per_day".to_string(), 0.005); // Adjust this default as needed

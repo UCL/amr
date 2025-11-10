@@ -103,6 +103,7 @@ pub struct MajorityRCache {
     drug_has_running_mean: Vec<bool>,
     drug_step_sum: Vec<f64>,
     drug_step_count: Vec<u32>,
+    drug_total_count: Vec<u64>,
     num_regions: usize,
     num_bacteria: usize,
     num_drugs: usize,
@@ -113,6 +114,8 @@ pub struct MajorityRCache {
 }
 
 impl MajorityRCache {
+    const MIN_DRUG_FALLBACK_SAMPLES: u64 = 250;
+
     pub fn new(num_regions: usize, num_bacteria: usize, num_drugs: usize, retention: f64) -> Self {
         let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
         let retention = retention.clamp(0.0, 0.9999);
@@ -136,6 +139,7 @@ impl MajorityRCache {
             drug_has_running_mean: vec![false; num_drugs],
             drug_step_sum: vec![0.0; num_drugs],
             drug_step_count: vec![0; num_drugs],
+            drug_total_count: vec![0; num_drugs],
             num_regions,
             num_bacteria,
             num_drugs,
@@ -266,6 +270,29 @@ impl MajorityRCache {
         self.drug_step_count[drug_idx] += 1;
     }
 
+    pub fn accumulate_zero_samples(
+        &mut self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        drug_idx: usize,
+        zero_count: u32,
+    ) {
+        if zero_count == 0 {
+            return;
+        }
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        self.step_count[idx] = self.step_count[idx].saturating_add(zero_count);
+        let hosp_idx = hospital as usize;
+        let flat_idx = bacteria_idx * self.num_drugs + drug_idx;
+        self.hospital_step_count[hosp_idx][flat_idx] =
+            self.hospital_step_count[hosp_idx][flat_idx].saturating_add(zero_count);
+        self.global_step_count[flat_idx] =
+            self.global_step_count[flat_idx].saturating_add(zero_count);
+        self.drug_step_count[drug_idx] = self.drug_step_count[drug_idx].saturating_add(zero_count);
+        self.total_samples = self.total_samples.saturating_add(zero_count as usize);
+    }
+
     pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
         debug_assert_eq!(self.total_buckets(), prev.total_buckets());
         self.total_samples = 0;
@@ -287,6 +314,8 @@ impl MajorityRCache {
             .copy_from_slice(&prev.drug_running_mean);
         self.drug_has_running_mean
             .clone_from(&prev.drug_has_running_mean);
+        self.drug_total_count
+            .copy_from_slice(&prev.drug_total_count);
         for bucket in &mut self.buckets {
             bucket.clear();
         }
@@ -385,25 +414,29 @@ impl MajorityRCache {
             self.global_step_count[idx] = 0;
         }
 
-            for d_idx in 0..self.num_drugs {
-                if self.drug_step_count[d_idx] > 0 {
-                    let avg = self.drug_step_sum[d_idx] / self.drug_step_count[d_idx] as f64;
-                    if self.drug_has_running_mean[d_idx] {
-                        self.drug_running_mean[d_idx] =
-                            self.retention * self.drug_running_mean[d_idx] + self.alpha * avg;
-                    } else {
-                        self.drug_running_mean[d_idx] = avg;
-                        self.drug_has_running_mean[d_idx] = true;
-                    }
-                }
-
+        for d_idx in 0..self.num_drugs {
+            if self.drug_step_count[d_idx] > 0 {
+                let avg = self.drug_step_sum[d_idx] / self.drug_step_count[d_idx] as f64;
                 if self.drug_has_running_mean[d_idx] {
-                    active_memory += 1;
+                    self.drug_running_mean[d_idx] =
+                        self.retention * self.drug_running_mean[d_idx] + self.alpha * avg;
+                } else {
+                    self.drug_running_mean[d_idx] = avg;
                 }
-
-                self.drug_step_sum[d_idx] = 0.0;
-                self.drug_step_count[d_idx] = 0;
+                self.drug_total_count[d_idx] =
+                    self.drug_total_count[d_idx].saturating_add(self.drug_step_count[d_idx] as u64);
+                if self.drug_total_count[d_idx] >= Self::MIN_DRUG_FALLBACK_SAMPLES {
+                    self.drug_has_running_mean[d_idx] = true;
+                }
             }
+
+            if self.drug_has_running_mean[d_idx] {
+                active_memory += 1;
+            }
+
+            self.drug_step_sum[d_idx] = 0.0;
+            self.drug_step_count[d_idx] = 0;
+        }
         self.active_memory = active_memory;
     }
 
@@ -989,6 +1022,7 @@ impl Simulation {
             // --- Setup counters; MIC<2 snapshot will use per-thread local vectors reduced after loop (avoids atomic contention) ---
             let num_bacteria = BACTERIA_LIST.len();
             let num_drugs = DRUG_SHORT_NAMES.len();
+            let num_regions = self.majority_r_cache_prev.num_regions;
 
             //             let calculation_time = calculation_start.elapsed();
             //             if t % 100 == 0 { // Log every 10th timestep
@@ -1007,6 +1041,8 @@ impl Simulation {
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
                 rng: SmallRng,
+                num_bacteria: usize,
+                num_drugs: usize,
                 infected_and_on_any_drug_by_bacteria: Vec<usize>,
                 mic_lt2_counts: Vec<usize>,
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
@@ -1018,6 +1054,7 @@ impl Simulation {
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
                 majority_r_entries: Vec<((usize, bool, usize, usize), f64)>,
+                majority_r_zero_counts: Vec<u32>,
                 total_deaths: usize,
                 deaths_background: usize,
                 deaths_sepsis: usize,
@@ -1118,6 +1155,7 @@ impl Simulation {
             }
             impl LocalTotals {
                 fn new(
+                    num_regions: usize,
                     num_bacteria: usize,
                     num_drugs: usize,
                     majority_r_capacity: usize,
@@ -1132,6 +1170,8 @@ impl Simulation {
                     };
                     Self {
                         rng,
+                        num_bacteria,
+                        num_drugs,
                         mic_lt2_counts: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         microbiome_r_positive_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
@@ -1146,6 +1186,7 @@ impl Simulation {
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
                         majority_r_entries: Vec::with_capacity(majority_r_capacity),
+                        majority_r_zero_counts: vec![0; num_regions * 2 * num_bacteria * num_drugs],
                         total_deaths: 0,
                         deaths_background: 0,
                         deaths_sepsis: 0,
@@ -1264,6 +1305,37 @@ impl Simulation {
                         syndrome_deaths_infection_non_sepsis_by_region: vec![0; 10 * 6],
                     }
                 }
+                #[inline]
+                fn majority_r_bucket_index(
+                    &self,
+                    region_idx: usize,
+                    hospital: bool,
+                    bacteria_idx: usize,
+                    drug_idx: usize,
+                ) -> usize {
+                    (((region_idx * 2) + hospital as usize) * self.num_bacteria + bacteria_idx)
+                        * self.num_drugs
+                        + drug_idx
+                }
+                #[inline]
+                fn record_majority_r_sample(
+                    &mut self,
+                    region_idx: usize,
+                    hospital: bool,
+                    bacteria_idx: usize,
+                    drug_idx: usize,
+                    value: f64,
+                ) {
+                    let idx =
+                        self.majority_r_bucket_index(region_idx, hospital, bacteria_idx, drug_idx);
+                    if value > 0.0 {
+                        self.majority_r_entries
+                            .push(((region_idx, hospital, bacteria_idx, drug_idx), value));
+                    } else {
+                        self.majority_r_zero_counts[idx] =
+                            self.majority_r_zero_counts[idx].saturating_add(1);
+                    }
+                }
                 fn merge(&mut self, other: Self) {
                     for (a, b) in self.mic_lt2_counts.iter_mut().zip(other.mic_lt2_counts) {
                         *a += b;
@@ -1358,6 +1430,13 @@ impl Simulation {
                         .zip(other.currently_on_drug_by_drug)
                     {
                         *a += b;
+                    }
+                    for (a, b) in self
+                        .majority_r_zero_counts
+                        .iter_mut()
+                        .zip(other.majority_r_zero_counts)
+                    {
+                        *a = (*a).saturating_add(b);
                     }
                     self.majority_r_entries.extend(other.majority_r_entries);
                     self.total_deaths += other.total_deaths;
@@ -1735,13 +1814,23 @@ impl Simulation {
                         let thread_idx = rayon::current_thread_index().unwrap_or(0) as u64;
                         base ^ thread_idx.wrapping_mul(0x9E37_79B9_7F4A_7C15)
                     });
-                    LocalTotals::new(num_bacteria, num_drugs, per_thread_cap, thread_seed)
+                    LocalTotals::new(
+                        num_regions,
+                        num_bacteria,
+                        num_drugs,
+                        per_thread_cap,
+                        thread_seed,
+                    )
                 },
                 |mut lt, individual| {
                     // Pre-rules MIC snapshot
                     if individual.date_of_death.is_none() && individual.age >= 0 {
                         let has_any_infection = individual.level.iter().any(|&level| level > 0.001);
-                        let has_any_microbiome = individual.presence_microbiome.iter().any(|&x| x);
+                        let has_any_microbiome = individual
+                            .presence_microbiome
+                            .iter()
+                            .enumerate()
+                            .any(|(b_idx, &x)| b_idx != 32 && x);
                         let on_any_drug_current = individual.cur_use_drug.iter().any(|&x| x);
                         let has_active_drug_course = individual.date_drug_initiated.iter().any(|&day| day != i32::MIN);
 
@@ -2031,6 +2120,9 @@ impl Simulation {
                         // Count presence_microbiome by individual bacteria
                         if has_any_microbiome {
                             for (b_idx, &has_bacteria) in individual.presence_microbiome.iter().enumerate() {
+                                if b_idx == 32 {
+                                    continue;
+                                }
                                 if has_bacteria {
                                     lt.presence_microbiome_by_bacteria[b_idx] += 1;
                                     let region_idx = individual.region_living as usize;
@@ -2066,6 +2158,9 @@ impl Simulation {
                         }
 
                         for (b_idx, &acquired) in individual.microbiome_acquired_today.iter().enumerate() {
+                            if b_idx == 32 {
+                                continue;
+                            }
                             if acquired {
                                 if individual.microbiome_acquired_on_drug_today[b_idx] {
                                     lt.microbiome_acquisitions_on_drug_by_bacteria[b_idx] += 1;
@@ -2076,6 +2171,9 @@ impl Simulation {
                         }
 
                         for (b_idx, &cleared) in individual.microbiome_cleared_today.iter().enumerate() {
+                            if b_idx == 32 {
+                                continue;
+                            }
                             if cleared {
                                 if on_any_drug_current {
                                     lt.microbiome_clearances_on_drug_by_bacteria[b_idx] += 1;
@@ -2178,15 +2276,24 @@ impl Simulation {
                                         }
                                     }
                                     let base = b_idx * num_drugs;
+                                    let cache_region_idx = individual.region_cur_in as usize;
+                                    let cache_hospital_flag =
+                                        individual.hospital_status.is_hospitalized();
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
                                         // Only sum activity_r if individual is currently on this drug
                                         if individual.cur_use_drug[d_idx] {
                                             activity_r_sum += resistance_data.activity_r;
                                         }
+                                        lt.record_majority_r_sample(
+                                            cache_region_idx,
+                                            cache_hospital_flag,
+                                            b_idx,
+                                            d_idx,
+                                            resistance_data.majority_r,
+                                        );
                                         if resistance_data.majority_r > 0.0 {
                                             lt.resistance_by_bacteria_drug[base + d_idx] += 1;
-                                            lt.majority_r_entries.push(((individual.region_cur_in as usize, individual.hospital_status.is_hospitalized(), b_idx, d_idx), resistance_data.majority_r));
                                         }
                                         if resistance_data.any_r > 0.0 {
                                             infection_any_r_positive = true;
@@ -2278,7 +2385,7 @@ impl Simulation {
                 },
             )
             .reduce(
-                || LocalTotals::new(num_bacteria, num_drugs, per_thread_cap, None),
+                || LocalTotals::new(num_regions, num_bacteria, num_drugs, per_thread_cap, None),
                 |mut a, b| {
                     a.merge(b);
                     a
@@ -2352,6 +2459,7 @@ impl Simulation {
                 resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                 currently_on_drug_by_drug,
                 majority_r_entries,
+                majority_r_zero_counts,
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
@@ -2429,6 +2537,7 @@ impl Simulation {
                 currently_on_drug_by_region_drug,
                 syndrome_deaths_sepsis_by_region,
                 syndrome_deaths_infection_non_sepsis_by_region,
+                ..
             } = totals;
 
             // Rebuild 2D resistance structure for summary
@@ -2444,6 +2553,26 @@ impl Simulation {
             let mut total_entries: usize = 0;
             {
                 let next_majority_r_cache = &mut self.majority_r_cache_next;
+                for (bucket_idx, zero_count) in majority_r_zero_counts.into_iter().enumerate() {
+                    if zero_count == 0 {
+                        continue;
+                    }
+                    let mut remainder = bucket_idx;
+                    let drug_idx = remainder % num_drugs;
+                    remainder /= num_drugs;
+                    let bacteria_idx = remainder % num_bacteria;
+                    remainder /= num_bacteria;
+                    let hospital_flag = (remainder % 2) != 0;
+                    remainder /= 2;
+                    let region_idx = remainder;
+                    next_majority_r_cache.accumulate_zero_samples(
+                        region_idx,
+                        hospital_flag,
+                        bacteria_idx,
+                        drug_idx,
+                        zero_count,
+                    );
+                }
                 for ((region_idx, hospital_flag, bacteria_idx, drug_idx), value) in
                     majority_r_entries
                 {
