@@ -85,6 +85,39 @@ def _ensure_year_slice(df: pd.DataFrame, calendar_year: pd.Series, year: int) ->
     return df.tail(tail)
 
 
+def _select_resistance_windows(
+    df: pd.DataFrame,
+    calendar_year: pd.Series,
+    target_year: int,
+    max_years: int = 3,
+) -> Tuple[pd.DataFrame, str, pd.DataFrame, str]:
+    """Return primary (target-year) and expanded windows for resistance metrics."""
+
+    mask_target_year = (calendar_year >= target_year) & (calendar_year < target_year + 1)
+    primary_df = df.loc[mask_target_year]
+    primary_label = str(target_year)
+
+    min_year_value = calendar_year.min()
+    if pd.isna(min_year_value):
+        min_year_value = target_year
+
+    start_year = max(int(np.floor(min_year_value)), target_year - max_years + 1)
+    expanded_mask = (calendar_year >= start_year) & (calendar_year < target_year + 1)
+    expanded_df = df.loc[expanded_mask]
+    expanded_label = f"{start_year}-{target_year}" if start_year != target_year else primary_label
+
+    if expanded_df.empty and len(df) > 0:
+        fallback_days = min(len(df), 365 * max_years)
+        expanded_df = df.tail(fallback_days)
+        expanded_label = f"trailing {fallback_days} days"
+
+    if primary_df.empty:
+        primary_df = expanded_df
+        primary_label = expanded_label
+
+    return primary_df, primary_label, expanded_df, expanded_label
+
+
 def _format_delta(sim_value: Optional[float], target: Optional[float]) -> Optional[float]:
     if sim_value is None or target is None or pd.isna(sim_value) or pd.isna(target):
         return np.nan
@@ -208,10 +241,38 @@ def _extract_bacteria_and_drugs(df: pd.DataFrame) -> Tuple[set[str], set[str]]:
     return bacteria, drugs
 
 
+def _compute_resistance_stats(
+    frame: pd.DataFrame,
+    infected_col: str,
+    sum_any_col: str,
+) -> Optional[Tuple[float, float]]:
+    if frame.empty or infected_col not in frame or sum_any_col not in frame:
+        return None
+
+    infected_series = frame[infected_col]
+    sum_any_series = frame[sum_any_col]
+    mask = infected_series > 0
+    if not mask.any():
+        return (np.nan, 0.0)
+
+    total_infected = float(infected_series[mask].sum())
+    if total_infected <= 0:
+        return (np.nan, 0.0)
+
+    total_any_r = float(sum_any_series[mask].sum())
+    mean_resistance = total_any_r / total_infected
+    percent = float(mean_resistance * 100.0)
+    return (percent, total_infected)
+
+
 def _calculate_resistance_table(
     df: pd.DataFrame,
     year_df: pd.DataFrame,
+    expanded_df: pd.DataFrame,
     resistance_targets: pd.DataFrame,
+    window_label: Optional[str] = None,
+    expanded_label: Optional[str] = None,
+    low_sample_threshold: float = 50.0,
 ) -> pd.DataFrame:
     columns = ["Bacteria", "Drug", "Simulation", "Target", "Delta", "Note"]
     if resistance_targets.empty:
@@ -259,19 +320,30 @@ def _calculate_resistance_table(
             })
             continue
 
-        infected_series = year_df[infected_col]
-        sum_any_series = year_df[sum_any_r_col]
-        mask = infected_series > 0
-
         simulation_percent = np.nan
-        if mask.any():
-            total_any_r = float(sum_any_series[mask].sum())
-            total_infected = float(infected_series[mask].sum())
-            mean_resistance = _safe_divide(total_any_r, total_infected)
-            if mean_resistance is not None:
-                simulation_percent = mean_resistance * 100.0
+        total_infected = 0.0
+
+        primary_stats = _compute_resistance_stats(year_df, infected_col, sum_any_r_col)
+        expanded_stats = None
+        used_expanded = False
+
+        if primary_stats is not None:
+            simulation_percent, total_infected = primary_stats
+
+        if (np.isnan(simulation_percent) or total_infected < low_sample_threshold) and not expanded_df.empty:
+            expanded_stats = _compute_resistance_stats(expanded_df, infected_col, sum_any_r_col)
+            if expanded_stats is not None and (np.isnan(simulation_percent) or expanded_stats[1] > total_infected):
+                simulation_percent, total_infected = expanded_stats
+                used_expanded = True
+
+        if np.isnan(simulation_percent):
+            label = (expanded_label if used_expanded else window_label) or "observation window"
+            note_parts.append(f"no infections in {label}")
         else:
-            note_parts.append("no infections in 2025")
+            if total_infected < low_sample_threshold:
+                note_parts.append(f"low sample size (n={int(total_infected)})")
+            if used_expanded and expanded_label and expanded_label != window_label:
+                note_parts.append(f"expanded window {expanded_label}")
 
         delta = _format_delta(simulation_percent, target_percent)
 
@@ -396,7 +468,15 @@ def _load_drug_class_target_details(path: Optional[Path]) -> Dict[str, Dict[str,
     if path is None or not path.exists():
         return {}
 
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.ParserError as exc_default:
+        try:
+            df = pd.read_csv(path, engine="python", on_bad_lines="warn")
+        except pd.errors.ParserError as exc_python:
+            print(f"[ERROR] Failed to parse drug class target file {path}: {exc_python}")
+            print(f"         Original parser error: {exc_default}")
+            return {}
     if df.empty:
         return {}
 
@@ -517,6 +597,26 @@ def _calculate_drug_class_table(
     return pd.DataFrame(records)
 
 
+def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional[float], Optional[float], int]:
+    if resistance_df.empty or "Simulation" not in resistance_df or "Note" not in resistance_df:
+        return None, None, 0
+
+    eligible = resistance_df.copy()
+    note_series = eligible["Note"].astype(str)
+    eligible = eligible[~note_series.str.contains("negligible potency", na=False, case=False)]
+    eligible = eligible.dropna(subset=["Simulation", "Target"])
+    if eligible.empty:
+        return None, None, 0
+
+    sim_mean = eligible["Simulation"].mean(skipna=True)
+    target_mean = eligible["Target"].mean(skipna=True)
+
+    sim_value = float(sim_mean) if not pd.isna(sim_mean) else None
+    target_value = float(target_mean) if not pd.isna(target_mean) else None
+
+    return sim_value, target_value, len(eligible)
+
+
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
     """Generate calibration summary file and return its path."""
 
@@ -535,12 +635,27 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     year_df = _ensure_year_slice(df, df["calendar_year"], targets.target_year)
 
     scale_factor = _compute_population_scale(year_df, targets.world_population)
+    (
+        resistance_window_df,
+        resistance_window_label,
+        resistance_expanded_df,
+        resistance_expanded_label,
+    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year)
 
     headline_df = _build_headline_table(df, year_df, targets, scale_factor)
-    resistance_targets = _load_resistance_targets(targets.resistance_target_path)
-    resistance_df = _calculate_resistance_table(df, year_df, resistance_targets)
     microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
     drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
+    resistance_targets = _load_resistance_targets(targets.resistance_target_path)
+    resistance_df = _calculate_resistance_table(
+        df,
+        resistance_window_df,
+        resistance_expanded_df,
+        resistance_targets,
+        window_label=resistance_window_label,
+        expanded_label=resistance_expanded_label,
+    )
+
+    overall_resistance = _calculate_overall_resistance(resistance_df)
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -557,26 +672,42 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         else:
             handle.write("Headline Metrics\n(no metrics configured)\n\n")
 
+        if not microbiome_df.empty:
+            handle.write("Microbiome Resistance Benchmarks\n")
+            handle.write(microbiome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write("\n\n")
+        else:
+            handle.write("Microbiome Resistance Benchmarks\n(no microbiome metrics configured or available)\n\n")
+
+        if not drug_class_df.empty:
+            handle.write("Drug Class Usage Benchmarks (daily users in millions)\n")
+            handle.write(drug_class_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write("\n\n")
+        else:
+            handle.write("Drug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n\n")
+
+        sim_overall, target_overall, combo_count = overall_resistance
+        handle.write("Overall Infection Resistance\n")
+        handle.write(f"Observation window for resistance metrics: {resistance_window_label}\n")
+        if combo_count > 0:
+            sim_text = f"{sim_overall:,.2f}" if sim_overall is not None else "n/a"
+            target_text = f"{target_overall:,.2f}" if target_overall is not None else "n/a"
+            handle.write(
+                f"Mean simulation resistance across benchmark combinations (%, targets defined): {sim_text}\n"
+            )
+            handle.write(
+                f"Mean target resistance across same combinations (%): {target_text}\n"
+            )
+            handle.write(f"Combinations included: {combo_count}\n\n")
+        else:
+            handle.write("No eligible bacteria/drug combinations with defined targets\n\n")
+
         if not resistance_df.empty:
             handle.write("Resistance Benchmarks (percent resistant)\n")
             handle.write(resistance_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n")
         else:
             handle.write("Resistance Benchmarks\n(no overlapping bacteria/drug targets found)\n")
-
-        if not microbiome_df.empty:
-            handle.write("\nMicrobiome Resistance Benchmarks\n")
-            handle.write(microbiome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
-            handle.write("\n")
-        else:
-            handle.write("\nMicrobiome Resistance Benchmarks\n(no microbiome metrics configured or available)\n")
-
-        if not drug_class_df.empty:
-            handle.write("\nDrug Class Usage Benchmarks (daily users in millions)\n")
-            handle.write(drug_class_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
-            handle.write("\n")
-        else:
-            handle.write("\nDrug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n")
 
     return output_path
 

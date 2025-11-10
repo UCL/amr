@@ -292,7 +292,7 @@ impl GlobalScalars {
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                0.05,
+                0.01,
             ),
             hospital_baseline_rate_per_day: get_or_default(
                 map,
@@ -419,7 +419,7 @@ impl GlobalScalars {
             microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
                 map,
                 "microbiome_resistance_emergence_rate_per_day_baseline",
-                0.000001,
+                0.0001,
             ),
             max_toxicity_level: get_or_default(map, "max_toxicity_level", 20.0),
             toxicity_clearance_rate_per_day: get_or_default(
@@ -465,7 +465,7 @@ impl GlobalScalars {
             targeted_therapy_broad_spectrum_penalty: get_or_default(
                 map,
                 "targeted_therapy_broad_spectrum_penalty",
-                0.4,
+                0.25,
             ),
             targeted_therapy_ineffective_drug_penalty: get_or_default(
                 map,
@@ -480,7 +480,7 @@ impl GlobalScalars {
             empiric_therapy_broad_spectrum_bonus: get_or_default(
                 map,
                 "empiric_therapy_broad_spectrum_bonus",
-                2.0,
+                1.3,
             ),
             empiric_therapy_ineffective_penalty: get_or_default(
                 map,
@@ -495,7 +495,7 @@ impl GlobalScalars {
             any_r_increase_rate_per_day_when_drug_present: get_or_default(
                 map,
                 "any_r_increase_rate_per_day_when_drug_present",
-                0.05,
+                0.015,
             ),
             sepsis_minimum_duration_days: get_or_default(map, "sepsis_minimum_duration_days", 1.0)
                 as i32,
@@ -662,7 +662,7 @@ impl GlobalScalars {
             majority_r_memory_retention_per_day: get_or_default(
                 map,
                 "majority_r_memory_retention_per_day",
-                0.98,
+                0.93,
             ),
         }
     }
@@ -1384,7 +1384,7 @@ pub struct ClearanceParameters {
 impl ClearanceParameters {
     fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
         let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
-        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.05);
+    let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.045);
 
         let mut age_multipliers = [1.0; AGE_CATEGORY_NAMES.len()];
         for (idx, &category) in AGE_CATEGORY_NAMES.iter().enumerate() {
@@ -1514,7 +1514,7 @@ impl DrugBacteriaMatrix {
                 resistance_emergence_rate.push(get_or_default(
                     map,
                     &format!("{}_resistance_emergence_rate_per_day_baseline", key_prefix),
-                    0.003,
+                    0.00003,
                 ));
                 let threshold = 2.0 * potency.min(1.0) - 1.0;
                 mic_lt2_threshold.push(threshold);
@@ -3262,7 +3262,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -13.25); // -13.5 Default baseline log-odds for infection acquisition
+        map.insert("acquisition_log_odds_baseline".to_string(), -13.0); // -13.0 Default baseline log-odds for infection acquisition
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -3611,18 +3611,18 @@ lazy_static! {
 
 
         map.insert("max_resistance_level".to_string(), 1.0);
-        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.25); // increased to accelerate majority_r emergence under therapy
+    map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.05); // keep majority_r emergence slow under therapy
 
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.001); // Separate baseline for microbiome resistance emergence
+    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0001); // Lower baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.05); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
 
         //  Microbiome Resistance Transfer Parameter
-        map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.05); // Probability per day for resistance transfer between infection and microbiome
+    map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.01); // Probability per day for resistance transfer between infection and microbiome
 
         // --- Multi-Drug Resistance Emergence Penalty Parameters ---
         // When multiple drugs are active, resistance emergence is reduced because mutations
@@ -3757,10 +3757,10 @@ lazy_static! {
         }
 
         // Bacterial Identification Effect Parameters
-        map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 2.0); // Multiplier for broad-spectrum drugs when no bacteria identified
+    map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 1.1); // Further trim bonus so empiric broad-spectrum use is only mildly favored
         map.insert("empiric_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Heavy penalty for drugs ineffective against actual pathogens (empirical)
-        map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 3.0); // Multiplier for narrow-spectrum drugs when bacteria identified
-        map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.4); // Penalty for broad-spectrum drugs when bacteria identified
+        map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 4.5); // Stronger multiplier keeps narrow agents preferred once pathogen identified
+    map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.25); // Stronger penalty for broad-spectrum drugs when bacteria identified
         map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Strong penalty for drugs ineffective against identified bacteria
 
         // Regional Resistance Surveillance Parameters for Drug Choice
@@ -4108,7 +4108,7 @@ lazy_static! {
         map.insert("carrier_resistance_inheritance_probability".to_string(), 0.85);
         map.insert(
             "majority_r_memory_retention_per_day".to_string(),
-            0.98,
+            0.93,
         );
         // 85% probability that carrier's infection inherits microbiome resistance profile
         // Default 0.85 represents high but not absolute endogenous infection rate (some infections still exogenous)

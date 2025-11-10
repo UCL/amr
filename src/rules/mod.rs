@@ -1287,14 +1287,14 @@ pub fn apply_rules(
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
                             // Pseudomonas aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
-                            ("Pseudomonas aeruginosa", "piperacillin_tazobactam") => score *= 25.0,
-                            ("Pseudomonas aeruginosa", "ceftazidime") => score *= 20.0,
-                            ("Pseudomonas aeruginosa", "cefepime") => score *= 22.0,
-                            ("Pseudomonas aeruginosa", "meropenem") => score *= 25.0,
-                            ("Pseudomonas aeruginosa", "imipenem_c") => score *= 20.0,
-                            ("Pseudomonas aeruginosa", "ciprofloxacin") => score *= 18.0,
-                            ("Pseudomonas aeruginosa", "tobramycin") => score *= 15.0,
-                            ("Pseudomonas aeruginosa", "colistin") => score *= 12.0,
+                            ("Pseudomonas aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
+                            ("Pseudomonas aeruginosa", "ceftazidime") => score *= 10.0,
+                            ("Pseudomonas aeruginosa", "cefepime") => score *= 10.0,
+                            ("Pseudomonas aeruginosa", "meropenem") => score *= 12.0,
+                            ("Pseudomonas aeruginosa", "imipenem_c") => score *= 10.0,
+                            ("Pseudomonas aeruginosa", "ciprofloxacin") => score *= 8.0,
+                            ("Pseudomonas aeruginosa", "tobramycin") => score *= 8.0,
+                            ("Pseudomonas aeruginosa", "colistin") => score *= 6.0,
                             (
                                 "Pseudomonas aeruginosa",
                                 "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
@@ -1309,9 +1309,9 @@ pub fn apply_rules(
                                 // Early periods: penicillin should dominate (MSSA era)
                                 if time_step < 7300 {
                                     // First ~20 years
-                                    score *= 50.0; // MASSIVE boost for MSSA
+                                    score *= 25.0;
                                 } else {
-                                    score *= 2.0; // Minimal in MRSA era
+                                    score *= 2.5; // Retain modest preference where susceptible
                                 }
                             }
                             (
@@ -1320,50 +1320,127 @@ pub fn apply_rules(
                             ) => {
                                 if time_step < 10950 {
                                     // First ~30 years
-                                    score *= 40.0; // Major boost before MRSA dominance
+                                    score *= 18.0;
                                 } else {
-                                    score *= 3.0; // Reduced in MRSA era
+                                    score *= 3.0;
                                 }
                             }
                             ("Staphylococcus aureus", "vancomycin") => {
                                 if time_step < 7300 {
                                     // Early years
-                                    score *= 2.0; // Minimal early use
+                                    score *= 1.5;
                                 } else {
                                     // MRSA era
-                                    score *= 35.0; // MASSIVE boost for MRSA
+                                    score *= 18.0;
                                 }
                             }
                             ("Staphylococcus aureus", "linezolid" | "tedizolid") => {
                                 if time_step >= 10950 {
                                     // Late period only
-                                    score *= 25.0; // Strong alternatives to vancomycin
+                                    score *= 12.0;
                                 } else {
-                                    score *= 0.5; // Minimal early use
+                                    score *= 0.5;
                                 }
                             }
-                            ("Staphylococcus aureus", "clindamycin") => score *= 8.0,
+                            ("Staphylococcus aureus", "clindamycin") => score *= 5.0,
+
+                            // Streptococcus pneumoniae - prefer penicillins and targeted agents
+                            ("Streptococcus pneumoniae", "penicilling") => score *= 24.0,
+                            ("Streptococcus pneumoniae", "ampicillin") => score *= 22.0,
+                            ("Streptococcus pneumoniae", "amoxicillin") => score *= 24.0,
+                            (
+                                "Streptococcus pneumoniae",
+                                "amoxicillin_clavulanate" | "ampicillin_sulbactam",
+                            ) => score *= 12.0,
+                            ("Streptococcus pneumoniae", "ceftriaxone") => score *= 6.0,
+                            ("Streptococcus pneumoniae", "azithromycin" | "clarithromycin") => {
+                                score *= 6.0;
+                            }
+                            (
+                                "Streptococcus pneumoniae",
+                                "meropenem"
+                                    | "meropenem_vaborbactam"
+                                    | "imipenem_c"
+                                    | "colistin"
+                                    | "linezolid"
+                                    | "tedizolid",
+                            ) => {
+                                score *= 0.15;
+                            }
+
+                            // Streptococcus pyogenes - strong penicillin preference
+                            ("Streptococcus pyogenes", "penicilling") => score *= 28.0,
+                            ("Streptococcus pyogenes", "ampicillin" | "amoxicillin") => {
+                                score *= 20.0;
+                            }
+                            ("Streptococcus pyogenes", "amoxicillin_clavulanate") => {
+                                score *= 10.0;
+                            }
+                            (
+                                "Streptococcus pyogenes",
+                                "meropenem"
+                                    | "meropenem_vaborbactam"
+                                    | "imipenem_c"
+                                    | "colistin"
+                                    | "linezolid"
+                                    | "tedizolid",
+                            ) => {
+                                score *= 0.1;
+                            }
+
+                            // Haemophilus influenzae - favor aminopenicillins with beta-lactamase coverage
+                            ("Haemophilus influenzae", "amoxicillin_clavulanate") => {
+                                score *= 14.0;
+                            }
+                            ("Haemophilus influenzae", "ampicillin_sulbactam") => score *= 12.0,
+                            ("Haemophilus influenzae", "amoxicillin") => score *= 10.0,
+                            ("Haemophilus influenzae", "ceftriaxone" | "cefuroxime") => {
+                                score *= 6.0;
+                            }
+                            (
+                                "Haemophilus influenzae",
+                                "meropenem"
+                                    | "meropenem_vaborbactam"
+                                    | "imipenem_c"
+                                    | "colistin",
+                            ) => score *= 0.25,
+
+                            // Neisseria meningitidis - penicillin and third-gen cephalosporins preferred
+                            ("Neisseria_meningitidis", "penicilling" | "ampicillin") => {
+                                score *= 18.0;
+                            }
+                            ("Neisseria_meningitidis", "ceftriaxone" | "cefepime") => {
+                                score *= 10.0;
+                            }
+                            (
+                                "Neisseria_meningitidis",
+                                "meropenem"
+                                    | "meropenem_vaborbactam"
+                                    | "imipenem_c"
+                                    | "colistin"
+                                    | "linezolid",
+                            ) => score *= 0.2,
 
                             // E. coli - MASSIVELY strengthen first-line agents
-                            ("Escherichia coli", "ciprofloxacin") => score *= 35.0, // Major UTI drug
-                            ("Escherichia coli", "nitrofurantoin") => score *= 30.0, // Cystitis first-line
-                            ("Escherichia coli", "trim_sulf") => score *= 25.0,
-                            ("Escherichia coli", "ceftriaxone") => score *= 20.0, // Serious infections
+                            ("Escherichia coli", "ciprofloxacin") => score *= 12.0,
+                            ("Escherichia coli", "nitrofurantoin") => score *= 14.0,
+                            ("Escherichia coli", "trim_sulf") => score *= 10.0,
+                            ("Escherichia coli", "ceftriaxone") => score *= 9.0,
                             ("Escherichia coli", "ampicillin") => {
                                 if time_step < 7300 {
                                     // Early susceptible era
-                                    score *= 25.0;
+                                    score *= 15.0;
                                 } else {
-                                    score *= 3.0; // Resistance emerged
+                                    score *= 4.0;
                                 }
                             }
                             ("Escherichia coli", "meropenem" | "imipenem_c") => {
                                 // Carbapenems should be rare for E. coli except ESBL era
                                 if time_step >= 14600 {
                                     // Later periods for ESBL
-                                    score *= 8.0;
+                                    score *= 6.0;
                                 } else {
-                                    score *= 0.2; // Minimal early use
+                                    score *= 0.3;
                                 }
                             }
 
@@ -1371,53 +1448,53 @@ pub fn apply_rules(
                             ("Klebsiella pneumoniae", "ceftriaxone") => {
                                 if time_step < 10950 {
                                     // Before ESBL dominance
-                                    score *= 25.0;
+                                    score *= 10.0;
                                 } else {
-                                    score *= 8.0;
+                                    score *= 6.0;
                                 }
                             }
                             ("Klebsiella pneumoniae", "meropenem" | "imipenem_c") => {
                                 if time_step >= 10950 {
                                     // ESBL era
-                                    score *= 30.0;
+                                    score *= 12.0;
                                 } else {
-                                    score *= 3.0;
+                                    score *= 4.0;
                                 }
                             }
-                            ("Klebsiella pneumoniae", "ciprofloxacin") => score *= 15.0,
-                            ("Klebsiella pneumoniae", "piperacillin_tazobactam") => score *= 18.0,
+                            ("Klebsiella pneumoniae", "ciprofloxacin") => score *= 7.0,
+                            ("Klebsiella pneumoniae", "piperacillin_tazobactam") => score *= 9.0,
 
                             // Enterococcus faecalis - strengthen appropriate agents
-                            ("Enterococcus faecalis", "ampicillin") => score *= 40.0, // First-line
+                            ("Enterococcus faecalis", "ampicillin") => score *= 20.0,
                             ("Enterococcus faecalis", "vancomycin") => {
                                 if time_step >= 10950 {
                                     // VRE era
-                                    score *= 30.0;
+                                    score *= 12.0;
                                 } else {
-                                    score *= 8.0;
+                                    score *= 5.0;
                                 }
                             }
                             ("Enterococcus faecalis", "linezolid") => {
                                 if time_step >= 14600 {
                                     // Late VRE era
-                                    score *= 25.0;
+                                    score *= 10.0;
                                 } else {
                                     score *= 2.0;
                                 }
                             }
 
                             // Enterococcus faecium - more resistant, different pattern
-                            ("Enterococcus faecium", "ampicillin") => score *= 5.0, // Less effective than faecalis
+                            ("Enterococcus faecium", "ampicillin") => score *= 4.0,
                             ("Enterococcus faecium", "vancomycin") => {
                                 if time_step >= 10950 {
-                                    score *= 35.0;
-                                } else {
                                     score *= 15.0;
+                                } else {
+                                    score *= 8.0;
                                 }
                             }
                             ("Enterococcus faecium", "linezolid") => {
                                 if time_step >= 14600 {
-                                    score *= 30.0;
+                                    score *= 12.0;
                                 } else {
                                     score *= 3.0;
                                 }
@@ -1425,7 +1502,7 @@ pub fn apply_rules(
                             ("Enterococcus faecium", "quinu_dalfo") => {
                                 if time_step >= 16425 {
                                     // Very late introduction
-                                    score *= 20.0;
+                                    score *= 10.0;
                                 }
                             }
 
@@ -1433,20 +1510,20 @@ pub fn apply_rules(
                             ("Acinetobacter baumannii", "meropenem" | "imipenem_c") => {
                                 if time_step < 18250 {
                                     // Before extensive carbapenem resistance
-                                    score *= 40.0;
+                                    score *= 12.0;
                                 } else {
-                                    score *= 15.0;
+                                    score *= 6.0;
                                 }
                             }
                             ("Acinetobacter baumannii", "colistin") => {
                                 if time_step >= 14600 {
                                     // Later periods for MDR
-                                    score *= 35.0;
+                                    score *= 10.0;
                                 } else {
-                                    score *= 8.0;
+                                    score *= 5.0;
                                 }
                             }
-                            ("Acinetobacter baumannii", "ampicillin_sulbactam") => score *= 25.0, // Intrinsic activity
+                            ("Acinetobacter baumannii", "ampicillin_sulbactam") => score *= 12.0,
 
                             _ => {} // No specific guideline
                         }
@@ -1482,6 +1559,38 @@ pub fn apply_rules(
                                 "linezolid",
                                 "tedizolid",
                                 "clindamycin",
+                            ],
+                            "Streptococcus pneumoniae" => vec![
+                                "penicilling",
+                                "ampicillin",
+                                "amoxicillin",
+                                "amoxicillin_clavulanate",
+                                "ceftriaxone",
+                                "cefuroxime",
+                                "azithromycin",
+                                "clarithromycin",
+                            ],
+                            "Streptococcus pyogenes" => vec![
+                                "penicilling",
+                                "ampicillin",
+                                "amoxicillin",
+                                "amoxicillin_clavulanate",
+                                "clindamycin",
+                                "azithromycin",
+                            ],
+                            "Haemophilus influenzae" => vec![
+                                "amoxicillin",
+                                "ampicillin",
+                                "amoxicillin_clavulanate",
+                                "ampicillin_sulbactam",
+                                "cefuroxime",
+                                "ceftriaxone",
+                            ],
+                            "Neisseria_meningitidis" => vec![
+                                "penicilling",
+                                "ampicillin",
+                                "ceftriaxone",
+                                "cefepime",
                             ],
                             "Escherichia coli" => vec![
                                 "ciprofloxacin",
@@ -1524,7 +1633,7 @@ pub fn apply_rules(
 
                 // Heavily penalize drugs that aren't first/second-line for current infections
                 if has_any_infection && !is_first_or_second_line {
-                    score *= 0.05; // 95% penalty for non-standard choices
+                    score *= 0.15; // Apply strong but not overwhelming penalty to off-guideline choices
                 }
 
                 // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (MUCH STRONGER)
@@ -1667,6 +1776,60 @@ pub fn apply_rules(
                         .effective_potency_threshold_for_empirical_therapy;
 
                     let mut has_any_activity = false;
+
+                    let reserve_candidate = matches!(
+                        drug_name,
+                        "meropenem"
+                            | "meropenem_vaborbactam"
+                            | "imipenem_c"
+                            | "ertapenem"
+                            | "colistin"
+                            | "linezolid"
+                            | "tedizolid"
+                            | "quinu_dalfo"
+                            | "dalbavancin"
+                    );
+                    if reserve_candidate {
+                        let narrow_effective_threshold = store
+                            .globals
+                            .effective_potency_threshold_for_empirical_therapy
+                            .max(
+                                store
+                                    .globals
+                                    .effective_potency_threshold_for_targeted_therapy,
+                            );
+                        let mut narrow_alternative_available = false;
+
+                        'reserve_check: for b_idx in 0..BACTERIA_LIST.len() {
+                            if individual.level[b_idx] <= 0.001 {
+                                continue;
+                            }
+
+                            for other_idx in 0..DRUG_SHORT_NAMES.len() {
+                                if other_idx == drug_idx {
+                                    continue;
+                                }
+                                if store.drug.spectrum_breadth(other_idx) > 2.5 {
+                                    continue;
+                                }
+                                let potency = store.drug_bacteria.potency(b_idx, other_idx);
+                                if potency <= narrow_effective_threshold {
+                                    continue;
+                                }
+
+                                let resistance_level =
+                                    individual.resistances[b_idx][other_idx].any_r;
+                                if resistance_level < 0.4 {
+                                    narrow_alternative_available = true;
+                                    break 'reserve_check;
+                                }
+                            }
+                        }
+
+                        if narrow_alternative_available {
+                            score *= 0.25; // Reserve-class agents only stay when no narrow, active option remains
+                        }
+                    }
                     for b_idx in 0..BACTERIA_LIST.len() {
                         if individual.level[b_idx] > 0.001 {
                             let potency = store.drug_bacteria.potency(b_idx, drug_idx);
@@ -1681,7 +1844,7 @@ pub fn apply_rules(
                         if drug_spectrum >= 3.5 {
                             score *= empiric_broad_bonus;
                         } else if drug_spectrum <= 2.0 {
-                            score *= 0.6;
+                            score *= 0.85; // Keep narrow-spectrum options viable during empiric therapy
                         }
                     } else {
                         // Drug has no activity against any infecting bacteria - heavily penalize

@@ -93,12 +93,13 @@ def main():
         print(f"   [ERROR] Error: {e}\n")
     
     # Generate summary statistics (equivalent to original script)
-    try:
-        summary_df = generate_summary_statistics()
-        if summary_df is not None:
-            print("   [OK] Summary statistics reported above.\n")
-    except Exception as e:
-        print(f"   [ERROR] Error generating summary statistics: {e}\n")
+#   try:
+#       summary_df = generate_summary_statistics()
+#       if summary_df is not None:
+#           print("   [OK] Summary statistics reported above.\n")
+#   except Exception as e:
+#       print(f"   [ERROR] Error generating summary statistics: {e}\n")
+
 
     # Generate calibration summary file (not printed to console)
     try:
@@ -111,11 +112,7 @@ def main():
     # Summary
     print("=== Analysis Complete ===")
     print("Generated outputs:")
-    print("- All 9 grouped figures (Figures 1-9)")
-    print("- 2,000+ individual plots across 27+ categories")
-    print("- Summary statistics printed to console")
     print("\nAll plots saved to 'output_graphs/' directory.")
-    print("This provides complete functional parity with the original analyze_simulation.py script!")
 
 if __name__ == "__main__":
     main()

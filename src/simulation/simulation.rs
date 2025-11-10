@@ -91,6 +91,18 @@ pub struct MajorityRCache {
     has_running_mean: Vec<bool>,
     step_sum: Vec<f64>,
     step_count: Vec<u32>,
+    hospital_running_mean: [Vec<f64>; 2],
+    hospital_has_running_mean: [Vec<bool>; 2],
+    hospital_step_sum: [Vec<f64>; 2],
+    hospital_step_count: [Vec<u32>; 2],
+    global_running_mean: Vec<f64>,
+    global_has_running_mean: Vec<bool>,
+    global_step_sum: Vec<f64>,
+    global_step_count: Vec<u32>,
+    drug_running_mean: Vec<f64>,
+    drug_has_running_mean: Vec<bool>,
+    drug_step_sum: Vec<f64>,
+    drug_step_count: Vec<u32>,
     num_regions: usize,
     num_bacteria: usize,
     num_drugs: usize,
@@ -105,12 +117,25 @@ impl MajorityRCache {
         let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
         let retention = retention.clamp(0.0, 0.9999);
         let alpha = 1.0 - retention;
+        let combos = num_bacteria * num_drugs;
         MajorityRCache {
             buckets: vec![Vec::new(); total_buckets],
             running_mean: vec![0.0; total_buckets],
             has_running_mean: vec![false; total_buckets],
             step_sum: vec![0.0; total_buckets],
             step_count: vec![0; total_buckets],
+            hospital_running_mean: [vec![0.0; combos], vec![0.0; combos]],
+            hospital_has_running_mean: [vec![false; combos], vec![false; combos]],
+            hospital_step_sum: [vec![0.0; combos], vec![0.0; combos]],
+            hospital_step_count: [vec![0; combos], vec![0; combos]],
+            global_running_mean: vec![0.0; combos],
+            global_has_running_mean: vec![false; combos],
+            global_step_sum: vec![0.0; combos],
+            global_step_count: vec![0; combos],
+            drug_running_mean: vec![0.0; num_drugs],
+            drug_has_running_mean: vec![false; num_drugs],
+            drug_step_sum: vec![0.0; num_drugs],
+            drug_step_count: vec![0; num_drugs],
             num_regions,
             num_bacteria,
             num_drugs,
@@ -180,6 +205,26 @@ impl MajorityRCache {
         if self.has_running_mean[idx] {
             Some(self.running_mean[idx])
         } else {
+            let hosp_idx = hospital as usize;
+            let flat_idx = bacteria_idx * self.num_drugs + drug_idx;
+
+            if self.hospital_has_running_mean[hosp_idx][flat_idx] {
+                return Some(self.hospital_running_mean[hosp_idx][flat_idx]);
+            }
+
+            let alt_hosp_idx = 1 - hosp_idx;
+            if self.hospital_has_running_mean[alt_hosp_idx][flat_idx] {
+                return Some(self.hospital_running_mean[alt_hosp_idx][flat_idx]);
+            }
+
+            if self.global_has_running_mean[flat_idx] {
+                return Some(self.global_running_mean[flat_idx]);
+            }
+
+            if self.drug_has_running_mean[drug_idx] {
+                return Some(self.drug_running_mean[drug_idx]);
+            }
+
             None
         }
     }
@@ -211,6 +256,14 @@ impl MajorityRCache {
         let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
         self.step_sum[idx] += value;
         self.step_count[idx] += 1;
+        let hosp_idx = hospital as usize;
+        let flat_idx = bacteria_idx * self.num_drugs + drug_idx;
+        self.hospital_step_sum[hosp_idx][flat_idx] += value;
+        self.hospital_step_count[hosp_idx][flat_idx] += 1;
+        self.global_step_sum[flat_idx] += value;
+        self.global_step_count[flat_idx] += 1;
+        self.drug_step_sum[drug_idx] += value;
+        self.drug_step_count[drug_idx] += 1;
     }
 
     pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
@@ -220,6 +273,20 @@ impl MajorityRCache {
         self.running_mean.copy_from_slice(&prev.running_mean);
         self.has_running_mean
             .copy_from_slice(&prev.has_running_mean);
+        for hosp_idx in 0..2 {
+            self.hospital_running_mean[hosp_idx]
+                .copy_from_slice(&prev.hospital_running_mean[hosp_idx]);
+            self.hospital_has_running_mean[hosp_idx]
+                .clone_from(&prev.hospital_has_running_mean[hosp_idx]);
+        }
+        self.global_running_mean
+            .copy_from_slice(&prev.global_running_mean);
+        self.global_has_running_mean
+            .clone_from(&prev.global_has_running_mean);
+        self.drug_running_mean
+            .copy_from_slice(&prev.drug_running_mean);
+        self.drug_has_running_mean
+            .clone_from(&prev.drug_has_running_mean);
         for bucket in &mut self.buckets {
             bucket.clear();
         }
@@ -227,6 +294,26 @@ impl MajorityRCache {
             *sum = 0.0;
         }
         for count in &mut self.step_count {
+            *count = 0;
+        }
+        for hosp_idx in 0..2 {
+            for sum in &mut self.hospital_step_sum[hosp_idx] {
+                *sum = 0.0;
+            }
+            for count in &mut self.hospital_step_count[hosp_idx] {
+                *count = 0;
+            }
+        }
+        for sum in &mut self.global_step_sum {
+            *sum = 0.0;
+        }
+        for count in &mut self.global_step_count {
+            *count = 0;
+        }
+        for sum in &mut self.drug_step_sum {
+            *sum = 0.0;
+        }
+        for count in &mut self.drug_step_count {
             *count = 0;
         }
     }
@@ -252,6 +339,71 @@ impl MajorityRCache {
             self.step_sum[idx] = 0.0;
             self.step_count[idx] = 0;
         }
+
+        let combos = self.num_bacteria * self.num_drugs;
+        for hosp_idx in 0..2 {
+            for idx in 0..combos {
+                if self.hospital_step_count[hosp_idx][idx] > 0 {
+                    let avg = self.hospital_step_sum[hosp_idx][idx]
+                        / self.hospital_step_count[hosp_idx][idx] as f64;
+                    if self.hospital_has_running_mean[hosp_idx][idx] {
+                        self.hospital_running_mean[hosp_idx][idx] = self.retention
+                            * self.hospital_running_mean[hosp_idx][idx]
+                            + self.alpha * avg;
+                    } else {
+                        self.hospital_running_mean[hosp_idx][idx] = avg;
+                        self.hospital_has_running_mean[hosp_idx][idx] = true;
+                    }
+                }
+
+                if self.hospital_has_running_mean[hosp_idx][idx] {
+                    active_memory += 1;
+                }
+
+                self.hospital_step_sum[hosp_idx][idx] = 0.0;
+                self.hospital_step_count[hosp_idx][idx] = 0;
+            }
+        }
+
+        for idx in 0..combos {
+            if self.global_step_count[idx] > 0 {
+                let avg = self.global_step_sum[idx] / self.global_step_count[idx] as f64;
+                if self.global_has_running_mean[idx] {
+                    self.global_running_mean[idx] =
+                        self.retention * self.global_running_mean[idx] + self.alpha * avg;
+                } else {
+                    self.global_running_mean[idx] = avg;
+                    self.global_has_running_mean[idx] = true;
+                }
+            }
+
+            if self.global_has_running_mean[idx] {
+                active_memory += 1;
+            }
+
+            self.global_step_sum[idx] = 0.0;
+            self.global_step_count[idx] = 0;
+        }
+
+            for d_idx in 0..self.num_drugs {
+                if self.drug_step_count[d_idx] > 0 {
+                    let avg = self.drug_step_sum[d_idx] / self.drug_step_count[d_idx] as f64;
+                    if self.drug_has_running_mean[d_idx] {
+                        self.drug_running_mean[d_idx] =
+                            self.retention * self.drug_running_mean[d_idx] + self.alpha * avg;
+                    } else {
+                        self.drug_running_mean[d_idx] = avg;
+                        self.drug_has_running_mean[d_idx] = true;
+                    }
+                }
+
+                if self.drug_has_running_mean[d_idx] {
+                    active_memory += 1;
+                }
+
+                self.drug_step_sum[d_idx] = 0.0;
+                self.drug_step_count[d_idx] = 0;
+            }
         self.active_memory = active_memory;
     }
 
