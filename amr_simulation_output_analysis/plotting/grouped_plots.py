@@ -309,31 +309,35 @@ def create_grouped_plots(df, config=None):
             axes3[2].set_axis_off()
             
         # 4. Microbiome acquisition events by antibiotic exposure
-        on_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_on_drug')]
-        off_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_off_drug')]
-        if on_cols and off_cols and 'total_population' in df.columns:
-            total_on = df[on_cols].sum(axis=1)
-            total_off = df[off_cols].sum(axis=1)
+        if config.grouped_microbiome_acquisition_panel:
+            on_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_on_drug')]
+            off_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_off_drug')]
+            if on_cols and off_cols and 'total_population' in df.columns:
+                total_on = df[on_cols].sum(axis=1)
+                total_off = df[off_cols].sum(axis=1)
 
-            rate_on = pd.Series(
-                safe_divide(total_on, df['total_population'], 0) * 1e5,
-                index=df.index
-            ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            rate_off = pd.Series(
-                safe_divide(total_off, df['total_population'], 0) * 1e5,
-                index=df.index
-            ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                rate_on = pd.Series(
+                    safe_divide(total_on, df['total_population'], 0) * 1e5,
+                    index=df.index
+                ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                rate_off = pd.Series(
+                    safe_divide(total_off, df['total_population'], 0) * 1e5,
+                    index=df.index
+                ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
 
-            axes3[3].plot(df['time_in_years'], rate_on, color='firebrick', linewidth=2, label='On Antibiotics')
-            axes3[3].plot(df['time_in_years'], rate_off, color='steelblue', linewidth=2, label='No Antibiotics')
-            axes3[3].set_xlabel('Time (Years)')
-            axes3[3].set_ylabel('New Carriers per 100k Population (Smoothed)')
-            axes3[3].set_title('Microbiome Acquisition Rate by Antibiotic Exposure')
-            axes3[3].set_ylim(bottom=0)
-            axes3[3].grid(True, alpha=0.3)
-            axes3[3].legend()
+                axes3[3].plot(df['time_in_years'], rate_on, color='firebrick', linewidth=2, label='On Antibiotics')
+                axes3[3].plot(df['time_in_years'], rate_off, color='steelblue', linewidth=2, label='No Antibiotics')
+                axes3[3].set_xlabel('Time (Years)')
+                axes3[3].set_ylabel('New Carriers per 100k Population (Smoothed)')
+                axes3[3].set_title('Microbiome Acquisition Rate by Antibiotic Exposure')
+                axes3[3].set_ylim(bottom=0)
+                axes3[3].grid(True, alpha=0.3)
+                axes3[3].legend()
+            else:
+                axes3[3].text(0.5, 0.5, 'Microbiome acquisition data not available', ha='center', va='center', fontsize=12, color='gray')
+                axes3[3].set_axis_off()
         else:
-            axes3[3].text(0.5, 0.5, 'Microbiome acquisition data not available', ha='center', va='center', fontsize=12, color='gray')
+            axes3[3].text(0.5, 0.5, 'Panel disabled (see PlotConfig)', ha='center', va='center', fontsize=11, color='gray')
             axes3[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])

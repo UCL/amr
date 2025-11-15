@@ -20,10 +20,12 @@ use crate::simulation::population::{
     MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use rand::rngs::SmallRng;
+use rand::Rng;
 use rand::SeedableRng;
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::mem;
+use std::sync::Arc;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
 use std::io::Write;
 use std::path::PathBuf;
@@ -83,70 +85,199 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
     }
 }
 
-/// Cache of majority_r samples indexed by (region, hospital status, bacteria, drug).
+/// Cache of majority_r proportions and positive resistance magnitudes indexed by
+/// (region, hospital status, bacteria, drug).
+
 #[derive(Clone)]
+pub struct TierConfig {
+    pub window_days: u32,
+    pub min_total_samples: u32,
+}
+
+#[derive(Clone)]
+struct DayContribution {
+    day_index: u32,
+    total_samples: u32,
+    positive_samples: u32,
+    positive_values: Arc<Vec<f64>>,
+}
+
+#[derive(Clone)]
+struct TierBuffer {
+    window_days: u32,
+    min_total_samples: u32,
+    total_samples: u32,
+    positive_samples: u32,
+    days: VecDeque<DayContribution>,
+}
+
+impl TierBuffer {
+    fn new(window_days: u32, min_total_samples: u32) -> Self {
+        Self {
+            window_days,
+            min_total_samples,
+            total_samples: 0,
+            positive_samples: 0,
+            days: VecDeque::new(),
+        }
+    }
+
+    fn cleanup(&mut self, current_day: u32) {
+        if self.window_days == 0 {
+            self.total_samples = 0;
+            self.positive_samples = 0;
+            self.days.clear();
+            return;
+        }
+
+        while let Some(front) = self.days.front() {
+            if current_day.saturating_sub(front.day_index) >= self.window_days {
+                let front = self.days.pop_front().unwrap();
+                self.total_samples = self
+                    .total_samples
+                    .saturating_sub(front.total_samples);
+                self.positive_samples = self
+                    .positive_samples
+                    .saturating_sub(front.positive_samples);
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn push_day(&mut self, current_day: u32, total: u32, positive: u32, values: Arc<Vec<f64>>) {
+        if self.window_days == 0 || total == 0 {
+            return;
+        }
+
+        self.total_samples = self.total_samples.saturating_add(total);
+        self.positive_samples = self.positive_samples.saturating_add(positive);
+        self.days.push_back(DayContribution {
+            day_index: current_day,
+            total_samples: total,
+            positive_samples: positive,
+            positive_values: values,
+        });
+    }
+
+    fn probability(&self) -> f64 {
+        if self.total_samples == 0 {
+            return 0.0;
+        }
+        (self.positive_samples as f64 / self.total_samples as f64).clamp(0.0, 1.0)
+    }
+
+    fn draw_positive<R: Rng + ?Sized>(&self, rng: &mut R) -> Option<f64> {
+        if self.positive_samples == 0 {
+            return None;
+        }
+
+        let total_values: usize = self
+            .days
+            .iter()
+            .map(|day| day.positive_values.len())
+            .sum();
+        if total_values == 0 {
+            return None;
+        }
+
+        let mut target = rng.gen_range(0..total_values);
+        for day in &self.days {
+            let values = &*day.positive_values;
+            if values.is_empty() {
+                continue;
+            }
+            if target < values.len() {
+                return Some(values[target]);
+            }
+            target -= values.len();
+        }
+
+        None
+    }
+
+    fn has_sufficient_data(&self) -> bool {
+        self.total_samples >= self.min_total_samples && self.total_samples > 0
+    }
+}
+
+#[derive(Clone)]
+struct BucketState {
+    tiers: Vec<TierBuffer>,
+    selected_tier: Option<usize>,
+}
+
+impl BucketState {
+    fn new(tier_configs: &[TierConfig]) -> Self {
+        let tiers = tier_configs
+            .iter()
+            .filter(|cfg| cfg.window_days > 0 && cfg.min_total_samples > 0)
+            .map(|cfg| TierBuffer::new(cfg.window_days, cfg.min_total_samples))
+            .collect();
+        Self {
+            tiers,
+            selected_tier: None,
+        }
+    }
+
+    fn update_selection(&mut self) {
+        self.selected_tier = self
+            .tiers
+            .iter()
+            .enumerate()
+            .filter(|(_, tier)| tier.has_sufficient_data())
+            .max_by_key(|(_, tier)| tier.window_days)
+            .map(|(idx, _)| idx);
+    }
+
+    fn probability(&self) -> f64 {
+        self.selected_tier
+            .and_then(|idx| self.tiers.get(idx))
+            .map(|tier| tier.probability())
+            .unwrap_or(0.0)
+    }
+
+    fn draw_positive<R: Rng + ?Sized>(&self, rng: &mut R) -> Option<f64> {
+        self.selected_tier
+            .and_then(|idx| self.tiers.get(idx))
+            .and_then(|tier| tier.draw_positive(rng))
+    }
+
+    fn has_any_data(&self) -> bool {
+        self.selected_tier.is_some()
+    }
+}
+
 pub struct MajorityRCache {
-    buckets: Vec<Vec<f64>>,
-    running_mean: Vec<f64>,
-    has_running_mean: Vec<bool>,
-    step_sum: Vec<f64>,
-    step_count: Vec<u32>,
-    hospital_running_mean: [Vec<f64>; 2],
-    hospital_has_running_mean: [Vec<bool>; 2],
-    hospital_step_sum: [Vec<f64>; 2],
-    hospital_step_count: [Vec<u32>; 2],
-    global_running_mean: Vec<f64>,
-    global_has_running_mean: Vec<bool>,
-    global_step_sum: Vec<f64>,
-    global_step_count: Vec<u32>,
-    drug_running_mean: Vec<f64>,
-    drug_has_running_mean: Vec<bool>,
-    drug_step_sum: Vec<f64>,
-    drug_step_count: Vec<u32>,
-    drug_total_count: Vec<u64>,
+    buckets: Vec<BucketState>,
+    pending_positive_values: Vec<Vec<f64>>,
+    pending_positive_counts: Vec<u32>,
+    pending_total_counts: Vec<u32>,
     num_regions: usize,
     num_bacteria: usize,
     num_drugs: usize,
-    total_samples: usize,
-    active_memory: usize,
-    retention: f64,
-    alpha: f64,
 }
 
 impl MajorityRCache {
-    const MIN_DRUG_FALLBACK_SAMPLES: u64 = 250;
-
-    pub fn new(num_regions: usize, num_bacteria: usize, num_drugs: usize, retention: f64) -> Self {
+    pub fn new(
+        num_regions: usize,
+        num_bacteria: usize,
+        num_drugs: usize,
+        tier_configs: &[TierConfig],
+    ) -> Self {
         let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
-        let retention = retention.clamp(0.0, 0.9999);
-        let alpha = 1.0 - retention;
-        let combos = num_bacteria * num_drugs;
+        let bucket_states = (0..total_buckets)
+            .map(|_| BucketState::new(tier_configs))
+            .collect();
+
         MajorityRCache {
-            buckets: vec![Vec::new(); total_buckets],
-            running_mean: vec![0.0; total_buckets],
-            has_running_mean: vec![false; total_buckets],
-            step_sum: vec![0.0; total_buckets],
-            step_count: vec![0; total_buckets],
-            hospital_running_mean: [vec![0.0; combos], vec![0.0; combos]],
-            hospital_has_running_mean: [vec![false; combos], vec![false; combos]],
-            hospital_step_sum: [vec![0.0; combos], vec![0.0; combos]],
-            hospital_step_count: [vec![0; combos], vec![0; combos]],
-            global_running_mean: vec![0.0; combos],
-            global_has_running_mean: vec![false; combos],
-            global_step_sum: vec![0.0; combos],
-            global_step_count: vec![0; combos],
-            drug_running_mean: vec![0.0; num_drugs],
-            drug_has_running_mean: vec![false; num_drugs],
-            drug_step_sum: vec![0.0; num_drugs],
-            drug_step_count: vec![0; num_drugs],
-            drug_total_count: vec![0; num_drugs],
+            buckets: bucket_states,
+            pending_positive_values: vec![Vec::new(); total_buckets],
+            pending_positive_counts: vec![0; total_buckets],
+            pending_total_counts: vec![0; total_buckets],
             num_regions,
             num_bacteria,
             num_drugs,
-            total_samples: 0,
-            active_memory: 0,
-            retention,
-            alpha,
         }
     }
 
@@ -158,26 +289,127 @@ impl MajorityRCache {
         bacteria_idx: usize,
         drug_idx: usize,
     ) -> usize {
-        debug_assert!(
-            region_idx < self.num_regions,
-            "region_idx {} out of range {}",
-            region_idx,
-            self.num_regions
-        );
-        debug_assert!(
-            bacteria_idx < self.num_bacteria,
-            "bacteria_idx {} out of range {}",
-            bacteria_idx,
-            self.num_bacteria
-        );
-        debug_assert!(
-            drug_idx < self.num_drugs,
-            "drug_idx {} out of range {}",
-            drug_idx,
-            self.num_drugs
-        );
+        debug_assert!(region_idx < self.num_regions);
+        debug_assert!(bacteria_idx < self.num_bacteria);
+        debug_assert!(drug_idx < self.num_drugs);
         (((region_idx * 2) + hospital as usize) * self.num_bacteria + bacteria_idx) * self.num_drugs
             + drug_idx
+    }
+
+    pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
+        debug_assert_eq!(self.total_buckets(), prev.total_buckets());
+    self.buckets.clone_from(&prev.buckets);
+        for vec in &mut self.pending_positive_values {
+            vec.clear();
+        }
+        for count in &mut self.pending_positive_counts {
+            *count = 0;
+        }
+        for count in &mut self.pending_total_counts {
+            *count = 0;
+        }
+    }
+
+    #[inline]
+    pub fn add_positive_value(
+        &mut self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        drug_idx: usize,
+        value: f64,
+    ) {
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        self.pending_total_counts[idx] = self.pending_total_counts[idx].saturating_add(1);
+        self.pending_positive_counts[idx] = self.pending_positive_counts[idx].saturating_add(1);
+        self.pending_positive_values[idx].push(value);
+    }
+
+    #[inline]
+    pub fn add_zero_samples_by_index(&mut self, bucket_idx: usize, zero_count: u32) {
+        if zero_count == 0 {
+            return;
+        }
+        self.pending_total_counts[bucket_idx] =
+            self.pending_total_counts[bucket_idx].saturating_add(zero_count);
+    }
+
+    pub fn finalize_step(&mut self, current_day: u32) {
+        for idx in 0..self.total_buckets() {
+            let total = self.pending_total_counts[idx];
+            let positive = self.pending_positive_counts[idx];
+            let values_arc = if positive > 0 {
+                Arc::new(std::mem::take(&mut self.pending_positive_values[idx]))
+            } else {
+                self.pending_positive_values[idx].clear();
+                Arc::new(Vec::new())
+            };
+
+            if let Some(bucket) = self.buckets.get_mut(idx) {
+                for tier in bucket.tiers.iter_mut() {
+                    tier.cleanup(current_day);
+                    if positive > 0 {
+                        tier.push_day(current_day, total, positive, Arc::clone(&values_arc));
+                    } else if total > 0 {
+                        tier.push_day(current_day, total, 0, Arc::clone(&values_arc));
+                    }
+                }
+                bucket.update_selection();
+            }
+
+            self.pending_positive_counts[idx] = 0;
+            self.pending_total_counts[idx] = 0;
+        }
+    }
+
+    #[inline]
+    pub fn sample<R: Rng + ?Sized>(
+        &self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        drug_idx: usize,
+        rng: &mut R,
+    ) -> Option<f64> {
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        let probability = self
+            .buckets
+            .get(idx)
+            .map(|bucket| bucket.probability())
+            .unwrap_or(0.0);
+        if probability <= 0.0 {
+            return Some(0.0);
+        }
+
+        let roll: f64 = rng.gen();
+        if roll < probability.min(1.0) {
+            if let Some(value) = self
+                .buckets
+                .get(idx)
+                .and_then(|bucket| bucket.draw_positive(rng))
+            {
+                return Some(value.min(1.0));
+            }
+            // Fall back to using the probability itself as a low-level resistance marker
+            return Some(probability.min(1.0));
+        }
+
+        Some(0.0)
+    }
+
+    #[inline]
+    pub fn probability(
+        &self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        drug_idx: usize,
+    ) -> f64 {
+        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
+        self.buckets
+            .get(idx)
+            .map(|bucket| bucket.probability())
+            .unwrap_or(0.0)
     }
 
     #[inline]
@@ -186,263 +418,13 @@ impl MajorityRCache {
     }
 
     #[inline]
-    pub fn bucket(
-        &self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-    ) -> &[f64] {
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        &self.buckets[idx]
-    }
-
-    #[inline]
-    pub fn fallback_mean(
-        &self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-    ) -> Option<f64> {
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        if self.has_running_mean[idx] {
-            Some(self.running_mean[idx])
-        } else {
-            let hosp_idx = hospital as usize;
-            let flat_idx = bacteria_idx * self.num_drugs + drug_idx;
-
-            if self.hospital_has_running_mean[hosp_idx][flat_idx] {
-                return Some(self.hospital_running_mean[hosp_idx][flat_idx]);
-            }
-
-            let alt_hosp_idx = 1 - hosp_idx;
-            if self.hospital_has_running_mean[alt_hosp_idx][flat_idx] {
-                return Some(self.hospital_running_mean[alt_hosp_idx][flat_idx]);
-            }
-
-            if self.global_has_running_mean[flat_idx] {
-                return Some(self.global_running_mean[flat_idx]);
-            }
-
-            if self.drug_has_running_mean[drug_idx] {
-                return Some(self.drug_running_mean[drug_idx]);
-            }
-
-            None
-        }
-    }
-
-    #[inline]
-    fn bucket_mut(
-        &mut self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-    ) -> &mut Vec<f64> {
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        &mut self.buckets[idx]
-    }
-
-    #[inline]
-    pub fn push(
-        &mut self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-        value: f64,
-    ) {
-        self.bucket_mut(region_idx, hospital, bacteria_idx, drug_idx)
-            .push(value);
-        self.total_samples += 1;
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        self.step_sum[idx] += value;
-        self.step_count[idx] += 1;
-        let hosp_idx = hospital as usize;
-        let flat_idx = bacteria_idx * self.num_drugs + drug_idx;
-        self.hospital_step_sum[hosp_idx][flat_idx] += value;
-        self.hospital_step_count[hosp_idx][flat_idx] += 1;
-        self.global_step_sum[flat_idx] += value;
-        self.global_step_count[flat_idx] += 1;
-        self.drug_step_sum[drug_idx] += value;
-        self.drug_step_count[drug_idx] += 1;
-    }
-
-    pub fn accumulate_zero_samples(
-        &mut self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-        zero_count: u32,
-    ) {
-        if zero_count == 0 {
-            return;
-        }
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        self.step_count[idx] = self.step_count[idx].saturating_add(zero_count);
-        let hosp_idx = hospital as usize;
-        let flat_idx = bacteria_idx * self.num_drugs + drug_idx;
-        self.hospital_step_count[hosp_idx][flat_idx] =
-            self.hospital_step_count[hosp_idx][flat_idx].saturating_add(zero_count);
-        self.global_step_count[flat_idx] =
-            self.global_step_count[flat_idx].saturating_add(zero_count);
-        self.drug_step_count[drug_idx] = self.drug_step_count[drug_idx].saturating_add(zero_count);
-        self.total_samples = self.total_samples.saturating_add(zero_count as usize);
-    }
-
-    pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
-        debug_assert_eq!(self.total_buckets(), prev.total_buckets());
-        self.total_samples = 0;
-        self.active_memory = prev.active_memory;
-        self.running_mean.copy_from_slice(&prev.running_mean);
-        self.has_running_mean
-            .copy_from_slice(&prev.has_running_mean);
-        for hosp_idx in 0..2 {
-            self.hospital_running_mean[hosp_idx]
-                .copy_from_slice(&prev.hospital_running_mean[hosp_idx]);
-            self.hospital_has_running_mean[hosp_idx]
-                .clone_from(&prev.hospital_has_running_mean[hosp_idx]);
-        }
-        self.global_running_mean
-            .copy_from_slice(&prev.global_running_mean);
-        self.global_has_running_mean
-            .clone_from(&prev.global_has_running_mean);
-        self.drug_running_mean
-            .copy_from_slice(&prev.drug_running_mean);
-        self.drug_has_running_mean
-            .clone_from(&prev.drug_has_running_mean);
-        self.drug_total_count
-            .copy_from_slice(&prev.drug_total_count);
-        for bucket in &mut self.buckets {
-            bucket.clear();
-        }
-        for sum in &mut self.step_sum {
-            *sum = 0.0;
-        }
-        for count in &mut self.step_count {
-            *count = 0;
-        }
-        for hosp_idx in 0..2 {
-            for sum in &mut self.hospital_step_sum[hosp_idx] {
-                *sum = 0.0;
-            }
-            for count in &mut self.hospital_step_count[hosp_idx] {
-                *count = 0;
-            }
-        }
-        for sum in &mut self.global_step_sum {
-            *sum = 0.0;
-        }
-        for count in &mut self.global_step_count {
-            *count = 0;
-        }
-        for sum in &mut self.drug_step_sum {
-            *sum = 0.0;
-        }
-        for count in &mut self.drug_step_count {
-            *count = 0;
-        }
-    }
-
-    pub fn finalize_step(&mut self) {
-        let mut active_memory = 0usize;
-        for idx in 0..self.total_buckets() {
-            if self.step_count[idx] > 0 {
-                let avg = self.step_sum[idx] / self.step_count[idx] as f64;
-                if self.has_running_mean[idx] {
-                    self.running_mean[idx] =
-                        self.retention * self.running_mean[idx] + self.alpha * avg;
-                } else {
-                    self.running_mean[idx] = avg;
-                    self.has_running_mean[idx] = true;
-                }
-            }
-
-            if self.has_running_mean[idx] {
-                active_memory += 1;
-            }
-
-            self.step_sum[idx] = 0.0;
-            self.step_count[idx] = 0;
-        }
-
-        let combos = self.num_bacteria * self.num_drugs;
-        for hosp_idx in 0..2 {
-            for idx in 0..combos {
-                if self.hospital_step_count[hosp_idx][idx] > 0 {
-                    let avg = self.hospital_step_sum[hosp_idx][idx]
-                        / self.hospital_step_count[hosp_idx][idx] as f64;
-                    if self.hospital_has_running_mean[hosp_idx][idx] {
-                        self.hospital_running_mean[hosp_idx][idx] = self.retention
-                            * self.hospital_running_mean[hosp_idx][idx]
-                            + self.alpha * avg;
-                    } else {
-                        self.hospital_running_mean[hosp_idx][idx] = avg;
-                        self.hospital_has_running_mean[hosp_idx][idx] = true;
-                    }
-                }
-
-                if self.hospital_has_running_mean[hosp_idx][idx] {
-                    active_memory += 1;
-                }
-
-                self.hospital_step_sum[hosp_idx][idx] = 0.0;
-                self.hospital_step_count[hosp_idx][idx] = 0;
-            }
-        }
-
-        for idx in 0..combos {
-            if self.global_step_count[idx] > 0 {
-                let avg = self.global_step_sum[idx] / self.global_step_count[idx] as f64;
-                if self.global_has_running_mean[idx] {
-                    self.global_running_mean[idx] =
-                        self.retention * self.global_running_mean[idx] + self.alpha * avg;
-                } else {
-                    self.global_running_mean[idx] = avg;
-                    self.global_has_running_mean[idx] = true;
-                }
-            }
-
-            if self.global_has_running_mean[idx] {
-                active_memory += 1;
-            }
-
-            self.global_step_sum[idx] = 0.0;
-            self.global_step_count[idx] = 0;
-        }
-
-        for d_idx in 0..self.num_drugs {
-            if self.drug_step_count[d_idx] > 0 {
-                let avg = self.drug_step_sum[d_idx] / self.drug_step_count[d_idx] as f64;
-                if self.drug_has_running_mean[d_idx] {
-                    self.drug_running_mean[d_idx] =
-                        self.retention * self.drug_running_mean[d_idx] + self.alpha * avg;
-                } else {
-                    self.drug_running_mean[d_idx] = avg;
-                }
-                self.drug_total_count[d_idx] =
-                    self.drug_total_count[d_idx].saturating_add(self.drug_step_count[d_idx] as u64);
-                if self.drug_total_count[d_idx] >= Self::MIN_DRUG_FALLBACK_SAMPLES {
-                    self.drug_has_running_mean[d_idx] = true;
-                }
-            }
-
-            if self.drug_has_running_mean[d_idx] {
-                active_memory += 1;
-            }
-
-            self.drug_step_sum[d_idx] = 0.0;
-            self.drug_step_count[d_idx] = 0;
-        }
-        self.active_memory = active_memory;
+    pub fn num_regions(&self) -> usize {
+        self.num_regions
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.total_samples == 0 && self.active_memory == 0
+        self.buckets.iter().all(|bucket| !bucket.has_any_data())
     }
 }
 struct IndividualLogger {
@@ -934,10 +916,33 @@ impl Simulation {
         }
 
         let individual_logger = IndividualLogger::from_flag(log_individuals);
-        let memory_retention = config::parameter_store()
-            .globals
-            .majority_r_memory_retention_per_day
-            .clamp(0.0, 0.9999);
+        let globals = &config::parameter_store().globals;
+        let tier_configs: Vec<TierConfig> = globals
+            .majority_r_tier_window_days
+            .iter()
+            .zip(globals.majority_r_tier_min_samples.iter())
+            .filter_map(|(&window_days, &min_samples)| {
+                let window = window_days.max(0);
+                let min_total = min_samples.max(0);
+                if window == 0 || min_total == 0 {
+                    None
+                } else {
+                    Some(TierConfig {
+                        window_days: window,
+                        min_total_samples: min_total,
+                    })
+                }
+            })
+            .collect();
+
+        let tier_configs = if tier_configs.is_empty() {
+            vec![TierConfig {
+                window_days: 50,
+                min_total_samples: 10,
+            }]
+        } else {
+            tier_configs
+        };
 
         Simulation {
             // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
@@ -951,13 +956,13 @@ impl Simulation {
                 num_regions_including_home,
                 num_bacteria,
                 num_drugs,
-                memory_retention,
+                &tier_configs,
             ),
             majority_r_cache_next: MajorityRCache::new(
                 num_regions_including_home,
                 num_bacteria,
                 num_drugs,
-                memory_retention,
+                &tier_configs,
             ),
             summary_log: Vec::new(), // Initialize empty log
             param_cache: crate::rules::ParameterKeyCache::new(),
@@ -1022,7 +1027,7 @@ impl Simulation {
             // --- Setup counters; MIC<2 snapshot will use per-thread local vectors reduced after loop (avoids atomic contention) ---
             let num_bacteria = BACTERIA_LIST.len();
             let num_drugs = DRUG_SHORT_NAMES.len();
-            let num_regions = self.majority_r_cache_prev.num_regions;
+            let num_regions = self.majority_r_cache_prev.num_regions();
 
             //             let calculation_time = calculation_start.elapsed();
             //             if t % 100 == 0 { // Log every 10th timestep
@@ -2554,29 +2559,12 @@ impl Simulation {
             {
                 let next_majority_r_cache = &mut self.majority_r_cache_next;
                 for (bucket_idx, zero_count) in majority_r_zero_counts.into_iter().enumerate() {
-                    if zero_count == 0 {
-                        continue;
-                    }
-                    let mut remainder = bucket_idx;
-                    let drug_idx = remainder % num_drugs;
-                    remainder /= num_drugs;
-                    let bacteria_idx = remainder % num_bacteria;
-                    remainder /= num_bacteria;
-                    let hospital_flag = (remainder % 2) != 0;
-                    remainder /= 2;
-                    let region_idx = remainder;
-                    next_majority_r_cache.accumulate_zero_samples(
-                        region_idx,
-                        hospital_flag,
-                        bacteria_idx,
-                        drug_idx,
-                        zero_count,
-                    );
+                    next_majority_r_cache.add_zero_samples_by_index(bucket_idx, zero_count);
                 }
                 for ((region_idx, hospital_flag, bacteria_idx, drug_idx), value) in
                     majority_r_entries
                 {
-                    next_majority_r_cache.push(
+                    next_majority_r_cache.add_positive_value(
                         region_idx,
                         hospital_flag,
                         bacteria_idx,
@@ -2591,7 +2579,7 @@ impl Simulation {
                 &mut self.majority_r_cache_prev,
                 &mut self.majority_r_cache_next,
             );
-            self.majority_r_cache_prev.finalize_step();
+            self.majority_r_cache_prev.finalize_step(t as u32);
 
             // let rules_time = rules_start.elapsed();
             // if t % 10 == 0 { // Log every 10th timestep

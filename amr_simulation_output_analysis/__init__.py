@@ -52,7 +52,7 @@ def create_all_plots(config=None):
     print(f"Loaded simulation data: {df.shape[0]} time steps, {df.shape[1]} columns")
     
     # Preprocess data (adds time_in_years and other derived columns)
-    df = data_cache.get_preprocessed_data()
+    df = data_cache.get_preprocessed_data(plot_config=config)
     
     if df is None:
         raise RuntimeError("Failed to preprocess simulation data.")

@@ -1,3 +1,13 @@
+
+
+
+//     map.insert("acquisition_log_odds_baseline".to_string(), -13.0);
+
+
+
+
+
+
 // Centralized configuration and parameter management for the AMR simulation.
 //
 // Contains:
@@ -243,7 +253,10 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
+    #[allow(dead_code)]
     pub majority_r_memory_retention_per_day: f64,
+    pub majority_r_tier_window_days: [u32; 3],
+    pub majority_r_tier_min_samples: [u32; 3],
 }
 
 impl GlobalScalars {
@@ -664,6 +677,28 @@ impl GlobalScalars {
                 "majority_r_memory_retention_per_day",
                 0.93,
             ),
+            majority_r_tier_window_days: [
+                get_or_default(map, "majority_r_tier1_window_days", 50.0)
+                    .max(0.0)
+                    .round() as u32,
+                get_or_default(map, "majority_r_tier2_window_days", 180.0)
+                    .max(0.0)
+                    .round() as u32,
+                get_or_default(map, "majority_r_tier3_window_days", 720.0)
+                    .max(0.0)
+                    .round() as u32,
+            ],
+            majority_r_tier_min_samples: [
+                get_or_default(map, "majority_r_tier1_min_total_samples", 10.0)
+                    .max(0.0)
+                    .round() as u32,
+                get_or_default(map, "majority_r_tier2_min_total_samples", 25.0)
+                    .max(0.0)
+                    .round() as u32,
+                get_or_default(map, "majority_r_tier3_min_total_samples", 50.0)
+                    .max(0.0)
+                    .round() as u32,
+            ],
         }
     }
 }
@@ -2401,7 +2436,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.003);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.05);  // 0.005
             }
         }
 
@@ -3262,7 +3297,7 @@ lazy_static! {
         // General Acquisition & Resistance Parameters
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-    map.insert("acquisition_log_odds_baseline".to_string(), -11.0); // -11.0 Default baseline log-odds for infection acquisition (higher incidence)
+    map.insert("acquisition_log_odds_baseline".to_string(), -13.0); // -13.0 Default baseline log-odds for infection acquisition (higher incidence)
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -3616,7 +3651,7 @@ lazy_static! {
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.000025); // Lower baseline for microbiome resistance emergence
+    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001 ); // Lower baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -3967,7 +4002,7 @@ lazy_static! {
         // Region-specific log-odds adjustments. ln(1.0) = 0.
         map.insert("log_odds_mortality_region_north_america".to_string(), 0.0);      // Reference
         map.insert("log_odds_mortality_region_south_america".to_string(), 0.26);     // ln(1.3) - increased from 1.2
-        map.insert("log_odds_mortality_region_africa".to_string(), 0.41);            // ln(1.5) - increased from 1.2 to reflect TB, malaria, parasitic diseases
+    map.insert("log_odds_mortality_region_africa".to_string(), 0.69);            // ln(2.0) - higher mortality burden
         map.insert("log_odds_mortality_region_asia".to_string(), 0.18);              // ln(1.2) - increased from 1.1
         map.insert("log_odds_mortality_region_europe".to_string(), -0.105);          // ln(0.9) - kept same
         map.insert("log_odds_mortality_region_oceania".to_string(), 0.0);           // Reference
@@ -4106,11 +4141,19 @@ lazy_static! {
         // Population impact: Carriers maintain resistance without selective pressure (asymptomatic), then
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
-    map.insert("carrier_resistance_inheritance_probability".to_string(), 0.55);
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.55);
         map.insert(
             "majority_r_memory_retention_per_day".to_string(),
             0.93,
         );
+        // Tiered majority_r cache defaults: each horizon defines how many days of history to retain
+        // and how many total samples must accumulate before that tier influences prevalence.
+        map.insert("majority_r_tier1_window_days".to_string(), 50.0);
+        map.insert("majority_r_tier2_window_days".to_string(), 180.0);
+        map.insert("majority_r_tier3_window_days".to_string(), 720.0);
+        map.insert("majority_r_tier1_min_total_samples".to_string(), 10.0);
+        map.insert("majority_r_tier2_min_total_samples".to_string(), 25.0);
+        map.insert("majority_r_tier3_min_total_samples".to_string(), 50.0);
         // 55% probability that carrier's infection inherits microbiome resistance profile
         // Default 0.55 keeps endogenous infections common without locking in microbiome resistance
         // This parameter has MASSIVE impact on population resistance dynamics - most important in the model

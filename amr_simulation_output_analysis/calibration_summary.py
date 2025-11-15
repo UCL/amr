@@ -274,7 +274,15 @@ def _calculate_resistance_table(
     expanded_label: Optional[str] = None,
     low_sample_threshold: float = 50.0,
 ) -> pd.DataFrame:
-    columns = ["Bacteria", "Drug", "Simulation", "Target", "Delta", "Note"]
+    columns = [
+        "Bacteria",
+        "Drug",
+        "Simulation",
+        "Target",
+        "Delta",
+        "Infected person-days",
+        "Note",
+    ]
     if resistance_targets.empty:
         return pd.DataFrame(columns=columns)
 
@@ -301,6 +309,7 @@ def _calculate_resistance_table(
                 "Simulation": np.nan,
                 "Target": target_percent,
                 "Delta": np.nan,
+                "Infected person-days": np.nan,
                 "Note": "; ".join(note_parts) if note_parts else "",
             })
             continue
@@ -316,6 +325,7 @@ def _calculate_resistance_table(
                 "Simulation": np.nan,
                 "Target": target_percent,
                 "Delta": np.nan,
+                "Infected person-days": np.nan,
                 "Note": "; ".join(note_parts) if note_parts else "",
             })
             continue
@@ -336,7 +346,8 @@ def _calculate_resistance_table(
                 simulation_percent, total_infected = expanded_stats
                 used_expanded = True
 
-        if np.isnan(simulation_percent):
+        if np.isnan(simulation_percent) or total_infected == 0.0:
+            simulation_percent = np.nan
             label = (expanded_label if used_expanded else window_label) or "observation window"
             note_parts.append(f"no infections in {label}")
         else:
@@ -346,6 +357,12 @@ def _calculate_resistance_table(
                 note_parts.append(f"expanded window {expanded_label}")
 
         delta = _format_delta(simulation_percent, target_percent)
+        if np.isnan(simulation_percent):
+            delta = np.nan
+
+        infected_person_days = np.nan
+        if total_infected > 0:
+            infected_person_days = float(total_infected)
 
         records.append({
             "Bacteria": row["Bacteria"],
@@ -353,6 +370,7 @@ def _calculate_resistance_table(
             "Simulation": simulation_percent,
             "Target": target_percent,
             "Delta": delta,
+            "Infected person-days": infected_person_days,
             "Note": "; ".join(note_parts) if note_parts else "",
         })
 
@@ -602,8 +620,12 @@ def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional
         return None, None, 0
 
     eligible = resistance_df.copy()
-    note_series = eligible["Note"].astype(str)
-    eligible = eligible[~note_series.str.contains("negligible potency", na=False, case=False)]
+    note_series = eligible["Note"].astype(str).str.lower()
+    eligible = eligible[~note_series.str.contains("negligible potency", na=False)]
+    note_series = eligible["Note"].astype(str).str.lower()
+    eligible = eligible[~note_series.str.contains("no infections", na=False)]
+    note_series = eligible["Note"].astype(str).str.lower()
+    eligible = eligible[~note_series.str.contains("not modelled", na=False)]
     eligible = eligible.dropna(subset=["Simulation", "Target"])
     if eligible.empty:
         return None, None, 0
@@ -640,7 +662,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         resistance_window_label,
         resistance_expanded_df,
         resistance_expanded_label,
-    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year)
+    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=5)
 
     headline_df = _build_headline_table(df, year_df, targets, scale_factor)
     microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
@@ -665,6 +687,22 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         handle.write("Calibration Snapshot\n")
         handle.write(f"Target year: {targets.target_year}\n\n")
 
+        population_series = year_df.get("total_population")
+        if population_series is not None and not population_series.empty:
+            mean_population = float(population_series.mean(skipna=True))
+            final_population = float(population_series.iloc[-1])
+            handle.write(
+                f"Mean simulated population during target window: {mean_population:,.0f}\n"
+            )
+            handle.write(
+                f"Final simulated population at end of window: {final_population:,.0f}\n"
+            )
+            if not np.isnan(scale_factor) and abs(scale_factor - 1.0) > 1e-9:
+                handle.write(
+                    f"Population scale factor relative to calibration targets: {scale_factor:,.4f}\n"
+                )
+            handle.write("\n")
+
         if not headline_df.empty:
             handle.write("Headline Metrics\n")
             handle.write(headline_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
@@ -688,7 +726,10 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
         sim_overall, target_overall, combo_count = overall_resistance
         handle.write("Overall Infection Resistance\n")
-        handle.write(f"Observation window for resistance metrics: {resistance_window_label}\n")
+        window_display = resistance_window_label
+        if resistance_expanded_label and resistance_expanded_label != resistance_window_label:
+            window_display = f"{resistance_window_label} (expanded: {resistance_expanded_label})"
+        handle.write(f"Observation window for resistance metrics: {window_display}\n")
         if combo_count > 0:
             sim_text = f"{sim_overall:,.2f}" if sim_overall is not None else "n/a"
             target_text = f"{target_overall:,.2f}" if target_overall is not None else "n/a"

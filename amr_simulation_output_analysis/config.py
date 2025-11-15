@@ -16,6 +16,7 @@ class PlotConfig:
     
     # Main plot category controls
     grouped_plots: bool = True  # Enable/disable grouped figures 1-9
+    grouped_microbiome_acquisition_panel: bool = False  # Toggle grouped Figure 3 microbiome acquisition panel
     
     # Individual grouped figure controls
 

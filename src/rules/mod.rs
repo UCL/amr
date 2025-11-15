@@ -20,7 +20,6 @@ use crate::simulation::population::{
     HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType, Region,
     BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
 };
-use rand::seq::SliceRandom;
 use rand::Rng;
 
 use crate::simulation::simulation::MajorityRCache;
@@ -1681,45 +1680,31 @@ pub fn apply_rules(
                         let moderate_penalty = store.globals.regional_resistance_penalty_moderate;
 
                         for b_idx in 0..BACTERIA_LIST.len() {
-                            let resistance_values = majority_r_cache.bucket(
+                            let resistance_prevalence = majority_r_cache.probability(
                                 region_idx,
                                 hospital_status,
                                 b_idx,
                                 drug_idx,
                             );
-                            if !resistance_values.is_empty() {
-                                let resistance_cases = resistance_values.len() as f64;
-                                let mut total_cases_estimate = resistance_cases;
-                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                    let other_resistance_values = majority_r_cache.bucket(
-                                        region_idx,
-                                        hospital_status,
-                                        b_idx,
-                                        d_idx,
-                                    );
-                                    total_cases_estimate = total_cases_estimate
-                                        .max(other_resistance_values.len() as f64);
-                                }
 
-                                if total_cases_estimate > 0.0 {
-                                    let resistance_prevalence =
-                                        resistance_cases / total_cases_estimate;
-
-                                    let resistance_penalty =
-                                        if resistance_prevalence >= very_high_threshold {
-                                            very_high_penalty
-                                        } else if resistance_prevalence >= high_threshold {
-                                            high_penalty
-                                        } else if resistance_prevalence >= moderate_threshold {
-                                            moderate_penalty
-                                        } else {
-                                            1.0
-                                        };
-
-                                    regional_resistance_penalty =
-                                        regional_resistance_penalty.min(resistance_penalty);
-                                }
+                            if resistance_prevalence <= 0.0 {
+                                continue;
                             }
+
+                            let resistance_penalty = if resistance_prevalence
+                                >= very_high_threshold
+                            {
+                                very_high_penalty
+                            } else if resistance_prevalence >= high_threshold {
+                                high_penalty
+                            } else if resistance_prevalence >= moderate_threshold {
+                                moderate_penalty
+                            } else {
+                                1.0
+                            };
+
+                            regional_resistance_penalty =
+                                regional_resistance_penalty.min(resistance_penalty);
                         }
                     }
                     score *= regional_resistance_penalty;
@@ -1784,44 +1769,111 @@ pub fn apply_rules(
                             | "dalbavancin"
                     );
                     if reserve_candidate {
-                        let narrow_effective_threshold = store
-                            .globals
-                            .effective_potency_threshold_for_empirical_therapy
-                            .max(
-                                store
-                                    .globals
-                                    .effective_potency_threshold_for_targeted_therapy,
-                            );
-                        let mut narrow_alternative_available = false;
-
-                        'reserve_check: for b_idx in 0..BACTERIA_LIST.len() {
+                        // Stage therapy: require documented recent failure before escalating to reserve agents
+                        let mut failure_documented = false;
+                        let failure_memory_days = store.globals.drug_failure_memory_days;
+                        for b_idx in 0..BACTERIA_LIST.len() {
                             if individual.level[b_idx] <= 0.001 {
                                 continue;
                             }
-
-                            for other_idx in 0..DRUG_SHORT_NAMES.len() {
-                                if other_idx == drug_idx {
-                                    continue;
-                                }
-                                if store.drug.spectrum_breadth(other_idx) > 2.5 {
-                                    continue;
-                                }
-                                let potency = store.drug_bacteria.potency(b_idx, other_idx);
-                                if potency <= narrow_effective_threshold {
-                                    continue;
-                                }
-
-                                let resistance_level =
-                                    individual.resistances[b_idx][other_idx].any_r;
-                                if resistance_level < 0.4 {
-                                    narrow_alternative_available = true;
-                                    break 'reserve_check;
-                                }
+                            let failure_day = individual.date_last_drug_failure[b_idx];
+                            if failure_day < 0 {
+                                continue;
+                            }
+                            let days_since_failure = (time_step as i32) - failure_day;
+                            if days_since_failure >= 0 && days_since_failure <= failure_memory_days
+                            {
+                                failure_documented = true;
+                                break;
                             }
                         }
 
-                        if narrow_alternative_available {
-                            score *= 0.25; // Reserve-class agents only stay when no narrow, active option remains
+                        if !failure_documented {
+                            score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
+                        } else {
+                            // Reserve drugs should only keep full score if resistance is high AND no narrow option remains
+                            let narrow_effective_threshold = store
+                                .globals
+                                .effective_potency_threshold_for_empirical_therapy
+                                .max(
+                                    store
+                                        .globals
+                                        .effective_potency_threshold_for_targeted_therapy,
+                                );
+                            let mut narrow_alternative_available = false;
+
+                            'reserve_check: for b_idx in 0..BACTERIA_LIST.len() {
+                                if individual.level[b_idx] <= 0.001 {
+                                    continue;
+                                }
+
+                                for other_idx in 0..DRUG_SHORT_NAMES.len() {
+                                    if other_idx == drug_idx {
+                                        continue;
+                                    }
+                                    if store.drug.spectrum_breadth(other_idx) > 2.5 {
+                                        continue;
+                                    }
+                                    let potency = store.drug_bacteria.potency(b_idx, other_idx);
+                                    if potency <= narrow_effective_threshold {
+                                        continue;
+                                    }
+
+                                    let resistance_level =
+                                        individual.resistances[b_idx][other_idx].any_r;
+                                    if resistance_level < 0.4 {
+                                        narrow_alternative_available = true;
+                                        break 'reserve_check;
+                                    }
+                                }
+                            }
+
+                            let mut high_resistance_observed = false;
+                            if !majority_r_cache.is_empty() {
+                                let region_idx = individual.region_cur_in as usize;
+                                let hospital_status = individual.hospital_status.is_hospitalized();
+                                let high_threshold =
+                                    store.globals.regional_resistance_threshold_high;
+
+                                'resistance_scan: for b_idx in 0..BACTERIA_LIST.len() {
+                                    if individual.level[b_idx] <= 0.001 {
+                                        continue;
+                                    }
+
+                                    let prevalence = majority_r_cache.probability(
+                                        region_idx,
+                                        hospital_status,
+                                        b_idx,
+                                        drug_idx,
+                                    );
+
+                                    if prevalence >= high_threshold {
+                                        high_resistance_observed = true;
+                                        break 'resistance_scan;
+                                    }
+                                }
+                            }
+
+                            if !high_resistance_observed {
+                                // Fall back to individual-level data if regional cache is sparse
+                                for b_idx in 0..BACTERIA_LIST.len() {
+                                    if individual.level[b_idx] <= 0.001 {
+                                        continue;
+                                    }
+                                    if individual.resistances[b_idx][drug_idx].any_r >= 0.6 {
+                                        high_resistance_observed = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if !high_resistance_observed || narrow_alternative_available {
+                                score = 0.0; // Block reserve therapy unless high resistance AND no narrow option remain
+                            }
+                        }
+
+                        if score == 0.0 {
+                            continue;
                         }
                     }
                     for b_idx in 0..BACTERIA_LIST.len() {
@@ -2427,26 +2479,16 @@ pub fn apply_rules(
                                 hospital_status_bool // Community-acquired microbiome samples based on current status
                             };
 
-                            let majority_r_values_from_population = majority_r_cache.bucket(
+                            if let Some(acquired_resistance_level) = majority_r_cache.sample(
                                 region_idx,
                                 sampling_hospital_status,
                                 b_idx,
                                 d_idx,
-                            );
-                            if let Some(&acquired_resistance_level) =
-                                majority_r_values_from_population.choose(rng)
-                            {
+                                rng,
+                            ) {
                                 let clamped_level =
                                     acquired_resistance_level.min(max_resistance_level).max(0.0);
                                 resistance_data.microbiome_r = clamped_level;
-                            } else if let Some(fallback_level) = majority_r_cache.fallback_mean(
-                                region_idx,
-                                sampling_hospital_status,
-                                b_idx,
-                                d_idx,
-                            ) {
-                                resistance_data.microbiome_r =
-                                    fallback_level.min(max_resistance_level).max(0.0);
                             } else {
                                 resistance_data.microbiome_r = 0.0;
                             }
@@ -2874,163 +2916,54 @@ pub fn apply_rules(
                         let d_idx = *drug_indices.get(drug_name_static).unwrap();
                         let resistance_data = &mut individual.resistances[b_idx][d_idx];
 
-                        if is_from_environment {
-                            // Check if any drug that selects for resistance to this drug has been introduced
-                            let mut any_selecting_drug_introduced = false;
-
-                            // Check if the drug itself has been introduced
-                            if let Some(intro_time) =
-                                crate::config::get_drug_introduction_time_step(drug_name_static)
-                            {
-                                if time_step >= intro_time {
-                                    any_selecting_drug_introduced = true;
-                                }
-                            }
-
-                            // If not yet introduced by direct drug, check cross-resistance groups
-                            if !any_selecting_drug_introduced {
-                                if let Some(cross_resistance_drug_groups) =
-                                    cross_resistance_groups.get(&b_idx)
-                                {
-                                    for group in cross_resistance_drug_groups {
-                                        if group.contains(&d_idx) {
-                                            // This drug is in a cross-resistance group, check if any other drug in the group has been introduced
-                                            for &other_drug_idx in group {
-                                                if other_drug_idx != d_idx {
-                                                    if let Some(other_drug_name) =
-                                                        DRUG_SHORT_NAMES.get(other_drug_idx)
-                                                    {
-                                                        if let Some(intro_time) = crate::config::get_drug_introduction_time_step(other_drug_name) {
-                                                        if time_step >= intro_time {
-                                                            any_selecting_drug_introduced = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    }
-                                                }
-                                            }
-                                            if any_selecting_drug_introduced {
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Only assign environmental resistance if a selecting drug has been introduced
-                            if any_selecting_drug_introduced {
-                                let sampling_hospital_status = if is_hospital_acquired {
-                                    true
-                                } else {
-                                    hospital_status_bool
-                                };
-
-                                let majority_r_values_from_population = majority_r_cache.bucket(
-                                    region_idx,
-                                    sampling_hospital_status,
-                                    b_idx,
-                                    d_idx,
-                                );
-
-                                let assigned_level = majority_r_values_from_population
-                                    .choose(rng)
-                                    .copied()
-                                    .or_else(|| {
-                                        majority_r_cache.fallback_mean(
-                                            region_idx,
-                                            sampling_hospital_status,
-                                            b_idx,
-                                            d_idx,
-                                        )
-                                    });
-
-                                if let Some(level) = assigned_level {
-                                    let clamped_level = level.min(max_resistance_level).max(0.0);
-                                    resistance_data.any_r = clamped_level;
-                                    resistance_data.majority_r = clamped_level;
-                                } else {
-                                    resistance_data.any_r = 0.0;
-                                    resistance_data.majority_r = 0.0;
-                                }
-
-                                // Inline mechanism assignment
-                                use crate::simulation::population::ResistanceMechanism;
-                                let mechanism_prob =
-                                    store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    let enhancement =
-                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                    if enhancement <= resistance_data.any_r {
-                                        if rng.gen_bool(mechanism_prob) {
-                                            individual.resistance_mechanisms[b_idx][mech_idx] =
-                                                true;
-                                        }
-                                    }
-                                }
-                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv,
-                                );
-                            } else {
-                                resistance_data.majority_r = 0.0;
-                                resistance_data.any_r = 0.0;
-                            }
+                        // --- region/hospital-specific sampling for both hospital-acquired and community-acquired ---
+                        // For hospital-acquired infections, we sample from hospitalized people (hospital_status_bool = true)
+                        // For community-acquired infections, we sample based on the person's current hospital status
+                        let sampling_hospital_status = if is_hospital_acquired {
+                            true
                         } else {
-                            // --- region/hospital-specific sampling for both hospital-acquired and community-acquired ---
-                            // For hospital-acquired infections, we sample from hospitalized people (hospital_status_bool = true)
-                            // For community-acquired infections, we sample based on the person's current hospital status
-                            let sampling_hospital_status = if is_hospital_acquired {
-                                true // Hospital-acquired infections sample from hospitalized population
-                            } else {
-                                hospital_status_bool // Community-acquired infections sample based on current status
-                            };
+                            hospital_status_bool
+                        };
 
-                            let majority_r_values_from_population = majority_r_cache.bucket(
-                                region_idx,
-                                sampling_hospital_status,
-                                b_idx,
-                                d_idx,
-                            );
-                            let assigned_level = majority_r_values_from_population
-                                .choose(rng)
-                                .copied()
-                                .or_else(|| {
-                                    majority_r_cache.fallback_mean(
-                                        region_idx,
-                                        sampling_hospital_status,
-                                        b_idx,
-                                        d_idx,
-                                    )
-                                });
-                            if let Some(level) = assigned_level {
-                                let clamped_level = level.min(max_resistance_level).max(0.0);
-                                resistance_data.any_r = clamped_level;
-                                resistance_data.majority_r = clamped_level;
-                                // Inline mechanism assignment
-                                use crate::simulation::population::ResistanceMechanism;
-                                let mechanism_prob =
-                                    store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    let enhancement =
-                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
+                        let assigned_level = majority_r_cache.sample(
+                            region_idx,
+                            sampling_hospital_status,
+                            b_idx,
+                            d_idx,
+                            rng,
+                        );
 
-                                    if enhancement <= resistance_data.any_r {
-                                        if rng.gen_bool(mechanism_prob) {
-                                            individual.resistance_mechanisms[b_idx][mech_idx] =
-                                                true;
-                                        }
+                        if let Some(level) = assigned_level {
+                            let clamped_level = level.min(max_resistance_level).max(0.0);
+                            resistance_data.any_r = clamped_level;
+                            resistance_data.majority_r = clamped_level;
+
+                            // Inline mechanism assignment
+                            use crate::simulation::population::ResistanceMechanism;
+                            let mechanism_prob =
+                                store.globals.mechanism_assignment_probability_on_any_r_gain;
+                            for (mech_idx, _mechanism) in
+                                ResistanceMechanism::all().iter().enumerate()
+                            {
+                                let enhancement =
+                                    store.resistance_mechanism.enhancement_multiplier(mech_idx);
+                                if enhancement <= resistance_data.any_r {
+                                    if rng.gen_bool(mechanism_prob) {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                     }
                                 }
-                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
-                            );
-                            } else {
-                                resistance_data.any_r = 0.0;
-                                resistance_data.majority_r = 0.0;
                             }
+
+                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                if is_from_environment {
+                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
+                                } else {
+                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity
+                                },
+                            );
+                        } else {
+                            resistance_data.any_r = 0.0;
+                            resistance_data.majority_r = 0.0;
                         }
                     }
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
 import gc
-from .config import DataConfig
+from .config import DataConfig, PlotConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,8 @@ class DataCache:
         self._bacteria_list: Optional[list] = None
         self._drug_list: Optional[list] = None
         self._resistance_mechanisms: Optional[list] = None
+        self._plot_config: Optional[PlotConfig] = None
+        self._preprocess_options: Dict[str, Any] = {}
         self._initialized = True
         
         logger.info("DataCache initialized")
@@ -74,21 +76,53 @@ class DataCache:
         
         return self._simulation_data
     
-    def get_preprocessed_data(self, force_reload: bool = False) -> Optional[pd.DataFrame]:
+    def get_preprocessed_data(
+        self,
+        force_reload: bool = False,
+        plot_config: Optional[PlotConfig] = None,
+    ) -> Optional[pd.DataFrame]:
         """
         Get cached preprocessed data, processing if necessary.
         
         Args:
             force_reload: Force reprocessing even if cached
+            plot_config: Optional PlotConfig used to determine derived-column requirements
             
         Returns:
             DataFrame with preprocessed simulation data or None if failed
         """
+        # Persist the latest plotting configuration so downstream calls remain consistent
+        if plot_config is not None:
+            self._plot_config = plot_config
+        elif self._plot_config is None:
+            self._plot_config = PlotConfig()
+
+        plot_cfg = self._plot_config or PlotConfig()
+
+        enable_microbiome_aggregates = any(
+            [
+                getattr(plot_cfg, 'grouped_microbiome_acquisition_panel', True),
+                getattr(plot_cfg, 'microbiome_acquisition_on_off_drug', True),
+                getattr(plot_cfg, 'microbiome_clearance_on_off_drug', True),
+            ]
+        )
+
+        previous_flag = self._preprocess_options.get('enable_microbiome_aggregates')
+        if previous_flag is not None and previous_flag != enable_microbiome_aggregates:
+            force_reload = True
+
         if self._preprocessed_data is None or force_reload:
             sim_data = self.get_simulation_data()
             if sim_data is not None:
-                self._preprocessed_data = preprocess_data(sim_data.copy())
+                self._preprocessed_data = preprocess_data(
+                    sim_data.copy(),
+                    enable_microbiome_aggregates=enable_microbiome_aggregates,
+                )
+                self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
                 logger.info("Data preprocessing completed and cached")
+
+        if self._preprocessed_data is not None and 'enable_microbiome_aggregates' not in self._preprocess_options:
+            self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
         
         return self._preprocessed_data
 
@@ -151,6 +185,8 @@ class DataCache:
         self._bacteria_list = None
         self._drug_list = None
         self._resistance_mechanisms = None
+        self._plot_config = None
+        self._preprocess_options = {}
         logger.info("DataCache cleared")
 
 # Global cache instance
@@ -238,12 +274,17 @@ def _join_new_columns(df: pd.DataFrame, columns: Dict[str, Any]) -> pd.DataFrame
     new_frame = pd.DataFrame(columns, index=df.index)
     return df.join(new_frame)
 
-def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+def preprocess_data(
+    df: pd.DataFrame,
+    *,
+    enable_microbiome_aggregates: bool = True,
+) -> pd.DataFrame:
     """
     Add calculated columns and prepare data for analysis.
     
     Args:
         df: Raw simulation data DataFrame
+        enable_microbiome_aggregates: Whether to derive high-memory microbiome acquisition/clearance totals
         
     Returns:
         DataFrame with additional calculated columns
@@ -415,124 +456,127 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         if death_prop_cols:
             df = _join_new_columns(df, death_prop_cols)
     
-    # Derive microbiome acquisition metrics by antibiotic exposure
-    on_suffix = '_microbiome_acquisitions_on_drug'
-    off_suffix = '_microbiome_acquisitions_off_drug'
-    on_columns = [col for col in df.columns if col.endswith(on_suffix)]
+    if enable_microbiome_aggregates:
+        # Derive microbiome acquisition metrics by antibiotic exposure
+        on_suffix = '_microbiome_acquisitions_on_drug'
+        off_suffix = '_microbiome_acquisitions_off_drug'
+        on_columns = [col for col in df.columns if col.endswith(on_suffix)]
 
-    if on_columns:
-        off_columns = [f"{col[:-len(on_suffix)]}{off_suffix}" for col in on_columns]
-        missing_off = [col for col in off_columns if col not in df.columns]
-        if missing_off:
-            logger.warning("Missing matching off-drug acquisition columns: %s", missing_off)
+        if on_columns:
+            off_columns = [f"{col[:-len(on_suffix)]}{off_suffix}" for col in on_columns]
+            missing_off = [col for col in off_columns if col not in df.columns]
+            if missing_off:
+                logger.warning("Missing matching off-drug acquisition columns: %s", missing_off)
 
-        total_population = df['total_population'] if 'total_population' in df.columns else None
+            total_population = df['total_population'] if 'total_population' in df.columns else None
 
-        for on_col in on_columns:
-            slug = on_col[:-len(on_suffix)]
-            off_col = f"{slug}{off_suffix}"
-            if off_col not in df.columns:
-                continue
+            for on_col in on_columns:
+                slug = on_col[:-len(on_suffix)]
+                off_col = f"{slug}{off_suffix}"
+                if off_col not in df.columns:
+                    continue
 
-            total_col = f"{slug}_microbiome_acquisitions_total"
-            share_on_col = f"{slug}_microbiome_acquisitions_share_on_drug"
-            share_off_col = f"{slug}_microbiome_acquisitions_share_off_drug"
+                total_col = f"{slug}_microbiome_acquisitions_total"
+                share_on_col = f"{slug}_microbiome_acquisitions_share_on_drug"
+                share_off_col = f"{slug}_microbiome_acquisitions_share_off_drug"
 
-            total_values = df[on_col] + df[off_col]
-            acquisition_cols = {
-                total_col: total_values,
-                share_on_col: safe_divide(df[on_col], total_values, default=np.nan),
-                share_off_col: safe_divide(df[off_col], total_values, default=np.nan),
+                total_values = df[on_col] + df[off_col]
+                acquisition_cols = {
+                    total_col: total_values,
+                    share_on_col: safe_divide(df[on_col], total_values, default=np.nan),
+                    share_off_col: safe_divide(df[off_col], total_values, default=np.nan),
+                }
+
+                if total_population is not None:
+                    on_rate = safe_divide(df[on_col], total_population, default=0) * 1e5
+                    off_rate = safe_divide(df[off_col], total_population, default=0) * 1e5
+                    total_rate = safe_divide(total_values, total_population, default=0) * 1e5
+
+                    acquisition_cols[f"{slug}_microbiome_acquisitions_on_drug_per_100k"] = on_rate
+                    acquisition_cols[f"{slug}_microbiome_acquisitions_off_drug_per_100k"] = off_rate
+                    acquisition_cols[f"{slug}_microbiome_acquisitions_total_per_100k"] = total_rate
+
+                df = _join_new_columns(df, acquisition_cols)
+
+            # Aggregate totals across bacteria for quick access
+            acquisition_totals = {
+                'microbiome_acquisitions_on_drug_all_bacteria': df[on_columns].sum(axis=1)
             }
+            matching_off_cols = [col for col in off_columns if col in df.columns]
+            if matching_off_cols:
+                acquisition_totals['microbiome_acquisitions_off_drug_all_bacteria'] = df[matching_off_cols].sum(axis=1)
+                acquisition_totals['microbiome_acquisitions_total_all_bacteria'] = (
+                    acquisition_totals['microbiome_acquisitions_on_drug_all_bacteria'] +
+                    acquisition_totals['microbiome_acquisitions_off_drug_all_bacteria']
+                )
 
-            if total_population is not None:
-                base_index = df.index
-                on_rate = safe_divide(df[on_col], total_population, default=0) * 1e5
-                off_rate = safe_divide(df[off_col], total_population, default=0) * 1e5
-                total_rate = safe_divide(total_values, total_population, default=0) * 1e5
+                if total_population is not None:
+                    acquisition_totals['microbiome_acquisitions_on_drug_per_100k_population'] = safe_divide(acquisition_totals['microbiome_acquisitions_on_drug_all_bacteria'], total_population, default=0) * 1e5
+                    acquisition_totals['microbiome_acquisitions_off_drug_per_100k_population'] = safe_divide(acquisition_totals['microbiome_acquisitions_off_drug_all_bacteria'], total_population, default=0) * 1e5
+                    acquisition_totals['microbiome_acquisitions_total_per_100k_population'] = safe_divide(acquisition_totals['microbiome_acquisitions_total_all_bacteria'], total_population, default=0) * 1e5
 
-                acquisition_cols[f"{slug}_microbiome_acquisitions_on_drug_per_100k"] = on_rate
-                acquisition_cols[f"{slug}_microbiome_acquisitions_off_drug_per_100k"] = off_rate
-                acquisition_cols[f"{slug}_microbiome_acquisitions_total_per_100k"] = total_rate
+            df = _join_new_columns(df, acquisition_totals)
 
-            df = _join_new_columns(df, acquisition_cols)
+        clr_on_suffix = '_microbiome_clearances_on_drug'
+        clr_off_suffix = '_microbiome_clearances_off_drug'
+        clr_on_columns = [col for col in df.columns if col.endswith(clr_on_suffix)]
 
-        # Aggregate totals across bacteria for quick access
-        acquisition_totals = {
-            'microbiome_acquisitions_on_drug_all_bacteria': df[on_columns].sum(axis=1)
-        }
-        matching_off_cols = [col for col in off_columns if col in df.columns]
-        if matching_off_cols:
-            acquisition_totals['microbiome_acquisitions_off_drug_all_bacteria'] = df[matching_off_cols].sum(axis=1)
-            acquisition_totals['microbiome_acquisitions_total_all_bacteria'] = (
-                acquisition_totals['microbiome_acquisitions_on_drug_all_bacteria'] +
-                acquisition_totals['microbiome_acquisitions_off_drug_all_bacteria']
-            )
+        if clr_on_columns:
+            clr_off_columns = [f"{col[:-len(clr_on_suffix)]}{clr_off_suffix}" for col in clr_on_columns]
+            missing_clr_off = [col for col in clr_off_columns if col not in df.columns]
+            if missing_clr_off:
+                logger.warning("Missing matching off-drug clearance columns: %s", missing_clr_off)
 
-            if total_population is not None:
-                acquisition_totals['microbiome_acquisitions_on_drug_per_100k_population'] = safe_divide(acquisition_totals['microbiome_acquisitions_on_drug_all_bacteria'], total_population, default=0) * 1e5
-                acquisition_totals['microbiome_acquisitions_off_drug_per_100k_population'] = safe_divide(acquisition_totals['microbiome_acquisitions_off_drug_all_bacteria'], total_population, default=0) * 1e5
-                acquisition_totals['microbiome_acquisitions_total_per_100k_population'] = safe_divide(acquisition_totals['microbiome_acquisitions_total_all_bacteria'], total_population, default=0) * 1e5
+            total_population = df['total_population'] if 'total_population' in df.columns else None
 
-        df = _join_new_columns(df, acquisition_totals)
-    clr_on_suffix = '_microbiome_clearances_on_drug'
-    clr_off_suffix = '_microbiome_clearances_off_drug'
-    clr_on_columns = [col for col in df.columns if col.endswith(clr_on_suffix)]
+            for clr_on_col in clr_on_columns:
+                slug = clr_on_col[:-len(clr_on_suffix)]
+                clr_off_col = f"{slug}{clr_off_suffix}"
+                if clr_off_col not in df.columns:
+                    continue
 
-    if clr_on_columns:
-        clr_off_columns = [f"{col[:-len(clr_on_suffix)]}{clr_off_suffix}" for col in clr_on_columns]
-        missing_clr_off = [col for col in clr_off_columns if col not in df.columns]
-        if missing_clr_off:
-            logger.warning("Missing matching off-drug clearance columns: %s", missing_clr_off)
+                total_col = f"{slug}_microbiome_clearances_total"
+                share_on_col = f"{slug}_microbiome_clearances_share_on_drug"
+                share_off_col = f"{slug}_microbiome_clearances_share_off_drug"
 
-        total_population = df['total_population'] if 'total_population' in df.columns else None
+                total_values = df[clr_on_col] + df[clr_off_col]
+                clearance_cols = {
+                    total_col: total_values,
+                    share_on_col: safe_divide(df[clr_on_col], total_values, default=np.nan),
+                    share_off_col: safe_divide(df[clr_off_col], total_values, default=np.nan),
+                }
 
-        for clr_on_col in clr_on_columns:
-            slug = clr_on_col[:-len(clr_on_suffix)]
-            clr_off_col = f"{slug}{clr_off_suffix}"
-            if clr_off_col not in df.columns:
-                continue
+                if total_population is not None:
+                    on_rate = safe_divide(df[clr_on_col], total_population, default=0) * 1e5
+                    off_rate = safe_divide(df[clr_off_col], total_population, default=0) * 1e5
+                    total_rate = safe_divide(total_values, total_population, default=0) * 1e5
 
-            total_col = f"{slug}_microbiome_clearances_total"
-            share_on_col = f"{slug}_microbiome_clearances_share_on_drug"
-            share_off_col = f"{slug}_microbiome_clearances_share_off_drug"
+                    clearance_cols[f"{slug}_microbiome_clearances_on_drug_per_100k"] = on_rate
+                    clearance_cols[f"{slug}_microbiome_clearances_off_drug_per_100k"] = off_rate
+                    clearance_cols[f"{slug}_microbiome_clearances_total_per_100k"] = total_rate
 
-            total_values = df[clr_on_col] + df[clr_off_col]
-            clearance_cols = {
-                total_col: total_values,
-                share_on_col: safe_divide(df[clr_on_col], total_values, default=np.nan),
-                share_off_col: safe_divide(df[clr_off_col], total_values, default=np.nan),
+                df = _join_new_columns(df, clearance_cols)
+
+            aggregate_clearance_cols = {
+                'microbiome_clearances_on_drug_all_bacteria': df[clr_on_columns].sum(axis=1)
             }
+            matching_clr_off_cols = [col for col in clr_off_columns if col in df.columns]
+            if matching_clr_off_cols:
+                aggregate_clearance_cols['microbiome_clearances_off_drug_all_bacteria'] = df[matching_clr_off_cols].sum(axis=1)
 
-            if total_population is not None:
-                on_rate = safe_divide(df[clr_on_col], total_population, default=0) * 1e5
-                off_rate = safe_divide(df[clr_off_col], total_population, default=0) * 1e5
-                total_rate = safe_divide(total_values, total_population, default=0) * 1e5
+                aggregate_clearance_cols['microbiome_clearances_total_all_bacteria'] = (
+                    aggregate_clearance_cols['microbiome_clearances_on_drug_all_bacteria'] +
+                    aggregate_clearance_cols['microbiome_clearances_off_drug_all_bacteria']
+                )
 
-                clearance_cols[f"{slug}_microbiome_clearances_on_drug_per_100k"] = on_rate
-                clearance_cols[f"{slug}_microbiome_clearances_off_drug_per_100k"] = off_rate
-                clearance_cols[f"{slug}_microbiome_clearances_total_per_100k"] = total_rate
+                if total_population is not None:
+                    aggregate_clearance_cols['microbiome_clearances_on_drug_per_100k_population'] = safe_divide(aggregate_clearance_cols['microbiome_clearances_on_drug_all_bacteria'], total_population, default=0) * 1e5
+                    aggregate_clearance_cols['microbiome_clearances_off_drug_per_100k_population'] = safe_divide(aggregate_clearance_cols['microbiome_clearances_off_drug_all_bacteria'], total_population, default=0) * 1e5
+                    aggregate_clearance_cols['microbiome_clearances_total_per_100k_population'] = safe_divide(aggregate_clearance_cols['microbiome_clearances_total_all_bacteria'], total_population, default=0) * 1e5
 
-            df = _join_new_columns(df, clearance_cols)
-
-        aggregate_clearance_cols = {
-            'microbiome_clearances_on_drug_all_bacteria': df[clr_on_columns].sum(axis=1)
-        }
-        matching_clr_off_cols = [col for col in clr_off_columns if col in df.columns]
-        if matching_clr_off_cols:
-            aggregate_clearance_cols['microbiome_clearances_off_drug_all_bacteria'] = df[matching_clr_off_cols].sum(axis=1)
-
-            aggregate_clearance_cols['microbiome_clearances_total_all_bacteria'] = (
-                aggregate_clearance_cols['microbiome_clearances_on_drug_all_bacteria'] +
-                aggregate_clearance_cols['microbiome_clearances_off_drug_all_bacteria']
-            )
-
-            if total_population is not None:
-                aggregate_clearance_cols['microbiome_clearances_on_drug_per_100k_population'] = safe_divide(aggregate_clearance_cols['microbiome_clearances_on_drug_all_bacteria'], total_population, default=0) * 1e5
-                aggregate_clearance_cols['microbiome_clearances_off_drug_per_100k_population'] = safe_divide(aggregate_clearance_cols['microbiome_clearances_off_drug_all_bacteria'], total_population, default=0) * 1e5
-                aggregate_clearance_cols['microbiome_clearances_total_per_100k_population'] = safe_divide(aggregate_clearance_cols['microbiome_clearances_total_all_bacteria'], total_population, default=0) * 1e5
-
-        df = _join_new_columns(df, aggregate_clearance_cols)
+            df = _join_new_columns(df, aggregate_clearance_cols)
+    else:
+        logger.debug("Skipping microbiome acquisition and clearance aggregates per configuration")
 
     # Derive annual infection incidence split by carriage status for each bacteria
     carrier_inc_suffix = '_newly_infected_carrier'

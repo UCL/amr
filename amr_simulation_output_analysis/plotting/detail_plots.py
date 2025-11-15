@@ -19,8 +19,12 @@ import math
 from ..config import PlotConfig
 from ..data_loader import DataCache
 from ..utils import (
-    safe_divide, extract_bacteria_list_from_csv, extract_drug_list_from_csv,
-    get_consistent_color_for_drug, safe_plot_creation
+    safe_divide,
+    extract_bacteria_list_from_csv,
+    extract_drug_list_from_csv,
+    extract_resistance_mechanisms_from_csv,
+    get_consistent_color_for_drug,
+    safe_plot_creation,
 )
 
 logger = logging.getLogger(__name__)
@@ -492,13 +496,10 @@ def create_distribution_drug_use_by_bacteria_plots(df: pd.DataFrame, config: Plo
     
     # Identify bacteria and drug names from columns
     bacteria_names = []
-    drug_names = []
     for col in df.columns:
         if col.endswith("_currently_infected"):
             bacteria_names.append(col.replace("_currently_infected", ""))
-    for col in df.columns:
-        if col.endswith("_currently_on_drug"):
-            drug_names.append(col.replace("_currently_on_drug", ""))
+    drug_names = extract_drug_list_from_csv(df)
     
     # For each bacteria, collect the per-drug counts
     for b in bacteria_names:
@@ -523,11 +524,16 @@ def create_distribution_drug_use_by_bacteria_plots(df: pd.DataFrame, config: Plo
         total_smooth = smoothed_counts_df.sum(axis=1)
         shares_df = smoothed_counts_df.div(total_smooth.replace(0, np.nan), axis=0).fillna(0)
         
+        drug_keys = [col.replace(f"{b}_currently_on_drug_", "") for col in drug_cols]
+        drug_labels = [key.replace('_', ' ').title() for key in drug_keys]
+        drug_colors = [get_consistent_color_for_drug(key, drug_names) for key in drug_keys]
+
         plt.figure(figsize=FIGURE_SIZE_DOUBLE)
         plt.stackplot(
             df['time_in_years'],
             shares_df.T.to_numpy(),
-            labels=[col.replace(f'{b}_currently_on_drug_','').replace('_',' ').title() for col in drug_cols],
+            labels=drug_labels,
+            colors=drug_colors,
             alpha=0.8
         )
         plt.title(f"Distribution of Drug Use Among People Infected with {b.replace('_',' ').title()}", fontsize=18)
@@ -3941,19 +3947,17 @@ def create_resistance_mechanism_by_bacteria_plots(df: pd.DataFrame, config: Plot
     
     # Identify bacteria and mechanisms from columns
     bacteria_names = []
-    mechanism_names = []
-    
     for col in df.columns:
         if col.endswith("_currently_infected"):
             bacteria_names.append(col.replace("_currently_infected", ""))
-    
-    for col in df.columns:
-        if "_infected_with_" in col:
-            parts = col.split("_infected_with_")
-            if len(parts) == 2:
-                mechanism_names.append(parts[1])
-    
-    mechanism_names = sorted(set(mechanism_names))
+
+    # Use utility extractor, then drop any_r_* convenience columns that are
+    # specific to drug-level resistance summaries rather than mechanisms.
+    mechanism_names = [
+        name
+        for name in extract_resistance_mechanisms_from_csv(df)
+        if not name.startswith("any_r_")
+    ]
     plot_count = 0
     
     for bacteria_name in bacteria_names:
@@ -3962,7 +3966,7 @@ def create_resistance_mechanism_by_bacteria_plots(df: pd.DataFrame, config: Plot
             continue
         
         plt.figure(figsize=(14, 10))
-        colors = plt.cm.tab10(np.linspace(0, 1, len(mechanism_names)))
+        cmap = plt.cm.get_cmap('tab20', max(len(mechanism_names), 1))
         
         for i, mechanism in enumerate(mechanism_names):
             mech_col = f"{bacteria_name}_infected_with_{mechanism}"
@@ -3983,9 +3987,13 @@ def create_resistance_mechanism_by_bacteria_plots(df: pd.DataFrame, config: Plot
                 window=config.smoothing_window_days, min_periods=1, center=True
             ).mean()
             
-            plt.plot(df['time_in_years'], prop_smooth, 
-                    label=mechanism.replace('_', ' ').title(), 
-                    linewidth=2, color=colors[i])
+            plt.plot(
+                df['time_in_years'],
+                prop_smooth,
+                label=mechanism.replace('_', ' ').title(),
+                linewidth=2,
+                color=cmap(i % cmap.N),
+            )
         
         plt.title(f"Proportion of Infected with Resistance Mechanism: {bacteria_name.replace('_', ' ').title()}", 
                  fontsize=16)

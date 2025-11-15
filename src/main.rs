@@ -59,6 +59,11 @@ mod simulation;
 //
 // introduce a decline in infection risk over time, due to cleaner conditions ?
 //
+// add stenotrophomonas maltophilia, staph epidermidis
+//
+// rapidity of onset of symptoms, something like a Group A strep (strep pyogenes) can go from mild
+// systemic inflammatory response to death in 24 hours through toxic shock syndrome
+//
 //
 //
 //
@@ -134,10 +139,10 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 1_000_000;
+    let population_size = 10_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false ; // Set to true to enable infection journey logging
+    let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.10; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
