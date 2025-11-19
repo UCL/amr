@@ -1,13 +1,3 @@
-
-
-
-//     map.insert("acquisition_log_odds_baseline".to_string(), -13.0);
-
-
-
-
-
-
 // Centralized configuration and parameter management for the AMR simulation.
 //
 // Contains:
@@ -16,21 +6,37 @@
 //   - Age-specific vaccination, HGT, and other model parameters
 //   - Reference for template and override logic
 //
-// ===================== TABLE OF CONTENTS =====================
-//   1) Core indices & constants ..................................... ~20
-//   2) Parameter store & struct definitions .......................... ~60
-//   3) Global scalar defaults & helpers .............................. ~200
-//   4) Immunodeficiency / region / syndrome / sex parameters ......... ~430
-//   5) Vaccination & age category tables ............................. ~700
-//   6) Drug parameter blocks (initiation, failure, restart) .......... ~860
-//   7) Bacteria-level parameters & microbiome logic .................. ~1200
-//   8) Clearance, acquisition, and age tables ........................ ~1500
-//   9) Drug-bacteria potency & cross-resistance mappings ............. ~2030
-//  10) Regional drug availability & introduction timing .............. ~4230
-//  11) Demographic distribution defaults ............................. ~4380
-//  12) Helper lookups (drug intro, availability, etc.) ............... ~4960
-//  13) HGT matrices & resistance mechanism settings .................. ~5100
-// ===============================================================
+// ===================== PARAMETER DEFAULTS QUICK INDEX =====================
+//   A) Bacteria baseline defaults & vaccination scaffolding ........... ~2140
+//   B) Horizontal gene transfer (HGT) priors ........................... ~2200
+//   C) Drug initiation, selection, and pharmacokinetics ................ ~2210
+//   D) Drug interaction adjustments & therapy flow ..................... ~2330
+//   E) Drug-bacteria potency & emergence settings ...................... ~2370
+//   F) Regional acquisition pressure baselines ........................ ~3320
+//   G) Microbiome carriage & clearance priors .......................... ~3590
+//   H) Resistance emergence, transfer, and mechanism weights ........... ~3680
+//   I) Clinical outcome scalars (mortality, sepsis, toxicity) .......... ~3860
+//   J) Regional availability & introduction timelines .................. ~4530
+//   K) Demographic distribution defaults .............................. ~4640
+// ========================================================================
+// ===================== READER / LOOKUP STRUCTURE =======================
+//   1) Core indices & constants ........................................ ~40
+//   2) Parameter store & struct definitions ............................ ~80
+//   3) Global scalar readers (from_map accessors) ...................... ~144
+//   4) Immunodeficiency / region / syndrome / sex readers .............. ~691
+//   5) Vaccination & age category readers .............................. ~824
+//   6) Drug parameter blocks (reader structs) .......................... ~1040
+//   7) Bacteria-level readers & microbiome logic ....................... ~1135
+//   8) Clearance, acquisition, and age readers ......................... ~1391
+//   9) Drug-bacteria matrices & cross-resistance readers ............... ~1520
+//  10) Regional drug availability & introduction lookups ............... ~4530
+//  11) Demographic distribution readers ................................ ~4601
+//  12) Helper lookups (drug intro, availability, etc.) ................. ~4820
+//  13) HGT matrices & resistance mechanism readers ..................... ~4910
+// ========================================================================
+// Sections A-K highlight where defaults are inserted. Sections 1-13 show the
+// typed readers that consume those defaults (falling back to literals only
+// when a configuration key is absent).
 
 // src/config.rs
 use crate::simulation::population::{Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES};
@@ -255,12 +261,13 @@ pub struct GlobalScalars {
     pub carrier_resistance_inheritance_probability: f64,
     #[allow(dead_code)]
     pub majority_r_memory_retention_per_day: f64,
-    pub majority_r_tier_window_days: [u32; 3],
-    pub majority_r_tier_min_samples: [u32; 3],
+    pub majority_r_window_days: u32,
+    pub majority_r_min_total_samples: u32,
 }
 
 impl GlobalScalars {
     fn from_map(map: &HashMap<String, f64>) -> Self {
+        // Reads configuration values already present in `map`; the fallback literal only applies when no entry exists.
         GlobalScalars {
             drug_base_initiation_rate_per_day: get_or_default(
                 map,
@@ -432,7 +439,7 @@ impl GlobalScalars {
             microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
                 map,
                 "microbiome_resistance_emergence_rate_per_day_baseline",
-                0.000025,
+                0.000000,
             ),
             max_toxicity_level: get_or_default(map, "max_toxicity_level", 20.0),
             toxicity_clearance_rate_per_day: get_or_default(
@@ -677,28 +684,18 @@ impl GlobalScalars {
                 "majority_r_memory_retention_per_day",
                 0.93,
             ),
-            majority_r_tier_window_days: [
-                get_or_default(map, "majority_r_tier1_window_days", 50.0)
+            majority_r_window_days: {
+                let fallback = get_or_default(map, "majority_r_tier1_window_days", 50.0);
+                get_or_default(map, "majority_r_window_days", fallback)
                     .max(0.0)
-                    .round() as u32,
-                get_or_default(map, "majority_r_tier2_window_days", 180.0)
+                    .round() as u32
+            },
+            majority_r_min_total_samples: {
+                let fallback = get_or_default(map, "majority_r_tier1_min_total_samples", 10.0);
+                get_or_default(map, "majority_r_min_total_samples", fallback)
                     .max(0.0)
-                    .round() as u32,
-                get_or_default(map, "majority_r_tier3_window_days", 720.0)
-                    .max(0.0)
-                    .round() as u32,
-            ],
-            majority_r_tier_min_samples: [
-                get_or_default(map, "majority_r_tier1_min_total_samples", 10.0)
-                    .max(0.0)
-                    .round() as u32,
-                get_or_default(map, "majority_r_tier2_min_total_samples", 25.0)
-                    .max(0.0)
-                    .round() as u32,
-                get_or_default(map, "majority_r_tier3_min_total_samples", 50.0)
-                    .max(0.0)
-                    .round() as u32,
-            ],
+                    .round() as u32
+            },
         }
     }
 }
@@ -1201,7 +1198,7 @@ impl BacteriaParameters {
             acquisition_log_odds_baseline.push(get_or_default(
                 map,
                 &format!("{}_acquisition_log_odds_baseline", prefix),
-                get_or_default(map, "acquisition_log_odds_baseline", -11.0),
+                get_or_default(map, "acquisition_log_odds_baseline", -13.0),
             ));
             log_odds_vaccinated.push(get_or_default(
                 map,
@@ -1549,7 +1546,7 @@ impl DrugBacteriaMatrix {
                 resistance_emergence_rate.push(get_or_default(
                     map,
                     &format!("{}_resistance_emergence_rate_per_day_baseline", key_prefix),
-                    0.0001,
+                    0.0000,
                 ));
                 let threshold = 2.0 * potency.min(1.0) - 1.0;
                 mic_lt2_threshold.push(threshold);
@@ -2149,12 +2146,18 @@ fn apply_potency_overrides_from_csv(map: &mut HashMap<String, f64>) {
 }
 
 // --- Global Simulation Parameters ---
+
+// ===========================================================================================================
+// Everything inserted into `map` below actively sets defaults that override the fallbacks in from_map.
+// ===========================================================================================================
+
 lazy_static! {
     pub static ref PARAMETERS: HashMap<String, f64> = {
         let mut map = HashMap::new();
 
-
-
+        // === [A] Bacteria baseline defaults & vaccination scaffolding ===
+        // Establishes per-bacteria seed levels, symptom behaviour, and age-aware vaccine priors
+        // so scenario templates only need to override deviations instead of rebuilding the grid.
         // --- Default Parameters for ALL Bacteria from BACTERIA_LIST ---
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
@@ -2197,6 +2200,9 @@ lazy_static! {
             }
         }
 
+        // === [B] Horizontal gene transfer (HGT) priors ===
+        // Baseline daily probabilities for each donor/recipient pair; tweak here for broad shifts,
+        // or override specific pairs in input templates.
         // --- HGT Probabilities for All Donor-Recipient Bacteria Pairs ---
         for &donor in BACTERIA_LIST.iter() {
             for &recipient in BACTERIA_LIST.iter() {
@@ -2208,15 +2214,17 @@ lazy_static! {
         }
 
 
-
+        // === [C] Drug initiation, selection, and pharmacokinetics ===
+        // Core knobs for therapy behaviour: initiation heuristics, scoring multipliers, and half-lives
+        // that drive drug levels. Overwrite these for global experiments; use per-drug keys for specifics.
         // General Drug Parameters
-    map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0014); // Higher baseline daily initiation to reach usage targets
-    map.insert("drug_infection_present_multiplier".to_string(), 260.0); // Encourage more treatment starts when infection detected
-    map.insert("drug_test_identified_multiplier".to_string(), 2.5);
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.0014); // Higher baseline daily initiation to reach usage targets
+        map.insert("drug_infection_present_multiplier".to_string(), 260.0); // Encourage more treatment starts when infection detected
+        map.insert("drug_test_identified_multiplier".to_string(), 2.5); // Multiplier when lab diagnostics confirm the pathogen
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
 
         // Drug Selection Algorithm Parameters
-    map.insert("drug_selection_temperature".to_string(), 0.3); // MUCH more deterministic: strongly favor best choices
+        map.insert("drug_selection_temperature".to_string(), 0.3); // MUCH more deterministic: strongly favor best choices
 
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -2316,7 +2324,7 @@ lazy_static! {
         map.insert("drug_fusidic_a_half_life_days".to_string(), 0.375); // ~9 hours
         map.insert("drug_metronidazole_half_life_days".to_string(), 0.33); // ~8 hours
         map.insert("drug_furazolidone_half_life_days".to_string(), 0.25); // ~6 hours
-    map.insert("already_on_drug_initiation_multiplier".to_string(), 1.2); // modest boost for layered therapy when already on treatment
+        map.insert("already_on_drug_initiation_multiplier".to_string(), 1.2); // modest boost for layered therapy when already on treatment
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.25); // Increased from 0.1 to 0.25 for more aggressive dosing
 
         // Clinical Decision-Making Potency Thresholds
@@ -2359,6 +2367,9 @@ lazy_static! {
         map.insert("mdr_tb_pre_antibiotic_mortality_multiplier".to_string(), 3.0); // Pre-antibiotic TB had much higher mortality
         map.insert("mdr_tb_ineffective_treatment_mortality_multiplier".to_string(), 2.5); // Ineffective treatment increases mortality
 
+        // === [D] Drug interaction adjustments & therapy flow ===
+        // When more than one drug is active, these multipliers capture clinically observed PK interactions
+        // and safety-driven dose reductions. Use this section to encode regimen-specific adjustments.
         // --- Drug Level Interaction Parameters ---
         // These are pairwise interactions that affect the effective level of each drug when co-administered
         // Format: "drug_level_multiplier_{drug1}_when_coadministered_with_{drug2}" -> multiplier for drug1's level
@@ -2381,7 +2392,11 @@ lazy_static! {
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
 
-// ---------------- 9) Drug-bacteria potency & cross-resistance mappings ----------------
+        // === [E] Drug-bacteria potency & emergence settings ===
+        // Qualitative potency buckets, initiation multipliers, and baseline resistance emergence
+        // rates for every drug/bacteria pair. Override here for wide shifts, or patch specific
+        // entries when ingesting empirical potency tables.
+    // ---------------- 9) Drug-bacteria potency & cross-resistance mappings ----------------
         // --- Drug-Bacteria Potency Matrix: Evidence-Based Approach ---
         // Instead of uniform potency, use clinically relevant potency categories:
         // 1.00+ = Excellent potency (first-line therapy)
@@ -2416,7 +2431,7 @@ lazy_static! {
         let aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
         let fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
         let tetracyclines = vec!["tetracycline", "doxyclycline", "minocycline"];
-    let glycopeptides = vec!["vancomycin", "teicoplanin"]; // TODO: add dalbavancin potency overrides once parameters are curated
+        let glycopeptides = vec!["vancomycin", "teicoplanin"]; // TODO: add dalbavancin potency overrides once parameters are curated
         let oxazolidinones = vec!["linezolid", "tedizolid"];
         let _folate_antagonists = vec!["trim_sulf"];
         let _other_antibiotics = vec!["quinu_dalfo", "chlorampheni", "nitrofurantoin", "retapamulin", "fusidic_a", "metronidazole", "furazolidone"];
@@ -2436,7 +2451,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.05);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0002);  // 0.005 
             }
         }
 
@@ -3147,8 +3162,8 @@ lazy_static! {
 
         // VERY RARE RESISTANCE (extremely slow emergence)
         // Linezolid resistance in enterococci should remain very rare
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.0001);
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.0001);
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001);
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001);
 
         // PROBLEMATIC HIGH-RESISTANCE BACTERIA (reduce from 0.005 to 0.001)
         // Acinetobacter baumannii - showed excessive synchronized resistance
@@ -3158,12 +3173,12 @@ lazy_static! {
 
         // E. coli - showed excessive resistance levels across multiple drugs
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.001);
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
 
         // Pseudomonas aeruginosa - reduce slightly for more realistic patterns
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.002);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
         }
 
         // SPECIFIC DRUG-BACTERIA COMBINATIONS WITH CLINICAL CONSTRAINTS
@@ -3175,7 +3190,7 @@ lazy_static! {
         ];
         for &bacteria in gram_negative_bacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.0002);
+                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.00005);
             }
         }
 
@@ -3295,9 +3310,13 @@ lazy_static! {
         map.insert("streptococcus_agalactiae_drug_cessation_probability".to_string(), 0.015); // GBS: 7-10 days
 
         // General Acquisition & Resistance Parameters
+        // === [F] Regional acquisition pressure baselines ===
+        // Sets consistent fallbacks for infection chance modifiers and then layers region-specific
+        // multipliers reflecting surveillance data. Override individual entries when calibrating
+        // against new incidence estimates.
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-    map.insert("acquisition_log_odds_baseline".to_string(), -13.0); // -13.0 Default baseline log-odds for infection acquisition (higher incidence)
+        map.insert("acquisition_log_odds_baseline".to_string(), -13.0); // -13.0 Default baseline log-odds for infection acquisition (higher incidence)
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -3566,6 +3585,9 @@ lazy_static! {
         map.insert("south_america_treponema_pallidum_acquisition_log_odds".to_string(), 1.0);
         map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), 0.2);
 
+        // === [G] Microbiome carriage & clearance priors ===
+        // Links microbiome carriage to infection rates and establishes decay rates so default
+        // carriage prevalence matches surveillance. Individual bacteria can override any of these.
     // Bacteria-specific microbiome vs infection acquisition log odds
     // Values chosen so average carriage prevalence aligns with clinical carriage estimates
     map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 8.25); // ~80% gut carriage
@@ -3646,12 +3668,15 @@ lazy_static! {
 
 
         map.insert("max_resistance_level".to_string(), 1.0);
-    map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.18); // faster majority_r emergence under sustained therapy
+        map.insert("majority_r_evolution_rate_per_day_when_drug_present".to_string(), 0.18); // faster majority_r emergence under sustained therapy
 
+        // === [H] Resistance emergence, transfer, and mechanism weights ===
+        // Tunes how quickly resistance signals appear, decay, and propagate across mechanisms.
+        // Use these defaults for broad behaviour; override targeted keys for specific bacteria/drugs.
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
-        map.insert("resistance_reversion_rate_per_day".to_string(), 0.0001); // Default: very rare, increase for more rapid reversion
-    map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001 ); // Lower baseline for microbiome resistance emergence
+        map.insert("resistance_reversion_rate_per_day".to_string(), 0.0003); // Default: very rare, increase for more rapid reversion
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.000001 ); // Lower baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -3669,17 +3694,17 @@ lazy_static! {
 
         // --- Resistance Mechanisms Parameters ---
         // Baseline emergence rates for specific resistance mechanisms (per day when drug present)
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // ESBL emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0005); // Carbapenemase emergence (rarer)
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.002); // AmpC emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Aminoglycoside resistance
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.001); // Quinolone resistance
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // More common mechanism
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.001); // Macrolide resistance
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0002); // Vancomycin resistance (rare)
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0008); // MRSA emergence
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.002); // Common adaptive mechanism
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0015); // Point mutations
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0003); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.00015); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.0005); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0003); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0003); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.001); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0003); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00007); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0003); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.0007); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0005); // Point mutations
 
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
         map.insert("resistance_mechanism_esbl_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
@@ -3698,21 +3723,21 @@ lazy_static! {
 
         // Mechanism-specific fitness costs (reversion rates per day when drug absent)
         // High-cost mechanisms: Metabolically expensive enzymes
-        map.insert("resistance_mechanism_carbapenemase_reversion_rate".to_string(), 0.0002); // High cost - large, expensive enzymes
-        map.insert("resistance_mechanism_van_type_reversion_rate".to_string(), 0.0003); // High cost - complex resistance pathway
+        map.insert("resistance_mechanism_carbapenemase_reversion_rate".to_string(), 0.001); // High cost - large, expensive enzymes
+        map.insert("resistance_mechanism_van_type_reversion_rate".to_string(), 0.002); // High cost - complex resistance pathway
 
         // Medium-cost mechanisms: Moderate metabolic burden
-        map.insert("resistance_mechanism_esbl_reversion_rate".to_string(), 0.0001); // Medium cost - beta-lactamase production
-        map.insert("resistance_mechanism_meca_reversion_rate".to_string(), 0.00015); // Medium cost - altered PBP
-        map.insert("resistance_mechanism_erm_methylation_reversion_rate".to_string(), 0.0001); // Medium cost - methyltransferase
-        map.insert("resistance_mechanism_16s_methyltransferase_reversion_rate".to_string(), 0.0001); // Medium cost - rRNA modification
+        map.insert("resistance_mechanism_esbl_reversion_rate".to_string(), 0.0006); // Medium cost - beta-lactamase production
+        map.insert("resistance_mechanism_meca_reversion_rate".to_string(), 0.0009 ); // Medium cost - altered PBP
+        map.insert("resistance_mechanism_erm_methylation_reversion_rate".to_string(), 0.0006); // Medium cost - methyltransferase
+        map.insert("resistance_mechanism_16s_methyltransferase_reversion_rate".to_string(), 0.0006); // Medium cost - rRNA modification
 
         // Low-cost mechanisms: Minimal fitness burden
-        map.insert("resistance_mechanism_qnr_reversion_rate".to_string(), 0.00003); // Low cost - point mutation effect
-        map.insert("resistance_mechanism_target_site_mutation_reversion_rate".to_string(), 0.00003); // Low cost - single nucleotide changes
-        map.insert("resistance_mechanism_reduced_permeability_reversion_rate".to_string(), 0.00005); // Low cost - adaptive change
-        map.insert("resistance_mechanism_efflux_overexpression_reversion_rate".to_string(), 0.00008); // Low-medium cost - energy for pumping
-        map.insert("resistance_mechanism_ampc_reversion_rate".to_string(), 0.00005); // Low cost - chromosomal enzyme
+        map.insert("resistance_mechanism_qnr_reversion_rate".to_string(), 0.0002); // Low cost - point mutation effect
+        map.insert("resistance_mechanism_target_site_mutation_reversion_rate".to_string(), 0.0002); // Low cost - single nucleotide changes
+        map.insert("resistance_mechanism_reduced_permeability_reversion_rate".to_string(), 0.0003 ); // Low cost - adaptive change
+        map.insert("resistance_mechanism_efflux_overexpression_reversion_rate".to_string(), 0.0005); // Low-medium cost - energy for pumping
+        map.insert("resistance_mechanism_ampc_reversion_rate".to_string(), 0.00015); // Low cost - chromosomal enzyme
 
         // Testing Parameters
         map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available
@@ -3825,6 +3850,10 @@ lazy_static! {
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
     map.insert("sepsis_baseline_log_odds".to_string(), -11.0); // Baseline log odds (very low baseline probability)
         map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
+        // === [I] Clinical outcome scalars (mortality, sepsis, toxicity) ===
+        // Collects mortality/sepsis odds adjustments together so scenario designers can reason about
+        // outcome severity in one place. These parameters shape the probability of severe outcomes
+        // once infection is established.
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
         map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
         map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
@@ -4146,14 +4175,9 @@ lazy_static! {
             "majority_r_memory_retention_per_day".to_string(),
             0.93,
         );
-        // Tiered majority_r cache defaults: each horizon defines how many days of history to retain
-        // and how many total samples must accumulate before that tier influences prevalence.
-        map.insert("majority_r_tier1_window_days".to_string(), 50.0);
-        map.insert("majority_r_tier2_window_days".to_string(), 180.0);
-        map.insert("majority_r_tier3_window_days".to_string(), 720.0);
-        map.insert("majority_r_tier1_min_total_samples".to_string(), 10.0);
-        map.insert("majority_r_tier2_min_total_samples".to_string(), 25.0);
-        map.insert("majority_r_tier3_min_total_samples".to_string(), 50.0);
+        // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
+        map.insert("majority_r_window_days".to_string(), 50.0);
+        map.insert("majority_r_min_total_samples".to_string(), 10.0);
         // 55% probability that carrier's infection inherits microbiome resistance profile
         // Default 0.55 keeps endogenous infections common without locking in microbiome resistance
         // This parameter has MASSIVE impact on population resistance dynamics - most important in the model
@@ -4497,9 +4521,10 @@ lazy_static! {
         map.insert("haemophilus_influenzae_north_america_log_odds_preschool".to_string(), 0.5); // Much lower
         map.insert("haemophilus_influenzae_north_america_log_odds_school".to_string(), 0.1);    // Very low
 
-
-
-        // ---------------- 10) Regional drug availability & introduction timing ----------------
+        // === [J] Regional availability & introduction timelines ===
+    // Defines which drugs are reachable in each region and when they enter the market.
+    // Scenario templates can override granular entries to stage roll-outs or supply shocks.
+    // ---------------- 10) Regional drug availability & introduction timing ----------------
         // Region-specific drug availability multipliers
         // Format: "{region}_drug_{drug_name}_availability"
         // Values: 1.0 = fully available, 0.5 = limited availability, 0.0 = not available
@@ -4612,6 +4637,9 @@ lazy_static! {
         // If `Region::Home` refers to a generic home location not tied to a specific geographical region,
         // you might need to reconsider its role or default it to 1.0 or an average.
 
+        // === [K] Demographic distribution defaults ===
+        // Population share assumptions across regions and age bands. Adjust when calibrating
+        // against census projections so disease burden and treatment demand scale correctly.
         // ---------------- 11) Demographic distribution defaults ----------------
         // Demographic distribution parameters (108 total: 6 regions × 18 age bands)
         // Each parameter represents probability of being in that region-age combination

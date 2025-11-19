@@ -89,7 +89,7 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
 /// (region, hospital status, bacteria, drug).
 
 #[derive(Clone)]
-pub struct TierConfig {
+pub struct MajorityRConfig {
     pub window_days: u32,
     pub min_total_samples: u32,
 }
@@ -103,7 +103,7 @@ struct DayContribution {
 }
 
 #[derive(Clone)]
-struct TierBuffer {
+struct MajorityRBuffer {
     window_days: u32,
     min_total_samples: u32,
     total_samples: u32,
@@ -111,11 +111,11 @@ struct TierBuffer {
     days: VecDeque<DayContribution>,
 }
 
-impl TierBuffer {
-    fn new(window_days: u32, min_total_samples: u32) -> Self {
+impl MajorityRBuffer {
+    fn new(config: &MajorityRConfig) -> Self {
         Self {
-            window_days,
-            min_total_samples,
+            window_days: config.window_days,
+            min_total_samples: config.min_total_samples,
             total_samples: 0,
             positive_samples: 0,
             days: VecDeque::new(),
@@ -133,12 +133,9 @@ impl TierBuffer {
         while let Some(front) = self.days.front() {
             if current_day.saturating_sub(front.day_index) >= self.window_days {
                 let front = self.days.pop_front().unwrap();
-                self.total_samples = self
-                    .total_samples
-                    .saturating_sub(front.total_samples);
-                self.positive_samples = self
-                    .positive_samples
-                    .saturating_sub(front.positive_samples);
+                self.total_samples = self.total_samples.saturating_sub(front.total_samples);
+                self.positive_samples =
+                    self.positive_samples.saturating_sub(front.positive_samples);
             } else {
                 break;
             }
@@ -172,11 +169,7 @@ impl TierBuffer {
             return None;
         }
 
-        let total_values: usize = self
-            .days
-            .iter()
-            .map(|day| day.positive_values.len())
-            .sum();
+        let total_values: usize = self.days.iter().map(|day| day.positive_values.len()).sum();
         if total_values == 0 {
             return None;
         }
@@ -197,65 +190,29 @@ impl TierBuffer {
     }
 
     fn has_sufficient_data(&self) -> bool {
-        self.total_samples >= self.min_total_samples && self.total_samples > 0
-    }
-}
-
-#[derive(Clone)]
-struct BucketState {
-    tiers: Vec<TierBuffer>,
-    selected_tier: Option<usize>,
-}
-
-impl BucketState {
-    fn new(tier_configs: &[TierConfig]) -> Self {
-        let tiers = tier_configs
-            .iter()
-            .filter(|cfg| cfg.window_days > 0 && cfg.min_total_samples > 0)
-            .map(|cfg| TierBuffer::new(cfg.window_days, cfg.min_total_samples))
-            .collect();
-        Self {
-            tiers,
-            selected_tier: None,
+        if self.min_total_samples == 0 {
+            self.total_samples > 0
+        } else {
+            self.total_samples >= self.min_total_samples
         }
-    }
-
-    fn update_selection(&mut self) {
-        self.selected_tier = self
-            .tiers
-            .iter()
-            .enumerate()
-            .filter(|(_, tier)| tier.has_sufficient_data())
-            .max_by_key(|(_, tier)| tier.window_days)
-            .map(|(idx, _)| idx);
-    }
-
-    fn probability(&self) -> f64 {
-        self.selected_tier
-            .and_then(|idx| self.tiers.get(idx))
-            .map(|tier| tier.probability())
-            .unwrap_or(0.0)
-    }
-
-    fn draw_positive<R: Rng + ?Sized>(&self, rng: &mut R) -> Option<f64> {
-        self.selected_tier
-            .and_then(|idx| self.tiers.get(idx))
-            .and_then(|tier| tier.draw_positive(rng))
-    }
-
-    fn has_any_data(&self) -> bool {
-        self.selected_tier.is_some()
     }
 }
 
 pub struct MajorityRCache {
-    buckets: Vec<BucketState>,
+    buckets: Vec<MajorityRBuffer>,
     pending_positive_values: Vec<Vec<f64>>,
     pending_positive_counts: Vec<u32>,
     pending_total_counts: Vec<u32>,
+    bucket_cumulative_totals: Vec<u64>,
+    bucket_threshold_met: Vec<bool>,
+    world_buckets: Vec<MajorityRBuffer>,
+    world_pending_positive_values: Vec<Vec<f64>>,
+    world_pending_positive_counts: Vec<u32>,
+    world_pending_total_counts: Vec<u32>,
     num_regions: usize,
     num_bacteria: usize,
     num_drugs: usize,
+    threshold_min_samples: u32,
 }
 
 impl MajorityRCache {
@@ -263,21 +220,28 @@ impl MajorityRCache {
         num_regions: usize,
         num_bacteria: usize,
         num_drugs: usize,
-        tier_configs: &[TierConfig],
+        config: &MajorityRConfig,
     ) -> Self {
         let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
-        let bucket_states = (0..total_buckets)
-            .map(|_| BucketState::new(tier_configs))
-            .collect();
+        let bucket_states = vec![MajorityRBuffer::new(config); total_buckets];
+        let world_len = num_bacteria * num_drugs;
+        let threshold_min_samples = config.min_total_samples;
 
         MajorityRCache {
             buckets: bucket_states,
             pending_positive_values: vec![Vec::new(); total_buckets],
             pending_positive_counts: vec![0; total_buckets],
             pending_total_counts: vec![0; total_buckets],
+            bucket_cumulative_totals: vec![0u64; total_buckets],
+            bucket_threshold_met: vec![false; total_buckets],
+            world_buckets: vec![MajorityRBuffer::new(config); world_len],
+            world_pending_positive_values: vec![Vec::new(); world_len],
+            world_pending_positive_counts: vec![0; world_len],
+            world_pending_total_counts: vec![0; world_len],
             num_regions,
             num_bacteria,
             num_drugs,
+            threshold_min_samples,
         }
     }
 
@@ -296,9 +260,30 @@ impl MajorityRCache {
             + drug_idx
     }
 
+    #[inline]
+    fn decode(&self, bucket_idx: usize) -> (usize, bool, usize, usize) {
+        let drug_idx = bucket_idx % self.num_drugs;
+        let tmp = bucket_idx / self.num_drugs;
+        let bacteria_idx = tmp % self.num_bacteria;
+        let tmp = tmp / self.num_bacteria;
+        let hospital = (tmp % 2) == 1;
+        let region_idx = tmp / 2;
+        (region_idx, hospital, bacteria_idx, drug_idx)
+    }
+
+    #[inline]
+    fn world_index(&self, bacteria_idx: usize, drug_idx: usize) -> usize {
+        bacteria_idx * self.num_drugs + drug_idx
+    }
+
     pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
         debug_assert_eq!(self.total_buckets(), prev.total_buckets());
-    self.buckets.clone_from(&prev.buckets);
+        self.buckets.clone_from(&prev.buckets);
+        self.world_buckets.clone_from(&prev.world_buckets);
+        self.bucket_cumulative_totals
+            .clone_from(&prev.bucket_cumulative_totals);
+        self.bucket_threshold_met
+            .clone_from(&prev.bucket_threshold_met);
         for vec in &mut self.pending_positive_values {
             vec.clear();
         }
@@ -306,6 +291,15 @@ impl MajorityRCache {
             *count = 0;
         }
         for count in &mut self.pending_total_counts {
+            *count = 0;
+        }
+        for vec in &mut self.world_pending_positive_values {
+            vec.clear();
+        }
+        for count in &mut self.world_pending_positive_counts {
+            *count = 0;
+        }
+        for count in &mut self.world_pending_total_counts {
             *count = 0;
         }
     }
@@ -323,6 +317,13 @@ impl MajorityRCache {
         self.pending_total_counts[idx] = self.pending_total_counts[idx].saturating_add(1);
         self.pending_positive_counts[idx] = self.pending_positive_counts[idx].saturating_add(1);
         self.pending_positive_values[idx].push(value);
+
+        let world_idx = self.world_index(bacteria_idx, drug_idx);
+        self.world_pending_total_counts[world_idx] =
+            self.world_pending_total_counts[world_idx].saturating_add(1);
+        self.world_pending_positive_counts[world_idx] =
+            self.world_pending_positive_counts[world_idx].saturating_add(1);
+        self.world_pending_positive_values[world_idx].push(value);
     }
 
     #[inline]
@@ -332,6 +333,11 @@ impl MajorityRCache {
         }
         self.pending_total_counts[bucket_idx] =
             self.pending_total_counts[bucket_idx].saturating_add(zero_count);
+
+        let (_, _, bacteria_idx, drug_idx) = self.decode(bucket_idx);
+        let world_idx = self.world_index(bacteria_idx, drug_idx);
+        self.world_pending_total_counts[world_idx] =
+            self.world_pending_total_counts[world_idx].saturating_add(zero_count);
     }
 
     pub fn finalize_step(&mut self, current_day: u32) {
@@ -346,19 +352,43 @@ impl MajorityRCache {
             };
 
             if let Some(bucket) = self.buckets.get_mut(idx) {
-                for tier in bucket.tiers.iter_mut() {
-                    tier.cleanup(current_day);
-                    if positive > 0 {
-                        tier.push_day(current_day, total, positive, Arc::clone(&values_arc));
-                    } else if total > 0 {
-                        tier.push_day(current_day, total, 0, Arc::clone(&values_arc));
-                    }
+                bucket.cleanup(current_day);
+                if total > 0 {
+                    bucket.push_day(current_day, total, positive, Arc::clone(&values_arc));
                 }
-                bucket.update_selection();
+            }
+
+            self.bucket_cumulative_totals[idx] =
+                self.bucket_cumulative_totals[idx].saturating_add(total as u64);
+            if !self.bucket_threshold_met[idx]
+                && self.bucket_cumulative_totals[idx] as u32 >= self.threshold_min_samples
+            {
+                self.bucket_threshold_met[idx] = true;
             }
 
             self.pending_positive_counts[idx] = 0;
             self.pending_total_counts[idx] = 0;
+        }
+
+        for idx in 0..self.world_buckets.len() {
+            let total = self.world_pending_total_counts[idx];
+            let positive = self.world_pending_positive_counts[idx];
+            let values_arc = if positive > 0 {
+                Arc::new(std::mem::take(&mut self.world_pending_positive_values[idx]))
+            } else {
+                self.world_pending_positive_values[idx].clear();
+                Arc::new(Vec::new())
+            };
+
+            if let Some(bucket) = self.world_buckets.get_mut(idx) {
+                bucket.cleanup(current_day);
+                if total > 0 {
+                    bucket.push_day(current_day, total, positive, Arc::clone(&values_arc));
+                }
+            }
+
+            self.world_pending_positive_counts[idx] = 0;
+            self.world_pending_total_counts[idx] = 0;
         }
     }
 
@@ -372,23 +402,41 @@ impl MajorityRCache {
         rng: &mut R,
     ) -> Option<f64> {
         let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        let probability = self
-            .buckets
-            .get(idx)
-            .map(|bucket| bucket.probability())
-            .unwrap_or(0.0);
+        let probability = if self.bucket_threshold_met[idx] {
+            self.buckets
+                .get(idx)
+                .map(|bucket| bucket.probability())
+                .unwrap_or(0.0)
+        } else {
+            let world_idx = self.world_index(bacteria_idx, drug_idx);
+            self.world_buckets
+                .get(world_idx)
+                .map(|bucket| bucket.probability())
+                .unwrap_or(0.0)
+        };
         if probability <= 0.0 {
             return Some(0.0);
         }
 
         let roll: f64 = rng.gen();
         if roll < probability.min(1.0) {
-            if let Some(value) = self
-                .buckets
-                .get(idx)
-                .and_then(|bucket| bucket.draw_positive(rng))
-            {
-                return Some(value.min(1.0));
+            if self.bucket_threshold_met[idx] {
+                if let Some(value) = self
+                    .buckets
+                    .get(idx)
+                    .and_then(|bucket| bucket.draw_positive(rng))
+                {
+                    return Some(value.min(1.0));
+                }
+            } else {
+                let world_idx = self.world_index(bacteria_idx, drug_idx);
+                if let Some(value) = self
+                    .world_buckets
+                    .get(world_idx)
+                    .and_then(|bucket| bucket.draw_positive(rng))
+                {
+                    return Some(value.min(1.0));
+                }
             }
             // Fall back to using the probability itself as a low-level resistance marker
             return Some(probability.min(1.0));
@@ -406,10 +454,18 @@ impl MajorityRCache {
         drug_idx: usize,
     ) -> f64 {
         let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        self.buckets
-            .get(idx)
-            .map(|bucket| bucket.probability())
-            .unwrap_or(0.0)
+        if self.bucket_threshold_met[idx] {
+            self.buckets
+                .get(idx)
+                .map(|bucket| bucket.probability())
+                .unwrap_or(0.0)
+        } else {
+            let world_idx = self.world_index(bacteria_idx, drug_idx);
+            self.world_buckets
+                .get(world_idx)
+                .map(|bucket| bucket.probability())
+                .unwrap_or(0.0)
+        }
     }
 
     #[inline]
@@ -424,7 +480,18 @@ impl MajorityRCache {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.buckets.iter().all(|bucket| !bucket.has_any_data())
+        let has_bucket_data = self
+            .buckets
+            .iter()
+            .zip(self.bucket_threshold_met.iter())
+            .any(|(bucket, active)| *active && bucket.has_sufficient_data());
+
+        let has_world_data = self
+            .world_buckets
+            .iter()
+            .any(|bucket| bucket.has_sufficient_data());
+
+        !(has_bucket_data || has_world_data)
     }
 }
 struct IndividualLogger {
@@ -917,31 +984,15 @@ impl Simulation {
 
         let individual_logger = IndividualLogger::from_flag(log_individuals);
         let globals = &config::parameter_store().globals;
-        let tier_configs: Vec<TierConfig> = globals
-            .majority_r_tier_window_days
-            .iter()
-            .zip(globals.majority_r_tier_min_samples.iter())
-            .filter_map(|(&window_days, &min_samples)| {
-                let window = window_days.max(0);
-                let min_total = min_samples.max(0);
-                if window == 0 || min_total == 0 {
-                    None
-                } else {
-                    Some(TierConfig {
-                        window_days: window,
-                        min_total_samples: min_total,
-                    })
-                }
-            })
-            .collect();
-
-        let tier_configs = if tier_configs.is_empty() {
-            vec![TierConfig {
-                window_days: 50,
-                min_total_samples: 10,
-            }]
-        } else {
-            tier_configs
+        let mut majority_r_window_days = globals.majority_r_window_days;
+        let mut majority_r_min_total_samples = globals.majority_r_min_total_samples;
+        if majority_r_window_days == 0 || majority_r_min_total_samples == 0 {
+            majority_r_window_days = 50;
+            majority_r_min_total_samples = 10;
+        }
+        let majority_r_config = MajorityRConfig {
+            window_days: majority_r_window_days,
+            min_total_samples: majority_r_min_total_samples,
         };
 
         Simulation {
@@ -956,13 +1007,13 @@ impl Simulation {
                 num_regions_including_home,
                 num_bacteria,
                 num_drugs,
-                &tier_configs,
+                &majority_r_config,
             ),
             majority_r_cache_next: MajorityRCache::new(
                 num_regions_including_home,
                 num_bacteria,
                 num_drugs,
-                &tier_configs,
+                &majority_r_config,
             ),
             summary_log: Vec::new(), // Initialize empty log
             param_cache: crate::rules::ParameterKeyCache::new(),

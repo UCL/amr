@@ -744,8 +744,21 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("No eligible bacteria/drug combinations with defined targets\n\n")
 
         if not resistance_df.empty:
+            resistance_display_df = resistance_df.copy()
+
+            def _format_simulation_cell(row: pd.Series) -> str:
+                note_text = str(row.get("Note", ""))
+                value = row.get("Simulation")
+                if "negligible potency" in note_text.lower():
+                    return "---"
+                if value is None or (isinstance(value, float) and pd.isna(value)):
+                    return ""
+                return f"{value:,.2f}"
+
+            resistance_display_df["Simulation"] = resistance_display_df.apply(_format_simulation_cell, axis=1)
+
             handle.write("Resistance Benchmarks (percent resistant)\n")
-            handle.write(resistance_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write(resistance_display_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n")
         else:
             handle.write("Resistance Benchmarks\n(no overlapping bacteria/drug targets found)\n")

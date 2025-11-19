@@ -18,7 +18,7 @@ use crate::config::{
 };
 use crate::simulation::population::{
     HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType, Region,
-    BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
+    ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
 
@@ -90,6 +90,95 @@ fn apply_drug_level_interactions(individual: &mut Individual) {
 }
 use rand::distributions::Distribution;
 use rand::distributions::WeightedIndex;
+
+/// Returns true if the resistance mechanism can impact the given bacteria/drug pair
+fn mechanism_applies_to_drug(
+    mechanism: ResistanceMechanism,
+    bacteria: &str,
+    drug: &str,
+) -> bool {
+    match mechanism {
+        ResistanceMechanism::ESBL => matches!(
+            drug,
+            "penicilling"
+                | "ampicillin"
+                | "amoxicillin"
+                | "piperacillin"
+                | "ticarcillin"
+                | "cephalexin"
+                | "cefazolin"
+                | "cefuroxime"
+                | "ceftriaxone"
+                | "ceftazidime"
+                | "cefepime"
+                | "ceftaroline"
+                | "aztreonam"
+                | "amoxicillin_clavulanate"
+                | "piperacillin_tazobactam"
+                | "ampicillin_sulbactam"
+                | "ticarcillin_clavulanate"
+        ),
+        ResistanceMechanism::Carbapenemase => matches!(
+            drug,
+            "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam"
+        ),
+        ResistanceMechanism::AmpC => matches!(
+            drug,
+            "penicilling"
+                | "ampicillin"
+                | "amoxicillin"
+                | "piperacillin"
+                | "ticarcillin"
+                | "cephalexin"
+                | "cefazolin"
+                | "cefuroxime"
+                | "ceftriaxone"
+                | "amoxicillin_clavulanate"
+                | "piperacillin_tazobactam"
+                | "ampicillin_sulbactam"
+                | "ticarcillin_clavulanate"
+        ),
+        ResistanceMechanism::SixteenSMethyltransferase => {
+            matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
+        }
+        ResistanceMechanism::Qnr => {
+            matches!(drug, "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin")
+        }
+        ResistanceMechanism::ErmMethylation => {
+            matches!(drug, "erythromycin" | "azithromycin" | "clarithromycin")
+        }
+        ResistanceMechanism::VanType => matches!(drug, "vancomycin" | "teicoplanin"),
+        ResistanceMechanism::MecA => {
+            bacteria == "staphylococcus aureus"
+                && matches!(
+                    drug,
+                    "penicilling"
+                        | "ampicillin"
+                        | "amoxicillin"
+                        | "cephalexin"
+                        | "cefazolin"
+                        | "cefuroxime"
+                        | "ceftriaxone"
+                        | "ceftazidime"
+                        | "cefepime"
+                        | "meropenem"
+                        | "imipenem_c"
+                        | "ertapenem"
+                )
+        }
+        ResistanceMechanism::EffluxOverexpression => true,
+        ResistanceMechanism::ReducedPermeability => !matches!(
+            bacteria,
+            "staphylococcus aureus"
+                | "streptococcus pneumoniae"
+                | "streptococcus pyogenes"
+                | "streptococcus agalactiae"
+                | "enterococcus faecalis"
+                | "enterococcus faecium"
+        ),
+        ResistanceMechanism::TargetSiteMutation => true,
+    }
+}
 
 /// Assess treatment failure and switch drugs if necessary
 /// Returns true if a drug switch occurred
@@ -2787,17 +2876,27 @@ pub fn apply_rules(
                                             let mechanism_prob = store
                                                 .globals
                                                 .mechanism_assignment_probability_on_any_r_gain;
-                                            for (mech_idx, _mechanism) in
+                                            for (mech_idx, mechanism) in
                                                 ResistanceMechanism::all().iter().enumerate()
                                             {
+                                                let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                                                let bacteria_name = BACTERIA_LIST[recipient_idx];
+                                                if !mechanism_applies_to_drug(
+                                                    *mechanism,
+                                                    bacteria_name,
+                                                    drug_name,
+                                                ) {
+                                                    continue;
+                                                }
+
                                                 let enhancement = store
                                                     .resistance_mechanism
                                                     .enhancement_multiplier(mech_idx);
-                                                if enhancement <= new_any_r {
-                                                    if rng.gen_bool(mechanism_prob) {
-                                                        individual.resistance_mechanisms
-                                                            [recipient_idx][mech_idx] = true;
-                                                    }
+                                                if enhancement <= new_any_r
+                                                    && rng.gen_bool(mechanism_prob)
+                                                {
+                                                    individual.resistance_mechanisms
+                                                        [recipient_idx][mech_idx] = true;
                                                 }
                                             }
                                             individual.how_resistance_acquired[recipient_idx][drug_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
@@ -2816,17 +2915,27 @@ pub fn apply_rules(
                                             let mechanism_prob = store
                                                 .globals
                                                 .mechanism_assignment_probability_on_any_r_gain;
-                                            for (mech_idx, _mechanism) in
+                                            for (mech_idx, mechanism) in
                                                 ResistanceMechanism::all().iter().enumerate()
                                             {
+                                                let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                                                let bacteria_name = BACTERIA_LIST[recipient_idx];
+                                                if !mechanism_applies_to_drug(
+                                                    *mechanism,
+                                                    bacteria_name,
+                                                    drug_name,
+                                                ) {
+                                                    continue;
+                                                }
+
                                                 let enhancement = store
                                                     .resistance_mechanism
                                                     .enhancement_multiplier(mech_idx);
-                                                if enhancement <= new_any_r {
-                                                    if rng.gen_bool(mechanism_prob) {
-                                                        individual.resistance_mechanisms
-                                                            [recipient_idx][mech_idx] = true;
-                                                    }
+                                                if enhancement <= new_any_r
+                                                    && rng.gen_bool(mechanism_prob)
+                                                {
+                                                    individual.resistance_mechanisms
+                                                        [recipient_idx][mech_idx] = true;
                                                 }
                                             }
                                         }
@@ -2942,15 +3051,20 @@ pub fn apply_rules(
                             use crate::simulation::population::ResistanceMechanism;
                             let mechanism_prob =
                                 store.globals.mechanism_assignment_probability_on_any_r_gain;
-                            for (mech_idx, _mechanism) in
+                            for (mech_idx, mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
+                                let drug_name = *drug_name_static;
+                                if !mechanism_applies_to_drug(*mechanism, bacteria, drug_name) {
+                                    continue;
+                                }
+
                                 let enhancement =
                                     store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                if enhancement <= resistance_data.any_r {
-                                    if rng.gen_bool(mechanism_prob) {
-                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
-                                    }
+                                if enhancement <= resistance_data.any_r
+                                    && rng.gen_bool(mechanism_prob)
+                                {
+                                    individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                 }
                             }
 
@@ -2982,16 +3096,25 @@ pub fn apply_rules(
                                 use crate::simulation::population::ResistanceMechanism;
                                 let mechanism_prob =
                                     store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in
+                                for (mech_idx, mechanism) in
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
-                                    let enhancement =
-                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                    if enhancement <= resistance_data.any_r {
-                                        if rng.gen_bool(mechanism_prob) {
-                                            individual.resistance_mechanisms[b_idx][mech_idx] =
-                                                true;
-                                        }
+                                    let drug_name = DRUG_SHORT_NAMES[rifampicin_idx];
+                                    if !mechanism_applies_to_drug(
+                                        *mechanism,
+                                        bacteria,
+                                        drug_name,
+                                    ) {
+                                        continue;
+                                    }
+
+                                    let enhancement = store
+                                        .resistance_mechanism
+                                        .enhancement_multiplier(mech_idx);
+                                    if enhancement <= resistance_data.any_r
+                                        && rng.gen_bool(mechanism_prob)
+                                    {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                     }
                                 }
                                 individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
@@ -3232,16 +3355,20 @@ pub fn apply_rules(
                                 use crate::simulation::population::ResistanceMechanism;
                                 let mechanism_prob =
                                     store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in
+                                for (mech_idx, mechanism) in
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
+                                    let drug_name = DRUG_SHORT_NAMES[drug_index];
+                                    if !mechanism_applies_to_drug(*mechanism, bacteria, drug_name) {
+                                        continue;
+                                    }
+
                                     let enhancement =
                                         store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                    if enhancement <= resistance_data.any_r {
-                                        if rng.gen_bool(mechanism_prob) {
-                                            individual.resistance_mechanisms[b_idx][mech_idx] =
-                                                true;
-                                        }
+                                    if enhancement <= resistance_data.any_r
+                                        && rng.gen_bool(mechanism_prob)
+                                    {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                     }
                                 }
                                 individual.how_resistance_acquired[b_idx][drug_index] = Some(crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR);

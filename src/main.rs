@@ -45,7 +45,7 @@ mod simulation;
 //
 // when immune clearance probability comes up put a diamond to end the green line
 //
-//
+// look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
 //
 //
@@ -63,6 +63,12 @@ mod simulation;
 //
 // rapidity of onset of symptoms, something like a Group A strep (strep pyogenes) can go from mild
 // systemic inflammatory response to death in 24 hours through toxic shock syndrome
+//
+// include penicillin allergy ?
+//
+// consider decrease over time in infection rate due to greater sanitation at least up to ~ 1970
+// investigate why for some bacteria infection in africa shot up around time of intro of first antibiotic
+// 
 //
 //
 //
@@ -139,7 +145,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 10_000;
+    let population_size = 100_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false; // Set to true to enable infection journey logging
