@@ -40,11 +40,8 @@
 
 // src/config.rs
 use crate::simulation::population::{Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES};
-use csv::{ReaderBuilder, Trim};
 use lazy_static::lazy_static;
 use std::collections::HashMap; // Import both lists and helper enums
-use std::fs::File;
-use std::path::PathBuf;
 
 // ---------------- 1) Core indices & constants ----------------
 
@@ -261,13 +258,25 @@ pub struct GlobalScalars {
     pub carrier_resistance_inheritance_probability: f64,
     #[allow(dead_code)]
     pub majority_r_memory_retention_per_day: f64,
+    pub microbiome_majority_decay_half_life_days: f64,
+    pub microbiome_minority_decay_half_life_days: f64,
+    pub microbiome_majority_promotion_rate_per_day: f64,
     pub majority_r_window_days: u32,
     pub majority_r_min_total_samples: u32,
+    pub majority_r_freeze_at_last_positive: bool,
+    pub majority_r_allow_extinction: bool,
 }
 
 impl GlobalScalars {
     fn from_map(map: &HashMap<String, f64>) -> Self {
         // Reads configuration values already present in `map`; the fallback literal only applies when no entry exists.
+        let majority_r_allow_extinction =
+            get_or_default(map, "majority_r_allow_extinction", 0.0) > 0.5;
+        let majority_r_freeze_at_last_positive = if majority_r_allow_extinction {
+            false
+        } else {
+            get_or_default(map, "majority_r_freeze_at_last_positive", 1.0) > 0.5
+        };
         GlobalScalars {
             drug_base_initiation_rate_per_day: get_or_default(
                 map,
@@ -312,7 +321,7 @@ impl GlobalScalars {
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                0.0025,
+                0.0008,
             ),
             hospital_baseline_rate_per_day: get_or_default(
                 map,
@@ -652,7 +661,7 @@ impl GlobalScalars {
             microbiome_resistance_multiplier_on_acquisition: get_or_default(
                 map,
                 "microbiome_resistance_multiplier_on_acquisition",
-                0.35,
+                0.18,
             ),
             infection_from_microbiome_dampening: get_or_default(
                 map,
@@ -672,20 +681,35 @@ impl GlobalScalars {
             antibiotic_clearance_log_odds_per_unit_activity: get_or_default(
                 map,
                 "antibiotic_clearance_log_odds_per_unit_activity",
-                0.5,
+                0.9,
             ),
             carrier_resistance_inheritance_probability: get_or_default(
                 map,
                 "carrier_resistance_inheritance_probability",
-                0.55,
+                0.32,
             ),
             majority_r_memory_retention_per_day: get_or_default(
                 map,
                 "majority_r_memory_retention_per_day",
                 0.93,
             ),
+            microbiome_majority_decay_half_life_days: get_or_default(
+                map,
+                "microbiome_majority_decay_half_life_days",
+                45.0,
+            ),
+            microbiome_minority_decay_half_life_days: get_or_default(
+                map,
+                "microbiome_minority_decay_half_life_days",
+                18.0,
+            ),
+            microbiome_majority_promotion_rate_per_day: get_or_default(
+                map,
+                "microbiome_majority_promotion_rate_per_day",
+                0.02,
+            ),
             majority_r_window_days: {
-                let fallback = get_or_default(map, "majority_r_tier1_window_days", 50.0);
+                let fallback = get_or_default(map, "majority_r_tier1_window_days", 500.0);
                 get_or_default(map, "majority_r_window_days", fallback)
                     .max(0.0)
                     .round() as u32
@@ -696,6 +720,8 @@ impl GlobalScalars {
                     .max(0.0)
                     .round() as u32
             },
+            majority_r_freeze_at_last_positive,
+            majority_r_allow_extinction,
         }
     }
 }
@@ -1221,7 +1247,7 @@ impl BacteriaParameters {
                 get_or_default(
                     map,
                     "default_microbiome_clearance_probability_per_day",
-                    0.05,
+                    0.075,
                 ),
             ));
             environmental_acquisition_proportion.push(get_or_default(
@@ -2006,142 +2032,156 @@ fn build_drug_lookup() -> HashMap<String, &'static str> {
     lookup
 }
 
-fn find_potency_csv_path() -> Option<PathBuf> {
-    let candidates = [
-        PathBuf::from("potency_values.csv"),
-        PathBuf::from("data").join("potency_values.csv"),
-    ];
+// Header count: 52
+const POTENCY_EMBEDDED_HEADER: [&str; 52] = [
+    "sulfanilamide",
+    "penicilling",
+    "ampicillin",
+    "amoxicillin",
+    "piperacillin",
+    "ticarcillin",
+    "cephalexin",
+    "cefazolin",
+    "cefuroxime",
+    "ceftriaxone",
+    "ceftazidime",
+    "cefepime",
+    "ceftaroline",
+    "meropenem",
+    "imipenem_c",
+    "ertapenem",
+    "aztreonam",
+    "erythromycin",
+    "azithromycin",
+    "clarithromycin",
+    "clindamycin",
+    "gentamicin",
+    "tobramycin",
+    "amikacin",
+    "ciprofloxacin",
+    "levofloxacin",
+    "moxifloxacin",
+    "ofloxacin",
+    "tetracycline",
+    "doxyclycline",
+    "minocycline",
+    "vancomycin",
+    "teicoplanin",
+    "dalbavancin",
+    "linezolid",
+    "tedizolid",
+    "quinu_dalfo",
+    "trim_sulf",
+    "chlorampheni",
+    "nitrofurantoin",
+    "retapamulin",
+    "fusidic_a",
+    "metronidazole",
+    "furazolidone",
+    "rifampicin",
+    "amoxicillin_clavulanate",
+    "piperacillin_tazobactam",
+    "ampicillin_sulbactam",
+    "ticarcillin_clavulanate",
+    "ceftazidime_avibactam",
+    "meropenem_vaborbactam",
+    "colistin",
+];
 
-    for candidate in candidates.iter() {
-        if candidate.exists() {
-            return Some(candidate.clone());
-        }
-    }
+const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
+    ("Acinetobacter baumannii", [Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.600000),Some(0.500000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.100000),Some(0.600000),Some(0.700000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.750000),Some(0.700000),Some(0.800000),Some(0.700000),Some(0.700000),Some(0.600000),Some(0.600000),Some(0.600000),Some(0.700000),Some(0.800000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.600000),Some(0.700000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.600000),Some(0.050000),Some(0.700000),Some(0.700000),Some(0.600000),Some(0.700000),Some(0.800000),Some(0.900000)]),
+    ("Citrobacter spp.", [Some(0.500000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.800000),Some(0.750000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.600000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.950000),Some(0.700000)]),
+    ("Enterobacter spp.", [Some(0.500000),Some(0.100000),Some(0.500000),Some(0.500000),Some(0.750000),Some(0.700000),Some(0.500000),Some(0.500000),Some(0.600000),Some(0.500000),Some(0.800000),Some(0.850000),Some(0.400000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.600000),Some(0.700000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.900000),Some(0.950000),Some(0.700000)]),
+    ("Enterococcus faecalis", [Some(0.100000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.750000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.100000),Some(0.700000),Some(0.800000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.750000),Some(0.900000),Some(0.700000),Some(0.100000),Some(0.750000),Some(0.050000)]),
+    ("Enterococcus faecium", [Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.600000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000)]),
+    ("Escherichia coli", [Some(0.500000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.900000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Klebsiella pneumoniae", [Some(0.500000),Some(0.100000),Some(0.400000),Some(0.400000),Some(0.800000),Some(0.750000),Some(0.500000),Some(0.500000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.500000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.600000),Some(0.850000),Some(0.900000),Some(0.750000),Some(0.750000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Morganella spp.", [Some(0.500000),Some(0.100000),Some(0.500000),Some(0.500000),Some(0.750000),Some(0.700000),Some(0.500000),Some(0.500000),Some(0.600000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.400000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.850000),Some(0.700000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.600000),Some(0.700000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.900000),Some(0.950000),Some(0.700000)]),
+    ("Proteus spp.", [Some(0.500000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.750000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Serratia spp.", [Some(0.500000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.750000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.600000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.500000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.600000),Some(0.700000),Some(0.850000),Some(0.700000),Some(0.750000),Some(0.900000),Some(0.950000),Some(0.700000)]),
+    ("Pseudomonas aeruginosa", [Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.800000),Some(0.700000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.900000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.800000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.850000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.500000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.050000),Some(0.900000),Some(0.050000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.850000)]),
+    ("Staphylococcus aureus", [Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.600000),Some(0.800000),Some(0.850000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.600000),Some(0.950000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.800000),Some(0.800000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.800000),Some(0.700000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.600000),Some(0.100000),Some(0.700000),Some(0.050000)]),
+    ("Streptococcus pneumoniae", [Some(0.100000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.700000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Salmonella enterica serovar typhi", [Some(0.700000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Salmonella enterica serovar paratyphi a", [Some(0.700000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Invasive non-typhoidal Salmonella spp.", [Some(0.700000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Shigella spp.", [Some(0.500000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.750000),Some(0.700000),Some(0.600000),Some(0.650000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.600000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.700000),Some(0.850000),Some(0.750000),Some(0.700000),Some(0.800000),Some(0.750000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.900000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.900000),Some(0.900000),Some(0.700000)]),
+    ("Neisseria gonorrhoeae", [Some(0.100000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.700000),Some(0.800000),Some(0.700000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.850000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.050000)]),
+    ("Streptococcus pyogenes", [Some(0.100000),Some(1.000000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Streptococcus agalactiae", [Some(0.100000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.700000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Haemophilus influenzae", [Some(0.100000),Some(0.700000),Some(0.800000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.850000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.700000),Some(0.800000),Some(0.700000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Chlamydia trachomatis", [Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.950000),Some(0.900000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000)]),
+    ("Vibrio cholerae", [Some(0.500000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.750000),Some(0.800000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.700000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.700000),Some(0.800000),Some(0.750000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.750000),Some(0.850000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.800000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.900000),Some(0.900000),Some(0.700000)]),
+    ("Neisseria meningitidis", [Some(0.100000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.700000),Some(0.800000),Some(0.750000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Listeria monocytogenes", [Some(0.100000),Some(0.700000),Some(0.950000),Some(0.950000),Some(0.700000),Some(0.600000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.100000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.700000),Some(0.950000),Some(0.600000),Some(0.100000),Some(0.700000),Some(0.050000),None]),
+    ("Clostridioides difficile", [Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.750000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000)]),
+    ("Campylobacter jejuni", [Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.800000),Some(0.750000),Some(0.700000),Some(0.750000),Some(0.750000),Some(0.800000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000)]),
+    ("Enterobacter cloacae", [Some(0.500000),Some(0.100000),Some(0.500000),Some(0.500000),Some(0.750000),Some(0.700000),Some(0.500000),Some(0.500000),Some(0.600000),Some(0.400000),Some(0.800000),Some(0.850000),Some(0.400000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.700000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.600000),Some(0.700000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.900000),Some(0.950000),Some(0.700000)]),
+    ("Yersinia enterocolitica", [Some(0.500000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.750000),Some(0.700000),Some(0.600000),Some(0.650000),Some(0.700000),Some(0.900000),Some(0.850000),Some(0.850000),Some(0.600000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.800000),Some(0.900000),Some(0.900000),Some(0.850000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.950000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.850000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.700000)]),
+    ("Moraxella catarrhalis", [Some(0.100000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.800000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.850000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.950000),Some(0.850000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.950000),Some(0.850000),Some(0.950000),Some(0.850000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Treponema pallidum", [Some(0.100000),Some(1.000000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.900000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.950000),Some(0.900000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.750000),Some(0.750000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.100000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.950000),Some(0.950000),Some(0.050000)]),
+    ("Bordetella pertussis", [Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.900000),Some(0.950000),Some(0.900000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.700000),Some(0.750000),Some(0.750000),Some(0.700000),Some(0.700000),Some(0.750000),Some(0.750000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.800000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.100000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000)]),
+    ("Helicobacter pylori", [Some(0.100000),Some(0.100000),Some(0.700000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.800000),Some(0.850000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.700000),Some(0.750000),Some(0.700000),Some(0.800000),Some(0.800000),Some(0.850000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.700000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.800000),Some(0.100000),Some(0.100000),Some(0.850000),Some(0.100000),Some(0.700000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000)]),
+    ("mdr Mycobacterium tuberculosis", [Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.200000),Some(0.200000),Some(0.200000),Some(0.200000),Some(0.200000),Some(0.250000),Some(0.200000),Some(0.200000),Some(0.250000),Some(0.250000),Some(0.300000),Some(0.400000),Some(0.450000),Some(0.450000),Some(0.400000),Some(0.300000),Some(0.350000),Some(0.350000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.200000),Some(0.200000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.100000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.050000),Some(0.200000),Some(0.200000)]),
+];
 
-    None
-}
-
-fn apply_potency_overrides_from_csv(map: &mut HashMap<String, f64>) {
-    let Some(path) = find_potency_csv_path() else {
-        println!("potency_values.csv not found; using built-in potency defaults");
-        return;
-    };
-
-    let file = match File::open(&path) {
-        Ok(file) => file,
-        Err(err) => {
-            eprintln!("Failed to open potency CSV at {}: {}", path.display(), err);
-            return;
-        }
-    };
-
-    let mut reader = ReaderBuilder::new()
-        .has_headers(true)
-        .trim(Trim::All)
-        .from_reader(file);
-
-    let headers = match reader.headers() {
-        Ok(record) => record.clone(),
-        Err(err) => {
-            eprintln!("Failed to read potency CSV headers: {}", err);
-            return;
-        }
-    };
-
+fn apply_potency_overrides_from_embedded_table(map: &mut HashMap<String, f64>) {
     let bacteria_lookup = build_bacteria_lookup();
     let drug_lookup = build_drug_lookup();
 
-    let mut column_drugs: Vec<Option<&'static str>> =
-        Vec::with_capacity(headers.len().saturating_sub(1));
-    for header in headers.iter().skip(1) {
+    let mut column_drugs: Vec<Option<&'static str>> = Vec::with_capacity(POTENCY_EMBEDDED_HEADER.len());
+    for header in POTENCY_EMBEDDED_HEADER.iter() {
         let normalized = normalize_drug_label(header);
         if let Some(&drug) = drug_lookup.get(&normalized) {
             column_drugs.push(Some(drug));
         } else {
-            eprintln!("Unknown drug column '{}' in potency CSV; skipping", header);
+            eprintln!(
+                "Unknown drug column '{}' in embedded potency table; skipping",
+                header
+            );
             column_drugs.push(None);
         }
     }
 
     let mut override_count = 0usize;
 
-    for result in reader.records() {
-        let record = match result {
-            Ok(record) => record,
-            Err(err) => {
-                eprintln!("Failed to read potency CSV row: {}", err);
-                continue;
-            }
-        };
-
-        if record.is_empty() {
-            continue;
-        }
-
-        let raw_bacteria = record.get(0).unwrap_or("").trim();
-        if raw_bacteria.is_empty() {
-            continue;
-        }
-
+    for (raw_bacteria, potency_values) in POTENCY_EMBEDDED_DATA.iter() {
         let normalized_bacteria = normalize_label(raw_bacteria);
         let Some(&canonical_bacteria) = bacteria_lookup
             .get(&normalized_bacteria)
             .or_else(|| bacteria_lookup.get(&normalized_bacteria.replace(' ', "_")))
         else {
             eprintln!(
-                "Unknown bacteria '{}' in potency CSV; skipping row",
+                "Unknown bacteria '{}' in embedded potency table; skipping row",
                 raw_bacteria
             );
             continue;
         };
 
-        for (idx, maybe_drug) in column_drugs.iter().enumerate() {
-            let Some(drug) = maybe_drug else {
+        for (idx, maybe_value) in potency_values.iter().enumerate() {
+            let Some(potency) = maybe_value else {
                 continue;
             };
 
-            let value_str = record.get(idx + 1).unwrap_or("").trim();
-            if value_str.is_empty() {
+            let Some(drug) = column_drugs
+                .get(idx)
+                .and_then(|entry| entry.as_ref().copied())
+            else {
                 continue;
-            }
+            };
 
-            match value_str.parse::<f64>() {
-                Ok(mut potency) => {
-                    if !potency.is_finite() {
-                        eprintln!(
-                            "Non-finite potency for {} / {}; skipping",
-                            drug, raw_bacteria
-                        );
-                        continue;
-                    }
-
-                    if potency < 0.0 {
-                        potency = 0.0;
-                    } else if potency > 1.0 {
-                        potency = 1.0;
-                    }
-
-                    let key = format!(
-                        "drug_{}_for_bacteria_{}_potency_when_no_r",
-                        drug, canonical_bacteria
-                    );
-                    map.insert(key, potency);
-                    override_count += 1;
-                }
-                Err(_) => {
-                    eprintln!(
-                        "Invalid potency '{}' for {} / {}; skipping",
-                        value_str, drug, raw_bacteria
-                    );
-                }
-            }
+            let key = format!(
+                "drug_{}_for_bacteria_{}_potency_when_no_r",
+                drug, canonical_bacteria
+            );
+            map.insert(key, *potency);
+            override_count += 1;
         }
     }
 
     println!(
-        "Applied {} potency overrides from {}",
-        override_count,
-        path.display()
+        "Applied {} potency overrides from embedded potency table",
+        override_count
     );
 }
 
@@ -2451,7 +2491,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0002);  // 0.005 
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.00003);  // 0.005 
             }
         }
 
@@ -3162,23 +3202,23 @@ lazy_static! {
 
         // VERY RARE RESISTANCE (extremely slow emergence)
         // Linezolid resistance in enterococci should remain very rare
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001);
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001);
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.000005);
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.000005);
 
         // PROBLEMATIC HIGH-RESISTANCE BACTERIA (reduce from 0.005 to 0.001)
         // Acinetobacter baumannii - showed excessive synchronized resistance
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.001);
+            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.0003);
         }
 
         // E. coli - showed excessive resistance levels across multiple drugs
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
         }
 
         // Pseudomonas aeruginosa - reduce slightly for more realistic patterns
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.0002);
         }
 
         // SPECIFIC DRUG-BACTERIA COMBINATIONS WITH CLINICAL CONSTRAINTS
@@ -3190,12 +3230,12 @@ lazy_static! {
         ];
         for &bacteria in gram_negative_bacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.00005);
+                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.00002);
             }
         }
 
         // Nitrofurantoin resistance in E. coli should remain low (important for UTI treatment)
-        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.0005);
+        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.0002);
 
         // Vancomycin resistance should be impossible in Gram-negative bacteria (intrinsic resistance handled by potency)
         for &bacteria in gram_negative_bacteria.iter() {
@@ -3676,7 +3716,7 @@ lazy_static! {
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0003); // Default: very rare, increase for more rapid reversion
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.000001 ); // Lower baseline for microbiome resistance emergence
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000001 ); // Lower baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -3694,17 +3734,17 @@ lazy_static! {
 
         // --- Resistance Mechanisms Parameters ---
         // Baseline emergence rates for specific resistance mechanisms (per day when drug present)
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0003); // ESBL emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.00015); // Carbapenemase emergence (rarer)
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.0005); // AmpC emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0003); // Aminoglycoside resistance
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0003); // Quinolone resistance
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.001); // More common mechanism
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0003); // Macrolide resistance
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00007); // Vancomycin resistance (rare)
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0003); // MRSA emergence
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.0007); // Common adaptive mechanism
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0005); // Point mutations
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0001); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.00005); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.00002); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0001); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0001); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.0003); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0001); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00002); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0001); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.00025); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0002); // Point mutations
 
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
         map.insert("resistance_mechanism_esbl_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance
@@ -4176,8 +4216,16 @@ lazy_static! {
             0.93,
         );
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
-        map.insert("majority_r_window_days".to_string(), 50.0);
+        map.insert("majority_r_window_days".to_string(), 500.0);
         map.insert("majority_r_min_total_samples".to_string(), 10.0);
+        // Prevent small simulations from catastrophically erasing resistance prevalence once observed;
+        // flip to 0 if you want buckets to decay back to zero when no positive samples remain.
+        map.insert(
+            "majority_r_freeze_at_last_positive".to_string(),
+            0.0,
+        );
+        // Set to 1 to allow regional/hospital buckets to drift back to zero (extinction enabled).
+        map.insert("majority_r_allow_extinction".to_string(), 0.0);
         // 55% probability that carrier's infection inherits microbiome resistance profile
         // Default 0.55 keeps endogenous infections common without locking in microbiome resistance
         // This parameter has MASSIVE impact on population resistance dynamics - most important in the model
@@ -4778,7 +4826,7 @@ lazy_static! {
         map.insert("demo_oceania_age_24000_28000".to_string(), 0.001);
         map.insert("demo_oceania_age_28000_32000".to_string(), 0.001);
 
-    apply_potency_overrides_from_csv(&mut map);
+    apply_potency_overrides_from_embedded_table(&mut map);
 
     map
     };

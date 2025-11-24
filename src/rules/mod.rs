@@ -2622,6 +2622,8 @@ pub fn apply_rules(
                 let baseline_log_odds =
                     (baseline_clearance_prob / (1.0 - baseline_clearance_prob)).ln();
                 let mut clearance_log_odds = baseline_log_odds;
+                let max_resistance_level = store.globals.max_resistance_level;
+                let mut strongest_microbiome_activity: f64 = 0.0;
 
                 // --- Duration effect: longer carriage = harder to clear (established colonization) ---
                 // MECHANISM: Newly acquired bacteria are more susceptible to immune clearance and competition.
@@ -2661,6 +2663,19 @@ pub fn apply_rules(
                                     .antibiotic_clearance_log_odds_per_unit_activity;
                             clearance_log_odds += clearance_boost;
                         }
+                        let normalized_micro_r = if max_resistance_level <= f64::EPSILON {
+                            1.0
+                        } else {
+                            (resistance_data.microbiome_r / max_resistance_level)
+                                .clamp(0.0, 1.0)
+                        };
+                        let base_potency = store.drug_bacteria.potency(b_idx, d_idx);
+                        let effective_activity = (base_potency
+                            * drug_level
+                            * (1.0 - normalized_micro_r))
+                            .max(0.0);
+                        strongest_microbiome_activity = strongest_microbiome_activity
+                            .max(effective_activity);
                     }
                 }
 
@@ -2675,7 +2690,67 @@ pub fn apply_rules(
 
                 // --- de novo resistance emergence in microbiome when on drug ---
                 if individual.presence_microbiome[b_idx] {
-                    let max_resistance_level = store.globals.max_resistance_level;
+                    let majority_threshold = get_global_param("microbiome_majority_threshold")
+                        .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+                    let decay_multiplier = |half_life: f64| -> f64 {
+                        if half_life <= 0.0 {
+                            0.0
+                        } else {
+                            0.5f64.powf(1.0 / half_life)
+                        }
+                    };
+                    let majority_decay_multiplier = decay_multiplier(
+                        store.globals.microbiome_majority_decay_half_life_days,
+                    );
+                    let minority_decay_multiplier = decay_multiplier(
+                        store.globals.microbiome_minority_decay_half_life_days,
+                    );
+                    let selection_pressure =
+                        strongest_microbiome_activity.clamp(0.0_f64, 5.0_f64);
+                    let decay_applies = selection_pressure < 0.1;
+                    let promotion_intensity =
+                        (selection_pressure / (selection_pressure + 1.0)).clamp(0.0, 1.0);
+
+                    for resistance_data in individual.resistances[b_idx].iter_mut() {
+                        if resistance_data.microbiome_r <= 0.0 {
+                            continue;
+                        }
+
+                        if decay_applies {
+                            if resistance_data.microbiome_r >= majority_threshold {
+                                if majority_decay_multiplier <= 0.0 {
+                                    resistance_data.microbiome_r = 0.0;
+                                } else {
+                                    resistance_data.microbiome_r *= majority_decay_multiplier;
+                                }
+                            } else {
+                                if minority_decay_multiplier <= 0.0 {
+                                    resistance_data.microbiome_r = 0.0;
+                                } else {
+                                    resistance_data.microbiome_r *= minority_decay_multiplier;
+                                }
+                            }
+
+                            if resistance_data.microbiome_r < 1e-6 {
+                                resistance_data.microbiome_r = 0.0;
+                            }
+                        } else if resistance_data.microbiome_r > 0.0
+                            && resistance_data.microbiome_r < majority_threshold
+                        {
+                            let promotion_rate = (promotion_intensity
+                                * store.globals.microbiome_majority_promotion_rate_per_day)
+                                .clamp(0.0, 1.0);
+                            if promotion_rate > 0.0 && rng.gen_bool(promotion_rate) {
+                                resistance_data.microbiome_r = resistance_data
+                                    .microbiome_r
+                                    .max(majority_threshold);
+                            }
+                        }
+
+                        resistance_data.microbiome_r =
+                            resistance_data.microbiome_r.min(max_resistance_level).max(0.0);
+                    }
+
                     for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                         let resistance_data = &mut individual.resistances[b_idx][d_idx];
                         let drug_level = individual.cur_level_drug[d_idx];

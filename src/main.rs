@@ -40,26 +40,19 @@ mod simulation;
 // think of other outputs which can convey how / whether various parts of the model are working (e.g. the effects of a on b)
 // at least a partial answer here might be "tests"
 //
-// microbiome plot for journeys should show all bacteria the person has + with resistance, or at least
-// 2 or 3 example bacteria ?
-//
-// when immune clearance probability comes up put a diamond to end the green line
-//
 // look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// review infection journeys:
+// review infection journeys
 //
 //    consider bacterial growth rate
 //    consider determinants of toxicity (do we need to be more specific about toxicity ?)
 //    consider infection clearance rate determinants
 //
-// introduce a decline in infection risk over time, due to cleaner conditions ?
-//
-// add stenotrophomonas maltophilia, staph epidermidis
+// add stenotrophomonas maltophilia, staph epidermidis 
 //
 // rapidity of onset of symptoms, something like a Group A strep (strep pyogenes) can go from mild
 // systemic inflammatory response to death in 24 hours through toxic shock syndrome
@@ -67,6 +60,7 @@ mod simulation;
 // include penicillin allergy ?
 //
 // consider decrease over time in infection rate due to greater sanitation at least up to ~ 1970
+//
 // investigate why for some bacteria infection in africa shot up around time of intro of first antibiotic
 // 
 //
@@ -148,7 +142,7 @@ fn main() {
     let population_size = 100_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false; // Set to true to enable infection journey logging
+    let log_infection_journeys = false ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.10; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
@@ -195,13 +189,21 @@ fn main() {
     // let mut rng = rand::thread_rng();
     // let random_id: u32 = rng.gen_range(1_000_000..10_000_000);
     // let csv_filename = format!("simulation_summary_{}.csv", random_id);
-    let csv_filename = "simulation_summary.csv".to_string();
+    let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
+    if let Err(err) = std::fs::create_dir_all(output_dir) {
+        eprintln!(
+            "Warning: unable to create output directory {:?}: {}",
+            output_dir, err
+        );
+    }
+    let csv_path = output_dir.join("simulation_summary.csv");
+    let csv_filename = csv_path.to_string_lossy().to_string();
 
     // Export to CSV for analysis
     if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {
         println!("Error exporting CSV: {}", e);
     } else {
-        println!("Summary data exported to {}", csv_filename);
+        println!("Summary data exported to {}", csv_path.display());
     }
 
     println!("main.rs  final outputs ");

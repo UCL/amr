@@ -1298,8 +1298,14 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
     # Static prevalence estimates (2025) used for point overlays
     prevalence_lookup: Dict[tuple, float] = {}
     prevalence_year = 2025
-    prevalence_path = Path("resistance_prevalence_values.csv")
-    if prevalence_path.exists():
+    project_root = Path(__file__).resolve().parents[2]
+    prevalence_candidates = [
+        Path("resistance_prevalence_values.csv"),
+        project_root / "resistance_prevalence_values.csv",
+        project_root / "data" / "resistance_prevalence_values.csv",
+    ]
+    prevalence_path = next((candidate for candidate in prevalence_candidates if candidate.exists()), None)
+    if prevalence_path is not None:
         try:
             prevalence_raw = pd.read_csv(prevalence_path, na_values='.')
             prevalence_long = prevalence_raw.melt(
@@ -5548,7 +5554,12 @@ def create_death_rate_by_bacteria_plots(config: PlotConfig, data_cache: DataCach
             current_death_cols.extend(legacy_cols)
         
         if not current_death_cols:
-            logger.warning(f"No current death columns found for {bacteria}. Available: {death_cols}")
+            available_cols = [col for col in df.columns if "deaths" in col]
+            logger.warning(
+                "No current death columns found for %s. Available: %s",
+                bacteria,
+                ", ".join(available_cols) if available_cols else "none",
+            )
             continue
         
         # Calculate death rate

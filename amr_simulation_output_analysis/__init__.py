@@ -47,7 +47,9 @@ def create_all_plots(config=None):
     df = data_cache.get_simulation_data()
     
     if df is None:
-        raise RuntimeError("No simulation data found. Please ensure simulation_summary.csv exists.")
+        raise RuntimeError(
+            "No simulation data found. Please ensure amr_simulation_output_analysis_outputs/simulation_summary.csv exists."
+        )
     
     print(f"Loaded simulation data: {df.shape[0]} time steps, {df.shape[1]} columns")
     

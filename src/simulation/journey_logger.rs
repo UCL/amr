@@ -13,6 +13,7 @@ use crate::simulation::population::{
 use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
+use std::path::{Path, PathBuf};
 use std::io::{BufWriter, Write};
 
 #[derive(Clone, Debug)]
@@ -107,7 +108,7 @@ pub struct JourneyLogger {
 
     // Output
     csv_writer: Option<BufWriter<File>>,
-    output_filename: String,
+    output_path: PathBuf,
 
     // Statistics
     pub total_journeys_started: u32,
@@ -124,7 +125,7 @@ impl JourneyLogger {
             active_journeys: HashMap::new(),
             next_journey_id: 1,
             csv_writer: None,
-            output_filename: String::new(),
+            output_path: PathBuf::new(),
             total_journeys_started: 0,
             total_journeys_completed: 0,
             total_snapshots_logged: 0,
@@ -137,8 +138,10 @@ impl JourneyLogger {
         self.bacteria_filter = None;
 
         // Create output file
-        self.output_filename = "infection_journeys.csv".to_string();
-        let file = File::create(&self.output_filename)?;
+        let output_dir = Path::new("infection_journeys");
+        std::fs::create_dir_all(output_dir)?;
+        self.output_path = output_dir.join("infection_journeys.csv");
+        let file = File::create(&self.output_path)?;
         let mut writer = BufWriter::new(file);
 
         // Write CSV header
@@ -162,13 +165,15 @@ impl JourneyLogger {
         self.bacteria_filter = bacteria_filter;
 
         // Create output file with bacteria-specific name if filtering
-        self.output_filename = if let Some(ref filter) = self.bacteria_filter {
-            format!("infection_journeys_{}.csv", filter)
+        let output_dir = Path::new("infection_journeys");
+        std::fs::create_dir_all(output_dir)?;
+        self.output_path = if let Some(ref filter) = self.bacteria_filter {
+            output_dir.join(format!("infection_journeys_{}.csv", filter))
         } else {
-            "infection_journeys.csv".to_string()
+            output_dir.join("infection_journeys.csv")
         };
 
-        let file = File::create(&self.output_filename)?;
+        let file = File::create(&self.output_path)?;
         let mut writer = BufWriter::new(file);
 
         // Write CSV header

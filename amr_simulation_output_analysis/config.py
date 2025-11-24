@@ -179,7 +179,9 @@ class EmpiricalConfig:
 class DataConfig:
     """Configuration for data loading and processing."""
     
-    simulation_file: Path = field(default_factory=lambda: Path("simulation_summary.csv"))
+    simulation_file: Path = field(
+        default_factory=lambda: Path("amr_simulation_output_analysis/simulation_summary.csv")
+    )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity
     

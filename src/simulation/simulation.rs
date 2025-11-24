@@ -92,6 +92,7 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
 pub struct MajorityRConfig {
     pub window_days: u32,
     pub min_total_samples: u32,
+    pub freeze_at_last_positive: bool,
 }
 
 #[derive(Clone)]
@@ -109,6 +110,8 @@ struct MajorityRBuffer {
     total_samples: u32,
     positive_samples: u32,
     days: VecDeque<DayContribution>,
+    last_nonzero_probability: f64,
+    freeze_on_zero: bool,
 }
 
 impl MajorityRBuffer {
@@ -119,6 +122,8 @@ impl MajorityRBuffer {
             total_samples: 0,
             positive_samples: 0,
             days: VecDeque::new(),
+            last_nonzero_probability: 0.0,
+            freeze_on_zero: config.freeze_at_last_positive,
         }
     }
 
@@ -127,6 +132,7 @@ impl MajorityRBuffer {
             self.total_samples = 0;
             self.positive_samples = 0;
             self.days.clear();
+            self.last_nonzero_probability = 0.0;
             return;
         }
 
@@ -140,6 +146,8 @@ impl MajorityRBuffer {
                 break;
             }
         }
+
+        self.refresh_probability_cache();
     }
 
     fn push_day(&mut self, current_day: u32, total: u32, positive: u32, values: Arc<Vec<f64>>) {
@@ -155,13 +163,21 @@ impl MajorityRBuffer {
             positive_samples: positive,
             positive_values: values,
         });
+
+        self.refresh_probability_cache();
     }
 
     fn probability(&self) -> f64 {
-        if self.total_samples == 0 {
-            return 0.0;
+        let base = self.current_probability();
+        if base > 0.0 {
+            base
+        } else if self.freeze_on_zero {
+            // Preserve the last observed prevalence instead of letting small-sample simulations
+            // drive the cache back to zero once a strain has been seen.
+            self.last_nonzero_probability
+        } else {
+            0.0
         }
-        (self.positive_samples as f64 / self.total_samples as f64).clamp(0.0, 1.0)
     }
 
     fn draw_positive<R: Rng + ?Sized>(&self, rng: &mut R) -> Option<f64> {
@@ -191,9 +207,41 @@ impl MajorityRBuffer {
 
     fn has_sufficient_data(&self) -> bool {
         if self.min_total_samples == 0 {
-            self.total_samples > 0
+            if self.total_samples > 0 {
+                return true;
+            }
+        } else if self.total_samples >= self.min_total_samples {
+            return true;
+        }
+
+        self.freeze_on_zero && self.last_nonzero_probability > 0.0
+    }
+
+    fn current_probability(&self) -> f64 {
+        if self.total_samples == 0 {
+            0.0
         } else {
-            self.total_samples >= self.min_total_samples
+            (self.positive_samples as f64 / self.total_samples as f64).clamp(0.0, 1.0)
+        }
+    }
+
+    fn refresh_probability_cache(&mut self) {
+        let current = self.current_probability();
+        if current > 0.0 {
+            self.last_nonzero_probability = current;
+        }
+    }
+
+    /// Seed the cached probability with a fallback value supplied by another bucket.
+    /// Used when a bucket graduates from world-level fallback so it inherits the broader
+    /// prevalence instead of collapsing to zero.
+    fn seed_with_probability(&mut self, probability: f64) {
+        if !self.freeze_on_zero {
+            return;
+        }
+        let clamped = probability.clamp(0.0, 1.0);
+        if clamped > self.last_nonzero_probability {
+            self.last_nonzero_probability = clamped;
         }
     }
 }
@@ -360,10 +408,24 @@ impl MajorityRCache {
 
             self.bucket_cumulative_totals[idx] =
                 self.bucket_cumulative_totals[idx].saturating_add(total as u64);
-            if !self.bucket_threshold_met[idx]
-                && self.bucket_cumulative_totals[idx] as u32 >= self.threshold_min_samples
-            {
-                self.bucket_threshold_met[idx] = true;
+            if !self.bucket_threshold_met[idx] {
+                let met_threshold =
+                    self.bucket_cumulative_totals[idx] as u32 >= self.threshold_min_samples;
+                if met_threshold {
+                    self.bucket_threshold_met[idx] = true;
+                    let (region_idx, hospital, bacteria_idx, drug_idx) = self.decode(idx);
+                    let world_idx = self.world_index(bacteria_idx, drug_idx);
+                    let world_prob = self
+                        .world_buckets
+                        .get(world_idx)
+                        .map(|bucket| bucket.probability())
+                        .unwrap_or(0.0);
+                    if let Some(bucket) = self.buckets.get_mut(idx) {
+                        if world_prob > bucket.probability() {
+                            bucket.seed_with_probability(world_prob);
+                        }
+                    }
+                }
             }
 
             self.pending_positive_counts[idx] = 0;
@@ -987,12 +1049,13 @@ impl Simulation {
         let mut majority_r_window_days = globals.majority_r_window_days;
         let mut majority_r_min_total_samples = globals.majority_r_min_total_samples;
         if majority_r_window_days == 0 || majority_r_min_total_samples == 0 {
-            majority_r_window_days = 50;
+            majority_r_window_days = 500;
             majority_r_min_total_samples = 10;
         }
         let majority_r_config = MajorityRConfig {
             window_days: majority_r_window_days,
             min_total_samples: majority_r_min_total_samples,
+            freeze_at_last_positive: globals.majority_r_freeze_at_last_positive,
         };
 
         Simulation {
@@ -3197,10 +3260,18 @@ impl Simulation {
     }
 
     pub fn export_summary_to_csv(&self, filename: &str) -> Result<(), std::io::Error> {
-        use std::fs::File;
+        use std::fs::{create_dir_all, File};
         use std::io::{BufWriter, Write};
+        use std::path::Path;
 
-        let file = File::create(filename)?;
+        let path = Path::new(filename);
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                create_dir_all(parent)?;
+            }
+        }
+
+        let file = File::create(path)?;
         let mut writer = BufWriter::new(file);
 
         // Pre-build header string once

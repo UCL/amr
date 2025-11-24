@@ -643,7 +643,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     """Generate calibration summary file and return its path."""
 
     config = config or PlotConfig()
-    project_root = Path.cwd()
+    project_root = Path(__file__).resolve().parents[1]
     targets = CalibrationTargets.load(project_root)
 
     data_cache = DataCache()
