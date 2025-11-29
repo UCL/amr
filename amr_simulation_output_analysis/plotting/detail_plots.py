@@ -17,6 +17,7 @@ import logging
 import math
 
 from ..config import PlotConfig
+from ..calibration_summary import get_resistance_benchmark_table
 from ..data_loader import DataCache
 from ..utils import (
     safe_divide,
@@ -351,6 +352,123 @@ def create_resistance_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     plt.close()
     logger.info(f"[OK] Resistance proportion plot saved to {output_path}")
 
+@safe_plot_creation
+def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
+    """Create per-bacteria bar charts comparing simulated resistance to targets."""
+
+    metadata = get_resistance_benchmark_table(config)
+    if not metadata:
+        logger.warning("Resistance benchmark data unavailable, skipping benchmark charts.")
+        return
+
+    raw_table = metadata.get("data")
+    if not isinstance(raw_table, pd.DataFrame) or raw_table.empty:
+        logger.warning("Resistance benchmark table empty, skipping benchmark charts.")
+        return
+
+    table = raw_table.copy()
+    note_series = table.get("Note")
+    if note_series is not None:
+        mask = ~note_series.astype(str).str.contains("negligible potency", case=False, na=False)
+        table = table[mask]
+
+    table = table.dropna(subset=["Simulation", "Target"], how="all")
+    if table.empty:
+        logger.warning("No resistance benchmark rows eligible for plotting after filtering.")
+        return
+
+    output_dir = config.output_dir / "resistance_benchmark_bar_charts"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    window_label = metadata.get("window_label") or "observation window"
+    expanded_label = metadata.get("expanded_label")
+    target_year = metadata.get("target_year")
+
+    for bacteria, subset in table.groupby("Bacteria"):
+        if subset.empty:
+            continue
+
+        working = subset.sort_values("Drug").reset_index(drop=True)
+        drugs = working["Drug"].astype(str).tolist()
+        sim_values = working["Simulation"].astype(float).to_numpy()
+        target_values = working["Target"].astype(float).to_numpy()
+
+        if len(drugs) == 0:
+            continue
+
+        x = np.arange(len(drugs))
+        width = 0.38
+
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE_SINGLE)
+        sim_bars = ax.bar(x - width / 2, np.nan_to_num(sim_values, nan=0.0), width, label="Simulation", color="#4C72B0")
+        target_bars = ax.bar(x + width / 2, np.nan_to_num(target_values, nan=0.0), width, label="Target", color="#55A868")
+
+        combined = np.concatenate([sim_values, target_values])
+        max_val = np.nanmax(combined) if combined.size else 0.0
+        if not np.isfinite(max_val) or max_val <= 0:
+            max_val = 1.0
+        ax.set_ylim(0, max_val * 1.25)
+        label_offset = max_val * 0.04
+
+        # Annotate bars with numeric values or n/a for missing entries
+        for rect, value in zip(sim_bars.patches, sim_values):
+            xpos = rect.get_x() + rect.get_width() / 2
+            if np.isnan(value):
+                ax.text(xpos, label_offset, "n/a", ha="center", va="bottom", fontsize=9, rotation=90, color="#4C72B0")
+                rect.set_alpha(0.2)
+                rect.set_hatch("//")
+            else:
+                ax.text(xpos, rect.get_height() + label_offset, f"{value:.1f}", ha="center", va="bottom", fontsize=9, color="#1F3A68")
+
+        for rect, value in zip(target_bars.patches, target_values):
+            xpos = rect.get_x() + rect.get_width() / 2
+            if np.isnan(value):
+                ax.text(xpos, label_offset, "n/a", ha="center", va="bottom", fontsize=9, rotation=90, color="#2E5930")
+                rect.set_alpha(0.2)
+                rect.set_hatch("\\\\")
+            else:
+                ax.text(xpos, rect.get_height() + label_offset, f"{value:.1f}", ha="center", va="bottom", fontsize=9, color="#234F32")
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(drugs, rotation=30, ha="right")
+        ax.set_ylabel("Percent resistant")
+
+        title_parts = [f"{bacteria}: Resistance Benchmarks"]
+        if target_year:
+            title_parts.append(f"target year {int(target_year)}")
+        ax.set_title(" – ".join(title_parts))
+
+        subtitle_parts = [f"Primary window: {window_label}"]
+        if expanded_label and expanded_label != window_label:
+            subtitle_parts.append(f"expanded: {expanded_label}")
+        ax.text(0.02, 0.94, " | ".join(subtitle_parts), transform=ax.transAxes, fontsize=9, va="top")
+
+        ax.legend(loc="upper left")
+        ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+        notes = working[["Drug", "Note", "Infected person-days"]].fillna("")
+        note_lines = []
+        for _, row in notes.iterrows():
+            detail = []
+            if row["Note"]:
+                detail.append(str(row["Note"]))
+            person_days = row["Infected person-days"]
+            if isinstance(person_days, (int, float)) and not math.isnan(person_days):
+                detail.append(f"infected person-days: {int(person_days):,}")
+            if detail:
+                note_lines.append(f"{row['Drug']}: {', '.join(detail)}")
+
+        if note_lines:
+            note_box = "\n".join(note_lines)
+            ax.text(1.02, 0.5, note_box, transform=ax.transAxes, fontsize=9, va="center", ha="left", bbox=dict(boxstyle="round", facecolor="white", alpha=0.6))
+
+        safe_name = bacteria.lower().replace(" ", "_").replace("/", "-")
+        output_path = output_dir / f"{safe_name}_resistance_benchmark.png"
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=config.dpi, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"[OK] Resistance benchmark chart saved to {output_path}")
+
 
 def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     """Create all detail plots based on configuration settings."""
@@ -377,6 +495,9 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
         
     if config.infection_resolution_by_bacteria:
         create_infection_resolution_by_bacteria_plots(config, data_cache)
+
+    if config.resistance_benchmark_bar_charts:
+        create_resistance_benchmark_bar_charts(config)
     
     # Create individual plot types based on original script flags
     if config.distribution_drug_use_by_bacteria:

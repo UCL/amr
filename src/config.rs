@@ -709,7 +709,7 @@ impl GlobalScalars {
                 0.02,
             ),
             majority_r_window_days: {
-                let fallback = get_or_default(map, "majority_r_tier1_window_days", 500.0);
+                let fallback = get_or_default(map, "majority_r_tier1_window_days", 1000.0);
                 get_or_default(map, "majority_r_window_days", fallback)
                     .max(0.0)
                     .round() as u32
@@ -1224,7 +1224,7 @@ impl BacteriaParameters {
             acquisition_log_odds_baseline.push(get_or_default(
                 map,
                 &format!("{}_acquisition_log_odds_baseline", prefix),
-                get_or_default(map, "acquisition_log_odds_baseline", -13.0),
+                get_or_default(map, "acquisition_log_odds_baseline", -12.776856449),
             ));
             log_odds_vaccinated.push(get_or_default(
                 map,
@@ -3356,7 +3356,7 @@ lazy_static! {
         // against new incidence estimates.
         // --- Logistic Model Parameters for Infection and Microbiome Acquisition ---
         // Infection acquisition (site infection)
-        map.insert("acquisition_log_odds_baseline".to_string(), -13.0); // -13.0 Default baseline log-odds for infection acquisition (higher incidence)
+        map.insert("acquisition_log_odds_baseline".to_string(), -12.776856449); // Increased base acquisition odds (~1.25x higher infection incidence)
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -4216,13 +4216,13 @@ lazy_static! {
             0.93,
         );
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
-        map.insert("majority_r_window_days".to_string(), 500.0);
+            map.insert("majority_r_window_days".to_string(), 1000.0);
         map.insert("majority_r_min_total_samples".to_string(), 10.0);
         // Prevent small simulations from catastrophically erasing resistance prevalence once observed;
         // flip to 0 if you want buckets to decay back to zero when no positive samples remain.
         map.insert(
             "majority_r_freeze_at_last_positive".to_string(),
-            0.0,
+            1.0,
         );
         // Set to 1 to allow regional/hospital buckets to drift back to zero (extinction enabled).
         map.insert("majority_r_allow_extinction".to_string(), 0.0);

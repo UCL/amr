@@ -42,6 +42,10 @@ mod simulation;
 //
 // look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
+// how about a bar chart for each bacteria with simulated and observed proportion with resistance for each bateria ?
+//
+//
+//
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
@@ -139,7 +143,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 100_000;
+    let population_size = 1_000_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging

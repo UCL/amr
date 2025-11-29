@@ -74,6 +74,71 @@ class CalibrationTargets:
         )
 
 
+def _gather_calibration_context(
+    config: Optional[PlotConfig] = None,
+) -> Optional[Dict[str, object]]:
+    """Collect shared calibration tables for reuse across outputs."""
+
+    config = config or PlotConfig()
+    project_root = Path(__file__).resolve().parents[1]
+    targets = CalibrationTargets.load(project_root)
+
+    data_cache = DataCache()
+    df = data_cache.get_simulation_data()
+    if df is None or df.empty:
+        return None
+
+    df = df.copy()
+    if "time_in_years" not in df.columns and "time_step" in df.columns:
+        df["time_in_years"] = df["time_step"] / 365.0
+
+    if "time_in_years" not in df.columns:
+        raise KeyError("Simulation summary missing 'time_in_years' column")
+
+    df["calendar_year"] = config.start_year + df["time_in_years"]
+    year_df = _ensure_year_slice(df, df["calendar_year"], targets.target_year)
+
+    scale_factor = _compute_population_scale(year_df, targets.world_population)
+    (
+        resistance_window_df,
+        resistance_window_label,
+        resistance_expanded_df,
+        resistance_expanded_label,
+    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=5)
+
+    headline_df = _build_headline_table(df, year_df, targets, scale_factor)
+    microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
+    drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
+    resistance_targets = _load_resistance_targets(targets.resistance_target_path)
+    resistance_df = _calculate_resistance_table(
+        df,
+        resistance_window_df,
+        resistance_expanded_df,
+        resistance_targets,
+        window_label=resistance_window_label,
+        expanded_label=resistance_expanded_label,
+    )
+
+    overall_resistance = _calculate_overall_resistance(resistance_df)
+
+    return {
+        "config": config,
+        "targets": targets,
+        "df": df,
+        "year_df": year_df,
+        "scale_factor": scale_factor,
+        "resistance_window_df": resistance_window_df,
+        "resistance_window_label": resistance_window_label,
+        "resistance_expanded_df": resistance_expanded_df,
+        "resistance_expanded_label": resistance_expanded_label,
+        "headline_df": headline_df,
+        "microbiome_df": microbiome_df,
+        "drug_class_df": drug_class_df,
+        "resistance_df": resistance_df,
+        "overall_resistance": overall_resistance,
+    }
+
+
 def _ensure_year_slice(df: pd.DataFrame, calendar_year: pd.Series, year: int) -> pd.DataFrame:
     mask = (calendar_year >= year) & (calendar_year < year + 1)
     year_df = df.loc[mask]
@@ -642,42 +707,55 @@ def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
     """Generate calibration summary file and return its path."""
 
-    config = config or PlotConfig()
-    project_root = Path(__file__).resolve().parents[1]
-    targets = CalibrationTargets.load(project_root)
-
-    data_cache = DataCache()
-    df = data_cache.get_simulation_data()
-    if df is None or df.empty:
+    context = _gather_calibration_context(config)
+    if context is None:
         print("[WARNING] No simulation data available for calibration summary.")
         return None
 
-    df = df.copy()
-    df["calendar_year"] = config.start_year + df["time_in_years"]
-    year_df = _ensure_year_slice(df, df["calendar_year"], targets.target_year)
+    context_config = context.get("config")
+    if not isinstance(context_config, PlotConfig):
+        raise TypeError("Calibration context missing PlotConfig instance")
+    config = context_config
 
-    scale_factor = _compute_population_scale(year_df, targets.world_population)
-    (
-        resistance_window_df,
-        resistance_window_label,
-        resistance_expanded_df,
-        resistance_expanded_label,
-    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=5)
+    targets_obj = context.get("targets")
+    if not isinstance(targets_obj, CalibrationTargets):
+        raise TypeError("Calibration context missing CalibrationTargets instance")
+    targets = targets_obj
 
-    headline_df = _build_headline_table(df, year_df, targets, scale_factor)
-    microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
-    drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
-    resistance_targets = _load_resistance_targets(targets.resistance_target_path)
-    resistance_df = _calculate_resistance_table(
-        df,
-        resistance_window_df,
-        resistance_expanded_df,
-        resistance_targets,
-        window_label=resistance_window_label,
-        expanded_label=resistance_expanded_label,
-    )
+    df_obj = context.get("df")
+    if not isinstance(df_obj, pd.DataFrame):
+        raise TypeError("Calibration context missing simulation dataframe")
+    df = df_obj
 
-    overall_resistance = _calculate_overall_resistance(resistance_df)
+    year_df_obj = context.get("year_df")
+    if not isinstance(year_df_obj, pd.DataFrame):
+        raise TypeError("Calibration context missing year slice dataframe")
+    year_df = year_df_obj
+
+    headline_df = context.get("headline_df")
+    microbiome_df = context.get("microbiome_df")
+    drug_class_df = context.get("drug_class_df")
+    resistance_df = context.get("resistance_df")
+
+    if not isinstance(headline_df, pd.DataFrame):
+        headline_df = pd.DataFrame()
+    if not isinstance(microbiome_df, pd.DataFrame):
+        microbiome_df = pd.DataFrame()
+    if not isinstance(drug_class_df, pd.DataFrame):
+        drug_class_df = pd.DataFrame()
+    if not isinstance(resistance_df, pd.DataFrame):
+        resistance_df = pd.DataFrame()
+
+    scale_factor_obj = context.get("scale_factor")
+    scale_factor = float(scale_factor_obj) if isinstance(scale_factor_obj, (int, float)) else 1.0
+
+    window_label_obj = context.get("resistance_window_label")
+    resistance_window_label = str(window_label_obj) if window_label_obj not in (None, "") else ""
+
+    expanded_label_obj = context.get("resistance_expanded_label")
+    resistance_expanded_label = str(expanded_label_obj) if expanded_label_obj not in (None, "") else ""
+
+    overall_resistance = context.get("overall_resistance", (None, None, 0))
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -765,4 +843,32 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     return output_path
 
-__all__ = ["generate_calibration_summary"]
+def get_resistance_benchmark_table(
+    config: Optional[PlotConfig] = None,
+) -> Optional[Dict[str, object]]:
+    """Return resistance benchmark table and related metadata for plotting."""
+
+    context = _gather_calibration_context(config)
+    if context is None:
+        return None
+
+    resistance_df = context.get("resistance_df")
+    if not isinstance(resistance_df, pd.DataFrame):
+        resistance_df = pd.DataFrame()
+
+    window_label_obj = context.get("resistance_window_label")
+    expanded_label_obj = context.get("resistance_expanded_label")
+
+    window_label = str(window_label_obj) if window_label_obj not in (None, "") else ""
+    expanded_label = str(expanded_label_obj) if expanded_label_obj not in (None, "") else ""
+
+    targets = context.get("targets")
+    return {
+        "data": resistance_df,
+        "window_label": window_label,
+        "expanded_label": expanded_label,
+        "target_year": targets.target_year if isinstance(targets, CalibrationTargets) else None,
+    }
+
+
+__all__ = ["generate_calibration_summary", "get_resistance_benchmark_table"]

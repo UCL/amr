@@ -100,6 +100,7 @@ def create_all_plots(config=None):
         config.drug_score_summary,
         config.clinical_guideline_analysis,
         config.proportion_of_people_with_any_resistance_by_drug_for_each_bacteria,
+        config.resistance_benchmark_bar_charts,
         config.basic_plots,
         config.infection_duration,
         config.sepsis_among_infected,
