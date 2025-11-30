@@ -18,12 +18,68 @@ use crate::config::{
 };
 use crate::simulation::population::{
     HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType, Region,
-    ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
+    ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS,
+    MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
 
-use crate::simulation::simulation::MajorityRCache;
+use crate::simulation::simulation::{MajorityRCache, PolicyAdjustments};
 use std::collections::HashMap;
+use std::f64::consts::LN_2;
+
+/// Drugs that should be avoided in individuals with perceived penicillin allergy
+const PENICILLIN_CLASS_DRUGS: &[&str] = &[
+    "penicilling",
+    "ampicillin",
+    "amoxicillin",
+    "piperacillin",
+    "ticarcillin",
+    "amoxicillin_clavulanate",
+    "ampicillin_sulbactam",
+    "piperacillin_tazobactam",
+    "ticarcillin_clavulanate",
+];
+
+const COMMUNITY_SANITATION_ANCHORS: &[(f64, f64)] =
+    &[(1930.0, 1.8), (1950.0, 1.4), (1970.0, 1.15), (1990.0, 1.0)];
+
+const HOSPITAL_SANITATION_ANCHORS: &[(f64, f64)] =
+    &[(1930.0, 1.5), (1950.0, 1.2), (1970.0, 1.05), (1990.0, 1.0)];
+
+fn historical_sanitation_multiplier(year: f64, in_hospital: bool) -> f64 {
+    let anchors = if in_hospital {
+        HOSPITAL_SANITATION_ANCHORS
+    } else {
+        COMMUNITY_SANITATION_ANCHORS
+    };
+    interpolate_piecewise_linear(year, anchors)
+}
+
+fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
+    if anchors.is_empty() {
+        return 1.0;
+    }
+    if year <= anchors[0].0 {
+        return anchors[0].1;
+    }
+    let last_idx = anchors.len() - 1;
+    if year >= anchors[last_idx].0 {
+        return anchors[last_idx].1;
+    }
+    for pair in anchors.windows(2) {
+        let (y0, v0) = pair[0];
+        let (y1, v1) = pair[1];
+        if year <= y1 {
+            let span = y1 - y0;
+            if span <= f64::EPSILON {
+                return v1;
+            }
+            let position = (year - y0) / span;
+            return v0 + position * (v1 - v0);
+        }
+    }
+    anchors[last_idx].1
+}
 
 /// Helper function to update the current number of drugs counter
 fn update_drug_counter(individual: &mut Individual) {
@@ -38,11 +94,11 @@ fn apply_drug_level_interactions(individual: &mut Individual) {
     // Create a copy of current levels to calculate interactions from baseline levels
     let original_levels = individual.cur_level_drug.clone();
 
-    // Identify which drugs have significant levels (>0.001, roughly 0.1% of standard dose)
+    // Identify which drugs have significant levels (above INFECTION_EPS, roughly 0.1% of standard dose)
     let active_drugs: Vec<usize> = original_levels
         .iter()
         .enumerate()
-        .filter(|(_, &level)| level > 0.001)
+        .filter(|(_, &level)| level > INFECTION_EPS)
         .map(|(idx, _)| idx)
         .collect();
 
@@ -74,7 +130,7 @@ fn apply_drug_level_interactions(individual: &mut Individual) {
                     individual.cur_level_drug[drug1_idx] *= multiplier;
 
                     // Ensure levels don't go negative or below detection threshold
-                    if individual.cur_level_drug[drug1_idx] < 0.001 {
+                    if individual.cur_level_drug[drug1_idx] < INFECTION_EPS {
                         individual.cur_level_drug[drug1_idx] = 0.0;
                     }
 
@@ -92,11 +148,7 @@ use rand::distributions::Distribution;
 use rand::distributions::WeightedIndex;
 
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
-fn mechanism_applies_to_drug(
-    mechanism: ResistanceMechanism,
-    bacteria: &str,
-    drug: &str,
-) -> bool {
+fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, drug: &str) -> bool {
     match mechanism {
         ResistanceMechanism::ESBL => matches!(
             drug,
@@ -142,29 +194,34 @@ fn mechanism_applies_to_drug(
             matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
         }
         ResistanceMechanism::Qnr => {
-            matches!(drug, "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin")
+            matches!(
+                drug,
+                "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
+            )
         }
         ResistanceMechanism::ErmMethylation => {
             matches!(drug, "erythromycin" | "azithromycin" | "clarithromycin")
         }
         ResistanceMechanism::VanType => matches!(drug, "vancomycin" | "teicoplanin"),
         ResistanceMechanism::MecA => {
-            bacteria == "staphylococcus aureus"
-                && matches!(
-                    drug,
-                    "penicilling"
-                        | "ampicillin"
-                        | "amoxicillin"
-                        | "cephalexin"
-                        | "cefazolin"
-                        | "cefuroxime"
-                        | "ceftriaxone"
-                        | "ceftazidime"
-                        | "cefepime"
-                        | "meropenem"
-                        | "imipenem_c"
-                        | "ertapenem"
-                )
+            matches!(
+                bacteria,
+                "staphylococcus aureus" | "staphylococcus epidermidis"
+            ) && matches!(
+                drug,
+                "penicilling"
+                    | "ampicillin"
+                    | "amoxicillin"
+                    | "cephalexin"
+                    | "cefazolin"
+                    | "cefuroxime"
+                    | "ceftriaxone"
+                    | "ceftazidime"
+                    | "cefepime"
+                    | "meropenem"
+                    | "imipenem_c"
+                    | "ertapenem"
+            )
         }
         ResistanceMechanism::EffluxOverexpression => true,
         ResistanceMechanism::ReducedPermeability => !matches!(
@@ -327,6 +384,7 @@ fn assess_treatment_failure(
     // If we found alternatives, select one and switch
     if !alternative_scores.is_empty() {
         // Use same weighted selection as original logic
+        // Lower global value here makes the softmax pick higher-scoring drugs more deterministically; higher values spread the randomness.
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = alternative_scores
             .iter()
@@ -607,6 +665,7 @@ fn start_restart_treatment(
 
     // Select and start restart treatment
     if !drug_scores.is_empty() {
+        // Lower global value here makes the softmax emphasize high scores; higher values keep choices more random.
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = drug_scores
             .iter()
@@ -687,8 +746,16 @@ pub fn apply_rules(
     drug_indices: &HashMap<&'static str, usize>,
     cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
     param_cache: &ParameterKeyCache,                           // New parameter cache
+    policy: &PolicyAdjustments,
 ) {
     let store = parameter_store();
+    // Policy can tighten or loosen randomness when deciding among viable drugs.
+    let selection_temperature = policy
+        .drug_selection_temperature
+        .unwrap_or(store.globals.drug_selection_temperature);
+    let minimal_potency_threshold = policy
+        .minimal_potency_threshold_for_drug_selection
+        .unwrap_or(store.globals.minimal_potency_threshold_for_drug_selection);
 
     if individual.age < 0 {
         individual.age += 1; // Only advance age by 1 day
@@ -1015,7 +1082,7 @@ pub fn apply_rules(
                         .level
                         .iter()
                         .enumerate()
-                        .any(|(idx, &level)| idx != b_idx && level > 0.001);
+                        .any(|(idx, &level)| idx != b_idx && level > INFECTION_EPS);
 
                     if !other_infections_exist {
                         // H. pylori as sole infection = ZERO sepsis risk
@@ -1225,8 +1292,8 @@ pub fn apply_rules(
             let decay_constant = (2.0_f64).ln() / half_life_days; // k = ln(2) / t_half
             let decay_factor = (-decay_constant).exp(); // e^(-k*t) where t=1 day
             let new_drug_level = individual.cur_level_drug[drug_idx] * decay_factor;
-            // Set levels below 0.001 (0.1% of standard dose) to exactly zero to avoid floating point artifacts
-            individual.cur_level_drug[drug_idx] = if new_drug_level < 0.001 {
+            // Set levels below INFECTION_EPS to zero so residual traces do not keep treatments active
+            individual.cur_level_drug[drug_idx] = if new_drug_level < INFECTION_EPS {
                 0.0
             } else {
                 new_drug_level
@@ -1297,7 +1364,7 @@ pub fn apply_rules(
             let mut primary_bacteria_idx = -1i32;
             let mut highest_bacteria_level = 0.0;
             for b_idx in 0..BACTERIA_LIST.len() {
-                if individual.level[b_idx] > 0.001
+                if individual.level[b_idx] > INFECTION_EPS
                     && individual.level[b_idx] > highest_bacteria_level
                 {
                     highest_bacteria_level = individual.level[b_idx];
@@ -1333,17 +1400,21 @@ pub fn apply_rules(
                     continue;
                 }
 
+                if individual.perceived_penicillin_allergy
+                    && PENICILLIN_CLASS_DRUGS.iter().any(|&name| name == drug_name)
+                {
+                    continue;
+                }
+
                 // Score drug based on spectrum, activity, and clinical scenario
                 let mut score = 1.0;
 
                 // INTRINSIC ACTIVITY GATE: Block drugs with no meaningful activity against current infections
-                let minimal_potency_threshold =
-                    store.globals.minimal_potency_threshold_for_drug_selection;
                 let mut has_meaningful_activity = false;
                 let mut max_potency_against_infections: f64 = 0.0;
 
                 for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > 0.001 {
+                    if individual.level[b_idx] > INFECTION_EPS {
                         // Check if bacteria treatment was recognized in current year
                         let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
@@ -1371,7 +1442,7 @@ pub fn apply_rules(
 
                 // PATHOGEN-SPECIFIC CLINICAL GUIDELINES: Boost appropriate drugs, block inappropriate ones
                 for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > 0.001 {
+                    if individual.level[b_idx] > INFECTION_EPS {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
                             // Pseudomonas aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
@@ -1431,6 +1502,50 @@ pub fn apply_rules(
                                 }
                             }
                             ("Staphylococcus aureus", "clindamycin") => score *= 5.0,
+
+                            // Staphylococcus epidermidis - device-associated, glycopeptide preferred
+                            ("Staphylococcus epidermidis", "vancomycin") => {
+                                score *= 14.0;
+                            }
+                            ("Staphylococcus epidermidis", "linezolid" | "tedizolid") => {
+                                score *= 10.0;
+                            }
+                            ("Staphylococcus epidermidis", "quinu_dalfo") => {
+                                score *= 6.0;
+                            }
+                            ("Staphylococcus epidermidis", "trim_sulf") => {
+                                score *= 4.0;
+                            }
+                            (
+                                "Staphylococcus epidermidis",
+                                "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
+                                | "cefazolin" | "ceftriaxone",
+                            ) => {
+                                score *= 0.05;
+                            }
+
+                            // Stenotrophomonas maltophilia - favor TMP-SMX/minocycline, avoid carbapenems/aminoglycosides
+                            ("Stenotrophomonas maltophilia", "trim_sulf") => {
+                                score *= 14.0;
+                            }
+                            ("Stenotrophomonas maltophilia", "minocycline" | "doxyclycline") => {
+                                score *= 10.0;
+                            }
+                            ("Stenotrophomonas maltophilia", "levofloxacin" | "ciprofloxacin") => {
+                                score *= 6.0;
+                            }
+                            (
+                                "Stenotrophomonas maltophilia",
+                                "piperacillin_tazobactam"
+                                | "ceftazidime"
+                                | "meropenem"
+                                | "imipenem_c"
+                                | "gentamicin"
+                                | "tobramycin"
+                                | "amikacin",
+                            ) => {
+                                score *= 0.05;
+                            }
 
                             // Streptococcus pneumoniae - prefer penicillins and targeted agents
                             ("Streptococcus pneumoniae", "penicilling") => score *= 24.0,
@@ -1624,7 +1739,7 @@ pub fn apply_rules(
                 // This creates realistic clinical concentration patterns
                 let mut is_first_or_second_line = false;
                 for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > 0.001 {
+                    if individual.level[b_idx] > INFECTION_EPS {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         let first_second_line_drugs = match bacteria_name {
                             "Pseudomonas aeruginosa" => vec![
@@ -1644,6 +1759,20 @@ pub fn apply_rules(
                                 "linezolid",
                                 "tedizolid",
                                 "clindamycin",
+                            ],
+                            "Staphylococcus epidermidis" => vec![
+                                "vancomycin",
+                                "linezolid",
+                                "tedizolid",
+                                "quinu_dalfo",
+                                "trim_sulf",
+                            ],
+                            "Stenotrophomonas maltophilia" => vec![
+                                "trim_sulf",
+                                "minocycline",
+                                "doxyclycline",
+                                "levofloxacin",
+                                "ciprofloxacin",
                             ],
                             "Streptococcus pneumoniae" => vec![
                                 "penicilling",
@@ -1731,7 +1860,7 @@ pub fn apply_rules(
 
                 let mut max_bacteria_specific_multiplier: f64 = 1.0;
                 for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > 0.001 {
+                    if individual.level[b_idx] > INFECTION_EPS {
                         // Check if bacteria treatment was recognized in current year
                         let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
@@ -1780,8 +1909,7 @@ pub fn apply_rules(
                                 continue;
                             }
 
-                            let resistance_penalty = if resistance_prevalence
-                                >= very_high_threshold
+                            let resistance_penalty = if resistance_prevalence >= very_high_threshold
                             {
                                 very_high_penalty
                             } else if resistance_prevalence >= high_threshold {
@@ -1815,7 +1943,7 @@ pub fn apply_rules(
                     let mut best_potency: f64 = 0.0;
                     for b_idx in 0..BACTERIA_LIST.len() {
                         if individual.test_identified_infection[b_idx]
-                            && individual.level[b_idx] > 0.001
+                            && individual.level[b_idx] > INFECTION_EPS
                         {
                             let potency = store.drug_bacteria.potency(b_idx, drug_idx);
                             best_potency = best_potency.max(potency);
@@ -1862,7 +1990,7 @@ pub fn apply_rules(
                         let mut failure_documented = false;
                         let failure_memory_days = store.globals.drug_failure_memory_days;
                         for b_idx in 0..BACTERIA_LIST.len() {
-                            if individual.level[b_idx] <= 0.001 {
+                            if individual.level[b_idx] <= INFECTION_EPS {
                                 continue;
                             }
                             let failure_day = individual.date_last_drug_failure[b_idx];
@@ -1892,7 +2020,7 @@ pub fn apply_rules(
                             let mut narrow_alternative_available = false;
 
                             'reserve_check: for b_idx in 0..BACTERIA_LIST.len() {
-                                if individual.level[b_idx] <= 0.001 {
+                                if individual.level[b_idx] <= INFECTION_EPS {
                                     continue;
                                 }
 
@@ -1925,7 +2053,7 @@ pub fn apply_rules(
                                     store.globals.regional_resistance_threshold_high;
 
                                 'resistance_scan: for b_idx in 0..BACTERIA_LIST.len() {
-                                    if individual.level[b_idx] <= 0.001 {
+                                    if individual.level[b_idx] <= INFECTION_EPS {
                                         continue;
                                     }
 
@@ -1946,7 +2074,7 @@ pub fn apply_rules(
                             if !high_resistance_observed {
                                 // Fall back to individual-level data if regional cache is sparse
                                 for b_idx in 0..BACTERIA_LIST.len() {
-                                    if individual.level[b_idx] <= 0.001 {
+                                    if individual.level[b_idx] <= INFECTION_EPS {
                                         continue;
                                     }
                                     if individual.resistances[b_idx][drug_idx].any_r >= 0.6 {
@@ -1966,7 +2094,7 @@ pub fn apply_rules(
                         }
                     }
                     for b_idx in 0..BACTERIA_LIST.len() {
-                        if individual.level[b_idx] > 0.001 {
+                        if individual.level[b_idx] > INFECTION_EPS {
                             let potency = store.drug_bacteria.potency(b_idx, drug_idx);
                             if potency > effective_potency_threshold {
                                 has_any_activity = true;
@@ -2026,10 +2154,8 @@ pub fn apply_rules(
             // Weighted probabilistic selection from scored drugs
             if !drug_scores.is_empty() {
                 // Add stochasticity parameter to control randomness vs determinism
-                let selection_temperature = store.globals.drug_selection_temperature;
-
-                // Apply temperature scaling: lower temp = more deterministic (clinically realistic)
-                // Temperature of 0.5 = strongly favor best drugs, 1.0 = moderate, 2.0+ = random
+                // Apply randomness scaling: lower value = more deterministic (clinically realistic)
+                // Value of 0.5 = strongly favor best drugs, 1.0 = moderate, 2.0+ = random
                 let weights: Vec<f64> = drug_scores
                     .iter()
                     .map(|(_, score)| (score / selection_temperature).exp())
@@ -2082,29 +2208,64 @@ pub fn apply_rules(
         }
     }
 
-    // drug-specific toxicity
-    let mut daily_drug_toxicity_increase = 0.0;
+    // drug-specific toxicity hazard (fatal adverse events)
+    let default_half_life = store.globals.default_toxicity_reservoir_half_life_days;
+    let default_decay_factor = if default_half_life > 0.0 {
+        (-LN_2 / default_half_life).exp()
+    } else {
+        0.0
+    };
+
+    let mut aggregated_toxicity_hazard = 0.0;
     for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-        if individual.cur_level_drug[drug_idx] > 0.0 {
-            let drug_toxicity_per_unit = store.drug.toxicity_per_unit_level_per_day(drug_idx);
-            daily_drug_toxicity_increase +=
-                individual.cur_level_drug[drug_idx] * drug_toxicity_per_unit;
+        let mut decay_factor = default_decay_factor;
+        let configured_half_life = store.drug.toxicity_reservoir_half_life_days(drug_idx);
+        if configured_half_life >= 0.0 {
+            decay_factor = if configured_half_life > 0.0 {
+                (-LN_2 / configured_half_life).exp()
+            } else {
+                0.0
+            };
         }
+
+        individual.drug_toxicity_reservoir[drug_idx] *= decay_factor;
+
+        if individual.cur_level_drug[drug_idx] > 0.0 {
+            let hazard_input = individual.cur_level_drug[drug_idx]
+                * store.drug.toxicity_death_hazard_per_unit_level(drug_idx);
+            if hazard_input > 0.0 {
+                individual.drug_toxicity_reservoir[drug_idx] += hazard_input;
+            }
+        }
+
+        aggregated_toxicity_hazard += individual.drug_toxicity_reservoir[drug_idx];
     }
 
-    // Apply toxicity changes: increase from drugs, natural clearance when no drugs
-    if daily_drug_toxicity_increase > 0.0 {
-        // Drugs present: accumulate toxicity with maximum cap
-        let max_toxicity = store.globals.max_toxicity_level;
-        individual.current_toxicity = (individual.current_toxicity + daily_drug_toxicity_increase)
-            .max(0.0)
-            .min(max_toxicity);
+    let age_years = individual.age as f64 / 365.0;
+    let age_toxicity_multiplier = if age_years < 1.0 {
+        store.globals.toxicity_age_multiplier_infant
+    } else if age_years < 18.0 {
+        store.globals.toxicity_age_multiplier_child
+    } else if age_years < 65.0 {
+        store.globals.toxicity_age_multiplier_adult
     } else {
-        // No drugs present: natural toxicity clearance (liver/kidney function)
-        let toxicity_clearance_rate = store.globals.toxicity_clearance_rate_per_day;
-        individual.current_toxicity =
-            (individual.current_toxicity - toxicity_clearance_rate).max(0.0);
+        store.globals.toxicity_age_multiplier_elderly
+    };
+
+    let mut toxicity_death_risk = aggregated_toxicity_hazard * age_toxicity_multiplier;
+
+    if individual.immunodeficiency_type.is_some() {
+        toxicity_death_risk *= store.globals.toxicity_immunosuppressed_multiplier;
     }
+
+    if individual.hospital_status.is_hospitalized() {
+        toxicity_death_risk *= store.globals.toxicity_hospital_multiplier;
+    }
+
+    toxicity_death_risk = toxicity_death_risk.clamp(0.0, 1.0);
+
+    individual.current_toxicity_hazard = aggregated_toxicity_hazard.min(1.0);
+    individual.mortality_risk_current_toxicity = toxicity_death_risk;
 
     // --- Treatment failure tracking and assessment ---
     // Update treatment days counter and assess treatment failure
@@ -2313,20 +2474,9 @@ pub fn apply_rules(
                 cause = Some("sepsis_related".to_string());
             }
         }
-        let mut drug_adverse_event_risk_for_individual = 0.0;
-        let toxicity_death_risk_per_day = store.globals.drug_toxicity_death_risk_per_day;
-
-        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-            // Removed unused variable 'drug_name'
-            if individual.cur_level_drug[drug_idx] > 0.0 {
-                // Use only the global config parameter for drug toxicity death risk
-                drug_adverse_event_risk_for_individual =
-                    (drug_adverse_event_risk_for_individual + toxicity_death_risk_per_day).min(1.0);
-            }
-        }
-        individual.mortality_risk_current_toxicity = drug_adverse_event_risk_for_individual;
-        if drug_adverse_event_risk_for_individual > 0.0 {
-            prob_not_dying *= 1.0 - drug_adverse_event_risk_for_individual;
+        let toxicity_death_risk_for_individual = individual.mortality_risk_current_toxicity;
+        if toxicity_death_risk_for_individual > 0.0 {
+            prob_not_dying *= 1.0 - toxicity_death_risk_for_individual;
             if cause.is_none() {
                 cause = Some("drug_toxicity_related".to_string());
             }
@@ -2351,7 +2501,7 @@ pub fn apply_rules(
 
                 // Record resolution for ALL bacteria where person is currently infected
                 for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > 0.001 {
+                    if individual.level[b_idx] > INFECTION_EPS {
                         let resolution_idx = match resolution_type {
                             InfectionResolutionType::ImmuneClearance => 0,
                             InfectionResolutionType::DrugAssistedClearance => 1,
@@ -2437,9 +2587,14 @@ pub fn apply_rules(
     // --- update per-bacteria fields ---
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         let allows_microbiome = bacteria != "helicobacter pylori";
-        let is_infected = individual.level[b_idx] > 0.001;
+        let is_infected = individual.level[b_idx] > INFECTION_EPS;
 
         if !is_infected {
+            let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+            let sanitation_factor = historical_sanitation_multiplier(
+                simulation_year,
+                individual.hospital_status.is_hospitalized(),
+            );
             // --- Logistic model for bacteria acquisition probability ---
             // All risk factors contribute additively to log-odds, then logistic function is applied.
             let region = individual.region_cur_in;
@@ -2469,10 +2624,10 @@ pub fn apply_rules(
 
             // Convert log-odds to probability
             let mut acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+            acquisition_probability *= sanitation_factor;
 
             // Apply historical MDR TB incidence modifier
             if bacteria == "mdr mycobacterium tuberculosis" {
-                let simulation_year = 1930.0 + (time_step as f64 / 365.0);
                 let mdr_tb_multiplier = if simulation_year < 1944.0 {
                     store.globals.mdr_tb_pre_antibiotic_era_multiplier
                 } else if simulation_year < 1966.0 {
@@ -2536,9 +2691,12 @@ pub fn apply_rules(
                     log_odds += antibiotic_disruption_log_odds;
 
                     // Convert log-odds to probability
-                    let microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+                    let mut microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+                    microbiome_acquisition_probability *= sanitation_factor;
+                    microbiome_acquisition_probability =
+                        microbiome_acquisition_probability.clamp(0.0, 1.0);
 
-                    if rng.gen_bool(microbiome_acquisition_probability.clamp(0.0, 1.0)) {
+                    if rng.gen_bool(microbiome_acquisition_probability) {
                         individual.presence_microbiome[b_idx] = true;
                         // Track acquisition date for duration-dependent clearance modeling
                         // RATIONALE: Recent colonization is more easily cleared by immune response or antibiotics,
@@ -2666,16 +2824,13 @@ pub fn apply_rules(
                         let normalized_micro_r = if max_resistance_level <= f64::EPSILON {
                             1.0
                         } else {
-                            (resistance_data.microbiome_r / max_resistance_level)
-                                .clamp(0.0, 1.0)
+                            (resistance_data.microbiome_r / max_resistance_level).clamp(0.0, 1.0)
                         };
                         let base_potency = store.drug_bacteria.potency(b_idx, d_idx);
-                        let effective_activity = (base_potency
-                            * drug_level
-                            * (1.0 - normalized_micro_r))
-                            .max(0.0);
-                        strongest_microbiome_activity = strongest_microbiome_activity
-                            .max(effective_activity);
+                        let effective_activity =
+                            (base_potency * drug_level * (1.0 - normalized_micro_r)).max(0.0);
+                        strongest_microbiome_activity =
+                            strongest_microbiome_activity.max(effective_activity);
                     }
                 }
 
@@ -2699,14 +2854,11 @@ pub fn apply_rules(
                             0.5f64.powf(1.0 / half_life)
                         }
                     };
-                    let majority_decay_multiplier = decay_multiplier(
-                        store.globals.microbiome_majority_decay_half_life_days,
-                    );
-                    let minority_decay_multiplier = decay_multiplier(
-                        store.globals.microbiome_minority_decay_half_life_days,
-                    );
-                    let selection_pressure =
-                        strongest_microbiome_activity.clamp(0.0_f64, 5.0_f64);
+                    let majority_decay_multiplier =
+                        decay_multiplier(store.globals.microbiome_majority_decay_half_life_days);
+                    let minority_decay_multiplier =
+                        decay_multiplier(store.globals.microbiome_minority_decay_half_life_days);
+                    let selection_pressure = strongest_microbiome_activity.clamp(0.0_f64, 5.0_f64);
                     let decay_applies = selection_pressure < 0.1;
                     let promotion_intensity =
                         (selection_pressure / (selection_pressure + 1.0)).clamp(0.0, 1.0);
@@ -2741,14 +2893,15 @@ pub fn apply_rules(
                                 * store.globals.microbiome_majority_promotion_rate_per_day)
                                 .clamp(0.0, 1.0);
                             if promotion_rate > 0.0 && rng.gen_bool(promotion_rate) {
-                                resistance_data.microbiome_r = resistance_data
-                                    .microbiome_r
-                                    .max(majority_threshold);
+                                resistance_data.microbiome_r =
+                                    resistance_data.microbiome_r.max(majority_threshold);
                             }
                         }
 
-                        resistance_data.microbiome_r =
-                            resistance_data.microbiome_r.min(max_resistance_level).max(0.0);
+                        resistance_data.microbiome_r = resistance_data
+                            .microbiome_r
+                            .min(max_resistance_level)
+                            .max(0.0);
                     }
 
                     for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
@@ -2925,7 +3078,7 @@ pub fn apply_rules(
             // For each donor bacteria (with resistance), try to transfer to each other recipient bacteria
             for donor_idx in 0..BACTERIA_LIST.len() {
                 // Donor must have resistance (infection or microbiome)
-                let donor_has_resistance = individual.level[donor_idx] > 0.001
+                let donor_has_resistance = individual.level[donor_idx] > INFECTION_EPS
                     || individual.presence_microbiome[donor_idx];
                 if donor_has_resistance {
                     for recipient_idx in 0..BACTERIA_LIST.len() {
@@ -2939,7 +3092,7 @@ pub fn apply_rules(
                                 let donor_r = individual.resistances[donor_idx][drug_idx].any_r;
                                 if donor_r > 0.0 {
                                     // Transfer to infection
-                                    if individual.level[recipient_idx] > 0.001 {
+                                    if individual.level[recipient_idx] > INFECTION_EPS {
                                         let prev_any_r =
                                             individual.resistances[recipient_idx][drug_idx].any_r;
                                         let new_any_r = donor_r.max(prev_any_r);
@@ -3175,17 +3328,12 @@ pub fn apply_rules(
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
                                     let drug_name = DRUG_SHORT_NAMES[rifampicin_idx];
-                                    if !mechanism_applies_to_drug(
-                                        *mechanism,
-                                        bacteria,
-                                        drug_name,
-                                    ) {
+                                    if !mechanism_applies_to_drug(*mechanism, bacteria, drug_name) {
                                         continue;
                                     }
 
-                                    let enhancement = store
-                                        .resistance_mechanism
-                                        .enhancement_multiplier(mech_idx);
+                                    let enhancement =
+                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
                                     if enhancement <= resistance_data.any_r
                                         && rng.gen_bool(mechanism_prob)
                                     {
@@ -3608,7 +3756,7 @@ pub fn apply_rules(
                         let base_potency =
                             store.drug_bacteria.potency(bacteria_full_idx, drug_index);
 
-                        if current_bacteria_level > 0.001 {
+                        if current_bacteria_level > INFECTION_EPS {
                             // Calculate resistance mechanism enhancement
                             let mut mechanism_resistance_boost = 0.0;
                             if let Some(bacteria_full_idx) =
@@ -3889,7 +4037,7 @@ pub fn apply_rules(
                         let any_r = individual.resistances[b_idx][d_idx].any_r;
                         let error = rng.gen_bool(test_r_error_prob);
                         let test_r = if error {
-                            if any_r < 0.001 {
+                            if any_r < INFECTION_EPS {
                                 test_r_error_value
                             } else {
                                 0.0
@@ -4225,8 +4373,8 @@ pub fn apply_rules(
             let old_level = individual.level[b_idx];
 
             if new_bacteria_level < 0.0001 || immune_clearance_triggered {
-                // Check if there was an infection before clearance (previous level > 0.001)
-                let was_previously_infected = old_level > 0.001;
+                // Check if there was an infection before clearance (previous level > INFECTION_EPS)
+                let was_previously_infected = old_level > INFECTION_EPS;
 
                 if was_previously_infected {
                     // Determine resolution type based on actual drug activity accounting for resistance

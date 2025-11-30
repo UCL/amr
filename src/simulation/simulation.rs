@@ -16,7 +16,7 @@ use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
     InfectionResolutionType, MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism,
-    BACTERIA_LIST, DRUG_SHORT_NAMES, MICROBIOME_MAJORITY_THRESHOLD,
+    BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
     MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
 use rand::rngs::SmallRng;
@@ -27,7 +27,8 @@ use std::collections::{HashMap, VecDeque};
 use std::mem;
 use std::sync::Arc;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
-use std::io::Write;
+use std::fmt::{self, Write as FmtWrite};
+use std::io::Write as IoWrite;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -46,6 +47,54 @@ const CLEARANCE_CATEGORY_SUFFIXES: [&str; CLEARANCE_MICROBIOME_CATEGORY_COUNT] =
 ];
 const LIVING_MICROBIOME_SUFFIXES: [&str; 2] =
     ["_living_microbiome_minority", "_living_microbiome_majority"];
+const SIMULATION_START_YEAR: f64 = 1930.0;
+const POLICY_BRANCH_YEAR: f64 = 2027.0;
+const DAYS_PER_YEAR: f64 = 365.0;
+
+#[derive(Clone, Copy)]
+pub(crate) struct PolicyAdjustments {
+    pub(crate) policy_option: u8,
+    pub(crate) drug_selection_temperature: Option<f64>,
+    pub(crate) minimal_potency_threshold_for_drug_selection: Option<f64>,
+}
+
+impl PolicyAdjustments {
+    const fn baseline() -> Self {
+        Self {
+            policy_option: 0,
+            drug_selection_temperature: None,
+            minimal_potency_threshold_for_drug_selection: None,
+        }
+    }
+
+    fn alternate_example(globals: &config::GlobalScalars) -> Self {
+        // Example policy tweak: make drug choice more deterministic by reducing the selection randomness level.
+        // Update the scaling and/or add more overrides below when introducing new policy experiments.
+        let adjusted_temperature = (globals.drug_selection_temperature * 0.65).max(0.01);
+        Self {
+            policy_option: 1,
+            drug_selection_temperature: Some(adjusted_temperature),
+            minimal_potency_threshold_for_drug_selection: None,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct BranchSnapshot {
+    population: Population,
+    majority_r_cache_prev: MajorityRCache,
+    majority_r_cache_next: MajorityRCache,
+    summary_log: Vec<TimeStepSummary>,
+    prev_majority_r_entries_len: usize,
+}
+
+#[derive(Clone)]
+struct CoreState {
+    population: Population,
+    majority_r_cache_prev: MajorityRCache,
+    majority_r_cache_next: MajorityRCache,
+    prev_majority_r_entries_len: usize,
+}
 
 #[inline]
 fn carriage_duration_bin(days: i32) -> usize {
@@ -246,6 +295,7 @@ impl MajorityRBuffer {
     }
 }
 
+#[derive(Clone)]
 pub struct MajorityRCache {
     buckets: Vec<MajorityRBuffer>,
     pending_positive_values: Vec<Vec<f64>>,
@@ -413,7 +463,7 @@ impl MajorityRCache {
                     self.bucket_cumulative_totals[idx] as u32 >= self.threshold_min_samples;
                 if met_threshold {
                     self.bucket_threshold_met[idx] = true;
-                    let (region_idx, hospital, bacteria_idx, drug_idx) = self.decode(idx);
+                    let (_region_idx, _hospital, bacteria_idx, drug_idx) = self.decode(idx);
                     let world_idx = self.world_index(bacteria_idx, drug_idx);
                     let world_prob = self
                         .world_buckets
@@ -619,7 +669,7 @@ impl IndividualLogger {
         };
 
         if !self.header_written {
-            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs") {
+            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs") {
                 eprintln!(
                     "Error writing header for {}: {}",
                     self.path.display(),
@@ -708,7 +758,7 @@ impl IndividualLogger {
             row.push(format!("{:?}", ind.region_cur_in));
             row.push(format!("{:.4}", ind.current_infection_related_death_risk));
             row.push(format!("{:.4}", ind.background_all_cause_mortality_rate));
-            row.push(format!("{:.4}", ind.current_toxicity));
+            row.push(format!("{:.4}", ind.current_toxicity_hazard));
             row.push(format!("{:.4}", ind.mortality_risk_current_toxicity));
             row.push(format!("{:?}", ind.hospital_status));
             row.push(immunodeficiency_status.to_string());
@@ -768,6 +818,7 @@ pub struct TimeStepSummary {
     // per-bacteria count of people on any drug (infected with each bacteria and on at least one drug)
     pub infected_and_on_any_drug_by_bacteria: Vec<usize>,
     pub time_step: usize,
+    pub policy_option: u8,
     pub total_population: usize,
     pub total_deaths: usize,
     pub deaths_background: usize, // Deaths from background mortality
@@ -964,6 +1015,8 @@ pub struct Simulation {
     pub majority_r_cache_next: MajorityRCache,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
+    /// Optional storage for alternate policy branch summaries (policy_option = 1).
+    pub policy_branch_summary_log: Option<Vec<TimeStepSummary>>,
     /// Pre-computed parameter keys to avoid string allocation during simulation.
     pub param_cache: crate::rules::ParameterKeyCache,
     /// Precomputed potency values indexed by [bacteria * num_drugs + drug]
@@ -976,6 +1029,16 @@ pub struct Simulation {
     pub journey_logger: JourneyLogger,
     /// Optional fixed RNG seed for deterministic runs
     pub rng_seed: Option<u64>,
+    /// Identifier assigned at the start of each run for downstream joins
+    pub run_id: u32,
+    /// Flag to suppress side-effects (logging, etc.) when running alternate policy branch.
+    branch_active: bool,
+    /// Policy adjustments for baseline (policy_option = 0).
+    baseline_policy_adjustments: PolicyAdjustments,
+    /// Policy adjustments for the illustrative alternate policy (policy_option = 1).
+    branch_policy_adjustments: PolicyAdjustments,
+    /// Policy adjustments currently in effect during the run loop.
+    current_policy_adjustments: PolicyAdjustments,
 }
 
 impl Simulation {
@@ -1058,6 +1121,10 @@ impl Simulation {
             freeze_at_last_positive: globals.majority_r_freeze_at_last_positive,
         };
 
+        let baseline_policy = PolicyAdjustments::baseline();
+        // Alternate policy starts here: tweak the helper to change parameters applied from the branch year onwards.
+        let branch_policy = PolicyAdjustments::alternate_example(globals);
+
         Simulation {
             // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
             population,
@@ -1079,12 +1146,18 @@ impl Simulation {
                 &majority_r_config,
             ),
             summary_log: Vec::new(), // Initialize empty log
+            policy_branch_summary_log: None,
             param_cache: crate::rules::ParameterKeyCache::new(),
             potency_matrix,
             mic_lt2_majority_r_thresholds,
             prev_majority_r_entries_len: 0,
             journey_logger: JourneyLogger::new(),
             rng_seed: None,
+            run_id: 0,
+            branch_active: false,
+            baseline_policy_adjustments: baseline_policy,
+            branch_policy_adjustments: branch_policy,
+            current_policy_adjustments: baseline_policy,
         }
     }
 
@@ -1130,12 +1203,19 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self) {
-        // public function named run, which executes the simulation for the specified number of time steps.
+    fn run_from(
+        &mut self,
+        start_step: usize,
+        branch_capture_step: Option<usize>,
+    ) -> Option<BranchSnapshot> {
+        let mut branch_snapshot: Option<BranchSnapshot> = None;
 
-        // Starting simulation
-
-        for t in 0..self.time_steps {
+        for t in start_step..self.time_steps {
+            if let Some(step) = branch_capture_step {
+                if t == step && branch_snapshot.is_none() {
+                    branch_snapshot = Some(self.create_branch_snapshot());
+                }
+            }
             let timestep_start = Instant::now();
 
             // --- Setup counters; MIC<2 snapshot will use per-thread local vectors reduced after loop (avoids atomic contention) ---
@@ -1926,6 +2006,7 @@ impl Simulation {
             let seed_option = self.rng_seed;
             let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
                 .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+            let policy = self.current_policy_adjustments;
             let totals = self.population.individuals.par_iter_mut()
             .fold(
                 || {
@@ -1944,7 +2025,8 @@ impl Simulation {
                 |mut lt, individual| {
                     // Pre-rules MIC snapshot
                     if individual.date_of_death.is_none() && individual.age >= 0 {
-                        let has_any_infection = individual.level.iter().any(|&level| level > 0.001);
+                        let has_any_infection =
+                            individual.level.iter().any(|&level| level > INFECTION_EPS);
                         let has_any_microbiome = individual
                             .presence_microbiome
                             .iter()
@@ -1967,7 +2049,7 @@ impl Simulation {
                             };
 
                             for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > 0.001 {
+                                if individual.level[b_idx] > INFECTION_EPS {
                                     let base = b_idx * num_drugs;
                                     if on_any_drug_current {
                                         lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
@@ -2047,6 +2129,7 @@ impl Simulation {
                         &self.drug_indices,
                         &self.cross_resistance_groups,
                         &self.param_cache,
+                        &policy,
                     );
 
                     // Death accounting
@@ -2114,7 +2197,9 @@ impl Simulation {
 
                                         // Track non-sepsis infection deaths by syndrome and region
                                         for b_idx in 0..BACTERIA_LIST.len() {
-                                            if individual.level[b_idx] > 0.001 && !individual.sepsis[b_idx] {
+                                            if individual.level[b_idx] > INFECTION_EPS
+                                                && !individual.sepsis[b_idx]
+                                            {
                                                 let syndrome_id = individual.infectious_syndrome[b_idx];
                                                 if (1..=10).contains(&syndrome_id) {
                                                     let syndrome_idx = (syndrome_id - 1) as usize;
@@ -2153,7 +2238,7 @@ impl Simulation {
                             }
                             // Count deaths by bacteria
                             for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > 0.001 {
+                                if individual.level[b_idx] > INFECTION_EPS {
                                     lt.deaths_by_bacteria[b_idx] += 1;
                                 }
                             }
@@ -2161,7 +2246,7 @@ impl Simulation {
                             // Count deaths by bacteria and home region for currently infected individuals
                             let home_region_idx = region_to_index(individual.region_living);
                             for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > 0.001 {
+                                if individual.level[b_idx] > INFECTION_EPS {
                                     lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
                                 }
                             }
@@ -2342,7 +2427,7 @@ impl Simulation {
                         let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
                         {
                             for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > 0.001 {
+                                if individual.level[b_idx] > INFECTION_EPS {
                                     // Track non-H. pylori infections separately (exclude H. pylori at index 32)
                                     if b_idx != 32 {
                                         individual_has_any_non_h_pylori_infection = true;
@@ -2356,7 +2441,7 @@ impl Simulation {
                                 }
                             }
                             for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > 0.001 {
+                                if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
                                     let mut infection_any_r_positive = false;
                                     // Count syndrome for this infected individual (take first one if multiple infections)
@@ -2493,7 +2578,9 @@ impl Simulation {
                                 lt.number_with_sepsis_by_bacteria[b_idx] += 1;
 
                                 // Count as new sepsis case if sepsis started today and person is currently infected
-                                if individual.level[b_idx] > 0.001 && individual.sepsis_onset_day[b_idx] == t as i32 {
+                                if individual.level[b_idx] > INFECTION_EPS
+                                    && individual.sepsis_onset_day[b_idx] == t as i32
+                                {
                                     lt.new_sepsis_cases_by_bacteria[b_idx] += 1;
                                 }
                             }
@@ -2713,6 +2800,7 @@ impl Simulation {
             // if t % 500 == 0 { println!("Time step {} drug usage counts: {:?}", t, currently_on_drug_by_drug); }
 
             let summary = TimeStepSummary {
+                policy_option: policy.policy_option,
                 infected_and_on_any_drug_by_bacteria,
                 infected_and_standardized_mic_lt2_by_bacteria_drug,
                 currently_on_drug_by_bacteria_drug,
@@ -3167,7 +3255,7 @@ impl Simulation {
             // println!("airborne_contact_level_with_adults: {:.4}", individual_0.airborne_contact_level_with_adults);
             // println!("airborne_contact_level_with_children: {:.4}", individual_0.airborne_contact_level_with_children);
             // println!("oral_exposure_level: {:.4}", individual_0.oral_exposure_level);
-            // println!("current_toxicity: {:.4}", individual_0.current_toxicity);
+            // println!("current_toxicity_hazard: {:.4}", individual_0.current_toxicity_hazard);
             // println!("mortality_risk_current_toxicity: {:.4}", individual_0.mortality_risk_current_toxicity);
             // println!("hospital_status: {:?}", individual_0.hospital_status);
             // println!("is_severely_immunosuppressed: {:?}", individual_0.is_severely_immunosuppressed);
@@ -3213,11 +3301,13 @@ impl Simulation {
                     }
                 });
             if let Some(logger) = self.individual_logger.as_mut() {
-                logger.log_snapshot(t, &self.population);
+                if !self.branch_active {
+                    logger.log_snapshot(t, &self.population);
+                }
             }
 
             // Journey logging - process infection journeys after rules have been applied
-            if self.journey_logger.enabled {
+            if self.journey_logger.enabled && !self.branch_active {
                 // Process all individuals sequentially to update journey tracking
                 for individual in &self.population.individuals {
                     self.journey_logger.check_individual(individual, t);
@@ -3238,10 +3328,113 @@ impl Simulation {
         }
 
         // Final journey logging - ensure all journey data is written at simulation end
-        if self.journey_logger.enabled {
+        if self.journey_logger.enabled && !self.branch_active {
             let _ = self.journey_logger.finalize();
             let _ = self.journey_logger.close(); // Close the file at the very end
         }
+
+        branch_snapshot
+    }
+
+    pub fn run(&mut self) {
+        // Assign a fresh identifier for this run so downstream CSV joins can distinguish outputs.
+        let previous_run_id = self.run_id;
+        let mut run_id_rng = SmallRng::from_entropy();
+        let mut new_run_id: u32 = run_id_rng.gen_range(1..=1_000_000);
+        if previous_run_id != 0 && new_run_id == previous_run_id {
+            new_run_id = run_id_rng.gen_range(1..=1_000_000);
+        }
+        self.run_id = new_run_id;
+        println!("Simulation run ID: {}", self.run_id);
+
+        self.policy_branch_summary_log = None;
+        self.branch_active = false;
+        self.current_policy_adjustments = self.baseline_policy_adjustments;
+        self.summary_log.clear();
+
+        let branch_step = self.policy_branch_step();
+        let baseline_snapshot = self.run_from(0, branch_step);
+
+        if let (Some(snapshot), Some(step)) = (baseline_snapshot, branch_step) {
+            let baseline_summary = self.summary_log.clone();
+            let baseline_state = self.capture_core_state();
+
+            self.run_policy_branch(snapshot, step);
+
+            self.summary_log = baseline_summary;
+            self.restore_core_state(baseline_state);
+            self.current_policy_adjustments = self.baseline_policy_adjustments;
+        }
+    }
+
+    fn policy_branch_step(&self) -> Option<usize> {
+        if POLICY_BRANCH_YEAR <= SIMULATION_START_YEAR {
+            return None;
+        }
+        let step = ((POLICY_BRANCH_YEAR - SIMULATION_START_YEAR) * DAYS_PER_YEAR)
+            .round()
+            .max(0.0) as usize;
+        if step < self.time_steps {
+            Some(step)
+        } else {
+            None
+        }
+    }
+
+    fn create_branch_snapshot(&self) -> BranchSnapshot {
+        BranchSnapshot {
+            population: self.population.clone(),
+            majority_r_cache_prev: self.majority_r_cache_prev.clone(),
+            majority_r_cache_next: self.majority_r_cache_next.clone(),
+            summary_log: self.summary_log.clone(),
+            prev_majority_r_entries_len: self.prev_majority_r_entries_len,
+        }
+    }
+
+    fn capture_core_state(&self) -> CoreState {
+        CoreState {
+            population: self.population.clone(),
+            majority_r_cache_prev: self.majority_r_cache_prev.clone(),
+            majority_r_cache_next: self.majority_r_cache_next.clone(),
+            prev_majority_r_entries_len: self.prev_majority_r_entries_len,
+        }
+    }
+
+    fn restore_core_state(&mut self, state: CoreState) {
+        self.population = state.population;
+        self.majority_r_cache_prev = state.majority_r_cache_prev;
+        self.majority_r_cache_next = state.majority_r_cache_next;
+        self.prev_majority_r_entries_len = state.prev_majority_r_entries_len;
+    }
+
+    fn run_policy_branch(&mut self, snapshot: BranchSnapshot, branch_step: usize) {
+        println!(
+            "Starting alternate policy branch (option {}) from time step {}",
+            self.branch_policy_adjustments.policy_option, branch_step
+        );
+
+        self.branch_active = true;
+        self.current_policy_adjustments = self.branch_policy_adjustments;
+
+        self.population = snapshot.population;
+        self.majority_r_cache_prev = snapshot.majority_r_cache_prev;
+        self.majority_r_cache_next = snapshot.majority_r_cache_next;
+        self.summary_log = snapshot.summary_log;
+        self.prev_majority_r_entries_len = snapshot.prev_majority_r_entries_len;
+
+        let _ = self.run_from(branch_step, None);
+
+        let branch_option = self.branch_policy_adjustments.policy_option;
+        let branch_summaries: Vec<TimeStepSummary> = self
+            .summary_log
+            .iter()
+            .cloned()
+            .filter(|entry| entry.policy_option == branch_option)
+            .collect();
+        self.policy_branch_summary_log = Some(branch_summaries);
+
+        self.branch_active = false;
+        println!("Alternate policy branch completed");
     }
 
     pub fn print_summary_statistics(&self) {
@@ -3257,14 +3450,32 @@ impl Simulation {
             journeys_started,
             snapshots_logged
         );
+
+        if let Some(branch_summaries) = &self.policy_branch_summary_log {
+            if let Some(first_entry) = branch_summaries.first() {
+                let last_step = branch_summaries
+                    .last()
+                    .map(|summary| summary.time_step)
+                    .unwrap_or(first_entry.time_step);
+                println!(
+                    "Alternate policy (option {}) covers time_steps {}-{} ({} records).",
+                    self.branch_policy_adjustments.policy_option,
+                    first_entry.time_step,
+                    last_step,
+                    branch_summaries.len()
+                );
+            }
+        }
     }
 
-    pub fn export_summary_to_csv(&self, filename: &str) -> Result<(), std::io::Error> {
+    pub fn export_summary_to_csv<P>(&self, filename: P) -> Result<(), std::io::Error>
+    where
+        P: AsRef<std::path::Path>,
+    {
         use std::fs::{create_dir_all, File};
         use std::io::{BufWriter, Write};
-        use std::path::Path;
 
-        let path = Path::new(filename);
+        let path = filename.as_ref();
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
                 create_dir_all(parent)?;
@@ -3276,7 +3487,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -3840,58 +4051,85 @@ impl Simulation {
             }
         }
 
-        // Add drug count histogram columns
-        header.push_str(",people_on_0_drugs,people_on_1_drugs_new,people_on_2_drugs_new,people_on_3plus_drugs_new");
-
         header.push('\n');
         writer.write_all(header.as_bytes())?;
 
-        // Write data with pre-built strings
-        for summary in &self.summary_log {
+        // Write data with pre-built strings (baseline followed by any policy branches)
+        let mut combined_summaries: Vec<&TimeStepSummary> = Vec::new();
+        combined_summaries.extend(self.summary_log.iter());
+        if let Some(branch_summaries) = &self.policy_branch_summary_log {
+            combined_summaries.extend(branch_summaries.iter());
+        }
+
+        for summary in combined_summaries {
             let mut row = String::with_capacity(20000); // Pre-allocate for each row
 
             // Write basic summary data
             let time_in_years = summary.time_step as f64 / 365.0;
-            row.push_str(&format!("{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", 
-                summary.time_step,
-                time_in_years,
-                summary.total_population,
-                summary.number_in_hospital,
-                summary.number_severely_immunosuppressed,
-                summary.number_with_sepsis,
-                summary.total_currently_infected,
-                summary.infected_10_days_count,
-                summary.infected_30_days_count,
-                summary.total_with_resistance,
-                summary.currently_taking_drug_count,
-                summary.currently_infected_and_on_drug_count,
-                summary.taking_two_drugs_count,
-                summary.newly_infected_count,
-                summary.newly_infected_with_resistance_count,
-                summary.new_drug_initiations_count,
-                summary.new_drug_initiations_count_infected,
-                summary.newly_infected_past_year,
-                summary.total_deaths,
-                summary.deaths_background,
-                summary.deaths_sepsis,
-                summary.deaths_infection_non_sepsis,
-                summary.deaths_drug_toxicity,
-                summary.deaths_past_year,
-                summary.deaths_background_past_year,
-                summary.deaths_sepsis_past_year,
-                summary.deaths_infection_non_sepsis_past_year,
-                summary.deaths_drug_toxicity_past_year,
-                summary.num_age_0_5,
-                summary.num_age_6_14,
-                summary.num_age_15_49,
-                summary.num_age_50_79,
-                summary.num_age_80plus,
-                summary.num_with_any_bacteria_microbiome,
-                summary.people_on_1_drug,
-                summary.people_on_2_drugs,
-                summary.people_on_3plus_drugs,
-                summary.infected_on_drug_with_previous_failure,
-            ));
+            let mut append_scalar = |args: fmt::Arguments<'_>| -> Result<(), std::io::Error> {
+                if !row.is_empty() {
+                    row.push(',');
+                }
+                FmtWrite::write_fmt(&mut row, args).map_err(|_| {
+                    std::io::Error::new(std::io::ErrorKind::Other, "failed to format summary row")
+                })
+            };
+
+            append_scalar(format_args!("{}", summary.time_step))?;
+            append_scalar(format_args!("{}", summary.policy_option))?;
+            append_scalar(format_args!("{}", self.run_id))?;
+            append_scalar(format_args!("{:.3}", time_in_years))?;
+            append_scalar(format_args!("{}", summary.total_population))?;
+            append_scalar(format_args!("{}", summary.number_in_hospital))?;
+            append_scalar(format_args!("{}", summary.number_severely_immunosuppressed))?;
+            append_scalar(format_args!("{}", summary.number_with_sepsis))?;
+            append_scalar(format_args!("{}", summary.total_currently_infected))?;
+            append_scalar(format_args!("{}", summary.infected_10_days_count))?;
+            append_scalar(format_args!("{}", summary.infected_30_days_count))?;
+            append_scalar(format_args!("{}", summary.total_with_resistance))?;
+            append_scalar(format_args!("{}", summary.currently_taking_drug_count))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.currently_infected_and_on_drug_count
+            ))?;
+            append_scalar(format_args!("{}", summary.taking_two_drugs_count))?;
+            append_scalar(format_args!("{}", summary.newly_infected_count))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.newly_infected_with_resistance_count
+            ))?;
+            append_scalar(format_args!("{}", summary.new_drug_initiations_count))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.new_drug_initiations_count_infected
+            ))?;
+            append_scalar(format_args!("{}", summary.newly_infected_past_year))?;
+            append_scalar(format_args!("{}", summary.total_deaths))?;
+            append_scalar(format_args!("{}", summary.deaths_background))?;
+            append_scalar(format_args!("{}", summary.deaths_sepsis))?;
+            append_scalar(format_args!("{}", summary.deaths_infection_non_sepsis))?;
+            append_scalar(format_args!("{}", summary.deaths_drug_toxicity))?;
+            append_scalar(format_args!("{}", summary.deaths_past_year))?;
+            append_scalar(format_args!("{}", summary.deaths_background_past_year))?;
+            append_scalar(format_args!("{}", summary.deaths_sepsis_past_year))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.deaths_infection_non_sepsis_past_year
+            ))?;
+            append_scalar(format_args!("{}", summary.deaths_drug_toxicity_past_year))?;
+            append_scalar(format_args!("{}", summary.num_age_0_5))?;
+            append_scalar(format_args!("{}", summary.num_age_6_14))?;
+            append_scalar(format_args!("{}", summary.num_age_15_49))?;
+            append_scalar(format_args!("{}", summary.num_age_50_79))?;
+            append_scalar(format_args!("{}", summary.num_age_80plus))?;
+            append_scalar(format_args!("{}", summary.num_with_any_bacteria_microbiome))?;
+            append_scalar(format_args!("{}", summary.people_on_1_drug))?;
+            append_scalar(format_args!("{}", summary.people_on_2_drugs))?;
+            append_scalar(format_args!("{}", summary.people_on_3plus_drugs))?;
+            append_scalar(format_args!(
+                "{}",
+                summary.infected_on_drug_with_previous_failure
+            ))?;
 
             // Remove the duplicate polypharmacy data that was causing mismatch
             // (these values are now included in the main format string above)
@@ -4278,7 +4516,7 @@ impl Simulation {
         }
 
         writer.flush()?;
-        println!("Summary data exported to {}", filename);
+        println!("Summary data exported to {}", path.display());
         Ok(())
     }
 }

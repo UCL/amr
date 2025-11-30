@@ -16,35 +16,15 @@ mod rules;
 mod simulation;
 
 //
-// DECIDE ON MINIMUM CALIBRATION TARGETS
+// -- calibration targets ----------------------------------------------------------------------------------------
 //
-// total number of deaths with sepsis (~ 8 million in 2021 (model)  vs 14 million gbd) - (by bacteria ?)
-// number on drug on any one given day 75 million (model) vs ~ 100 million roughly estimated (by drug ?)
-// percent with new bacterial infection per year (~ 4% (model) vs ~ 10% rough empiric estimate) (by bacteria ?)
-// values in resistance_prevalence_values.csv for 2025 for all relevant bacteria / drug combination
-//
-//
-// aiming for 5% severely immunosuppressed
-// aiming for 0.3% hospitalized
-//
-// below are not for our minimum calibration:
-// try to get estimate of prevalence of each bacteria in microbiome (ok just by region and age and hospital status ?)
-// try to get estimate of prevalence of resistance in microbiome bacteria (needs to be by region and hospital status ?)
-//
-//
+// death within 30 days by bacteria, age and region ? - make a formal part of calibration score or just present as an fyi ?
 //
 //
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
-// think of other outputs which can convey how / whether various parts of the model are working (e.g. the effects of a on b)
-// at least a partial answer here might be "tests"
-//
 // look at data on effects of stewardship policies on resistance and see if model can re-produce
-//
-// how about a bar chart for each bacteria with simulated and observed proportion with resistance for each bateria ?
-//
-//
 //
 //
 //
@@ -52,21 +32,14 @@ mod simulation;
 //
 // review infection journeys
 //
-//    consider bacterial growth rate
+//    consider bacterial growth rate and how varies by bacteria
+//    consider between bacteria variation in sepsis onset (eg zero with gonorrhoea)
 //    consider determinants of toxicity (do we need to be more specific about toxicity ?)
 //    consider infection clearance rate determinants
-//
-// add stenotrophomonas maltophilia, staph epidermidis 
-//
-// rapidity of onset of symptoms, something like a Group A strep (strep pyogenes) can go from mild
-// systemic inflammatory response to death in 24 hours through toxic shock syndrome
-//
-// include penicillin allergy ?
-//
-// consider decrease over time in infection rate due to greater sanitation at least up to ~ 1970
+//    add a line for symptom presence
 //
 // investigate why for some bacteria infection in africa shot up around time of intro of first antibiotic
-// 
+//
 //
 //
 //
@@ -143,10 +116,10 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 1_000_000;
+    let population_size = 1000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false ; // Set to true to enable infection journey logging
+    let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.10; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
@@ -200,11 +173,12 @@ fn main() {
             output_dir, err
         );
     }
-    let csv_path = output_dir.join("simulation_summary.csv");
-    let csv_filename = csv_path.to_string_lossy().to_string();
+    let run_id = simulation.run_id;
+    let csv_basename = format!("simulation_summary_{:06}.csv", run_id);
+    let csv_path = output_dir.join(&csv_basename);
 
     // Export to CSV for analysis
-    if let Err(e) = simulation.export_summary_to_csv(&csv_filename) {
+    if let Err(e) = simulation.export_summary_to_csv(&csv_path) {
         println!("Error exporting CSV: {}", e);
     } else {
         println!("Summary data exported to {}", csv_path.display());

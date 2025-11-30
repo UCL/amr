@@ -10,6 +10,9 @@
 use rand::Rng;
 use std::fmt;
 
+// Minimum infection/drug level threshold; values below this are treated as cleared to avoid floating-point noise.
+pub const INFECTION_EPS: f64 = 0.001;
+
 /// Specific resistance mechanisms that can be present in bacteria
 /// These provide an overlay on the existing any_r/majority_r system
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,7 +195,9 @@ pub const BACTERIA_LIST: &[&str] = &[
     "proteus spp.",
     "serratia spp.",
     "pseudomonas aeruginosa",
+    "stenotrophomonas maltophilia",
     "staphylococcus aureus",
+    "staphylococcus epidermidis",
     "streptococcus pneumoniae",
     "salmonella enterica serovar typhi",
     "salmonella enterica serovar paratyphi a",
@@ -355,6 +360,7 @@ pub struct Individual {
     pub id: usize,
     pub age: i32, // age in days (negative = not yet born date)
     pub sex_at_birth: String,
+    pub perceived_penicillin_allergy: bool,
     pub region_living: Region,
     pub region_cur_in: Region,
     pub days_visiting: u32,
@@ -413,7 +419,8 @@ pub struct Individual {
     pub current_infection_related_death_risk: f64,
     pub background_all_cause_mortality_rate: f64,
     pub infection_hospital_acquired: Vec<bool>,
-    pub current_toxicity: f64,
+    pub drug_toxicity_reservoir: Vec<f64>,
+    pub current_toxicity_hazard: f64,
     pub mortality_risk_current_toxicity: f64,
     pub resistances: Vec<Vec<Resistance>>,
     /// Tracks specific resistance mechanisms for each bacteria
@@ -467,6 +474,7 @@ impl Individual {
         let mut rng = rand::thread_rng();
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
+        let perceived_penicillin_allergy = rng.gen_bool(0.08);
 
         let date_last_infected = vec![0; num_bacteria];
         let date_last_infected_keep = vec![0; num_bacteria];
@@ -553,6 +561,7 @@ impl Individual {
         Individual {
             id,
             age: age_days,
+            perceived_penicillin_allergy,
             region_living: Region::Home, // Will be set by Population::new()
             region_cur_in: Region::Home,
             days_visiting: 0,
@@ -588,7 +597,8 @@ impl Individual {
             test_identified_infection,
             test_for_resistance,
             resistance_test_initiated_day,
-            current_toxicity: rng.gen_range(0.0..=3.0),
+            drug_toxicity_reservoir: vec![0.0; num_drugs],
+            current_toxicity_hazard: 0.0,
             mortality_risk_current_toxicity: 0.0,
             resistances,
             resistance_mechanisms,
@@ -652,6 +662,7 @@ impl Individual {
     }
 }
 
+#[derive(Clone)]
 pub struct Population {
     pub individuals: Vec<Individual>,
 }
