@@ -30,21 +30,13 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// review infection journeys
-//
-//    consider bacterial growth rate and how varies by bacteria
-//    consider between bacteria variation in sepsis onset (eg zero with gonorrhoea)
-//    consider determinants of toxicity (do we need to be more specific about toxicity ?)
-//    consider infection clearance rate determinants
-//    add a line for symptom presence
-//
-// investigate why for some bacteria infection in africa shot up around time of intro of first antibiotic
 //
 //
 //
 //
 //
-// consider (but probably only for future iterations):
+//
+// consider for future iterations:
 //
 // consider having incidence of infection rising in situations if they occur in future in which infections cannot be treated
 // reduced bacterial growth rates for resistant strains ?

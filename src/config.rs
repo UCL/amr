@@ -6250,9 +6250,9 @@ lazy_static! {
         // broad-spectrum antibiotic use, and why MRSA/ESBL colonization increases during antibiotic courses.
         // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
         // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
-    map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
-    map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.35);
-    map.insert("infection_from_microbiome_dampening".to_string(), 0.85);
+        map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
+        map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.35);
+        map.insert("infection_from_microbiome_dampening".to_string(), 0.85);
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
 
@@ -6303,7 +6303,7 @@ lazy_static! {
             0.93,
         );
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
-            map.insert("majority_r_window_days".to_string(), 1000.0);
+        map.insert("majority_r_window_days".to_string(), 1000.0);
         map.insert("majority_r_min_total_samples".to_string(), 10.0);
         // Prevent small simulations from catastrophically erasing resistance prevalence once observed;
         // flip to 0 if you want buckets to decay back to zero when no positive samples remain.
