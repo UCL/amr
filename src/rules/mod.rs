@@ -40,47 +40,6 @@ const PENICILLIN_CLASS_DRUGS: &[&str] = &[
     "ticarcillin_clavulanate",
 ];
 
-const COMMUNITY_SANITATION_ANCHORS: &[(f64, f64)] =
-    &[(1930.0, 1.8), (1950.0, 1.4), (1970.0, 1.15), (1990.0, 1.0)];
-
-const HOSPITAL_SANITATION_ANCHORS: &[(f64, f64)] =
-    &[(1930.0, 1.5), (1950.0, 1.2), (1970.0, 1.05), (1990.0, 1.0)];
-
-fn historical_sanitation_multiplier(year: f64, in_hospital: bool) -> f64 {
-    let anchors = if in_hospital {
-        HOSPITAL_SANITATION_ANCHORS
-    } else {
-        COMMUNITY_SANITATION_ANCHORS
-    };
-    interpolate_piecewise_linear(year, anchors)
-}
-
-fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
-    if anchors.is_empty() {
-        return 1.0;
-    }
-    if year <= anchors[0].0 {
-        return anchors[0].1;
-    }
-    let last_idx = anchors.len() - 1;
-    if year >= anchors[last_idx].0 {
-        return anchors[last_idx].1;
-    }
-    for pair in anchors.windows(2) {
-        let (y0, v0) = pair[0];
-        let (y1, v1) = pair[1];
-        if year <= y1 {
-            let span = y1 - y0;
-            if span <= f64::EPSILON {
-                return v1;
-            }
-            let position = (year - y0) / span;
-            return v0 + position * (v1 - v0);
-        }
-    }
-    anchors[last_idx].1
-}
-
 /// Helper function to update the current number of drugs counter
 fn update_drug_counter(individual: &mut Individual) {
     individual.current_number_of_drugs =
@@ -2591,10 +2550,6 @@ pub fn apply_rules(
 
         if !is_infected {
             let simulation_year = 1930.0 + (time_step as f64 / 365.0);
-            let sanitation_factor = historical_sanitation_multiplier(
-                simulation_year,
-                individual.hospital_status.is_hospitalized(),
-            );
             // --- Logistic model for bacteria acquisition probability ---
             // All risk factors contribute additively to log-odds, then logistic function is applied.
             let region = individual.region_cur_in;
@@ -2624,7 +2579,6 @@ pub fn apply_rules(
 
             // Convert log-odds to probability
             let mut acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
-            acquisition_probability *= sanitation_factor;
 
             // Apply historical MDR TB incidence modifier
             if bacteria == "mdr mycobacterium tuberculosis" {
@@ -2691,8 +2645,8 @@ pub fn apply_rules(
                     log_odds += antibiotic_disruption_log_odds;
 
                     // Convert log-odds to probability
-                    let mut microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
-                    microbiome_acquisition_probability *= sanitation_factor;
+                    let mut microbiome_acquisition_probability =
+                        1.0 / (1.0 + (-log_odds).exp());
                     microbiome_acquisition_probability =
                         microbiome_acquisition_probability.clamp(0.0, 1.0);
 

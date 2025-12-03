@@ -4156,8 +4156,8 @@ lazy_static! {
             map.insert(format!("{}_max_level", bacteria), 5.0); // max bacteria level (arbitrary standardized scale)
 
             // --- Symptom Onset Parameters (Clinical Presentation) ---
-            map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.15); // Default: 15% chance per day of developing symptoms
-            map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.5); // Minimum bacteria level needed for symptom onset
+            map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.30); // Default: 30% chance per day of developing symptoms
+            map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.25); // Minimum bacteria level needed for symptom onset
             map.insert(format!("{}_symptom_onset_delay_days", bacteria), 1.0); // Minimum days infected before symptoms can start
             map.insert(format!("{}_symptom_onset_level_multiplier", bacteria), 1.0); // How much higher bacteria levels increase symptom probability
             // --- Clearance tuning ---
@@ -4230,14 +4230,12 @@ lazy_static! {
         // Colistin parameters (grouped with other drugs)
         map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
         // Toxicity hazard placeholders (per unit drug level). These represent best-guess daily fatal toxicity odds for active therapy.
-        map.insert("drug_colistin_toxicity_death_hazard_per_unit_level".to_string(), 0.025); // Colistin-associated nephrotoxicity with high fatal risk
-        map.insert("drug_gentamicin_toxicity_death_hazard_per_unit_level".to_string(), 0.015); // Aminoglycoside renal failure/ototoxicity
-        map.insert("drug_tobramycin_toxicity_death_hazard_per_unit_level".to_string(), 0.013);
-        map.insert("drug_amikacin_toxicity_death_hazard_per_unit_level".to_string(), 0.017);
-        map.insert("drug_vancomycin_toxicity_death_hazard_per_unit_level".to_string(), 0.006); // Severe nephrotoxicity/red man syndrome rare but serious
-        map.insert("drug_chlorampheni_toxicity_death_hazard_per_unit_level".to_string(), 0.01); // Aplastic anemia risk
-        // Colistin: higher risk of death from toxicity
-        map.insert("drug_colistin_toxicity_death_risk_per_day".to_string(), 0.002); // 0.2% daily risk (higher than default)
+        map.insert("drug_colistin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000025); // Colistin-associated nephrotoxicity with high fatal risk
+        map.insert("drug_gentamicin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000015); // Aminoglycoside renal failure/ototoxicity
+        map.insert("drug_tobramycin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000013);
+        map.insert("drug_amikacin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000017);
+        map.insert("drug_vancomycin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000006); // Severe nephrotoxicity/red man syndrome rare but serious
+        map.insert("drug_chlorampheni_toxicity_death_hazard_per_unit_level".to_string(), 0.0000001); // Aplastic anemia risk
         // Regional availability (assume widely available, adjust as needed)
         map.insert("north_america_drug_colistin_availability".to_string(), 1.0);
         map.insert("europe_drug_colistin_availability".to_string(), 1.0);
@@ -6309,7 +6307,7 @@ lazy_static! {
         // flip to 0 if you want buckets to decay back to zero when no positive samples remain.
         map.insert(
             "majority_r_freeze_at_last_positive".to_string(),
-            1.0,
+            0.0,
         );
         // Set to 1 to allow regional/hospital buckets to drift back to zero (extinction enabled).
         map.insert("majority_r_allow_extinction".to_string(), 0.0);
