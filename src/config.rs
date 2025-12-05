@@ -4156,8 +4156,8 @@ lazy_static! {
             map.insert(format!("{}_max_level", bacteria), 5.0); // max bacteria level (arbitrary standardized scale)
 
             // --- Symptom Onset Parameters (Clinical Presentation) ---
-            map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.30); // Default: 30% chance per day of developing symptoms
-            map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.25); // Minimum bacteria level needed for symptom onset
+            map.insert(format!("{}_daily_symptom_onset_probability", bacteria), 0.15); // Default: 15% chance per day of developing symptoms
+            map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.5); // Minimum bacteria level needed for symptom onset
             map.insert(format!("{}_symptom_onset_delay_days", bacteria), 1.0); // Minimum days infected before symptoms can start
             map.insert(format!("{}_symptom_onset_level_multiplier", bacteria), 1.0); // How much higher bacteria levels increase symptom probability
             // --- Clearance tuning ---

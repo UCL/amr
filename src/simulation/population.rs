@@ -8,6 +8,7 @@
 //
 // Also includes legacy lists and antibiotic class reference for model expansion.
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 // Minimum infection/drug level threshold; values below this are treated as cleared to avoid floating-point noise.
@@ -15,7 +16,7 @@ pub const INFECTION_EPS: f64 = 0.001;
 
 /// Specific resistance mechanisms that can be present in bacteria
 /// These provide an overlay on the existing any_r/majority_r system
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResistanceMechanism {
     ESBL,                      // Extended-spectrum beta-lactamase
     Carbapenemase,             // Carbapenem-hydrolyzing enzymes
@@ -66,7 +67,7 @@ impl ResistanceMechanism {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResistanceAcquisitionType {
     AtInfectionCommunity,
     AtInfectionEnv,
@@ -88,7 +89,7 @@ impl ResistanceAcquisitionType {
 }
 
 /// Tracks how an infection was resolved (why it ended)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InfectionResolutionType {
     /// Infection cleared by immune system without drug assistance
     ImmuneClearance,
@@ -132,7 +133,7 @@ impl InfectionResolutionType {
 }
 
 /// Types of severe immunodeficiency based on expected duration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ImmunodeficiencyType {
     /// Temporary immunodeficiency (chemotherapy, acute treatments, post-transplant induction)
     /// Expected recovery within months to 1-2 years
@@ -282,7 +283,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
 // resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection
 // or what underlying other conditions they may have that would affect risk of hospitalization
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HospitalStatus {
     InHospital, // consider in future whether to have a variable for whether in icu
     NotInHospital,
@@ -295,7 +296,7 @@ impl HospitalStatus {
 }
 
 // Add Display to the derive attribute and implement it
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Region {
     NorthAmerica,
     SouthAmerica,
@@ -322,7 +323,7 @@ impl fmt::Display for Region {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resistance {
     pub microbiome_r: f64,
     pub test_r: f64,
@@ -335,7 +336,7 @@ pub struct Resistance {
 pub const MICROBIOME_RESISTANCE_LEVEL_COUNT: usize = 4;
 pub const MICROBIOME_MAJORITY_THRESHOLD: f64 = 0.5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MicrobiomeResistanceLevel {
     NoMicrobiome,
     MicrobiomePresentNoResistance,
@@ -355,7 +356,7 @@ impl MicrobiomeResistanceLevel {
 }
 
 /// Represents a single individual in the simulation, with all per-person and per-bacteria/drug state variables.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Individual {
     pub id: usize,
     pub age: i32, // age in days (negative = not yet born date)
@@ -662,7 +663,7 @@ impl Individual {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Population {
     pub individuals: Vec<Individual>,
 }

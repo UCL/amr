@@ -40,6 +40,48 @@ const PENICILLIN_CLASS_DRUGS: &[&str] = &[
     "ticarcillin_clavulanate",
 ];
 
+// Historical sanitation log-odds adjustments (kept very small to avoid distorting probabilities).
+const COMMUNITY_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
+    &[(1930.0, 0.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
+
+const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
+    &[(1930.0, 0.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
+
+fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
+    let anchors = if in_hospital {
+        HOSPITAL_SANITATION_LOG_ODDS_ANCHORS
+    } else {
+        COMMUNITY_SANITATION_LOG_ODDS_ANCHORS
+    };
+    interpolate_piecewise_linear(year, anchors)
+}
+
+fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
+    if anchors.is_empty() {
+        return 0.0;
+    }
+    if year <= anchors[0].0 {
+        return anchors[0].1;
+    }
+    let last_idx = anchors.len() - 1;
+    if year >= anchors[last_idx].0 {
+        return anchors[last_idx].1;
+    }
+    for pair in anchors.windows(2) {
+        let (y0, v0) = pair[0];
+        let (y1, v1) = pair[1];
+        if year <= y1 {
+            let span = y1 - y0;
+            if span <= f64::EPSILON {
+                return v1;
+            }
+            let position = (year - y0) / span;
+            return v0 + position * (v1 - v0);
+        }
+    }
+    anchors[last_idx].1
+}
+
 /// Helper function to update the current number of drugs counter
 fn update_drug_counter(individual: &mut Individual) {
     individual.current_number_of_drugs =
@@ -2274,8 +2316,6 @@ pub fn apply_rules(
     // --- death
 
     if individual.date_of_death.is_none() {
-        let mut cause: Option<String> = None;
-
         // --- New Logistic Background Mortality Model ---
         let mut total_log_odds = store.globals.background_mortality_baseline_log_odds;
 
@@ -2323,8 +2363,8 @@ pub fn apply_rules(
         // Convert total log odds to probability
         let background_risk = 1.0 / (1.0 + (-total_log_odds).exp());
 
-        individual.background_all_cause_mortality_rate = background_risk.min(1.0);
-        let mut prob_not_dying = 1.0 - background_risk;
+        let background_risk = background_risk.min(1.0);
+        individual.background_all_cause_mortality_rate = background_risk;
 
         let mut infection_non_sepsis_prob_not_dying = 1.0;
         let mut has_infection_non_sepsis_risk = false;
@@ -2387,19 +2427,11 @@ pub fn apply_rules(
 
         individual.current_infection_related_death_risk = infection_non_sepsis_risk;
 
-        if infection_non_sepsis_risk > 0.0 {
-            prob_not_dying *= 1.0 - infection_non_sepsis_risk;
-            if cause.is_none() {
-                cause = Some("infection_non_sepsis_related".to_string());
-            }
-        } else {
-            individual.current_infection_related_death_risk = 0.0;
-        }
-
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
+        let mut sepsis_death_risk = 0.0;
         if has_sepsis {
             // Calculate age-adjusted sepsis mortality risk
-            let mut sepsis_death_risk = store.globals.base_sepsis_death_risk_per_day;
+            sepsis_death_risk = store.globals.base_sepsis_death_risk_per_day;
 
             // Apply age-based multiplier
             let age_years = individual.age as f64 / 365.0;
@@ -2427,17 +2459,32 @@ pub fn apply_rules(
 
             // Cap the risk at 1.0 (100%)
             sepsis_death_risk = sepsis_death_risk.min(1.0);
-
-            prob_not_dying *= 1.0 - sepsis_death_risk;
-            if cause.is_none() {
-                cause = Some("sepsis_related".to_string());
-            }
         }
         let toxicity_death_risk_for_individual = individual.mortality_risk_current_toxicity;
+
+        let mut cause: Option<&str> = None;
+        let mut prob_not_dying = 1.0 - background_risk;
+
+        if infection_non_sepsis_risk > 0.0 {
+            prob_not_dying *= 1.0 - infection_non_sepsis_risk;
+            if cause.is_none() {
+                cause = Some("infection_non_sepsis_related");
+            }
+        } else {
+            individual.current_infection_related_death_risk = 0.0;
+        }
+
+        if has_sepsis {
+            prob_not_dying *= 1.0 - sepsis_death_risk;
+            if cause.is_none() {
+                cause = Some("sepsis_related");
+            }
+        }
+
         if toxicity_death_risk_for_individual > 0.0 {
             prob_not_dying *= 1.0 - toxicity_death_risk_for_individual;
             if cause.is_none() {
-                cause = Some("drug_toxicity_related".to_string());
+                cause = Some("drug_toxicity_related");
             }
         }
 
@@ -2445,7 +2492,8 @@ pub fn apply_rules(
         prob_of_death_today = prob_of_death_today.clamp(0.0, 1.0);
         if rng.gen::<f64>() < prob_of_death_today {
             individual.date_of_death = Some(time_step);
-            individual.cause_of_death = cause.or(Some("background_mortality".to_string()));
+            let cause_label = cause.unwrap_or("background_mortality");
+            individual.cause_of_death = Some(cause_label.to_string());
 
             // Track death resolution for all current infections
             if let Some(ref death_cause) = individual.cause_of_death {
@@ -2550,6 +2598,10 @@ pub fn apply_rules(
 
         if !is_infected {
             let simulation_year = 1930.0 + (time_step as f64 / 365.0);
+            let sanitation_log_odds = historical_sanitation_log_odds(
+                simulation_year,
+                individual.hospital_status.is_hospitalized(),
+            );
             // --- Logistic model for bacteria acquisition probability ---
             // All risk factors contribute additively to log-odds, then logistic function is applied.
             let region = individual.region_cur_in;
@@ -2561,6 +2613,8 @@ pub fn apply_rules(
                 + store
                     .age_categories
                     .bacteria_region_age_log_odds(region, b_idx, age_idx);
+
+            log_odds += sanitation_log_odds;
 
             // Vaccination status (binary effect)
             if individual.vaccination_status[b_idx] {
@@ -2609,6 +2663,8 @@ pub fn apply_rules(
                         + store
                             .age_categories
                             .bacteria_region_age_log_odds(region, b_idx, age_idx);
+
+                    log_odds += sanitation_log_odds;
 
                     // Vaccination status (binary effect)
                     if individual.vaccination_status[b_idx] {

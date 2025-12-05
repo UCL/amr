@@ -25,11 +25,11 @@ use rand::SeedableRng;
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::mem;
-use std::sync::Arc;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
 use std::fmt::{self, Write as FmtWrite};
 use std::io::Write as IoWrite;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 const CARRIAGE_DURATION_BIN_LABELS: [&str; 5] = ["0_29", "30_89", "90_179", "180_359", "360_plus"];
@@ -94,6 +94,16 @@ struct CoreState {
     majority_r_cache_prev: MajorityRCache,
     majority_r_cache_next: MajorityRCache,
     prev_majority_r_entries_len: usize,
+}
+
+enum StoredBranchSnapshot {
+    InMemory(BranchSnapshot),
+    OnDisk(PathBuf),
+}
+
+enum StoredCoreState {
+    InMemory(CoreState),
+    OnDisk(PathBuf),
 }
 
 #[inline]
@@ -199,7 +209,13 @@ impl MajorityRBuffer {
         self.refresh_probability_cache();
     }
 
-    fn push_day(&mut self, current_day: u32, total: u32, positive: u32, values: Arc<Vec<f64>>) {
+    fn push_day(
+        &mut self,
+        current_day: u32,
+        total: u32,
+        positive: u32,
+        values: Arc<Vec<f64>>,
+    ) {
         if self.window_days == 0 || total == 0 {
             return;
         }
@@ -452,7 +468,7 @@ impl MajorityRCache {
             if let Some(bucket) = self.buckets.get_mut(idx) {
                 bucket.cleanup(current_day);
                 if total > 0 {
-                    bucket.push_day(current_day, total, positive, Arc::clone(&values_arc));
+                    bucket.push_day(current_day, total, positive, values_arc);
                 }
             }
 
@@ -495,7 +511,7 @@ impl MajorityRCache {
             if let Some(bucket) = self.world_buckets.get_mut(idx) {
                 bucket.cleanup(current_day);
                 if total > 0 {
-                    bucket.push_day(current_day, total, positive, Arc::clone(&values_arc));
+                    bucket.push_day(current_day, total, positive, values_arc);
                 }
             }
 
@@ -1039,6 +1055,10 @@ pub struct Simulation {
     branch_policy_adjustments: PolicyAdjustments,
     /// Policy adjustments currently in effect during the run loop.
     current_policy_adjustments: PolicyAdjustments,
+    /// Flag indicating whether branch checkpoints should be persisted to disk.
+    use_disk_branch_checkpoint: bool,
+    /// Directory used to store branch checkpoints when disk persistence is enabled.
+    branch_checkpoint_dir: PathBuf,
 }
 
 impl Simulation {
@@ -1158,6 +1178,8 @@ impl Simulation {
             baseline_policy_adjustments: baseline_policy,
             branch_policy_adjustments: branch_policy,
             current_policy_adjustments: baseline_policy,
+            use_disk_branch_checkpoint: false,
+            branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
         }
     }
 
@@ -1203,17 +1225,77 @@ impl Simulation {
         }
     }
 
+    /// Enable disk-backed storage for the policy branch checkpoint captured at the branch year.
+    /// When `directory` is `None`, a default folder (`amr_branch_checkpoints`) under the workspace root is used.
+    pub fn enable_disk_branch_checkpointing(&mut self, directory: Option<PathBuf>) {
+        println!(
+            "Disk-backed branch checkpointing is disabled in this build (serde support removed). Using in-memory snapshots instead."
+        );
+        self.use_disk_branch_checkpoint = false;
+        if let Some(dir) = directory {
+            self.branch_checkpoint_dir = dir;
+        }
+    }
+
+    /// Disable disk-backed checkpointing so branch snapshots stay in memory.
+    pub fn disable_disk_branch_checkpointing(&mut self) {
+        self.use_disk_branch_checkpoint = false;
+    }
+
+    fn persist_branch_snapshot_to_disk(
+        &self,
+        _snapshot: &BranchSnapshot,
+        _branch_step: usize,
+    ) -> std::io::Result<PathBuf> {
+        let message = "Disk checkpointing disabled: serde support not available";
+        Err(std::io::Error::new(std::io::ErrorKind::Other, message))
+    }
+
+    fn persist_core_state_to_disk(&self, _state: &CoreState) -> std::io::Result<PathBuf> {
+        let message = "Disk checkpointing disabled: serde support not available";
+        Err(std::io::Error::new(std::io::ErrorKind::Other, message))
+    }
+
+    fn load_branch_snapshot_from_disk(
+        &self,
+        _path: &std::path::Path,
+    ) -> std::io::Result<BranchSnapshot> {
+        let message = "Disk checkpointing disabled: serde support not available";
+        Err(std::io::Error::new(std::io::ErrorKind::Other, message))
+    }
+
+    fn load_core_state_from_disk(&self, _path: &std::path::Path) -> std::io::Result<CoreState> {
+        let message = "Disk checkpointing disabled: serde support not available";
+        Err(std::io::Error::new(std::io::ErrorKind::Other, message))
+    }
+
+    fn cleanup_checkpoint_file(&self, path: &std::path::Path) {
+        if let Err(err) = std::fs::remove_file(path) {
+            eprintln!(
+                "Warning: unable to remove checkpoint file {}: {}",
+                path.display(),
+                err
+            );
+        }
+    }
+
     fn run_from(
         &mut self,
         start_step: usize,
         branch_capture_step: Option<usize>,
-    ) -> Option<BranchSnapshot> {
-        let mut branch_snapshot: Option<BranchSnapshot> = None;
+    ) -> std::io::Result<Option<StoredBranchSnapshot>> {
+        let mut branch_snapshot: Option<StoredBranchSnapshot> = None;
 
         for t in start_step..self.time_steps {
             if let Some(step) = branch_capture_step {
                 if t == step && branch_snapshot.is_none() {
-                    branch_snapshot = Some(self.create_branch_snapshot());
+                    let snapshot = self.create_branch_snapshot();
+                    if self.use_disk_branch_checkpoint {
+                        let path = self.persist_branch_snapshot_to_disk(&snapshot, step)?;
+                        branch_snapshot = Some(StoredBranchSnapshot::OnDisk(path));
+                    } else {
+                        branch_snapshot = Some(StoredBranchSnapshot::InMemory(snapshot));
+                    }
                 }
             }
             let timestep_start = Instant::now();
@@ -3333,7 +3415,7 @@ impl Simulation {
             let _ = self.journey_logger.close(); // Close the file at the very end
         }
 
-        branch_snapshot
+        Ok(branch_snapshot)
     }
 
     pub fn run(&mut self) {
@@ -3353,16 +3435,35 @@ impl Simulation {
         self.summary_log.clear();
 
         let branch_step = self.policy_branch_step();
-        let baseline_snapshot = self.run_from(0, branch_step);
+        let baseline_snapshot = match self.run_from(0, branch_step) {
+            Ok(snapshot) => snapshot,
+            Err(err) => {
+                eprintln!("Error while running baseline policy: {}", err);
+                return;
+            }
+        };
 
         if let (Some(snapshot), Some(step)) = (baseline_snapshot, branch_step) {
             let baseline_summary = self.summary_log.clone();
-            let baseline_state = self.capture_core_state();
+            let baseline_state = match self.capture_core_state() {
+                Ok(state) => state,
+                Err(err) => {
+                    eprintln!("Error capturing baseline state for policy branch: {}", err);
+                    return;
+                }
+            };
 
-            self.run_policy_branch(snapshot, step);
+            if let Err(err) = self.run_policy_branch(snapshot, step) {
+                eprintln!("Error running alternate policy branch: {}", err);
+                let _ = self.restore_core_state(baseline_state);
+                return;
+            }
 
             self.summary_log = baseline_summary;
-            self.restore_core_state(baseline_state);
+            if let Err(err) = self.restore_core_state(baseline_state) {
+                eprintln!("Error restoring baseline state after branch run: {}", err);
+                return;
+            }
             self.current_policy_adjustments = self.baseline_policy_adjustments;
         }
     }
@@ -3391,23 +3492,49 @@ impl Simulation {
         }
     }
 
-    fn capture_core_state(&self) -> CoreState {
-        CoreState {
+    fn capture_core_state(&self) -> std::io::Result<StoredCoreState> {
+        let state = CoreState {
             population: self.population.clone(),
             majority_r_cache_prev: self.majority_r_cache_prev.clone(),
             majority_r_cache_next: self.majority_r_cache_next.clone(),
             prev_majority_r_entries_len: self.prev_majority_r_entries_len,
+        };
+
+        if self.use_disk_branch_checkpoint {
+            let path = self.persist_core_state_to_disk(&state)?;
+            Ok(StoredCoreState::OnDisk(path))
+        } else {
+            Ok(StoredCoreState::InMemory(state))
         }
     }
 
-    fn restore_core_state(&mut self, state: CoreState) {
+    fn apply_core_state(&mut self, state: CoreState) {
         self.population = state.population;
         self.majority_r_cache_prev = state.majority_r_cache_prev;
         self.majority_r_cache_next = state.majority_r_cache_next;
         self.prev_majority_r_entries_len = state.prev_majority_r_entries_len;
     }
 
-    fn run_policy_branch(&mut self, snapshot: BranchSnapshot, branch_step: usize) {
+    fn restore_core_state(&mut self, state: StoredCoreState) -> std::io::Result<()> {
+        match state {
+            StoredCoreState::InMemory(core) => {
+                self.apply_core_state(core);
+                Ok(())
+            }
+            StoredCoreState::OnDisk(path) => {
+                let core = self.load_core_state_from_disk(&path)?;
+                self.apply_core_state(core);
+                self.cleanup_checkpoint_file(&path);
+                Ok(())
+            }
+        }
+    }
+
+    fn run_policy_branch(
+        &mut self,
+        snapshot: StoredBranchSnapshot,
+        branch_step: usize,
+    ) -> std::io::Result<()> {
         println!(
             "Starting alternate policy branch (option {}) from time step {}",
             self.branch_policy_adjustments.policy_option, branch_step
@@ -3416,13 +3543,27 @@ impl Simulation {
         self.branch_active = true;
         self.current_policy_adjustments = self.branch_policy_adjustments;
 
-        self.population = snapshot.population;
-        self.majority_r_cache_prev = snapshot.majority_r_cache_prev;
-        self.majority_r_cache_next = snapshot.majority_r_cache_next;
-        self.summary_log = snapshot.summary_log;
-        self.prev_majority_r_entries_len = snapshot.prev_majority_r_entries_len;
+        let (snapshot_data, cleanup_path) = match snapshot {
+            StoredBranchSnapshot::InMemory(data) => (data, None),
+            StoredBranchSnapshot::OnDisk(path) => {
+                let data = self.load_branch_snapshot_from_disk(&path)?;
+                (data, Some(path))
+            }
+        };
 
-        let _ = self.run_from(branch_step, None);
+        self.population = snapshot_data.population;
+        self.majority_r_cache_prev = snapshot_data.majority_r_cache_prev;
+        self.majority_r_cache_next = snapshot_data.majority_r_cache_next;
+        self.summary_log = snapshot_data.summary_log;
+        self.prev_majority_r_entries_len = snapshot_data.prev_majority_r_entries_len;
+
+        let run_result = self.run_from(branch_step, None);
+
+        if let Some(path) = cleanup_path {
+            self.cleanup_checkpoint_file(&path);
+        }
+
+        let _ = run_result?;
 
         let branch_option = self.branch_policy_adjustments.policy_option;
         let branch_summaries: Vec<TimeStepSummary> = self
@@ -3435,6 +3576,7 @@ impl Simulation {
 
         self.branch_active = false;
         println!("Alternate policy branch completed");
+        Ok(())
     }
 
     pub fn print_summary_statistics(&self) {
