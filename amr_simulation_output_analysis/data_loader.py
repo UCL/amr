@@ -255,7 +255,7 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
         print(f"Error loading {csv_file}: {e}")
         return None
 
-def safe_divide(numerator, denominator, default=0):
+def safe_divide(numerator, denominator, default=np.nan):
     """Safe division avoiding division by zero while suppressing runtime warnings."""
     numerator_arr = np.asarray(numerator, dtype=float)
     denominator_arr = np.asarray(denominator, dtype=float)

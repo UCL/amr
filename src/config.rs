@@ -4444,7 +4444,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.00003);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.00001);  // 0.005
             }
         }
 
@@ -5058,6 +5058,34 @@ lazy_static! {
         map.insert("campylobacter_jejuni_daily_symptom_onset_probability".to_string(), 0.5);                    // 50% per day
         map.insert("campylobacter_jejuni_base_bacteria_level_change".to_string(), 0.52);                        // Incubation typically 2-4 days
 
+        // CHRONIC/SLOW-ONSET PATHOGENS - Evidence-based symptom presentation rates
+        // Chlamydia trachomatis - Most infections asymptomatic (~70-80% in women, ~50% in men)
+        map.insert("chlamydia trachomatis_daily_symptom_onset_probability".to_string(), 0.03);  // Only ~20-30% ever become symptomatic
+        map.insert("chlamydia trachomatis_base_bacteria_level_change".to_string(), 0.25);       // Slow intracellular replication
+        map.insert("chlamydia trachomatis_symptom_onset_threshold_level".to_string(), 0.8);     // Higher threshold before symptoms
+
+        // Treponema pallidum - Syphilis has defined stages with variable presentation
+        map.insert("treponema pallidum_daily_symptom_onset_probability".to_string(), 0.08);     // Primary chancre develops in ~3-4 weeks
+        map.insert("treponema pallidum_base_bacteria_level_change".to_string(), 0.15);          // Very slow spirochete replication (33-hour doubling)
+        map.insert("treponema pallidum_symptom_onset_threshold_level".to_string(), 0.6);        // Moderate threshold
+
+        // Bordetella pertussis - Catarrhal stage followed by paroxysmal cough
+        map.insert("bordetella pertussis_daily_symptom_onset_probability".to_string(), 0.35);   // 1-2 week incubation
+        map.insert("bordetella pertussis_base_bacteria_level_change".to_string(), 0.42);        // Moderate growth during catarrhal phase
+
+        // Helicobacter pylori - Most infections (~80%) are asymptomatic
+        map.insert("helicobacter pylori_daily_symptom_onset_probability".to_string(), 0.005);   // Only ~20% develop symptomatic disease
+        map.insert("helicobacter pylori_symptom_onset_threshold_level".to_string(), 1.5);       // Very high threshold (chronic colonization)
+
+        // MDR-TB - Slow progression; most latent infections never reactivate
+        map.insert("mdr mycobacterium tuberculosis_daily_symptom_onset_probability".to_string(), 0.001); // ~5-10% lifetime reactivation risk
+        map.insert("mdr mycobacterium tuberculosis_base_bacteria_level_change".to_string(), 0.08);       // Very slow mycobacterial growth
+        map.insert("mdr mycobacterium tuberculosis_symptom_onset_threshold_level".to_string(), 2.0);     // High threshold for active disease
+
+        // Neisseria gonorrhoeae - Variable symptoms (~10-20% asymptomatic in men, ~50% in women)
+        map.insert("neisseria gonorrhoeae_daily_symptom_onset_probability".to_string(), 0.25);  // Most symptomatic within 2-7 days
+        map.insert("neisseria gonorrhoeae_base_bacteria_level_change".to_string(), 0.55);       // Rapid mucosal colonization
+
         // YERSINIA ENTEROCOLITICA - Address intrinsic penicillin resistance
         // Reduce penicillins (intrinsic resistance)
         map.insert("drug_penicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02); // Intrinsic resistance
@@ -5235,24 +5263,24 @@ lazy_static! {
         map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.000005);
         map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.000005);
 
-        // PROBLEMATIC HIGH-RESISTANCE BACTERIA (reduce from 0.005 to 0.001)
-        // Acinetobacter baumannii - showed excessive synchronized resistance
+        // PROBLEMATIC HIGH-RESISTANCE BACTERIA 
+        // Acinetobacter baumannii 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.0003);
+            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.00003);
         }
 
-        // E. coli - showed excessive resistance levels across multiple drugs
+        // E. coli 
         for &drug in DRUG_SHORT_NAMES.iter() {
             map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
         }
 
-        // Pseudomonas aeruginosa - reduce slightly for more realistic patterns
+        // Pseudomonas aeruginosa -
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.0002);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
         }
 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.00025);
+            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
         }
 
         for &drug in DRUG_SHORT_NAMES.iter() {
@@ -5273,7 +5301,7 @@ lazy_static! {
         }
 
         // Nitrofurantoin resistance in E. coli should remain low (important for UTI treatment)
-        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.0002);
+        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001);
 
         // Vancomycin resistance should be impossible in Gram-negative bacteria (intrinsic resistance handled by potency)
         for &bacteria in gram_negative_bacteria.iter() {
@@ -5561,7 +5589,7 @@ lazy_static! {
         map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -2.0);
 
         // Invasive non-typhoidal salmonella spp. - Bloodstream infections, especially in immunocompromised
-        map.insert("africa_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 3.2);
+        map.insert("africa_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 4.5); // ~3 million cases/year in Africa; HIV/malnutrition
         map.insert("europe_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -1.0);
         map.insert("asia_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 1.8);
         map.insert("south_america_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 1.2);
@@ -5610,7 +5638,7 @@ lazy_static! {
         map.insert("oceania_vibrio_cholerae_acquisition_log_odds".to_string(), -2.2);
 
         // Neisseria meningitidis - Meningococcal disease, moderate regional variation with vaccine impact
-        map.insert("africa_neisseria_meningitidis_acquisition_log_odds".to_string(), 2.5);
+        map.insert("africa_neisseria_meningitidis_acquisition_log_odds".to_string(), 3.8); // African meningitis belt; epidemic outbreaks
         map.insert("europe_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.2);
         map.insert("asia_neisseria_meningitidis_acquisition_log_odds".to_string(), 1.2);
         map.insert("south_america_neisseria_meningitidis_acquisition_log_odds".to_string(), 0.8);
@@ -5671,9 +5699,9 @@ lazy_static! {
         // carriage prevalence matches surveillance. Individual bacteria can override any of these.
     // Bacteria-specific microbiome vs infection acquisition log odds
     // Values chosen so average carriage prevalence aligns with clinical carriage estimates
-    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 8.25); // ~80% gut carriage
-    map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 6.45); // ~40% gut carriage
-    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 4.65); // ~10% gut carriage
+    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 9.85); // ~95% universal gut colonization
+    map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 7.80); // ~60% nearly universal gut flora
+    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 5.52); // ~25% gut carriage (increases with antibiotic exposure)
     map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 5.46); // ~20% gut carriage
     map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 6.00); // ~30% nasal carriage
     map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 4.41); // ~8% carriage
@@ -5682,11 +5710,11 @@ lazy_static! {
     map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% carriage
     map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); // ~3% carriage
     map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); // ~3% carriage
-    map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 5.75); // ~25% carriage (weighted across ages)
-    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 5.12); // ~15% respiratory carriage
-    map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 4.86); // ~12% respiratory carriage
+    map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 6.45); // ~40% NP carriage (40-60% children, 10-20% adults)
+    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 6.93); // ~50% NP colonization (NTHi common in children)
+    map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 6.93); // ~50% NP colonization (50-75% in children)
     map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 4.65); // ~10% transient carriage
-    map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 5.12); // ~15% GI/genital carriage
+    map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 5.52); // ~25% vaginal/rectal colonization in women
     map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage in high-risk settings
     map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% community carriage
     map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% colonization
@@ -5701,16 +5729,16 @@ lazy_static! {
     map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), 1.05); // ~0.3% asymptomatic mucosal carriage
     map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% prevalent infection at any time
     map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 0.0); // ~0.1% persistent carriage equivalent
-    map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 4.86); // ~12% nasopharyngeal carriage
+    map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 4.41); // ~10% NP carriage (5-15% in adolescents)
     map.insert("helicobacter_pylori_log_odds_microbiome_vs_infection".to_string(), 6.65); // ~45% gastric colonization
     map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), 5.75); // ~25% latent infection pool
 
     // Bacteria-specific microbiome clearance probabilities (per day)
-    map.insert("escherichia coli_microbiome_clearance_probability_per_day".to_string(), 0.02);
-    map.insert("enterococcus faecalis_microbiome_clearance_probability_per_day".to_string(), 0.025);
+    map.insert("escherichia coli_microbiome_clearance_probability_per_day".to_string(), 0.005); // Persistent gut commensal; years-long colonization
+    map.insert("enterococcus faecalis_microbiome_clearance_probability_per_day".to_string(), 0.008); // Persistent gut flora; rarely cleared
     map.insert("enterococcus faecium_microbiome_clearance_probability_per_day".to_string(), 0.06);
     map.insert("klebsiella pneumoniae_microbiome_clearance_probability_per_day".to_string(), 0.06);
-    map.insert("staphylococcus aureus_microbiome_clearance_probability_per_day".to_string(), 0.04);
+    map.insert("staphylococcus aureus_microbiome_clearance_probability_per_day".to_string(), 0.02); // Nasal carriage persists weeks-months
     map.insert("enterobacter spp._microbiome_clearance_probability_per_day".to_string(), 0.07);
     map.insert("enterobacter_cloacae_microbiome_clearance_probability_per_day".to_string(), 0.08);
     map.insert("citrobacter spp._microbiome_clearance_probability_per_day".to_string(), 0.08);
@@ -5724,8 +5752,8 @@ lazy_static! {
     map.insert("streptococcus agalactiae_microbiome_clearance_probability_per_day".to_string(), 0.06);
     map.insert("acinetobacter baumannii_microbiome_clearance_probability_per_day".to_string(), 0.1);
     map.insert("pseudomonas aeruginosa_microbiome_clearance_probability_per_day".to_string(), 0.12);
-    map.insert("clostridioides_difficile_microbiome_clearance_probability_per_day".to_string(), 0.05);
-    map.insert("salmonella enterica serovar typhi_microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("clostridioides_difficile_microbiome_clearance_probability_per_day".to_string(), 0.02); // Colonization persists months, especially elderly
+    map.insert("salmonella enterica serovar typhi_microbiome_clearance_probability_per_day".to_string(), 0.003); // Chronic carriers persist for years
     map.insert("salmonella enterica serovar paratyphi a_microbiome_clearance_probability_per_day".to_string(), 0.15);
     map.insert("invasive non-typhoidal salmonella spp._microbiome_clearance_probability_per_day".to_string(), 0.12);
     map.insert("shigella spp._microbiome_clearance_probability_per_day".to_string(), 0.15);
@@ -5737,8 +5765,8 @@ lazy_static! {
     map.insert("chlamydia trachomatis_microbiome_clearance_probability_per_day".to_string(), 0.2);
     map.insert("treponema pallidum_microbiome_clearance_probability_per_day".to_string(), 0.25);
     map.insert("neisseria_meningitidis_microbiome_clearance_probability_per_day".to_string(), 0.07);
-    map.insert("helicobacter pylori_microbiome_clearance_probability_per_day".to_string(), 0.02);
-    map.insert("mdr mycobacterium tuberculosis_microbiome_clearance_probability_per_day".to_string(), 0.04);
+    map.insert("helicobacter pylori_microbiome_clearance_probability_per_day".to_string(), 0.001); // Extremely persistent; decades without treatment
+    map.insert("mdr mycobacterium tuberculosis_microbiome_clearance_probability_per_day".to_string(), 0.0003); // Latent TB persists for lifetime
     map.insert("bordetella pertussis_microbiome_clearance_probability_per_day".to_string(), 0.2);
 
         // Microbiome acquisition now uses infection acquisition parameters plus bacteria-specific offset
@@ -6008,7 +6036,10 @@ lazy_static! {
         map.insert("escherichia_coli_sepsis_risk_multiplier".to_string(), 1.6); // Common but variable by syndrome
         map.insert("enterococcus_faecalis_sepsis_risk_multiplier".to_string(), 1.4); // Less virulent than faecium
         map.insert("streptococcus_agalactiae_sepsis_risk_multiplier".to_string(), 1.5); // GBS can cause severe sepsis
-        map.insert("listeria_monocytogenes_sepsis_risk_multiplier".to_string(), 1.7); // CNS invasion, immunocompromised hosts
+        map.insert("listeria_monocytogenes_sepsis_risk_multiplier".to_string(), 2.5); // 20-30% CFR; CNS invasion, immunocompromised hosts
+
+        // MODERATE-HIGH SEPSIS RISK (significant mortality potential)
+        map.insert("invasive_non-typhoidal_salmonella_spp._sepsis_risk_multiplier".to_string(), 2.8); // 15-25% CFR in Africa; ~680,000 deaths/year globally
 
         // MODERATE SEPSIS RISK (baseline category)
         map.insert("salmonella_enterica_serovar_typhi_sepsis_risk_multiplier".to_string(), 1.2); // Typhoid fever systemic
@@ -6019,13 +6050,26 @@ lazy_static! {
         map.insert("campylobacter_jejuni_sepsis_risk_multiplier".to_string(), 0.2); // Almost always gastroenteritis only
         map.insert("chlamydia_trachomatis_sepsis_risk_multiplier".to_string(), 0.1); // Intracellular, rarely causes sepsis
         map.insert("neisseria_gonorrhoeae_sepsis_risk_multiplier".to_string(), 0.3); // Usually localized genital infection
-        map.insert("haemophilus_influenzae_sepsis_risk_multiplier".to_string(), 0.4); // Post-vaccine era, usually respiratory
+        map.insert("haemophilus_influenzae_sepsis_risk_multiplier".to_string(), 1.2); // ~200,000 deaths/year; 5-10% CFR for invasive disease
         map.insert("moraxella_catarrhalis_sepsis_risk_multiplier".to_string(), 0.2); // Usually upper respiratory, low virulence
         map.insert("treponema_pallidum_sepsis_risk_multiplier".to_string(), 0.1); // Chronic infection, not acute sepsis
         map.insert("shigella_spp._sepsis_risk_multiplier".to_string(), 0.3); // Usually limited to GI tract
 
         // ULTRA-LOW SEPSIS RISK - Chronic mucosal pathogens that rarely cause acute sepsis
         map.insert("helicobacter_pylori_sepsis_risk_multiplier".to_string(), 0.0); // Chronic gastritis/ulcer pathogen, ZERO sepsis risk
+
+        // --- ADDITIONAL BACTERIA SEPSIS RISK MULTIPLIERS (previously missing) ---
+        map.insert("bordetella_pertussis_sepsis_risk_multiplier".to_string(), 0.8); // Rarely causes sepsis but ~160,000 deaths/year (mainly respiratory)
+        map.insert("mdr_mycobacterium_tuberculosis_sepsis_risk_multiplier".to_string(), 0.0); // TB causes chronic disease, not acute sepsis
+        map.insert("clostridioides_difficile_sepsis_risk_multiplier".to_string(), 1.5); // CDI mortality ~5-10%; toxic megacolon risk
+        map.insert("stenotrophomonas_maltophilia_sepsis_risk_multiplier".to_string(), 2.0); // ICU pathogen; ~30% mortality in bacteremia
+        map.insert("staphylococcus_epidermidis_sepsis_risk_multiplier".to_string(), 0.8); // Device-related; lower virulence than S. aureus
+        map.insert("citrobacter_spp._sepsis_risk_multiplier".to_string(), 1.5); // Opportunistic; moderate mortality in bacteremia
+        map.insert("proteus_spp._sepsis_risk_multiplier".to_string(), 1.3); // UTI-related sepsis; moderate risk
+        map.insert("serratia_spp._sepsis_risk_multiplier".to_string(), 1.6); // Healthcare-associated; ~20% bacteremia mortality
+        map.insert("morganella_spp._sepsis_risk_multiplier".to_string(), 1.4); // Nosocomial; moderate severity
+        map.insert("salmonella_enterica_serovar_paratyphi_a_sepsis_risk_multiplier".to_string(), 1.0); // Similar to typhi but lower incidence
+        map.insert("enterobacter_cloacae_sepsis_risk_multiplier".to_string(), 1.8); // Similar to Enterobacter spp.; AmpC resistance
 
         // --- AGE-DEPENDENT BACTERIA SEPSIS RISK INTERACTIONS ---
         // These modify bacteria sepsis risk based on age groups for clinically important interactions

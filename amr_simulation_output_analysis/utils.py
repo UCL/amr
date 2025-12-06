@@ -52,7 +52,7 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> lo
 
 def safe_divide(numerator: Union[np.ndarray, pd.Series, float],
                denominator: Union[np.ndarray, pd.Series, float],
-               default: float = 0) -> Union[np.ndarray, pd.Series, float]:
+               default: float = np.nan) -> Union[np.ndarray, pd.Series, float]:
     """Safe division avoiding division by zero and suppressing runtime warnings."""
     numerator_arr = np.asarray(numerator, dtype=float)
     denominator_arr = np.asarray(denominator, dtype=float)
