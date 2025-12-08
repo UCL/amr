@@ -471,8 +471,7 @@ impl Individual {
     /// - sex_at_birth: "male" or "female"
     ///
     /// Initializes all per-bacteria and per-drug vectors to correct length, and randomizes some fields.
-    pub fn new(id: usize, age_days: i32, sex_at_birth: String) -> Self {
-        let mut rng = rand::thread_rng();
+    pub fn new(id: usize, age_days: i32, sex_at_birth: String, rng: &mut impl Rng) -> Self {
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
         let perceived_penicillin_allergy = rng.gen_bool(0.08);
@@ -669,20 +668,19 @@ pub struct Population {
 }
 
 impl Population {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize, rng: &mut impl Rng) -> Self {
         let mut individuals = Vec::with_capacity(size);
-        let mut rng = rand::thread_rng();
 
         for i in 0..size {
             // Use new simplified demographic distribution
-            let (region, age) = crate::config::sample_age_and_region_from_distribution(&mut rng);
+            let (region, age) = crate::config::sample_age_and_region_from_distribution(rng);
             let sex = if rng.gen_bool(0.5) {
                 "male".to_string()
             } else {
                 "female".to_string()
             };
 
-            let mut individual = Individual::new(i, age, sex);
+            let mut individual = Individual::new(i, age, sex, rng);
             individual.region_living = region;
             individual.region_cur_in = region;
 

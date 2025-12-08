@@ -10,7 +10,9 @@
 use crate::simulation::population::{
     Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
 };
+use rand::rngs::SmallRng;
 use rand::Rng;
+use rand::SeedableRng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -115,10 +117,14 @@ pub struct JourneyLogger {
     pub total_journeys_started: u32,
     pub total_journeys_completed: u32,
     pub total_snapshots_logged: u32,
+    rng: SmallRng,
 }
 
 impl JourneyLogger {
-    pub fn new() -> Self {
+    pub fn new(seed: Option<u64>) -> Self {
+        let rng = seed
+            .map(SmallRng::seed_from_u64)
+            .unwrap_or_else(SmallRng::from_entropy);
         Self {
             enabled: false,
             sample_rate: 0.0,
@@ -130,6 +136,7 @@ impl JourneyLogger {
             total_journeys_started: 0,
             total_journeys_completed: 0,
             total_snapshots_logged: 0,
+            rng,
         }
     }
 
@@ -207,10 +214,8 @@ impl JourneyLogger {
             (false, true, false) => {
                 // New infection - potentially start tracking
                 let has_de_novo_resistance = self.detect_de_novo_resistance_emergence(individual);
-                let mut rng = rand::thread_rng();
-
                 // Always sample if de novo resistance is detected, otherwise use normal sampling
-                if has_de_novo_resistance || rng.gen::<f64>() < self.sample_rate {
+                if has_de_novo_resistance || self.rng.gen::<f64>() < self.sample_rate {
                     self.start_journey(individual, time_step);
                 }
             }

@@ -144,6 +144,10 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
     }
 }
 
+fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
+    matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema pallidum"))
+}
+
 /// Cache of majority_r proportions and positive resistance magnitudes indexed by
 /// (region, hospital status, bacteria, drug).
 
@@ -209,13 +213,7 @@ impl MajorityRBuffer {
         self.refresh_probability_cache();
     }
 
-    fn push_day(
-        &mut self,
-        current_day: u32,
-        total: u32,
-        positive: u32,
-        values: Arc<Vec<f64>>,
-    ) {
+    fn push_day(&mut self, current_day: u32, total: u32, positive: u32, values: Arc<Vec<f64>>) {
         if self.window_days == 0 || total == 0 {
             return;
         }
@@ -1065,8 +1063,17 @@ impl Simulation {
     /// Create a new Simulation instance with initialized population and lookup tables.
     ///
     /// Initializes population, bacteria/drug indices, and cross-resistance groups.
-    pub fn new(population_size: usize, time_steps: usize, log_individuals: bool) -> Self {
-        let population = Population::new(population_size);
+    pub fn new(
+        population_size: usize,
+        time_steps: usize,
+        log_individuals: bool,
+        seed: Option<u64>,
+    ) -> Self {
+        let mut initialization_rng = seed
+            .map(SmallRng::seed_from_u64)
+            .unwrap_or_else(SmallRng::from_entropy);
+
+        let population = Population::new(population_size, &mut initialization_rng);
         // public function named new (rust’s conventional constructor pattern).
         // takes two inputs: population_size: how many individuals to initialize.
         // time_steps: how many time steps the simulation should run.
@@ -1100,6 +1107,8 @@ impl Simulation {
                 cross_resistance_groups.insert(b_idx, indexed_groups);
             }
         }
+
+        let journey_logger_seed = initialization_rng.gen::<u64>();
 
         // Initial individual state logging disabled for cleaner output
 
@@ -1171,8 +1180,8 @@ impl Simulation {
             potency_matrix,
             mic_lt2_majority_r_thresholds,
             prev_majority_r_entries_len: 0,
-            journey_logger: JourneyLogger::new(),
-            rng_seed: None,
+            journey_logger: JourneyLogger::new(Some(journey_logger_seed)),
+            rng_seed: seed,
             run_id: 0,
             branch_active: false,
             baseline_policy_adjustments: baseline_policy,
@@ -1316,8 +1325,7 @@ impl Simulation {
             // Use previous time step's resistance data for new acquisitions
             self.majority_r_cache_next
                 .prepare_for_new_step(&self.majority_r_cache_prev);
-            let previous_majority_r_cache_addr =
-                (&self.majority_r_cache_prev as *const MajorityRCache) as usize;
+            let majority_r_cache_prev = &self.majority_r_cache_prev;
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
@@ -2083,6 +2091,11 @@ impl Simulation {
             let _rules_start = Instant::now();
 
             let mic_lt2_thresholds = &self.mic_lt2_majority_r_thresholds;
+            let potency_matrix = &self.potency_matrix;
+            let bacteria_indices = &self.bacteria_indices;
+            let drug_indices = &self.drug_indices;
+            let cross_resistance_groups = &self.cross_resistance_groups;
+            let param_cache = &self.param_cache;
             let threads = rayon::current_num_threads().max(1);
             let per_thread_cap = (self.prev_majority_r_entries_len / threads).saturating_add(8);
             let seed_option = self.rng_seed;
@@ -2113,7 +2126,7 @@ impl Simulation {
                             .presence_microbiome
                             .iter()
                             .enumerate()
-                            .any(|(b_idx, &x)| b_idx != 32 && x);
+                            .any(|(b_idx, &x)| !is_microbiome_excluded(b_idx) && x);
                         let on_any_drug_current = individual.cur_use_drug.iter().any(|&x| x);
                         let has_active_drug_course = individual.date_drug_initiated.iter().any(|&day| day != i32::MIN);
 
@@ -2146,7 +2159,7 @@ impl Simulation {
                                             lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
                                         }
                                         lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
-                                        let potency = self.potency_matrix[base + d_idx];
+                                        let potency = potency_matrix[base + d_idx];
                                         let mic = if potency <= 1e-9 {
                                             1e12
                                         } else {
@@ -2206,11 +2219,11 @@ impl Simulation {
                         individual,
                         t,
                         &mut lt.rng,
-                        unsafe { &*(previous_majority_r_cache_addr as *const MajorityRCache) },
-                        &self.bacteria_indices,
-                        &self.drug_indices,
-                        &self.cross_resistance_groups,
-                        &self.param_cache,
+                        majority_r_cache_prev,
+                        bacteria_indices,
+                        drug_indices,
+                        cross_resistance_groups,
+                        param_cache,
                         &policy,
                     );
 
@@ -2393,7 +2406,7 @@ impl Simulation {
                                 .level
                                 .iter()
                                 .enumerate()
-                                .any(|(b_idx, &level)| b_idx != 32 && level > 0.0);
+                                .any(|(b_idx, &level)| !is_microbiome_excluded(b_idx) && level > 0.0);
                             if is_currently_infected_non_h_pylori {
                                 lt.new_drug_initiations_count_infected += 1;
                             }
@@ -2511,7 +2524,7 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     // Track non-H. pylori infections separately (exclude H. pylori at index 32)
-                                    if b_idx != 32 {
+                                    if !is_microbiome_excluded(b_idx) {
                                         individual_has_any_non_h_pylori_infection = true;
                                     }
                                     lt.infections_by_bacteria[b_idx] += 1;
@@ -2546,7 +2559,9 @@ impl Simulation {
                                     let mut activity_r_sum = 0.0;
                                     let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
                                     // Only count infection duration for non-H. pylori pathogens (exclude H. pylori at index 32)
-                                    if b_idx != 32 && days_since_infection > individual_max_infection_duration {
+                                    if !is_microbiome_excluded(b_idx)
+                                        && days_since_infection > individual_max_infection_duration
+                                    {
                                         individual_max_infection_duration = days_since_infection;
                                     }
                                     if individual.date_last_infected[b_idx] == t as i32 {
@@ -3236,11 +3251,10 @@ impl Simulation {
                         } // Skip dead individuals
 
                         // Check if person is currently infected with non-H. pylori pathogens (exclude H. pylori at index 32)
-                        let currently_infected_non_h_pylori = individual
-                            .level
-                            .iter()
-                            .enumerate()
-                            .any(|(b_idx, &level)| b_idx != 32 && level > 0.0);
+                        let currently_infected_non_h_pylori =
+                            individual.level.iter().enumerate().any(|(b_idx, &level)| {
+                                !is_microbiome_excluded(b_idx) && level > 0.0
+                            });
                         if !currently_infected_non_h_pylori {
                             continue;
                         }
@@ -3421,7 +3435,18 @@ impl Simulation {
     pub fn run(&mut self) {
         // Assign a fresh identifier for this run so downstream CSV joins can distinguish outputs.
         let previous_run_id = self.run_id;
-        let mut run_id_rng = SmallRng::from_entropy();
+        let mut run_id_rng = match self.rng_seed {
+            Some(seed_value) => {
+                let salt = if previous_run_id == 0 {
+                    0x8F83_2E4B_1C4A_55D9u64
+                } else {
+                    (previous_run_id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                        ^ 0xA511_CCEC_1D28_3D4Bu64
+                };
+                SmallRng::seed_from_u64(seed_value ^ salt)
+            }
+            None => SmallRng::from_entropy(),
+        };
         let mut new_run_id: u32 = run_id_rng.gen_range(1..=1_000_000);
         if previous_run_id != 0 && new_run_id == previous_run_id {
             new_run_id = run_id_rng.gen_range(1..=1_000_000);

@@ -705,25 +705,37 @@ fn start_restart_treatment(
     false // No restart treatment started
 }
 
+/// Cached parameter data to avoid string allocation and redundant lookups during simulation
+const SEPSIS_AGE_BUCKET_COUNT: usize = 4;
+const NEONATAL_MAX_DAYS: u32 = 28;
+const PEDIATRIC_MAX_DAYS: u32 = 365 * 18;
+const YOUNG_ADULT_MAX_DAYS: u32 = 365 * 65;
+const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
+    0,             // neonatal
+    365,           // pediatric representative (~1y)
+    365 * 30,      // young adult representative
+    365 * 80,      // elderly representative
+];
+
 /// Pre-computed parameter keys to avoid string allocation during simulation
 pub struct ParameterKeyCache {
     // Most frequently used keys - drug/bacteria combinations
     drug_bacteria_potency_keys: HashMap<(usize, usize), String>,
-    // Region-based keys
-
-    // Other frequently used keys
+    bacteria_sepsis_multipliers: Vec<f64>,
+    bacteria_age_sepsis_multipliers: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
 }
 
 impl ParameterKeyCache {
     pub fn new() -> Self {
-        let mut cache = ParameterKeyCache {
-            drug_bacteria_potency_keys: HashMap::new(),
-        };
+        let mut drug_bacteria_potency_keys = HashMap::new();
+        let mut bacteria_sepsis_multipliers = Vec::with_capacity(BACTERIA_LIST.len());
+        let mut bacteria_age_sepsis_multipliers =
+            Vec::with_capacity(BACTERIA_LIST.len());
 
         // Pre-compute all drug/bacteria combinations
-        for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                cache.drug_bacteria_potency_keys.insert(
+        for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+            for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
+                drug_bacteria_potency_keys.insert(
                     (d_idx, b_idx),
                     format!(
                         "drug_{}_for_bacteria_{}_potency_when_no_r",
@@ -731,9 +743,47 @@ impl ParameterKeyCache {
                     ),
                 );
             }
+
+            bacteria_sepsis_multipliers
+                .push(get_bacteria_sepsis_risk_multiplier(bacteria_name));
+
+            let mut per_age_bucket = [0.0f64; SEPSIS_AGE_BUCKET_COUNT];
+            for (bucket_idx, &age_days) in SEPSIS_AGE_BUCKET_SAMPLE_DAYS.iter().enumerate() {
+                per_age_bucket[bucket_idx] =
+                    get_age_dependent_bacteria_sepsis_risk_multiplier(bacteria_name, age_days);
+            }
+            bacteria_age_sepsis_multipliers.push(per_age_bucket);
         }
 
-        cache
+        ParameterKeyCache {
+            drug_bacteria_potency_keys,
+            bacteria_sepsis_multipliers,
+            bacteria_age_sepsis_multipliers,
+        }
+    }
+
+    #[inline]
+    pub fn bacteria_sepsis_multiplier(&self, bacteria_idx: usize) -> f64 {
+        self.bacteria_sepsis_multipliers[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn bacteria_age_multiplier(&self, bacteria_idx: usize, age_days: u32) -> f64 {
+        let bucket = Self::age_bucket(age_days);
+        self.bacteria_age_sepsis_multipliers[bacteria_idx][bucket]
+    }
+
+    #[inline]
+    fn age_bucket(age_days: u32) -> usize {
+        if age_days <= NEONATAL_MAX_DAYS {
+            0
+        } else if age_days <= PEDIATRIC_MAX_DAYS {
+            1
+        } else if age_days <= YOUNG_ADULT_MAX_DAYS {
+            2
+        } else {
+            3
+        }
     }
 }
 
@@ -1018,11 +1068,9 @@ pub fn apply_rules(
 
                 // ENHANCED BACTERIA SEPSIS RISK CALCULATION
                 // Combines: 1) Enhanced bacteria-specific risk, 2) Age-dependent interactions, 3) Clinical risk categories
-                let bacteria_sepsis_risk = get_bacteria_sepsis_risk_multiplier(bacteria);
-                let age_bacteria_sepsis_risk = get_age_dependent_bacteria_sepsis_risk_multiplier(
-                    bacteria,
-                    individual.age as u32,
-                );
+                let bacteria_sepsis_risk = param_cache.bacteria_sepsis_multiplier(b_idx);
+                let age_bacteria_sepsis_risk = param_cache
+                    .bacteria_age_multiplier(b_idx, individual.age.max(0) as u32);
 
                 // Combined bacteria risk multiplier (bacteria-specific × age-dependent interaction)
                 let combined_bacteria_risk = bacteria_sepsis_risk * age_bacteria_sepsis_risk;
@@ -2701,8 +2749,7 @@ pub fn apply_rules(
                     log_odds += antibiotic_disruption_log_odds;
 
                     // Convert log-odds to probability
-                    let mut microbiome_acquisition_probability =
-                        1.0 / (1.0 + (-log_odds).exp());
+                    let mut microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
                     microbiome_acquisition_probability =
                         microbiome_acquisition_probability.clamp(0.0, 1.0);
 

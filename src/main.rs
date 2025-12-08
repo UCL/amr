@@ -20,7 +20,7 @@ mod simulation;
 //
 // placeholder best guesses of % with resistance for each drug/bacteria pair in microbiome
 // values for the EXTENT of resistance for THOSE WITH RESISTANCE for each drug/bacteria pair
-// proportion of people who carry each bacteria 
+// proportion of people who carry each bacteria
 //
 // death within 30 days by bacteria, age and region ? - make a formal part of calibration score or just present as an fyi ?
 //
@@ -34,7 +34,7 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-//
+// fix the bacteria names throughout all files
 //
 //
 //
@@ -113,12 +113,12 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 100;
+    let population_size = 100_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.10; // Log 1% of infections for analysis (0.0-1.0)
-    let use_fixed_seed = false ; // Toggle to enable deterministic RNG seeding
+    let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
 
@@ -130,7 +130,9 @@ fn main() {
     // Some("enterococcus_faecium")
     // None - logs all bacteria types
 
-    let mut simulation = Simulation::new(population_size, time_steps, log_individuals);
+    let seed_override = use_fixed_seed.then_some(fixed_seed_value);
+    let mut simulation =
+        Simulation::new(population_size, time_steps, log_individuals, seed_override);
     let use_disk_branch_checkpointing = false; // Set to false to keep the branch checkpoint in memory
     let disk_checkpoint_directory: Option<PathBuf> = None; // Override with Some(path) to specify a custom folder
 
@@ -138,9 +140,6 @@ fn main() {
         simulation.enable_disk_branch_checkpointing(disk_checkpoint_directory);
     } else {
         simulation.disable_disk_branch_checkpointing();
-    }
-    if use_fixed_seed {
-        simulation.rng_seed = Some(fixed_seed_value);
     }
 
     // Configure infection journey logging

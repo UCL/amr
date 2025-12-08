@@ -17,7 +17,11 @@ import logging
 import math
 
 from ..config import PlotConfig
-from ..calibration_summary import get_resistance_benchmark_table
+from ..calibration_summary import (
+    get_resistance_benchmark_table,
+    RESISTANCE_SIM_COL,
+    RESISTANCE_TARGET_COL,
+)
 from ..data_loader import DataCache
 from ..utils import (
     safe_divide,
@@ -372,7 +376,7 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
         mask = ~note_series.astype(str).str.contains("negligible potency", case=False, na=False)
         table = table[mask]
 
-    table = table.dropna(subset=["Simulation", "Target"], how="all")
+    table = table.dropna(subset=[RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL], how="all")
     if table.empty:
         logger.warning("No resistance benchmark rows eligible for plotting after filtering.")
         return
@@ -390,8 +394,8 @@ def create_resistance_benchmark_bar_charts(config: PlotConfig) -> None:
 
         working = subset.sort_values("Drug").reset_index(drop=True)
         drugs = working["Drug"].astype(str).tolist()
-        sim_values = working["Simulation"].astype(float).to_numpy()
-        target_values = working["Target"].astype(float).to_numpy()
+        sim_values = working[RESISTANCE_SIM_COL].astype(float).to_numpy()
+        target_values = working[RESISTANCE_TARGET_COL].astype(float).to_numpy()
 
         if len(drugs) == 0:
             continue

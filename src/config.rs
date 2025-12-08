@@ -268,19 +268,13 @@ pub struct GlobalScalars {
     pub majority_r_window_days: u32,
     pub majority_r_min_total_samples: u32,
     pub majority_r_freeze_at_last_positive: bool,
-    pub majority_r_allow_extinction: bool,
 }
 
 impl GlobalScalars {
     fn from_map(map: &HashMap<String, f64>) -> Self {
         // Reads configuration values already present in `map`; the fallback literal only applies when no entry exists.
-        let majority_r_allow_extinction =
-            get_or_default(map, "majority_r_allow_extinction", 0.0) > 0.5;
-        let majority_r_freeze_at_last_positive = if majority_r_allow_extinction {
-            false
-        } else {
-            get_or_default(map, "majority_r_freeze_at_last_positive", 1.0) > 0.5
-        };
+        let majority_r_freeze_at_last_positive =
+            get_or_default(map, "majority_r_freeze_at_last_positive", 1.0) > 0.5;
         GlobalScalars {
             drug_base_initiation_rate_per_day: get_or_default(
                 map,
@@ -401,7 +395,7 @@ impl GlobalScalars {
                 4.0,
             ) as i32,
             treatment_failure_threshold: get_or_default(map, "treatment_failure_threshold", 0.5),
-            drug_failure_memory_days: get_or_default(map, "drug_failure_memory_days", 30.0) as i32,
+            drug_failure_memory_days: get_or_default(map, "drug_failure_memory_days", 14.0) as i32,
             minimal_potency_threshold_for_drug_selection: get_or_default(
                 map,
                 "minimal_potency_threshold_for_drug_selection",
@@ -746,7 +740,6 @@ impl GlobalScalars {
                     .round() as u32
             },
             majority_r_freeze_at_last_positive,
-            majority_r_allow_extinction,
         }
     }
 }
@@ -4213,7 +4206,7 @@ lazy_static! {
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
 
         // Drug Selection Algorithm Parameters
-        map.insert("drug_selection_temperature".to_string(), 0.3); // MUCH more deterministic: strongly favor best choices
+        map.insert("drug_selection_temperature".to_string(), 0.45); // Slightly higher temperature to allow more diversity in drug picks
 
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -4230,12 +4223,12 @@ lazy_static! {
         // Colistin parameters (grouped with other drugs)
         map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
         // Toxicity hazard placeholders (per unit drug level). These represent best-guess daily fatal toxicity odds for active therapy.
-        map.insert("drug_colistin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000025); // Colistin-associated nephrotoxicity with high fatal risk
-        map.insert("drug_gentamicin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000015); // Aminoglycoside renal failure/ototoxicity
-        map.insert("drug_tobramycin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000013);
-        map.insert("drug_amikacin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000017);
-        map.insert("drug_vancomycin_toxicity_death_hazard_per_unit_level".to_string(), 0.00000006); // Severe nephrotoxicity/red man syndrome rare but serious
-        map.insert("drug_chlorampheni_toxicity_death_hazard_per_unit_level".to_string(), 0.0000001); // Aplastic anemia risk
+        map.insert("drug_colistin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000025); // Colistin-associated nephrotoxicity with high fatal risk
+        map.insert("drug_gentamicin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000015); // Aminoglycoside renal failure/ototoxicity
+        map.insert("drug_tobramycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000013);
+        map.insert("drug_amikacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000017);
+        map.insert("drug_vancomycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000006); // Severe nephrotoxicity/red man syndrome rare but serious
+        map.insert("drug_chlorampheni_toxicity_death_hazard_per_unit_level".to_string(), 0.00000001); // Aplastic anemia risk
         // Regional availability (assume widely available, adjust as needed)
         map.insert("north_america_drug_colistin_availability".to_string(), 1.0);
         map.insert("europe_drug_colistin_availability".to_string(), 1.0);
@@ -4331,7 +4324,7 @@ lazy_static! {
         // Treatment Failure Assessment Parameters
         map.insert("treatment_failure_assessment_day".to_string(), 4.0); // Days to wait before assessing treatment failure
         map.insert("enable_treatment_failure_assessment".to_string(), 1.0); // Enable/disable treatment failure assessment (1.0=enabled, 0.0=disabled)
-        map.insert("drug_failure_memory_days".to_string(), 30.0); // Days to remember a drug failure when selecting alternatives
+        map.insert("drug_failure_memory_days".to_string(), 14.0); // Shorter memory limits rapid escalation to reserve agents
         map.insert("treatment_failure_threshold".to_string(), 0.5); // Threshold for treatment failure (0.5 = failure if bacteria level >= 50% of initial)
 
         // Restart Window Parameters (for patients who stop drugs early while still infected)
@@ -4444,7 +4437,8 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.00001);  // 0.005
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.000001);  
+
             }
         }
 
@@ -5142,8 +5136,8 @@ lazy_static! {
         map.insert("drug_piperacillin_tazobactam_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.0); // First-line anti-pseudomonal
         map.insert("drug_ceftazidime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.5); // Good anti-pseudomonal activity
         map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.5); // Good anti-pseudomonal activity
-        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.0); // Anti-pseudomonal carbapenem
-        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.0); // Anti-pseudomonal carbapenem
+        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 2.5); // Anti-pseudomonal carbapenem with restrained weighting
+        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 2.5); // Anti-pseudomonal carbapenem with restrained weighting
         map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 3.5); // Last resort for MDR Pseudomonas
 
         // MACROLIDES FOR RESPIRATORY PATHOGENS
@@ -5193,11 +5187,11 @@ lazy_static! {
         map.insert("drug_azithromycin_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 4.0); // Alternative for Chlamydia
 
         // CARBAPENEMS FOR ESBL PRODUCERS
-        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0); // For ESBL Klebsiella
-        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0); // For ESBL Klebsiella
-        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0); // For ESBL Klebsiella
-        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 3.5); // For ESBL E. coli
-        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 3.5); // For ESBL E. coli
+        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 2.5); // For ESBL Klebsiella with tighter stewardship weighting
+        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 2.5); // For ESBL Klebsiella with tighter stewardship weighting
+        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 2.2); // For ESBL Klebsiella while retaining niche role
+        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 1.8); // For ESBL E. coli with restrained weighting
+        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 1.8); // For ESBL E. coli with restrained weighting
 
         // REDUCE INAPPROPRIATE COMBINATIONS
         // Penicillins should not be used for intrinsically resistant gram-negatives
@@ -5260,31 +5254,31 @@ lazy_static! {
 
         // VERY RARE RESISTANCE (extremely slow emergence)
         // Linezolid resistance in enterococci should remain very rare
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.000005);
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.000005);
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000001); 
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000001); 
 
-        // PROBLEMATIC HIGH-RESISTANCE BACTERIA 
-        // Acinetobacter baumannii 
+        // PROBLEMATIC HIGH-RESISTANCE BACTERIA
+        // Acinetobacter baumannii
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.00003);
+            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.000003); 
         }
 
-        // E. coli 
+        // E. coli
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.000002); 
         }
 
         // Pseudomonas aeruginosa -
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.000002); 
         }
 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
+            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.000002);         
         }
 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_staphylococcus epidermidis_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
+            map.insert(format!("drug_{}_for_bacteria_staphylococcus epidermidis_resistance_emergence_rate_per_day_baseline", drug), 0.0000005); 
         }
 
         // SPECIFIC DRUG-BACTERIA COMBINATIONS WITH CLINICAL CONSTRAINTS
@@ -5296,12 +5290,12 @@ lazy_static! {
         ];
         for &bacteria in gram_negative_bacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.00002);
+                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.000002); 
             }
         }
 
         // Nitrofurantoin resistance in E. coli should remain low (important for UTI treatment)
-        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.00001);
+        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000001);
 
         // Vancomycin resistance should be impossible in Gram-negative bacteria (intrinsic resistance handled by potency)
         for &bacteria in gram_negative_bacteria.iter() {
@@ -5785,7 +5779,7 @@ lazy_static! {
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0003); // Default: very rare, increase for more rapid reversion
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000001 ); // Lower baseline for microbiome resistance emergence
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.00000001 ); //  Lower baseline for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -5927,10 +5921,10 @@ lazy_static! {
         }
 
         // Bacterial Identification Effect Parameters
-    map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 1.1); // Further trim bonus so empiric broad-spectrum use is only mildly favored
+    map.insert("empiric_therapy_broad_spectrum_bonus".to_string(), 0.95); // Make broad-spectrum empiric choices slightly less favored than narrow options
         map.insert("empiric_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Heavy penalty for drugs ineffective against actual pathogens (empirical)
-        map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 4.5); // Stronger multiplier keeps narrow agents preferred once pathogen identified
-    map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.25); // Stronger penalty for broad-spectrum drugs when bacteria identified
+        map.insert("targeted_therapy_narrow_spectrum_bonus".to_string(), 5.0); // Further reward narrow agents once pathogen identified
+        map.insert("targeted_therapy_broad_spectrum_penalty".to_string(), 0.2); // Heavier penalty for broad-spectrum drugs when bacteria identified
         map.insert("targeted_therapy_ineffective_drug_penalty".to_string(), 0.001); // STRENGTHENED: Strong penalty for drugs ineffective against identified bacteria
 
         // Regional Resistance Surveillance Parameters for Drug Choice
@@ -5938,8 +5932,8 @@ lazy_static! {
         map.insert("regional_resistance_penalty_very_high".to_string(), 0.2); // Penalty when >50% regional resistance
         map.insert("regional_resistance_penalty_high".to_string(), 0.4); // Penalty when 30-50% regional resistance
         map.insert("regional_resistance_penalty_moderate".to_string(), 0.7); // Penalty when 10-30% regional resistance
-        map.insert("regional_resistance_threshold_very_high".to_string(), 0.5); // Threshold for very high resistance (50%)
-        map.insert("regional_resistance_threshold_high".to_string(), 0.3); // Threshold for high resistance (30%)
+        map.insert("regional_resistance_threshold_very_high".to_string(), 0.6); // Threshold for very high resistance (60%)
+        map.insert("regional_resistance_threshold_high".to_string(), 0.45); // Threshold for high resistance (45%)
         map.insert("regional_resistance_threshold_moderate".to_string(), 0.1); // Threshold for moderate resistance (10%)
 
         // Drug Spectrum Classifications (1.0=narrow, 5.0=very broad)
@@ -6353,8 +6347,6 @@ lazy_static! {
             "majority_r_freeze_at_last_positive".to_string(),
             0.0,
         );
-        // Set to 1 to allow regional/hospital buckets to drift back to zero (extinction enabled).
-        map.insert("majority_r_allow_extinction".to_string(), 0.0);
         // 55% probability that carrier's infection inherits microbiome resistance profile
         // Default 0.55 keeps endogenous infections common without locking in microbiome resistance
         // This parameter has MASSIVE impact on population resistance dynamics - most important in the model
@@ -7317,6 +7309,12 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
         return specific_multiplier;
     }
 
+    let canonical_name = {
+        let lower = bacteria_name.to_lowercase().replace('_', " ");
+        lower.split_whitespace().collect::<Vec<_>>().join(" ")
+    };
+    let canonical = canonical_name.as_str();
+
     // Fall back to clinical risk category groupings if no specific override exists
 
     // EXTREMELY HIGH SEPSIS RISK - these should have specific overrides above
@@ -7362,15 +7360,21 @@ pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
     ];
 
     // Return appropriate multiplier based on risk category
-    if extremely_high_risk_bacteria.contains(&bacteria_name) {
+    if extremely_high_risk_bacteria
+        .iter()
+        .any(|name| *name == canonical)
+    {
         get_global_param("high_sepsis_risk_multiplier").unwrap_or(3.0) // Higher than standard high
-    } else if high_risk_bacteria.contains(&bacteria_name) {
+    } else if high_risk_bacteria.iter().any(|name| *name == canonical) {
         get_global_param("high_sepsis_risk_multiplier").unwrap_or(2.0)
-    } else if moderate_high_risk_bacteria.contains(&bacteria_name) {
+    } else if moderate_high_risk_bacteria
+        .iter()
+        .any(|name| *name == canonical)
+    {
         1.5 // Between moderate and high
-    } else if moderate_risk_bacteria.contains(&bacteria_name) {
+    } else if moderate_risk_bacteria.iter().any(|name| *name == canonical) {
         get_global_param("moderate_sepsis_risk_multiplier").unwrap_or(1.0)
-    } else if low_risk_bacteria.contains(&bacteria_name) {
+    } else if low_risk_bacteria.iter().any(|name| *name == canonical) {
         get_global_param("low_sepsis_risk_multiplier").unwrap_or(0.3)
     } else {
         // Default to moderate risk for any bacteria not explicitly categorized
