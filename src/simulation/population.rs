@@ -310,7 +310,13 @@ pub enum Region {
 // Implement the Display trait for Region
 impl fmt::Display for Region {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let region_str = match self {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl Region {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
             Region::NorthAmerica => "north_america",
             Region::SouthAmerica => "south_america",
             Region::Africa => "africa",
@@ -318,8 +324,7 @@ impl fmt::Display for Region {
             Region::Europe => "europe",
             Region::Oceania => "oceania",
             Region::Home => "home",
-        };
-        write!(f, "{}", region_str)
+        }
     }
 }
 

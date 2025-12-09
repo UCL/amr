@@ -719,29 +719,28 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
 
 /// Pre-computed parameter keys to avoid string allocation during simulation
 pub struct ParameterKeyCache {
-    // Most frequently used keys - drug/bacteria combinations
-    drug_bacteria_potency_keys: HashMap<(usize, usize), String>,
+    drug_count: usize,
+    drug_bacteria_potency: Vec<f64>,
     bacteria_sepsis_multipliers: Vec<f64>,
     bacteria_age_sepsis_multipliers: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
 }
 
 impl ParameterKeyCache {
     pub fn new() -> Self {
-        let mut drug_bacteria_potency_keys = HashMap::new();
+        let store = parameter_store();
+        let drug_count = DRUG_SHORT_NAMES.len();
+        let bacteria_count = BACTERIA_LIST.len();
+
+        let mut drug_bacteria_potency =
+            Vec::with_capacity(drug_count * bacteria_count);
         let mut bacteria_sepsis_multipliers = Vec::with_capacity(BACTERIA_LIST.len());
         let mut bacteria_age_sepsis_multipliers =
             Vec::with_capacity(BACTERIA_LIST.len());
 
         // Pre-compute all drug/bacteria combinations
         for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-            for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                drug_bacteria_potency_keys.insert(
-                    (d_idx, b_idx),
-                    format!(
-                        "drug_{}_for_bacteria_{}_potency_when_no_r",
-                        drug_name, bacteria_name
-                    ),
-                );
+            for (d_idx, _) in DRUG_SHORT_NAMES.iter().enumerate() {
+                drug_bacteria_potency.push(store.drug_bacteria.potency(b_idx, d_idx));
             }
 
             bacteria_sepsis_multipliers
@@ -756,7 +755,8 @@ impl ParameterKeyCache {
         }
 
         ParameterKeyCache {
-            drug_bacteria_potency_keys,
+            drug_count,
+            drug_bacteria_potency,
             bacteria_sepsis_multipliers,
             bacteria_age_sepsis_multipliers,
         }
@@ -784,6 +784,12 @@ impl ParameterKeyCache {
         } else {
             3
         }
+    }
+
+    #[inline]
+    pub fn potency(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
+        let offset = bacteria_idx * self.drug_count + drug_idx;
+        self.drug_bacteria_potency[offset]
     }
 }
 
@@ -1254,7 +1260,7 @@ pub fn apply_rules(
                     }
 
                     // Use potency_when_no_r to determine if drug is relevant for this bacteria
-                    let drug_potency = store.drug_bacteria.potency(b_idx, drug_idx);
+                    let drug_potency = param_cache.potency(b_idx, drug_idx);
                     if drug_potency > 0.0 {
                         relevant_infection_active_for_this_drug = true;
                         // Track the bacteria with highest level (most significant infection)
@@ -1475,7 +1481,7 @@ pub fn apply_rules(
                             }
                         }
 
-                        let potency = store.drug_bacteria.potency(b_idx, drug_idx);
+                        let potency = param_cache.potency(b_idx, drug_idx);
                         max_potency_against_infections =
                             max_potency_against_infections.max(potency);
                         if potency >= minimal_potency_threshold {
@@ -1994,7 +2000,7 @@ pub fn apply_rules(
                         if individual.test_identified_infection[b_idx]
                             && individual.level[b_idx] > INFECTION_EPS
                         {
-                            let potency = store.drug_bacteria.potency(b_idx, drug_idx);
+                            let potency = param_cache.potency(b_idx, drug_idx);
                             best_potency = best_potency.max(potency);
                             if potency > effective_potency_threshold {
                                 has_good_activity = true;
@@ -2080,7 +2086,7 @@ pub fn apply_rules(
                                     if store.drug.spectrum_breadth(other_idx) > 2.5 {
                                         continue;
                                     }
-                                    let potency = store.drug_bacteria.potency(b_idx, other_idx);
+                                    let potency = param_cache.potency(b_idx, other_idx);
                                     if potency <= narrow_effective_threshold {
                                         continue;
                                     }
@@ -2144,7 +2150,7 @@ pub fn apply_rules(
                     }
                     for b_idx in 0..BACTERIA_LIST.len() {
                         if individual.level[b_idx] > INFECTION_EPS {
-                            let potency = store.drug_bacteria.potency(b_idx, drug_idx);
+                            let potency = param_cache.potency(b_idx, drug_idx);
                             if potency > effective_potency_threshold {
                                 has_any_activity = true;
                                 break;
@@ -2883,7 +2889,7 @@ pub fn apply_rules(
                         } else {
                             (resistance_data.microbiome_r / max_resistance_level).clamp(0.0, 1.0)
                         };
-                        let base_potency = store.drug_bacteria.potency(b_idx, d_idx);
+                        let base_potency = param_cache.potency(b_idx, d_idx);
                         let effective_activity =
                             (base_potency * drug_level * (1.0 - normalized_micro_r)).max(0.0);
                         strongest_microbiome_activity =
@@ -3241,7 +3247,7 @@ pub fn apply_rules(
                 for (drug_idx, &is_taking_drug) in individual.cur_use_drug.iter().enumerate() {
                     if is_taking_drug {
                         // Calculate effective activity using the same method as activity_r calculation
-                        let base_potency = store.drug_bacteria.potency(b_idx, drug_idx);
+                        let base_potency = param_cache.potency(b_idx, drug_idx);
                         let drug_current_level = individual.cur_level_drug[drug_idx];
                         let max_resistance_level = store.globals.max_resistance_level;
                         let resistance_level = individual.resistances[b_idx][drug_idx].any_r;
@@ -3809,9 +3815,9 @@ pub fn apply_rules(
                     let current_bacteria_level = individual.level[bacteria_full_idx];
 
                     if drug_current_level > 0.0 {
-                        // Fetch potency from indexed parameter store
+                        // Fetch potency from cached lookup
                         let base_potency =
-                            store.drug_bacteria.potency(bacteria_full_idx, drug_index);
+                            param_cache.potency(bacteria_full_idx, drug_index);
 
                         if current_bacteria_level > INFECTION_EPS {
                             // Calculate resistance mechanism enhancement
@@ -4317,7 +4323,7 @@ pub fn apply_rules(
 
                     if individual.id == 1000001 {
                         // Calculate standardized MIC: 1 / ((1 - majority_r) * potency)
-                        let potency = store.drug_bacteria.potency(b_idx, drug_idx);
+                        let potency = param_cache.potency(b_idx, drug_idx);
                         let max_resistance_level = store.globals.max_resistance_level;
                         let normalized_majority_r =
                             resistance_data.majority_r / max_resistance_level;
@@ -4355,7 +4361,7 @@ pub fn apply_rules(
                             return false;
                         }
 
-                        let potency = store.drug_bacteria.potency(b_idx, *drug_idx);
+                        let potency = param_cache.potency(b_idx, *drug_idx);
                         potency >= 0.1 // Only count drugs with meaningful TB potency
                     })
                     .collect();
