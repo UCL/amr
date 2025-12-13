@@ -941,6 +941,7 @@ pub struct TimeStepSummary {
     pub new_resistance_at_infection_env_by_bacteria_drug: Vec<usize>,
     pub new_resistance_hgt_by_bacteria_drug: Vec<usize>,
     pub new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
+    pub new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
 
     // infection resolution tracking: counts by bacteria and resolution type
     // Each Vec has length = num_bacteria * num_resolution_types, indexed as [bacteria_idx * num_resolution_types + resolution_type_idx]
@@ -1418,6 +1419,7 @@ impl Simulation {
                 new_resistance_at_infection_env_by_bacteria_drug: Vec<usize>,
                 new_resistance_hgt_by_bacteria_drug: Vec<usize>,
                 new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
+                new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
                 /// infection resolution tracking: counts by bacteria and resolution type
                 infection_resolution_immune_clearance_by_bacteria: Vec<usize>,
                 infection_resolution_drug_assisted_clearance_by_bacteria: Vec<usize>,
@@ -1566,6 +1568,11 @@ impl Simulation {
                         ],
                         new_resistance_hgt_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         new_resistance_from_microbiome_r_by_bacteria_drug: vec![
+                            0;
+                            num_bacteria
+                                * num_drugs
+                        ],
+                        new_resistance_de_novo_infection_by_bacteria_drug: vec![
                             0;
                             num_bacteria
                                 * num_drugs
@@ -1974,6 +1981,13 @@ impl Simulation {
                         .new_resistance_from_microbiome_r_by_bacteria_drug
                         .iter_mut()
                         .zip(other.new_resistance_from_microbiome_r_by_bacteria_drug)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .new_resistance_de_novo_infection_by_bacteria_drug
+                        .iter_mut()
+                        .zip(other.new_resistance_de_novo_infection_by_bacteria_drug)
                     {
                         *a += b;
                     }
@@ -2610,6 +2624,9 @@ impl Simulation {
                                                     ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1, // Count TB-specific resistance with environmental
                                                     ResistanceAcquisitionType::Hgt => lt.new_resistance_hgt_by_bacteria_drug[index] += 1,
                                                     ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
+                                                    ResistanceAcquisitionType::DeNovoInfection => {
+                                                        lt.new_resistance_de_novo_infection_by_bacteria_drug[index] += 1;
+                                                    }
                                                 }
                                             }
                                         }
@@ -2822,6 +2839,7 @@ impl Simulation {
                 new_resistance_at_infection_env_by_bacteria_drug,
                 new_resistance_hgt_by_bacteria_drug,
                 new_resistance_from_microbiome_r_by_bacteria_drug,
+                new_resistance_de_novo_infection_by_bacteria_drug,
                 infection_resolution_immune_clearance_by_bacteria: _,
                 infection_resolution_drug_assisted_clearance_by_bacteria: _,
                 infection_resolution_death_from_sepsis_by_bacteria: _,
@@ -3056,6 +3074,7 @@ impl Simulation {
                 new_resistance_at_infection_env_by_bacteria_drug,
                 new_resistance_hgt_by_bacteria_drug,
                 new_resistance_from_microbiome_r_by_bacteria_drug,
+                new_resistance_de_novo_infection_by_bacteria_drug,
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
                 infection_resolution_death_from_sepsis_by_bacteria,
@@ -4020,6 +4039,15 @@ impl Simulation {
                 header.push_str("_new_resistance_from_microbiome_r");
             }
         }
+        for bacteria in BACTERIA_LIST.iter() {
+            for drug in DRUG_SHORT_NAMES.iter() {
+                header.push(',');
+                header.push_str(&bacteria.replace(" ", "_"));
+                header.push('_');
+                header.push_str(drug);
+                header.push_str("_new_resistance_de_novo_infection");
+            }
+        }
 
         // Add per-bacteria infection resolution columns to header
         for bacteria in BACTERIA_LIST.iter() {
@@ -4492,6 +4520,10 @@ impl Simulation {
                 row.push_str(&value.to_string());
             }
             for value in &summary.new_resistance_from_microbiome_r_by_bacteria_drug {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.new_resistance_de_novo_infection_by_bacteria_drug {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

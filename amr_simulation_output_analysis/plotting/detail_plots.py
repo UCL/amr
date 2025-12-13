@@ -4165,7 +4165,13 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
     
     # Identify bacteria-drug pairs from new resistance acquisition columns
     bacteria_drug_pairs = []
-    acquisition_types = ['at_infection_community', 'at_infection_env', 'hgt', 'from_microbiome_r']
+    acquisition_types = [
+        'at_infection_community',
+        'at_infection_env',
+        'hgt',
+        'from_microbiome_r',
+        'de_novo_infection',
+    ]
     
     for col in df.columns:
         if col.endswith("_new_resistance_at_infection_community"):
@@ -4176,19 +4182,21 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
     bacteria_drug_pairs = sorted(set(bacteria_drug_pairs))
     logger.info(f"Found {len(bacteria_drug_pairs)} bacteria-drug combinations to analyze")
     
-    # Color scheme for the 4 acquisition types
+    # Color scheme for the acquisition types
     colors = {
         'at_infection_community': '#1f77b4',  # blue
         'at_infection_env': '#ff7f0e',        # orange  
         'hgt': '#2ca02c',                     # green
-        'from_microbiome_r': '#d62728'        # red
+        'from_microbiome_r': '#d62728',       # red
+        'de_novo_infection': '#9467bd',       # purple
     }
     
     labels = {
         'at_infection_community': 'Community Infection',
         'at_infection_env': 'Environmental Infection',
         'hgt': 'Horizontal Gene Transfer',
-        'from_microbiome_r': 'From Microbiome'
+        'from_microbiome_r': 'From Microbiome',
+        'de_novo_infection': 'De Novo Infection',
     }
     
     plot_count = 0

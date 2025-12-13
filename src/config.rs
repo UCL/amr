@@ -4437,7 +4437,7 @@ lazy_static! {
             for &bacteria in BACTERIA_LIST.iter() {
                 map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
                 map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.00000001);  
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0);  
 
             }
         }
@@ -5254,31 +5254,31 @@ lazy_static! {
 
         // VERY RARE RESISTANCE (extremely slow emergence)
         // Linezolid resistance in enterococci should remain very rare
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000000001); 
-        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000000001); 
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline".to_string(), 0.00000000000000000); 
+        map.insert("drug_linezolid_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline".to_string(), 0.00000000000000000); 
 
         // PROBLEMATIC HIGH-RESISTANCE BACTERIA
         // Acinetobacter baumannii
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.00000003); 
+            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.000000000000000); 
         }
 
         // E. coli
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.00000002); 
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.000000000000000); 
         }
 
         // Pseudomonas aeruginosa -
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.00000002); 
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.000000000000000); 
         }
 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.00000002);         
+            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.000000000000000);         
         }
 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_staphylococcus epidermidis_resistance_emergence_rate_per_day_baseline", drug), 0.000000005); 
+            map.insert(format!("drug_{}_for_bacteria_staphylococcus epidermidis_resistance_emergence_rate_per_day_baseline", drug), 0.0000000000000000); 
         }
 
         // SPECIFIC DRUG-BACTERIA COMBINATIONS WITH CLINICAL CONSTRAINTS
@@ -5290,12 +5290,12 @@ lazy_static! {
         ];
         for &bacteria in gram_negative_bacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.00000002); 
+                map.insert(format!("drug_colistin_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", bacteria), 0.000000000000000); 
             }
         }
 
         // Nitrofurantoin resistance in E. coli should remain low (important for UTI treatment)
-        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.000000001);
+        map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000000000000000);
 
         // Vancomycin resistance should be impossible in Gram-negative bacteria (intrinsic resistance handled by potency)
         for &bacteria in gram_negative_bacteria.iter() {
@@ -5779,8 +5779,11 @@ lazy_static! {
         // Resistance Emergence and Decay Parameters
         // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
         map.insert("resistance_reversion_rate_per_day".to_string(), 0.0003); // Default: very rare, increase for more rapid reversion
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.00000000001 ); //  Lower baseline for microbiome resistance emergence
-        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.000000000000000000000 ); //  Lower baseline for microbiome resistance emergence
+        map.insert(
+            "resistance_emergence_bacteria_level_multiplier".to_string(),
+            0.0,
+        ); // Leave emergence scaling at zero unless a scenario opts in
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
@@ -5797,17 +5800,17 @@ lazy_static! {
 
         // --- Resistance Mechanisms Parameters ---
         // Baseline emergence rates for specific resistance mechanisms (per day when drug present)
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0001); // ESBL emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.00005); // Carbapenemase emergence (rarer)
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.00002); // AmpC emergence with beta-lactam pressure
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0001); // Aminoglycoside resistance
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0001); // Quinolone resistance
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.0003); // More common mechanism
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0001); // Macrolide resistance
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00002); // Vancomycin resistance (rare)
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0001); // MRSA emergence
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.00025); // Common adaptive mechanism
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0002); // Point mutations
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.00000000000000); // ESBL emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.000000000000000); // Carbapenemase emergence (rarer)
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.000000000000000); // AmpC emergence with beta-lactam pressure
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.00000000000000); // Aminoglycoside resistance
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.00000000000000); // Quinolone resistance
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.00000000000000); // More common mechanism
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.00000000000000); // Macrolide resistance
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.000000000000000); // Vancomycin resistance (rare)
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.00000000000000); // MRSA emergence
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.00000000000000); // Common adaptive mechanism
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.00000000000000); // Point mutations
 
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
         map.insert("resistance_mechanism_esbl_enhancement_multiplier".to_string(), 0.4); // Adds 40% resistance

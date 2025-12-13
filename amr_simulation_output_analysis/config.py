@@ -57,7 +57,7 @@ class PlotConfig:
     death_rate_by_syndrome_region: bool = False
     syndrome_distribution_by_bacteria: bool = False
     proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
-    resistance_benchmark_bar_charts: bool = True
+    resistance_benchmark_bar_charts: bool = False
 
     # Empirical data display options
     show_synthetic_fallback_data: bool = False  # Whether to display synthetic fallback empirical overlays
@@ -181,7 +181,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_739441.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_846823.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

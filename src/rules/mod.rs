@@ -3140,12 +3140,23 @@ pub fn apply_rules(
             // --- HORIZONTAL GENE TRANSFER (HGT) BETWEEN DIFFERENT BACTERIA ---
             // For each donor bacteria (with resistance), try to transfer to each other recipient bacteria
             for donor_idx in 0..BACTERIA_LIST.len() {
+                // Exclude TB from HGT - Mycobacterium tuberculosis is an intracellular pathogen
+                // with very different biology from typical bacteria, making HGT unrealistic
+                let donor_bacteria_name = BACTERIA_LIST[donor_idx];
+                if donor_bacteria_name == "mdr mycobacterium tuberculosis" {
+                    continue;
+                }
                 // Donor must have resistance (infection or microbiome)
                 let donor_has_resistance = individual.level[donor_idx] > INFECTION_EPS
                     || individual.presence_microbiome[donor_idx];
                 if donor_has_resistance {
                     for recipient_idx in 0..BACTERIA_LIST.len() {
                         if recipient_idx == donor_idx {
+                            continue;
+                        }
+                        // Exclude TB as recipient as well
+                        let recipient_bacteria_name = BACTERIA_LIST[recipient_idx];
+                        if recipient_bacteria_name == "mdr mycobacterium tuberculosis" {
                             continue;
                         }
                         let hgt_prob = store.hgt.probability(donor_idx, recipient_idx);
@@ -3657,7 +3668,7 @@ pub fn apply_rules(
                                         individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                     }
                                 }
-                                individual.how_resistance_acquired[b_idx][drug_index] = Some(crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR);
+                                individual.how_resistance_acquired[b_idx][drug_index] = Some(crate::simulation::population::ResistanceAcquisitionType::DeNovoInfection);
                             }
                         }
                     }

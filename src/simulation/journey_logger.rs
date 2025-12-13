@@ -1076,6 +1076,7 @@ impl JourneyLogger {
                 crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
                     | crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB
                     | crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR
+                    | crate::simulation::population::ResistanceAcquisitionType::DeNovoInfection
                     | crate::simulation::population::ResistanceAcquisitionType::Hgt
             );
 

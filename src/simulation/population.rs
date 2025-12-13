@@ -74,6 +74,7 @@ pub enum ResistanceAcquisitionType {
     AtInfectionTB,
     Hgt,
     FromMicrobiomeR,
+    DeNovoInfection,
 }
 
 impl ResistanceAcquisitionType {
@@ -84,6 +85,7 @@ impl ResistanceAcquisitionType {
             ResistanceAcquisitionType::AtInfectionTB => "at_infection_tb",
             ResistanceAcquisitionType::Hgt => "hgt",
             ResistanceAcquisitionType::FromMicrobiomeR => "from_microbiome_r",
+            ResistanceAcquisitionType::DeNovoInfection => "de_novo_infection",
         }
     }
 }
