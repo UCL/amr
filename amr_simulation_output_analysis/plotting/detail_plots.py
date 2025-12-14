@@ -328,7 +328,7 @@ def create_death_causes_plot(df: pd.DataFrame, config: PlotConfig) -> None:
 
 @safe_plot_creation
 def create_resistance_plot(df: pd.DataFrame, config: PlotConfig) -> None:
-    """Create standalone resistance among infected plot."""
+    """Create standalone resistance among infected plot (excludes MDR-TB)."""
     if 'resistance_among_infected' not in df.columns:
         logger.warning("Resistance data not available, skipping resistance plot.")
         return
@@ -337,7 +337,7 @@ def create_resistance_plot(df: pd.DataFrame, config: PlotConfig) -> None:
     ax.plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(
         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
         color='purple', linewidth=2)
-    ax.set_title('Proportion with Resistance Among Currently Infected (excl. H. pylori)')
+    ax.set_title('Proportion with Resistance Among Currently Infected\n(excl. H. pylori and MDR-TB)')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')
     ax.set_ylim(bottom=0)
@@ -5600,7 +5600,7 @@ def create_resistance_plot(
                 window=config.smoothing_window, min_periods=1, center=True
             ).mean(), 
             color='#ff1493', linewidth=2)
-    ax.set_title('Proportion with Resistance Among Currently Infected (excl. H. pylori)')
+    ax.set_title('Proportion with Resistance Among Currently Infected\n(excl. H. pylori and MDR-TB)')
     ax.set_xlabel('Time (Years)')
     ax.set_ylabel('Proportion')
     ax.set_ylim(bottom=0)

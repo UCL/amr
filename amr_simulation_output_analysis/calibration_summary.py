@@ -1133,13 +1133,25 @@ def _calculate_drug_class_table(
 
 
 def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame:
+    """Filter resistance rows for fit metrics, excluding rifampicin and MDR-TB.
+    
+    MDR-TB has guaranteed ~90% rifampicin resistance which would skew overall 
+    resistance metrics. It is excluded from the calibration summary metrics.
+    """
     if resistance_df.empty or "Note" not in resistance_df:
         return pd.DataFrame()
 
     filtered = resistance_df.copy()
+    
+    # Exclude rifampicin (TB-specific drug)
     if "Drug" in filtered:
         drug_series = filtered["Drug"].astype(str).str.lower()
         filtered = filtered[~drug_series.str.contains("rifampicin", na=False)]
+
+    # Exclude MDR-TB bacteria (has guaranteed rifampicin resistance)
+    if "Bacteria" in filtered:
+        bacteria_series = filtered["Bacteria"].astype(str).str.lower()
+        filtered = filtered[~bacteria_series.str.contains("tuberculosis", na=False)]
 
     note_series = filtered["Note"].astype(str)
     for phrase in ("negligible potency", "no infections", "not modelled"):
@@ -1281,7 +1293,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_846823.txt"
+    output_path = output_dir / "calibration_summary_315322.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1349,8 +1361,9 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("No eligible bacteria/drug combinations with defined targets\n")
 
         handle.write(
-            "Note: Rifampicin combinations are excluded from these fit metrics because all TB cases are "
-            "modelled as rifampicin-resistant by definition.\n"
+            "Note: MDR-TB and rifampicin combinations are excluded from these fit metrics because "
+            "all TB cases are modelled as rifampicin-resistant by definition, which would skew "
+            "overall resistance metrics.\n"
         )
 
         def _format_abs_delta(value: Optional[float]) -> str:

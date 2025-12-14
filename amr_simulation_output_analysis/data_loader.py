@@ -333,8 +333,24 @@ def preprocess_data(
     df['infection_proportion'] = safe_divide(df['total_currently_infected'], df['total_population'])
     df['death_proportion'] = safe_divide(df['total_deaths'], df['total_population'])
     
-    # Calculate resistance proportion among infected
-    df['resistance_among_infected'] = safe_divide(df['total_with_resistance'], df['total_currently_infected'])
+    # Calculate resistance proportion among infected (excluding MDR TB)
+    # MDR-TB has guaranteed ~90% rifampicin resistance, which skews overall resistance metrics
+    tb_slug = "mdr_mycobacterium_tuberculosis"
+    tb_infected_col = f"{tb_slug}_currently_infected"
+    tb_res_carrier_col = f"{tb_slug}_resistant_infected_carrier_count"
+    tb_res_non_carrier_col = f"{tb_slug}_resistant_infected_non_carrier_count"
+    
+    # Calculate TB-excluded totals
+    if all(col in df.columns for col in [tb_infected_col, tb_res_carrier_col, tb_res_non_carrier_col]):
+        tb_infected = df[tb_infected_col].fillna(0)
+        tb_resistant = df[tb_res_carrier_col].fillna(0) + df[tb_res_non_carrier_col].fillna(0)
+        infected_excl_tb = df['total_currently_infected'] - tb_infected
+        resistance_excl_tb = df['total_with_resistance'] - tb_resistant
+        df['resistance_among_infected'] = safe_divide(resistance_excl_tb, infected_excl_tb)
+        logger.info("Calculated resistance_among_infected excluding MDR-TB")
+    else:
+        # Fallback to original calculation if TB columns not found
+        df['resistance_among_infected'] = safe_divide(df['total_with_resistance'], df['total_currently_infected'])
     
     # Calculate infection duration proportions
     df['infected_10_days_proportion'] = safe_divide(df['infected_10_days_count'], df['total_currently_infected'])

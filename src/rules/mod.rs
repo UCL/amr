@@ -1780,6 +1780,24 @@ pub fn apply_rules(
                             }
                             ("Acinetobacter baumannii", "ampicillin_sulbactam") => score *= 12.0,
 
+                            // GLOBAL CARBAPENEM STEWARDSHIP PENALTIES
+                            // Apply consistent penalties for carbapenems against common organisms
+                            // where they should NOT be first-line (regardless of specific bacteria-drug match above)
+                            (_, "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "ertapenem") => {
+                                // Check if this is a bacteria where carbapenems have specific indication
+                                let bacteria_name = BACTERIA_LIST[b_idx];
+                                let carbapenem_indicated = matches!(bacteria_name,
+                                    "pseudomonas aeruginosa" |  // Anti-pseudomonal
+                                    "acinetobacter baumannii" | // MDR Acinetobacter
+                                    "stenotrophomonas maltophilia" // Already blocked separately but included for clarity
+                                );
+                                if !carbapenem_indicated {
+                                    // Apply stewardship penalty for carbapenems against non-indicated organisms
+                                    // E.g., E. coli UTI should use ciprofloxacin/nitrofurantoin, not meropenem
+                                    score *= 0.1; // 10x penalty for using carbapenems where not specifically indicated
+                                }
+                            }
+
                             _ => {} // No specific guideline
                         }
                     }
@@ -1984,6 +2002,45 @@ pub fn apply_rules(
 
                 let drug_spectrum = store.drug.spectrum_breadth(drug_idx);
                 if has_any_identified_infection {
+                    // RESERVE DRUG GATE FOR TARGETED THERAPY
+                    // Even with identified infection, carbapenems and other reserve agents should require
+                    // documented prior treatment failure to maintain antimicrobial stewardship
+                    let reserve_candidate = matches!(
+                        drug_name,
+                        "meropenem"
+                            | "meropenem_vaborbactam"
+                            | "imipenem_c"
+                            | "ertapenem"
+                            | "colistin"
+                            | "linezolid"
+                            | "tedizolid"
+                            | "quinu_dalfo"
+                            | "dalbavancin"
+                    );
+                    if reserve_candidate {
+                        let mut failure_documented = false;
+                        let failure_memory_days = store.globals.drug_failure_memory_days;
+                        for b_idx in 0..BACTERIA_LIST.len() {
+                            if individual.level[b_idx] <= INFECTION_EPS {
+                                continue;
+                            }
+                            let failure_day = individual.date_last_drug_failure[b_idx];
+                            if failure_day < 0 {
+                                continue;
+                            }
+                            let days_since_failure = (time_step as i32) - failure_day;
+                            if days_since_failure >= 0 && days_since_failure <= failure_memory_days {
+                                failure_documented = true;
+                                break;
+                            }
+                        }
+                        if !failure_documented {
+                            // Block reserve drugs in targeted therapy without prior failure
+                            // Apply heavy penalty rather than complete block to allow rare exceptions
+                            score *= 0.02; // 50x penalty - reserve drugs very rarely chosen without failure
+                        }
+                    }
+
                     let targeted_narrow_bonus =
                         store.globals.targeted_therapy_narrow_spectrum_bonus;
                     let targeted_broad_penalty =
@@ -2516,64 +2573,61 @@ pub fn apply_rules(
         }
         let toxicity_death_risk_for_individual = individual.mortality_risk_current_toxicity;
 
-        let mut cause: Option<&str> = None;
-        let mut prob_not_dying = 1.0 - background_risk;
+        // Independent cause-of-death evaluation: each cause is checked with its own random draw.
+        // Stop as soon as one cause kills the individual. Order: sepsis (most acute) → toxicity → 
+        // infection (non-sepsis) → background mortality.
+        let mut death_cause: Option<&str> = None;
 
-        if infection_non_sepsis_risk > 0.0 {
-            prob_not_dying *= 1.0 - infection_non_sepsis_risk;
-            if cause.is_none() {
-                cause = Some("infection_non_sepsis_related");
-            }
-        } else {
-            individual.current_infection_related_death_risk = 0.0;
+        // 1. Sepsis death (most acute/lethal - check first)
+        if has_sepsis && sepsis_death_risk > 0.0 && rng.gen::<f64>() < sepsis_death_risk {
+            death_cause = Some("sepsis_related");
         }
 
-        if has_sepsis {
-            prob_not_dying *= 1.0 - sepsis_death_risk;
-            if cause.is_none() {
-                cause = Some("sepsis_related");
-            }
+        // 2. Drug toxicity death (acute adverse event)
+        if death_cause.is_none() && toxicity_death_risk_for_individual > 0.0 
+            && rng.gen::<f64>() < toxicity_death_risk_for_individual {
+            death_cause = Some("drug_toxicity_related");
         }
 
-        if toxicity_death_risk_for_individual > 0.0 {
-            prob_not_dying *= 1.0 - toxicity_death_risk_for_individual;
-            if cause.is_none() {
-                cause = Some("drug_toxicity_related");
-            }
+        // 3. Infection (non-sepsis) death
+        if death_cause.is_none() && infection_non_sepsis_risk > 0.0 
+            && rng.gen::<f64>() < infection_non_sepsis_risk {
+            death_cause = Some("infection_non_sepsis_related");
         }
 
-        let mut prob_of_death_today = 1.0 - prob_not_dying;
-        prob_of_death_today = prob_of_death_today.clamp(0.0, 1.0);
-        if rng.gen::<f64>() < prob_of_death_today {
+        // 4. Background mortality (age-related, always possible)
+        if death_cause.is_none() && background_risk > 0.0 && rng.gen::<f64>() < background_risk {
+            death_cause = Some("background_mortality");
+        }
+
+        // If any cause triggered death, record it
+        if let Some(cause_label) = death_cause {
             individual.date_of_death = Some(time_step);
-            let cause_label = cause.unwrap_or("background_mortality");
             individual.cause_of_death = Some(cause_label.to_string());
 
             // Track death resolution for all current infections
-            if let Some(ref death_cause) = individual.cause_of_death {
-                let resolution_type = match death_cause.as_str() {
-                    "sepsis_related" => InfectionResolutionType::DeathFromSepsis,
-                    "infection_non_sepsis_related" => {
-                        InfectionResolutionType::DeathFromInfectionNonSepsis
-                    }
-                    "drug_toxicity_related" => InfectionResolutionType::DeathFromToxicity,
-                    _ => InfectionResolutionType::DeathFromBackground,
-                };
+            let resolution_type = match cause_label {
+                "sepsis_related" => InfectionResolutionType::DeathFromSepsis,
+                "infection_non_sepsis_related" => {
+                    InfectionResolutionType::DeathFromInfectionNonSepsis
+                }
+                "drug_toxicity_related" => InfectionResolutionType::DeathFromToxicity,
+                _ => InfectionResolutionType::DeathFromBackground,
+            };
 
-                // Record resolution for ALL bacteria where person is currently infected
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > INFECTION_EPS {
-                        let resolution_idx = match resolution_type {
-                            InfectionResolutionType::ImmuneClearance => 0,
-                            InfectionResolutionType::DrugAssistedClearance => 1,
-                            InfectionResolutionType::DeathFromSepsis => 2,
-                            InfectionResolutionType::DeathFromInfectionNonSepsis => 3,
-                            InfectionResolutionType::DeathFromBackground => 4,
-                            InfectionResolutionType::DeathFromToxicity => 5,
-                        };
+            // Record resolution for ALL bacteria where person is currently infected
+            for b_idx in 0..BACTERIA_LIST.len() {
+                if individual.level[b_idx] > INFECTION_EPS {
+                    let resolution_idx = match resolution_type {
+                        InfectionResolutionType::ImmuneClearance => 0,
+                        InfectionResolutionType::DrugAssistedClearance => 1,
+                        InfectionResolutionType::DeathFromSepsis => 2,
+                        InfectionResolutionType::DeathFromInfectionNonSepsis => 3,
+                        InfectionResolutionType::DeathFromBackground => 4,
+                        InfectionResolutionType::DeathFromToxicity => 5,
+                    };
 
-                        individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
-                    }
+                    individual.infection_resolution_this_timestep[b_idx][resolution_idx] += 1;
                 }
             }
         }
