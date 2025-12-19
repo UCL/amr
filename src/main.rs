@@ -39,7 +39,6 @@ mod simulation;
 //
 //
 //
-//
 // consider for future iterations:
 //
 // consider having incidence of infection rising in situations if they occur in future in which infections cannot be treated

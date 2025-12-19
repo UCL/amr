@@ -146,6 +146,33 @@ fn get_effective_region(individual: &crate::simulation::population::Individual) 
     }
 }
 
+const PAST_YEAR_WINDOW_DAYS: usize = 365;
+
+fn rolling_sum_with_current<F>(
+    history: &[TimeStepSummary],
+    window_days: usize,
+    current_value: usize,
+    mut accessor: F,
+) -> usize
+where
+    F: FnMut(&TimeStepSummary) -> usize,
+{
+    if window_days == 0 {
+        return 0;
+    }
+
+    let history_window = window_days.saturating_sub(1);
+    let available_history = history.len().min(history_window);
+    let start_index = history.len().saturating_sub(available_history);
+    let historical_sum: usize = history[start_index..]
+        .iter()
+        .map(|entry| accessor(entry))
+        .sum();
+
+    historical_sum + current_value
+}
+
+
 fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
     matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema pallidum"))
 }
@@ -2980,93 +3007,42 @@ impl Simulation {
                 deaths_infection_non_sepsis,
                 deaths_drug_toxicity,
                 // Rolling 1-year (365 days) death counts
-                deaths_past_year: {
-                    let start = if self.summary_log.len() >= 365 {
-                        self.summary_log.len() - 365
-                    } else {
-                        0
-                    };
-                    self.summary_log[start..]
-                        .iter()
-                        .map(|s| s.total_deaths)
-                        .sum::<usize>()
-                        + total_deaths
-                        - self.summary_log.last().map_or(0, |s| s.total_deaths)
-                },
-                deaths_background_past_year: {
-                    let start = if self.summary_log.len() >= 365 {
-                        self.summary_log.len() - 365
-                    } else {
-                        0
-                    };
-                    self.summary_log[start..]
-                        .iter()
-                        .map(|s| s.deaths_background)
-                        .sum::<usize>()
-                        + deaths_background
-                        - self.summary_log.last().map_or(0, |s| s.deaths_background)
-                },
-                deaths_sepsis_past_year: {
-                    let start = if self.summary_log.len() >= 365 {
-                        self.summary_log.len() - 365
-                    } else {
-                        0
-                    };
-                    self.summary_log[start..]
-                        .iter()
-                        .map(|s| s.deaths_sepsis)
-                        .sum::<usize>()
-                        + deaths_sepsis
-                        - self.summary_log.last().map_or(0, |s| s.deaths_sepsis)
-                },
-                deaths_infection_non_sepsis_past_year: {
-                    let start = if self.summary_log.len() >= 365 {
-                        self.summary_log.len() - 365
-                    } else {
-                        0
-                    };
-                    self.summary_log[start..]
-                        .iter()
-                        .map(|s| s.deaths_infection_non_sepsis)
-                        .sum::<usize>()
-                        + deaths_infection_non_sepsis
-                        - self
-                            .summary_log
-                            .last()
-                            .map_or(0, |s| s.deaths_infection_non_sepsis)
-                },
-                deaths_drug_toxicity_past_year: {
-                    let start = if self.summary_log.len() >= 365 {
-                        self.summary_log.len() - 365
-                    } else {
-                        0
-                    };
-                    self.summary_log[start..]
-                        .iter()
-                        .map(|s| s.deaths_drug_toxicity)
-                        .sum::<usize>()
-                        + deaths_drug_toxicity
-                        - self
-                            .summary_log
-                            .last()
-                            .map_or(0, |s| s.deaths_drug_toxicity)
-                },
-                newly_infected_past_year: {
-                    let start = if self.summary_log.len() >= 365 {
-                        self.summary_log.len() - 365
-                    } else {
-                        0
-                    };
-                    self.summary_log[start..]
-                        .iter()
-                        .map(|s| s.newly_infected_count)
-                        .sum::<usize>()
-                        + newly_infected_count
-                        - self
-                            .summary_log
-                            .last()
-                            .map_or(0, |s| s.newly_infected_count)
-                },
+                deaths_past_year: rolling_sum_with_current(
+                    &self.summary_log,
+                    PAST_YEAR_WINDOW_DAYS,
+                    total_deaths,
+                    |s| s.total_deaths,
+                ),
+                deaths_background_past_year: rolling_sum_with_current(
+                    &self.summary_log,
+                    PAST_YEAR_WINDOW_DAYS,
+                    deaths_background,
+                    |s| s.deaths_background,
+                ),
+                deaths_sepsis_past_year: rolling_sum_with_current(
+                    &self.summary_log,
+                    PAST_YEAR_WINDOW_DAYS,
+                    deaths_sepsis,
+                    |s| s.deaths_sepsis,
+                ),
+                deaths_infection_non_sepsis_past_year: rolling_sum_with_current(
+                    &self.summary_log,
+                    PAST_YEAR_WINDOW_DAYS,
+                    deaths_infection_non_sepsis,
+                    |s| s.deaths_infection_non_sepsis,
+                ),
+                deaths_drug_toxicity_past_year: rolling_sum_with_current(
+                    &self.summary_log,
+                    PAST_YEAR_WINDOW_DAYS,
+                    deaths_drug_toxicity,
+                    |s| s.deaths_drug_toxicity,
+                ),
+                newly_infected_past_year: rolling_sum_with_current(
+                    &self.summary_log,
+                    PAST_YEAR_WINDOW_DAYS,
+                    newly_infected_count,
+                    |s| s.newly_infected_count,
+                ),
                 currently_infected_and_on_drug_count: currently_infected_and_on_drug_count,
                 activity_r_sum_by_bacteria,
                 infected_with_bacteria_and_mechanism,

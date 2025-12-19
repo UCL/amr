@@ -951,7 +951,9 @@ pub fn apply_rules(
     const VISIT_LENGTH_DAYS: u32 = 30; // Fixed visit length
 
     // Check if the individual is currently in their home region
-    if let Region::Home = individual.region_cur_in {
+    let at_home = individual.region_cur_in == individual.region_living;
+
+    if at_home {
         // If not hospitalized, consider initiating travel
         if !individual.hospital_status.is_hospitalized() && rng.gen::<f64>() < travel_prob {
             // Initiate travel: select a random new region different from their living region
@@ -1045,7 +1047,7 @@ pub fn apply_rules(
         // Check if the visit duration has been reached
         if individual.days_visiting >= VISIT_LENGTH_DAYS {
             // End of visit, rto home region
-            individual.region_cur_in = Region::Home; // Set current region back to Home
+            individual.region_cur_in = individual.region_living; // Return to living region
             individual.days_visiting = 0; // Reset visit counter
                                           // println!("individual {} (Age: {}) returned home from a trip.",
                                           //     time_step, individual.id, individual.age);
@@ -1289,11 +1291,8 @@ pub fn apply_rules(
                     .unwrap_or(random_drug_cessation_prob);
 
                 // Apply regional multiplier based on individual's current region
-                let region_multiplier = if individual.region_cur_in == Region::Home {
-                    store.region.cessation_multiplier(individual.region_living)
-                } else {
-                    store.region.cessation_multiplier(individual.region_cur_in)
-                };
+                let region_multiplier =
+                    store.region.cessation_multiplier(individual.region_cur_in);
 
                 let final_cessation_prob = (base_cessation_prob * region_multiplier).min(0.99); // Cap at 99%
 
@@ -3191,117 +3190,10 @@ pub fn apply_rules(
                 }
             }
 
-            // --- HORIZONTAL GENE TRANSFER (HGT) BETWEEN DIFFERENT BACTERIA ---
-            // For each donor bacteria (with resistance), try to transfer to each other recipient bacteria
-            for donor_idx in 0..BACTERIA_LIST.len() {
-                // Exclude TB from HGT - Mycobacterium tuberculosis is an intracellular pathogen
-                // with very different biology from typical bacteria, making HGT unrealistic
-                let donor_bacteria_name = BACTERIA_LIST[donor_idx];
-                if donor_bacteria_name == "mdr mycobacterium tuberculosis" {
-                    continue;
-                }
-                // Donor must have resistance (infection or microbiome)
-                let donor_has_resistance = individual.level[donor_idx] > INFECTION_EPS
-                    || individual.presence_microbiome[donor_idx];
-                if donor_has_resistance {
-                    for recipient_idx in 0..BACTERIA_LIST.len() {
-                        if recipient_idx == donor_idx {
-                            continue;
-                        }
-                        // Exclude TB as recipient as well
-                        let recipient_bacteria_name = BACTERIA_LIST[recipient_idx];
-                        if recipient_bacteria_name == "mdr mycobacterium tuberculosis" {
-                            continue;
-                        }
-                        let hgt_prob = store.hgt.probability(donor_idx, recipient_idx);
-                        if hgt_prob > 0.0 && rng.gen::<f64>() < hgt_prob {
-                            // Transfer resistance for all drugs
-                            for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-                                let donor_r = individual.resistances[donor_idx][drug_idx].any_r;
-                                if donor_r > 0.0 {
-                                    // Transfer to infection
-                                    if individual.level[recipient_idx] > INFECTION_EPS {
-                                        let prev_any_r =
-                                            individual.resistances[recipient_idx][drug_idx].any_r;
-                                        let new_any_r = donor_r.max(prev_any_r);
-                                        individual.resistances[recipient_idx][drug_idx].any_r =
-                                            new_any_r;
-                                        if prev_any_r == 0.0 && new_any_r > 0.0 {
-                                            // Inline mechanism assignment
-                                            use crate::simulation::population::ResistanceMechanism;
-                                            let mechanism_prob = store
-                                                .globals
-                                                .mechanism_assignment_probability_on_any_r_gain;
-                                            for (mech_idx, mechanism) in
-                                                ResistanceMechanism::all().iter().enumerate()
-                                            {
-                                                let drug_name = DRUG_SHORT_NAMES[drug_idx];
-                                                let bacteria_name = BACTERIA_LIST[recipient_idx];
-                                                if !mechanism_applies_to_drug(
-                                                    *mechanism,
-                                                    bacteria_name,
-                                                    drug_name,
-                                                ) {
-                                                    continue;
-                                                }
-
-                                                let enhancement = store
-                                                    .resistance_mechanism
-                                                    .enhancement_multiplier(mech_idx);
-                                                if enhancement <= new_any_r
-                                                    && rng.gen_bool(mechanism_prob)
-                                                {
-                                                    individual.resistance_mechanisms
-                                                        [recipient_idx][mech_idx] = true;
-                                                }
-                                            }
-                                            individual.how_resistance_acquired[recipient_idx][drug_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
-                                        }
-                                    }
-                                    // Transfer to microbiome
-                                    if individual.presence_microbiome[recipient_idx] {
-                                        let prev_any_r =
-                                            individual.resistances[recipient_idx][drug_idx].any_r;
-                                        let new_any_r = donor_r.max(prev_any_r);
-                                        individual.resistances[recipient_idx][drug_idx].any_r =
-                                            new_any_r;
-                                        if prev_any_r == 0.0 && new_any_r > 0.0 {
-                                            // Inline mechanism assignment
-                                            use crate::simulation::population::ResistanceMechanism;
-                                            let mechanism_prob = store
-                                                .globals
-                                                .mechanism_assignment_probability_on_any_r_gain;
-                                            for (mech_idx, mechanism) in
-                                                ResistanceMechanism::all().iter().enumerate()
-                                            {
-                                                let drug_name = DRUG_SHORT_NAMES[drug_idx];
-                                                let bacteria_name = BACTERIA_LIST[recipient_idx];
-                                                if !mechanism_applies_to_drug(
-                                                    *mechanism,
-                                                    bacteria_name,
-                                                    drug_name,
-                                                ) {
-                                                    continue;
-                                                }
-
-                                                let enhancement = store
-                                                    .resistance_mechanism
-                                                    .enhancement_multiplier(mech_idx);
-                                                if enhancement <= new_any_r
-                                                    && rng.gen_bool(mechanism_prob)
-                                                {
-                                                    individual.resistance_mechanisms
-                                                        [recipient_idx][mech_idx] = true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // NOTE: HGT (Horizontal Gene Transfer) has been moved outside this per-bacteria loop
+            // for performance optimization. It now runs once per individual after all bacteria
+            // have been processed, instead of redundantly running 36 times (once per b_idx).
+            // See the HGT block after the main bacteria loop ends.
 
             if rng.gen_bool(acquisition_probability.clamp(0.0, 1.0)) {
                 // Check if existing antibiotic therapy prevents this infection
@@ -4639,6 +4531,141 @@ pub fn apply_rules(
             individual.clearance_hazard[b_idx] = 0.0;
         }
     }
+
+    // --- HORIZONTAL GENE TRANSFER (HGT) BETWEEN DIFFERENT BACTERIA ---
+    // PERFORMANCE OPTIMIZATION: This block was moved outside the per-bacteria loop.
+    // Previously it ran redundantly for each b_idx where !is_infected (up to 36 times),
+    // even though it always checked all 36x36 bacteria pairs. Now it runs exactly once.
+    //
+    // ADDITIONAL OPTIMIZATION: We first identify which bacteria have any presence AND any resistance,
+    // then only check HGT pairs involving those bacteria as donors.
+    {
+        // Pre-compute which bacteria are present (infection or microbiome) AND have any resistance
+        let mut potential_donors: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
+        let mut potential_recipients: Vec<usize> = Vec::with_capacity(BACTERIA_LIST.len());
+        
+        for b_idx in 0..BACTERIA_LIST.len() {
+            // Skip TB from HGT entirely
+            if BACTERIA_LIST[b_idx] == "mdr mycobacterium tuberculosis" {
+                continue;
+            }
+            
+            let has_presence = individual.level[b_idx] > INFECTION_EPS 
+                || individual.presence_microbiome[b_idx];
+            
+            if has_presence {
+                // Check if this bacteria has any resistance to transfer
+                let has_any_resistance = individual.resistances[b_idx]
+                    .iter()
+                    .any(|r| r.any_r > 0.0);
+                
+                if has_any_resistance {
+                    potential_donors.push(b_idx);
+                }
+                // Any bacteria with presence can be a recipient
+                potential_recipients.push(b_idx);
+            }
+        }
+        
+        // Only process HGT if there are potential donors AND recipients
+        if !potential_donors.is_empty() && potential_recipients.len() > 1 {
+            for &donor_idx in &potential_donors {
+                for &recipient_idx in &potential_recipients {
+                    if recipient_idx == donor_idx {
+                        continue;
+                    }
+                    
+                    let hgt_prob = store.hgt.probability(donor_idx, recipient_idx);
+                    if hgt_prob > 0.0 && rng.gen::<f64>() < hgt_prob {
+                        // Transfer resistance for all drugs where donor has resistance
+                        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                            let donor_r = individual.resistances[donor_idx][drug_idx].any_r;
+                            if donor_r > 0.0 {
+                                // Transfer to infection
+                                if individual.level[recipient_idx] > INFECTION_EPS {
+                                    let prev_any_r =
+                                        individual.resistances[recipient_idx][drug_idx].any_r;
+                                    let new_any_r = donor_r.max(prev_any_r);
+                                    individual.resistances[recipient_idx][drug_idx].any_r =
+                                        new_any_r;
+                                    if prev_any_r == 0.0 && new_any_r > 0.0 {
+                                        // Inline mechanism assignment
+                                        use crate::simulation::population::ResistanceMechanism;
+                                        let mechanism_prob = store
+                                            .globals
+                                            .mechanism_assignment_probability_on_any_r_gain;
+                                        for (mech_idx, mechanism) in
+                                            ResistanceMechanism::all().iter().enumerate()
+                                        {
+                                            let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                                            let bacteria_name = BACTERIA_LIST[recipient_idx];
+                                            if !mechanism_applies_to_drug(
+                                                *mechanism,
+                                                bacteria_name,
+                                                drug_name,
+                                            ) {
+                                                continue;
+                                            }
+
+                                            let enhancement = store
+                                                .resistance_mechanism
+                                                .enhancement_multiplier(mech_idx);
+                                            if enhancement <= new_any_r
+                                                && rng.gen_bool(mechanism_prob)
+                                            {
+                                                individual.resistance_mechanisms
+                                                    [recipient_idx][mech_idx] = true;
+                                            }
+                                        }
+                                        individual.how_resistance_acquired[recipient_idx][drug_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
+                                    }
+                                }
+                                // Transfer to microbiome
+                                if individual.presence_microbiome[recipient_idx] {
+                                    let prev_any_r =
+                                        individual.resistances[recipient_idx][drug_idx].any_r;
+                                    let new_any_r = donor_r.max(prev_any_r);
+                                    individual.resistances[recipient_idx][drug_idx].any_r =
+                                        new_any_r;
+                                    if prev_any_r == 0.0 && new_any_r > 0.0 {
+                                        // Inline mechanism assignment
+                                        use crate::simulation::population::ResistanceMechanism;
+                                        let mechanism_prob = store
+                                            .globals
+                                            .mechanism_assignment_probability_on_any_r_gain;
+                                        for (mech_idx, mechanism) in
+                                            ResistanceMechanism::all().iter().enumerate()
+                                        {
+                                            let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                                            let bacteria_name = BACTERIA_LIST[recipient_idx];
+                                            if !mechanism_applies_to_drug(
+                                                *mechanism,
+                                                bacteria_name,
+                                                drug_name,
+                                            ) {
+                                                continue;
+                                            }
+
+                                            let enhancement = store
+                                                .resistance_mechanism
+                                                .enhancement_multiplier(mech_idx);
+                                            if enhancement <= new_any_r
+                                                && rng.gen_bool(mechanism_prob)
+                                            {
+                                                individual.resistance_mechanisms
+                                                    [recipient_idx][mech_idx] = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // --- END HORIZONTAL GENE TRANSFER ---
 
     // Check for post-infection drug usage evaluation (configurable timing)
     let evaluation_days =

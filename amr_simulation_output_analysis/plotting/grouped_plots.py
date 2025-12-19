@@ -148,7 +148,7 @@ def create_grouped_plots(df, config=None):
             axes1[3].plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'purple', linewidth=2)
             axes1[3].set_title('Proportion with bacteria that has\nresistance to any drug (excl. MDR-TB)')
             axes1[3].set_ylabel('Proportion')
-            axes1[3].set_ylim(bottom=0)
+            axes1[3].set_ylim(bottom=0, top=1.0)
             axes1[3].grid(True, alpha=0.3)
         else:
             axes1[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')

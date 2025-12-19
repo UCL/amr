@@ -18,6 +18,19 @@ RESISTANCE_SIM_COL = "Infection resistance simulation (%)"
 RESISTANCE_TARGET_COL = "Infection resistance target (%)"
 RESISTANCE_DELTA_COL = "Infection resistance delta (pp)"
 
+DRUG_CLASS_TABLE_COLUMNS = [
+    "Class",
+    "Share (%)",
+    "Target min (%)",
+    "Target max (%)",
+    "Delta vs mid (%)",
+    "Estimated users (millions)",
+    "Target users min (millions)",
+    "Target users max (millions)",
+    "Delta vs mid users",
+    "Included drugs",
+]
+
 
 @dataclass
 class CalibrationTargets:
@@ -188,6 +201,7 @@ def _gather_calibration_context(
         "microbiome_resident_targets": microbiome_resident_targets,
         "overall_resistance": overall_resistance,
         "bacteria_burden_df": bacteria_burden_df,
+        "reserve_drug_stats": _calculate_reserve_drug_stats(year_df),
     }
 
 
@@ -269,6 +283,56 @@ def _compute_population_scale(year_df: pd.DataFrame, world_population: Optional[
         return 1.0
 
     return float(world_population / avg_population)
+
+
+# Reserve drugs matching the Rust config carbapenem_reserve_drugs list
+RESERVE_DRUG_SLUGS = [
+    "meropenem", "meropenem_vaborbactam", "imipenem_c", "ertapenem",
+    "colistin", "linezolid", "tedizolid", "quinu_dalfo", "dalbavancin"
+]
+
+
+def _calculate_reserve_drug_stats(year_df: pd.DataFrame) -> Dict[str, Optional[float]]:
+    """Calculate reserve/carbapenem drug usage as percentage of all antibiotic usage.
+    
+    Returns dict with:
+        - reserve_drug_share_percent: % of total drug usage from reserve drugs
+        - reserve_drug_users_mean: mean daily count of people on reserve drugs
+        - total_drug_users_mean: mean daily count of people on any drug
+    """
+    result: Dict[str, Optional[float]] = {
+        "reserve_drug_share_percent": None,
+        "reserve_drug_users_mean": None,
+        "total_drug_users_mean": None,
+    }
+    
+    if year_df.empty:
+        return result
+    
+    # Get total drug usage
+    total_on_drug_series = year_df.get("currently_taking_drug_count")
+    if total_on_drug_series is None or total_on_drug_series.empty:
+        return result
+    
+    total_mean = float(total_on_drug_series.mean(skipna=True))
+    if pd.isna(total_mean) or total_mean <= 0:
+        return result
+    
+    result["total_drug_users_mean"] = total_mean
+    
+    # Sum reserve drug usage
+    reserve_total = 0.0
+    for drug_slug in RESERVE_DRUG_SLUGS:
+        col_name = f"{drug_slug}_currently_on_drug"
+        if col_name in year_df.columns:
+            drug_mean = year_df[col_name].mean(skipna=True)
+            if not pd.isna(drug_mean):
+                reserve_total += float(drug_mean)
+    
+    result["reserve_drug_users_mean"] = reserve_total
+    result["reserve_drug_share_percent"] = (reserve_total / total_mean) * 100.0
+    
+    return result
 
 
 def _build_headline_table(
@@ -960,6 +1024,11 @@ def _calculate_microbiome_resistance_table(
     if not resistant_cols:
         return pd.DataFrame(columns=empty_columns)
 
+    # Calculate P(at least one resistant bacterium) = 1 - P(none resistant) = 1 - ∏(1 - P_i)
+    # NOTE: This assumes independence between carriage of different resistant species.
+    # If resistances are positively correlated (e.g., same person carries multiple resistant
+    # species due to shared antibiotic exposure), this slightly overestimates "any resistant".
+    # Independence is the standard assumption when correlation structure is unknown.
     prob_none = np.ones(len(year_df), dtype=float)
     for resistant_col in resistant_cols:
         resistant_series = year_df[resistant_col].astype(float)
@@ -1041,24 +1110,12 @@ def _calculate_drug_class_table(
     drug_cfg: Optional[Dict[str, object]],
     scale_factor: float,
 ) -> pd.DataFrame:
-    empty_columns = [
-        "Class",
-        "Share (%)",
-        "Target min (%)",
-        "Target max (%)",
-        "Delta vs mid (%)",
-        "Estimated users (millions)",
-        "Target users min (millions)",
-        "Target users max (millions)",
-        "Delta vs mid users",
-        "Included drugs",
-    ]
     if not drug_cfg or year_df.empty:
-        return pd.DataFrame(columns=empty_columns)
+        return pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 
     classes = drug_cfg.get("classes", [])
     if not isinstance(classes, Iterable):
-        return pd.DataFrame(columns=empty_columns)
+        return pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 
     target_details = _load_drug_class_target_details(drug_cfg.get("path"))
     total_on_drug_series = year_df.get("currently_taking_drug_count")
@@ -1127,9 +1184,9 @@ def _calculate_drug_class_table(
         })
 
     if not records:
-        return pd.DataFrame(columns=empty_columns)
+        return pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 
-    return pd.DataFrame(records)
+    return pd.DataFrame(records, columns=DRUG_CLASS_TABLE_COLUMNS)
 
 
 def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame:
@@ -1160,6 +1217,86 @@ def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame
     return filtered
 
 
+def _compute_resistance_component_stats(
+    eligible: pd.DataFrame,
+) -> Tuple[Dict[str, Dict[str, Optional[float]]], pd.DataFrame]:
+    columns = [
+        "Component",
+        "Simulation mean (%)",
+        "Target mean (%)",
+        "Mean |Δ| (pp)",
+        "Combinations counted",
+    ]
+    if eligible.empty:
+        return {}, pd.DataFrame(columns=columns)
+
+    component_config = [
+        (
+            "infection",
+            "Infection resistance",
+            RESISTANCE_SIM_COL,
+            RESISTANCE_TARGET_COL,
+        ),
+        (
+            "average",
+            "Resistant level (among positives)",
+            "Average resistant simulation",
+            "Average resistant target",
+        ),
+        (
+            "microbiome",
+            "Microbiome resistance (combo-level)",
+            "Microbiome simulation",
+            "Microbiome target",
+        ),
+    ]
+
+    component_lookup: Dict[str, Dict[str, Optional[float]]] = {}
+    rows = []
+
+    for key, label, sim_col, target_col in component_config:
+        if sim_col not in eligible.columns or target_col not in eligible.columns:
+            component_lookup[key] = {"abs_delta": None}
+            rows.append({
+                "Component": label,
+                "Simulation mean (%)": np.nan,
+                "Target mean (%)": np.nan,
+                "Mean |Δ| (pp)": np.nan,
+                "Combinations counted": 0,
+            })
+            continue
+
+        mask = (~eligible[sim_col].isna()) & (~eligible[target_col].isna())
+        if not mask.any():
+            component_lookup[key] = {"abs_delta": None}
+            rows.append({
+                "Component": label,
+                "Simulation mean (%)": np.nan,
+                "Target mean (%)": np.nan,
+                "Mean |Δ| (pp)": np.nan,
+                "Combinations counted": 0,
+            })
+            continue
+
+        subset = eligible.loc[mask, [sim_col, target_col]].astype(float)
+        sim_mean = float(subset[sim_col].mean(skipna=True))
+        target_mean = float(subset[target_col].mean(skipna=True))
+        abs_delta = float((subset[sim_col] - subset[target_col]).abs().mean(skipna=True))
+        combo_count = int(mask.sum())
+
+        component_lookup[key] = {"abs_delta": abs_delta}
+        rows.append({
+            "Component": label,
+            "Simulation mean (%)": sim_mean,
+            "Target mean (%)": target_mean,
+            "Mean |Δ| (pp)": abs_delta,
+            "Combinations counted": combo_count,
+        })
+
+    component_df = pd.DataFrame(rows, columns=columns)
+    return component_lookup, component_df
+
+
 def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional[float], Optional[float], int]:
     if (
         resistance_df.empty
@@ -1185,7 +1322,9 @@ def _calculate_overall_resistance(resistance_df: pd.DataFrame) -> Tuple[Optional
     return sim_value, target_value, len(eligible)
 
 
-def _calculate_resistance_fit_metrics(resistance_df: pd.DataFrame) -> Dict[str, Optional[float]]:
+def _calculate_resistance_fit_metrics(
+    resistance_df: pd.DataFrame,
+) -> Tuple[Dict[str, Optional[float]], pd.DataFrame]:
     metrics: Dict[str, Optional[float]] = {
         "infection_abs_delta": None,
         "average_resistant_abs_delta": None,
@@ -1193,30 +1332,33 @@ def _calculate_resistance_fit_metrics(resistance_df: pd.DataFrame) -> Dict[str, 
         "weighted_overall_abs_delta": None,
     }
 
+    empty_result = (metrics, pd.DataFrame(columns=[
+        "Component",
+        "Simulation mean (%)",
+        "Target mean (%)",
+        "Mean |Δ| (pp)",
+        "Combinations counted",
+    ]))
+
     if resistance_df.empty:
-        return metrics
+        return empty_result
 
     eligible = _filter_resistance_rows_for_fit(resistance_df)
     if eligible.empty:
-        return metrics
+        return empty_result
 
-    def _mean_abs(series: pd.Series) -> Optional[float]:
-        cleaned = series.dropna().astype(float).abs()
-        if cleaned.empty:
-            return None
-        value = cleaned.mean()
-        return float(value) if not pd.isna(value) else None
+    component_lookup, component_df = _compute_resistance_component_stats(eligible)
 
-    infection_abs = _mean_abs(eligible.get(RESISTANCE_DELTA_COL, pd.Series(dtype=float)))
-    average_abs = _mean_abs(eligible.get("Average resistant delta", pd.Series(dtype=float)))
-    microbiome_abs = _mean_abs(eligible.get("Microbiome delta", pd.Series(dtype=float)))
-
-    metrics["infection_abs_delta"] = infection_abs
-    metrics["average_resistant_abs_delta"] = average_abs
-    metrics["microbiome_abs_delta"] = microbiome_abs
+    metrics["infection_abs_delta"] = component_lookup.get("infection", {}).get("abs_delta")
+    metrics["average_resistant_abs_delta"] = component_lookup.get("average", {}).get("abs_delta")
+    metrics["microbiome_abs_delta"] = component_lookup.get("microbiome", {}).get("abs_delta")
 
     weighted_sum = 0.0
     total_weight = 0.0
+
+    infection_abs = metrics["infection_abs_delta"]
+    average_abs = metrics["average_resistant_abs_delta"]
+    microbiome_abs = metrics["microbiome_abs_delta"]
 
     if infection_abs is not None:
         weighted_sum += 3.0 * infection_abs
@@ -1231,7 +1373,49 @@ def _calculate_resistance_fit_metrics(resistance_df: pd.DataFrame) -> Dict[str, 
     if total_weight > 0.0:
         metrics["weighted_overall_abs_delta"] = weighted_sum / total_weight
 
-    return metrics
+    return metrics, component_df
+
+
+def _render_table_with_alignment(
+    df: pd.DataFrame,
+    left_columns: Optional[Set[str]] = None,
+) -> str:
+    if df.empty:
+        return ""
+
+    left_columns = left_columns or set()
+    columns = list(df.columns)
+    string_rows = []
+    widths: Dict[str, int] = {col: len(str(col)) for col in columns}
+
+    for _, row in df.iterrows():
+        row_values = []
+        for col in columns:
+            value = row.get(col)
+            if isinstance(value, float) and pd.isna(value):
+                value_str = "---"
+            elif value is None:
+                value_str = "---"
+            else:
+                value_str = str(value)
+            widths[col] = max(widths[col], len(value_str))
+            row_values.append(value_str)
+        string_rows.append(row_values)
+
+    def _align(text: str, col: str) -> str:
+        width = widths[col]
+        return text.ljust(width) if col in left_columns else text.rjust(width)
+
+    header = "  ".join(_align(col, col) for col in columns)
+    lines = [header]
+    for row_values in string_rows:
+        cells = [
+            _align(value, col)
+            for value, col in zip(row_values, columns)
+        ]
+        lines.append("  ".join(cells))
+
+    return "\n".join(lines)
 
 
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
@@ -1289,11 +1473,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     resistance_expanded_label = str(expanded_label_obj) if expanded_label_obj not in (None, "") else ""
 
     overall_resistance = context.get("overall_resistance", (None, None, 0))
-    resistance_fit_metrics = _calculate_resistance_fit_metrics(resistance_df)
+    resistance_fit_metrics, resistance_component_df = _calculate_resistance_fit_metrics(resistance_df)
+    reserve_drug_stats = context.get("reserve_drug_stats", {})
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_315322.txt"
+    output_path = output_dir / "calibration_summary_750982.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1322,6 +1507,38 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         else:
             handle.write("Headline Metrics\n(no metrics configured)\n\n")
 
+        reserve_share = reserve_drug_stats.get("reserve_drug_share_percent")
+        reserve_users = reserve_drug_stats.get("reserve_drug_users_mean")
+        total_users = reserve_drug_stats.get("total_drug_users_mean")
+        combined_drug_df = drug_class_df.copy()
+        if combined_drug_df.empty:
+            combined_drug_df = pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
+
+        if reserve_share is not None:
+            reserve_row = {
+                "Class": "Reserve drugs (carbapenems & last-resort)",
+                "Share (%)": reserve_share,
+                "Target min (%)": None,
+                "Target max (%)": 10.0,
+                "Delta vs mid (%)": reserve_share - 10.0 if reserve_share is not None else None,
+                "Estimated users (millions)": (
+                    reserve_users * scale_factor / 1e6
+                    if reserve_users is not None and not pd.isna(reserve_users)
+                    else None
+                ),
+                "Target users min (millions)": None,
+                "Target users max (millions)": None,
+                "Delta vs mid users": None,
+                "Included drugs": ", ".join(RESERVE_DRUG_SLUGS),
+            }
+
+            reserve_row_df = pd.DataFrame([reserve_row], columns=DRUG_CLASS_TABLE_COLUMNS)
+
+            # Avoid FutureWarning about concatenating empty frames by dropping blanks first
+            frames = [df for df in (combined_drug_df, reserve_row_df) if not df.empty]
+            if frames:
+                combined_drug_df = pd.concat(frames, ignore_index=True)
+
         if not bacteria_burden_df.empty:
             handle.write("Bacteria Burden Benchmarks (percent of world population)\n")
             handle.write(bacteria_burden_df.to_string(index=False, float_format=lambda x: f"{x:,.4f}"))
@@ -1334,9 +1551,20 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         else:
             handle.write("Bacteria Burden Benchmarks\n(no bacteria burden metrics available)\n\n")
 
-        if not drug_class_df.empty:
+        if not combined_drug_df.empty:
             handle.write("Drug Class Usage Benchmarks (daily users in millions)\n")
-            handle.write(drug_class_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write(
+                combined_drug_df.to_string(
+                    index=False,
+                    float_format=lambda x: f"{x:,.2f}",
+                    na_rep="---",
+                )
+            )
+            if reserve_share is not None and reserve_users is not None and total_users is not None:
+                handle.write(
+                    "\nReserve row derived from mean daily reserve users "
+                    f"{reserve_users:,.0f} of total antibiotic users {total_users:,.0f}."
+                )
             handle.write("\n\n")
         else:
             handle.write("Drug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n\n")
@@ -1348,14 +1576,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             window_display = f"{resistance_window_label} (expanded: {resistance_expanded_label})"
         handle.write(f"Observation window for resistance metrics: {window_display}\n")
         if combo_count > 0:
-            sim_text = f"{sim_overall:,.2f}" if sim_overall is not None else "n/a"
-            target_text = f"{target_overall:,.2f}" if target_overall is not None else "n/a"
-            handle.write(
-                f"Mean simulation resistance across benchmark combinations (%, targets defined): {sim_text}\n"
-            )
-            handle.write(
-                f"Mean target resistance across same combinations (%): {target_text}\n"
-            )
             handle.write(f"Combinations included: {combo_count}\n")
         else:
             handle.write("No eligible bacteria/drug combinations with defined targets\n")
@@ -1365,23 +1585,33 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "all TB cases are modelled as rifampicin-resistant by definition, which would skew "
             "overall resistance metrics.\n"
         )
+        handle.write(
+            "These fit metrics average over bacteria/drug combinations, whereas the microbiome "
+            "benchmarks below describe the share of the total population carrying any resistant "
+            "microbiome.\n"
+        )
 
         def _format_abs_delta(value: Optional[float]) -> str:
             return f"{value:,.2f}" if value is not None else "n/a"
 
         handle.write("Overall Resistance Fit (mean |Δ| in percentage points)\n")
-        handle.write(
-            "- Infection resistance delta: "
-            f"{_format_abs_delta(resistance_fit_metrics['infection_abs_delta'])}\n"
-        )
-        handle.write(
-            "- Resistant-level delta (among positives): "
-            f"{_format_abs_delta(resistance_fit_metrics['average_resistant_abs_delta'])}\n"
-        )
-        handle.write(
-            "- Microbiome resistance delta: "
-            f"{_format_abs_delta(resistance_fit_metrics['microbiome_abs_delta'])}\n"
-        )
+        if not resistance_component_df.empty:
+            component_display_df = resistance_component_df.copy()
+            if "Combinations counted" in component_display_df.columns:
+                component_display_df["Combinations counted"] = (
+                    component_display_df["Combinations counted"].astype("Int64")
+                )
+            handle.write(
+                component_display_df.to_string(
+                    index=False,
+                    float_format=lambda x: f"{x:,.2f}",
+                    na_rep="---",
+                )
+            )
+            handle.write("\n")
+        else:
+            handle.write("(insufficient overlapping bacteria/drug combinations)\n")
+
         handle.write(
             "- Weighted overall delta (3× infection + 1× resistant-level + 1× microbiome): "
             f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_abs_delta'])}\n\n"
@@ -1396,35 +1626,53 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
         if not resistance_df.empty:
             resistance_display_df = resistance_df.copy()
+            resistance_display_df["Note"] = resistance_display_df["Note"].fillna("")
 
-            def _format_numeric_cell(row: pd.Series, column: str, *, show_sign: bool = False) -> str:
+            def _format_numeric_value(
+                row: pd.Series,
+                column: str,
+                *,
+                show_sign: bool = False,
+                zero_decimals: bool = False,
+            ) -> str:
                 note_text = str(row.get("Note", ""))
                 value = row.get(column)
                 if "negligible potency" in note_text.lower():
                     return "---"
                 if value is None or (isinstance(value, float) and pd.isna(value)):
-                    return ""
-                return f"{value:+.2f}" if show_sign else f"{value:,.2f}"
+                    return "---"
+                if isinstance(value, str):
+                    return value
+                numeric_value = float(value)
+                if zero_decimals:
+                    return f"{numeric_value:,.0f}"
+                return f"{numeric_value:+.2f}" if show_sign else f"{numeric_value:,.2f}"
 
-            resistance_display_df[RESISTANCE_SIM_COL] = resistance_display_df.apply(
-                _format_numeric_cell,
-                axis=1,
-                column=RESISTANCE_SIM_COL,
-            )
-            resistance_display_df[RESISTANCE_TARGET_COL] = resistance_display_df.apply(
-                _format_numeric_cell,
-                axis=1,
-                column=RESISTANCE_TARGET_COL,
-            )
-            resistance_display_df[RESISTANCE_DELTA_COL] = resistance_display_df.apply(
-                _format_numeric_cell,
-                axis=1,
-                column=RESISTANCE_DELTA_COL,
-                show_sign=True,
-            )
+            zero_decimal_columns = {
+                col
+                for col in resistance_display_df.columns
+                if "person-days" in col.lower() or "carrier-days" in col.lower()
+            }
+            signed_columns = {RESISTANCE_DELTA_COL}
+
+            for column in resistance_display_df.columns:
+                if column in {"Bacteria", "Drug", "Note"}:
+                    continue
+                resistance_display_df[column] = resistance_display_df.apply(
+                    _format_numeric_value,
+                    axis=1,
+                    column=column,
+                    show_sign=column in signed_columns,
+                    zero_decimals=column in zero_decimal_columns,
+                )
 
             handle.write("Resistance Benchmarks (percent resistant)\n")
-            handle.write(resistance_display_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write(
+                _render_table_with_alignment(
+                    resistance_display_df,
+                    left_columns={"Bacteria", "Drug", "Note"},
+                )
+            )
             handle.write("\n")
         else:
             handle.write("Resistance Benchmarks\n(no overlapping bacteria/drug targets found)\n")
