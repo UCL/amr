@@ -1260,7 +1260,7 @@ impl BacteriaParameters {
             let prefix = bacteria;
             acquisition_log_odds_baseline.push(get_or_default(
                 map,
-                &format!("{}_acquisition_log_odds_baseline", prefix),
+                &format!("{}_acquisition_log_odds_baseline", prefix.replace(' ', "_")),
                 get_or_default(map, "acquisition_log_odds_baseline", -12.776856449),
             ));
             log_odds_vaccinated.push(get_or_default(
@@ -1597,7 +1597,8 @@ impl DrugBacteriaMatrix {
 
         for &bacteria in BACTERIA_LIST.iter() {
             for &drug in DRUG_SHORT_NAMES.iter() {
-                let key_prefix = format!("drug_{}_for_bacteria_{}", drug, bacteria);
+                // Use underscores in bacteria name for consistent key format
+                let key_prefix = format!("drug_{}_for_bacteria_{}", drug, bacteria.replace(' ', "_"));
                 let potency =
                     get_or_default(map, &format!("{}_potency_when_no_r", key_prefix), 0.1).max(0.0);
                 potency_when_no_r.push(potency);
@@ -4435,14 +4436,15 @@ lazy_static! {
 
         for &drug in DRUG_SHORT_NAMES.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
-                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 1.0);
-                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.1); // Default low potency 0.1
+                let bacteria_key = bacteria.replace(' ', "_");
+                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria_key), 1.0);
+                map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.1); // Default low potency 0.1
                 // Default resistance emergence rate: calibrated to generate ~20-25% resistance prevalence
                 // This is multiplied by bacteria_level_factor, drug_concentration_factor, and multi_drug_penalty
                 // Note: Higher than pure mutation rates because represents combined selection + mutation + amplification
                 // CALIBRATION: 0.0001 gave 4%, 0.001 gave 37%, 0.0003 gave 15% - trying 0.0005 to aim for ~23%
                 // At 0.0005 baseline with modifiers, expect ~0.005-0.025% daily emergence probability when on treatment
-                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria), 0.0005);
+                map.insert(format!("drug_{}_for_bacteria_{}_resistance_emergence_rate_per_day_baseline", drug, bacteria_key), 0.0005);
             }
         }
 
@@ -4457,9 +4459,10 @@ lazy_static! {
         ];
         for &drug in carbapenem_reserve_drugs.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // CALIBRATION: Reduced from 0.05 to 0.02 (50x less likely than default) - reserve drugs were 20% of usage
                 // This will be overridden by specific bacteria-drug combinations where appropriate
-                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 0.02);
+                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria_key), 0.02);
             }
         }
 
@@ -4481,7 +4484,8 @@ lazy_static! {
                         // Limited against enterococci and most gram-negatives
                         _ => 0.20,
                     };
-                    map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                    let bacteria_key = bacteria.replace(' ', "_");
+                    map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                 }
             }
         }
@@ -4491,11 +4495,12 @@ lazy_static! {
         // GRAM-POSITIVE COCCI (Staph, Strep, Enterococcus)
         for &bacteria in gram_pos_cocci.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Penicillins - excellent for Strep (if sensitive), poor for Staph due to beta-lactamase
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if bacteria.contains("streptococcus") { 0.90 } else { 0.10 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
@@ -4503,7 +4508,7 @@ lazy_static! {
                 for &drug in cephalosporins_1_2.iter().chain(cephalosporins_3_4.iter()) {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if bacteria.contains("enterococcus") { 0.05 } else { 0.75 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
@@ -4511,28 +4516,28 @@ lazy_static! {
                 for &drug in carbapenems.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if bacteria.contains("enterococcus") { 0.25 } else { 0.80 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
                 // Macrolides - good for Strep and atypicals
                 for &drug in macrolides.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.60);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.60);
                     }
                 }
 
                 // Glycopeptides - excellent for gram-positive, especially MRSA/VRE
                 for &drug in glycopeptides.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.00);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 1.00);
                     }
                 }
 
                 // Oxazolidinones - excellent for resistant gram-positive
                 for &drug in oxazolidinones.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.10);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 1.10);
                     }
                 }
             }
@@ -4541,30 +4546,31 @@ lazy_static! {
         // GRAM-NEGATIVE ENTEROBACTERIA (E. coli, Klebsiella, etc.)
         for &bacteria in gram_neg_enterobacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Penicillins - poor except piperacillin
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if drug == "piperacillin" { 0.70 } else { 0.10 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
                 // Cephalosporins - variable by generation
                 for &drug in cephalosporins_1_2.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.40);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.40);
                     }
                 }
                 for &drug in cephalosporins_3_4.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.80);
                     }
                 }
 
                 // Carbapenems - excellent broad-spectrum
                 for &drug in carbapenems.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.05);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 1.05);
                     }
                 }
                 // Polymyxins (Colistin) - only active against Gram-negatives
@@ -4589,27 +4595,27 @@ lazy_static! {
                             // Most other Gram-negatives (E. coli, Klebsiella, Pseudomonas, Acinetobacter, etc.)
                             _ => 1.0,
                         };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
                 // Fluoroquinolones - good broad-spectrum
                 for &drug in fluoroquinolones.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.85);
                     }
                 }
 
                 // Aminoglycosides - good for serious infections
                 for &drug in aminoglycosides.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.75);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.75);
                     }
                 }
 
                 // Trim-sulf - moderate activity
                 if DRUG_SHORT_NAMES.contains(&"trim_sulf") {
-                    map.insert(format!("drug_trim_sulf_for_bacteria_{}_potency_when_no_r", bacteria), 0.50);
+                    map.insert(format!("drug_trim_sulf_for_bacteria_{}_potency_when_no_r", bacteria_key), 0.50);
                 }
             }
         }
@@ -4640,6 +4646,7 @@ lazy_static! {
         // PSEUDOMONAS & ACINETOBACTER (Non-fermenting gram-negatives)
         for &bacteria in gram_neg_non_fermenting.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Most beta-lactams poor except specific anti-pseudomonal agents
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
@@ -4648,14 +4655,14 @@ lazy_static! {
                             "piperacillin_tazobactam" | "ticarcillin" | "ticarcillin_clavulanate" | "ampicillin_sulbactam" => 0.25,
                             _ => 0.025,
                         };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
                 // Only specific cephalosporins active
                 for &drug in cephalosporins_1_2.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.025);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.025);
                     }
                 }
                 for &drug in cephalosporins_3_4.iter() {
@@ -4665,7 +4672,7 @@ lazy_static! {
                             "ceftazidime_avibactam" => 0.9,
                             _ => 0.10,
                         };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
@@ -4673,27 +4680,27 @@ lazy_static! {
                 for &drug in carbapenems.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if bacteria.contains("acinetobacter") { 0.60 } else { 0.80 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
                 // Polymyxins (Colistin) - high potency for non-fermenters
                 for &drug in polymyxins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.0);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 1.0);
                     }
                 }
 
                 // Fluoroquinolones - good activity
                 for &drug in fluoroquinolones.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.75);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.75);
                     }
                 }
 
                 // Aminoglycosides - good for combination therapy
                 for &drug in aminoglycosides.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.70);
                     }
                 }
             }
@@ -4702,43 +4709,44 @@ lazy_static! {
         // FASTIDIOUS GRAM-NEGATIVE (H. flu, Moraxella, Neisseria, Bordetella)
         for &bacteria in fastidious_gram_neg.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Penicillins - poor due to beta-lactamase (except amoxicillin-clavulanate)
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if drug == "amoxicillin" { 0.20 } else { 0.05 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
                 // Beta-lactam/beta-lactamase inhibitor combinations - excellent
                 if DRUG_SHORT_NAMES.contains(&"amoxicillin_clavulanate") {
-                    map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{}_potency_when_no_r", bacteria), 0.85);
+                    map.insert(format!("drug_amoxicillin_clavulanate_for_bacteria_{}_potency_when_no_r", bacteria_key), 0.85);
                 }
 
                 // Cephalosporins - 2nd/3rd gen good, 1st gen poor
                 for &drug in cephalosporins_1_2.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if drug == "cephalexin" || drug == "cefazolin" { 0.15 } else { 0.75 };
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
                 for &drug in cephalosporins_3_4.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.80);
                     }
                 }
 
                 // Macrolides - excellent for respiratory pathogens
                 for &drug in macrolides.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.75);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.75);
                     }
                 }
 
                 // Fluoroquinolones - good activity
                 for &drug in fluoroquinolones.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.70);
                     }
                 }
             }
@@ -4761,31 +4769,32 @@ lazy_static! {
         // ENTERIC PATHOGENS (Salmonella, Shigella, Vibrio, Campylobacter, Yersinia)
         for &bacteria in enteric_pathogens.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Penicillins - poor (intrinsic resistance in many)
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.05);
                     }
                 }
 
                 // Cephalosporins - good for most
                 for &drug in cephalosporins_3_4.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.75);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.75);
                     }
                 }
 
                 // Fluoroquinolones - excellent for enteric pathogens
                 for &drug in fluoroquinolones.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.85);
                     }
                 }
 
                 // Tetracyclines - good for many enteric pathogens
                 for &drug in tetracyclines.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.70);
                     }
                 }
             }
@@ -4794,31 +4803,32 @@ lazy_static! {
         // ATYPICAL PATHOGENS (Chlamydia)
         for &bacteria in atypical_pathogens.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Beta-lactams - no activity (no cell wall)
                 for &drug in penicillins.iter().chain(cephalosporins_1_2.iter()).chain(cephalosporins_3_4.iter()).chain(carbapenems.iter()) {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.01);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.01);
                     }
                 }
 
                 // Macrolides - excellent (first-line)
                 for &drug in macrolides.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.90);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.90);
                     }
                 }
 
                 // Tetracyclines - excellent alternative
                 for &drug in tetracyclines.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.85);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.85);
                     }
                 }
 
                 // Fluoroquinolones - good alternative
                 for &drug in fluoroquinolones.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.80);
                     }
                 }
             }
@@ -4827,21 +4837,22 @@ lazy_static! {
         // ANAEROBES/SPORE FORMERS (C. difficile)
         for &bacteria in anaerobes_spore_formers.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Most antibiotics - poor (anaerobic environment)
                 for &drug in penicillins.iter().chain(cephalosporins_1_2.iter()).chain(cephalosporins_3_4.iter()).chain(aminoglycosides.iter()) {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.05);
                     }
                 }
 
                 // Vancomycin - first-line for C. diff
                 if DRUG_SHORT_NAMES.contains(&"vancomycin") {
-                    map.insert(format!("drug_vancomycin_for_bacteria_{}_potency_when_no_r", bacteria), 0.90);
+                    map.insert(format!("drug_vancomycin_for_bacteria_{}_potency_when_no_r", bacteria_key), 0.90);
                 }
 
                 // Metronidazole - good for anaerobes
                 if DRUG_SHORT_NAMES.contains(&"metronidazole") {
-                    map.insert(format!("drug_metronidazole_for_bacteria_{}_potency_when_no_r", bacteria), 0.80);
+                    map.insert(format!("drug_metronidazole_for_bacteria_{}_potency_when_no_r", bacteria_key), 0.80);
                 }
             }
         }
@@ -4899,24 +4910,25 @@ lazy_static! {
         // GRAM-POSITIVE RODS (Listeria)
         for &bacteria in gram_pos_rods.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Penicillins - excellent (first-line)
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.90);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.90);
                     }
                 }
 
                 // Cephalosporins - poor (intrinsic resistance)
                 for &drug in cephalosporins_1_2.iter().chain(cephalosporins_3_4.iter()) {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.05);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.05);
                     }
                 }
 
                 // Carbapenems - good
                 for &drug in carbapenems.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), 0.80);
                     }
                 }
             }
@@ -4925,11 +4937,12 @@ lazy_static! {
         // GASTRIC PATHOGENS (H. pylori)
         for &bacteria in gastric_pathogens.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
+                let bacteria_key = bacteria.replace(' ', "_");
                 // Most antibiotics - poor in gastric environment
                 for &drug in penicillins.iter().chain(cephalosporins_1_2.iter()).chain(cephalosporins_3_4.iter()) {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                         let potency = if drug == "amoxicillin" { 0.70 } else { 0.05 }; // Amoxicillin exception for H. pylori
-                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
+                        map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria_key), potency);
                     }
                 }
 
@@ -4948,14 +4961,15 @@ lazy_static! {
         if DRUG_SHORT_NAMES.contains(&"azithromycin") {
             for &bacteria in &["chlamydia trachomatis", "campylobacter_jejuni"] {
                 if BACTERIA_LIST.contains(&bacteria) {
-                    map.insert(format!("drug_azithromycin_for_bacteria_{}_potency_when_no_r", bacteria), 1.25);
+                    let bacteria_key = bacteria.replace(' ', "_");
+                    map.insert(format!("drug_azithromycin_for_bacteria_{}_potency_when_no_r", bacteria_key), 1.25);
                 }
             }
         }
 
         // Nitrofurantoin for urinary E. coli
         if DRUG_SHORT_NAMES.contains(&"nitrofurantoin") && BACTERIA_LIST.contains(&"escherichia coli") {
-            map.insert("drug_nitrofurantoin_for_bacteria_escherichia coli_potency_when_no_r".to_string(), 0.95);
+            map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.95);
         }
 
         // Metronidazole for anaerobes
@@ -5099,7 +5113,7 @@ lazy_static! {
         map.insert("stenotrophomonas maltophilia_symptom_onset_delay_days".to_string(), 2.5);          // Early signs once established
         map.insert("stenotrophomonas maltophilia_base_bacteria_level_change".to_string(), 0.45);       // Moderate growth rate
         map.insert("stenotrophomonas maltophilia_max_level".to_string(), 5.0);                          // Can reach high burdens in lungs
-        map.insert("stenotrophomonas maltophilia_environmental_acquisition_proportion".to_string(), 0.18); // Environmental/hospital reservoirs common
+        map.insert("stenotrophomonas maltophilia_environmental_acquisition_proportion".to_string(), 0.08); // Calibrated lower to curb runaway incidence
         map.insert("stenotrophomonas maltophilia_microbiome_clearance_probability_per_day".to_string(), 0.06); // Persistent colonizer in ICU settings
         map.insert("stenotrophomonas maltophilia_sepsis_baseline_log_odds".to_string(), -9.2);          // Opportunistic but still requires high burden or host compromise
         map.insert("stenotrophomonas maltophilia_log_odds_sepsis_infection_level".to_string(), 0.08);   // Rising burden increases risk notably
@@ -5562,9 +5576,35 @@ lazy_static! {
         map.insert("acquisition_log_odds_baseline".to_string(), -15.0); // Increased base acquisition odds (~1.25x higher infection incidence)
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
-        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -17.5);
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -13.5);
-        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -15.5);
+        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -28.6); // Iter2: was 279× over, -5.6
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -15.0); // Iter4: was 5054 cases, -1.5
+        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -15.5); // Iter3: high sepsis deaths, -2.2
+        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -12.5);
+        map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -11.3);
+        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -8.8);
+        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -18.2);
+        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -19.5);
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -19.7);
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -13.8);
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -13.5);
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -12.5); // Iter4: still 50x over, -2.0
+        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -7.2);
+        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -14.0); // Iter3: high sepsis deaths, -2.5
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -28.0); // Iter4: was 0%, +3.9
+        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -17.3);
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -24.0); // Iter4: was 0%, +3.6
+        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -9.8);
+        map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -13.0);
+        map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -14.5); // Iter3: high sepsis deaths, -2.5
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -13.2);
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -21.0);
+        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.8);
+        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -13.2);
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -13.8);
+        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -31.0); // Iter2: still 69× over, -4.3
+        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -30.0); // Iter4: was 0%, +5.5
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -5579,30 +5619,30 @@ lazy_static! {
         // Values are log-odds multipliers: exp(3.0) = 20x higher risk, exp(2.0) = 7x higher, etc.
 
         // High HAI risk bacteria (major hospital pathogens)
-        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 3.0); // 20x higher risk (exp(3.0) ≈ 20)
-        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 2.5); // 12x higher risk
-        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 2.8); // 16x higher risk (VRE)
+        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 3.4); // ~30x higher risk (exp(3.4))
+        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 3.0); // 20x higher risk
+        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 3.3); // 27x higher risk (VRE)
         map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 2.3); // 10x higher risk (MRSA)
-        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 3.2); // 25x higher risk (C. diff)
+        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 1.4); // Still elevated but scaled back to curb over-incidence
         map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 2.0); // 7x higher risk
-        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 2.2); // 9x higher risk
-        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 2.2); // 9x higher risk
+        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 0.8); // Moderately elevated after calibration
+        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 0.9); // Moderately elevated after calibration
         map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 2.0); // 7x higher risk
-        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 1.8); // 6x higher risk
+        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 0.4); // Trimmed to reduce excess incidence
 
         // Moderate HAI risk bacteria
-        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 1.5); // 4.5x higher risk (device-associated)
-        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 1.6); // 5x higher risk
-        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 1.2); // 3.3x higher risk
+        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 2.0); // 7x higher risk (device-associated)
+        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 2.1); // 8x higher risk
+        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 0.5); // Moderately above community baseline after rollback
         map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 1.4); // 4x higher risk
-        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 1.3); // 3.7x higher risk
+        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), -0.2); // Treat predominately community cases after calibration
         map.insert("listeria_monocytogenes_base_bacteria_level_change".to_string(), 0.25); // Prolonged incubation (up to weeks)
-        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), 1.0); // 2.7x higher risk
-        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 0.8); // 2.2x higher risk
+        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), -0.4); // Foodborne pathway dominates
+        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 0.3); // Lower nosocomial amplification after vaccine scale-up
         map.insert("streptococcus_pyogenes_log_odds_hospital_acquired".to_string(), 1.1); // 3x higher risk
         map.insert("streptococcus_agalactiae_log_odds_hospital_acquired".to_string(), 1.2); // 3.3x higher risk
         map.insert("haemophilus_influenzae_log_odds_hospital_acquired".to_string(), 0.9); // 2.5x higher risk
-        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 0.7); // 2x higher risk
+        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 0.3); // Slightly elevated nosocomial risk after rollback
         map.insert("yersinia_enterocolitica_log_odds_hospital_acquired".to_string(), 0.5); // 1.6x higher risk
 
         // Low/No HAI risk bacteria (mostly community pathogens)
@@ -5614,7 +5654,8 @@ lazy_static! {
         map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_hospital_acquired".to_string(), 0.2); // Slight increase
         map.insert("shigella_spp._log_odds_hospital_acquired".to_string(), -0.3); // 0.74x (foodborne, lower in hospital)
         map.insert("vibrio_cholerae_log_odds_hospital_acquired".to_string(), -0.5); // 0.6x (waterborne, lower in hospital)
-        map.insert("campylobacter_jejuni_log_odds_hospital_acquired".to_string(), -0.4); // 0.67x (foodborne, lower in hospital)
+        map.insert("campylobacter_jejuni_log_odds_hospital_acquired".to_string(), -0.6); // Further reduced nosocomial amplification
+        map.insert("mdr_mycobacterium_tuberculosis_log_odds_hospital_acquired".to_string(), 0.5); // Slightly elevated nosocomial risk
 
         // effect of region on bacteria acquisition risk (vs north america)
         map.insert("south_america_shigella_spp_acquisition_log_odds".to_string(), 0.4);
@@ -5623,46 +5664,46 @@ lazy_static! {
         map.insert("asia_shigella_spp_acquisition_log_odds".to_string(), 2.0);
         map.insert("oceania_shigella_spp_acquisition_log_odds".to_string(), 0.7);
 
-        map.insert("africa_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.8);
+        map.insert("africa_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.3);
         map.insert("europe_acinetobacter_baumannii_acquisition_log_odds".to_string(), -0.3);
-        map.insert("asia_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.5);
-        map.insert("south_america_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.2);
+        map.insert("asia_acinetobacter_baumannii_acquisition_log_odds".to_string(), 2.0);
+        map.insert("south_america_acinetobacter_baumannii_acquisition_log_odds".to_string(), 1.6);
         map.insert("oceania_acinetobacter_baumannii_acquisition_log_odds".to_string(), -0.1);
 
         // Citrobacter spp. - Predominantly healthcare-associated, modest regional differences
-        map.insert("africa_citrobacter_spp._acquisition_log_odds".to_string(), 0.8);
-        map.insert("europe_citrobacter_spp._acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_citrobacter_spp._acquisition_log_odds".to_string(), 0.6);
-        map.insert("south_america_citrobacter_spp._acquisition_log_odds".to_string(), 0.4);
-        map.insert("oceania_citrobacter_spp._acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_citrobacter_spp._acquisition_log_odds".to_string(), 0.1);
+        map.insert("europe_citrobacter_spp._acquisition_log_odds".to_string(), -0.5);
+        map.insert("asia_citrobacter_spp._acquisition_log_odds".to_string(), -0.2);
+        map.insert("south_america_citrobacter_spp._acquisition_log_odds".to_string(), -0.3);
+        map.insert("oceania_citrobacter_spp._acquisition_log_odds".to_string(), -0.4);
 
         // Enterobacter spp. - Predominantly healthcare-associated, modest regional differences
-        map.insert("africa_enterobacter_spp._acquisition_log_odds".to_string(), 0.9);
-        map.insert("europe_enterobacter_spp._acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_enterobacter_spp._acquisition_log_odds".to_string(), 0.7);
-        map.insert("south_america_enterobacter_spp._acquisition_log_odds".to_string(), 0.5);
-        map.insert("oceania_enterobacter_spp._acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_enterobacter_spp._acquisition_log_odds".to_string(), 0.2);
+        map.insert("europe_enterobacter_spp._acquisition_log_odds".to_string(), -0.5);
+        map.insert("asia_enterobacter_spp._acquisition_log_odds".to_string(), 0.0);
+        map.insert("south_america_enterobacter_spp._acquisition_log_odds".to_string(), -0.2);
+        map.insert("oceania_enterobacter_spp._acquisition_log_odds".to_string(), -0.3);
 
         // Enterococcus faecalis - Mixed healthcare/community, moderate regional differences
-        map.insert("africa_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.2);
-        map.insert("europe_enterococcus_faecalis_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.9);
-        map.insert("south_america_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.6);
-        map.insert("oceania_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.6);
+        map.insert("europe_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.2);
+        map.insert("asia_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.3);
+        map.insert("south_america_enterococcus_faecalis_acquisition_log_odds".to_string(), 1.0);
+        map.insert("oceania_enterococcus_faecalis_acquisition_log_odds".to_string(), 0.2);
 
         // Enterococcus faecium - Predominantly healthcare-associated, high AMR burden
-        map.insert("africa_enterococcus_faecium_acquisition_log_odds".to_string(), 1.0);
-        map.insert("europe_enterococcus_faecium_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_enterococcus_faecium_acquisition_log_odds".to_string(), 0.8);
-        map.insert("south_america_enterococcus_faecium_acquisition_log_odds".to_string(), 0.5);
-        map.insert("oceania_enterococcus_faecium_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_enterococcus_faecium_acquisition_log_odds".to_string(), 1.4);
+        map.insert("europe_enterococcus_faecium_acquisition_log_odds".to_string(), 0.2);
+        map.insert("asia_enterococcus_faecium_acquisition_log_odds".to_string(), 1.2);
+        map.insert("south_america_enterococcus_faecium_acquisition_log_odds".to_string(), 0.9);
+        map.insert("oceania_enterococcus_faecium_acquisition_log_odds".to_string(), 0.2);
 
         // Escherichia coli - Major community and healthcare pathogen, high regional variation
-        map.insert("africa_escherichia_coli_acquisition_log_odds".to_string(), 1.8);
-        map.insert("europe_escherichia_coli_acquisition_log_odds".to_string(), -0.2);
-        map.insert("asia_escherichia_coli_acquisition_log_odds".to_string(), 1.5);
-        map.insert("south_america_escherichia_coli_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_escherichia_coli_acquisition_log_odds".to_string(), 0.1);
+        map.insert("africa_escherichia_coli_acquisition_log_odds".to_string(), 2.4);
+        map.insert("europe_escherichia_coli_acquisition_log_odds".to_string(), 0.4);
+        map.insert("asia_escherichia_coli_acquisition_log_odds".to_string(), 2.1);
+        map.insert("south_america_escherichia_coli_acquisition_log_odds".to_string(), 1.6);
+        map.insert("oceania_escherichia_coli_acquisition_log_odds".to_string(), 0.7);
 
         // Klebsiella pneumoniae - Mixed community/healthcare, major AMR threat
         map.insert("africa_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 1.6);
@@ -5672,11 +5713,11 @@ lazy_static! {
         map.insert("oceania_klebsiella_pneumoniae_acquisition_log_odds".to_string(), 0.0);
 
         // Morganella spp. - Predominantly healthcare-associated, urinary tract infections
-        map.insert("africa_morganella_spp._acquisition_log_odds".to_string(), 0.7);
-        map.insert("europe_morganella_spp._acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_morganella_spp._acquisition_log_odds".to_string(), 0.5);
-        map.insert("south_america_morganella_spp._acquisition_log_odds".to_string(), 0.3);
-        map.insert("oceania_morganella_spp._acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_morganella_spp._acquisition_log_odds".to_string(), -0.3);
+        map.insert("europe_morganella_spp._acquisition_log_odds".to_string(), -0.7);
+        map.insert("asia_morganella_spp._acquisition_log_odds".to_string(), -0.4);
+        map.insert("south_america_morganella_spp._acquisition_log_odds".to_string(), -0.5);
+        map.insert("oceania_morganella_spp._acquisition_log_odds".to_string(), -0.6);
 
         // Proteus spp. - Mixed healthcare/community, urinary tract and wound infections
         map.insert("africa_proteus_spp._acquisition_log_odds".to_string(), 1.1);
@@ -5693,11 +5734,11 @@ lazy_static! {
         map.insert("oceania_serratia_spp._acquisition_log_odds".to_string(), 0.0);
 
         // Pseudomonas aeruginosa - Predominantly healthcare-associated, major AMR threat
-        map.insert("africa_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.2);
-        map.insert("europe_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.9);
-        map.insert("south_america_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.6);
-        map.insert("oceania_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.6);
+        map.insert("europe_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.3);
+        map.insert("asia_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.3);
+        map.insert("south_america_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 1.0);
+        map.insert("oceania_pseudomonas_aeruginosa_acquisition_log_odds".to_string(), 0.4);
 
         // Staphylococcus aureus - Major community and healthcare pathogen, high regional variation
         map.insert("africa_staphylococcus_aureus_acquisition_log_odds".to_string(), 1.5);
@@ -5714,32 +5755,32 @@ lazy_static! {
         map.insert("oceania_streptococcus_pneumoniae_acquisition_log_odds".to_string(), 0.3);
 
         // Salmonella enterica serovar typhi - Typhoid fever, highly endemic in certain regions
-        map.insert("africa_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 2.8);
-        map.insert("europe_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -2.5);
-        map.insert("asia_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 2.5);
-        map.insert("south_america_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -1.8);
+        map.insert("africa_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 3.3);
+        map.insert("europe_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -1.8);
+        map.insert("asia_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 3.0);
+        map.insert("south_america_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), 1.6);
+        map.insert("oceania_salmonella_enterica_serovar_typhi_acquisition_log_odds".to_string(), -1.1);
 
         // Salmonella enterica serovar paratyphi a - Paratyphoid fever, similar but less common
-        map.insert("africa_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.5);
-        map.insert("europe_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -2.8);
-        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.2);
-        map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 0.8);
-        map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -2.0);
+        map.insert("africa_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 3.2);
+        map.insert("europe_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -2.1);
+        map.insert("asia_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 2.9);
+        map.insert("south_america_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), 1.5);
+        map.insert("oceania_salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds".to_string(), -1.3);
 
         // Invasive non-typhoidal salmonella spp. - Bloodstream infections, especially in immunocompromised
         map.insert("africa_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 4.5); // ~3 million cases/year in Africa; HIV/malnutrition
-        map.insert("europe_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -1.0);
-        map.insert("asia_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 1.8);
-        map.insert("south_america_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 1.2);
-        map.insert("oceania_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -0.5);
+        map.insert("europe_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -0.8);
+        map.insert("asia_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 2.3);
+        map.insert("south_america_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), 1.7);
+        map.insert("oceania_invasive_non-typhoidal_salmonella_spp._acquisition_log_odds".to_string(), -0.3);
 
         // Neisseria gonorrhoeae - Sexually transmitted infection, moderate regional variation
-        map.insert("africa_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.6);
-        map.insert("europe_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.1);
-        map.insert("asia_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.2);
-        map.insert("south_america_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.8);
-        map.insert("oceania_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.2);
+        map.insert("africa_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 2.1);
+        map.insert("europe_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.4);
+        map.insert("asia_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.6);
+        map.insert("south_america_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 1.2);
+        map.insert("oceania_neisseria_gonorrhoeae_acquisition_log_odds".to_string(), 0.5);
 
         // Streptococcus pyogenes - Group A Strep, community-acquired, moderate regional variation
         map.insert("africa_streptococcus_pyogenes_acquisition_log_odds".to_string(), 1.8);
@@ -5763,11 +5804,18 @@ lazy_static! {
         map.insert("oceania_haemophilus_influenzae_acquisition_log_odds".to_string(), -0.2);
 
         // Chlamydia trachomatis - STI and trachoma, moderate regional variation
-        map.insert("africa_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.4);
-        map.insert("europe_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.0);
-        map.insert("asia_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.0);
-        map.insert("south_america_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.6);
-        map.insert("oceania_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.1);
+        map.insert("africa_chlamydia_trachomatis_acquisition_log_odds".to_string(), 2.1);
+        map.insert("europe_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.2);
+        map.insert("asia_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.7);
+        map.insert("south_america_chlamydia_trachomatis_acquisition_log_odds".to_string(), 1.1);
+        map.insert("oceania_chlamydia_trachomatis_acquisition_log_odds".to_string(), 0.6);
+
+        // Helicobacter pylori - Gastric colonization with strong regional gradients
+        map.insert("africa_helicobacter_pylori_acquisition_log_odds".to_string(), 3.2);
+        map.insert("europe_helicobacter_pylori_acquisition_log_odds".to_string(), -0.2);
+        map.insert("asia_helicobacter_pylori_acquisition_log_odds".to_string(), 2.8);
+        map.insert("south_america_helicobacter_pylori_acquisition_log_odds".to_string(), 1.9);
+        map.insert("oceania_helicobacter_pylori_acquisition_log_odds".to_string(), 0.4);
 
         // Vibrio cholerae - Waterborne disease, extreme regional variation
         map.insert("africa_vibrio_cholerae_acquisition_log_odds".to_string(), 3.5);
@@ -5777,61 +5825,61 @@ lazy_static! {
         map.insert("oceania_vibrio_cholerae_acquisition_log_odds".to_string(), -2.2);
 
         // Neisseria meningitidis - Meningococcal disease, moderate regional variation with vaccine impact
-        map.insert("africa_neisseria_meningitidis_acquisition_log_odds".to_string(), 3.8); // African meningitis belt; epidemic outbreaks
-        map.insert("europe_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.2);
-        map.insert("asia_neisseria_meningitidis_acquisition_log_odds".to_string(), 1.2);
-        map.insert("south_america_neisseria_meningitidis_acquisition_log_odds".to_string(), 0.8);
-        map.insert("oceania_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.1);
+        map.insert("africa_neisseria_meningitidis_acquisition_log_odds".to_string(), 1.5); // Calibrated down to avoid epidemic-scale baseline prevalence
+        map.insert("europe_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.8);
+        map.insert("asia_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.2);
+        map.insert("south_america_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.2);
+        map.insert("oceania_neisseria_meningitidis_acquisition_log_odds".to_string(), -0.6);
 
         // Listeria monocytogenes - Foodborne pathogen, moderate regional variation
-        map.insert("africa_listeria_monocytogenes_acquisition_log_odds".to_string(), 1.0);
-        map.insert("europe_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.1);
-        map.insert("asia_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.8);
-        map.insert("south_america_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.5);
-        map.insert("oceania_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.4);
+        map.insert("europe_listeria_monocytogenes_acquisition_log_odds".to_string(), -0.2);
+        map.insert("asia_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.3);
+        map.insert("south_america_listeria_monocytogenes_acquisition_log_odds".to_string(), 0.1);
+        map.insert("oceania_listeria_monocytogenes_acquisition_log_odds".to_string(), -0.3);
 
         // Clostridioides difficile - Healthcare-associated, antibiotic-driven, modest regional variation
-        map.insert("africa_clostridioides_difficile_acquisition_log_odds".to_string(), 0.6);
-        map.insert("europe_clostridioides_difficile_acquisition_log_odds".to_string(), 0.1);
-        map.insert("asia_clostridioides_difficile_acquisition_log_odds".to_string(), 0.4);
-        map.insert("south_america_clostridioides_difficile_acquisition_log_odds".to_string(), 0.3);
-        map.insert("oceania_clostridioides_difficile_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_clostridioides_difficile_acquisition_log_odds".to_string(), 0.2);
+        map.insert("europe_clostridioides_difficile_acquisition_log_odds".to_string(), -0.1);
+        map.insert("asia_clostridioides_difficile_acquisition_log_odds".to_string(), 0.1);
+        map.insert("south_america_clostridioides_difficile_acquisition_log_odds".to_string(), 0.0);
+        map.insert("oceania_clostridioides_difficile_acquisition_log_odds".to_string(), -0.2);
 
         // Campylobacter jejuni - Foodborne pathogen, moderate regional variation
-        map.insert("africa_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.3);
-        map.insert("europe_campylobacter_jejuni_acquisition_log_odds".to_string(), 0.2);
-        map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.0);
-        map.insert("south_america_campylobacter_jejuni_acquisition_log_odds".to_string(), 0.7);
-        map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 0.1);
+        map.insert("africa_campylobacter_jejuni_acquisition_log_odds".to_string(), 2.5);
+        map.insert("europe_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.0);
+        map.insert("asia_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.9);
+        map.insert("south_america_campylobacter_jejuni_acquisition_log_odds".to_string(), 1.5);
+        map.insert("oceania_campylobacter_jejuni_acquisition_log_odds".to_string(), 0.6);
 
         // Enterobacter cloacae - Healthcare-associated Enterobacteriaceae, modest regional variation
-        map.insert("africa_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.9);
-        map.insert("europe_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.7);
-        map.insert("south_america_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.5);
-        map.insert("oceania_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.2);
+        map.insert("europe_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.5);
+        map.insert("asia_enterobacter_cloacae_acquisition_log_odds".to_string(), 0.0);
+        map.insert("south_america_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.2);
+        map.insert("oceania_enterobacter_cloacae_acquisition_log_odds".to_string(), -0.3);
 
         // Yersinia enterocolitica - Foodborne/zoonotic pathogen, moderate regional variation
-        map.insert("africa_yersinia_enterocolitica_acquisition_log_odds".to_string(), 1.1);
-        map.insert("europe_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.3);
-        map.insert("asia_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.8);
-        map.insert("south_america_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.5);
-        map.insert("oceania_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.1);
+        map.insert("africa_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.2);
+        map.insert("europe_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.0);
+        map.insert("asia_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.0);
+        map.insert("south_america_yersinia_enterocolitica_acquisition_log_odds".to_string(), 0.0);
+        map.insert("oceania_yersinia_enterocolitica_acquisition_log_odds".to_string(), -0.1);
 
         // Moraxella catarrhalis - Respiratory pathogen, moderate regional variation
-        map.insert("africa_moraxella_catarrhalis_acquisition_log_odds".to_string(), 1.6);
-        map.insert("europe_moraxella_catarrhalis_acquisition_log_odds".to_string(), -0.1);
-        map.insert("asia_moraxella_catarrhalis_acquisition_log_odds".to_string(), 1.2);
-        map.insert("south_america_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.8);
-        map.insert("oceania_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.0);
+        map.insert("africa_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.9);
+        map.insert("europe_moraxella_catarrhalis_acquisition_log_odds".to_string(), -0.3);
+        map.insert("asia_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.5);
+        map.insert("south_america_moraxella_catarrhalis_acquisition_log_odds".to_string(), 0.2);
+        map.insert("oceania_moraxella_catarrhalis_acquisition_log_odds".to_string(), -0.2);
 
         // Treponema pallidum - Syphilis, moderate-high regional variation
         map.insert("treponema pallidum_base_bacteria_level_change".to_string(), 0.18); // Very slow spirochete replication (30+ hour doubling)
-        map.insert("africa_treponema_pallidum_acquisition_log_odds".to_string(), 2.0);
-        map.insert("europe_treponema_pallidum_acquisition_log_odds".to_string(), 0.0);
-        map.insert("asia_treponema_pallidum_acquisition_log_odds".to_string(), 1.5);
-        map.insert("south_america_treponema_pallidum_acquisition_log_odds".to_string(), 1.0);
-        map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), 0.2);
+        map.insert("africa_treponema_pallidum_acquisition_log_odds".to_string(), 0.3);
+        map.insert("europe_treponema_pallidum_acquisition_log_odds".to_string(), -0.2);
+        map.insert("asia_treponema_pallidum_acquisition_log_odds".to_string(), 0.0);
+        map.insert("south_america_treponema_pallidum_acquisition_log_odds".to_string(), 0.1);
+        map.insert("oceania_treponema_pallidum_acquisition_log_odds".to_string(), -0.3);
 
         // === [G] Microbiome carriage & clearance priors ===
         // Links microbiome carriage to infection rates and establishes decay rates so default
@@ -5864,11 +5912,11 @@ lazy_static! {
     map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% carriage
     map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage during outbreaks
     map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage
-    map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% carriage
+    map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 1.2); // Lower carriage odds
     map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% transient carriage
     map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), 1.05); // ~0.3% asymptomatic mucosal carriage
     map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 2.26); // ~1% prevalent infection at any time
-    map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 0.0); // ~0.1% persistent carriage equivalent
+    map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), -1.0); // ~0.1% persistent carriage equivalent
     map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 4.41); // ~10% NP carriage (5-15% in adolescents)
     map.insert("helicobacter_pylori_log_odds_microbiome_vs_infection".to_string(), 6.65); // ~45% gastric colonization
     map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), -7.0); // Target ~0.1% latent reservoir
@@ -5899,11 +5947,11 @@ lazy_static! {
     map.insert("shigella spp._microbiome_clearance_probability_per_day".to_string(), 0.15);
     map.insert("vibrio cholerae_microbiome_clearance_probability_per_day".to_string(), 0.15);
     map.insert("campylobacter_jejuni_microbiome_clearance_probability_per_day".to_string(), 0.12);
-    map.insert("yersinia_enterocolitica_microbiome_clearance_probability_per_day".to_string(), 0.15);
+    map.insert("yersinia_enterocolitica_microbiome_clearance_probability_per_day".to_string(), 0.25);
     map.insert("listeria_monocytogenes_microbiome_clearance_probability_per_day".to_string(), 0.1);
     map.insert("neisseria_gonorrhoeae_microbiome_clearance_probability_per_day".to_string(), 0.2);
     map.insert("chlamydia trachomatis_microbiome_clearance_probability_per_day".to_string(), 0.2);
-    map.insert("treponema pallidum_microbiome_clearance_probability_per_day".to_string(), 0.25);
+    map.insert("treponema pallidum_microbiome_clearance_probability_per_day".to_string(), 0.35);
     map.insert("neisseria_meningitidis_microbiome_clearance_probability_per_day".to_string(), 0.07);
     map.insert("helicobacter pylori_microbiome_clearance_probability_per_day".to_string(), 0.001); // Extremely persistent; decades without treatment
     map.insert("mdr mycobacterium tuberculosis_microbiome_clearance_probability_per_day".to_string(), 0.0015); // Latent carriage now clears slowly over years
@@ -6575,40 +6623,40 @@ lazy_static! {
         // === SEXUALLY TRANSMITTED BACTERIA ===
         // Chlamydia trachomatis - Peak in sexually active young adults
         map.insert("chlamydia_trachomatis_log_odds_infant".to_string(), -3.0);      // Very low risk (vertical transmission only)
-        map.insert("chlamydia_trachomatis_log_odds_preschool".to_string(), -4.0);   // Extremely low risk
-        map.insert("chlamydia_trachomatis_log_odds_school".to_string(), -2.0);      // Very low risk (early sexual activity)
-        map.insert("chlamydia_trachomatis_log_odds_young_adult".to_string(), 1.5);  // HIGH risk - peak sexual activity
-        map.insert("chlamydia_trachomatis_log_odds_middle_age".to_string(), 0.5);   // Moderate risk - continued sexual activity
-        map.insert("chlamydia_trachomatis_log_odds_elderly".to_string(), -1.5);     // Low risk - reduced sexual activity
-        map.insert("chlamydia_trachomatis_log_odds_very_elderly".to_string(), -2.5); // Very low risk
+        map.insert("chlamydia_trachomatis_log_odds_preschool".to_string(), -3.5);   // Extremely low risk
+        map.insert("chlamydia_trachomatis_log_odds_school".to_string(), -1.0);      // Capture adolescent-onset sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_young_adult".to_string(), 1.7);  // VERY HIGH risk - peak sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_middle_age".to_string(), 0.8);   // Moderate risk - continued sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_elderly".to_string(), -1.0);     // Low risk - reduced sexual activity
+        map.insert("chlamydia_trachomatis_log_odds_very_elderly".to_string(), -2.0); // Very low risk
 
         // Neisseria gonorrhoeae - Similar pattern to chlamydia
         map.insert("neisseria_gonorrhoeae_log_odds_infant".to_string(), -2.5);      // Very low risk (vertical transmission)
-        map.insert("neisseria_gonorrhoeae_log_odds_preschool".to_string(), -4.0);   // Extremely low risk
-        map.insert("neisseria_gonorrhoeae_log_odds_school".to_string(), -1.5);      // Very low risk
-        map.insert("neisseria_gonorrhoeae_log_odds_young_adult".to_string(), 1.8);  // VERY HIGH risk - peak sexual activity
-        map.insert("neisseria_gonorrhoeae_log_odds_middle_age".to_string(), 0.7);   // Moderate risk
-        map.insert("neisseria_gonorrhoeae_log_odds_elderly".to_string(), -1.2);     // Low risk
-        map.insert("neisseria_gonorrhoeae_log_odds_very_elderly".to_string(), -2.0); // Very low risk
+        map.insert("neisseria_gonorrhoeae_log_odds_preschool".to_string(), -3.5);   // Extremely low risk
+        map.insert("neisseria_gonorrhoeae_log_odds_school".to_string(), -0.8);      // Capture rising adolescent incidence
+        map.insert("neisseria_gonorrhoeae_log_odds_young_adult".to_string(), 2.0);  // VERY HIGH risk - peak sexual activity
+        map.insert("neisseria_gonorrhoeae_log_odds_middle_age".to_string(), 0.9);   // Moderate risk
+        map.insert("neisseria_gonorrhoeae_log_odds_elderly".to_string(), -0.8);     // Low risk
+        map.insert("neisseria_gonorrhoeae_log_odds_very_elderly".to_string(), -1.5); // Very low risk
 
         // Treponema pallidum (Syphilis) - Similar pattern to other STIs
-        map.insert("treponema_pallidum_log_odds_infant".to_string(), -2.0);         // Low risk (congenital syphilis)
-        map.insert("treponema_pallidum_log_odds_preschool".to_string(), -4.0);      // Extremely low risk
-        map.insert("treponema_pallidum_log_odds_school".to_string(), -2.0);         // Very low risk
-        map.insert("treponema_pallidum_log_odds_young_adult".to_string(), 1.6);     // HIGH risk - peak sexual activity
-        map.insert("treponema_pallidum_log_odds_middle_age".to_string(), 0.4);      // Moderate risk
-        map.insert("treponema_pallidum_log_odds_elderly".to_string(), -1.8);        // Low risk
-        map.insert("treponema_pallidum_log_odds_very_elderly".to_string(), -2.5);   // Very low risk
+        map.insert("treponema_pallidum_log_odds_infant".to_string(), -2.2);         // Low risk (congenital syphilis)
+        map.insert("treponema_pallidum_log_odds_preschool".to_string(), -4.3);      // Extremely low risk
+        map.insert("treponema_pallidum_log_odds_school".to_string(), -2.4);         // Very low risk
+        map.insert("treponema_pallidum_log_odds_young_adult".to_string(), 0.4);     // Elevated but moderated risk
+        map.insert("treponema_pallidum_log_odds_middle_age".to_string(), -0.6);     // Slightly above baseline risk
+        map.insert("treponema_pallidum_log_odds_elderly".to_string(), -2.2);        // Low risk
+        map.insert("treponema_pallidum_log_odds_very_elderly".to_string(), -2.8);   // Very low risk
 
         // === RESPIRATORY BACTERIA ===
         // Streptococcus pneumoniae - Classic U-shaped age distribution (high in infants and elderly)
-        map.insert("streptococcus_pneumoniae_log_odds_infant".to_string(), 2.0);         // VERY HIGH risk - immature immunity
-        map.insert("streptococcus_pneumoniae_log_odds_preschool".to_string(), 1.2);      // HIGH risk - daycare exposure
-        map.insert("streptococcus_pneumoniae_log_odds_school".to_string(), 0.5);         // Moderate risk - school exposure
-        map.insert("streptococcus_pneumoniae_log_odds_young_adult".to_string(), -0.3);   // Low risk - strong immunity
-        map.insert("streptococcus_pneumoniae_log_odds_middle_age".to_string(), 0.0);     // Baseline risk
-        map.insert("streptococcus_pneumoniae_log_odds_elderly".to_string(), 1.5);        // HIGH risk - immunosenescence
-        map.insert("streptococcus_pneumoniae_log_odds_very_elderly".to_string(), 2.2);   // VERY HIGH risk
+        map.insert("streptococcus_pneumoniae_log_odds_infant".to_string(), 1.7);         // Elevated risk - immature immunity
+        map.insert("streptococcus_pneumoniae_log_odds_preschool".to_string(), 0.9);      // Elevated risk - daycare exposure
+        map.insert("streptococcus_pneumoniae_log_odds_school".to_string(), 0.2);         // Moderate risk - school exposure
+        map.insert("streptococcus_pneumoniae_log_odds_young_adult".to_string(), -0.4);   // Low risk - strong immunity
+        map.insert("streptococcus_pneumoniae_log_odds_middle_age".to_string(), -0.1);    // Slightly below baseline risk
+        map.insert("streptococcus_pneumoniae_log_odds_elderly".to_string(), 1.2);        // HIGH risk - immunosenescence
+        map.insert("streptococcus_pneumoniae_log_odds_very_elderly".to_string(), 1.8);   // VERY HIGH risk
 
         // Haemophilus influenzae - Similar to pneumococcus but more pediatric
         map.insert("haemophilus_influenzae_log_odds_infant".to_string(), 2.5);           // VERY HIGH risk - major infant pathogen
@@ -6648,13 +6696,22 @@ lazy_static! {
         map.insert("shigella_spp._log_odds_very_elderly".to_string(), 0.8);      // High risk
 
         // Campylobacter jejuni - All ages but higher in young children
-        map.insert("campylobacter_jejuni_log_odds_infant".to_string(), 1.2);          // HIGH risk - severe dehydration
-        map.insert("campylobacter_jejuni_log_odds_preschool".to_string(), 0.8);       // HIGH risk
-        map.insert("campylobacter_jejuni_log_odds_school".to_string(), 0.3);          // Moderate risk
-        map.insert("campylobacter_jejuni_log_odds_young_adult".to_string(), 0.0);     // Baseline risk
+        map.insert("campylobacter_jejuni_log_odds_infant".to_string(), 1.6);          // VERY HIGH risk - severe dehydration
+        map.insert("campylobacter_jejuni_log_odds_preschool".to_string(), 1.2);       // HIGH risk
+        map.insert("campylobacter_jejuni_log_odds_school".to_string(), 0.4);          // Moderate risk
+        map.insert("campylobacter_jejuni_log_odds_young_adult".to_string(), 0.2);     // Slightly elevated risk in young travelers
         map.insert("campylobacter_jejuni_log_odds_middle_age".to_string(), 0.0);      // Baseline risk
-        map.insert("campylobacter_jejuni_log_odds_elderly".to_string(), 0.4);         // Moderate risk
-        map.insert("campylobacter_jejuni_log_odds_very_elderly".to_string(), 0.7);    // High risk
+        map.insert("campylobacter_jejuni_log_odds_elderly".to_string(), 0.5);         // Moderate risk
+        map.insert("campylobacter_jejuni_log_odds_very_elderly".to_string(), 0.8);    // High risk
+
+        // Helicobacter pylori - Accumulates with age due to persistent colonization
+        map.insert("helicobacter_pylori_log_odds_infant".to_string(), -2.5);         // Very low risk - rare vertical transmission
+        map.insert("helicobacter_pylori_log_odds_preschool".to_string(), -1.5);      // Low risk
+        map.insert("helicobacter_pylori_log_odds_school".to_string(), -0.5);         // Slowly rising risk
+        map.insert("helicobacter_pylori_log_odds_young_adult".to_string(), 0.8);     // Moderate risk - cumulative exposure
+        map.insert("helicobacter_pylori_log_odds_middle_age".to_string(), 1.4);      // High risk - high prevalence
+        map.insert("helicobacter_pylori_log_odds_elderly".to_string(), 1.8);         // VERY HIGH risk - chronic colonization
+        map.insert("helicobacter_pylori_log_odds_very_elderly".to_string(), 2.0);    // EXTREMELY HIGH risk
 
         // === HEALTHCARE-ASSOCIATED BACTERIA ===
         // Acinetobacter baumannii - Higher in critically ill (middle-aged to elderly)
@@ -6687,13 +6744,13 @@ lazy_static! {
 
         // === INVASIVE/SYSTEMIC BACTERIA ===
         // Neisseria meningitidis - Bimodal distribution (infants and adolescents/young adults)
-        map.insert("neisseria_meningitidis_log_odds_infant".to_string(), 2.5);           // EXTREMELY HIGH risk
-        map.insert("neisseria_meningitidis_log_odds_preschool".to_string(), 0.8);        // HIGH risk
-        map.insert("neisseria_meningitidis_log_odds_school".to_string(), 1.2);           // VERY HIGH risk
-        map.insert("neisseria_meningitidis_log_odds_young_adult".to_string(), 1.5);      // VERY HIGH risk - dormitories, military
-        map.insert("neisseria_meningitidis_log_odds_middle_age".to_string(), -0.5);      // Low risk
-        map.insert("neisseria_meningitidis_log_odds_elderly".to_string(), 0.0);          // Baseline risk
-        map.insert("neisseria_meningitidis_log_odds_very_elderly".to_string(), 0.3);     // Moderate risk
+        map.insert("neisseria_meningitidis_log_odds_infant".to_string(), 1.8);           // VERY HIGH risk but reduced after vaccine rollout
+        map.insert("neisseria_meningitidis_log_odds_preschool".to_string(), 0.4);        // Elevated risk
+        map.insert("neisseria_meningitidis_log_odds_school".to_string(), 1.0);           // HIGH risk - school clustering
+        map.insert("neisseria_meningitidis_log_odds_young_adult".to_string(), 1.3);      // VERY HIGH risk - dormitories, military
+        map.insert("neisseria_meningitidis_log_odds_middle_age".to_string(), -0.2);      // Slightly below baseline
+        map.insert("neisseria_meningitidis_log_odds_elderly".to_string(), 0.2);          // Modest rebound risk
+        map.insert("neisseria_meningitidis_log_odds_very_elderly".to_string(), 0.4);     // Moderate risk
 
         // Listeria monocytogenes - Mainly immunocompromised, pregnant women, elderly
         map.insert("listeria_monocytogenes_log_odds_infant".to_string(), 1.8);          // VERY HIGH risk (neonatal)
@@ -6794,19 +6851,19 @@ lazy_static! {
         // Higher burden in "meningitis belt" of Africa, specific age patterns
 
         // Africa - "Meningitis belt", extremely high infant and adolescent/young adult risk
-        map.insert("neisseria_meningitidis_africa_log_odds_infant".to_string(), 3.5);      // EXTREMELY HIGH
-        map.insert("neisseria_meningitidis_africa_log_odds_preschool".to_string(), 1.5);   // HIGH
-        map.insert("neisseria_meningitidis_africa_log_odds_school".to_string(), 2.0);      // VERY HIGH
-        map.insert("neisseria_meningitidis_africa_log_odds_young_adult".to_string(), 2.2); // EXTREMELY HIGH - "meningitis belt"
-        map.insert("neisseria_meningitidis_africa_log_odds_middle_age".to_string(), 0.5);  // Moderate
-        map.insert("neisseria_meningitidis_africa_log_odds_elderly".to_string(), 0.8);     // HIGH
-        map.insert("neisseria_meningitidis_africa_log_odds_very_elderly".to_string(), 1.0); // HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_infant".to_string(), 2.5);      // VERY HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_preschool".to_string(), 1.0);   // HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_school".to_string(), 1.5);      // VERY HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_young_adult".to_string(), 1.9); // EXTREMELY HIGH - "meningitis belt"
+        map.insert("neisseria_meningitidis_africa_log_odds_middle_age".to_string(), 0.3);  // Moderate
+        map.insert("neisseria_meningitidis_africa_log_odds_elderly".to_string(), 0.6);     // HIGH
+        map.insert("neisseria_meningitidis_africa_log_odds_very_elderly".to_string(), 0.8); // HIGH
 
         // Europe/North America - Much lower overall burden, but maintain age pattern
-        map.insert("neisseria_meningitidis_europe_log_odds_infant".to_string(), 1.8);      // Still high in infants
-        map.insert("neisseria_meningitidis_europe_log_odds_young_adult".to_string(), 0.8); // Moderate (university outbreaks)
-        map.insert("neisseria_meningitidis_north_america_log_odds_infant".to_string(), 2.0);     // High in infants
-        map.insert("neisseria_meningitidis_north_america_log_odds_young_adult".to_string(), 0.6); // Moderate (dormitories)
+        map.insert("neisseria_meningitidis_europe_log_odds_infant".to_string(), 1.2);      // Reduced after vaccine impact
+        map.insert("neisseria_meningitidis_europe_log_odds_young_adult".to_string(), 0.6); // Moderate (university outbreaks)
+        map.insert("neisseria_meningitidis_north_america_log_odds_infant".to_string(), 1.4);     // Lower due to MenACWY uptake
+        map.insert("neisseria_meningitidis_north_america_log_odds_young_adult".to_string(), 0.5); // Moderate (dormitories)
 
         // === HAEMOPHILUS INFLUENZAE - VACCINATION IMPACT VARIES BY REGION ===
         // Lower burden in regions with good Hib vaccination coverage

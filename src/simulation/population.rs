@@ -255,7 +255,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "moxifloxacin",
     "ofloxacin",
     "tetracycline",
-    "doxyclycline",
+    "doxycycline",
     "minocycline",
     "vancomycin",
     "teicoplanin",

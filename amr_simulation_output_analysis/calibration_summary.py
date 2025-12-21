@@ -14,6 +14,8 @@ import pandas as pd
 from .config import PlotConfig
 from .data_loader import DataCache
 
+LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
+
 RESISTANCE_SIM_COL = "Infection resistance simulation (%)"
 RESISTANCE_TARGET_COL = "Infection resistance target (%)"
 RESISTANCE_DELTA_COL = "Infection resistance delta (pp)"
@@ -205,15 +207,36 @@ def _gather_calibration_context(
     }
 
 
-def _ensure_year_slice(df: pd.DataFrame, calendar_year: pd.Series, year: int) -> pd.DataFrame:
-    mask = (calendar_year >= year) & (calendar_year < year + 1)
-    year_df = df.loc[mask]
+def _ensure_year_slice(
+    df: pd.DataFrame,
+    calendar_year: pd.Series,
+    target_year: int,
+) -> pd.DataFrame:
+    """Return rows covering the requested year, falling back gracefully if absent."""
+
+    if df.empty or calendar_year.empty:
+        return df
+
+    mask_target = (calendar_year >= target_year) & (calendar_year < target_year + 1)
+    year_df = df.loc[mask_target]
     if not year_df.empty:
         return year_df
 
-    # Fallback to trailing 365 rows (or entire frame if shorter)
-    tail = min(len(df), 365)
-    return df.tail(tail)
+    available_years = calendar_year.dropna().unique()
+    if available_years.size == 0:
+        return df
+
+    # Select the closest available calendar year and return its one-year window.
+    nearest_year = float(min(available_years, key=lambda value: abs(value - target_year)))
+    lower_bound = np.floor(nearest_year)
+    upper_bound = lower_bound + 1.0
+    fallback_mask = (calendar_year >= lower_bound) & (calendar_year < upper_bound)
+    fallback_df = df.loc[fallback_mask]
+    if not fallback_df.empty:
+        return fallback_df
+
+    # As a last resort, return the full dataframe to keep downstream logic functional.
+    return df
 
 
 def _select_resistance_windows(
@@ -960,6 +983,110 @@ def _calculate_bacteria_burden_table(
     return pd.DataFrame(records, columns=columns)
 
 
+def _calculate_metric_fit_summary(
+    bacteria_burden_df: pd.DataFrame,
+    target_column: str,
+    simulation_column: str,
+) -> Dict[str, Optional[float]]:
+    summary: Dict[str, Optional[float]] = {
+        "mean_abs_diff": None,
+        "mean_rel_diff": None,
+        "mean_log_abs_ratio": None,
+        "count_abs": 0,
+        "count_rel": 0,
+        "count_log": 0,
+        "log_zero_replacements": 0,
+    }
+
+    if bacteria_burden_df is None or bacteria_burden_df.empty:
+        return summary
+
+    target_series = bacteria_burden_df.get(target_column)
+    sim_series = bacteria_burden_df.get(simulation_column)
+    if target_series is None or sim_series is None:
+        return summary
+
+    target_numeric = pd.to_numeric(target_series, errors="coerce")
+    sim_numeric = pd.to_numeric(sim_series, errors="coerce")
+
+    valid_mask = target_numeric.notna() & sim_numeric.notna()
+    if not valid_mask.any():
+        return summary
+
+    filtered_target = target_numeric[valid_mask]
+    filtered_sim = sim_numeric[valid_mask]
+    abs_diffs = (filtered_sim - filtered_target).abs()
+
+    if not abs_diffs.empty:
+        summary["mean_abs_diff"] = float(abs_diffs.mean(skipna=True))
+        summary["count_abs"] = int(abs_diffs.count())
+
+        rel_mask = filtered_target > 0
+        if rel_mask.any():
+            rel_diffs = abs_diffs[rel_mask] / filtered_target[rel_mask]
+            if not rel_diffs.empty:
+                summary["mean_rel_diff"] = float(rel_diffs.mean(skipna=True))
+                summary["count_rel"] = int(rel_diffs.count())
+
+        filtered_sim_log = filtered_sim.astype(float).copy()
+        zero_mask = filtered_sim_log <= 0
+        if zero_mask.any():
+            filtered_sim_log.loc[zero_mask] = LOG_RATIO_FLOOR_VALUE
+            summary["log_zero_replacements"] = int(zero_mask.sum())
+
+        log_mask = (filtered_target > 0) & (filtered_sim_log > 0)
+        if log_mask.any():
+            ratios = filtered_sim_log[log_mask] / filtered_target[log_mask]
+            log_abs = np.abs(np.log(ratios))
+            if not log_abs.empty:
+                summary["mean_log_abs_ratio"] = float(log_abs.mean(skipna=True))
+                summary["count_log"] = int(log_abs.count())
+
+    return summary
+
+
+def _write_metric_fit_summary(
+    handle,
+    label: str,
+    bacteria_burden_df: pd.DataFrame,
+    target_column: str,
+    simulation_column: str,
+    abs_units: str,
+    rel_units: str,
+) -> None:
+    summary = _calculate_metric_fit_summary(bacteria_burden_df, target_column, simulation_column)
+    handle.write(f"{label}\n")
+    mean_abs = summary.get("mean_abs_diff")
+    count_abs = summary.get("count_abs", 0)
+    if mean_abs is not None and count_abs:
+        handle.write(
+            f"- Mean |simulation - target|: {mean_abs:,.4f} {abs_units} across {count_abs} bacteria.\n"
+        )
+    else:
+        handle.write(
+            "- Insufficient overlapping bacteria with both simulation and target values.\n"
+        )
+
+    mean_log_abs = summary.get("mean_log_abs_ratio")
+    count_log = summary.get("count_log", 0)
+    if mean_log_abs is not None and count_log:
+        note = ""
+        zero_replacements = summary.get("log_zero_replacements", 0)
+        if zero_replacements:
+            plural = "s" if zero_replacements != 1 else ""
+            note = (
+                f" (floored {zero_replacements} zero simulation value{plural} to"
+                f" {LOG_RATIO_FLOOR_VALUE:.3f} to allow log ratio)"
+            )
+        handle.write(
+            "- Mean |log(sim/target)|: "
+            f"{mean_log_abs:,.4f} (natural log, unitless) across {count_log} bacteria{note}.\n"
+        )
+    else:
+        handle.write("- log-ratio metric unavailable (requires positive simulation and target).\n")
+    handle.write("\n")
+
+
 def _parse_numeric_range(value: object) -> Tuple[Optional[float], Optional[float]]:
     if value is None:
         return None, None
@@ -1478,7 +1605,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_750982.txt"
+    output_path = output_dir / "calibration_summary_285479.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1550,6 +1677,36 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("\n\n")
         else:
             handle.write("Bacteria Burden Benchmarks\n(no bacteria burden metrics available)\n\n")
+
+        _write_metric_fit_summary(
+            handle,
+            "Infection Incidence Fit Summary",
+            bacteria_burden_df,
+            "Infection target (%)",
+            "Infection simulation (%)",
+            "percentage points",
+            "%",
+        )
+
+        _write_metric_fit_summary(
+            handle,
+            "Microbiome Carriage Fit Summary",
+            bacteria_burden_df,
+            "Carriage target (%)",
+            "Carriage simulation (%)",
+            "percentage points",
+            "%",
+        )
+
+        _write_metric_fit_summary(
+            handle,
+            "Infection Deaths Fit Summary",
+            bacteria_burden_df,
+            "Deaths target (millions)",
+            "Deaths simulation (millions)",
+            "millions",
+            "%",
+        )
 
         if not combined_drug_df.empty:
             handle.write("Drug Class Usage Benchmarks (daily users in millions)\n")

@@ -2285,6 +2285,7 @@ impl Simulation {
                                 4 // 80+ years
                             };
 
+                            let mut count_in_deaths_by_bacteria = true;
                             if let Some(ref cause) = individual.cause_of_death {
                                 match cause.as_str() {
                                     "background_mortality" => {
@@ -2295,6 +2296,7 @@ impl Simulation {
                                         lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
                                             + age_group_idx * NUM_DEATH_CAUSES
                                             + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                        count_in_deaths_by_bacteria = false;
                                     }
                                     "sepsis_related" => {
                                         lt.deaths_sepsis += 1;
@@ -2356,6 +2358,7 @@ impl Simulation {
                                         lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
                                             + age_group_idx * NUM_DEATH_CAUSES
                                             + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                        count_in_deaths_by_bacteria = false;
                                     }
                                 }
                             } else {
@@ -2365,11 +2368,14 @@ impl Simulation {
                                 lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
                                     + age_group_idx * NUM_DEATH_CAUSES
                                     + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                count_in_deaths_by_bacteria = false;
                             }
                             // Count deaths by bacteria
-                            for b_idx in 0..num_bacteria {
-                                if individual.level[b_idx] > INFECTION_EPS {
-                                    lt.deaths_by_bacteria[b_idx] += 1;
+                            if count_in_deaths_by_bacteria {
+                                for b_idx in 0..num_bacteria {
+                                    if individual.level[b_idx] > INFECTION_EPS {
+                                        lt.deaths_by_bacteria[b_idx] += 1;
+                                    }
                                 }
                             }
 

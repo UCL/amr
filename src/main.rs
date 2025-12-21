@@ -18,10 +18,6 @@ mod simulation;
 //
 // -- calibration targets ----------------------------------------------------------------------------------------
 //
-// placeholder best guesses of % with resistance for each drug/bacteria pair in microbiome
-// values for the EXTENT of resistance for THOSE WITH RESISTANCE for each drug/bacteria pair
-// proportion of people who carry each bacteria
-//
 // death within 30 days by bacteria, age and region ? - make a formal part of calibration score or just present as an fyi ?
 //
 //
@@ -112,7 +108,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =  500_000;
+    let population_size =  10_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging
