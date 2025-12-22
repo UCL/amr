@@ -80,7 +80,7 @@ def normalize_name_for_empirical_matching(name, entity_type='bacteria', data_sou
                 'klebsiella_pneumoniae': 'klebsiella pneumoniae',
                 'mdr_mycobacterium_tuberculosis': 'mdr mycobacterium tuberculosis',
                 'neisseria_gonorrhoeae': 'neisseria gonorrhoeae',
-                'neisseria_meningitidis': 'neisseria_meningitidis',
+                'neisseria_meningitidis': 'neisseria meningitidis',
                 'pseudomonas_aeruginosa': 'pseudomonas aeruginosa',
                 'salmonella_enterica_serovar_paratyphi_a': 'salmonella enterica serovar paratyphi a',
                 'salmonella_enterica_serovar_typhi': 'salmonella enterica serovar typhi',
@@ -89,15 +89,15 @@ def normalize_name_for_empirical_matching(name, entity_type='bacteria', data_sou
                 'streptococcus_pneumoniae': 'streptococcus pneumoniae',
                 'streptococcus_pyogenes': 'streptococcus pyogenes',
                 'vibrio_cholerae': 'vibrio cholerae',
-                'yersinia_enterocolitica': 'yersinia_enterocolitica',
+                'yersinia_enterocolitica': 'yersinia enterocolitica',
                 # Add missing bacteria mappings
-                'enterobacter_spp': 'enterobacter spp.',
+                'enterobacter_spp.': 'enterobacter spp.',
                 'invasive_non_typhoidal_salmonella_spp': 'invasive non-typhoidal salmonella spp.',
-                'citrobacter_spp': 'citrobacter spp.',
-                'morganella_spp': 'morganella spp.',
-                'proteus_spp': 'proteus spp.',
-                'serratia_spp': 'serratia spp.',
-                'shigella_spp': 'shigella spp.'
+                'citrobacter_spp.': 'citrobacter spp.',
+                'morganella_spp.': 'morganella spp.',
+                'proteus_spp.': 'proteus spp.',
+                'serratia_spp.': 'serratia spp.',
+                'shigella_spp.': 'shigella spp.'
             }
             
             # Check if we have a direct mapping

@@ -308,36 +308,71 @@ def create_grouped_plots(df, config=None):
             axes3[2].text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=14, color='gray')
             axes3[2].set_axis_off()
             
-        # 4. Microbiome acquisition events by antibiotic exposure
-        if config.grouped_microbiome_acquisition_panel:
-            on_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_on_drug')]
-            off_cols = [col for col in df.columns if col.endswith('_microbiome_acquisitions_off_drug')]
-            if on_cols and off_cols and 'total_population' in df.columns:
-                total_on = df[on_cols].sum(axis=1)
-                total_off = df[off_cols].sum(axis=1)
-
-                rate_on = pd.Series(
-                    safe_divide(total_on, df['total_population'], 0) * 1e5,
-                    index=df.index
-                ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                rate_off = pd.Series(
-                    safe_divide(total_off, df['total_population'], 0) * 1e5,
-                    index=df.index
-                ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-
-                axes3[3].plot(df['time_in_years'], rate_on, color='firebrick', linewidth=2, label='On Antibiotics')
-                axes3[3].plot(df['time_in_years'], rate_off, color='steelblue', linewidth=2, label='No Antibiotics')
-                axes3[3].set_xlabel('Time (Years)')
-                axes3[3].set_ylabel('New Carriers per 100k Population (Smoothed)')
-                axes3[3].set_title('Microbiome Acquisition Rate by Antibiotic Exposure')
-                axes3[3].set_ylim(bottom=0)
-                axes3[3].grid(True, alpha=0.3)
-                axes3[3].legend()
-            else:
-                axes3[3].text(0.5, 0.5, 'Microbiome acquisition data not available', ha='center', va='center', fontsize=12, color='gray')
-                axes3[3].set_axis_off()
+        # 4. Daily Infection Incidence Rate by Bacteria (similar to sepsis in Fig 1)
+        # Sum carrier + non-carrier new infections for each bacteria
+        carrier_cols = [col for col in df.columns if col.endswith('_newly_infected_carrier')]
+        if carrier_cols and 'total_population' in df.columns:
+            # Get all bacteria with their total new infections
+            bacteria_totals = []
+            for col in carrier_cols:
+                bacteria_name = col.replace('_newly_infected_carrier', '')
+                non_carrier_col = f"{bacteria_name}_newly_infected_non_carrier"
+                if non_carrier_col in df.columns:
+                    total_infections = df[col].sum() + df[non_carrier_col].sum()
+                else:
+                    total_infections = df[col].sum()
+                bacteria_totals.append((bacteria_name, total_infections))
+            
+            # Sort by total cases (highest first)
+            bacteria_totals.sort(key=lambda x: x[1], reverse=True)
+            
+            # Generate enough colors for all bacteria
+            n_bacteria = len(bacteria_totals)
+            colors = cm.tab20(np.linspace(0, 1, min(20, n_bacteria)))
+            if n_bacteria > 20:
+                extra_colors = cm.tab20b(np.linspace(0, 1, min(20, n_bacteria-20)))
+                colors = np.vstack([colors, extra_colors])
+            if n_bacteria > 40:
+                extra_colors2 = cm.tab20c(np.linspace(0, 1, n_bacteria-40))
+                colors = np.vstack([colors, extra_colors2])
+            
+            # Plot separate line for each bacteria
+            for i, (bacteria_name, total_infections) in enumerate(bacteria_totals):
+                carrier_col = f"{bacteria_name}_newly_infected_carrier"
+                non_carrier_col = f"{bacteria_name}_newly_infected_non_carrier"
+                
+                # Sum carrier and non-carrier new infections
+                if non_carrier_col in df.columns:
+                    new_infections = df[carrier_col] + df[non_carrier_col]
+                else:
+                    new_infections = df[carrier_col]
+                
+                # Calculate incidence rate per population
+                incidence_rate = safe_divide(new_infections, df['total_population'], 0)
+                
+                # Plot smoothed incidence rate
+                smoothed_incidence = pd.Series(incidence_rate).rolling(
+                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
+                
+                # Clean bacteria name for legend
+                clean_name = bacteria_name.replace('_', ' ').title()
+                axes3[3].plot(df['time_in_years'], smoothed_incidence, 
+                            color=colors[i % len(colors)], linewidth=1.5, 
+                            label=f"{clean_name} ({int(total_infections)})", alpha=0.7)
+            
+            axes3[3].set_title('Daily Infection Incidence Rate\\n(all bacteria)')
+            axes3[3].set_xlabel('Time (Years)')
+            axes3[3].set_ylabel('New infections per person-day')
+            axes3[3].set_ylim(bottom=0)
+            axes3[3].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
+            axes3[3].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=6, 
+                           ncol=1, framealpha=0.9)
+            axes3[3].grid(True, alpha=0.3)
+            
+            total_new_infections = sum(t[1] for t in bacteria_totals)
+            print(f"Total new infections across all bacteria: {total_new_infections}")
         else:
-            axes3[3].text(0.5, 0.5, 'Panel disabled (see PlotConfig)', ha='center', va='center', fontsize=11, color='gray')
+            axes3[3].text(0.5, 0.5, 'Infection incidence data not available', ha='center', va='center', fontsize=12, color='gray')
             axes3[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])

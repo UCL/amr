@@ -1582,7 +1582,7 @@ pub fn apply_rules(
                             ("Stenotrophomonas maltophilia", "trim_sulf") => {
                                 score *= 14.0;
                             }
-                            ("Stenotrophomonas maltophilia", "minocycline" | "doxyclycline") => {
+                            ("Stenotrophomonas maltophilia", "minocycline" | "doxycycline") => {
                                 score *= 10.0;
                             }
                             ("Stenotrophomonas maltophilia", "levofloxacin" | "ciprofloxacin") => {
@@ -1842,7 +1842,7 @@ pub fn apply_rules(
                             "Stenotrophomonas maltophilia" => vec![
                                 "trim_sulf",
                                 "minocycline",
-                                "doxyclycline",
+                                "doxycycline",
                                 "levofloxacin",
                                 "ciprofloxacin",
                             ],

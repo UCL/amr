@@ -235,27 +235,27 @@ class IntegratedEmpiricalLoader:
         
         name = bacteria_name.lower().strip()
         
-        # Common normalizations
+        # Common normalizations - normalize to underscore format for simulation compatibility
         normalizations = {
-            'escherichia coli': 'escherichia coli',
-            'e. coli': 'escherichia coli',
-            'e.coli': 'escherichia coli',
-            'staphylococcus aureus': 'staphylococcus aureus', 
-            's. aureus': 'staphylococcus aureus',
-            'klebsiella pneumoniae': 'klebsiella pneumoniae',
-            'k. pneumoniae': 'klebsiella pneumoniae',
-            'pseudomonas aeruginosa': 'pseudomonas aeruginosa',
-            'p. aeruginosa': 'pseudomonas aeruginosa',
-            'enterococcus faecium': 'enterococcus faecium',
-            'enterococcus faecalis': 'enterococcus faecalis',
-            'enterococcus species': 'enterococcus faecium',  # Default to faecium
-            'acinetobacter species': 'acinetobacter baumannii',
-            'acinetobacter spp.': 'acinetobacter baumannii',
-            'streptococcus pneumoniae': 'streptococcus pneumoniae',
-            's. pneumoniae': 'streptococcus pneumoniae'
+            'escherichia coli': 'escherichia_coli',
+            'e. coli': 'escherichia_coli',
+            'e.coli': 'escherichia_coli',
+            'staphylococcus aureus': 'staphylococcus_aureus', 
+            's. aureus': 'staphylococcus_aureus',
+            'klebsiella pneumoniae': 'klebsiella_pneumoniae',
+            'k. pneumoniae': 'klebsiella_pneumoniae',
+            'pseudomonas aeruginosa': 'pseudomonas_aeruginosa',
+            'p. aeruginosa': 'pseudomonas_aeruginosa',
+            'enterococcus faecium': 'enterococcus_faecium',
+            'enterococcus faecalis': 'enterococcus_faecalis',
+            'enterococcus species': 'enterococcus_faecium',  # Default to faecium
+            'acinetobacter species': 'acinetobacter_baumannii',
+            'acinetobacter spp.': 'acinetobacter_baumannii',
+            'streptococcus pneumoniae': 'streptococcus_pneumoniae',
+            's. pneumoniae': 'streptococcus_pneumoniae'
         }
         
-        return normalizations.get(name, name)
+        return normalizations.get(name, name.replace(' ', '_'))
     
     def _normalize_drug_name(self, drug_name: str) -> str:
         """Normalize drug names for consistent matching."""
