@@ -10,6 +10,20 @@ import pandas as pd
 from pathlib import Path
 from .normalizers import normalize_name_for_empirical_matching
 
+
+def _canonicalize_bacteria_column(df: pd.DataFrame, context: str) -> pd.DataFrame:
+    """Ensure bacteria values use the canonical slug vocabulary."""
+    if 'bacteria' not in df.columns:
+        return df
+
+    def _convert(value):
+        if pd.isna(value):
+            return value
+        return str(value).strip()
+
+    df['bacteria'] = df['bacteria'].apply(_convert)
+    return df
+
 def load_empirical_calibration_data():
     """
     Load empirical calibration data for overlay on simulation plots.
@@ -104,6 +118,8 @@ def load_empirical_calibration_data():
                     if any(drug_name in sample_bacteria for drug_name in ['amoxicillin', 'ciprofloxacin', 'vancomycin']):
                         print(f"   Fixing swapped bacteria/drug columns in {filename}")
                         df['bacteria'], df['drug'] = df['drug'], df['bacteria']
+
+                df = _canonicalize_bacteria_column(df, filename)
                 
                 empirical_data[data_type] = df
                 

@@ -174,7 +174,7 @@ where
 
 
 fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
-    matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema pallidum"))
+                matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema_pallidum"))
 }
 
 /// Cache of majority_r proportions and positive resistance magnitudes indexed by
@@ -712,7 +712,7 @@ impl IndividualLogger {
         };
 
         if !self.header_written {
-            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs") {
+            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,cause_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs,predicted_infection_risk") {
                 eprintln!(
                     "Error writing header for {}: {}",
                     self.path.display(),
@@ -790,7 +790,7 @@ impl IndividualLogger {
                 .map(|t| t.as_str())
                 .unwrap_or("none");
 
-            let mut row: Vec<String> = Vec::with_capacity(39);
+            let mut row: Vec<String> = Vec::with_capacity(41);
             row.push(timestep.to_string());
             row.push(i.to_string());
             row.push(ind.id.to_string());
@@ -806,6 +806,12 @@ impl IndividualLogger {
             row.push(format!("{:?}", ind.hospital_status));
             row.push(immunodeficiency_status.to_string());
             row.push(format!("{:?}", ind.date_of_death));
+            let cause_of_death = ind
+                .cause_of_death
+                .as_deref()
+                .unwrap_or("none")
+                .to_string();
+            row.push(cause_of_death);
             row.push(Self::fmt_vec(&ind.level));
             row.push(Self::fmt_vec(&ind.clearance_hazard));
             row.push(Self::fmt_vec(&ind.presence_microbiome));
@@ -830,6 +836,7 @@ impl IndividualLogger {
             row.push(Self::fmt_vec(&ind.drug_score_on_selection_day));
             row.push(Self::fmt_vec(&ind.date_last_drug_failure));
             row.push(ind.current_number_of_drugs.to_string());
+            row.push(Self::fmt_vec(&ind.predicted_infection_risk));
 
             if let Err(err) = writeln!(file, "{}", row.join(",")) {
                 eprintln!(

@@ -33,5 +33,5 @@ yersinia enterocolitica,0.0005,"Rare human carriage; primarily zoonotic transmis
 moraxella catarrhalis,0.4,"Commensal of respiratory tract; nearly universal in early childhood"
 treponema pallidum,0.001,"Infection prevalence (~8M cases); no known asymptomatic commensal state"
 bordetella pertussis,0.0005,"Transient carriage during subclinical infection; no long-term reservoir"
-helicobacter pylori,0.45,"Global gastric colonization; ~44-50% (Hooi et al., Gastroenterology 2017)"
+helicobacter pylori,0,"Excluded from microbiome pathway by design; infection-only pathogen"
 mdr mycobacterium tuberculosis,0.0025,"MDR-LTBI; ~1/4 of world has latent TB, estimated ~1% of those are MDR"

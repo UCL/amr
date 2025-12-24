@@ -310,17 +310,23 @@ def create_grouped_plots(df, config=None):
             
         # 4. Daily Infection Incidence Rate by Bacteria (similar to sepsis in Fig 1)
         # Sum carrier + non-carrier new infections for each bacteria
-        carrier_cols = [col for col in df.columns if col.endswith('_newly_infected_carrier')]
-        if carrier_cols and 'total_population' in df.columns:
+        bacteria_infection_cols = {}
+        for col in df.columns:
+            if col.endswith('_newly_infected_carrier'):
+                name = col.replace('_newly_infected_carrier', '')
+                bacteria_infection_cols.setdefault(name, {})['carrier'] = col
+            elif col.endswith('_newly_infected_non_carrier'):
+                name = col.replace('_newly_infected_non_carrier', '')
+                bacteria_infection_cols.setdefault(name, {})['non_carrier'] = col
+
+        if bacteria_infection_cols and 'total_population' in df.columns:
             # Get all bacteria with their total new infections
             bacteria_totals = []
-            for col in carrier_cols:
-                bacteria_name = col.replace('_newly_infected_carrier', '')
-                non_carrier_col = f"{bacteria_name}_newly_infected_non_carrier"
-                if non_carrier_col in df.columns:
-                    total_infections = df[col].sum() + df[non_carrier_col].sum()
-                else:
-                    total_infections = df[col].sum()
+            zero_series = pd.Series(0, index=df.index)
+            for bacteria_name, cols in bacteria_infection_cols.items():
+                carrier_series = df[cols['carrier']] if 'carrier' in cols else zero_series
+                non_carrier_series = df[cols['non_carrier']] if 'non_carrier' in cols else zero_series
+                total_infections = (carrier_series + non_carrier_series).sum()
                 bacteria_totals.append((bacteria_name, total_infections))
             
             # Sort by total cases (highest first)
@@ -338,14 +344,10 @@ def create_grouped_plots(df, config=None):
             
             # Plot separate line for each bacteria
             for i, (bacteria_name, total_infections) in enumerate(bacteria_totals):
-                carrier_col = f"{bacteria_name}_newly_infected_carrier"
-                non_carrier_col = f"{bacteria_name}_newly_infected_non_carrier"
-                
-                # Sum carrier and non-carrier new infections
-                if non_carrier_col in df.columns:
-                    new_infections = df[carrier_col] + df[non_carrier_col]
-                else:
-                    new_infections = df[carrier_col]
+                cols = bacteria_infection_cols[bacteria_name]
+                carrier_series = df[cols['carrier']] if 'carrier' in cols else zero_series
+                non_carrier_series = df[cols['non_carrier']] if 'non_carrier' in cols else zero_series
+                new_infections = carrier_series + non_carrier_series
                 
                 # Calculate incidence rate per population
                 incidence_rate = safe_divide(new_infections, df['total_population'], 0)
@@ -360,9 +362,9 @@ def create_grouped_plots(df, config=None):
                             color=colors[i % len(colors)], linewidth=1.5, 
                             label=f"{clean_name} ({int(total_infections)})", alpha=0.7)
             
-            axes3[3].set_title('Daily Infection Incidence Rate\\n(all bacteria)')
+            axes3[3].set_title('Daily Infection Incidence (proportion of population)')
             axes3[3].set_xlabel('Time (Years)')
-            axes3[3].set_ylabel('New infections per person-day')
+            axes3[3].set_ylabel('Proportion of population newly infected per day')
             axes3[3].set_ylim(bottom=0)
             axes3[3].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
             axes3[3].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=6, 

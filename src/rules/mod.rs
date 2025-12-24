@@ -207,7 +207,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ResistanceMechanism::MecA => {
             matches!(
                 bacteria,
-                "staphylococcus aureus" | "staphylococcus epidermidis"
+                "staphylococcus_aureus" | "staphylococcus_epidermidis"
             ) && matches!(
                 drug,
                 "penicilling"
@@ -227,12 +227,12 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ResistanceMechanism::EffluxOverexpression => true,
         ResistanceMechanism::ReducedPermeability => !matches!(
             bacteria,
-            "staphylococcus aureus"
-                | "streptococcus pneumoniae"
-                | "streptococcus pyogenes"
-                | "streptococcus agalactiae"
-                | "enterococcus faecalis"
-                | "enterococcus faecium"
+            "staphylococcus_aureus"
+                | "streptococcus_pneumoniae"
+                | "streptococcus_pyogenes"
+                | "streptococcus_agalactiae"
+                | "enterococcus_faecalis"
+                | "enterococcus_faecium"
         ),
         ResistanceMechanism::TargetSiteMutation => true,
     }
@@ -443,9 +443,9 @@ fn treatment_failure_assessment_day_for(
     }
 
     // Chronic or slow pathogens: TB and indolent infections get longer assessment windows
-    if bacteria_name == "mdr mycobacterium tuberculosis" {
+    if bacteria_name == "mdr_mycobacterium_tuberculosis" {
         final_day = final_day.max(10);
-    } else if bacteria_name == "helicobacter pylori" || syndrome_id == 9 {
+    } else if bacteria_name == "helicobacter_pylori" || syndrome_id == 9 {
         final_day = final_day.max(6);
     }
 
@@ -1133,7 +1133,7 @@ pub fn apply_rules(
 
                 // EXPLICIT H. PYLORI SEPSIS PREVENTION
                 // If H. pylori is the only infection, force sepsis risk to zero
-                let prob_sepsis_today = if bacteria == "helicobacter pylori" {
+                let prob_sepsis_today = if bacteria == "helicobacter_pylori" {
                     // Check if this is the only active infection
                     let other_infections_exist = individual
                         .level
@@ -1196,10 +1196,10 @@ pub fn apply_rules(
 
                 // Correct bacteria name matching (fixing underscore vs space issues)
                 let targets_bacteria = match (vaccine, *bacteria) {
-                    ("pneumococcal", "streptococcus pneumoniae") => true,
-                    ("meningococcal", "neisseria_meningitidis") => true, // Fixed: using underscore version
-                    ("hib", "haemophilus influenzae") => true,
-                    ("pertussis", "bordetella pertussis") => true, // DTaP/Tdap vaccines
+                    ("pneumococcal", "streptococcus_pneumoniae") => true,
+                    ("meningococcal", "neisseria_meningitidis") => true,
+                    ("hib", "haemophilus_influenzae") => true,
+                    ("pertussis", "bordetella_pertussis") => true, // DTaP/Tdap vaccines
                     _ => false,
                 };
 
@@ -1499,17 +1499,17 @@ pub fn apply_rules(
                     if individual.level[b_idx] > INFECTION_EPS {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
-                            // Pseudomonas aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
-                            ("Pseudomonas aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
-                            ("Pseudomonas aeruginosa", "ceftazidime") => score *= 10.0,
-                            ("Pseudomonas aeruginosa", "cefepime") => score *= 10.0,
-                            ("Pseudomonas aeruginosa", "meropenem") => score *= 12.0,
-                            ("Pseudomonas aeruginosa", "imipenem_c") => score *= 10.0,
-                            ("Pseudomonas aeruginosa", "ciprofloxacin") => score *= 8.0,
-                            ("Pseudomonas aeruginosa", "tobramycin") => score *= 8.0,
-                            ("Pseudomonas aeruginosa", "colistin") => score *= 6.0,
+                            // pseudomonas_aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
+                            ("pseudomonas_aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
+                            ("pseudomonas_aeruginosa", "ceftazidime") => score *= 10.0,
+                            ("pseudomonas_aeruginosa", "cefepime") => score *= 10.0,
+                            ("pseudomonas_aeruginosa", "meropenem") => score *= 12.0,
+                            ("pseudomonas_aeruginosa", "imipenem_c") => score *= 10.0,
+                            ("pseudomonas_aeruginosa", "ciprofloxacin") => score *= 8.0,
+                            ("pseudomonas_aeruginosa", "tobramycin") => score *= 8.0,
+                            ("pseudomonas_aeruginosa", "colistin") => score *= 6.0,
                             (
-                                "Pseudomonas aeruginosa",
+                                "pseudomonas_aeruginosa",
                                 "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
                                 | "ceftriaxone" | "vancomycin",
                             ) => {
@@ -1517,8 +1517,8 @@ pub fn apply_rules(
                                 break;
                             }
 
-                            // Staphylococcus aureus - DRAMATICALLY strengthen MSSA vs MRSA logic
-                            ("Staphylococcus aureus", "penicilling") => {
+                            // staphylococcus_aureus - DRAMATICALLY strengthen MSSA vs MRSA logic
+                            ("staphylococcus_aureus", "penicilling") => {
                                 // Early periods: penicillin should dominate (MSSA era)
                                 if time_step < 7300 {
                                     // First ~20 years
@@ -1528,7 +1528,7 @@ pub fn apply_rules(
                                 }
                             }
                             (
-                                "Staphylococcus aureus",
+                                "staphylococcus_aureus",
                                 "amoxicillin_clavulanate" | "ampicillin_sulbactam",
                             ) => {
                                 if time_step < 10950 {
@@ -1538,7 +1538,7 @@ pub fn apply_rules(
                                     score *= 3.0;
                                 }
                             }
-                            ("Staphylococcus aureus", "vancomycin") => {
+                            ("staphylococcus_aureus", "vancomycin") => {
                                 if time_step < 7300 {
                                     // Early years
                                     score *= 1.5;
@@ -1547,7 +1547,7 @@ pub fn apply_rules(
                                     score *= 18.0;
                                 }
                             }
-                            ("Staphylococcus aureus", "linezolid" | "tedizolid") => {
+                            ("staphylococcus_aureus", "linezolid" | "tedizolid") => {
                                 if time_step >= 10950 {
                                     // Late period only
                                     score *= 12.0;
@@ -1555,41 +1555,41 @@ pub fn apply_rules(
                                     score *= 0.5;
                                 }
                             }
-                            ("Staphylococcus aureus", "clindamycin") => score *= 5.0,
+                            ("staphylococcus_aureus", "clindamycin") => score *= 5.0,
 
-                            // Staphylococcus epidermidis - device-associated, glycopeptide preferred
-                            ("Staphylococcus epidermidis", "vancomycin") => {
+                            // staphylococcus_epidermidis - device-associated, glycopeptide preferred
+                            ("staphylococcus_epidermidis", "vancomycin") => {
                                 score *= 14.0;
                             }
-                            ("Staphylococcus epidermidis", "linezolid" | "tedizolid") => {
+                            ("staphylococcus_epidermidis", "linezolid" | "tedizolid") => {
                                 score *= 10.0;
                             }
-                            ("Staphylococcus epidermidis", "quinu_dalfo") => {
+                            ("staphylococcus_epidermidis", "quinu_dalfo") => {
                                 score *= 6.0;
                             }
-                            ("Staphylococcus epidermidis", "trim_sulf") => {
+                            ("staphylococcus_epidermidis", "trim_sulf") => {
                                 score *= 4.0;
                             }
                             (
-                                "Staphylococcus epidermidis",
+                                "staphylococcus_epidermidis",
                                 "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
                                 | "cefazolin" | "ceftriaxone",
                             ) => {
                                 score *= 0.05;
                             }
 
-                            // Stenotrophomonas maltophilia - favor TMP-SMX/minocycline, avoid carbapenems/aminoglycosides
-                            ("Stenotrophomonas maltophilia", "trim_sulf") => {
+                            // stenotrophomonas_maltophilia - favor TMP-SMX/minocycline, avoid carbapenems/aminoglycosides
+                            ("stenotrophomonas_maltophilia", "trim_sulf") => {
                                 score *= 14.0;
                             }
-                            ("Stenotrophomonas maltophilia", "minocycline" | "doxycycline") => {
+                            ("stenotrophomonas_maltophilia", "minocycline" | "doxycycline") => {
                                 score *= 10.0;
                             }
-                            ("Stenotrophomonas maltophilia", "levofloxacin" | "ciprofloxacin") => {
+                            ("stenotrophomonas_maltophilia", "levofloxacin" | "ciprofloxacin") => {
                                 score *= 6.0;
                             }
                             (
-                                "Stenotrophomonas maltophilia",
+                                "stenotrophomonas_maltophilia",
                                 "piperacillin_tazobactam"
                                 | "ceftazidime"
                                 | "meropenem"
@@ -1601,20 +1601,20 @@ pub fn apply_rules(
                                 score *= 0.05;
                             }
 
-                            // Streptococcus pneumoniae - prefer penicillins and targeted agents
-                            ("Streptococcus pneumoniae", "penicilling") => score *= 24.0,
-                            ("Streptococcus pneumoniae", "ampicillin") => score *= 22.0,
-                            ("Streptococcus pneumoniae", "amoxicillin") => score *= 24.0,
+                            // streptococcus_pneumoniae - prefer penicillins and targeted agents
+                            ("streptococcus_pneumoniae", "penicilling") => score *= 24.0,
+                            ("streptococcus_pneumoniae", "ampicillin") => score *= 22.0,
+                            ("streptococcus_pneumoniae", "amoxicillin") => score *= 24.0,
                             (
-                                "Streptococcus pneumoniae",
+                                "streptococcus_pneumoniae",
                                 "amoxicillin_clavulanate" | "ampicillin_sulbactam",
                             ) => score *= 12.0,
-                            ("Streptococcus pneumoniae", "ceftriaxone") => score *= 6.0,
-                            ("Streptococcus pneumoniae", "azithromycin" | "clarithromycin") => {
+                            ("streptococcus_pneumoniae", "ceftriaxone") => score *= 6.0,
+                            ("streptococcus_pneumoniae", "azithromycin" | "clarithromycin") => {
                                 score *= 6.0;
                             }
                             (
-                                "Streptococcus pneumoniae",
+                                "streptococcus_pneumoniae",
                                 "meropenem"
                                 | "meropenem_vaborbactam"
                                 | "imipenem_c"
@@ -1625,16 +1625,16 @@ pub fn apply_rules(
                                 score *= 0.15;
                             }
 
-                            // Streptococcus pyogenes - strong penicillin preference
-                            ("Streptococcus pyogenes", "penicilling") => score *= 28.0,
-                            ("Streptococcus pyogenes", "ampicillin" | "amoxicillin") => {
+                            // streptococcus_pyogenes - strong penicillin preference
+                            ("streptococcus_pyogenes", "penicilling") => score *= 28.0,
+                            ("streptococcus_pyogenes", "ampicillin" | "amoxicillin") => {
                                 score *= 20.0;
                             }
-                            ("Streptococcus pyogenes", "amoxicillin_clavulanate") => {
+                            ("streptococcus_pyogenes", "amoxicillin_clavulanate") => {
                                 score *= 10.0;
                             }
                             (
-                                "Streptococcus pyogenes",
+                                "streptococcus_pyogenes",
                                 "meropenem"
                                 | "meropenem_vaborbactam"
                                 | "imipenem_c"
@@ -1645,29 +1645,29 @@ pub fn apply_rules(
                                 score *= 0.1;
                             }
 
-                            // Haemophilus influenzae - favor aminopenicillins with beta-lactamase coverage
-                            ("Haemophilus influenzae", "amoxicillin_clavulanate") => {
+                            // haemophilus_influenzae - favor aminopenicillins with beta-lactamase coverage
+                            ("haemophilus_influenzae", "amoxicillin_clavulanate") => {
                                 score *= 14.0;
                             }
-                            ("Haemophilus influenzae", "ampicillin_sulbactam") => score *= 12.0,
-                            ("Haemophilus influenzae", "amoxicillin") => score *= 10.0,
-                            ("Haemophilus influenzae", "ceftriaxone" | "cefuroxime") => {
+                            ("haemophilus_influenzae", "ampicillin_sulbactam") => score *= 12.0,
+                            ("haemophilus_influenzae", "amoxicillin") => score *= 10.0,
+                            ("haemophilus_influenzae", "ceftriaxone" | "cefuroxime") => {
                                 score *= 6.0;
                             }
                             (
-                                "Haemophilus influenzae",
+                                "haemophilus_influenzae",
                                 "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "colistin",
                             ) => score *= 0.25,
 
-                            // Neisseria meningitidis - penicillin and third-gen cephalosporins preferred
-                            ("Neisseria_meningitidis", "penicilling" | "ampicillin") => {
+                            // neisseria_meningitidis - penicillin and third-gen cephalosporins preferred
+                            ("neisseria_meningitidis", "penicilling" | "ampicillin") => {
                                 score *= 18.0;
                             }
-                            ("Neisseria_meningitidis", "ceftriaxone" | "cefepime") => {
+                            ("neisseria_meningitidis", "ceftriaxone" | "cefepime") => {
                                 score *= 10.0;
                             }
                             (
-                                "Neisseria_meningitidis",
+                                "neisseria_meningitidis",
                                 "meropenem"
                                 | "meropenem_vaborbactam"
                                 | "imipenem_c"
@@ -1676,11 +1676,11 @@ pub fn apply_rules(
                             ) => score *= 0.2,
 
                             // E. coli - MASSIVELY strengthen first-line agents
-                            ("Escherichia coli", "ciprofloxacin") => score *= 12.0,
-                            ("Escherichia coli", "nitrofurantoin") => score *= 14.0,
-                            ("Escherichia coli", "trim_sulf") => score *= 10.0,
-                            ("Escherichia coli", "ceftriaxone") => score *= 9.0,
-                            ("Escherichia coli", "ampicillin") => {
+                            ("escherichia_coli", "ciprofloxacin") => score *= 12.0,
+                            ("escherichia_coli", "nitrofurantoin") => score *= 14.0,
+                            ("escherichia_coli", "trim_sulf") => score *= 10.0,
+                            ("escherichia_coli", "ceftriaxone") => score *= 9.0,
+                            ("escherichia_coli", "ampicillin") => {
                                 if time_step < 7300 {
                                     // Early susceptible era
                                     score *= 15.0;
@@ -1688,7 +1688,7 @@ pub fn apply_rules(
                                     score *= 4.0;
                                 }
                             }
-                            ("Escherichia coli", "meropenem" | "imipenem_c") => {
+                            ("escherichia_coli", "meropenem" | "imipenem_c") => {
                                 // Carbapenems should be rare for E. coli except ESBL era
                                 if time_step >= 14600 {
                                     // Later periods for ESBL
@@ -1698,8 +1698,8 @@ pub fn apply_rules(
                                 }
                             }
 
-                            // Klebsiella pneumoniae - strengthen appropriate agents
-                            ("Klebsiella pneumoniae", "ceftriaxone") => {
+                            // klebsiella_pneumoniae - strengthen appropriate agents
+                            ("klebsiella_pneumoniae", "ceftriaxone") => {
                                 if time_step < 10950 {
                                     // Before ESBL dominance
                                     score *= 10.0;
@@ -1707,7 +1707,7 @@ pub fn apply_rules(
                                     score *= 6.0;
                                 }
                             }
-                            ("Klebsiella pneumoniae", "meropenem" | "imipenem_c") => {
+                            ("klebsiella_pneumoniae", "meropenem" | "imipenem_c") => {
                                 if time_step >= 10950 {
                                     // ESBL era
                                     score *= 12.0;
@@ -1715,12 +1715,12 @@ pub fn apply_rules(
                                     score *= 4.0;
                                 }
                             }
-                            ("Klebsiella pneumoniae", "ciprofloxacin") => score *= 7.0,
-                            ("Klebsiella pneumoniae", "piperacillin_tazobactam") => score *= 9.0,
+                            ("klebsiella_pneumoniae", "ciprofloxacin") => score *= 7.0,
+                            ("klebsiella_pneumoniae", "piperacillin_tazobactam") => score *= 9.0,
 
-                            // Enterococcus faecalis - strengthen appropriate agents
-                            ("Enterococcus faecalis", "ampicillin") => score *= 20.0,
-                            ("Enterococcus faecalis", "vancomycin") => {
+                            // enterococcus_faecalis - strengthen appropriate agents
+                            ("enterococcus_faecalis", "ampicillin") => score *= 20.0,
+                            ("enterococcus_faecalis", "vancomycin") => {
                                 if time_step >= 10950 {
                                     // VRE era
                                     score *= 12.0;
@@ -1728,7 +1728,7 @@ pub fn apply_rules(
                                     score *= 5.0;
                                 }
                             }
-                            ("Enterococcus faecalis", "linezolid") => {
+                            ("enterococcus_faecalis", "linezolid") => {
                                 if time_step >= 14600 {
                                     // Late VRE era
                                     score *= 10.0;
@@ -1737,31 +1737,31 @@ pub fn apply_rules(
                                 }
                             }
 
-                            // Enterococcus faecium - more resistant, different pattern
-                            ("Enterococcus faecium", "ampicillin") => score *= 4.0,
-                            ("Enterococcus faecium", "vancomycin") => {
+                            // enterococcus_faecium - more resistant, different pattern
+                            ("enterococcus_faecium", "ampicillin") => score *= 4.0,
+                            ("enterococcus_faecium", "vancomycin") => {
                                 if time_step >= 10950 {
                                     score *= 15.0;
                                 } else {
                                     score *= 8.0;
                                 }
                             }
-                            ("Enterococcus faecium", "linezolid") => {
+                            ("enterococcus_faecium", "linezolid") => {
                                 if time_step >= 14600 {
                                     score *= 12.0;
                                 } else {
                                     score *= 3.0;
                                 }
                             }
-                            ("Enterococcus faecium", "quinu_dalfo") => {
+                            ("enterococcus_faecium", "quinu_dalfo") => {
                                 if time_step >= 16425 {
                                     // Very late introduction
                                     score *= 10.0;
                                 }
                             }
 
-                            // Acinetobacter baumannii - highly resistant pathogen
-                            ("Acinetobacter baumannii", "meropenem" | "imipenem_c") => {
+                            // acinetobacter_baumannii - highly resistant pathogen
+                            ("acinetobacter_baumannii", "meropenem" | "imipenem_c") => {
                                 if time_step < 18250 {
                                     // Before extensive carbapenem resistance
                                     score *= 12.0;
@@ -1769,7 +1769,7 @@ pub fn apply_rules(
                                     score *= 6.0;
                                 }
                             }
-                            ("Acinetobacter baumannii", "colistin") => {
+                            ("acinetobacter_baumannii", "colistin") => {
                                 if time_step >= 14600 {
                                     // Later periods for MDR
                                     score *= 10.0;
@@ -1777,7 +1777,7 @@ pub fn apply_rules(
                                     score *= 5.0;
                                 }
                             }
-                            ("Acinetobacter baumannii", "ampicillin_sulbactam") => score *= 12.0,
+                            ("acinetobacter_baumannii", "ampicillin_sulbactam") => score *= 12.0,
 
                             // GLOBAL CARBAPENEM STEWARDSHIP PENALTIES
                             // Apply consistent penalties for carbapenems against common organisms
@@ -1786,9 +1786,9 @@ pub fn apply_rules(
                                 // Check if this is a bacteria where carbapenems have specific indication
                                 let bacteria_name = BACTERIA_LIST[b_idx];
                                 let carbapenem_indicated = matches!(bacteria_name,
-                                    "pseudomonas aeruginosa" |  // Anti-pseudomonal
-                                    "acinetobacter baumannii" | // MDR Acinetobacter
-                                    "stenotrophomonas maltophilia" // Already blocked separately but included for clarity
+                                    "pseudomonas_aeruginosa" |  // Anti-pseudomonal
+                                    "acinetobacter_baumannii" | // MDR Acinetobacter
+                                    "stenotrophomonas_maltophilia" // Already blocked separately but included for clarity
                                 );
                                 if !carbapenem_indicated {
                                     // Apply stewardship penalty for carbapenems against non-indicated organisms
@@ -1814,7 +1814,7 @@ pub fn apply_rules(
                     if individual.level[b_idx] > INFECTION_EPS {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         let first_second_line_drugs = match bacteria_name {
-                            "Pseudomonas aeruginosa" => vec![
+                            "pseudomonas_aeruginosa" => vec![
                                 "piperacillin_tazobactam",
                                 "meropenem",
                                 "imipenem_c",
@@ -1823,7 +1823,7 @@ pub fn apply_rules(
                                 "ciprofloxacin",
                                 "tobramycin",
                             ],
-                            "Staphylococcus aureus" => vec![
+                            "staphylococcus_aureus" => vec![
                                 "penicilling",
                                 "amoxicillin_clavulanate",
                                 "ampicillin_sulbactam",
@@ -1832,21 +1832,21 @@ pub fn apply_rules(
                                 "tedizolid",
                                 "clindamycin",
                             ],
-                            "Staphylococcus epidermidis" => vec![
+                            "staphylococcus_epidermidis" => vec![
                                 "vancomycin",
                                 "linezolid",
                                 "tedizolid",
                                 "quinu_dalfo",
                                 "trim_sulf",
                             ],
-                            "Stenotrophomonas maltophilia" => vec![
+                            "stenotrophomonas_maltophilia" => vec![
                                 "trim_sulf",
                                 "minocycline",
                                 "doxycycline",
                                 "levofloxacin",
                                 "ciprofloxacin",
                             ],
-                            "Streptococcus pneumoniae" => vec![
+                            "streptococcus_pneumoniae" => vec![
                                 "penicilling",
                                 "ampicillin",
                                 "amoxicillin",
@@ -1856,7 +1856,7 @@ pub fn apply_rules(
                                 "azithromycin",
                                 "clarithromycin",
                             ],
-                            "Streptococcus pyogenes" => vec![
+                            "streptococcus_pyogenes" => vec![
                                 "penicilling",
                                 "ampicillin",
                                 "amoxicillin",
@@ -1864,7 +1864,7 @@ pub fn apply_rules(
                                 "clindamycin",
                                 "azithromycin",
                             ],
-                            "Haemophilus influenzae" => vec![
+                            "haemophilus_influenzae" => vec![
                                 "amoxicillin",
                                 "ampicillin",
                                 "amoxicillin_clavulanate",
@@ -1872,10 +1872,10 @@ pub fn apply_rules(
                                 "cefuroxime",
                                 "ceftriaxone",
                             ],
-                            "Neisseria_meningitidis" => {
+                            "neisseria_meningitidis" => {
                                 vec!["penicilling", "ampicillin", "ceftriaxone", "cefepime"]
                             }
-                            "Escherichia coli" => vec![
+                            "escherichia_coli" => vec![
                                 "ciprofloxacin",
                                 "nitrofurantoin",
                                 "trim_sulf",
@@ -1883,7 +1883,7 @@ pub fn apply_rules(
                                 "ampicillin",
                                 "cefuroxime",
                             ],
-                            "Klebsiella pneumoniae" => vec![
+                            "klebsiella_pneumoniae" => vec![
                                 "ceftriaxone",
                                 "meropenem",
                                 "imipenem_c",
@@ -1891,13 +1891,13 @@ pub fn apply_rules(
                                 "piperacillin_tazobactam",
                                 "ertapenem",
                             ],
-                            "Enterococcus faecalis" => {
+                            "enterococcus_faecalis" => {
                                 vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
                             }
-                            "Enterococcus faecium" => {
+                            "enterococcus_faecium" => {
                                 vec!["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"]
                             }
-                            "Acinetobacter baumannii" => vec![
+                            "acinetobacter_baumannii" => vec![
                                 "meropenem",
                                 "imipenem_c",
                                 "colistin",
@@ -2700,7 +2700,8 @@ pub fn apply_rules(
 
     // --- update per-bacteria fields ---
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
-        let allows_microbiome = bacteria != "helicobacter pylori";
+        individual.predicted_infection_risk[b_idx] = 0.0;
+        let allows_microbiome = bacteria != "helicobacter_pylori";
         let is_infected = individual.level[b_idx] > INFECTION_EPS;
 
         if !is_infected {
@@ -2742,7 +2743,7 @@ pub fn apply_rules(
             let mut acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
 
             // Apply historical MDR TB incidence modifier
-            if bacteria == "mdr mycobacterium tuberculosis" {
+            if bacteria == "mdr_mycobacterium_tuberculosis" {
                 let mdr_tb_multiplier = if simulation_year < 1944.0 {
                     store.globals.mdr_tb_pre_antibiotic_era_multiplier
                 } else if simulation_year < 1966.0 {
@@ -2752,6 +2753,8 @@ pub fn apply_rules(
                 };
                 acquisition_probability *= mdr_tb_multiplier;
             }
+
+            individual.predicted_infection_risk[b_idx] = acquisition_probability;
 
             // --- microbiome presence (Carriage) ---
             // Carriage (asymptomatic colonization) is modeled separately from infection because:
@@ -2809,6 +2812,21 @@ pub fn apply_rules(
 
                     // Convert log-odds to probability
                     let mut microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+
+                    // Keep MDR-TB carriage aligned with historical incidence multipliers so that
+                    // parameter sweeps (e.g., diagnostic run with multiplier = 0) affect carriers
+                    // and infections consistently.
+                    if bacteria == "mdr_mycobacterium_tuberculosis" {
+                        let mdr_tb_multiplier = if simulation_year < 1944.0 {
+                            store.globals.mdr_tb_pre_antibiotic_era_multiplier
+                        } else if simulation_year < 1966.0 {
+                            store.globals.mdr_tb_early_antibiotic_era_multiplier
+                        } else {
+                            store.globals.mdr_tb_modern_era_multiplier
+                        };
+                        microbiome_acquisition_probability *= mdr_tb_multiplier;
+                    }
+
                     microbiome_acquisition_probability =
                         microbiome_acquisition_probability.clamp(0.0, 1.0);
 
@@ -3102,7 +3120,7 @@ pub fn apply_rules(
                                     matches!(drug, "vancomycin" | "teicoplanin")
                                 }
                                 (ResistanceMechanism::MecA, drug) => {
-                                    bacteria == "staphylococcus aureus"
+                                    bacteria == "staphylococcus_aureus"
                                         && matches!(
                                             drug,
                                             "penicilling"
@@ -3122,12 +3140,12 @@ pub fn apply_rules(
                                 (ResistanceMechanism::EffluxOverexpression, _) => true,
                                 (ResistanceMechanism::ReducedPermeability, _) => !matches!(
                                     bacteria,
-                                    "staphylococcus aureus"
-                                        | "streptococcus pneumoniae"
-                                        | "streptococcus pyogenes"
-                                        | "streptococcus agalactiae"
-                                        | "enterococcus faecalis"
-                                        | "enterococcus faecium"
+                                    "staphylococcus_aureus"
+                                        | "streptococcus_pneumoniae"
+                                        | "streptococcus_pyogenes"
+                                        | "streptococcus_agalactiae"
+                                        | "enterococcus_faecalis"
+                                        | "enterococcus_faecium"
                                 ),
                                 (ResistanceMechanism::TargetSiteMutation, _) => true,
                                 (ResistanceMechanism::AmpC, drug) => matches!(
@@ -3248,7 +3266,7 @@ pub fn apply_rules(
                     let max_resistance_level = store.globals.max_resistance_level;
 
                     // --- TB-specific logic: guaranteed rifampicin resistance for MDR-TB ---
-                    let is_tb = bacteria == "mdr mycobacterium tuberculosis";
+                    let is_tb = bacteria == "mdr_mycobacterium_tuberculosis";
 
                     // Time-dependent MDR TB incidence (historically accurate)
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
@@ -3701,7 +3719,7 @@ pub fn apply_rules(
                                         }
                                         // mecA affects beta-lactams in Staph aureus
                                         (ResistanceMechanism::MecA, drug) => {
-                                            bacteria == "staphylococcus aureus"
+                                            bacteria == "staphylococcus_aureus"
                                                 && matches!(
                                                     drug,
                                                     "penicilling"
@@ -3723,12 +3741,12 @@ pub fn apply_rules(
                                         // Reduced permeability affects many drugs, especially in Gram-negatives
                                         (ResistanceMechanism::ReducedPermeability, _) => !matches!(
                                             bacteria,
-                                            "staphylococcus aureus"
-                                                | "streptococcus pneumoniae"
-                                                | "streptococcus pyogenes"
-                                                | "streptococcus agalactiae"
-                                                | "enterococcus faecalis"
-                                                | "enterococcus faecium"
+                                            "staphylococcus_aureus"
+                                                | "streptococcus_pneumoniae"
+                                                | "streptococcus_pyogenes"
+                                                | "streptococcus_agalactiae"
+                                                | "enterococcus_faecalis"
+                                                | "enterococcus_faecium"
                                         ),
                                         // Target site mutations can affect various drugs
                                         (ResistanceMechanism::TargetSiteMutation, _) => true,
@@ -3861,7 +3879,7 @@ pub fn apply_rules(
                                                 }
                                                 // mecA affects beta-lactams in Staph aureus
                                                 (ResistanceMechanism::MecA, drug) => {
-                                                    bacteria == "staphylococcus aureus"
+                                                    bacteria == "staphylococcus_aureus"
                                                         && matches!(
                                                             drug,
                                                             "penicilling"
@@ -3886,12 +3904,12 @@ pub fn apply_rules(
                                                 (ResistanceMechanism::ReducedPermeability, _) => {
                                                     !matches!(
                                                         bacteria,
-                                                        "staphylococcus aureus"
-                                                            | "streptococcus pneumoniae"
-                                                            | "streptococcus pyogenes"
-                                                            | "streptococcus agalactiae"
-                                                            | "enterococcus faecalis"
-                                                            | "enterococcus faecium"
+                                                        "staphylococcus_aureus"
+                                                            | "streptococcus_pneumoniae"
+                                                            | "streptococcus_pyogenes"
+                                                            | "streptococcus_agalactiae"
+                                                            | "enterococcus_faecalis"
+                                                            | "enterococcus_faecium"
                                                     )
                                                 }
                                                 // Target site mutations can affect various drugs
@@ -4191,7 +4209,7 @@ pub fn apply_rules(
                                             matches!(drug, "vancomycin" | "teicoplanin")
                                         }
                                         (ResistanceMechanism::MecA, drug) => {
-                                            bacteria == "staphylococcus aureus"
+                                            bacteria == "staphylococcus_aureus"
                                                 && matches!(
                                                     drug,
                                                     "penicilling"
@@ -4211,12 +4229,12 @@ pub fn apply_rules(
                                         (ResistanceMechanism::EffluxOverexpression, _) => true,
                                         (ResistanceMechanism::ReducedPermeability, _) => !matches!(
                                             bacteria,
-                                            "staphylococcus aureus"
-                                                | "streptococcus pneumoniae"
-                                                | "streptococcus pyogenes"
-                                                | "streptococcus agalactiae"
-                                                | "enterococcus faecalis"
-                                                | "enterococcus faecium"
+                                            "staphylococcus_aureus"
+                                                | "streptococcus_pneumoniae"
+                                                | "streptococcus_pyogenes"
+                                                | "streptococcus_agalactiae"
+                                                | "enterococcus_faecalis"
+                                                | "enterococcus_faecium"
                                         ),
                                         (ResistanceMechanism::TargetSiteMutation, _) => true,
                                         (ResistanceMechanism::AmpC, drug) => {
@@ -4308,7 +4326,7 @@ pub fn apply_rules(
             // This synergy bonus captures the mechanistic requirement that TB treatment guidelines mandate
             // ≥4 drugs initially, ≥2 for continuation - reflecting clinical reality, not just preference.
             let mut tb_synergy_bonus = 0.0;
-            if bacteria == "mdr mycobacterium tuberculosis" {
+            if bacteria == "mdr_mycobacterium_tuberculosis" {
                 // Count active TB drugs with meaningful potency
                 let active_tb_drugs: Vec<_> = DRUG_SHORT_NAMES
                     .iter()
@@ -4546,7 +4564,7 @@ pub fn apply_rules(
         
         for b_idx in 0..BACTERIA_LIST.len() {
             // Skip TB from HGT entirely
-            if BACTERIA_LIST[b_idx] == "mdr mycobacterium tuberculosis" {
+            if BACTERIA_LIST[b_idx] == "mdr_mycobacterium_tuberculosis" {
                 continue;
             }
             
@@ -4828,7 +4846,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
     //           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
     let syndrome_probs: &[(u32, f64)] = match bacteria {
         // Gram-positive cocci
-        "staphylococcus aureus" => &[
+        "staphylococcus_aureus" => &[
             (2, 0.35),
             (4, 0.25),
             (9, 0.15),
@@ -4837,7 +4855,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (1, 0.05),
             (6, 0.02),
         ],
-        "streptococcus pneumoniae" => &[
+        "streptococcus_pneumoniae" => &[
             (3, 0.70),
             (6, 0.15),
             (4, 0.08),
@@ -4845,7 +4863,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.02),
             (10, 0.01),
         ],
-        "streptococcus pyogenes" => &[
+        "streptococcus_pyogenes" => &[
             (2, 0.50),
             (3, 0.25),
             (4, 0.15),
@@ -4853,7 +4871,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (5, 0.03),
             (1, 0.02),
         ],
-        "streptococcus agalactiae" => &[
+        "streptococcus_agalactiae" => &[
             (4, 0.40),
             (6, 0.25),
             (1, 0.15),
@@ -4861,7 +4879,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (3, 0.05),
             (5, 0.05),
         ],
-        "enterococcus faecalis" => &[
+        "enterococcus_faecalis" => &[
             (1, 0.50),
             (4, 0.25),
             (5, 0.15),
@@ -4869,7 +4887,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (3, 0.03),
             (9, 0.02),
         ],
-        "enterococcus faecium" => &[
+        "enterococcus_faecium" => &[
             (1, 0.45),
             (4, 0.30),
             (5, 0.15),
@@ -4879,7 +4897,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         ],
 
         // Gram-negative Enterobacteriaceae
-        "escherichia coli" => &[
+        "escherichia_coli" => &[
             (1, 0.55),
             (4, 0.20),
             (5, 0.12),
@@ -4887,7 +4905,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.03),
             (3, 0.02),
         ],
-        "klebsiella pneumoniae" => &[
+        "klebsiella_pneumoniae" => &[
             (3, 0.40),
             (1, 0.25),
             (4, 0.20),
@@ -4895,7 +4913,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.03),
             (7, 0.02),
         ],
-        "enterobacter spp." => &[
+        "enterobacter_spp." => &[
             (1, 0.35),
             (3, 0.25),
             (4, 0.20),
@@ -4911,7 +4929,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (7, 0.05),
             (2, 0.03),
         ],
-        "citrobacter spp." => &[
+        "citrobacter_spp." => &[
             (1, 0.30),
             (3, 0.25),
             (4, 0.20),
@@ -4919,7 +4937,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (7, 0.05),
             (2, 0.05),
         ],
-        "serratia spp." => &[
+        "serratia_spp." => &[
             (3, 0.35),
             (1, 0.25),
             (4, 0.20),
@@ -4927,7 +4945,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.05),
             (7, 0.05),
         ],
-        "proteus spp." => &[
+        "proteus_spp." => &[
             (1, 0.60),
             (4, 0.15),
             (3, 0.10),
@@ -4935,7 +4953,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.04),
             (7, 0.03),
         ],
-        "morganella spp." => &[
+        "morganella_spp." => &[
             (1, 0.50),
             (4, 0.20),
             (3, 0.15),
@@ -4945,7 +4963,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         ],
 
         // Non-fermenting Gram-negatives
-        "pseudomonas aeruginosa" => &[
+        "pseudomonas_aeruginosa" => &[
             (3, 0.45),
             (4, 0.25),
             (1, 0.15),
@@ -4953,7 +4971,7 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (5, 0.05),
             (9, 0.02),
         ],
-        "acinetobacter baumannii" => &[
+        "acinetobacter_baumannii" => &[
             (3, 0.40),
             (4, 0.25),
             (1, 0.15),
@@ -4963,28 +4981,28 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         ],
 
         // Gastrointestinal pathogens
-        "salmonella enterica serovar typhi" => {
+        "salmonella_enterica_serovar_typhi" => {
             &[(7, 0.80), (4, 0.15), (5, 0.03), (3, 0.01), (10, 0.01)]
         }
-        "salmonella enterica serovar paratyphi a" => {
+        "salmonella_enterica_serovar_paratyphi_a" => {
             &[(7, 0.85), (4, 0.10), (5, 0.03), (3, 0.01), (10, 0.01)]
         }
-        "invasive non-typhoidal salmonella spp." => {
+        "invasive_non-typhoidal_salmonella_spp." => {
             &[(7, 0.70), (4, 0.20), (5, 0.05), (3, 0.03), (1, 0.02)]
         }
-        "shigella spp." => &[(7, 0.95), (4, 0.03), (5, 0.01), (10, 0.01)],
-        "vibrio cholerae" => &[(7, 0.98), (5, 0.01), (10, 0.01)],
+        "shigella_spp." => &[(7, 0.95), (4, 0.03), (5, 0.01), (10, 0.01)],
+        "vibrio_cholerae" => &[(7, 0.98), (5, 0.01), (10, 0.01)],
         "campylobacter_jejuni" => &[(7, 0.70), (9, 0.15), (4, 0.08), (5, 0.05), (3, 0.02)],
         "yersinia_enterocolitica" => &[(7, 0.75), (5, 0.15), (4, 0.05), (9, 0.03), (3, 0.02)],
         "clostridioides_difficile" => &[(7, 0.90), (5, 0.08), (4, 0.01), (10, 0.01)],
 
         // Sexually transmitted pathogens
-        "neisseria gonorrhoeae" => &[(8, 0.85), (1, 0.10), (5, 0.03), (4, 0.01), (10, 0.01)],
-        "chlamydia trachomatis" => &[(8, 0.70), (1, 0.20), (5, 0.05), (6, 0.03), (10, 0.02)],
-        "treponema pallidum" => &[(8, 0.60), (2, 0.20), (6, 0.10), (4, 0.05), (10, 0.05)],
+        "neisseria_gonorrhoeae" => &[(8, 0.85), (1, 0.10), (5, 0.03), (4, 0.01), (10, 0.01)],
+        "chlamydia_trachomatis" => &[(8, 0.70), (1, 0.20), (5, 0.05), (6, 0.03), (10, 0.02)],
+        "treponema_pallidum" => &[(8, 0.60), (2, 0.20), (6, 0.10), (4, 0.05), (10, 0.05)],
 
         // Respiratory pathogens
-        "haemophilus influenzae" => &[
+        "haemophilus_influenzae" => &[
             (3, 0.70),
             (6, 0.15),
             (4, 0.08),
@@ -4994,10 +5012,10 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         ],
         "moraxella_catarrhalis" => &[(3, 0.85), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
         "neisseria_meningitidis" => &[(6, 0.60), (4, 0.25), (3, 0.10), (2, 0.03), (1, 0.02)],
-        "bordetella pertussis" => &[(3, 0.95), (6, 0.03), (4, 0.01), (10, 0.01)], // Primarily respiratory (whooping cough)
+        "bordetella_pertussis" => &[(3, 0.95), (6, 0.03), (4, 0.01), (10, 0.01)], // Primarily respiratory (whooping cough)
 
         // Gastrointestinal pathogens
-        "helicobacter pylori" => &[(7, 0.85), (5, 0.10), (4, 0.03), (10, 0.02)], // Primarily GI (peptic ulcer disease)
+        "helicobacter_pylori" => &[(7, 0.85), (5, 0.10), (4, 0.03), (10, 0.02)], // Primarily GI (peptic ulcer disease)
 
         // Foodborne/systemic pathogens
         "listeria_monocytogenes" => &[

@@ -148,13 +148,14 @@ pub enum ImmunodeficiencyType {
 /// Helper function to get age category string for parameter lookups
 pub fn get_age_category_str(age_days: i32) -> &'static str {
     match age_days {
+        i32::MIN..=-1 => "not_yet_born", // Negative ages represent future births still pending entry into the population
         0..=730 => "infant",           // 0-2 years
         731..=2190 => "preschool",     // 3-5 years
         2191..=6574 => "school",       // 6-17 years
         6575..=10949 => "young_adult", // 18-29 years
         10950..=23359 => "middle_age", // 30-64 years
         23360..=28854 => "elderly",    // 65-79 years
-        _ => "very_elderly",           // 80+ years
+        28855..=i32::MAX => "very_elderly", // 80+ years
     }
 }
 
@@ -379,6 +380,8 @@ pub struct Individual {
     pub date_last_infected_keep: Vec<i32>,
     pub infectious_syndrome: Vec<i32>,
     pub level: Vec<f64>,
+    /// Logistic-model predicted infection risk for each bacteria on the current day
+    pub predicted_infection_risk: Vec<f64>,
 
     /// Daily immune clearance hazard recorded for reporting (0 = none, 1 = guaranteed)
     pub clearance_hazard: Vec<f64>,
@@ -487,6 +490,7 @@ impl Individual {
         let date_last_infected_keep = vec![0; num_bacteria];
         let infectious_syndrome = vec![0; num_bacteria];
         let level = vec![0.0; num_bacteria];
+        let predicted_infection_risk = vec![0.0; num_bacteria];
         let clearance_hazard = vec![0.0; num_bacteria];
         let clearance_ready_day = vec![-1; num_bacteria];
         let sepsis = vec![false; num_bacteria];
@@ -579,6 +583,7 @@ impl Individual {
             date_last_infected_keep,
             infectious_syndrome,
             level,
+            predicted_infection_risk,
             clearance_hazard,
             clearance_ready_day,
             sepsis,

@@ -25,7 +25,7 @@ class PlotConfig:
     drug_failure_rate_by_bacteria_region: bool = False
     mean_mic_by_drug_for_each_bacteria: bool = False
     incidence_of_infection_hospital: bool = False
-    incidence_of_infection: bool = False
+    incidence_of_infection: bool = True
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
     mean_any_r_by_drug_for_each_bacteria: bool = False
@@ -181,7 +181,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_017086.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_153022.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity
