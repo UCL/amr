@@ -1605,7 +1605,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_785265.txt"
+    output_path = output_dir / "calibration_summary_634805.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1784,6 +1784,15 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         if not resistance_df.empty:
             resistance_display_df = resistance_df.copy()
             resistance_display_df["Note"] = resistance_display_df["Note"].fillna("")
+            resistance_display_df.drop(
+                columns=[
+                    RESISTANCE_DELTA_COL,
+                    "Average resistant delta",
+                    "Microbiome delta",
+                ],
+                errors="ignore",
+                inplace=True,
+            )
 
             def _format_numeric_value(
                 row: pd.Series,
@@ -1810,7 +1819,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 for col in resistance_display_df.columns
                 if "person-days" in col.lower() or "carrier-days" in col.lower()
             }
-            signed_columns = {RESISTANCE_DELTA_COL}
+            signed_columns: Set[str] = set()
 
             for column in resistance_display_df.columns:
                 if column in {"Bacteria", "Drug", "Note"}:

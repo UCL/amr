@@ -2641,6 +2641,12 @@ pub fn apply_rules(
 
             // Only consider recovery if individual currently has sepsis from this bacteria
             if individual.sepsis[b_idx] {
+                // Drop lingering sepsis once the triggering infection has cleared
+                if individual.level[b_idx] <= INFECTION_EPS {
+                    individual.sepsis[b_idx] = false;
+                    continue;
+                }
+
                 let sepsis_duration =
                     (time_step as i32 - individual.sepsis_onset_day[b_idx]).max(0);
                 let minimum_duration = store.globals.sepsis_minimum_duration_days;
