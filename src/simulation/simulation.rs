@@ -2589,6 +2589,9 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
+                                    // Track whether this infection originated from carriage or an environmental exposure.
+                                    let infection_from_environment =
+                                        individual.cur_infection_from_environment[b_idx];
                                     let mut infection_any_r_positive = false;
                                     // Count syndrome for this infected individual (take first one if multiple infections)
                                     if !individual_has_any_infection_counted_for_syndrome {
@@ -2621,10 +2624,12 @@ impl Simulation {
                                         let home_region_idx = region_to_index(individual.region_living);
                                         let flat_idx = b_idx * 6 + home_region_idx;
                                         lt.newly_infected_by_bacteria_region[flat_idx] += 1;
-                                        if is_carrier {
-                                            lt.newly_infected_carrier_by_bacteria[b_idx] += 1;
-                                        } else {
+                                        // Use the stored acquisition source rather than current microbiome state
+                                        // so infections seeded from the environment are counted as non-carrier events.
+                                        if infection_from_environment {
                                             lt.newly_infected_non_carrier_by_bacteria[b_idx] += 1;
+                                        } else {
+                                            lt.newly_infected_carrier_by_bacteria[b_idx] += 1;
                                         }
                                     }
                                     let base = b_idx * num_drugs;
@@ -4430,13 +4435,11 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
-            for value in &summary.newly_infected_carrier_by_bacteria {
+            for b_idx in 0..BACTERIA_LIST.len() {
                 row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.newly_infected_non_carrier_by_bacteria {
+                row.push_str(&summary.newly_infected_carrier_by_bacteria[b_idx].to_string());
                 row.push(',');
-                row.push_str(&value.to_string());
+                row.push_str(&summary.newly_infected_non_carrier_by_bacteria[b_idx].to_string());
             }
             for value in &summary.deaths_infected_by_bacteria_region {
                 row.push(',');

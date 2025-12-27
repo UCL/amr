@@ -47,6 +47,7 @@ const COMMUNITY_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
 const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
     &[(1930.0, 0.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
+
 fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     let anchors = if in_hospital {
         HOSPITAL_SANITATION_LOG_ODDS_ANCHORS
@@ -2715,32 +2716,46 @@ pub fn apply_rules(
             let region = individual.region_cur_in;
             let age_idx = crate::config::AgeCategoryParameters::age_category_index(individual.age);
 
-            let mut log_odds = store.bacteria.acquisition_log_odds_baseline[b_idx]
-                + store.age_categories.bacteria_age_log_odds(b_idx, age_idx)
-                + store.region_bacteria.acquisition_log_odds(region, b_idx)
-                + store
-                    .age_categories
-                    .bacteria_region_age_log_odds(region, b_idx, age_idx);
+            let baseline_log_odds = store.bacteria.acquisition_log_odds_baseline[b_idx];
+            let age_log_odds = store.age_categories.bacteria_age_log_odds(b_idx, age_idx);
+            let region_log_odds = store.region_bacteria.acquisition_log_odds(region, b_idx);
+            let region_age_log_odds = store
+                .age_categories
+                .bacteria_region_age_log_odds(region, b_idx, age_idx);
+
+            let mut log_odds =
+                baseline_log_odds + age_log_odds + region_log_odds + region_age_log_odds;
 
             log_odds += sanitation_log_odds;
 
             // Vaccination status (binary effect)
-            if individual.vaccination_status[b_idx] {
-                log_odds += store.bacteria.log_odds_vaccinated[b_idx];
-            }
+            let vaccination_log_odds = if individual.vaccination_status[b_idx] {
+                store.bacteria.log_odds_vaccinated[b_idx]
+            } else {
+                0.0
+            };
+            log_odds += vaccination_log_odds;
 
             // Microbiome presence effect
-            if allows_microbiome && individual.presence_microbiome[b_idx] {
-                log_odds += store.bacteria.log_odds_microbiome_present[b_idx];
-            }
+            let microbiome_log_odds =
+                if allows_microbiome && individual.presence_microbiome[b_idx] {
+                    store.bacteria.log_odds_microbiome_present[b_idx]
+                } else {
+                    0.0
+                };
+            log_odds += microbiome_log_odds;
 
             // Hospital-acquired effect
-            if individual.hospital_status.is_hospitalized() {
-                log_odds += store.bacteria.log_odds_hospital_acquired[b_idx];
-            }
+            let hospital_log_odds = if individual.hospital_status.is_hospitalized() {
+                store.bacteria.log_odds_hospital_acquired[b_idx]
+            } else {
+                0.0
+            };
+            log_odds += hospital_log_odds;
 
             // Convert log-odds to probability
-            let mut acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+            let acquisition_log_odds = log_odds;
+            let mut acquisition_probability = 1.0 / (1.0 + (-acquisition_log_odds).exp());
 
             // Apply historical MDR TB incidence modifier
             if bacteria == "mdr_mycobacterium_tuberculosis" {

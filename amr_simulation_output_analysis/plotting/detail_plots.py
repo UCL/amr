@@ -1363,20 +1363,28 @@ def create_incidence_of_infection_plots(df: pd.DataFrame, config: PlotConfig) ->
             if pop_col not in df.columns:
                 continue
                 
-            # Construct newly infected column name (using correct pattern)
+            # Construct newly infected column names (community + hospital for completeness)
             region_suffix = region_name.lower().replace(' ', '_')
-            newly_infected_col = f"{bacteria_name}_newly_infected_{region_suffix}"
-            
-            if newly_infected_col not in df.columns:
+            community_col = f"{bacteria_name}_newly_infected_{region_suffix}"
+            hospital_col = f"{bacteria_name}_newly_infected_hospital_{region_suffix}"
+
+            if community_col not in df.columns and hospital_col not in df.columns:
                 continue
-            
+
             found_data = True
-            
+
+            # Sum community and hospital infections to match calibration totals
+            combined_cases = pd.Series(0.0, index=df.index)
+            if community_col in df.columns:
+                combined_cases = combined_cases.add(df[community_col], fill_value=0)
+            if hospital_col in df.columns:
+                combined_cases = combined_cases.add(df[hospital_col], fill_value=0)
+
             # Get consistent color for this region
             region_color = region_colors.get(region_name, '#000000')
             
             # Calculate incidence rate per 1000 people
-            incidence_rate = safe_divide(df[newly_infected_col], df[pop_col]) * 1000
+            incidence_rate = safe_divide(combined_cases, df[pop_col]) * 1000
             
             # Apply smoothing
             incidence_smooth = pd.Series(incidence_rate).rolling(

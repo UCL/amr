@@ -104,12 +104,14 @@ use crate::simulation::simulation::Simulation;
 use std::path::PathBuf;
 
 fn main() {
+    let _ = env_logger::builder().is_test(false).try_init();
+
     // Validate bacteria configuration
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =  10_000;
-    let time_steps =   38_325;
+    let population_size =  300_000;
+    let time_steps =  38_325;
     let log_individuals = false ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.90; // Log 1% of infections for analysis (0.0-1.0)

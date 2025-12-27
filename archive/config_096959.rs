@@ -5579,42 +5579,42 @@ lazy_static! {
         map.insert("acquisition_log_odds_baseline".to_string(), -22.0); // Iter6: reduce overall infection 40x, -3.5
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
-        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -15.0); 
-        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -15.5); 
-        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -15.5);
-        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -16.0); 
-        map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -12.5); 
-        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -12.0); 
+        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -38.0); // Iter9: was 10,000x over at -28.6, need -9 more
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -15.0); // Iter4: was 5054 cases, -1.5
+        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -15.5); // Iter3: high sepsis deaths, -2.2
+        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -16.0); // Iter6: was 3856 cases, -3.5
+        map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -15.5); // Iter8: was -14.8, target 1.2% infection + 0.5% carriage
+        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -15.5); // Iter8: was -12.3, target 1.6% infection + 1.5% carriage
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -19.0);
-        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.3); 
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -13.0); 
-        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5); 
-        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -14.0); 
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -28.0); 
-        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -25.0); 
-        map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -20.0); 
-        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -12.5); 
-        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -50.0); // Iter9: was 4,500x over at -18.2, need -8.5 more
+        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -30.0); // Iter9: was 65x over, reduce by 10
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -51.0); // Iter9: was 56,000x over at -19.7, need -11 more
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.3); // Iter6: reduce, -3.5
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.0); // Iter6: reduce, -3.5
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -15.5); // Iter8: was -16.0, target 2.5% infection + 95% carriage
+        map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -15.5); // Iter8: was -10.7, target 2.5% infection (microbiome blocked by design)
+        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -14.0); // Iter3: high sepsis deaths, -2.5
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -28.0); // Iter9: was 1,350x over at -15, need -7 more
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -28.0); // Iter9: was 458x over at -22, need -6 more
+        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -15.0); // Iter9: was 67,000x over at -28, need -11 more
+        map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -20.0); // Iter9: was 37x over at -16, need -4 more
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -32.0); // Iter9: was 228,000x over at -20, need -12 more
+        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -14.0); // Iter8: was -9.8, target 1% infection + 0.5% carriage (was 33% carriage!)
+        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -17.0); // Iter7: add missing
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.0);
-        map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -15.0); 
-        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -23.0); 
-        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -13.0); 
-        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.0); 
-        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -30.0); 
-        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -18.5); 
-        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -19.0); 
-        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.5); 
-        map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -33.0); 
-        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -28.0); 
-        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -26.0); 
+        map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -14.5); // Iter3: high sepsis deaths, -2.5
+        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -23.0); // Iter9: was 136x over at -18, need -5 more
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -15.0); // Iter8: was -13.2, target 2.4% infection + 0.05% carriage
+        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.0); // Iter7: add missing
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -30.0); // Iter9: was 163x over at -21, need -5 more
+        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -19.0); // Iter8: was -12.8, target 1% infection + 30% carriage
+        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -19.0); // Iter9: was 406x over at -13.2, need -6 more
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -15.0); // Iter8: was -13.8, target 2% infection + 35% carriage
+        map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -17.0); // Iter9: was 17x over at -14, need -3 more
+        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -33.0); // Iter9: reduce by 2 more
+        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -28.0); // Iter9: was 917x over at -16, need -7 more
+        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -26.0); // Iter9: was 66x over at -22, need -4 more
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -5897,40 +5897,40 @@ lazy_static! {
     // Bacteria-specific microbiome vs infection acquisition log odds
     // Values chosen so average carriage prevalence aligns with clinical carriage estimates
     // NOTE: Very high values (>7) send almost ALL acquisitions to carriage, blocking infections!
-    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 5.5); 
-    map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 9.0); 
-    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 12.0); 
-    map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 12.0); 
-    map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 10.0); 
-    map.insert("staphylococcus_epidermidis_log_odds_microbiome_vs_infection".to_string(), 10.0); 
-    map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 4.41); 
-    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 4.15); 
-    map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); 
-    map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); 
-    map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); 
-    map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 7.0); 
-    map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 7.0); 
-    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 8.5); 
-    map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 14.0); 
-    map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 10.0); 
-    map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 12.0); 
-    map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 2.96); 
-    map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 2.96); 
-    map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 3.91); 
-    map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), -1.0); 
-    map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), 1.05); 
-    map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), 2.96); 
-    map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), -1.5); 
-    map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 2.96); 
-    map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 0.5); 
-    map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 1.2); 
-    map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 2.96); 
-    map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), -1.0); 
-    map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 2.0); 
-    map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 1.5); 
-    map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 11.5); 
-    map.insert("helicobacter_pylori_log_odds_microbiome_vs_infection".to_string(), 6.65); 
-    map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), 3.0); 
+    map.insert("escherichia_coli_log_odds_microbiome_vs_infection".to_string(), 5.5); // Iter8: was 3.5, increased to favor 95% carriage vs 2.5% infection
+    map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 4.5); // Iter7: was 7.80, reduced
+    map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 4.0); // Iter7: was 5.52
+    map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 4.0); // Iter7: was 5.46
+    map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 3.5); // Iter8: was 4.0, target 30:1 carriage:infection ratio
+    map.insert("staphylococcus_epidermidis_log_odds_microbiome_vs_infection".to_string(), 7.60); // ~85-90% skin carriage with device exposure
+    map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 4.41); // ~8% carriage
+    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 4.15); // ~6% carriage
+    map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% carriage
+    map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% carriage
+    map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); // ~3% carriage
+    map.insert("morganella_spp._log_odds_microbiome_vs_infection".to_string(), 3.37); // ~3% carriage
+    map.insert("streptococcus_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 4.5); // Iter8: was 6.45, reduced to allow 2% infection with 35% carriage
+    map.insert("haemophilus_influenzae_log_odds_microbiome_vs_infection".to_string(), 6.93); // ~50% NP colonization (NTHi common in children)
+    map.insert("moraxella_catarrhalis_log_odds_microbiome_vs_infection".to_string(), 6.93); // ~50% NP colonization (50-75% in children)
+    map.insert("streptococcus_pyogenes_log_odds_microbiome_vs_infection".to_string(), 4.65); // ~10% transient carriage
+    map.insert("streptococcus_agalactiae_log_odds_microbiome_vs_infection".to_string(), 5.52); // ~25% vaginal/rectal colonization in women
+    map.insert("acinetobacter_baumannii_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage in high-risk settings
+    map.insert("pseudomonas_aeruginosa_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% community carriage
+    map.insert("clostridioides_difficile_log_odds_microbiome_vs_infection".to_string(), 3.91); // ~5% colonization
+    map.insert("salmonella_enterica_serovar_typhi_log_odds_microbiome_vs_infection".to_string(), 1.55); // ~0.5% chronic carriage
+    map.insert("salmonella_enterica_serovar_paratyphi_a_log_odds_microbiome_vs_infection".to_string(), 1.05); // ~0.3% carriage
+    map.insert("invasive_non-typhoidal_salmonella_spp._log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage
+    map.insert("shigella_spp._log_odds_microbiome_vs_infection".to_string(), -1.5); // Iter8: was 2.26, negative to favor infection (2.4%) over carriage (0.05%)
+    map.insert("vibrio_cholerae_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% carriage during outbreaks
+    map.insert("campylobacter_jejuni_log_odds_microbiome_vs_infection".to_string(), 0.5); // Iter8: was 2.96, reduced to favor infection (1.2%) over carriage (0.5%)
+    map.insert("yersinia_enterocolitica_log_odds_microbiome_vs_infection".to_string(), 1.2); // Lower carriage odds
+    map.insert("listeria_monocytogenes_log_odds_microbiome_vs_infection".to_string(), 2.96); // ~2% transient carriage
+    map.insert("neisseria_gonorrhoeae_log_odds_microbiome_vs_infection".to_string(), -1.0); // Iter8: was 1.05, negative to favor infection (1%) over carriage (0.5%)
+    map.insert("chlamydia_trachomatis_log_odds_microbiome_vs_infection".to_string(), 2.0); // Iter8: was 2.26, target ~1:1 infection:carriage ratio
+    map.insert("treponema_pallidum_log_odds_microbiome_vs_infection".to_string(), 1.5); // Iter7: was -1.0, ~18% become infection (syphilis rarely asymptomatic carriage)
+    map.insert("neisseria_meningitidis_log_odds_microbiome_vs_infection".to_string(), 4.41); // ~10% NP carriage (5-15% in adolescents)
+    map.insert("helicobacter_pylori_log_odds_microbiome_vs_infection".to_string(), 6.65); // ~45% gastric colonization
+    map.insert("mdr_mycobacterium_tuberculosis_log_odds_microbiome_vs_infection".to_string(), 3.0); // Iter7: was -7.0 (caused 1M infections!), increased to send ~95% to latent carriage
 
     // Bacteria-specific microbiome clearance probabilities (per day)
     map.insert("escherichia_coli_microbiome_clearance_probability_per_day".to_string(), 0.005); // Persistent gut commensal; years-long colonization
@@ -6164,6 +6164,39 @@ lazy_static! {
 
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
         map.insert("sepsis_baseline_log_odds".to_string(), -14.0); // Fallback baseline for organisms without explicit intercept
+
+        // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
+        let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
+            ("acinetobacter_baumannii", -8.0),
+            ("pseudomonas_aeruginosa", -8.0),
+            ("klebsiella_pneumoniae", -8.2),
+            ("escherichia_coli", -8.5),
+            ("staphylococcus_aureus", -7.5),
+            ("streptococcus_pneumoniae", -8.3),
+            ("streptococcus_pyogenes", -7.8),
+            ("streptococcus_agalactiae", -7.9),
+            ("enterococcus_faecium", -8.8),
+            ("enterococcus_faecalis", -9.2),
+            ("salmonella_enterica_serovar_typhi", -9.8),
+            ("invasive_non-typhoidal_salmonella_spp.", -9.2),
+            ("neisseria_meningitidis", -11.0),
+            ("listeria_monocytogenes", -9.0),
+            ("clostridioides_difficile", -10.5),
+            ("haemophilus_influenzae", -11.0),
+            ("bordetella_pertussis", -12.5),
+            ("campylobacter_jejuni", -13.5),
+            ("shigella_spp.", -13.0),
+            ("vibrio_cholerae", -13.5),
+            ("chlamydia_trachomatis", -15.5),
+            ("helicobacter_pylori", -18.0),
+                    ("enterobacter_cloacae", -9.4),
+                    ("yersinia_enterocolitica", -11.5),
+                    ("moraxella_catarrhalis", -12.8),
+        ];
+
+        for &(name, log_odds) in bacteria_sepsis_baseline_overrides {
+            map.insert(format!("{}_sepsis_baseline_log_odds", name), log_odds);
+        }
 
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
