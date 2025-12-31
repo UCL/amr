@@ -174,7 +174,6 @@ impl ParameterStore {
 pub struct GlobalScalars {
     pub drug_base_initiation_rate_per_day: f64,
     pub drug_infection_present_multiplier: f64,
-    pub drug_activity_to_bacteria_level_multiplier: f64,
     pub already_on_drug_initiation_multiplier: f64,
     pub drug_test_identified_multiplier: f64,
     pub double_dose_probability_if_identified_infection: f64,
@@ -205,11 +204,14 @@ pub struct GlobalScalars {
     pub drug_failure_memory_days: i32,
     pub minimal_potency_threshold_for_drug_selection: f64,
     pub drug_selection_temperature: f64,
-    pub reserve_drug_score_penalty: f64,
     pub restart_window_enabled: bool,
     pub restart_window_days: i32,
     pub restart_bacteria_level_threshold: f64,
     pub restart_window_probability: f64,
+    pub previously_effective_drug_bonus: f64,
+    pub log_odds_bacteria_with_high_sepsis_risk: f64,
+    pub log_odds_bacteria_with_medium_sepsis_risk: f64,
+    pub log_odds_bacteria_with_low_sepsis_risk: f64,
     pub log_odds_sepsis_region_a: f64,
     pub log_odds_sepsis_region_b: f64,
     pub mdr_tb_pre_antibiotic_era_multiplier: f64,
@@ -304,11 +306,6 @@ impl GlobalScalars {
                 "drug_infection_present_multiplier",
                 260.0,
             ),
-            drug_activity_to_bacteria_level_multiplier: get_or_default(
-                map,
-                "drug_activity_to_bacteria_level_multiplier",
-                1.0,
-            ),
             already_on_drug_initiation_multiplier: get_or_default(
                 map,
                 "already_on_drug_initiation_multiplier",
@@ -385,7 +382,7 @@ impl GlobalScalars {
             resistance_emergence_pop_size_multiplier: get_or_default(
                 map,
                 "resistance_emergence_pop_size_multiplier",
-                30.0,
+                1.0,
             ),
             any_r_emergence_level_on_first_emergence: get_or_default(
                 map,
@@ -430,11 +427,6 @@ impl GlobalScalars {
                 0.15,
             ),
             drug_selection_temperature: get_or_default(map, "drug_selection_temperature", 1.1),
-            reserve_drug_score_penalty: get_or_default(
-                map,
-                "reserve_drug_score_penalty",
-                0.00005,
-            ),
             restart_window_enabled: get_or_default(map, "enable_restart_window", 1.0) > 0.5,
             restart_window_days: get_or_default(map, "restart_window_days", 5.0) as i32,
             restart_bacteria_level_threshold: get_or_default(
@@ -443,6 +435,26 @@ impl GlobalScalars {
                 1.5,
             ),
             restart_window_probability: get_or_default(map, "restart_window_probability", 0.3),
+            previously_effective_drug_bonus: get_or_default(
+                map,
+                "previously_effective_drug_bonus",
+                2.0,
+            ),
+            log_odds_bacteria_with_high_sepsis_risk: get_or_default(
+                map,
+                "log_odds_bacteria_with_high_sepsis_risk",
+                0.5,
+            ),
+            log_odds_bacteria_with_medium_sepsis_risk: get_or_default(
+                map,
+                "log_odds_bacteria_with_medium_sepsis_risk",
+                0.0,
+            ),
+            log_odds_bacteria_with_low_sepsis_risk: get_or_default(
+                map,
+                "log_odds_bacteria_with_low_sepsis_risk",
+                -0.5,
+            ),
             log_odds_sepsis_region_a: get_or_default(map, "log_odds_sepsis_region_a", -0.3),
             log_odds_sepsis_region_b: get_or_default(map, "log_odds_sepsis_region_b", 0.2),
             mdr_tb_pre_antibiotic_era_multiplier: get_or_default(
@@ -4219,19 +4231,11 @@ lazy_static! {
         // General Drug Parameters
         map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001); // Higher baseline daily initiation to reach usage targets
         map.insert("drug_infection_present_multiplier".to_string(), 260.0); // Encourage more treatment starts when infection detected
-
-        // a non-bacteria-specific parameter that determines how rapidly drugs of a given potency eliminate bacteria level
-        // with a value 1 it is nearly always within 1 day 
-        map.insert(
-            "drug_activity_to_bacteria_level_multiplier".to_string(),
-            0.5,
-        ); // Global scaling knob for drug-driven bacteria decay
         map.insert("drug_test_identified_multiplier".to_string(), 2.5); // Multiplier when lab diagnostics confirm the pathogen
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
 
         // Drug Selection Algorithm Parameters
         map.insert("drug_selection_temperature".to_string(), 1.1); // Higher temperature to diversify drug picks and prevent deterministic reserve dominance
-        map.insert("reserve_drug_score_penalty".to_string(), 0.001); // Reserve agents get 80% score haircut to keep total usage under stewardship targets
 
         // Drug-specific half-lives (in days) for realistic pharmacokinetics
         // Beta-lactam/beta-lactamase inhibitor combinations
@@ -4341,7 +4345,7 @@ lazy_static! {
         // Clinical Decision-Making Potency Thresholds
         map.insert("minimal_potency_threshold_for_drug_selection".to_string(), 0.15); // Higher minimum potency to consider drug (blocks ineffective broad picks)
         map.insert("effective_potency_threshold_for_targeted_therapy".to_string(), 0.10); // Threshold for "good activity" in targeted therapy
-        map.insert("effective_potency_threshold_for_empirical_therapy".to_string(), 0.30); // Threshold for "effective activity" in empirical therapy
+        map.insert("effective_potency_threshold_for_empirical_therapy".to_string(), 0.10); // Threshold for "effective activity" in empirical therapy
 
         // Drug Evaluation Timing Parameters
         map.insert("drug_evaluation_days_post_infection".to_string(), 7.0); // Number of days after infection to evaluate drug initiation
@@ -4356,6 +4360,7 @@ lazy_static! {
         map.insert("restart_window_days".to_string(), 5.0); // Days after drug cessation to allow "restart" treatment
         map.insert("restart_window_probability".to_string(), 0.3); // Probability that patient returns to care during restart window
         map.insert("restart_bacteria_level_threshold".to_string(), 1.5); // Bacteria level multiplier to trigger restart (current >= cessation * threshold)
+        map.insert("previously_effective_drug_bonus".to_string(), 2.0); // Score multiplier for drug that was working before cessation
         map.insert("enable_restart_window".to_string(), 1.0); // Enable/disable restart window system (1.0=enabled, 0.0=disabled)
 
         // TB Multi-Drug Synergy Parameters
@@ -4479,25 +4484,14 @@ lazy_static! {
         // that should only be used when first-line agents fail or resistance is documented.
         // Apply across ALL bacteria to ensure consistent stewardship behavior.
         let carbapenem_reserve_drugs = vec![
-            "meropenem",
-            "meropenem_vaborbactam",
-            "imipenem_c",
-            "ertapenem",
-            "colistin",
-            "linezolid",
-            "tedizolid",
-            "quinu_dalfo",
-            "dalbavancin",
-            "ceftazidime_avibactam",
+            "meropenem", "meropenem_vaborbactam", "imipenem_c", "ertapenem",
+            "colistin", "linezolid", "tedizolid", "quinu_dalfo", "dalbavancin"
         ];
         for &drug in carbapenem_reserve_drugs.iter() {
             for &bacteria in BACTERIA_LIST.iter() {
-                // CALIBRATION: Reduced from 0.05 to 0.005 (200x less likely than default) to keep reserve usage <5%
+                // CALIBRATION: Reduced from 0.05 to 0.02 (50x less likely than default) - reserve drugs were 20% of usage
                 // This will be overridden by specific bacteria-drug combinations where appropriate
-                map.insert(
-                    format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria),
-                    0.005,
-                );
+                map.insert(format!("drug_{}_for_bacteria_{}_initiation_multiplier", drug, bacteria), 0.02);
             }
         }
 
@@ -4529,22 +4523,10 @@ lazy_static! {
         // GRAM-POSITIVE COCCI (Staph, Strep, Enterococcus)
         for &bacteria in gram_pos_cocci.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-                // Penicillins - excellent for Strep, strong for E. faecalis, limited for Staph / E. faecium
+                // Penicillins - excellent for Strep (if sensitive), poor for Staph due to beta-lactamase
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        let potency = if bacteria.contains("streptococcus") {
-                            0.95
-                        } else if bacteria == "enterococcus_faecalis" {
-                            0.75
-                        } else if bacteria == "enterococcus_faecium" {
-                            0.20
-                        } else if bacteria == "staphylococcus_aureus" {
-                            0.15
-                        } else if bacteria == "staphylococcus_epidermidis" {
-                            0.05
-                        } else {
-                            0.10
-                        };
+                        let potency = if bacteria.contains("streptococcus") { 0.90 } else { 0.10 };
                         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
                     }
                 }
@@ -4591,20 +4573,10 @@ lazy_static! {
         // GRAM-NEGATIVE ENTEROBACTERIA (E. coli, Klebsiella, etc.)
         for &bacteria in gram_neg_enterobacteria.iter() {
             if BACTERIA_LIST.contains(&bacteria) {
-                // Penicillins - BL/BLI combinations retain activity, older agents mostly ineffective
+                // Penicillins - poor except piperacillin
                 for &drug in penicillins.iter() {
                     if DRUG_SHORT_NAMES.contains(&drug) {
-                        let potency = match drug {
-                            "penicilling" => 0.05,
-                            "ampicillin" | "amoxicillin" => 0.20,
-                            "ampicillin_sulbactam" => 0.55,
-                            "amoxicillin_clavulanate" => 0.50,
-                            "piperacillin" => 0.75,
-                            "piperacillin_tazobactam" => 0.95,
-                            "ticarcillin" => 0.15,
-                            "ticarcillin_clavulanate" => 0.70,
-                            _ => 0.10,
-                        };
+                        let potency = if drug == "piperacillin" { 0.70 } else { 0.10 };
                         map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), potency);
                     }
                 }
@@ -5013,19 +4985,6 @@ lazy_static! {
             }
         }
 
-        if DRUG_SHORT_NAMES.contains(&"clarithromycin") && BACTERIA_LIST.contains(&"campylobacter_jejuni") {
-            map.insert(
-                "drug_clarithromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(),
-                1.05,
-            );
-        }
-        if DRUG_SHORT_NAMES.contains(&"erythromycin") && BACTERIA_LIST.contains(&"campylobacter_jejuni") {
-            map.insert(
-                "drug_erythromycin_for_bacteria_campylobacter_jejuni_potency_when_no_r".to_string(),
-                0.95,
-            );
-        }
-
         // Nitrofurantoin for urinary E. coli
         if DRUG_SHORT_NAMES.contains(&"nitrofurantoin") && BACTERIA_LIST.contains(&"escherichia_coli") {
             map.insert("drug_nitrofurantoin_for_bacteria_escherichia_coli_potency_when_no_r".to_string(), 0.95);
@@ -5050,12 +5009,12 @@ lazy_static! {
         map.insert("drug_ciprofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.8); // Very good activity
         map.insert("drug_levofloxacin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.8);  // Very good activity
         // Reduce inappropriate drugs slightly (regional resistance surveillance will handle local patterns)
-        map.insert("drug_penicilling_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);  // Poor activity
+        map.insert("drug_penicillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);  // Poor activity
         map.insert("drug_ampicillin_for_bacteria_vibrio_cholerae_potency_when_no_r".to_string(), 0.05);  // Poor activity
 
         // haemophilus_influenzae - Address beta-lactamase resistance (intrinsic in many strains)
         // Reduce basic penicillins (H. flu commonly produces beta-lactamase)
-        map.insert("drug_penicilling_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.03); // Poor due to beta-lactamase
+        map.insert("drug_penicillin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.03); // Poor due to beta-lactamase
         map.insert("drug_ampicillin_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.15);  // Reduced due to beta-lactamase resistance
         // Boost appropriate alternatives modestly
         map.insert("drug_amoxicillin_clavulanate_for_bacteria_haemophilus_influenzae_potency_when_no_r".to_string(), 0.75); // Good activity with beta-lactamase inhibitor
@@ -5070,7 +5029,7 @@ lazy_static! {
         map.insert("drug_erythromycin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.8);    // Good activity, traditional first-line
         map.insert("drug_trim_sulf_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.7);       // Alternative for macrolide-allergic patients
         // Reduce inappropriate antibiotics
-        map.insert("drug_penicilling_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.05);     // Poor activity
+        map.insert("drug_penicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.05);     // Poor activity
         map.insert("drug_ampicillin_for_bacteria_bordetella_pertussis_potency_when_no_r".to_string(), 0.05);     // Poor activity
 
         // helicobacter_pylori - Triple/quadruple therapy drugs (clarithromycin + amoxicillin + metronidazole)
@@ -5099,7 +5058,9 @@ lazy_static! {
         // Bacteria-specific treatment recognition years (when bacteria was first recognized as needing treatment)
         map.insert("helicobacter_pylori_treatment_recognition_year".to_string(), 1982.0); // H. pylori not treated before Marshall & Warren discovery
 
-        // Bacteria-specific sepsis risk overrides for organisms that don't cause acute sepsis are defined in the log-odds section below
+        // Bacteria-specific sepsis risk overrides for organisms that don't cause acute sepsis
+        map.insert("mdr_mycobacterium_tuberculosis_sepsis_risk_multiplier".to_string(), 0.0); // TB causes chronic disease, not acute sepsis
+        map.insert("helicobacter_pylori_sepsis_risk_multiplier".to_string(), 0.0); // Chronic gastritis pathogen, not acute sepsis organism
         map.insert("helicobacter_pylori_base_bacteria_level_change".to_string(), 0.2); // Slow-growing chronic colonizer
 
         // H. pylori-specific drug selection bonuses when bacteria is identified
@@ -5117,7 +5078,7 @@ lazy_static! {
         map.insert("drug_rifampicin_for_bacteria_neisseria_meningitidis_initiation_multiplier".to_string(), 12.0);  // Prophylaxis agent
 
         // Reduce inappropriate antibiotics
-        map.insert("drug_penicilling_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
+        map.insert("drug_penicillin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
         map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not effective
 
         // --- BACTERIA-SPECIFIC SYMPTOM ONSET PARAMETERS ---
@@ -5219,7 +5180,7 @@ lazy_static! {
 
         // yersinia_enterocolitica - Address intrinsic penicillin resistance
         // Reduce penicillins (intrinsic resistance)
-        map.insert("drug_penicilling_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02); // Intrinsic resistance
+        map.insert("drug_penicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02); // Intrinsic resistance
         map.insert("drug_ampicillin_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.02);  // Intrinsic resistance
         // Boost appropriate drugs modestly
         map.insert("drug_doxycycline_for_bacteria_yersinia_enterocolitica_potency_when_no_r".to_string(), 0.75); // Good activity
@@ -5228,7 +5189,7 @@ lazy_static! {
 
         // streptococcus_pyogenes - Ensure penicillin remains preferred (no resistance ever develops)
         // S. pyogenes has never developed penicillin resistance - boost slightly to counter any drift
-        map.insert("drug_penicilling_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95); // Excellent and consistent activity
+        map.insert("drug_penicillin_for_bacteria_streptococcus_pyogenes_potency_when_no_r".to_string(), 0.95); // Excellent and consistent activity
 
         // ENTERIC PATHOGENS - Modest fluoroquinolone boost for appropriate cases
         // Salmonella - boost fluoroquinolones for invasive disease (conservative increase)
@@ -5274,9 +5235,9 @@ lazy_static! {
         map.insert("drug_ceftazidime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.5); // Good anti-pseudomonal activity
         map.insert("drug_cefepime_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 4.5); // Good anti-pseudomonal activity
         // CALIBRATION: Reduced carbapenem/reserve multipliers for stewardship - target <10% reserve drug usage
-        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.05); // Carbapenem - reserve agent, strong stewardship
-        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.05); // Carbapenem - reserve agent, strong stewardship
-        map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.05); // Last resort - very restricted
+        map.insert("drug_meropenem_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.25); // Carbapenem - reserve agent, strong stewardship
+        map.insert("drug_imipenem_c_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.25); // Carbapenem - reserve agent, strong stewardship
+        map.insert("drug_colistin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 0.15); // Last resort - very restricted
 
         // MACROLIDES FOR RESPIRATORY PATHOGENS
         map.insert("drug_erythromycin_for_bacteria_campylobacter_jejuni_initiation_multiplier".to_string(), 5.0); // First-line for Campylobacter
@@ -5292,8 +5253,8 @@ lazy_static! {
         map.insert("drug_levofloxacin_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 3.5); // Fluoroquinolone rescue
         map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.05); // Intrinsic resistance
         map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.1);
-        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01);
-        map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.01);
+        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.02);
+        map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_initiation_multiplier".to_string(), 0.02);
 
         map.insert("drug_trim_sulf_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 1.05);
         map.insert("drug_minocycline_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.95);
@@ -5304,7 +5265,7 @@ lazy_static! {
         map.insert("drug_gentamicin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_piperacillin_tazobactam_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_ceftazidime_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.15);
-        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.01);
+        map.insert("drug_meropenem_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_imipenem_c_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.05);
         map.insert("drug_colistin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
         map.insert("drug_vancomycin_for_bacteria_stenotrophomonas_maltophilia_potency_when_no_r".to_string(), 0.0);
@@ -5327,11 +5288,11 @@ lazy_static! {
 
         // CARBAPENEMS FOR ESBL PRODUCERS - reserve agents with strong stewardship
         // CALIBRATION: Reduced to target <10% reserve drug usage; carbapenems reserved for confirmed ESBL
-        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.05); // Reserve - ESBL Klebsiella only
-        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.05); // Reserve - ESBL Klebsiella only
-        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.05); // Reserve - outpatient ESBL option
-        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 0.05); // Reserve - ESBL E. coli only
-        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 0.05); // Reserve - outpatient ESBL option
+        map.insert("drug_meropenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.25); // Reserve - ESBL Klebsiella only
+        map.insert("drug_imipenem_c_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.25); // Reserve - ESBL Klebsiella only
+        map.insert("drug_ertapenem_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 0.2); // Reserve - outpatient ESBL option
+        map.insert("drug_meropenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 0.15); // Reserve - ESBL E. coli only
+        map.insert("drug_ertapenem_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 0.15); // Reserve - outpatient ESBL option
 
         // REDUCE INAPPROPRIATE COMBINATIONS
         // Penicillins should not be used for intrinsically resistant gram-negatives
@@ -5376,7 +5337,7 @@ lazy_static! {
         map.insert("drug_ampicillin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);   // No TB activity
         map.insert("drug_vancomycin_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.08);   // Minimal TB activity
         map.insert("drug_ceftriaxone_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);  // No TB activity
-        map.insert("drug_meropenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.05);    // Minimal TB activity
+        map.insert("drug_meropenem_for_bacteria_mdr_mycobacterium_tuberculosis_potency_when_no_r".to_string(), 0.06);    // Minimal TB activity
 
         // RIFAMPICIN POTENCIES FOR OTHER BACTERIA (occasional use for severe staph infections)
         map.insert("drug_rifampicin_for_bacteria_staphylococcus_aureus_potency_when_no_r".to_string(), 0.4);         // Good anti-staph activity
@@ -5403,11 +5364,11 @@ lazy_static! {
 
         // E. coli - moderate emergence rate (common pathogen with variable resistance)
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.0005); 
         }
         let high_pressure_e_coli_drugs = vec!["amoxicillin", "ampicillin", "ampicillin_sulbactam"];
         for &drug in high_pressure_e_coli_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.005);
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
         }
 
         // klebsiella_pneumoniae - rapid β-lactam resistance with selective retention of novel agents
@@ -5429,15 +5390,15 @@ lazy_static! {
 
         // pseudomonas_aeruginosa 
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.035); 
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.00035); 
         }
         let pseudo_reserve_drugs = vec!["colistin", "ceftazidime_avibactam", "meropenem_vaborbactam", "cefiderocol"];
         for &drug in pseudo_reserve_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.012);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.00012);
         }
         let pseudo_problem_drugs = vec!["levofloxacin", "ciprofloxacin", "meropenem", "imipenem", "ceftazidime", "cefepime"];
         for &drug in pseudo_problem_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.065);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.00065);
         }
 
         // stenotrophomonas_maltophilia gs
@@ -5452,7 +5413,7 @@ lazy_static! {
 
         // proteus_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline", drug), 0.2); 
+            map.insert(format!("drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // pseudomonas_aeruginosa
@@ -5462,7 +5423,7 @@ lazy_static! {
         
         // salmonella_enterica_serovar_paratyphi_a
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_salmonella_enterica_serovar_paratyphi_a_resistance_emergence_rate_per_day_baseline", drug), 0.1); 
+            map.insert(format!("drug_{}_for_bacteria_salmonella_enterica_serovar_paratyphi_a_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
      
         // salmonella_enterica_serovar_typhi
@@ -5473,18 +5434,18 @@ lazy_static! {
        
         // shigella_spp_
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline", drug), 0.2); 
+            map.insert(format!("drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline", drug), 0.0003); 
         }
         
       
         // staphylococcus_aureus
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline", drug), 0.8); 
+            map.insert(format!("drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
         
         // bordetella pertussis
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_bordetella_pertussis_resistance_emergence_rate_per_day_baseline", drug), 0.2); 
+            map.insert(format!("drug_{}_for_bacteria_bordetella_pertussis_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // campylobacter_jejuni
@@ -5494,37 +5455,37 @@ lazy_static! {
 
         // chlamydia_trachomatis
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_chlamydia_trachomatis_resistance_emergence_rate_per_day_baseline", drug), 0.05); 
+            map.insert(format!("drug_{}_for_bacteria_chlamydia_trachomatis_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // citrobacter_spp._
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_citrobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5); 
+            map.insert(format!("drug_{}_for_bacteria_citrobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // clostridioides_difficile
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_clostridioides_difficile_resistance_emergence_rate_per_day_baseline", drug), 0.3); 
+            map.insert(format!("drug_{}_for_bacteria_clostridioides_difficile_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // enterobacter_cloacae
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline", drug), 0.2); 
+        map.insert(format!("drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
         
         // enterobacter_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5); 
+        map.insert(format!("drug_{}_for_bacteria_enterobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // enterococcus_faecalis
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline", drug), 0.3); 
+        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // enterococcus_faecium
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline", drug), 0.3); 
+        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // haemophilus_influenza
@@ -5534,58 +5495,51 @@ lazy_static! {
 
         // helicobacter_pylori
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_helicobacter_pylori_resistance_emergence_rate_per_day_baseline", drug), 0.1); 
+        map.insert(format!("drug_{}_for_bacteria_helicobacter_pylori_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // listeria_monocytogenes
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_listeria_monocytogenes_resistance_emergence_rate_per_day_baseline", drug), 0.2); 
+        map.insert(format!("drug_{}_for_bacteria_listeria_monocytogenes_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // morganella_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_morganella_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5); 
-        }        
-
-        // moraxella_catarrhalis
-        for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_moraxella_catarrhalis_resistance_emergence_rate_per_day_baseline", drug), 0.03); 
+        map.insert(format!("drug_{}_for_bacteria_morganella_spp._resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }        
         
         // serratia_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.8); 
+        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
        
         // streptococcus_agalactiae
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_streptococcus_agalactiae_resistance_emergence_rate_per_day_baseline", drug), 0.02); 
+        map.insert(format!("drug_{}_for_bacteria_streptococcus_agalactiae_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // treponema_pallidum
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_treponema_pallidum_resistance_emergence_rate_per_day_baseline", drug), 0.03); 
+        map.insert(format!("drug_{}_for_bacteria_treponema_pallidum_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // vibrio_cholerae
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.3); 
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
         // yersinia_enterocolitica
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_yersinia_enterocolitica_resistance_emergence_rate_per_day_baseline", drug), 0.8); 
-        }
-
-        // neisseria_meningitidis
-        for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline", drug), 0.2); 
+        map.insert(format!("drug_{}_for_bacteria_yersinia_enterocolitica_resistance_emergence_rate_per_day_baseline", drug), 0.005); 
         }
 
 
 /*
 
         // here here
+
+
+
 
 */
         
@@ -5766,41 +5720,41 @@ lazy_static! {
         map.insert("acquisition_log_odds_baseline".to_string(), -17.0); 
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
-        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.0); 
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -15.0); 
         map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -15.0); 
         map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -13.0); 
-        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -14.0); 
-        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
-        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.5); 
-        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -12.5); 
+        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -17.0);
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -16.5); 
+        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -17.5); 
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -14.0); 
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -13.3); 
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5); 
-        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -15.0); 
         map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -15.5); 
-        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -17.0); 
+        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.0); 
-        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -14.0); 
-        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -15.5); 
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
+        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -12.5); 
+        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.0);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.0); 
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -14.0); 
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -12.8); 
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.0); 
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -13.2); 
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -15.0); 
-        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.0); 
+        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -17.0); 
+        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
@@ -6179,7 +6133,7 @@ lazy_static! {
         map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.001); // Calibrated for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
 
-        map.insert("resistance_emergence_pop_size_multiplier".to_string(), 30.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
+        map.insert("resistance_emergence_pop_size_multiplier".to_string(), 50.0); // Debug knob to keep prevalence steady when population size changes
 
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -6201,13 +6155,13 @@ lazy_static! {
         // Common mechanisms (single mutations, regulatory changes): ~1e-6
         // Mobile genetic elements: ~1e-7 to 1e-8
         // Complex resistance clusters: ~1e-9
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.003); // Point mutations - most common
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // Regulatory mutations relatively common
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.003); // Porin loss is common
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.003); // Mobile genetic element acquisition
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.003); // Common in gram-positives
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // Requires specific gene mutations
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.003); // Chromosomal or plasmid-mediated
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.01); // Point mutations - most common
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.01); // Regulatory mutations relatively common
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.01); // Porin loss is common
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.01); // Mobile genetic element acquisition
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.01); // Common in gram-positives
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.01); // Requires specific gene mutations
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.01); // Chromosomal or plasmid-mediated
         map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.001); // Requires SCCmec element acquisition
         map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.001); // Rare, high-level resistance genes
         map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.001); // Complex vanA/vanB resistance cluster
@@ -6268,7 +6222,7 @@ lazy_static! {
     map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.28); // Slightly shorter stays (~3.6 day avg) to reinforce target occupancy
     map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
     map.insert("hospitalization_sepsis_admission_multiplier".to_string(), 80.0); // Sepsis substantially increases admission odds
-    map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 1.0); // 1.0 = block discharge with sepsis, 0.0 = allow discharge
+    map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 0.0); // 1.0 = block discharge with sepsis, 0.0 = allow discharge
 
         // Testing Framework Parameters
         // Base testing rates (modern era baseline)
@@ -6357,47 +6311,44 @@ lazy_static! {
         // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
         map.insert("sepsis_baseline_log_odds".to_string(), -14.0); // Fallback baseline for organisms without explicit intercept
 
-
-        // sepsis rates     
-
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
-            ("acinetobacter_baumannii", -6.0),
-            ("citrobacter_spp.", -6.0),
-            ("enterobacter_spp.", -6.0),
-            ("enterococcus_faecalis", -6.0),
-            ("enterococcus_faecium", -6.0),
-            ("escherichia_coli", -15.5),
-            ("klebsiella_pneumoniae", -6.0),
-            ("morganella_spp.", -6.0),
-            ("proteus_spp.", -6.0),
-            ("serratia_spp.", -6.0),
-            ("pseudomonas_aeruginosa", -6.0),
-            ("stenotrophomonas_maltophilia", -6.0),
-            ("staphylococcus_aureus", -5.0),
-            ("staphylococcus_epidermidis", -6.0),
-            ("streptococcus_pneumoniae", -14.0),
-            ("salmonella_enterica_serovar_typhi", -9.1),
-            ("salmonella_enterica_serovar_paratyphi_a", -6.0),
-            ("invasive_non-typhoidal_salmonella_spp.", -7.0),
-            ("shigella_spp.", -9.0),
-            ("neisseria_gonorrhoeae", -18.0),
-            ("streptococcus_pyogenes", -6.0),
-            ("streptococcus_agalactiae", -6.0),
-            ("haemophilus_influenzae", -15.0),
-            ("chlamydia_trachomatis", -7.0),
-            ("vibrio_cholerae", -6.0),
-            ("neisseria_meningitidis", -13.2),
-            ("listeria_monocytogenes", -6.0),
-            ("clostridioides_difficile", -9.0),
-            ("campylobacter_jejuni", -12.0),
-            ("enterobacter_cloacae", -6.0),
-            ("yersinia_enterocolitica", -6.0),
-            ("moraxella_catarrhalis", -6.0),
-            ("treponema_pallidum", -10.0),
-            ("bordetella_pertussis", -6.0),
-            ("helicobacter_pylori", -220.0),
-            ("mdr_mycobacterium_tuberculosis", -38.0),
+            ("acinetobacter_baumannii", -8.0),
+            ("citrobacter_spp.", -9.8),
+            ("enterobacter_spp.", -9.0),
+            ("enterococcus_faecalis", -9.6),
+            ("enterococcus_faecium", -8.6),
+            ("escherichia_coli", -10.0),
+            ("klebsiella_pneumoniae", -8.0),
+            ("morganella_spp.", -10.2),
+            ("proteus_spp.", -10.2),
+            ("serratia_spp.", -9.8),
+            ("pseudomonas_aeruginosa", -8.0),
+            ("stenotrophomonas_maltophilia", -9.2),
+            ("staphylococcus_aureus", -7.5),
+            ("staphylococcus_epidermidis", -12.5),
+            ("streptococcus_pneumoniae", -12.0),
+            ("salmonella_enterica_serovar_typhi", -9.3),
+            ("salmonella_enterica_serovar_paratyphi_a", -9.5),
+            ("invasive_non-typhoidal_salmonella_spp.", -10.0),
+            ("shigella_spp.", -13.0),
+            ("neisseria_gonorrhoeae", -15.0),
+            ("streptococcus_pyogenes", -7.5),
+            ("streptococcus_agalactiae", -7.8),
+            ("haemophilus_influenzae", -14.0),
+            ("chlamydia_trachomatis", -16.0),
+            ("vibrio_cholerae", -13.5),
+            ("neisseria_meningitidis", -14.0),
+            ("listeria_monocytogenes", -8.7),
+            ("clostridioides_difficile", -10.8),
+            ("campylobacter_jejuni", -13.2),
+            ("enterobacter_cloacae", -9.0),
+            ("yersinia_enterocolitica", -11.5),
+            ("moraxella_catarrhalis", -13.5),
+            ("treponema_pallidum", -16.0),
+            ("bordetella_pertussis", -14.0),
+            ("helicobacter_pylori", -18.0),
+            ("mdr_mycobacterium_tuberculosis", -18.0),
         ];
 
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
@@ -6409,40 +6360,103 @@ lazy_static! {
         // outcome severity in one place. These parameters shape the probability of severe outcomes
         // once infection is established.
         map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
+        map.insert("log_odds_bacteria_with_high_sepsis_risk".to_string(), 1.0); // Log odds for high-risk bacteria (e.g., exp(1.0) = 2.7x odds ratio)
+        map.insert("log_odds_bacteria_with_medium_sepsis_risk".to_string(), 0.0); // Log odds for medium-risk bacteria (reference category)
+        map.insert("log_odds_bacteria_with_low_sepsis_risk".to_string(), -1.2); // Log odds for low-risk bacteria (e.g., exp(-1.2) = 0.3x odds ratio)
 
-        // --- AGE-DEPENDENT SEPSIS LOG-ODDS (global baseline + age deltas + bacteria-age deltas) ---
-        map.insert("sepsis_age_log_odds_baseline".to_string(), 0.0); // Reference intercept for age adjustments
-        map.insert("sepsis_age_log_odds_neonatal".to_string(), 1.10); // ln(3.0): neonates ~3x odds vs reference
-        map.insert("sepsis_age_log_odds_pediatric".to_string(), 0.18); // ln(1.2): pediatrics modestly higher odds
-        map.insert("sepsis_age_log_odds_young_adult".to_string(), 0.0); // ln(1.0): young adults at reference odds
-        map.insert("sepsis_age_log_odds_elderly".to_string(), 0.69); // ln(2.0): elderly ~2x odds vs reference
+        // --- BACTERIA-SPECIFIC SEPSIS RISK MULTIPLIERS (fixes critical configuration bug) ---
+        map.insert("high_sepsis_risk_multiplier".to_string(), 2.0); // High-risk bacteria: 2x baseline sepsis risk
+        map.insert("moderate_sepsis_risk_multiplier".to_string(), 1.0); // Moderate-risk bacteria: baseline sepsis risk
+        map.insert("low_sepsis_risk_multiplier".to_string(), 0.3); // Low-risk bacteria: 0.3x baseline sepsis risk
 
-        // Additional per-bacteria age interactions (values are additive deltas beyond the general age effect)
-        // NEONATAL (0-28 days)
-        map.insert("streptococcus_agalactiae_neonatal_sepsis_log_odds".to_string(), 0.981); // ln(8) - ln(3)
-        map.insert("escherichia_coli_neonatal_sepsis_log_odds".to_string(), 0.511); // ln(5) - ln(3)
-        map.insert("listeria_monocytogenes_neonatal_sepsis_log_odds".to_string(), 0.693); // ln(6) - ln(3)
-        map.insert("enterococcus_faecalis_neonatal_sepsis_log_odds".to_string(), 0.0); // ln(3) - ln(3)
-        map.insert("staphylococcus_aureus_neonatal_sepsis_log_odds".to_string(), 0.288); // ln(4) - ln(3)
+        // --- ENHANCED INDIVIDUAL BACTERIA SEPSIS RISK OVERRIDES ---
+        // These override the general high/medium/low categories for specific clinical scenarios
 
-        // PEDIATRIC (1 month - 18 years)
-        map.insert("streptococcus_pneumoniae_pediatric_sepsis_log_odds".to_string(), 0.916); // ln(3) - ln(1.2)
-        map.insert("haemophilus_influenzae_pediatric_sepsis_log_odds".to_string(), 0.734); // ln(2.5) - ln(1.2)
-        map.insert("neisseria_meningitidis_pediatric_sepsis_log_odds".to_string(), 0.511); // ln(2) - ln(1.2)
-        map.insert("staphylococcus_aureus_pediatric_sepsis_log_odds".to_string(), 0.511); // ln(2) - ln(1.2)
+        // EXTREMELY HIGH SEPSIS RISK (beyond standard "high" category)
+        map.insert("staphylococcus_aureus_sepsis_risk_multiplier".to_string(), 3.5); // MRSA bacteremia particularly deadly
+        map.insert("streptococcus_pneumoniae_sepsis_risk_multiplier".to_string(), 1.0); // Pneumococcal sepsis very severe
+        map.insert("neisseria_meningitidis_sepsis_risk_multiplier".to_string(), 2.2); // Still dangerous but survivable with prompt care
 
-        // ELDERLY (65+ years)
-        map.insert("streptococcus_pneumoniae_elderly_sepsis_log_odds".to_string(), 0.693); // ln(4) - ln(2)
-        map.insert("escherichia_coli_elderly_sepsis_log_odds".to_string(), 0.223); // ln(2.5) - ln(2)
-        map.insert("klebsiella_pneumoniae_elderly_sepsis_log_odds".to_string(), 0.405); // ln(3) - ln(2)
-        map.insert("pseudomonas_aeruginosa_elderly_sepsis_log_odds".to_string(), 0.560); // ln(3.5) - ln(2)
-        map.insert("acinetobacter_baumannii_elderly_sepsis_log_odds".to_string(), 0.405); // ln(3) - ln(2)
-        map.insert("enterococcus_faecium_elderly_sepsis_log_odds".to_string(), 0.336); // ln(2.8) - ln(2)
-        map.insert("staphylococcus_aureus_elderly_sepsis_log_odds".to_string(), 0.470); // ln(3.2) - ln(2)
+        // HIGH SEPSIS RISK (standard category, but specific values)
+        map.insert("pseudomonas_aeruginosa_sepsis_risk_multiplier".to_string(), 2.5); // Pseudomonal sepsis severe, often MDR
+        map.insert("acinetobacter_baumannii_sepsis_risk_multiplier".to_string(), 2.3); // Often MDR, ICU-associated severe sepsis
+        map.insert("klebsiella_pneumoniae_sepsis_risk_multiplier".to_string(), 2.2); // ESBL/carbapenem resistance increases severity
+        map.insert("enterococcus_faecium_sepsis_risk_multiplier".to_string(), 2.0); // VRE bacteremia significant mortality
+        map.insert("enterobacter_spp._sepsis_risk_multiplier".to_string(), 1.8); // AmpC resistance, healthcare-associated
 
-        // YOUNG ADULT (18-65 years)
-        map.insert("neisseria_meningitidis_young_adult_sepsis_log_odds".to_string(), 0.336); // ln(1.4) - ln(1.0)
-        map.insert("staphylococcus_aureus_young_adult_sepsis_log_odds".to_string(), 0.588); // ln(1.8) - ln(1.0)
+        // MODERATE-HIGH SEPSIS RISK
+        map.insert("escherichia_coli_sepsis_risk_multiplier".to_string(), 1.2); // Common but variable by syndrome
+        map.insert("enterococcus_faecalis_sepsis_risk_multiplier".to_string(), 1.4); // Less virulent than faecium
+        map.insert("streptococcus_agalactiae_sepsis_risk_multiplier".to_string(), 1.5); // GBS can cause severe sepsis
+        map.insert("listeria_monocytogenes_sepsis_risk_multiplier".to_string(), 2.5); // 20-30% CFR; CNS invasion, immunocompromised hosts
+
+        // MODERATE-HIGH SEPSIS RISK (significant mortality potential)
+        map.insert("invasive_non-typhoidal_salmonella_spp._sepsis_risk_multiplier".to_string(), 2.2); // 15-25% CFR in Africa; ~680,000 deaths/year globally
+
+        // MODERATE SEPSIS RISK (baseline category)
+        map.insert("salmonella_enterica_serovar_typhi_sepsis_risk_multiplier".to_string(), 1.2); // Typhoid fever systemic
+        map.insert("vibrio_cholerae_sepsis_risk_multiplier".to_string(), 1.0); // Usually gastroenteritis, rare sepsis
+        map.insert("yersinia_enterocolitica_sepsis_risk_multiplier".to_string(), 0.8); // Usually localized
+
+        // LOW SEPSIS RISK (standard category, but specific values)
+        map.insert("campylobacter_jejuni_sepsis_risk_multiplier".to_string(), 0.2); // Almost always gastroenteritis only
+        map.insert("chlamydia_trachomatis_sepsis_risk_multiplier".to_string(), 0.1); // Intracellular, rarely causes sepsis
+        map.insert("neisseria_gonorrhoeae_sepsis_risk_multiplier".to_string(), 0.3); // Usually localized genital infection
+        map.insert("haemophilus_influenzae_sepsis_risk_multiplier".to_string(), 1.0); // ~200,000 deaths/year; 5-10% CFR for invasive disease
+        map.insert("moraxella_catarrhalis_sepsis_risk_multiplier".to_string(), 0.2); // Usually upper respiratory, low virulence
+        map.insert("treponema_pallidum_sepsis_risk_multiplier".to_string(), 0.1); // Chronic infection, not acute sepsis
+        map.insert("shigella_spp._sepsis_risk_multiplier".to_string(), 0.3); // Usually limited to GI tract
+
+        // ULTRA-LOW SEPSIS RISK - Chronic mucosal pathogens that rarely cause acute sepsis
+        map.insert("helicobacter_pylori_sepsis_risk_multiplier".to_string(), 0.0); // Chronic gastritis/ulcer pathogen, ZERO sepsis risk
+
+        // --- ADDITIONAL BACTERIA SEPSIS RISK MULTIPLIERS ---
+        map.insert("bordetella_pertussis_sepsis_risk_multiplier".to_string(), 0.8); // Rarely causes sepsis but ~160,000 deaths/year (mainly respiratory)
+        map.insert("mdr_mycobacterium_tuberculosis_sepsis_risk_multiplier".to_string(), 0.0); // TB causes chronic disease, not acute sepsis
+        map.insert("clostridioides_difficile_sepsis_risk_multiplier".to_string(), 1.5); // CDI mortality ~5-10%; toxic megacolon risk
+        map.insert("stenotrophomonas_maltophilia_sepsis_risk_multiplier".to_string(), 2.0); // ICU pathogen; ~30% mortality in bacteremia
+        map.insert("staphylococcus_epidermidis_sepsis_risk_multiplier".to_string(), 0.8); // Device-related; lower virulence than S. aureus
+        map.insert("citrobacter_spp._sepsis_risk_multiplier".to_string(), 1.5); // Opportunistic; moderate mortality in bacteremia
+        map.insert("proteus_spp._sepsis_risk_multiplier".to_string(), 1.3); // UTI-related sepsis; moderate risk
+        map.insert("serratia_spp._sepsis_risk_multiplier".to_string(), 1.6); // Healthcare-associated; ~20% bacteremia mortality
+        map.insert("morganella_spp._sepsis_risk_multiplier".to_string(), 1.4); // Nosocomial; moderate severity
+        map.insert("salmonella_enterica_serovar_paratyphi_a_sepsis_risk_multiplier".to_string(), 1.0); // Similar to typhi but lower incidence
+        map.insert("enterobacter_cloacae_sepsis_risk_multiplier".to_string(), 1.8); // Similar to enterobacter_spp.; AmpC resistance
+
+        // --- AGE-DEPENDENT BACTERIA SEPSIS RISK INTERACTIONS ---
+        // These modify bacteria sepsis risk based on age groups for clinically important interactions
+
+        // NEONATAL (0-28 days) HIGH RISK BACTERIA - dramatically higher sepsis risk in neonates
+        map.insert("streptococcus_agalactiae_neonatal_sepsis_multiplier".to_string(), 8.0); // GBS leading cause neonatal sepsis
+        map.insert("escherichia_coli_neonatal_sepsis_multiplier".to_string(), 5.0); // E. coli major neonatal pathogen
+        map.insert("listeria_monocytogenes_neonatal_sepsis_multiplier".to_string(), 6.0); // Listeriosis devastating in neonates
+        map.insert("enterococcus_faecalis_neonatal_sepsis_multiplier".to_string(), 3.0); // Enterococcal sepsis more severe in neonates
+        map.insert("staphylococcus_aureus_neonatal_sepsis_multiplier".to_string(), 4.0); // Staph sepsis particularly severe
+
+        // PEDIATRIC (1 month - 18 years) RISK MODIFICATIONS
+        map.insert("streptococcus_pneumoniae_pediatric_sepsis_multiplier".to_string(), 3.0); // Pneumococcal disease severe in children
+        map.insert("haemophilus_influenzae_pediatric_sepsis_multiplier".to_string(), 2.5); // Hib historically major pediatric pathogen
+        map.insert("neisseria_meningitidis_pediatric_sepsis_multiplier".to_string(), 2.0); // Vaccines/supportive care reduce CFR in modern settings
+        map.insert("staphylococcus_aureus_pediatric_sepsis_multiplier".to_string(), 2.0); // MRSA skin/soft tissue -> sepsis
+
+        // ELDERLY (65+ years) HIGH RISK BACTERIA - age-related immunosenescence increases risk
+        map.insert("streptococcus_pneumoniae_elderly_sepsis_multiplier".to_string(), 4.0); // Pneumococcal sepsis devastating in elderly
+        map.insert("escherichia_coli_elderly_sepsis_multiplier".to_string(), 2.5); // UTI -> urosepsis common in elderly
+        map.insert("klebsiella_pneumoniae_elderly_sepsis_multiplier".to_string(), 3.0); // Healthcare-associated, frail elderly
+        map.insert("pseudomonas_aeruginosa_elderly_sepsis_multiplier".to_string(), 3.5); // Pseudomonal sepsis high mortality in elderly
+        map.insert("acinetobacter_baumannii_elderly_sepsis_multiplier".to_string(), 3.0); // ICU-associated, elderly more vulnerable
+        map.insert("enterococcus_faecium_elderly_sepsis_multiplier".to_string(), 2.8); // VRE sepsis higher mortality in elderly
+        map.insert("staphylococcus_aureus_elderly_sepsis_multiplier".to_string(), 3.2); // MRSA bacteremia high mortality in elderly
+
+        // YOUNG ADULT (18-65 years) - generally baseline risk, but some specific high-risk scenarios
+        map.insert("neisseria_meningitidis_young_adult_sepsis_multiplier".to_string(), 1.4); // Dormitory/military outbreaks still risky but treatable
+        map.insert("staphylococcus_aureus_young_adult_sepsis_multiplier".to_string(), 1.8); // IVDU, sports-related infections
+
+        // AGE-INDEPENDENT BASELINE MULTIPLIERS (used when no age-specific override exists)
+        map.insert("neonatal_baseline_sepsis_risk_multiplier".to_string(), 3.0); // Immature immune system
+        map.insert("pediatric_baseline_sepsis_risk_multiplier".to_string(), 1.2); // Generally good immune response
+        map.insert("young_adult_baseline_sepsis_risk_multiplier".to_string(), 1.0); // Peak immune function
+        map.insert("elderly_baseline_sepsis_risk_multiplier".to_string(), 2.0); // Immunosenescence
 
         // --- REGIONAL SEPSIS RISK FACTORS ---
         // Account for healthcare infrastructure, population density, socioeconomic factors
@@ -6451,6 +6465,13 @@ lazy_static! {
         map.insert("log_odds_sepsis_region_a".to_string(), -0.3); // Higher resource region - better sepsis recognition/treatment
         map.insert("log_odds_sepsis_region_b".to_string(), 0.2);  // Lower resource region - delayed recognition/limited resources
 
+        // POPULATION DENSITY AND TRANSMISSION RISK MODIFIERS
+        map.insert("urban_sepsis_risk_modifier".to_string(), 0.1); // Urban: higher MDR rates but better healthcare access
+        map.insert("rural_sepsis_risk_modifier".to_string(), 0.2); // Rural: delayed care access, transportation barriers
+
+        // SOCIOECONOMIC STATUS MODIFIERS (if implemented in future)
+        map.insert("low_ses_sepsis_risk_modifier".to_string(), 0.3); // Lower SES: delayed care-seeking, comorbidities
+        map.insert("high_ses_sepsis_risk_modifier".to_string(), -0.2); // Higher SES: earlier care-seeking, better baseline health
 
         // Syndrome-specific sepsis risk parameters (infectious site effects)
         // CALIBRATED: Reduced sepsis risk for high-volume low-severity syndromes to achieve
@@ -7559,9 +7580,98 @@ pub fn get_age_infection_multiplier(bacteria_name: &str, age_days: i32) -> f64 {
     }
 }
 
-/// Gets age-dependent sepsis risk log-odds for a specific bacteria and age.
+/// Gets the sepsis risk category multiplier for a bacteria.
+/// Supports both enhanced granular bacteria-specific risks and fallback categories.
+/// Returns the appropriate risk multiplier based on clinical evidence.
+pub fn get_bacteria_sepsis_risk_multiplier(bacteria_name: &str) -> f64 {
+    let canonical = canonicalize_bacteria_slug(bacteria_name);
+    let bacteria_name = canonical.as_ref();
+    // First try to get bacteria-specific override multiplier (enhanced granular risks)
+    let bacteria_key = format!("{}_sepsis_risk_multiplier", bacteria_name);
+    if let Some(specific_multiplier) = get_global_param(&bacteria_key) {
+        return specific_multiplier;
+    }
+
+    // Fall back to clinical risk category groupings if no specific override exists
+
+    // EXTREMELY HIGH SEPSIS RISK - these should have specific overrides above
+    let extremely_high_risk_bacteria = [
+        "neisseria_meningitidis",   // Meningococcal sepsis extremely rapid/severe
+        "staphylococcus_aureus",    // MRSA bacteremia particularly deadly
+        "streptococcus_pneumoniae", // Pneumococcal sepsis very severe
+    ];
+
+    // HIGH SEPSIS RISK - often MDR, ICU-associated, high mortality
+    let high_risk_bacteria = [
+        "pseudomonas_aeruginosa",  // Pseudomonal sepsis severe, often MDR
+        "acinetobacter_baumannii", // Often MDR, ICU-associated severe sepsis
+        "klebsiella_pneumoniae",   // ESBL/carbapenem resistance increases severity
+        "enterococcus_faecium",    // VRE bacteremia significant mortality
+        "enterobacter_spp.",       // AmpC resistance, healthcare-associated
+    ];
+
+    // MODERATE-HIGH SEPSIS RISK - variable clinical severity
+    let moderate_high_risk_bacteria = [
+        "escherichia_coli",         // Common but variable by syndrome
+        "enterococcus_faecalis",    // Less virulent than faecium
+        "streptococcus_agalactiae", // GBS can cause severe sepsis
+        "listeria_monocytogenes",   // CNS invasion, immunocompromised hosts
+    ];
+
+    // MODERATE SEPSIS RISK - baseline risk
+    let moderate_risk_bacteria = [
+        "salmonella_enterica_serovar_typhi", // Typhoid fever systemic
+        "vibrio_cholerae",                   // Usually gastroenteritis, rare sepsis
+        "yersinia_enterocolitica",           // Usually localized
+    ];
+
+    // LOW SEPSIS RISK - usually localized infections, rarely cause sepsis
+    let low_risk_bacteria = [
+        "campylobacter_jejuni",   // Almost always gastroenteritis only
+        "chlamydia_trachomatis",  // Intracellular, rarely causes sepsis
+        "neisseria_gonorrhoeae",  // Usually localized genital infection
+        "haemophilus_influenzae", // Post-vaccine era, usually respiratory
+        "moraxella_catarrhalis",  // Usually upper respiratory, low virulence
+        "treponema_pallidum",     // Chronic infection, not acute sepsis
+        "shigella_spp.",          // Usually limited to GI tract
+    ];
+
+    // Return appropriate multiplier based on risk category
+    if extremely_high_risk_bacteria
+        .iter()
+        .any(|name| *name == bacteria_name)
+    {
+        get_global_param("high_sepsis_risk_multiplier").unwrap_or(3.0) // Higher than standard high
+    } else if high_risk_bacteria
+        .iter()
+        .any(|name| *name == bacteria_name)
+    {
+        get_global_param("high_sepsis_risk_multiplier").unwrap_or(2.0)
+    } else if moderate_high_risk_bacteria
+        .iter()
+        .any(|name| *name == bacteria_name)
+    {
+        1.5 // Between moderate and high
+    } else if moderate_risk_bacteria
+        .iter()
+        .any(|name| *name == bacteria_name)
+    {
+        get_global_param("moderate_sepsis_risk_multiplier").unwrap_or(1.0)
+    } else if low_risk_bacteria
+        .iter()
+        .any(|name| *name == bacteria_name)
+    {
+        get_global_param("low_sepsis_risk_multiplier").unwrap_or(0.3)
+    } else {
+        // Default to moderate risk for any bacteria not explicitly categorized
+        get_global_param("moderate_sepsis_risk_multiplier").unwrap_or(1.0)
+    }
+}
+
+/// Gets age-dependent sepsis risk multiplier for a specific bacteria and age.
 /// Accounts for clinically important age-bacteria interactions (e.g., GBS in neonates, pneumococcus in elderly).
-pub fn get_age_dependent_bacteria_sepsis_risk_log_odds(
+/// Returns multiplier that modifies the base bacteria sepsis risk.
+pub fn get_age_dependent_bacteria_sepsis_risk_multiplier(
     bacteria_name: &str,
     age_days: u32,
 ) -> f64 {
@@ -7578,13 +7688,15 @@ pub fn get_age_dependent_bacteria_sepsis_risk_log_odds(
         "elderly"
     };
 
-    let base = get_global_param("sepsis_age_log_odds_baseline").unwrap_or(0.0);
-    let age_key = format!("sepsis_age_log_odds_{}", age_category);
-    let age_delta = get_global_param(&age_key).unwrap_or(0.0);
-    let bacteria_age_log_key = format!("{}_{}_sepsis_log_odds", bacteria_name, age_category);
-    let bacteria_age_delta = get_global_param(&bacteria_age_log_key).unwrap_or(0.0);
+    // First try to get bacteria-age-specific multiplier
+    let bacteria_age_key = format!("{}_{}_sepsis_multiplier", bacteria_name, age_category);
+    if let Some(specific_multiplier) = get_global_param(&bacteria_age_key) {
+        return specific_multiplier;
+    }
 
-    base + age_delta + bacteria_age_delta
+    // Fall back to age-category baseline multiplier
+    let age_baseline_key = format!("{}_baseline_sepsis_risk_multiplier", age_category);
+    get_global_param(&age_baseline_key).unwrap_or(1.0)
 }
 
 // Drug introduction dates (as time steps from start of 1930)

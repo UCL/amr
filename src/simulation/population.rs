@@ -58,7 +58,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::SixteenSMethyltransferase => "16s_methyltransferase",
             ResistanceMechanism::Qnr => "qnr",
             ResistanceMechanism::EffluxOverexpression => "efflux_overexpression",
-            ResistanceMechanism::ErmMethylation => "erm_methyltransferase",
+            ResistanceMechanism::ErmMethylation => "erm_methylation",
             ResistanceMechanism::VanType => "van_type",
             ResistanceMechanism::MecA => "meca",
             ResistanceMechanism::ReducedPermeability => "reduced_permeability",
@@ -145,18 +145,92 @@ pub enum ImmunodeficiencyType {
     Chronic,
 }
 
+/// Canonical age cohorts used for reporting and parameter lookups.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgeCategory {
+    Prenatal,
+    Age0To1,
+    Age1To5,
+    Age5To18,
+    Age18To50,
+    Age50To70,
+    Age70Plus,
+}
+
+impl AgeCategory {
+    const DAYS_PER_YEAR: i32 = 365;
+
+    pub const fn from_age_days(age_days: i32) -> Self {
+        if age_days < 0 {
+            AgeCategory::Prenatal
+        } else if age_days < Self::DAYS_PER_YEAR {
+            AgeCategory::Age0To1
+        } else if age_days < 5 * Self::DAYS_PER_YEAR {
+            AgeCategory::Age1To5
+        } else if age_days < 18 * Self::DAYS_PER_YEAR {
+            AgeCategory::Age5To18
+        } else if age_days < 50 * Self::DAYS_PER_YEAR {
+            AgeCategory::Age18To50
+        } else if age_days < 70 * Self::DAYS_PER_YEAR {
+            AgeCategory::Age50To70
+        } else {
+            AgeCategory::Age70Plus
+        }
+    }
+
+    pub const fn order(self) -> usize {
+        match self {
+            AgeCategory::Prenatal => 0,
+            AgeCategory::Age0To1 => 0,
+            AgeCategory::Age1To5 => 1,
+            AgeCategory::Age5To18 => 2,
+            AgeCategory::Age18To50 => 3,
+            AgeCategory::Age50To70 => 4,
+            AgeCategory::Age70Plus => 5,
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            AgeCategory::Prenatal => "not_yet_born",
+            AgeCategory::Age0To1 => "infant",
+            AgeCategory::Age1To5 => "preschool",
+            AgeCategory::Age5To18 => "school",
+            AgeCategory::Age18To50 => "young_adult",
+            AgeCategory::Age50To70 => "middle_age",
+            AgeCategory::Age70Plus => "elderly",
+        }
+    }
+
+    pub const fn bucket_slug(self) -> &'static str {
+        match self {
+            AgeCategory::Prenatal => "not_yet_born",
+            AgeCategory::Age0To1 => "0_1",
+            AgeCategory::Age1To5 => "1_5",
+            AgeCategory::Age5To18 => "5_18",
+            AgeCategory::Age18To50 => "18_50",
+            AgeCategory::Age50To70 => "50_70",
+            AgeCategory::Age70Plus => "70plus",
+        }
+    }
+}
+
+pub const fn get_age_category(age_days: i32) -> AgeCategory {
+    AgeCategory::from_age_days(age_days)
+}
+
+pub const AGE_CATEGORY_SEQUENCE: [AgeCategory; 6] = [
+    AgeCategory::Age0To1,
+    AgeCategory::Age1To5,
+    AgeCategory::Age5To18,
+    AgeCategory::Age18To50,
+    AgeCategory::Age50To70,
+    AgeCategory::Age70Plus,
+];
+
 /// Helper function to get age category string for parameter lookups
 pub fn get_age_category_str(age_days: i32) -> &'static str {
-    match age_days {
-        i32::MIN..=-1 => "not_yet_born", // Negative ages represent future births still pending entry into the population
-        0..=730 => "infant",           // 0-2 years
-        731..=2190 => "preschool",     // 3-5 years
-        2191..=6574 => "school",       // 6-17 years
-        6575..=10949 => "young_adult", // 18-29 years
-        10950..=23359 => "middle_age", // 30-64 years
-        23360..=28854 => "elderly",    // 65-79 years
-        28855..=i32::MAX => "very_elderly", // 80+ years
-    }
+    get_age_category(age_days).label()
 }
 
 impl ImmunodeficiencyType {

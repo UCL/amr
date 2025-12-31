@@ -25,7 +25,7 @@ class PlotConfig:
     drug_failure_rate_by_bacteria_region: bool = False
     mean_mic_by_drug_for_each_bacteria: bool = False
     incidence_of_infection_hospital: bool = False
-    incidence_of_infection: bool = True
+    incidence_of_infection: bool = False
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
     mean_any_r_by_drug_for_each_bacteria: bool = False
@@ -99,6 +99,8 @@ class PlotConfig:
     
     # Simulation time parameters
     start_year: int = 1930  # Starting year for simulation time axis
+    calibration_window_years_before: int = 5  # Years before target year to include in calibration window
+    calibration_window_years_after: int = 0  # Years after target year to include in calibration window
     
     # Grouped figure toggles (always True to ensure figures 1-9 are generated)
     create_grouped_figure_1: bool = True
@@ -181,7 +183,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_634805.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_022587.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

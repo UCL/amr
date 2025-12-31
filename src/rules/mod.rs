@@ -12,9 +12,8 @@
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
 
 use crate::config::{
-    get_age_dependent_bacteria_sepsis_risk_multiplier, get_bacteria_sepsis_risk_multiplier,
-    get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store,
+    get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
+    get_drug_introduction_time_step, get_global_param, parameter_store,
 };
 use crate::simulation::population::{
     HospitalStatus, ImmunodeficiencyType, Individual, InfectionResolutionType, Region,
@@ -652,14 +651,6 @@ fn start_restart_treatment(
             score *= preference_multiplier;
         }
 
-        // BONUS: If this was the previously effective drug, give it preference
-        if let Some(prev_drug_idx) = stopped_drug_idx {
-            if drug_idx == prev_drug_idx {
-                let effectiveness_bonus = store.globals.previously_effective_drug_bonus;
-                score *= effectiveness_bonus;
-            }
-        }
-
         if score > 0.0 {
             drug_scores.push((drug_idx, score));
         }
@@ -722,8 +713,7 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
 pub struct ParameterKeyCache {
     drug_count: usize,
     drug_bacteria_potency: Vec<f64>,
-    bacteria_sepsis_multipliers: Vec<f64>,
-    bacteria_age_sepsis_multipliers: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
+    bacteria_age_sepsis_log_odds: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
 }
 
 impl ParameterKeyCache {
@@ -734,8 +724,7 @@ impl ParameterKeyCache {
 
         let mut drug_bacteria_potency =
             Vec::with_capacity(drug_count * bacteria_count);
-        let mut bacteria_sepsis_multipliers = Vec::with_capacity(BACTERIA_LIST.len());
-        let mut bacteria_age_sepsis_multipliers =
+        let mut bacteria_age_sepsis_log_odds =
             Vec::with_capacity(BACTERIA_LIST.len());
 
         // Pre-compute all drug/bacteria combinations
@@ -744,34 +733,25 @@ impl ParameterKeyCache {
                 drug_bacteria_potency.push(store.drug_bacteria.potency(b_idx, d_idx));
             }
 
-            bacteria_sepsis_multipliers
-                .push(get_bacteria_sepsis_risk_multiplier(bacteria_name));
-
             let mut per_age_bucket = [0.0f64; SEPSIS_AGE_BUCKET_COUNT];
             for (bucket_idx, &age_days) in SEPSIS_AGE_BUCKET_SAMPLE_DAYS.iter().enumerate() {
                 per_age_bucket[bucket_idx] =
-                    get_age_dependent_bacteria_sepsis_risk_multiplier(bacteria_name, age_days);
+                    get_age_dependent_bacteria_sepsis_risk_log_odds(bacteria_name, age_days);
             }
-            bacteria_age_sepsis_multipliers.push(per_age_bucket);
+            bacteria_age_sepsis_log_odds.push(per_age_bucket);
         }
 
         ParameterKeyCache {
             drug_count,
             drug_bacteria_potency,
-            bacteria_sepsis_multipliers,
-            bacteria_age_sepsis_multipliers,
+            bacteria_age_sepsis_log_odds,
         }
     }
 
     #[inline]
-    pub fn bacteria_sepsis_multiplier(&self, bacteria_idx: usize) -> f64 {
-        self.bacteria_sepsis_multipliers[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn bacteria_age_multiplier(&self, bacteria_idx: usize, age_days: u32) -> f64 {
+    pub fn bacteria_age_log_odds(&self, bacteria_idx: usize, age_days: u32) -> f64 {
         let bucket = Self::age_bucket(age_days);
-        self.bacteria_age_sepsis_multipliers[bacteria_idx][bucket]
+        self.bacteria_age_sepsis_log_odds[bacteria_idx][bucket]
     }
 
     #[inline]
@@ -1076,31 +1056,9 @@ pub fn apply_rules(
                     store.bacteria.sepsis_log_odds_infection_duration(b_idx);
 
                 // ENHANCED BACTERIA SEPSIS RISK CALCULATION
-                // Combines: 1) Enhanced bacteria-specific risk, 2) Age-dependent interactions, 3) Clinical risk categories
-                let bacteria_sepsis_risk = param_cache.bacteria_sepsis_multiplier(b_idx);
-                let age_bacteria_sepsis_risk = param_cache
-                    .bacteria_age_multiplier(b_idx, individual.age.max(0) as u32);
-
-                // Combined bacteria risk multiplier (bacteria-specific × age-dependent interaction)
-                let combined_bacteria_risk = bacteria_sepsis_risk * age_bacteria_sepsis_risk;
-
-                // Map combined risk to log odds categories for logistic regression
-                let bacteria_log_odds = if combined_bacteria_risk >= 3.0 {
-                    // Very high combined risk (e.g., MRSA in elderly, GBS in neonates)
-                    store.globals.log_odds_bacteria_with_high_sepsis_risk * 1.5
-                } else if combined_bacteria_risk >= 1.8 {
-                    // High combined risk
-                    store.globals.log_odds_bacteria_with_high_sepsis_risk
-                } else if (0.7..=1.3).contains(&combined_bacteria_risk) {
-                    // Medium combined risk (reference category)
-                    store.globals.log_odds_bacteria_with_medium_sepsis_risk
-                } else if combined_bacteria_risk >= 0.3 {
-                    // Low combined risk
-                    store.globals.log_odds_bacteria_with_low_sepsis_risk
-                } else {
-                    // Very low combined risk (e.g., Chlamydia, localized infections)
-                    store.globals.log_odds_bacteria_with_low_sepsis_risk * 0.5
-                };
+                // Combines: bacteria-specific baseline risk plus age-dependent interactions
+                let age_specific_log_odds = param_cache
+                    .bacteria_age_log_odds(b_idx, individual.age.max(0) as u32);
 
                 // Add syndrome-specific sepsis risk (infection site effect)
                 // This allows the same bacteria to have different sepsis risks depending on infection site
@@ -1128,7 +1086,7 @@ pub fn apply_rules(
                 let log_odds_sepsis = sepsis_baseline_log_odds
                     + (current_level * log_odds_infection_level)
                     + (duration_of_infection as f64 * log_odds_infection_duration)
-                    + bacteria_log_odds
+                    + age_specific_log_odds
                     + syndrome_log_odds
                     + region_log_odds;
 
@@ -1504,11 +1462,11 @@ pub fn apply_rules(
                             ("pseudomonas_aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
                             ("pseudomonas_aeruginosa", "ceftazidime") => score *= 10.0,
                             ("pseudomonas_aeruginosa", "cefepime") => score *= 10.0,
-                            ("pseudomonas_aeruginosa", "meropenem") => score *= 12.0,
-                            ("pseudomonas_aeruginosa", "imipenem_c") => score *= 10.0,
-                            ("pseudomonas_aeruginosa", "ciprofloxacin") => score *= 8.0,
-                            ("pseudomonas_aeruginosa", "tobramycin") => score *= 8.0,
-                            ("pseudomonas_aeruginosa", "colistin") => score *= 6.0,
+                            ("pseudomonas_aeruginosa", "meropenem") => score *= 6.0,
+                            ("pseudomonas_aeruginosa", "imipenem_c") => score *= 5.0,
+                            ("pseudomonas_aeruginosa", "ciprofloxacin") => score *= 7.0,
+                            ("pseudomonas_aeruginosa", "tobramycin") => score *= 7.0,
+                            ("pseudomonas_aeruginosa", "colistin") => score *= 4.0,
                             (
                                 "pseudomonas_aeruginosa",
                                 "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
@@ -1780,25 +1738,22 @@ pub fn apply_rules(
                             }
                             ("acinetobacter_baumannii", "ampicillin_sulbactam") => score *= 12.0,
 
-                            // GLOBAL CARBAPENEM STEWARDSHIP PENALTIES
-                            // Apply consistent penalties for carbapenems against common organisms
-                            // where they should NOT be first-line (regardless of specific bacteria-drug match above)
-                            (_, "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "ertapenem") => {
-                                // Check if this is a bacteria where carbapenems have specific indication
-                                let bacteria_name = BACTERIA_LIST[b_idx];
-                                let carbapenem_indicated = matches!(bacteria_name,
-                                    "pseudomonas_aeruginosa" |  // Anti-pseudomonal
-                                    "acinetobacter_baumannii" | // MDR Acinetobacter
-                                    "stenotrophomonas_maltophilia" // Already blocked separately but included for clarity
-                                );
-                                if !carbapenem_indicated {
-                                    // Apply stewardship penalty for carbapenems against non-indicated organisms
-                                    // E.g., E. coli UTI should use ciprofloxacin/nitrofurantoin, not meropenem
-                                    score *= 0.1; // 10x penalty for using carbapenems where not specifically indicated
-                                }
-                            }
-
                             _ => {} // No specific guideline
+                        }
+
+                        if matches!(
+                            drug_name,
+                            "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "ertapenem"
+                        ) {
+                            let carbapenem_indicated = matches!(
+                                bacteria_name,
+                                "pseudomonas_aeruginosa"
+                                    | "acinetobacter_baumannii"
+                                    | "stenotrophomonas_maltophilia"
+                            );
+                            if !carbapenem_indicated {
+                                score *= 0.12; // Enforce stewardship penalty even after species boosts
+                            }
                         }
                     }
                 }
@@ -1886,11 +1841,10 @@ pub fn apply_rules(
                             ],
                             "klebsiella_pneumoniae" => vec![
                                 "ceftriaxone",
-                                "meropenem",
-                                "imipenem_c",
-                                "ciprofloxacin",
+                                "ceftazidime",
+                                "cefepime",
                                 "piperacillin_tazobactam",
-                                "ertapenem",
+                                "ciprofloxacin",
                             ],
                             "enterococcus_faecalis" => {
                                 vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
@@ -2001,22 +1955,22 @@ pub fn apply_rules(
                 }
 
                 let drug_spectrum = store.drug.spectrum_breadth(drug_idx);
+                let reserve_candidate = matches!(
+                    drug_name,
+                    "meropenem"
+                        | "meropenem_vaborbactam"
+                        | "imipenem_c"
+                        | "ertapenem"
+                        | "colistin"
+                        | "linezolid"
+                        | "tedizolid"
+                        | "quinu_dalfo"
+                        | "dalbavancin"
+                );
                 if has_any_identified_infection {
                     // RESERVE DRUG GATE FOR TARGETED THERAPY
                     // Even with identified infection, carbapenems and other reserve agents should require
                     // documented prior treatment failure to maintain antimicrobial stewardship
-                    let reserve_candidate = matches!(
-                        drug_name,
-                        "meropenem"
-                            | "meropenem_vaborbactam"
-                            | "imipenem_c"
-                            | "ertapenem"
-                            | "colistin"
-                            | "linezolid"
-                            | "tedizolid"
-                            | "quinu_dalfo"
-                            | "dalbavancin"
-                    );
                     if reserve_candidate {
                         let mut failure_documented = false;
                         let failure_memory_days = store.globals.drug_failure_memory_days;
@@ -2085,18 +2039,6 @@ pub fn apply_rules(
 
                     let mut has_any_activity = false;
 
-                    let reserve_candidate = matches!(
-                        drug_name,
-                        "meropenem"
-                            | "meropenem_vaborbactam"
-                            | "imipenem_c"
-                            | "ertapenem"
-                            | "colistin"
-                            | "linezolid"
-                            | "tedizolid"
-                            | "quinu_dalfo"
-                            | "dalbavancin"
-                    );
                     if reserve_candidate {
                         // Stage therapy: require documented recent failure before escalating to reserve agents
                         let mut failure_documented = false;
@@ -2224,6 +2166,13 @@ pub fn apply_rules(
                     } else {
                         // Drug has no activity against any infecting bacteria - heavily penalize
                         score *= empiric_ineffective_penalty;
+                    }
+                }
+
+                if reserve_candidate {
+                    let reserve_penalty = store.globals.reserve_drug_score_penalty;
+                    if reserve_penalty >= 0.0 {
+                        score *= reserve_penalty;
                     }
                 }
                 // Apply drug availability multiplier
@@ -3067,7 +3016,8 @@ pub fn apply_rules(
                             // Use a specific parameter for microbiome resistance emergence if present, else fallback to general
                             let emergence_rate_baseline = store
                                 .globals
-                                .microbiome_resistance_emergence_rate_per_day_baseline;
+                                .microbiome_resistance_emergence_rate_per_day_baseline
+                                * store.globals.resistance_emergence_pop_size_multiplier; // Scale microbiome emergence when population size changes
                             let microbiome_r_emergence_level =
                                 store.globals.any_r_emergence_level_on_first_emergence;
 
@@ -3191,8 +3141,10 @@ pub fn apply_rules(
                                 continue;
                             }
 
-                            let mechanism_emergence_rate =
-                                store.resistance_mechanism.emergence_rate(mechanism_idx);
+                            let mechanism_emergence_rate = store
+                                .resistance_mechanism
+                                .emergence_rate(mechanism_idx)
+                                * store.globals.resistance_emergence_pop_size_multiplier; // Apply pop-size multiplier to mechanism emergence in microbiome
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
                                 individual.resistance_mechanisms[b_idx][mechanism_idx] = true;
@@ -3525,7 +3477,8 @@ pub fn apply_rules(
                         if drug_current_level > 0.0 && current_bacteria_level > 0.0001 {
                             let emergence_rate_baseline = store
                                 .drug_bacteria
-                                .resistance_emergence_rate(bacteria_full_idx, drug_index);
+                                .resistance_emergence_rate(bacteria_full_idx, drug_index)
+                                * store.globals.resistance_emergence_pop_size_multiplier; // Scale infection-site emergence when population size shifts
                             let bacteria_level_effect_multiplier =
                                 store.globals.resistance_emergence_bacteria_level_multiplier;
                             let any_r_emergence_level_on_first_emergence =
@@ -3793,8 +3746,10 @@ pub fn apply_rules(
                                     };
 
                                 if mechanism_applicable {
-                                    let mechanism_emergence_rate =
-                                        store.resistance_mechanism.emergence_rate(mechanism_idx);
+                                    let mechanism_emergence_rate = store
+                                        .resistance_mechanism
+                                        .emergence_rate(mechanism_idx)
+                                        * store.globals.resistance_emergence_pop_size_multiplier; // Use pop-size multiplier for infection-site mechanism emergence
 
                                     if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
                                         individual.resistance_mechanisms[bacteria_full_idx]
@@ -4410,12 +4365,19 @@ pub fn apply_rules(
             // rather than a universal treatment response modifier
             // TB synergy bonus is added here because multi-drug synergy is fundamental to TB treatment effectiveness -
             // it's not an optional enhancement but a biological requirement for meaningful bacterial killing
-            let adjusted_antibiotic_effect = total_reduction_due_to_antibiotic + tb_synergy_bonus;
+            let antibiotic_effect_multiplier =
+                store.globals.drug_activity_to_bacteria_level_multiplier;
+            let adjusted_antibiotic_effect =
+                (total_reduction_due_to_antibiotic + tb_synergy_bonus) * antibiotic_effect_multiplier;
 
             if individual.id == 1000001 {
                 println!(
                     "mod.rs  total reduction due to antibiotic: {:.4}",
                     total_reduction_due_to_antibiotic
+                );
+                println!(
+                    "mod.rs  antibiotic effect multiplier: {:.4}",
+                    antibiotic_effect_multiplier
                 );
                 println!(
                     "mod.rs  adjusted antibiotic effect: {:.4}",
@@ -4432,6 +4394,23 @@ pub fn apply_rules(
             let old_level = individual.level[b_idx];
 
             if new_bacteria_level < 0.0001 || immune_clearance_triggered {
+                // Capture per-drug activity for journey logging before resistance fields reset
+                if crate::simulation::journey_logger::should_cache_pre_clearance_activity(
+                    individual.id,
+                    b_idx,
+                ) {
+                    let activity_values: Vec<f64> = individual.resistances[b_idx]
+                        .iter()
+                        .map(|resistance| resistance.activity_r)
+                        .collect();
+                    crate::simulation::journey_logger::cache_pre_clearance_activity(
+                        individual.id,
+                        b_idx,
+                        activity_values,
+                        time_step as i32,
+                    );
+                }
+
                 // Check if there was an infection before clearance (previous level > INFECTION_EPS)
                 let was_previously_infected = old_level > INFECTION_EPS;
 

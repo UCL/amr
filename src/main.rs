@@ -32,6 +32,9 @@ mod simulation;
 //
 // fix the bacteria names throughout all files
 //
+// should the population majority_r be based on infections where spread is more likely ? such as
+// respiratory infections rather than some other infection sites ? 
+//
 //
 //
 //
@@ -110,7 +113,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =  10_000;
+    let population_size =     10_000 ;
     let time_steps =  38_325;
     let log_individuals = false ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging

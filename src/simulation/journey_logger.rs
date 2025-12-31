@@ -13,10 +13,122 @@ use crate::simulation::population::{
 use rand::rngs::SmallRng;
 use rand::Rng;
 use rand::SeedableRng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
+
+/// Cached pre-clearance `activity_r` snapshot for a tracked (individual, bacteria) pair.
+#[derive(Clone)]
+struct CachedActivitySnapshot {
+    time_step: i32,
+    values: Vec<f64>,
+}
+
+static ACTIVITY_SNAPSHOT_ENABLED: AtomicBool = AtomicBool::new(false);
+static ACTIVITY_SNAPSHOT_REGISTRY: OnceLock<Mutex<HashSet<(usize, usize)>>> = OnceLock::new();
+static ACTIVITY_SNAPSHOT_CACHE: OnceLock<Mutex<HashMap<(usize, usize), CachedActivitySnapshot>>> =
+    OnceLock::new();
+
+fn activity_registry() -> &'static Mutex<HashSet<(usize, usize)>> {
+    ACTIVITY_SNAPSHOT_REGISTRY.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn activity_cache() -> &'static Mutex<HashMap<(usize, usize), CachedActivitySnapshot>> {
+    ACTIVITY_SNAPSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Enable snapshot tracking and clear any stale cache entries from prior runs.
+pub(crate) fn enable_activity_snapshots() {
+    ACTIVITY_SNAPSHOT_ENABLED.store(true, Ordering::Relaxed);
+    activity_registry().lock().unwrap().clear();
+    activity_cache().lock().unwrap().clear();
+}
+
+/// Disable snapshot tracking and drop any cached state.
+pub(crate) fn disable_activity_snapshots() {
+    ACTIVITY_SNAPSHOT_ENABLED.store(false, Ordering::Relaxed);
+    if let Some(registry) = ACTIVITY_SNAPSHOT_REGISTRY.get() {
+        registry.lock().unwrap().clear();
+    }
+    if let Some(cache) = ACTIVITY_SNAPSHOT_CACHE.get() {
+        cache.lock().unwrap().clear();
+    }
+}
+
+/// Register a tracked primary infection so that rules know whether to cache activity snapshots.
+pub(crate) fn register_activity_snapshot_tracking(individual_id: usize, bacteria_idx: usize) {
+    if !ACTIVITY_SNAPSHOT_ENABLED.load(Ordering::Relaxed) {
+        return;
+    }
+    activity_registry()
+        .lock()
+        .unwrap()
+        .insert((individual_id, bacteria_idx));
+}
+
+/// Remove tracking metadata when a journey completes or is aborted.
+pub(crate) fn unregister_activity_snapshot_tracking(individual_id: usize, bacteria_idx: usize) {
+    if let Some(registry) = ACTIVITY_SNAPSHOT_REGISTRY.get() {
+        registry.lock().unwrap().remove(&(individual_id, bacteria_idx));
+    }
+    if let Some(cache) = ACTIVITY_SNAPSHOT_CACHE.get() {
+        cache.lock().unwrap().remove(&(individual_id, bacteria_idx));
+    }
+}
+
+/// Lightweight check used inside the simulation rules to decide whether it's worth cloning activity data.
+pub(crate) fn should_cache_pre_clearance_activity(
+    individual_id: usize,
+    bacteria_idx: usize,
+) -> bool {
+    if !ACTIVITY_SNAPSHOT_ENABLED.load(Ordering::Relaxed) {
+        return false;
+    }
+    ACTIVITY_SNAPSHOT_REGISTRY
+        .get()
+        .map(|registry| registry.lock().unwrap().contains(&(individual_id, bacteria_idx)))
+        .unwrap_or(false)
+}
+
+/// Store the freshly cloned `activity_r` vector so the journey logger can retrieve it on the same day.
+pub(crate) fn cache_pre_clearance_activity(
+    individual_id: usize,
+    bacteria_idx: usize,
+    activity_values: Vec<f64>,
+    time_step: i32,
+) {
+    if !should_cache_pre_clearance_activity(individual_id, bacteria_idx) {
+        return;
+    }
+    activity_cache().lock().unwrap().insert(
+        (individual_id, bacteria_idx),
+        CachedActivitySnapshot {
+            time_step,
+            values: activity_values,
+        },
+    );
+}
+
+/// Retrieve and remove the cached snapshot if it matches the expected timestep.
+pub(crate) fn take_cached_activity_snapshot(
+    individual_id: usize,
+    bacteria_idx: usize,
+    expected_time_step: i32,
+) -> Option<Vec<f64>> {
+    if !ACTIVITY_SNAPSHOT_ENABLED.load(Ordering::Relaxed) {
+        return None;
+    }
+    let mut cache = activity_cache().lock().unwrap();
+    if let Some(entry) = cache.remove(&(individual_id, bacteria_idx)) {
+        if entry.time_step == expected_time_step {
+            return Some(entry.values);
+        }
+    }
+    None
+}
 
 #[derive(Clone, Debug)]
 pub struct InfectionJourneySnapshot {
@@ -144,6 +256,7 @@ impl JourneyLogger {
         self.enabled = true;
         self.sample_rate = sample_rate.clamp(0.0, 1.0);
         self.bacteria_filter = None;
+        enable_activity_snapshots();
 
         // Create output file
         let output_dir = Path::new("infection_journeys");
@@ -171,6 +284,7 @@ impl JourneyLogger {
         self.enabled = true;
         self.sample_rate = sample_rate.clamp(0.0, 1.0);
         self.bacteria_filter = bacteria_filter;
+        enable_activity_snapshots();
 
         // Create output file with bacteria-specific name if filtering
         let output_dir = Path::new("infection_journeys");
@@ -300,6 +414,7 @@ impl JourneyLogger {
         };
 
         self.active_journeys.insert(individual.id, journey);
+        register_activity_snapshot_tracking(individual.id, primary_bacteria_idx);
         self.total_journeys_started += 1;
 
         // Write initial snapshot to CSV
@@ -402,6 +517,7 @@ impl JourneyLogger {
 
     fn complete_journey(&mut self, individual: &Individual, time_step: usize) {
         if let Some(mut journey) = self.active_journeys.remove(&individual.id) {
+            unregister_activity_snapshot_tracking(individual.id, journey.primary_bacteria_idx);
             journey.day_count += 1;
 
             // Determine resolution type
@@ -590,6 +706,26 @@ impl JourneyLogger {
                 )
             })
             .collect();
+
+        if bacteria_cleared_this_step
+            && !resistance_activity_r.iter().any(|(_, value)| *value > 0.0)
+        {
+            if let Some(cached_values) = take_cached_activity_snapshot(
+                individual.id,
+                primary_bacteria_idx,
+                time_step as i32,
+            ) {
+                let mut reconstructed: Vec<(String, f64)> = Vec::new();
+                for (drug_idx, value) in cached_values.into_iter().enumerate() {
+                    if value > 0.0 {
+                        reconstructed.push((DRUG_SHORT_NAMES[drug_idx].to_string(), value));
+                    }
+                }
+                if !reconstructed.is_empty() {
+                    resistance_activity_r = reconstructed;
+                }
+            }
+        }
 
         if bacteria_cleared_this_step
             && !resistance_activity_r.iter().any(|(_, value)| *value > 0.0)
@@ -1130,6 +1266,7 @@ impl JourneyLogger {
         if let Some(writer) = self.csv_writer.take() {
             writer.into_inner()?.flush()?;
         }
+        disable_activity_snapshots();
         Ok(())
     }
 }

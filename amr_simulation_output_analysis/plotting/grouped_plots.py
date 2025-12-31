@@ -364,7 +364,7 @@ def create_grouped_plots(df, config=None):
             
             axes3[3].set_title('Daily Infection Incidence (proportion of population)')
             axes3[3].set_xlabel('Time (Years)')
-            axes3[3].set_ylabel('Proportion of population newly infected per day')
+            axes3[3].set_ylabel('Daily infection incidence (per person-day)')
             axes3[3].set_ylim(bottom=0)
             axes3[3].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
             axes3[3].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=6, 
@@ -378,6 +378,7 @@ def create_grouped_plots(df, config=None):
             axes3[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.subplots_adjust(hspace=0.7, wspace=0.35)
         plt.savefig(config.output_dir / 'grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print("[OK] Grouped figure 3 saved as 'grouped_figure_3.png'")
@@ -490,6 +491,7 @@ def create_grouped_plots(df, config=None):
             axes4[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.subplots_adjust(hspace=0.65, wspace=0.4)
         plt.savefig(config.output_dir / 'grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print("[OK] Grouped figure 4 saved as 'grouped_figure_4.png'")
@@ -789,6 +791,7 @@ def create_grouped_plots(df, config=None):
                 axes6[i].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.subplots_adjust(hspace=0.65, wspace=0.4)
         plt.savefig(config.output_dir / 'grouped_figure_6.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
         print("[OK] Grouped figure 6 saved as 'grouped_figure_6.png'")

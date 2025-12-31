@@ -152,8 +152,17 @@ def _gather_calibration_context(
         raise KeyError("Simulation summary missing 'time_in_years' column")
 
     df["calendar_year"] = config.start_year + df["time_in_years"]
-    year_df = _ensure_year_slice(df, df["calendar_year"], targets.target_year)
+    window_years_before = max(0, int(getattr(config, "calibration_window_years_before", 0)))
+    window_years_after = max(0, int(getattr(config, "calibration_window_years_after", 0)))
+    year_df = _ensure_year_slice(
+        df,
+        df["calendar_year"],
+        targets.target_year,
+        window_years_before=window_years_before,
+        window_years_after=window_years_after,
+    )
 
+    window_years = _estimate_window_years(year_df)
     scale_factor = _compute_population_scale(year_df, targets.world_population)
     (
         resistance_window_df,
@@ -162,7 +171,7 @@ def _gather_calibration_context(
         resistance_expanded_label,
     ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=5)
 
-    headline_df = _build_headline_table(df, year_df, targets, scale_factor)
+    headline_df = _build_headline_table(df, year_df, targets, scale_factor, window_years)
     microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
     drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
     resistance_targets = _load_bacteria_drug_matrix(
@@ -182,7 +191,7 @@ def _gather_calibration_context(
     )
 
     overall_resistance = _calculate_overall_resistance(resistance_df)
-    bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor)
+    bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor, window_years)
 
     return {
         "config": config,
@@ -190,6 +199,7 @@ def _gather_calibration_context(
         "df": df,
         "year_df": year_df,
         "scale_factor": scale_factor,
+        "window_years": window_years,
         "resistance_window_df": resistance_window_df,
         "resistance_window_label": resistance_window_label,
         "resistance_expanded_df": resistance_expanded_df,
@@ -211,13 +221,21 @@ def _ensure_year_slice(
     df: pd.DataFrame,
     calendar_year: pd.Series,
     target_year: int,
+    *,
+    window_years_before: int = 5,
+    window_years_after: int = 0,
 ) -> pd.DataFrame:
-    """Return rows covering the requested year, falling back gracefully if absent."""
+    """Return rows covering the requested window around the target year."""
 
     if df.empty or calendar_year.empty:
         return df
 
-    mask_target = (calendar_year >= target_year) & (calendar_year < target_year + 1)
+    window_years_before = max(0, int(window_years_before))
+    window_years_after = max(0, int(window_years_after))
+
+    start_year = target_year - window_years_before
+    end_year = target_year + window_years_after + 1
+    mask_target = (calendar_year >= start_year) & (calendar_year < end_year)
     year_df = df.loc[mask_target]
     if not year_df.empty:
         return year_df
@@ -228,8 +246,8 @@ def _ensure_year_slice(
 
     # Select the closest available calendar year and return its one-year window.
     nearest_year = float(min(available_years, key=lambda value: abs(value - target_year)))
-    lower_bound = np.floor(nearest_year)
-    upper_bound = lower_bound + 1.0
+    lower_bound = np.floor(nearest_year) - window_years_before
+    upper_bound = np.floor(nearest_year) + window_years_after + 1.0
     fallback_mask = (calendar_year >= lower_bound) & (calendar_year < upper_bound)
     fallback_df = df.loc[fallback_mask]
     if not fallback_df.empty:
@@ -237,6 +255,31 @@ def _ensure_year_slice(
 
     # As a last resort, return the full dataframe to keep downstream logic functional.
     return df
+
+
+def _estimate_window_years(frame: pd.DataFrame) -> float:
+    """Estimate duration of the supplied window in simulation years."""
+
+    if frame is None or frame.empty:
+        return 0.0
+
+    if "time_step" in frame.columns:
+        time_values = pd.to_numeric(frame["time_step"], errors="coerce")
+        time_values = time_values.dropna()
+        if not time_values.empty:
+            span_days = float(time_values.max() - time_values.min()) + 1.0
+            if span_days > 0.0:
+                return span_days / 365.0
+
+    if "calendar_year" in frame.columns:
+        year_values = pd.to_numeric(frame["calendar_year"], errors="coerce")
+        year_values = year_values.dropna()
+        if not year_values.empty:
+            span_years = float(year_values.max() - year_values.min())
+            if span_years > 0.0:
+                return span_years
+
+    return max(len(frame) / 365.0, 0.0)
 
 
 def _select_resistance_windows(
@@ -363,11 +406,23 @@ def _build_headline_table(
     year_df: pd.DataFrame,
     targets: CalibrationTargets,
     scale_factor: float,
+    window_years: float,
 ) -> pd.DataFrame:
+    annualization_factor = window_years if np.isfinite(window_years) and window_years > 0 else 1.0
+
+    def _annualize_sum(value: float) -> float:
+        if not np.isfinite(value):
+            return value
+        return value / annualization_factor
+
     aggregations: Dict[str, Optional[float]] = {}
 
-    sepsis_deaths_total = float(year_df.get("deaths_sepsis", pd.Series(dtype=float)).sum())
-    inf_deaths_total = float(year_df.get("deaths_infection_non_sepsis", pd.Series(dtype=float)).sum())
+    sepsis_deaths_total = _annualize_sum(
+        float(year_df.get("deaths_sepsis", pd.Series(dtype=float)).sum())
+    )
+    inf_deaths_total = _annualize_sum(
+        float(year_df.get("deaths_infection_non_sepsis", pd.Series(dtype=float)).sum())
+    )
     total_infection_deaths = sepsis_deaths_total + inf_deaths_total
 
     scaled_infection_deaths = total_infection_deaths * scale_factor
@@ -386,7 +441,7 @@ def _build_headline_table(
         aggregations["people_on_antibiotics_millions"] = np.nan
 
     if {"newly_infected_count", "total_population"}.issubset(year_df.columns):
-        total_new_infections = float(year_df["newly_infected_count"].sum())
+        total_new_infections = _annualize_sum(float(year_df["newly_infected_count"].sum()))
         avg_population = float(year_df["total_population"].mean())
         incidence = _safe_divide(total_new_infections, avg_population)
         aggregations["annual_infection_incidence_percent"] = (incidence * 100.0) if incidence is not None else None
@@ -857,6 +912,7 @@ def _calculate_bacteria_burden_table(
     year_df: pd.DataFrame,
     targets: CalibrationTargets,
     scale_factor: float,
+    window_years: float,
 ) -> pd.DataFrame:
     columns = [
         "Bacteria",
@@ -880,6 +936,7 @@ def _calculate_bacteria_burden_table(
         return pd.DataFrame(columns=columns)
 
     world_population = targets.world_population if (targets.world_population and targets.world_population > 0) else None
+    annualization_factor = window_years if np.isfinite(window_years) and window_years > 0 else 1.0
 
     incidence_targets_df = _load_bacteria_metric_values(
         targets.infection_incidence_path, "annual_infection_proportion"
@@ -954,7 +1011,7 @@ def _calculate_bacteria_burden_table(
         if infection_cols:
             total_infections = sum(float(year_df[col].sum(skipna=True)) for col in infection_cols)
             if avg_population > 0:
-                infection_sim_pct = total_infections / avg_population * 100.0
+                infection_sim_pct = (total_infections / annualization_factor) / avg_population * 100.0
 
         presence_col = f"{slug}_presence_microbiome"
         carriage_sim_pct = np.nan
@@ -968,7 +1025,9 @@ def _calculate_bacteria_burden_table(
         if deaths_col in year_df.columns:
             total_deaths = float(year_df[deaths_col].sum(skipna=True))
             if world_population and scale_factor and np.isfinite(scale_factor):
-                deaths_sim_millions = total_deaths * scale_factor / 1_000_000.0
+                deaths_sim_millions = (
+                    (total_deaths / annualization_factor) * scale_factor / 1_000_000.0
+                )
 
         records.append({
             "Bacteria": display_name,
@@ -1592,6 +1651,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     scale_factor_obj = context.get("scale_factor")
     scale_factor = float(scale_factor_obj) if isinstance(scale_factor_obj, (int, float)) else 1.0
+    window_years_obj = context.get("window_years")
+    window_years = float(window_years_obj) if isinstance(window_years_obj, (int, float)) else 1.0
 
     window_label_obj = context.get("resistance_window_label")
     resistance_window_label = str(window_label_obj) if window_label_obj not in (None, "") else ""
@@ -1605,11 +1666,15 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_634805.txt"
+    output_path = output_dir / "calibration_summary_022587.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
-        handle.write(f"Target year: {targets.target_year}\n\n")
+        handle.write(f"Target year: {targets.target_year}\n")
+        handle.write(
+            f"Calibration window duration: {window_years:.2f} simulated years"
+            " (totals annualized to yearly equivalents)\n\n"
+        )
 
         population_series = year_df.get("total_population")
         if population_series is not None and not population_series.empty:
@@ -1641,7 +1706,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         if combined_drug_df.empty:
             combined_drug_df = pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 
-        if reserve_share is not None:
+        existing_reserve_row = False
+        if not combined_drug_df.empty and "Class" in combined_drug_df.columns:
+            class_series = combined_drug_df["Class"].astype(str).str.lower()
+            existing_reserve_row = class_series.str.contains("reserve", na=False).any()
+
+        if reserve_share is not None and not existing_reserve_row:
             reserve_row = {
                 "Class": "Reserve drugs (carbapenems & last-resort)",
                 "Share (%)": reserve_share,
