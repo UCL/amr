@@ -235,6 +235,7 @@ pub struct GlobalScalars {
     pub effective_potency_threshold_for_targeted_therapy: f64,
     pub empiric_therapy_broad_spectrum_bonus: f64,
     pub empiric_therapy_ineffective_penalty: f64,
+    pub effective_potency_threshold_for_empirical_therapy: f64,
     pub any_r_increase_rate_per_day_when_drug_present: f64,
     pub sepsis_minimum_duration_days: i32,
     pub sepsis_base_log_odds_of_recovery_per_day: f64,
@@ -384,7 +385,7 @@ impl GlobalScalars {
             resistance_emergence_pop_size_multiplier: get_or_default(
                 map,
                 "resistance_emergence_pop_size_multiplier",
-                1.0,
+                30.0,
             ),
             any_r_emergence_level_on_first_emergence: get_or_default(
                 map,
@@ -551,6 +552,11 @@ impl GlobalScalars {
                 map,
                 "empiric_therapy_ineffective_drug_penalty",
                 0.05,
+            ),
+            effective_potency_threshold_for_empirical_therapy: get_or_default(
+                map,
+                "effective_potency_threshold_for_empirical_therapy",
+                0.10,
             ),
             any_r_increase_rate_per_day_when_drug_present: get_or_default(
                 map,
@@ -969,7 +975,6 @@ pub struct SyndromeParameters {
     sepsis_log_odds: Vec<f64>,
     initiation_multiplier: Vec<f64>,
     non_sepsis_mortality_log_odds: Vec<f64>,
-    empiric_drug_scores: Vec<Vec<f64>>,
 }
 
 impl SyndromeParameters {
@@ -980,8 +985,6 @@ impl SyndromeParameters {
         let mut sepsis_log_odds = vec![0.0; len];
         let mut initiation_multiplier = vec![1.0; len];
         let mut non_sepsis_mortality_log_odds = vec![0.0; len];
-        let mut empiric_drug_scores =
-            vec![vec![1.0; DRUG_SHORT_NAMES.len()]; len];
 
         for syndrome_id in 1..=Self::MAX_SYNDROME_ID {
             sepsis_log_odds[syndrome_id] = get_or_default(
@@ -1002,23 +1005,12 @@ impl SyndromeParameters {
                 ),
                 0.0,
             );
-
-            for (drug_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
-                let key = format!(
-                    "syndrome_{}_empiric_drug_{}_score",
-                    syndrome_id,
-                    drug
-                );
-                empiric_drug_scores[syndrome_id][drug_idx] =
-                    get_or_default(map, &key, 1.0);
-            }
         }
 
         SyndromeParameters {
             sepsis_log_odds,
             initiation_multiplier,
             non_sepsis_mortality_log_odds,
-            empiric_drug_scores,
         }
     }
 
@@ -1044,15 +1036,6 @@ impl SyndromeParameters {
             .get(syndrome_id)
             .copied()
             .unwrap_or(0.0)
-    }
-
-    #[inline]
-    pub fn empiric_drug_score(&self, syndrome_id: usize, drug_idx: usize) -> f64 {
-        self.empiric_drug_scores
-            .get(syndrome_id)
-            .and_then(|scores| scores.get(drug_idx))
-            .copied()
-            .unwrap_or(1.0)
     }
 }
 
@@ -2789,7 +2772,7 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
         "staphylococcus_aureus",
         [
             Some(0.100000),
-            Some(0.950000),
+            Some(0.100000),
             Some(0.100000),
             Some(0.100000),
             Some(0.700000),
@@ -4358,6 +4341,8 @@ lazy_static! {
         // Clinical Decision-Making Potency Thresholds
         map.insert("minimal_potency_threshold_for_drug_selection".to_string(), 0.15); // Higher minimum potency to consider drug (blocks ineffective broad picks)
         map.insert("effective_potency_threshold_for_targeted_therapy".to_string(), 0.10); // Threshold for "good activity" in targeted therapy
+        map.insert("effective_potency_threshold_for_empirical_therapy".to_string(), 0.30); // Threshold for "effective activity" in empirical therapy
+
         // Drug Evaluation Timing Parameters
         map.insert("drug_evaluation_days_post_infection".to_string(), 7.0); // Number of days after infection to evaluate drug initiation
 
@@ -5782,38 +5767,38 @@ lazy_static! {
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
         map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -16.5); 
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -16.0); 
         map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -13.3);
-        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -15.5); 
+        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -13.5);
+        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -15.0); 
         map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -13.0); 
-        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -13.2); 
+        map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -14.0); 
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
-        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2); 
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.5); 
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -16.0); 
-        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -16.5); 
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -17.5); 
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -13.5); 
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -14.0); 
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5); 
-        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -16.5); 
         map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -15.5); 
         map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.0); 
-        map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.5); 
-        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.5); 
+        map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -17.0); 
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.0); 
+        map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -14.0); 
         map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -15.5); 
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.0);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.0); 
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -13.5); 
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -14.0); 
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.0); 
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -15.0); 
+        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -17.0); 
-        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -13.0); 
-        map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -16.5); 
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -13.2); 
+        map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -15.0); 
         map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.0); 
         map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -17.0); 
@@ -6194,7 +6179,7 @@ lazy_static! {
         map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.001); // Calibrated for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
 
-        map.insert("resistance_emergence_pop_size_multiplier".to_string(), 1.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
+        map.insert("resistance_emergence_pop_size_multiplier".to_string(), 30.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
 
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -6272,240 +6257,10 @@ lazy_static! {
         map.insert("test_r_error_probability".to_string(), 0.02); // Probability of error in test result
         map.insert("test_r_error_value".to_string(), 0.25); // Value to use for error in test_r
 
-        // Syndrome-specific initiation multipliers
+        // Syndrome-specific multipliers (example)
         map.insert("syndrome_3_initiation_multiplier".to_string(), 10.0); // Respiratory syndrome
         map.insert("syndrome_7_initiation_multiplier".to_string(), 8.0);  // Gastrointestinal syndrome
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)
-
-        // Empiric drug scoring tables (clinician-facing heuristics per syndrome ID)
-        // These preserve pre-refactor prescribing patterns when organism is unknown.
-        let empiric_syndrome_templates: &[(usize, &[(&str, f64)])] = &[
-            // 1 = UTI / Genitourinary
-            (
-                1,
-                &[
-                    ("nitrofurantoin", 18.0),
-                    ("trim_sulf", 14.0),
-                    ("ciprofloxacin", 12.0),
-                    ("levofloxacin", 10.0),
-                    ("amoxicillin_clavulanate", 9.0),
-                    ("amoxicillin", 7.0),
-                    ("ampicillin", 6.0),
-                    ("ceftriaxone", 8.0),
-                    ("cefuroxime", 7.0),
-                    ("piperacillin_tazobactam", 5.0),
-                    ("cefepime", 4.0),
-                    ("ceftazidime", 4.0),
-                    ("meropenem", 4.0),
-                    ("imipenem_c", 4.0),
-                    ("ertapenem", 4.0),
-                    ("meropenem_vaborbactam", 3.0),
-                    ("ceftazidime_avibactam", 3.0),
-                    ("colistin", 0.2),
-                    ("vancomycin", 0.1),
-                    ("linezolid", 0.1),
-                ],
-            ),
-            // 2 = Skin / soft tissue
-            (
-                2,
-                &[
-                    ("penicilling", 14.0),
-                    ("ampicillin", 11.0),
-                    ("amoxicillin", 12.0),
-                    ("amoxicillin_clavulanate", 12.0),
-                    ("cephalexin", 13.0),
-                    ("cefazolin", 12.0),
-                    ("clindamycin", 12.0),
-                    ("trim_sulf", 9.0),
-                    ("doxycycline", 9.0),
-                    ("minocycline", 9.0),
-                    ("linezolid", 10.0),
-                    ("tedizolid", 9.0),
-                    ("dalbavancin", 9.0),
-                    ("vancomycin", 11.0),
-                    ("quinu_dalfo", 8.0),
-                    ("rifampicin", 6.0),
-                    ("ciprofloxacin", 4.0),
-                    ("piperacillin_tazobactam", 3.0),
-                ],
-            ),
-            // 3 = Respiratory
-            (
-                3,
-                &[
-                    ("penicilling", 9.0),
-                    ("ampicillin", 9.5),
-                    ("amoxicillin", 11.0),
-                    ("amoxicillin_clavulanate", 12.0),
-                    ("cefuroxime", 8.5),
-                    ("ceftriaxone", 9.5),
-                    ("cefepime", 7.5),
-                    ("piperacillin_tazobactam", 7.0),
-                    ("meropenem", 6.0),
-                    ("imipenem_c", 6.0),
-                    ("azithromycin", 11.5),
-                    ("clarithromycin", 10.5),
-                    ("erythromycin", 8.5),
-                    ("doxycycline", 8.0),
-                    ("minocycline", 7.0),
-                    ("levofloxacin", 11.0),
-                    ("moxifloxacin", 11.0),
-                    ("ofloxacin", 8.0),
-                    ("linezolid", 7.0),
-                    ("vancomycin", 6.5),
-                ],
-            ),
-            // 4 = Bloodstream / bacteremia
-            (
-                4,
-                &[
-                    ("piperacillin_tazobactam", 14.0),
-                    ("meropenem", 13.0),
-                    ("imipenem_c", 13.0),
-                    ("meropenem_vaborbactam", 13.0),
-                    ("ceftazidime_avibactam", 12.5),
-                    ("cefepime", 12.0),
-                    ("ceftazidime", 11.0),
-                    ("ceftriaxone", 10.0),
-                    ("vancomycin", 11.0),
-                    ("linezolid", 10.0),
-                    ("tedizolid", 9.0),
-                    ("dalbavancin", 8.0),
-                    ("quinu_dalfo", 8.5),
-                    ("gentamicin", 7.0),
-                    ("tobramycin", 6.5),
-                    ("amikacin", 7.0),
-                    ("colistin", 6.0),
-                    ("ciprofloxacin", 6.0),
-                    ("levofloxacin", 5.5),
-                    ("rifampicin", 4.0),
-                ],
-            ),
-            // 5 = Intra-abdominal
-            (
-                5,
-                &[
-                    ("metronidazole", 15.0),
-                    ("piperacillin_tazobactam", 13.0),
-                    ("ampicillin_sulbactam", 11.0),
-                    ("amoxicillin_clavulanate", 10.0),
-                    ("meropenem", 13.0),
-                    ("imipenem_c", 12.5),
-                    ("ertapenem", 11.0),
-                    ("ceftazidime", 9.0),
-                    ("cefepime", 9.0),
-                    ("ceftriaxone", 9.0),
-                    ("ceftazidime_avibactam", 10.0),
-                    ("meropenem_vaborbactam", 10.0),
-                    ("ciprofloxacin", 7.0),
-                    ("levofloxacin", 6.5),
-                    ("trim_sulf", 4.0),
-                    ("colistin", 3.5),
-                ],
-            ),
-            // 6 = Central nervous system
-            (
-                6,
-                &[
-                    ("ceftriaxone", 15.0),
-                    ("ceftazidime", 12.0),
-                    ("cefepime", 12.0),
-                    ("penicilling", 9.0),
-                    ("ampicillin", 11.0),
-                    ("vancomycin", 13.0),
-                    ("linezolid", 10.0),
-                    ("meropenem", 11.0),
-                    ("imipenem_c", 10.0),
-                    ("chlorampheni", 9.0),
-                    ("rifampicin", 7.0),
-                    ("piperacillin_tazobactam", 6.0),
-                ],
-            ),
-            // 7 = Gastrointestinal (non-invasive)
-            (
-                7,
-                &[
-                    ("ciprofloxacin", 12.0),
-                    ("levofloxacin", 10.0),
-                    ("azithromycin", 10.0),
-                    ("doxycycline", 8.5),
-                    ("minocycline", 6.5),
-                    ("trim_sulf", 8.5),
-                    ("furazolidone", 11.0),
-                    ("metronidazole", 12.0),
-                    ("rifampicin", 5.0),
-                    ("ampicillin", 4.0),
-                    ("amoxicillin", 4.5),
-                    ("amoxicillin_clavulanate", 5.0),
-                ],
-            ),
-            // 8 = Genital / pelvic
-            (
-                8,
-                &[
-                    ("azithromycin", 13.0),
-                    ("doxycycline", 12.0),
-                    ("penicilling", 11.0),
-                    ("ceftriaxone", 13.0),
-                    ("cefuroxime", 9.0),
-                    ("amoxicillin", 8.0),
-                    ("amoxicillin_clavulanate", 8.0),
-                    ("metronidazole", 12.0),
-                    ("clindamycin", 9.0),
-                    ("ciprofloxacin", 7.0),
-                    ("levofloxacin", 6.5),
-                    ("trim_sulf", 5.0),
-                    ("rifampicin", 4.0),
-                ],
-            ),
-            // 9 = Bone / joint / hardware-associated
-            (
-                9,
-                &[
-                    ("cefazolin", 13.0),
-                    ("cephalexin", 11.0),
-                    ("ceftriaxone", 11.0),
-                    ("vancomycin", 12.0),
-                    ("linezolid", 11.0),
-                    ("tedizolid", 10.0),
-                    ("dalbavancin", 10.0),
-                    ("clindamycin", 10.0),
-                    ("ciprofloxacin", 9.0),
-                    ("levofloxacin", 9.0),
-                    ("rifampicin", 9.0),
-                    ("trim_sulf", 8.0),
-                    ("meropenem", 7.0),
-                    ("piperacillin_tazobactam", 6.5),
-                ],
-            ),
-            // 10 = Other severe / device-related catch-all
-            (
-                10,
-                &[
-                    ("piperacillin_tazobactam", 8.0),
-                    ("cefepime", 8.0),
-                    ("ceftriaxone", 8.0),
-                    ("meropenem", 8.0),
-                    ("imipenem_c", 8.0),
-                    ("vancomycin", 8.0),
-                    ("linezolid", 7.0),
-                    ("ciprofloxacin", 7.0),
-                    ("azithromycin", 6.0),
-                ],
-            ),
-        ];
-
-        for (syndrome_id, entries) in empiric_syndrome_templates {
-            for &(drug, score) in *entries {
-                if DRUG_SHORT_NAMES.contains(&drug) {
-                    map.insert(
-                        format!("syndrome_{}_empiric_drug_{}_score", syndrome_id, drug),
-                        score,
-                    );
-                }
-            }
-        }
 
     // Hospitalization Parameters
     map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00003); // Baseline daily probability tuned for ~0.3%-0.5% prevalence
@@ -6612,7 +6367,7 @@ lazy_static! {
             ("enterobacter_spp.", -6.0),
             ("enterococcus_faecalis", -6.0),
             ("enterococcus_faecium", -6.0),
-            ("escherichia_coli", -16.0),
+            ("escherichia_coli", -15.5),
             ("klebsiella_pneumoniae", -6.0),
             ("morganella_spp.", -6.0),
             ("proteus_spp.", -6.0),
@@ -6622,10 +6377,10 @@ lazy_static! {
             ("staphylococcus_aureus", -5.0),
             ("staphylococcus_epidermidis", -6.0),
             ("streptococcus_pneumoniae", -14.0),
-            ("salmonella_enterica_serovar_typhi", -10.0),
+            ("salmonella_enterica_serovar_typhi", -9.1),
             ("salmonella_enterica_serovar_paratyphi_a", -6.0),
             ("invasive_non-typhoidal_salmonella_spp.", -7.0),
-            ("shigella_spp.", -10.0),
+            ("shigella_spp.", -9.0),
             ("neisseria_gonorrhoeae", -18.0),
             ("streptococcus_pyogenes", -6.0),
             ("streptococcus_agalactiae", -6.0),

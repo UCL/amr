@@ -384,7 +384,7 @@ impl GlobalScalars {
             resistance_emergence_pop_size_multiplier: get_or_default(
                 map,
                 "resistance_emergence_pop_size_multiplier",
-                1.0,
+                30.0,
             ),
             any_r_emergence_level_on_first_emergence: get_or_default(
                 map,
@@ -6194,7 +6194,7 @@ lazy_static! {
         map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.001); // Calibrated for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
 
-        map.insert("resistance_emergence_pop_size_multiplier".to_string(), 1.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
+        map.insert("resistance_emergence_pop_size_multiplier".to_string(), 30.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
 
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
@@ -6612,7 +6612,7 @@ lazy_static! {
             ("enterobacter_spp.", -6.0),
             ("enterococcus_faecalis", -6.0),
             ("enterococcus_faecium", -6.0),
-            ("escherichia_coli", -16.0),
+            ("escherichia_coli", -15.5),
             ("klebsiella_pneumoniae", -6.0),
             ("morganella_spp.", -6.0),
             ("proteus_spp.", -6.0),
@@ -6622,10 +6622,10 @@ lazy_static! {
             ("staphylococcus_aureus", -5.0),
             ("staphylococcus_epidermidis", -6.0),
             ("streptococcus_pneumoniae", -14.0),
-            ("salmonella_enterica_serovar_typhi", -10.0),
+            ("salmonella_enterica_serovar_typhi", -9.1),
             ("salmonella_enterica_serovar_paratyphi_a", -6.0),
             ("invasive_non-typhoidal_salmonella_spp.", -7.0),
-            ("shigella_spp.", -10.0),
+            ("shigella_spp.", -9.0),
             ("neisseria_gonorrhoeae", -18.0),
             ("streptococcus_pyogenes", -6.0),
             ("streptococcus_agalactiae", -6.0),

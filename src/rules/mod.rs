@@ -1396,6 +1396,16 @@ pub fn apply_rules(
             // 3. Implementing TB-specific simultaneous multi-drug initiation would require substantial
             //    modification to this single-drug selection framework
             // 4. Clinical TB programs often start with sequential drug addition anyway due to tolerance testing
+            let active_syndrome_ids: Vec<usize> = individual
+                .infectious_syndrome
+                .iter()
+                .copied()
+                .filter(|&sid| sid > 0)
+                .map(|sid| sid as usize)
+                .collect();
+            let prophylaxis_candidate =
+                !has_any_infection && individual.immunodeficiency_type.is_some();
+            let misdiagnosed_symptom_start = !has_any_infection && !prophylaxis_candidate;
             let mut drug_scores: Vec<(usize, f64)> = Vec::new();
             for &drug_idx in &available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
@@ -1421,43 +1431,65 @@ pub fn apply_rules(
 
                 // Score drug based on spectrum, activity, and clinical scenario
                 let mut score = 1.0;
+                let targeted_selection = has_any_identified_infection;
+                let empiric_selection = (!has_any_identified_infection)
+                    && (has_any_infection
+                        || misdiagnosed_symptom_start
+                        || prophylaxis_candidate);
 
-                // INTRINSIC ACTIVITY GATE: Block drugs with no meaningful activity against current infections
-                let mut has_meaningful_activity = false;
-                let mut max_potency_against_infections: f64 = 0.0;
-
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > INFECTION_EPS {
-                        // Check if bacteria treatment was recognized in current year
-                        let current_year = 1930.0 + (time_step as f64 / 365.0);
-                        if let Some(recognition_year) =
-                            store.bacteria.treatment_recognition_year(b_idx)
-                        {
-                            if current_year < recognition_year {
-                                // Skip this bacteria - treatment not yet recognized
-                                continue;
-                            }
-                        }
-
-                        let potency = param_cache.potency(b_idx, drug_idx);
-                        max_potency_against_infections =
-                            max_potency_against_infections.max(potency);
-                        if potency >= minimal_potency_threshold {
-                            has_meaningful_activity = true;
+                let mut empiric_signal_present = false;
+                let mut empiric_multiplier = 1.0;
+                if empiric_selection {
+                    if active_syndrome_ids.is_empty() {
+                        empiric_multiplier *=
+                            store.syndrome.empiric_drug_score(0, drug_idx);
+                    } else {
+                        for &syndrome_id in &active_syndrome_ids {
+                            empiric_signal_present = true;
+                            empiric_multiplier *=
+                                store.syndrome.empiric_drug_score(syndrome_id, drug_idx);
                         }
                     }
+                    score *= empiric_multiplier;
                 }
 
-                // Block drugs with insufficient activity against any current infection
-                if !has_meaningful_activity && has_any_infection {
-                    continue; // Skip this drug entirely - no meaningful activity
-                }
+                // INTRINSIC ACTIVITY AND PATHOGEN GUIDELINES apply only when infections are identified
+                let mut max_potency_against_infections: f64 = 0.0;
+                if targeted_selection {
+                    let mut has_meaningful_activity = false;
 
-                // PATHOGEN-SPECIFIC CLINICAL GUIDELINES: Boost appropriate drugs, block inappropriate ones
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > INFECTION_EPS {
-                        let bacteria_name = BACTERIA_LIST[b_idx];
-                        match (bacteria_name, drug_name) {
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        if individual.level[b_idx] > INFECTION_EPS {
+                            // Check if bacteria treatment was recognized in current year
+                            let current_year = 1930.0 + (time_step as f64 / 365.0);
+                            if let Some(recognition_year) =
+                                store.bacteria.treatment_recognition_year(b_idx)
+                            {
+                                if current_year < recognition_year {
+                                    // Skip this bacteria - treatment not yet recognized
+                                    continue;
+                                }
+                            }
+
+                            let potency = param_cache.potency(b_idx, drug_idx);
+                            max_potency_against_infections =
+                                max_potency_against_infections.max(potency);
+                            if potency >= minimal_potency_threshold {
+                                has_meaningful_activity = true;
+                            }
+                        }
+                    }
+
+                    // Block drugs with insufficient activity against any current infection
+                    if !has_meaningful_activity && has_any_infection {
+                        continue; // Skip this drug entirely - no meaningful activity
+                    }
+
+                    // PATHOGEN-SPECIFIC CLINICAL GUIDELINES: Boost appropriate drugs, block inappropriate ones
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        if individual.level[b_idx] > INFECTION_EPS {
+                            let bacteria_name = BACTERIA_LIST[b_idx];
+                            match (bacteria_name, drug_name) {
                             // pseudomonas_aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
                             ("pseudomonas_aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
                             ("pseudomonas_aeruginosa", "ceftazidime") => score *= 10.0,
@@ -1739,9 +1771,9 @@ pub fn apply_rules(
                             ("acinetobacter_baumannii", "ampicillin_sulbactam") => score *= 12.0,
 
                             _ => {} // No specific guideline
-                        }
+                            }
 
-                        if matches!(
+                            if matches!(
                             drug_name,
                             "meropenem" | "meropenem_vaborbactam" | "imipenem_c" | "ertapenem"
                         ) {
@@ -1754,6 +1786,7 @@ pub fn apply_rules(
                             if !carbapenem_indicated {
                                 score *= 0.12; // Enforce stewardship penalty even after species boosts
                             }
+                            }
                         }
                     }
                 }
@@ -1763,149 +1796,151 @@ pub fn apply_rules(
                     continue;
                 }
 
-                // CLINICAL CONCENTRATION FORCE: Heavily penalize drugs that aren't first/second-line
-                // This creates realistic clinical concentration patterns
-                let mut is_first_or_second_line = false;
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > INFECTION_EPS {
-                        let bacteria_name = BACTERIA_LIST[b_idx];
-                        let first_second_line_drugs = match bacteria_name {
-                            "pseudomonas_aeruginosa" => vec![
-                                "piperacillin_tazobactam",
-                                "meropenem",
-                                "imipenem_c",
-                                "ceftazidime",
-                                "cefepime",
-                                "ciprofloxacin",
-                                "tobramycin",
-                            ],
-                            "staphylococcus_aureus" => vec![
-                                "penicilling",
-                                "amoxicillin_clavulanate",
-                                "ampicillin_sulbactam",
-                                "vancomycin",
-                                "linezolid",
-                                "tedizolid",
-                                "clindamycin",
-                            ],
-                            "staphylococcus_epidermidis" => vec![
-                                "vancomycin",
-                                "linezolid",
-                                "tedizolid",
-                                "quinu_dalfo",
-                                "trim_sulf",
-                            ],
-                            "stenotrophomonas_maltophilia" => vec![
-                                "trim_sulf",
-                                "minocycline",
-                                "doxycycline",
-                                "levofloxacin",
-                                "ciprofloxacin",
-                            ],
-                            "streptococcus_pneumoniae" => vec![
-                                "penicilling",
-                                "ampicillin",
-                                "amoxicillin",
-                                "amoxicillin_clavulanate",
-                                "ceftriaxone",
-                                "cefuroxime",
-                                "azithromycin",
-                                "clarithromycin",
-                            ],
-                            "streptococcus_pyogenes" => vec![
-                                "penicilling",
-                                "ampicillin",
-                                "amoxicillin",
-                                "amoxicillin_clavulanate",
-                                "clindamycin",
-                                "azithromycin",
-                            ],
-                            "haemophilus_influenzae" => vec![
-                                "amoxicillin",
-                                "ampicillin",
-                                "amoxicillin_clavulanate",
-                                "ampicillin_sulbactam",
-                                "cefuroxime",
-                                "ceftriaxone",
-                            ],
-                            "neisseria_meningitidis" => {
-                                vec!["penicilling", "ampicillin", "ceftriaxone", "cefepime"]
-                            }
-                            "escherichia_coli" => vec![
-                                "ciprofloxacin",
-                                "nitrofurantoin",
-                                "trim_sulf",
-                                "ceftriaxone",
-                                "ampicillin",
-                                "cefuroxime",
-                            ],
-                            "klebsiella_pneumoniae" => vec![
-                                "ceftriaxone",
-                                "ceftazidime",
-                                "cefepime",
-                                "piperacillin_tazobactam",
-                                "ciprofloxacin",
-                            ],
-                            "enterococcus_faecalis" => {
-                                vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
-                            }
-                            "enterococcus_faecium" => {
-                                vec!["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"]
-                            }
-                            "acinetobacter_baumannii" => vec![
-                                "meropenem",
-                                "imipenem_c",
-                                "colistin",
-                                "ampicillin_sulbactam",
-                                "minocycline",
-                            ],
-                            _ => vec![], // For other bacteria, no specific restriction
-                        };
+                if targeted_selection {
+                    // CLINICAL CONCENTRATION FORCE: Heavily penalize drugs that aren't first/second-line
+                    // This creates realistic clinical concentration patterns
+                    let mut is_first_or_second_line = false;
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        if individual.level[b_idx] > INFECTION_EPS {
+                            let bacteria_name = BACTERIA_LIST[b_idx];
+                            let first_second_line_drugs = match bacteria_name {
+                                "pseudomonas_aeruginosa" => vec![
+                                    "piperacillin_tazobactam",
+                                    "meropenem",
+                                    "imipenem_c",
+                                    "ceftazidime",
+                                    "cefepime",
+                                    "ciprofloxacin",
+                                    "tobramycin",
+                                ],
+                                "staphylococcus_aureus" => vec![
+                                    "penicilling",
+                                    "amoxicillin_clavulanate",
+                                    "ampicillin_sulbactam",
+                                    "vancomycin",
+                                    "linezolid",
+                                    "tedizolid",
+                                    "clindamycin",
+                                ],
+                                "staphylococcus_epidermidis" => vec![
+                                    "vancomycin",
+                                    "linezolid",
+                                    "tedizolid",
+                                    "quinu_dalfo",
+                                    "trim_sulf",
+                                ],
+                                "stenotrophomonas_maltophilia" => vec![
+                                    "trim_sulf",
+                                    "minocycline",
+                                    "doxycycline",
+                                    "levofloxacin",
+                                    "ciprofloxacin",
+                                ],
+                                "streptococcus_pneumoniae" => vec![
+                                    "penicilling",
+                                    "ampicillin",
+                                    "amoxicillin",
+                                    "amoxicillin_clavulanate",
+                                    "ceftriaxone",
+                                    "cefuroxime",
+                                    "azithromycin",
+                                    "clarithromycin",
+                                ],
+                                "streptococcus_pyogenes" => vec![
+                                    "penicilling",
+                                    "ampicillin",
+                                    "amoxicillin",
+                                    "amoxicillin_clavulanate",
+                                    "clindamycin",
+                                    "azithromycin",
+                                ],
+                                "haemophilus_influenzae" => vec![
+                                    "amoxicillin",
+                                    "ampicillin",
+                                    "amoxicillin_clavulanate",
+                                    "ampicillin_sulbactam",
+                                    "cefuroxime",
+                                    "ceftriaxone",
+                                ],
+                                "neisseria_meningitidis" => {
+                                    vec!["penicilling", "ampicillin", "ceftriaxone", "cefepime"]
+                                }
+                                "escherichia_coli" => vec![
+                                    "ciprofloxacin",
+                                    "nitrofurantoin",
+                                    "trim_sulf",
+                                    "ceftriaxone",
+                                    "ampicillin",
+                                    "cefuroxime",
+                                ],
+                                "klebsiella_pneumoniae" => vec![
+                                    "ceftriaxone",
+                                    "ceftazidime",
+                                    "cefepime",
+                                    "piperacillin_tazobactam",
+                                    "ciprofloxacin",
+                                ],
+                                "enterococcus_faecalis" => {
+                                    vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
+                                }
+                                "enterococcus_faecium" => {
+                                    vec!["vancomycin", "linezolid", "tedizolid", "quinu_dalfo"]
+                                }
+                                "acinetobacter_baumannii" => vec![
+                                    "meropenem",
+                                    "imipenem_c",
+                                    "colistin",
+                                    "ampicillin_sulbactam",
+                                    "minocycline",
+                                ],
+                                _ => vec![], // For other bacteria, no specific restriction
+                            };
 
-                        if first_second_line_drugs.contains(&drug_name) {
-                            is_first_or_second_line = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Heavily penalize drugs that aren't first/second-line for current infections
-                if has_any_infection && !is_first_or_second_line {
-                    score *= 0.15; // Apply strong but not overwhelming penalty to off-guideline choices
-                }
-
-                // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (MUCH STRONGER)
-                if max_potency_against_infections >= 0.5 {
-                    score *= 15.0; // Very high potency - MASSIVE boost
-                } else if max_potency_against_infections >= 0.3 {
-                    score *= 10.0; // High potency - major boost
-                } else if max_potency_against_infections >= 0.15 {
-                    score *= 6.0; // Moderate potency - significant boost
-                } else if max_potency_against_infections >= minimal_potency_threshold {
-                    score *= 2.0; // Minimal acceptable potency
-                }
-
-                let mut max_bacteria_specific_multiplier: f64 = 1.0;
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.level[b_idx] > INFECTION_EPS {
-                        // Check if bacteria treatment was recognized in current year
-                        let current_year = 1930.0 + (time_step as f64 / 365.0);
-                        if let Some(recognition_year) =
-                            store.bacteria.treatment_recognition_year(b_idx)
-                        {
-                            if current_year < recognition_year {
-                                // Skip this bacteria - treatment not yet recognized
-                                continue;
+                            if first_second_line_drugs.contains(&drug_name) {
+                                is_first_or_second_line = true;
+                                break;
                             }
                         }
-
-                        let specific_multiplier =
-                            store.drug_bacteria.initiation_multiplier(b_idx, drug_idx);
-                        max_bacteria_specific_multiplier =
-                            max_bacteria_specific_multiplier.max(specific_multiplier);
                     }
+
+                    // Heavily penalize drugs that aren't first/second-line for current infections
+                    if has_any_infection && !is_first_or_second_line {
+                        score *= 0.15; // Apply strong but not overwhelming penalty to off-guideline choices
+                    }
+
+                    // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (MUCH STRONGER)
+                    if max_potency_against_infections >= 0.5 {
+                        score *= 15.0; // Very high potency - MASSIVE boost
+                    } else if max_potency_against_infections >= 0.3 {
+                        score *= 10.0; // High potency - major boost
+                    } else if max_potency_against_infections >= 0.15 {
+                        score *= 6.0; // Moderate potency - significant boost
+                    } else if max_potency_against_infections >= minimal_potency_threshold {
+                        score *= 2.0; // Minimal acceptable potency
+                    }
+
+                    let mut max_bacteria_specific_multiplier: f64 = 1.0;
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        if individual.level[b_idx] > INFECTION_EPS {
+                            // Check if bacteria treatment was recognized in current year
+                            let current_year = 1930.0 + (time_step as f64 / 365.0);
+                            if let Some(recognition_year) =
+                                store.bacteria.treatment_recognition_year(b_idx)
+                            {
+                                if current_year < recognition_year {
+                                    // Skip this bacteria - treatment not yet recognized
+                                    continue;
+                                }
+                            }
+
+                            let specific_multiplier =
+                                store.drug_bacteria.initiation_multiplier(b_idx, drug_idx);
+                            max_bacteria_specific_multiplier =
+                                max_bacteria_specific_multiplier.max(specific_multiplier);
+                        }
+                    }
+                    score *= max_bacteria_specific_multiplier;
                 }
-                score *= max_bacteria_specific_multiplier;
 
                 // Apply regional resistance surveillance penalty for empirical therapy
                 if !has_any_identified_infection {
@@ -2027,17 +2062,14 @@ pub fn apply_rules(
                     } else {
                         score *= ineffective_drug_penalty;
                     }
-                } else if has_any_infection {
-                    // Empirical therapy: check potency against actual infecting bacteria
-                    // Even in empirical therapy, shouldn't choose drugs ineffective against the pathogen
+                } else if empiric_selection {
+                    // Empirical therapy: rely on syndrome-level scoring rather than omniscient potency
                     let empiric_broad_bonus = store.globals.empiric_therapy_broad_spectrum_bonus;
                     let empiric_ineffective_penalty =
                         store.globals.empiric_therapy_ineffective_penalty;
-                    let effective_potency_threshold = store
-                        .globals
-                        .effective_potency_threshold_for_empirical_therapy;
 
-                    let mut has_any_activity = false;
+                    let has_any_activity =
+                        empiric_signal_present || active_syndrome_ids.is_empty();
 
                     if reserve_candidate {
                         // Stage therapy: require documented recent failure before escalating to reserve agents
@@ -2062,43 +2094,6 @@ pub fn apply_rules(
                         if !failure_documented {
                             score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
                         } else {
-                            // Reserve drugs should only keep full score if resistance is high AND no narrow option remains
-                            let narrow_effective_threshold = store
-                                .globals
-                                .effective_potency_threshold_for_empirical_therapy
-                                .max(
-                                    store
-                                        .globals
-                                        .effective_potency_threshold_for_targeted_therapy,
-                                );
-                            let mut narrow_alternative_available = false;
-
-                            'reserve_check: for b_idx in 0..BACTERIA_LIST.len() {
-                                if individual.level[b_idx] <= INFECTION_EPS {
-                                    continue;
-                                }
-
-                                for other_idx in 0..DRUG_SHORT_NAMES.len() {
-                                    if other_idx == drug_idx {
-                                        continue;
-                                    }
-                                    if store.drug.spectrum_breadth(other_idx) > 2.5 {
-                                        continue;
-                                    }
-                                    let potency = param_cache.potency(b_idx, other_idx);
-                                    if potency <= narrow_effective_threshold {
-                                        continue;
-                                    }
-
-                                    let resistance_level =
-                                        individual.resistances[b_idx][other_idx].any_r;
-                                    if resistance_level < 0.4 {
-                                        narrow_alternative_available = true;
-                                        break 'reserve_check;
-                                    }
-                                }
-                            }
-
                             let mut high_resistance_observed = false;
                             if !majority_r_cache.is_empty() {
                                 let region_idx = individual.region_cur_in as usize;
@@ -2106,11 +2101,7 @@ pub fn apply_rules(
                                 let high_threshold =
                                     store.globals.regional_resistance_threshold_high;
 
-                                'resistance_scan: for b_idx in 0..BACTERIA_LIST.len() {
-                                    if individual.level[b_idx] <= INFECTION_EPS {
-                                        continue;
-                                    }
-
+                                for b_idx in 0..BACTERIA_LIST.len() {
                                     let prevalence = majority_r_cache.probability(
                                         region_idx,
                                         hospital_status,
@@ -2120,40 +2111,18 @@ pub fn apply_rules(
 
                                     if prevalence >= high_threshold {
                                         high_resistance_observed = true;
-                                        break 'resistance_scan;
-                                    }
-                                }
-                            }
-
-                            if !high_resistance_observed {
-                                // Fall back to individual-level data if regional cache is sparse
-                                for b_idx in 0..BACTERIA_LIST.len() {
-                                    if individual.level[b_idx] <= INFECTION_EPS {
-                                        continue;
-                                    }
-                                    if individual.resistances[b_idx][drug_idx].any_r >= 0.6 {
-                                        high_resistance_observed = true;
                                         break;
                                     }
                                 }
                             }
 
-                            if !high_resistance_observed || narrow_alternative_available {
-                                score = 0.0; // Block reserve therapy unless high resistance AND no narrow option remain
+                            if !high_resistance_observed {
+                                score = 0.0; // Without high resistance pressure, reserve agents stay off empirical regimens
                             }
                         }
 
                         if score == 0.0 {
                             continue;
-                        }
-                    }
-                    for b_idx in 0..BACTERIA_LIST.len() {
-                        if individual.level[b_idx] > INFECTION_EPS {
-                            let potency = param_cache.potency(b_idx, drug_idx);
-                            if potency > effective_potency_threshold {
-                                has_any_activity = true;
-                                break;
-                            }
                         }
                     }
 
@@ -2164,7 +2133,7 @@ pub fn apply_rules(
                             score *= 0.85; // Keep narrow-spectrum options viable during empiric therapy
                         }
                     } else {
-                        // Drug has no activity against any infecting bacteria - heavily penalize
+                        // Drug has no syndrome-informed activity signal - heavily penalize
                         score *= empiric_ineffective_penalty;
                     }
                 }
