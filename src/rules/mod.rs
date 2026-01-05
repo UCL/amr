@@ -41,10 +41,10 @@ const PENICILLIN_CLASS_DRUGS: &[&str] = &[
 
 // Historical sanitation log-odds adjustments (kept very small to avoid distorting probabilities).
 const COMMUNITY_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
-    &[(1930.0, 0.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
+    &[(1930.0, 1.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
 const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
-    &[(1930.0, 0.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
+    &[(1930.0, 1.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
 
 fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
@@ -80,6 +80,30 @@ fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
         }
     }
     anchors[last_idx].1
+}
+
+fn qnr_supported_bacteria(bacteria: &str) -> bool {
+    matches!(
+        bacteria,
+        "acinetobacter_baumannii"
+            | "citrobacter_spp."
+            | "enterobacter_spp."
+            | "enterobacter_cloacae"
+            | "escherichia_coli"
+            | "klebsiella_pneumoniae"
+            | "morganella_spp."
+            | "proteus_spp."
+            | "serratia_spp."
+            | "pseudomonas_aeruginosa"
+            | "stenotrophomonas_maltophilia"
+            | "salmonella_enterica_serovar_typhi"
+            | "salmonella_enterica_serovar_paratyphi_a"
+            | "invasive_non-typhoidal_salmonella_spp."
+            | "shigella_spp."
+            | "vibrio_cholerae"
+            | "campylobacter_jejuni"
+            | "yersinia_enterocolitica"
+    )
 }
 
 /// Helper function to update the current number of drugs counter
@@ -186,6 +210,8 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "cefazolin"
                 | "cefuroxime"
                 | "ceftriaxone"
+                | "ceftazidime"
+                | "cefepime"
                 | "amoxicillin_clavulanate"
                 | "piperacillin_tazobactam"
                 | "ampicillin_sulbactam"
@@ -195,13 +221,17 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
         }
         ResistanceMechanism::Qnr => {
-            matches!(
-                drug,
-                "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
-            )
+            qnr_supported_bacteria(bacteria)
+                && matches!(
+                    drug,
+                    "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
+                )
         }
         ResistanceMechanism::ErmMethylation => {
-            matches!(drug, "erythromycin" | "azithromycin" | "clarithromycin")
+            matches!(
+                drug,
+                "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
+            )
         }
         ResistanceMechanism::VanType => matches!(drug, "vancomycin" | "teicoplanin"),
         ResistanceMechanism::MecA => {
@@ -3048,10 +3078,16 @@ pub fn apply_rules(
                                 (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
                                     matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
                                 }
-                                (ResistanceMechanism::Qnr, drug) => matches!(
-                                    drug,
-                                    "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
-                                ),
+                                (ResistanceMechanism::Qnr, drug) => {
+                                    qnr_supported_bacteria(bacteria)
+                                        && matches!(
+                                            drug,
+                                            "ciprofloxacin"
+                                                | "levofloxacin"
+                                                | "moxifloxacin"
+                                                | "ofloxacin"
+                                        )
+                                }
                                 (ResistanceMechanism::ErmMethylation, drug) => matches!(
                                     drug,
                                     "erythromycin" | "azithromycin" | "clarithromycin"
@@ -3641,13 +3677,14 @@ pub fn apply_rules(
                                         }
                                         // Qnr affects quinolones
                                         (ResistanceMechanism::Qnr, drug) => {
-                                            matches!(
-                                                drug,
-                                                "ciprofloxacin"
-                                                    | "levofloxacin"
-                                                    | "moxifloxacin"
-                                                    | "ofloxacin"
-                                            )
+                                            qnr_supported_bacteria(bacteria)
+                                                && matches!(
+                                                    drug,
+                                                    "ciprofloxacin"
+                                                        | "levofloxacin"
+                                                        | "moxifloxacin"
+                                                        | "ofloxacin"
+                                                )
                                         }
                                         // Erm methylation affects macrolides
                                         (ResistanceMechanism::ErmMethylation, drug) => {
@@ -3801,13 +3838,14 @@ pub fn apply_rules(
                                                 }
                                                 // Qnr affects quinolones
                                                 (ResistanceMechanism::Qnr, drug) => {
-                                                    matches!(
-                                                        drug,
-                                                        "ciprofloxacin"
-                                                            | "levofloxacin"
-                                                            | "moxifloxacin"
-                                                            | "ofloxacin"
-                                                    )
+                                                    qnr_supported_bacteria(bacteria)
+                                                        && matches!(
+                                                            drug,
+                                                            "ciprofloxacin"
+                                                                | "levofloxacin"
+                                                                | "moxifloxacin"
+                                                                | "ofloxacin"
+                                                        )
                                                 }
                                                 // Erm methylation affects macrolides
                                                 (ResistanceMechanism::ErmMethylation, drug) => {
@@ -4136,13 +4174,14 @@ pub fn apply_rules(
                                             matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
                                         }
                                         (ResistanceMechanism::Qnr, drug) => {
-                                            matches!(
-                                                drug,
-                                                "ciprofloxacin"
-                                                    | "levofloxacin"
-                                                    | "moxifloxacin"
-                                                    | "ofloxacin"
-                                            )
+                                            qnr_supported_bacteria(bacteria)
+                                                && matches!(
+                                                    drug,
+                                                    "ciprofloxacin"
+                                                        | "levofloxacin"
+                                                        | "moxifloxacin"
+                                                        | "ofloxacin"
+                                                )
                                         }
                                         (ResistanceMechanism::ErmMethylation, drug) => {
                                             matches!(

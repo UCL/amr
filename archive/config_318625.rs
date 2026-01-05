@@ -6201,9 +6201,7 @@ lazy_static! {
         // Microbiome emergence rate: lower than infection emergence because microbiome bacteria
         // experience less intense selection pressure.
         // CALIBRATION: 0.001 gave 26%, 0.003 gave 59% - reverting to 0.001 to target 15-30%
-        
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.00000003); // 0.0000003 Calibrated for microbiome resistance emergence
-
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0000003); // Calibrated for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
 
         map.insert("resistance_emergence_pop_size_multiplier".to_string(),  1.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
@@ -6213,7 +6211,7 @@ lazy_static! {
 
 
         //  Microbiome Resistance Transfer Parameter
-        map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0025); // Probability per day for resistance transfer between infection and microbiome
+    map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0025); // Probability per day for resistance transfer between infection and microbiome
 
         // --- Multi-Drug Resistance Emergence Penalty Parameters ---
         // When multiple drugs are active, resistance emergence is reduced because mutations
@@ -6228,17 +6226,17 @@ lazy_static! {
         // Common mechanisms (single mutations, regulatory changes): ~1e-6
         // Mobile genetic elements: ~1e-7 to 1e-8
         // Complex resistance clusters: ~1e-9
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0000002); // Point mutations - most common
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.0000002); // Regulatory mutations relatively common
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.0000002); // Porin loss is common
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0000002); // Mobile genetic element acquisition
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0000002); // Common in gram-positives
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.00000005); // Requires specific gene mutations
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.0000002); // Chromosomal or plasmid-mediated
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.00000005); // Requires SCCmec element acquisition
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.00000005); // Rare, high-level resistance genes
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00000005); // Complex vanA/vanB resistance cluster
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0000002); // Rare, high-level aminoglycoside resistance
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.000002); // Point mutations - most common
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.000002); // Regulatory mutations relatively common
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.000002); // Porin loss is common
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.000002); // Mobile genetic element acquisition
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.000002); // Common in gram-positives
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.0000005); // Requires specific gene mutations
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.000002); // Chromosomal or plasmid-mediated
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.0000005); // Requires SCCmec element acquisition
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.0000005); // Rare, high-level resistance genes
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.0000005); // Complex vanA/vanB resistance cluster
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.000002); // Rare, high-level aminoglycoside resistance
 
 /* 
 
@@ -6249,11 +6247,9 @@ lazy_static! {
 */
 
 
-/*
+/* 
 
 //      for debugging
-
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); 
 
         map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.00 ); // Point mutations - most common
         map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.00 ); // Regulatory mutations relatively common

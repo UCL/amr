@@ -384,7 +384,7 @@ impl GlobalScalars {
             resistance_emergence_pop_size_multiplier: get_or_default(
                 map,
                 "resistance_emergence_pop_size_multiplier",
-                 1.0,
+                 30.0,
             ),
             any_r_emergence_level_on_first_emergence: get_or_default(
                 map,
@@ -1513,7 +1513,7 @@ pub struct ClearanceParameters {
 impl ClearanceParameters {
     fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
         let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
-        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.010); // 0.045
+        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.045);
 
         let mut age_multipliers = [1.0; AGE_BUCKET_COUNT];
         for (idx, category) in AGE_BUCKETS.iter().enumerate() {
@@ -5801,30 +5801,30 @@ lazy_static! {
         map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2); 
         map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -16.0); 
-        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.5); 
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.5); 
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -13.2); 
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5); 
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -15.3); 
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -15.7); 
         map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -16.0); 
         map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.0); 
-        map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -15.5); 
-        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.0); 
+        map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.5); 
         map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.5); 
-        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -14.5); 
+        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -15.5); 
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.5); 
-        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -16.5); 
+        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -13.0); 
-        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -15.5); 
-        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -14.0); 
-        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -16.0); 
+        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -16.5); 
         map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.7); 
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -15.0); 
-        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -14.0); 
+        map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -14.5); 
         map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.0); 
         map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -17.0); 
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
@@ -6201,19 +6201,17 @@ lazy_static! {
         // Microbiome emergence rate: lower than infection emergence because microbiome bacteria
         // experience less intense selection pressure.
         // CALIBRATION: 0.001 gave 26%, 0.003 gave 59% - reverting to 0.001 to target 15-30%
-        
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.00000003); // 0.0000003 Calibrated for microbiome resistance emergence
-
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.001); // Calibrated for microbiome resistance emergence
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.08); // Multiplier for bacteria level's effect on emergence
 
-        map.insert("resistance_emergence_pop_size_multiplier".to_string(),  1.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
+        map.insert("resistance_emergence_pop_size_multiplier".to_string(),  30.0); // Debug knob to keep prevalence steady when population size changes - 3/5 x 500_000 / pop size
 
         map.insert("any_r_increase_rate_per_day_when_drug_present".to_string(), 0.045); // Growth rate of resistance signal while therapy is active
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
 
         //  Microbiome Resistance Transfer Parameter
-        map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0025); // Probability per day for resistance transfer between infection and microbiome
+    map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0025); // Probability per day for resistance transfer between infection and microbiome
 
         // --- Multi-Drug Resistance Emergence Penalty Parameters ---
         // When multiple drugs are active, resistance emergence is reduced because mutations
@@ -6228,17 +6226,17 @@ lazy_static! {
         // Common mechanisms (single mutations, regulatory changes): ~1e-6
         // Mobile genetic elements: ~1e-7 to 1e-8
         // Complex resistance clusters: ~1e-9
-        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.0000002); // Point mutations - most common
-        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.0000002); // Regulatory mutations relatively common
-        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.0000002); // Porin loss is common
-        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.0000002); // Mobile genetic element acquisition
-        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.0000002); // Common in gram-positives
-        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.00000005); // Requires specific gene mutations
-        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.0000002); // Chromosomal or plasmid-mediated
-        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.00000005); // Requires SCCmec element acquisition
-        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.00000005); // Rare, high-level resistance genes
-        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00000005); // Complex vanA/vanB resistance cluster
-        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.0000002); // Rare, high-level aminoglycoside resistance
+        map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.003); // Point mutations - most common
+        map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.003); // Regulatory mutations relatively common
+        map.insert("resistance_mechanism_reduced_permeability_emergence_rate".to_string(), 0.003); // Porin loss is common
+        map.insert("resistance_mechanism_qnr_emergence_rate".to_string(), 0.003); // Mobile genetic element acquisition
+        map.insert("resistance_mechanism_erm_methylation_emergence_rate".to_string(), 0.003); // Common in gram-positives
+        map.insert("resistance_mechanism_esbl_emergence_rate".to_string(), 0.001); // Requires specific gene mutations
+        map.insert("resistance_mechanism_ampc_emergence_rate".to_string(), 0.003); // Chromosomal or plasmid-mediated
+        map.insert("resistance_mechanism_meca_emergence_rate".to_string(), 0.001); // Requires SCCmec element acquisition
+        map.insert("resistance_mechanism_carbapenemase_emergence_rate".to_string(), 0.001); // Rare, high-level resistance genes
+        map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.001); // Complex vanA/vanB resistance cluster
+        map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.001); // Rare, high-level aminoglycoside resistance
 
 /* 
 
@@ -6249,11 +6247,8 @@ lazy_static! {
 */
 
 
-/*
 
 //      for debugging
-
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); 
 
         map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.00 ); // Point mutations - most common
         map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.00 ); // Regulatory mutations relatively common
@@ -6267,7 +6262,7 @@ lazy_static! {
         map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00 ); // Complex vanA/vanB resistance cluster
         map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.00 ); // Rare, high-level aminoglycoside resistance
 
-*/
+
 
 
 
@@ -6656,36 +6651,36 @@ lazy_static! {
             ("enterobacter_spp.", -6.0),
             ("enterococcus_faecalis", -6.0),
             ("enterococcus_faecium", -6.0),
-            ("escherichia_coli", -20.0),
+            ("escherichia_coli", -16.0),
             ("klebsiella_pneumoniae", -6.0),
             ("morganella_spp.", -6.0),
             ("proteus_spp.", -6.0),
             ("serratia_spp.", -6.0),
             ("pseudomonas_aeruginosa", -6.0),
             ("stenotrophomonas_maltophilia", -6.0),
-            ("staphylococcus_aureus", -6.0),
+            ("staphylococcus_aureus", -5.0),
             ("staphylococcus_epidermidis", -6.0),
-            ("streptococcus_pneumoniae", -15.0),
-            ("salmonella_enterica_serovar_typhi", -14.0),
+            ("streptococcus_pneumoniae", -14.0),
+            ("salmonella_enterica_serovar_typhi", -12.0),
             ("salmonella_enterica_serovar_paratyphi_a", -6.0),
-            ("invasive_non-typhoidal_salmonella_spp.", -12.0),
-            ("shigella_spp.", -18.0),
-            ("neisseria_gonorrhoeae", -20.0),
+            ("invasive_non-typhoidal_salmonella_spp.", -9.0),
+            ("shigella_spp.", -12.0),
+            ("neisseria_gonorrhoeae", -18.0),
             ("streptococcus_pyogenes", -6.0),
             ("streptococcus_agalactiae", -6.0),
-            ("haemophilus_influenzae", -16.5),
-            ("chlamydia_trachomatis", -17.0),
+            ("haemophilus_influenzae", -15.0),
+            ("chlamydia_trachomatis", -10.0),
             ("vibrio_cholerae", -7.0),
             ("neisseria_meningitidis", -13.2),
             ("listeria_monocytogenes", -6.0),
             ("clostridioides_difficile", -9.0),
-            ("campylobacter_jejuni", -18.0),
+            ("campylobacter_jejuni", -14.0),
             ("enterobacter_cloacae", -6.0),
             ("yersinia_enterocolitica", -6.0),
-            ("moraxella_catarrhalis", -9.0),
+            ("moraxella_catarrhalis", -6.0),
             ("treponema_pallidum", -10.0),
-            ("bordetella_pertussis", -9.0),
-            ("helicobacter_pylori", -250.0),
+            ("bordetella_pertussis", -6.0),
+            ("helicobacter_pylori", -220.0),
             ("mdr_mycobacterium_tuberculosis", -38.0),
         ];
 

@@ -30,13 +30,27 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// fix the bacteria names throughout all files
-//
 // should the population majority_r be based on infections where spread is more likely ? such as
 // respiratory infections rather than some other infection sites ? 
 //
 // need a general drug selection algorithm per syndrome and calendar year and then one once bacteria / resistance known 
 // 
+// maybe have a separate population majority_r value for environment so those infected from environment sample from this 
+// value - would have to think about how best to inform this and might have to be directly specified by time and region - 
+// or maybe continue to use the pop majority r for environment infections but just to have this only for
+// drugs which have been introduced in animals by this date (directly specified) and perhaps with a multiplier with higher 
+// resistance levels for drugs that have been introduced in animals ?
+//
+// what about hgt in the environment ? would need to directly take this into account ? can this mean that bacteria from 
+// animals never exposed to a drug can get resistance to newer drugs never used in animals to that point ?
+//
+// mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
+//
+// should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
+// 
+// model low level "treatment" resulting from antimicrobials in the environment ?
+//
+//
 //
 //
 //
@@ -45,7 +59,6 @@ mod simulation;
 // consider having incidence of infection rising in situations if they occur in future in which infections cannot be treated
 // reduced bacterial growth rates for resistant strains ?
 // competition between sensitive and resistant strains in microbiome ?
-// mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
 // time-dependent costs: higher initially, decreasing with compensatory mutations
 // multi-drug cost interactions: costs compound with multiple resistance mechanisms
 // differentiate growth rates - fast vs. slow growing bacteria ?
@@ -115,7 +128,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =     500_000 ;
+    let population_size =    500_000 ;
     let time_steps =  38_325;
     let log_individuals = false ; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging
