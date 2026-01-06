@@ -738,6 +738,7 @@ impl IndividualLogger {
                     activity_r.push(res.activity_r);
                     any_r.push(res.any_r);
                     majority_r.push(res.majority_r);
+
                 }
             }
 
@@ -4235,6 +4236,18 @@ impl Simulation {
                 header.push_str("_drug_score_sum_");
                 header.push_str(drug);
             }
+        }
+
+        // Add histogram labels for number of concurrent drugs (matches people_by_drug_count export)
+        let drug_histogram_headers = [
+            "people_on_0_drugs_hist",
+            "people_on_1_drug_hist",
+            "people_on_2_drugs_hist",
+            "people_on_3plus_drugs_hist",
+        ];
+        for label in drug_histogram_headers {
+            header.push(',');
+            header.push_str(label);
         }
 
         header.push('\n');

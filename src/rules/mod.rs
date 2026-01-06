@@ -742,8 +742,10 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
 /// Pre-computed parameter keys to avoid string allocation during simulation
 pub struct ParameterKeyCache {
     drug_count: usize,
+    bacteria_count: usize,
     drug_bacteria_potency: Vec<f64>,
     bacteria_age_sepsis_log_odds: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
+    mechanism_applicability: Vec<bool>,
 }
 
 impl ParameterKeyCache {
@@ -751,11 +753,14 @@ impl ParameterKeyCache {
         let store = parameter_store();
         let drug_count = DRUG_SHORT_NAMES.len();
         let bacteria_count = BACTERIA_LIST.len();
+        let mechanism_count = ResistanceMechanism::all().len();
 
         let mut drug_bacteria_potency =
             Vec::with_capacity(drug_count * bacteria_count);
         let mut bacteria_age_sepsis_log_odds =
             Vec::with_capacity(BACTERIA_LIST.len());
+        let mut mechanism_applicability =
+            Vec::with_capacity(mechanism_count * bacteria_count * drug_count);
 
         // Pre-compute all drug/bacteria combinations
         for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
@@ -771,10 +776,24 @@ impl ParameterKeyCache {
             bacteria_age_sepsis_log_odds.push(per_age_bucket);
         }
 
+        for mechanism in ResistanceMechanism::all().iter() {
+            for (_b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                for &drug_name in DRUG_SHORT_NAMES.iter() {
+                    mechanism_applicability.push(mechanism_applies_to_drug(
+                        *mechanism,
+                        bacteria_name,
+                        drug_name,
+                    ));
+                }
+            }
+        }
+
         ParameterKeyCache {
             drug_count,
+            bacteria_count,
             drug_bacteria_potency,
             bacteria_age_sepsis_log_odds,
+            mechanism_applicability,
         }
     }
 
@@ -801,6 +820,18 @@ impl ParameterKeyCache {
     pub fn potency(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
         let offset = bacteria_idx * self.drug_count + drug_idx;
         self.drug_bacteria_potency[offset]
+    }
+
+    #[inline]
+    pub fn mechanism_applicable(
+        &self,
+        mechanism_idx: usize,
+        bacteria_idx: usize,
+        drug_idx: usize,
+    ) -> bool {
+        let offset =
+            ((mechanism_idx * self.bacteria_count) + bacteria_idx) * self.drug_count + drug_idx;
+        self.mechanism_applicability[offset]
     }
 }
 
@@ -3039,110 +3070,14 @@ pub fn apply_rules(
                             continue;
                         }
 
-                        for (mechanism_idx, mechanism) in
+                        for (mechanism_idx, _mechanism) in
                             ResistanceMechanism::all().iter().enumerate()
                         {
                             if individual.resistance_mechanisms[b_idx][mechanism_idx] {
                                 continue;
                             }
 
-                            // Check if mechanism is relevant for this drug/bacteria combination
-                            let mechanism_applicable = match (mechanism, DRUG_SHORT_NAMES[d_idx]) {
-                                (ResistanceMechanism::ESBL, drug) => matches!(
-                                    drug,
-                                    "penicilling"
-                                        | "ampicillin"
-                                        | "amoxicillin"
-                                        | "piperacillin"
-                                        | "ticarcillin"
-                                        | "cephalexin"
-                                        | "cefazolin"
-                                        | "cefuroxime"
-                                        | "ceftriaxone"
-                                        | "ceftazidime"
-                                        | "cefepime"
-                                        | "ceftaroline"
-                                        | "aztreonam"
-                                        | "amoxicillin_clavulanate"
-                                        | "piperacillin_tazobactam"
-                                        | "ampicillin_sulbactam"
-                                        | "ticarcillin_clavulanate"
-                                ),
-                                (ResistanceMechanism::Carbapenemase, drug) => matches!(
-                                    drug,
-                                    "meropenem"
-                                        | "imipenem_c"
-                                        | "ertapenem"
-                                        | "meropenem_vaborbactam"
-                                ),
-                                (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
-                                    matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
-                                }
-                                (ResistanceMechanism::Qnr, drug) => {
-                                    qnr_supported_bacteria(bacteria)
-                                        && matches!(
-                                            drug,
-                                            "ciprofloxacin"
-                                                | "levofloxacin"
-                                                | "moxifloxacin"
-                                                | "ofloxacin"
-                                        )
-                                }
-                                (ResistanceMechanism::ErmMethylation, drug) => matches!(
-                                    drug,
-                                    "erythromycin" | "azithromycin" | "clarithromycin"
-                                ),
-                                (ResistanceMechanism::VanType, drug) => {
-                                    matches!(drug, "vancomycin" | "teicoplanin")
-                                }
-                                (ResistanceMechanism::MecA, drug) => {
-                                    bacteria == "staphylococcus_aureus"
-                                        && matches!(
-                                            drug,
-                                            "penicilling"
-                                                | "ampicillin"
-                                                | "amoxicillin"
-                                                | "cephalexin"
-                                                | "cefazolin"
-                                                | "cefuroxime"
-                                                | "ceftriaxone"
-                                                | "ceftazidime"
-                                                | "cefepime"
-                                                | "meropenem"
-                                                | "imipenem_c"
-                                                | "ertapenem"
-                                        )
-                                }
-                                (ResistanceMechanism::EffluxOverexpression, _) => true,
-                                (ResistanceMechanism::ReducedPermeability, _) => !matches!(
-                                    bacteria,
-                                    "staphylococcus_aureus"
-                                        | "streptococcus_pneumoniae"
-                                        | "streptococcus_pyogenes"
-                                        | "streptococcus_agalactiae"
-                                        | "enterococcus_faecalis"
-                                        | "enterococcus_faecium"
-                                ),
-                                (ResistanceMechanism::TargetSiteMutation, _) => true,
-                                (ResistanceMechanism::AmpC, drug) => matches!(
-                                    drug,
-                                    "penicilling"
-                                        | "ampicillin"
-                                        | "amoxicillin"
-                                        | "piperacillin"
-                                        | "ticarcillin"
-                                        | "cephalexin"
-                                        | "cefazolin"
-                                        | "cefuroxime"
-                                        | "ceftriaxone"
-                                        | "amoxicillin_clavulanate"
-                                        | "piperacillin_tazobactam"
-                                        | "ampicillin_sulbactam"
-                                        | "ticarcillin_clavulanate"
-                                ),
-                            };
-
-                            if !mechanism_applicable {
+                            if !param_cache.mechanism_applicable(mechanism_idx, b_idx, d_idx) {
                                 continue;
                             }
 
@@ -3295,11 +3230,10 @@ pub fn apply_rules(
                             use crate::simulation::population::ResistanceMechanism;
                             let mechanism_prob =
                                 store.globals.mechanism_assignment_probability_on_any_r_gain;
-                            for (mech_idx, mechanism) in
+                            for (mech_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
-                                let drug_name = *drug_name_static;
-                                if !mechanism_applies_to_drug(*mechanism, bacteria, drug_name) {
+                                if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
                                     continue;
                                 }
 
@@ -3340,11 +3274,12 @@ pub fn apply_rules(
                                 use crate::simulation::population::ResistanceMechanism;
                                 let mechanism_prob =
                                     store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, mechanism) in
+                                for (mech_idx, _mechanism) in
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
-                                    let drug_name = DRUG_SHORT_NAMES[rifampicin_idx];
-                                    if !mechanism_applies_to_drug(*mechanism, bacteria, drug_name) {
+                                    if !param_cache
+                                        .mechanism_applicable(mech_idx, b_idx, rifampicin_idx)
+                                    {
                                         continue;
                                     }
 
@@ -3595,11 +3530,12 @@ pub fn apply_rules(
                                 use crate::simulation::population::ResistanceMechanism;
                                 let mechanism_prob =
                                     store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, mechanism) in
+                                for (mech_idx, _mechanism) in
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
-                                    let drug_name = DRUG_SHORT_NAMES[drug_index];
-                                    if !mechanism_applies_to_drug(*mechanism, bacteria, drug_name) {
+                                    if !param_cache
+                                        .mechanism_applicable(mech_idx, b_idx, drug_index)
+                                    {
                                         continue;
                                     }
 
@@ -3625,7 +3561,7 @@ pub fn apply_rules(
                         if let Some(bacteria_full_idx) =
                             BACTERIA_LIST.iter().position(|&b| b == bacteria)
                         {
-                            for (mechanism_idx, mechanism) in
+                            for (mechanism_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
                                 // Skip if mechanism already present
@@ -3635,132 +3571,20 @@ pub fn apply_rules(
                                     continue;
                                 }
 
-                                // Check if this mechanism is relevant for current drug
-                                let mechanism_applicable =
-                                    match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
-                                        // ESBL affects beta-lactams (except carbapenems)
-                                        (ResistanceMechanism::ESBL, drug) => {
-                                            matches!(
-                                                drug,
-                                                "penicilling"
-                                                    | "ampicillin"
-                                                    | "amoxicillin"
-                                                    | "piperacillin"
-                                                    | "ticarcillin"
-                                                    | "cephalexin"
-                                                    | "cefazolin"
-                                                    | "cefuroxime"
-                                                    | "ceftriaxone"
-                                                    | "ceftazidime"
-                                                    | "cefepime"
-                                                    | "ceftaroline"
-                                                    | "aztreonam"
-                                                    | "amoxicillin_clavulanate"
-                                                    | "piperacillin_tazobactam"
-                                                    | "ampicillin_sulbactam"
-                                                    | "ticarcillin_clavulanate"
-                                            )
-                                        }
-                                        // Carbapenemase affects carbapenems
-                                        (ResistanceMechanism::Carbapenemase, drug) => {
-                                            matches!(
-                                                drug,
-                                                "meropenem"
-                                                    | "imipenem_c"
-                                                    | "ertapenem"
-                                                    | "meropenem_vaborbactam"
-                                            )
-                                        }
-                                        // 16S methyltransferase affects aminoglycosides
-                                        (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
-                                            matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
-                                        }
-                                        // Qnr affects quinolones
-                                        (ResistanceMechanism::Qnr, drug) => {
-                                            qnr_supported_bacteria(bacteria)
-                                                && matches!(
-                                                    drug,
-                                                    "ciprofloxacin"
-                                                        | "levofloxacin"
-                                                        | "moxifloxacin"
-                                                        | "ofloxacin"
-                                                )
-                                        }
-                                        // Erm methylation affects macrolides
-                                        (ResistanceMechanism::ErmMethylation, drug) => {
-                                            matches!(
-                                                drug,
-                                                "erythromycin" | "azithromycin" | "clarithromycin"
-                                            )
-                                        }
-                                        // Van-type affects glycopeptides
-                                        (ResistanceMechanism::VanType, drug) => {
-                                            matches!(drug, "vancomycin" | "teicoplanin")
-                                        }
-                                        // mecA affects beta-lactams in Staph aureus
-                                        (ResistanceMechanism::MecA, drug) => {
-                                            bacteria == "staphylococcus_aureus"
-                                                && matches!(
-                                                    drug,
-                                                    "penicilling"
-                                                        | "ampicillin"
-                                                        | "amoxicillin"
-                                                        | "cephalexin"
-                                                        | "cefazolin"
-                                                        | "cefuroxime"
-                                                        | "ceftriaxone"
-                                                        | "ceftazidime"
-                                                        | "cefepime"
-                                                        | "meropenem"
-                                                        | "imipenem_c"
-                                                        | "ertapenem"
-                                                )
-                                        }
-                                        // Efflux overexpression can affect multiple drug classes
-                                        (ResistanceMechanism::EffluxOverexpression, _) => true,
-                                        // Reduced permeability affects many drugs, especially in Gram-negatives
-                                        (ResistanceMechanism::ReducedPermeability, _) => !matches!(
-                                            bacteria,
-                                            "staphylococcus_aureus"
-                                                | "streptococcus_pneumoniae"
-                                                | "streptococcus_pyogenes"
-                                                | "streptococcus_agalactiae"
-                                                | "enterococcus_faecalis"
-                                                | "enterococcus_faecium"
-                                        ),
-                                        // Target site mutations can affect various drugs
-                                        (ResistanceMechanism::TargetSiteMutation, _) => true,
-                                        // AmpC affects beta-lactams
-                                        (ResistanceMechanism::AmpC, drug) => {
-                                            matches!(
-                                                drug,
-                                                "penicilling"
-                                                    | "ampicillin"
-                                                    | "amoxicillin"
-                                                    | "piperacillin"
-                                                    | "ticarcillin"
-                                                    | "cephalexin"
-                                                    | "cefazolin"
-                                                    | "cefuroxime"
-                                                    | "ceftriaxone"
-                                                    | "amoxicillin_clavulanate"
-                                                    | "piperacillin_tazobactam"
-                                                    | "ampicillin_sulbactam"
-                                                    | "ticarcillin_clavulanate"
-                                            )
-                                        }
-                                    };
+                                if !param_cache
+                                    .mechanism_applicable(mechanism_idx, bacteria_full_idx, drug_index)
+                                {
+                                    continue;
+                                }
 
-                                if mechanism_applicable {
-                                    let mechanism_emergence_rate = store
-                                        .resistance_mechanism
-                                        .emergence_rate(mechanism_idx)
-                                        * store.globals.resistance_emergence_pop_size_multiplier; // Use pop-size multiplier for infection-site mechanism emergence
+                                let mechanism_emergence_rate = store
+                                    .resistance_mechanism
+                                    .emergence_rate(mechanism_idx)
+                                    * store.globals.resistance_emergence_pop_size_multiplier; // Use pop-size multiplier for infection-site mechanism emergence
 
-                                    if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                        individual.resistance_mechanisms[bacteria_full_idx]
-                                            [mechanism_idx] = true;
-                                    }
+                                if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
+                                    individual.resistance_mechanisms[bacteria_full_idx]
+                                        [mechanism_idx] = true;
                                 }
                             }
                         }
@@ -3784,157 +3608,34 @@ pub fn apply_rules(
                             {
                                 use crate::simulation::population::ResistanceMechanism;
 
-                                for (mechanism_idx, mechanism) in
+                                for (mechanism_idx, _mechanism) in
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
-                                    if individual.resistance_mechanisms[bacteria_full_idx]
+                                    if !individual.resistance_mechanisms[bacteria_full_idx]
                                         [mechanism_idx]
                                     {
-                                        // Check if this mechanism affects the current drug
-                                        let mechanism_affects_drug =
-                                            match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
-                                                // ESBL affects beta-lactams (except carbapenems)
-                                                (ResistanceMechanism::ESBL, drug) => {
-                                                    matches!(
-                                                        drug,
-                                                        "penicilling"
-                                                            | "ampicillin"
-                                                            | "amoxicillin"
-                                                            | "piperacillin"
-                                                            | "ticarcillin"
-                                                            | "cephalexin"
-                                                            | "cefazolin"
-                                                            | "cefuroxime"
-                                                            | "ceftriaxone"
-                                                            | "ceftazidime"
-                                                            | "cefepime"
-                                                            | "ceftaroline"
-                                                            | "aztreonam"
-                                                            | "amoxicillin_clavulanate"
-                                                            | "piperacillin_tazobactam"
-                                                            | "ampicillin_sulbactam"
-                                                            | "ticarcillin_clavulanate"
-                                                    )
-                                                }
-                                                // Carbapenemase affects carbapenems
-                                                (ResistanceMechanism::Carbapenemase, drug) => {
-                                                    matches!(
-                                                        drug,
-                                                        "meropenem"
-                                                            | "imipenem_c"
-                                                            | "ertapenem"
-                                                            | "meropenem_vaborbactam"
-                                                    )
-                                                }
-                                                // 16S methyltransferase affects aminoglycosides
-                                                (
-                                                    ResistanceMechanism::SixteenSMethyltransferase,
-                                                    drug,
-                                                ) => {
-                                                    matches!(
-                                                        drug,
-                                                        "gentamicin" | "tobramycin" | "amikacin"
-                                                    )
-                                                }
-                                                // Qnr affects quinolones
-                                                (ResistanceMechanism::Qnr, drug) => {
-                                                    qnr_supported_bacteria(bacteria)
-                                                        && matches!(
-                                                            drug,
-                                                            "ciprofloxacin"
-                                                                | "levofloxacin"
-                                                                | "moxifloxacin"
-                                                                | "ofloxacin"
-                                                        )
-                                                }
-                                                // Erm methylation affects macrolides
-                                                (ResistanceMechanism::ErmMethylation, drug) => {
-                                                    matches!(
-                                                        drug,
-                                                        "erythromycin"
-                                                            | "azithromycin"
-                                                            | "clarithromycin"
-                                                    )
-                                                }
-                                                // Van-type affects glycopeptides
-                                                (ResistanceMechanism::VanType, drug) => {
-                                                    matches!(drug, "vancomycin" | "teicoplanin")
-                                                }
-                                                // mecA affects beta-lactams in Staph aureus
-                                                (ResistanceMechanism::MecA, drug) => {
-                                                    bacteria == "staphylococcus_aureus"
-                                                        && matches!(
-                                                            drug,
-                                                            "penicilling"
-                                                                | "ampicillin"
-                                                                | "amoxicillin"
-                                                                | "cephalexin"
-                                                                | "cefazolin"
-                                                                | "cefuroxime"
-                                                                | "ceftriaxone"
-                                                                | "ceftazidime"
-                                                                | "cefepime"
-                                                                | "meropenem"
-                                                                | "imipenem_c"
-                                                                | "ertapenem"
-                                                        )
-                                                }
-                                                // Efflux overexpression can affect multiple drug classes
-                                                (ResistanceMechanism::EffluxOverexpression, _) => {
-                                                    true
-                                                }
-                                                // Reduced permeability affects many drugs, especially in Gram-negatives
-                                                (ResistanceMechanism::ReducedPermeability, _) => {
-                                                    !matches!(
-                                                        bacteria,
-                                                        "staphylococcus_aureus"
-                                                            | "streptococcus_pneumoniae"
-                                                            | "streptococcus_pyogenes"
-                                                            | "streptococcus_agalactiae"
-                                                            | "enterococcus_faecalis"
-                                                            | "enterococcus_faecium"
-                                                    )
-                                                }
-                                                // Target site mutations can affect various drugs
-                                                (ResistanceMechanism::TargetSiteMutation, _) => {
-                                                    true
-                                                }
-                                                // AmpC affects beta-lactams
-                                                (ResistanceMechanism::AmpC, drug) => {
-                                                    matches!(
-                                                        drug,
-                                                        "penicilling"
-                                                            | "ampicillin"
-                                                            | "amoxicillin"
-                                                            | "piperacillin"
-                                                            | "ticarcillin"
-                                                            | "cephalexin"
-                                                            | "cefazolin"
-                                                            | "cefuroxime"
-                                                            | "ceftriaxone"
-                                                            | "amoxicillin_clavulanate"
-                                                            | "piperacillin_tazobactam"
-                                                            | "ampicillin_sulbactam"
-                                                            | "ticarcillin_clavulanate"
-                                                    )
-                                                }
-                                            };
+                                        continue;
+                                    }
+                                    if !param_cache.mechanism_applicable(
+                                        mechanism_idx,
+                                        bacteria_full_idx,
+                                        drug_index,
+                                    ) {
+                                        continue;
+                                    }
 
-                                        if mechanism_affects_drug {
-                                            let mechanism_enhancement = store
-                                                .resistance_mechanism
-                                                .enhancement_multiplier(mechanism_idx);
+                                    let mechanism_enhancement = store
+                                        .resistance_mechanism
+                                        .enhancement_multiplier(mechanism_idx);
 
-                                            // Only add enhancement if it would actually increase resistance
-                                            // Mechanisms can't decrease resistance, but they also don't add if any_r is already higher
-                                            let normalized_any_r =
-                                                resistance_data.any_r / max_resistance_level;
-                                            if mechanism_enhancement > normalized_any_r {
-                                                let additional_resistance =
-                                                    mechanism_enhancement - normalized_any_r;
-                                                mechanism_resistance_boost += additional_resistance;
-                                            }
-                                        }
+                                    // Only add enhancement if it would actually increase resistance
+                                    // Mechanisms can't decrease resistance, but they also don't add if any_r is already higher
+                                    let normalized_any_r =
+                                        resistance_data.any_r / max_resistance_level;
+                                    if mechanism_enhancement > normalized_any_r {
+                                        let additional_resistance =
+                                            mechanism_enhancement - normalized_any_r;
+                                        mechanism_resistance_boost += additional_resistance;
                                     }
                                 }
                             }
@@ -4132,122 +3833,24 @@ pub fn apply_rules(
                         let mut mechanism_resistance_boost = 0.0;
                         let max_resistance_level = store.globals.max_resistance_level;
 
-                        for (mechanism_idx, mechanism) in
+                        for (mechanism_idx, _mechanism) in
                             ResistanceMechanism::all().iter().enumerate()
                         {
-                            if individual.resistance_mechanisms[b_idx][mechanism_idx] {
-                                // Check if this mechanism affects the current drug (same logic as in calculation)
-                                let mechanism_affects_drug =
-                                    match (mechanism, DRUG_SHORT_NAMES[drug_index]) {
-                                        (ResistanceMechanism::ESBL, drug) => {
-                                            matches!(
-                                                drug,
-                                                "penicilling"
-                                                    | "ampicillin"
-                                                    | "amoxicillin"
-                                                    | "piperacillin"
-                                                    | "ticarcillin"
-                                                    | "cephalexin"
-                                                    | "cefazolin"
-                                                    | "cefuroxime"
-                                                    | "ceftriaxone"
-                                                    | "ceftazidime"
-                                                    | "cefepime"
-                                                    | "ceftaroline"
-                                                    | "aztreonam"
-                                                    | "amoxicillin_clavulanate"
-                                                    | "piperacillin_tazobactam"
-                                                    | "ampicillin_sulbactam"
-                                                    | "ticarcillin_clavulanate"
-                                            )
-                                        }
-                                        (ResistanceMechanism::Carbapenemase, drug) => {
-                                            matches!(
-                                                drug,
-                                                "meropenem"
-                                                    | "imipenem_c"
-                                                    | "ertapenem"
-                                                    | "meropenem_vaborbactam"
-                                            )
-                                        }
-                                        (ResistanceMechanism::SixteenSMethyltransferase, drug) => {
-                                            matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
-                                        }
-                                        (ResistanceMechanism::Qnr, drug) => {
-                                            qnr_supported_bacteria(bacteria)
-                                                && matches!(
-                                                    drug,
-                                                    "ciprofloxacin"
-                                                        | "levofloxacin"
-                                                        | "moxifloxacin"
-                                                        | "ofloxacin"
-                                                )
-                                        }
-                                        (ResistanceMechanism::ErmMethylation, drug) => {
-                                            matches!(
-                                                drug,
-                                                "erythromycin" | "azithromycin" | "clarithromycin"
-                                            )
-                                        }
-                                        (ResistanceMechanism::VanType, drug) => {
-                                            matches!(drug, "vancomycin" | "teicoplanin")
-                                        }
-                                        (ResistanceMechanism::MecA, drug) => {
-                                            bacteria == "staphylococcus_aureus"
-                                                && matches!(
-                                                    drug,
-                                                    "penicilling"
-                                                        | "ampicillin"
-                                                        | "amoxicillin"
-                                                        | "cephalexin"
-                                                        | "cefazolin"
-                                                        | "cefuroxime"
-                                                        | "ceftriaxone"
-                                                        | "ceftazidime"
-                                                        | "cefepime"
-                                                        | "meropenem"
-                                                        | "imipenem_c"
-                                                        | "ertapenem"
-                                                )
-                                        }
-                                        (ResistanceMechanism::EffluxOverexpression, _) => true,
-                                        (ResistanceMechanism::ReducedPermeability, _) => !matches!(
-                                            bacteria,
-                                            "staphylococcus_aureus"
-                                                | "streptococcus_pneumoniae"
-                                                | "streptococcus_pyogenes"
-                                                | "streptococcus_agalactiae"
-                                                | "enterococcus_faecalis"
-                                                | "enterococcus_faecium"
-                                        ),
-                                        (ResistanceMechanism::TargetSiteMutation, _) => true,
-                                        (ResistanceMechanism::AmpC, drug) => {
-                                            matches!(
-                                                drug,
-                                                "penicilling"
-                                                    | "ampicillin"
-                                                    | "amoxicillin"
-                                                    | "piperacillin"
-                                                    | "ticarcillin"
-                                                    | "cephalexin"
-                                                    | "cefazolin"
-                                                    | "cefuroxime"
-                                                    | "ceftriaxone"
-                                                    | "amoxicillin_clavulanate"
-                                                    | "piperacillin_tazobactam"
-                                                    | "ampicillin_sulbactam"
-                                                    | "ticarcillin_clavulanate"
-                                            )
-                                        }
-                                    };
-
-                                if mechanism_affects_drug {
-                                    let mechanism_enhancement = store
-                                        .resistance_mechanism
-                                        .enhancement_multiplier(mechanism_idx);
-                                    mechanism_resistance_boost += mechanism_enhancement;
-                                }
+                            if !individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                                continue;
                             }
+                            if !param_cache.mechanism_applicable(
+                                mechanism_idx,
+                                b_idx,
+                                drug_index,
+                            ) {
+                                continue;
+                            }
+
+                            let mechanism_enhancement = store
+                                .resistance_mechanism
+                                .enhancement_multiplier(mechanism_idx);
+                            mechanism_resistance_boost += mechanism_enhancement;
                         }
 
                         // Update resistance levels based on remaining mechanisms
@@ -4620,15 +4223,13 @@ pub fn apply_rules(
                                         let mechanism_prob = store
                                             .globals
                                             .mechanism_assignment_probability_on_any_r_gain;
-                                        for (mech_idx, mechanism) in
+                                        for (mech_idx, _mechanism) in
                                             ResistanceMechanism::all().iter().enumerate()
                                         {
-                                            let drug_name = DRUG_SHORT_NAMES[drug_idx];
-                                            let bacteria_name = BACTERIA_LIST[recipient_idx];
-                                            if !mechanism_applies_to_drug(
-                                                *mechanism,
-                                                bacteria_name,
-                                                drug_name,
+                                            if !param_cache.mechanism_applicable(
+                                                mech_idx,
+                                                recipient_idx,
+                                                drug_idx,
                                             ) {
                                                 continue;
                                             }
@@ -4659,15 +4260,13 @@ pub fn apply_rules(
                                         let mechanism_prob = store
                                             .globals
                                             .mechanism_assignment_probability_on_any_r_gain;
-                                        for (mech_idx, mechanism) in
+                                        for (mech_idx, _mechanism) in
                                             ResistanceMechanism::all().iter().enumerate()
                                         {
-                                            let drug_name = DRUG_SHORT_NAMES[drug_idx];
-                                            let bacteria_name = BACTERIA_LIST[recipient_idx];
-                                            if !mechanism_applies_to_drug(
-                                                *mechanism,
-                                                bacteria_name,
-                                                drug_name,
+                                            if !param_cache.mechanism_applicable(
+                                                mech_idx,
+                                                recipient_idx,
+                                                drug_idx,
                                             ) {
                                                 continue;
                                             }

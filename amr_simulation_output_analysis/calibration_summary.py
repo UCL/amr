@@ -33,7 +33,6 @@ DRUG_CLASS_TABLE_COLUMNS = [
     "Included drugs",
 ]
 
-
 @dataclass
 class CalibrationTargets:
     target_year: int
@@ -1666,7 +1665,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_077458.txt"
+    output_path = output_dir / "calibration_summary_051680.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")

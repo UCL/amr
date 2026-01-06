@@ -705,13 +705,27 @@ def create_grouped_plots(df, config=None):
                 window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
             ).mean()
             
-            axes6[0].plot(df['time_in_years'], overall_ratio_smooth, 
-                        linewidth=2, color='navy', label='Overall Activity R Ratio')
+            overall_ratio_clipped = overall_ratio_smooth.clip(upper=1.0)
+            axes6[0].plot(
+                df['time_in_years'],
+                overall_ratio_clipped,
+                linewidth=2,
+                color='navy',
+                label='Overall Activity R Ratio',
+            )
             axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug, excl. H. pylori)')
             axes6[0].set_ylabel('Overall Activity R Ratio')
-            axes6[0].set_ylim(bottom=0)
+            axes6[0].set_ylim(0, 1.0)
             axes6[0].grid(True, alpha=0.3)
             axes6[0].legend()
+            axes6[0].text(
+                0.01,
+                0.05,
+                'Ratios above 1.0 can occur\n(multi-drug therapy) and are clipped.',
+                transform=axes6[0].transAxes,
+                fontsize=8,
+                color='dimgray',
+            )
             
             # Removed the inset summary box to keep the plot uncluttered
             
