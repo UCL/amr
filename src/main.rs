@@ -30,27 +30,31 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// should the population majority_r be based on infections where spread is more likely ? such as
-// respiratory infections rather than some other infection sites ? 
+// need to look at specific drug x bacteria and see if it is feasible to align
+// with calibration targets just through the resistance mechanisms - but also continue to consider if 
+// drug selection algorithm is ok
 //
-// need a general drug selection algorithm per syndrome and calendar year and then one once bacteria / resistance known 
-// 
-// maybe have a separate population majority_r value for environment so those infected from environment sample from this 
-// value - would have to think about how best to inform this and might have to be directly specified by time and region - 
+// should the population majority_r be based on infections where spread is more likely ? such as
+// respiratory infections rather than some other infection sites ?
+//
+// need a general drug selection algorithm per syndrome and calendar year and then one once bacteria / resistance known
+//
+// maybe have a separate population majority_r value for environment so those infected from environment sample from this
+// value - would have to think about how best to inform this and might have to be directly specified by time and region -
 // or maybe continue to use the pop majority r for environment infections but just to have this only for
-// drugs which have been introduced in animals by this date (directly specified) and perhaps with a multiplier with higher 
+// drugs which have been introduced in animals by this date (directly specified) and perhaps with a multiplier with higher
 // resistance levels for drugs that have been introduced in animals ?
 //
-// what about hgt in the environment ? would need to directly take this into account ? can this mean that bacteria from 
+// what about hgt in the environment ? would need to directly take this into account ? can this mean that bacteria from
 // animals never exposed to a drug can get resistance to newer drugs never used in animals to that point ?
 //
 // mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
 //
 // should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
-// 
+//
 // model low level "treatment" resulting from antimicrobials in the environment ?
 //
-// vary time to symptom onset by bacteria ? 
+// vary time to symptom onset by bacteria ?
 //
 //
 //
@@ -129,10 +133,10 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size =    100_000 ;
-    let time_steps =  38_325;
-    let log_individuals = false ; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false ; // Set to true to enable infection journey logging
+    let population_size = 100_000;
+    let time_steps = 38_325;
+    let log_individuals = false; // Set to false to disable detailed individual logging
+    let log_infection_journeys = false; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.90; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true

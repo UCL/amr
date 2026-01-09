@@ -122,7 +122,6 @@ pub struct ParameterStore {
     pub age_tables: AgeTables,
     pub hgt: HgtMatrix,
     pub resistance_mechanism: ResistanceMechanismParameters,
-    pub bacteria_mechanism_emergence: BacteriaMechanismEmergenceMultipliers,
 }
 
 impl ParameterStore {
@@ -145,8 +144,6 @@ impl ParameterStore {
         let age_tables = AgeTables::from_map(map, num_bacteria);
         let hgt = HgtMatrix::from_map(map, num_bacteria);
         let resistance_mechanism = ResistanceMechanismParameters::from_map(map);
-        let bacteria_mechanism_emergence =
-            BacteriaMechanismEmergenceMultipliers::from_map(map, BACTERIA_LIST.len());
 
         ParameterStore {
             globals,
@@ -164,7 +161,6 @@ impl ParameterStore {
             age_tables,
             hgt,
             resistance_mechanism,
-            bacteria_mechanism_emergence,
         }
     }
 }
@@ -1507,7 +1503,7 @@ impl ClearanceParameters {
         // Base post-infection delay and baseline daily clearance hazard before modifiers.
         let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
         // key immune_clearance parameter
-        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.015); // 0.045
+        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.020); // 0.045
 
         let mut age_multipliers = [1.0; AGE_BUCKET_COUNT];
         for (idx, category) in AGE_BUCKETS.iter().enumerate() {
@@ -2020,42 +2016,6 @@ impl ResistanceMechanismParameters {
     #[inline]
     pub fn reversion_rate(&self, mechanism_idx: usize) -> f64 {
         self.reversion_rate[mechanism_idx]
-    }
-}
-
-#[derive(Debug)]
-pub struct BacteriaMechanismEmergenceMultipliers {
-    values: Vec<f64>,
-    num_mechanisms: usize,
-}
- 
-impl BacteriaMechanismEmergenceMultipliers {
-    fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
-        let mechanisms = ResistanceMechanism::all();
-        let num_mechanisms = mechanisms.len();
-        let mut values = Vec::with_capacity(num_bacteria * num_mechanisms);
-
-        for &bacteria in BACTERIA_LIST.iter() {
-            for mechanism in mechanisms {
-                let key = format!(
-                    "bacteria_{}_mechanism_{}_emergence_multiplier",
-                    bacteria,
-                    mechanism.as_str()
-                );
-                values.push(get_or_default(map, &key, 1.0));
-            }
-        }
-
-        Self {
-            values,
-            num_mechanisms,
-        }
-    }
-
-    #[inline]
-    pub fn multiplier(&self, bacteria_idx: usize, mechanism_idx: usize) -> f64 {
-        let offset = bacteria_idx * self.num_mechanisms + mechanism_idx;
-        self.values[offset]
     }
 }
 
@@ -5442,21 +5402,21 @@ lazy_static! {
         // PROBLEMATIC HIGH-RESISTANCE BACTERIA (higher emergence rates)
         // acinetobacter_baumannii - notorious for rapid resistance development
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.001);
+            map.insert(format!("drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline", drug), 0.01);
         }
 
         // E. coli - moderate emergence rate (common pathogen with variable resistance)
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.005);
         }
         let high_pressure_e_coli_drugs = vec!["amoxicillin", "ampicillin", "ampicillin_sulbactam"];
         for &drug in high_pressure_e_coli_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+            map.insert(format!("drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline", drug), 0.005);
         }
 
         // klebsiella_pneumoniae - rapid β-lactam resistance with selective retention of novel agents
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.0001);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.0012);
         }
         let kleb_collapse_drugs = vec![
             "amoxicillin", "ampicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate",
@@ -5464,169 +5424,167 @@ lazy_static! {
             "cephalexin", "cephalothin", "cefazolin", "cefaclor", "cefuroxime"
         ];
         for &drug in kleb_collapse_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.0002);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.0025);
         }
         let kleb_preserved_drugs = vec!["ceftazidime_avibactam", "meropenem_vaborbactam", "colistin", "cefiderocol"];
         for &drug in kleb_preserved_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.00018);
         }
 
         // pseudomonas_aeruginosa
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.004);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.035);
         }
         let pseudo_reserve_drugs = vec!["colistin", "ceftazidime_avibactam", "meropenem_vaborbactam", "cefiderocol"];
         for &drug in pseudo_reserve_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.001);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.012);
         }
         let pseudo_problem_drugs = vec!["levofloxacin", "ciprofloxacin", "meropenem", "imipenem", "ceftazidime", "cefepime"];
         for &drug in pseudo_problem_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.006);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.065);
         }
 
         // stenotrophomonas_maltophilia gs
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas_maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.0001);
+            map.insert(format!("drug_{}_for_bacteria_stenotrophomonas_maltophilia_resistance_emergence_rate_per_day_baseline", drug), 0.0009);
         }
 
         // staphylococcus_epidermidis - biofilm former, moderate resistance development
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_staphylococcus_epidermidis_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
+            map.insert(format!("drug_{}_for_bacteria_staphylococcus_epidermidis_resistance_emergence_rate_per_day_baseline", drug), 0.0006);
         }
 
         // proteus_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline", drug), 0.02);
+            map.insert(format!("drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline", drug), 0.2);
         }
 
         // pseudomonas_aeruginosa
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+            map.insert(format!("drug_{}_for_bacteria_pseudomonas_aeruginosa_resistance_emergence_rate_per_day_baseline", drug), 0.005);
         }
 
         // salmonella_enterica_serovar_paratyphi_a
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_salmonella_enterica_serovar_paratyphi_a_resistance_emergence_rate_per_day_baseline", drug), 0.01);
+            map.insert(format!("drug_{}_for_bacteria_salmonella_enterica_serovar_paratyphi_a_resistance_emergence_rate_per_day_baseline", drug), 0.1);
         }
 
         // salmonella_enterica_serovar_typhi
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_salmonella_enterica_serovar_typhi_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+            map.insert(format!("drug_{}_for_bacteria_salmonella_enterica_serovar_typhi_resistance_emergence_rate_per_day_baseline", drug), 0.005);
         }
 
 
         // shigella_spp_
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline", drug), 0.02);
+            map.insert(format!("drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline", drug), 0.2);
         }
 
 
         // staphylococcus_aureus
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline", drug), 0.08);
+            map.insert(format!("drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline", drug), 0.8);
         }
 
         // bordetella pertussis
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_bordetella_pertussis_resistance_emergence_rate_per_day_baseline", drug), 0.02);
+            map.insert(format!("drug_{}_for_bacteria_bordetella_pertussis_resistance_emergence_rate_per_day_baseline", drug), 0.2);
         }
 
         // campylobacter_jejuni
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_campylobacter_jejuni_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+            map.insert(format!("drug_{}_for_bacteria_campylobacter_jejuni_resistance_emergence_rate_per_day_baseline", drug), 0.005);
         }
 
         // chlamydia_trachomatis
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_chlamydia_trachomatis_resistance_emergence_rate_per_day_baseline", drug), 0.005);
+            map.insert(format!("drug_{}_for_bacteria_chlamydia_trachomatis_resistance_emergence_rate_per_day_baseline", drug), 0.05);
         }
 
         // citrobacter_spp._
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_citrobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.05);
+            map.insert(format!("drug_{}_for_bacteria_citrobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5);
         }
 
         // clostridioides_difficile
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_clostridioides_difficile_resistance_emergence_rate_per_day_baseline", drug), 0.03);
+            map.insert(format!("drug_{}_for_bacteria_clostridioides_difficile_resistance_emergence_rate_per_day_baseline", drug), 0.3);
         }
 
         // enterobacter_cloacae
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline", drug), 0.02);
+        map.insert(format!("drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline", drug), 0.2);
         }
 
         // enterobacter_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.05);
+        map.insert(format!("drug_{}_for_bacteria_enterobacter_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5);
         }
 
         // enterococcus_faecalis
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline", drug), 0.03);
+        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecalis_resistance_emergence_rate_per_day_baseline", drug), 0.3);
         }
 
         // enterococcus_faecium
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline", drug), 0.03);
+        map.insert(format!("drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline", drug), 0.3);
         }
 
         // haemophilus_influenza
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_haemophilus_influenza_resistance_emergence_rate_per_day_baseline", drug), 0.0005);
+        map.insert(format!("drug_{}_for_bacteria_haemophilus_influenza_resistance_emergence_rate_per_day_baseline", drug), 0.005);
         }
 
         // helicobacter_pylori
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_helicobacter_pylori_resistance_emergence_rate_per_day_baseline", drug), 0.01);
+        map.insert(format!("drug_{}_for_bacteria_helicobacter_pylori_resistance_emergence_rate_per_day_baseline", drug), 0.1);
         }
 
         // listeria_monocytogenes
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_listeria_monocytogenes_resistance_emergence_rate_per_day_baseline", drug), 0.02);
+        map.insert(format!("drug_{}_for_bacteria_listeria_monocytogenes_resistance_emergence_rate_per_day_baseline", drug), 0.2);
         }
 
         // morganella_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_morganella_spp._resistance_emergence_rate_per_day_baseline", drug), 0.05);
+        map.insert(format!("drug_{}_for_bacteria_morganella_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5);
         }
 
         // moraxella_catarrhalis
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_moraxella_catarrhalis_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_moraxella_catarrhalis_resistance_emergence_rate_per_day_baseline", drug), 0.03);
         }
 
         // serratia_spp.
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.08);
+        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.8);
         }
 
         // streptococcus_agalactiae
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_streptococcus_agalactiae_resistance_emergence_rate_per_day_baseline", drug), 0.002);
+        map.insert(format!("drug_{}_for_bacteria_streptococcus_agalactiae_resistance_emergence_rate_per_day_baseline", drug), 0.02);
         }
 
         // treponema_pallidum
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_treponema_pallidum_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_treponema_pallidum_resistance_emergence_rate_per_day_baseline", drug), 0.03);
         }
 
         // vibrio_cholerae
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.03);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.3);
         }
 
         // yersinia_enterocolitica
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_yersinia_enterocolitica_resistance_emergence_rate_per_day_baseline", drug), 0.08);
+        map.insert(format!("drug_{}_for_bacteria_yersinia_enterocolitica_resistance_emergence_rate_per_day_baseline", drug), 0.8);
         }
 
         // neisseria_meningitidis
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline", drug), 0.02);
+        map.insert(format!("drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline", drug), 0.2);
         }
-
-/*
 
 //   for debugging
 
@@ -5636,7 +5594,7 @@ lazy_static! {
             }
         }
 
-*/
+
 
 
 /*
@@ -6274,49 +6232,6 @@ lazy_static! {
         map.insert("resistance_mechanism_van_type_emergence_rate".to_string(), 0.00001); // Complex vanA/vanB resistance cluster
         map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.00005); // Rare, high-level aminoglycoside resistance
 
-        // --- Example bacteria-level mechanism overrides ---
-        // Lower ESBL/AmpC emergence for E. coli to trim overall beta-lactam resistance.
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_esbl_emergence_multiplier".to_string(),
-            0.55,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_ampc_emergence_multiplier".to_string(),
-            0.65,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_qnr_emergence_multiplier".to_string(),
-            0.7,
-        );
-
-        // Haemophilus influenzae rarely maintains high-level mechanism-mediated resistance.
-        map.insert(
-            "bacteria_haemophilus_influenzae_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            0.4,
-        );
-        map.insert(
-            "bacteria_haemophilus_influenzae_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            0.5,
-        );
-
-        // Enterococcus faecium readily acquires van genes and mutational resistance under drug pressure.
-        map.insert(
-            "bacteria_enterococcus_faecium_mechanism_van_type_emergence_multiplier".to_string(),
-            12.0,
-        );
-        map.insert(
-            "bacteria_enterococcus_faecium_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            2.0,
-        );
-        map.insert(
-            "bacteria_enterococcus_faecium_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            1.5,
-        );
-        map.insert(
-            "bacteria_enterococcus_faecium_mechanism_reduced_permeability_emergence_multiplier".to_string(),
-            2.5,
-        );
-
 /*
 
 // debugging
@@ -6883,7 +6798,7 @@ lazy_static! {
 
 
         // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
-        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.015); // Base 1% daily death risk for sepsis
+        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.01); // Base 1% daily death risk for sepsis
         map.insert("sepsis_age_mortality_multiplier_infant".to_string(), 3.0); // 0-1 years: much higher risk
         map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk
         map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
@@ -6900,7 +6815,7 @@ lazy_static! {
         map.insert("africa_sepsis_mortality_multiplier".to_string(), 2.0); 
 
         // Sepsis Recovery Parameters (Logistic Model)
-        map.insert("sepsis_base_log_odds_of_recovery_per_day".to_string(), -0.5); // Base log odds (low baseline recovery probability ~12%)
+        map.insert("sepsis_base_log_odds_of_recovery_per_day".to_string(), -1.0); // Base log odds (low baseline recovery probability ~12%)
         map.insert("sepsis_log_odds_bacteria_level".to_string(), -0.3); // Higher bacteria level decreases recovery (negative coefficient)
         map.insert("sepsis_log_odds_in_hospital".to_string(), 0.8); // Being in hospital increases recovery probability
         map.insert("sepsis_log_odds_age_infant".to_string(), -0.5); // Infants have lower recovery probability

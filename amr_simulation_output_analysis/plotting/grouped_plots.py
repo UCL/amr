@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib.lines import Line2D
 from pathlib import Path
 
 # Import from the modular system
@@ -27,6 +28,36 @@ def create_grouped_plots(df, config=None):
     if config is None:
         config = PlotConfig()
     
+    # Normalize dataframe ordering and insert NaN break rows between policy segments to avoid
+    # vertical line jumps when policies branch off in time.
+    df = df.copy().reset_index(drop=True)
+    if 'policy_option' in df.columns:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        preserve_cols = {'time_step', 'time_in_years'}
+        change_indices = [
+            idx
+            for idx in range(len(df) - 1)
+            if df.at[idx, 'policy_option'] != df.at[idx + 1, 'policy_option']
+        ]
+        if change_indices:
+            cols_to_nan = [col for col in numeric_cols if col not in preserve_cols]
+            df['__plot_order'] = np.arange(len(df), dtype=float)
+            blank_rows = []
+            for idx in change_indices:
+                blank = df.iloc[[idx]].copy()
+                blank[cols_to_nan] = np.nan
+                blank['__plot_order'] = df.at[idx, '__plot_order'] + 0.5
+                blank_rows.append(blank)
+
+            if blank_rows:
+                blanks_df = pd.concat(blank_rows, ignore_index=False)
+                df = (
+                    pd.concat([df, blanks_df], ignore_index=False)
+                    .sort_values('__plot_order')
+                    .reset_index(drop=True)
+                )
+            df.drop(columns='__plot_order', inplace=True)
+
     # Get plot settings from config
     SMOOTHING_WINDOW_DAYS = getattr(config, 'smoothing_window_days', 1095)
     PLOT_DPI = config.dpi
@@ -51,6 +82,147 @@ def create_grouped_plots(df, config=None):
     # Create output directory if it doesn't exist
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
+    POLICY_LINESTYLES = {
+        0: '-',  # Baseline policy shown as solid
+        1: ':',  # Policy 1 as dotted
+        2: '--',  # Policy 2 as dashed
+    }
+    POLICIES_TO_PLOT = [0, 1, 2]
+
+    def _policy_linestyle(policy_value):
+        """Resolve requested linestyle for a policy identifier."""
+        if policy_value is None:
+            return '-'
+
+        # Try to coerce numeric-looking entries (ints, floats, strings)
+        try:
+            numeric = int(float(policy_value))
+            if numeric in POLICY_LINESTYLES:
+                return POLICY_LINESTYLES[numeric]
+        except (ValueError, TypeError):
+            numeric = None
+
+        # Handle labels like "policy_1" or "PolicyOne" by extracting trailing digits
+        policy_str = str(policy_value).lower()
+        digits = ''.join(ch for ch in policy_str if ch.isdigit())
+        if digits:
+            try:
+                extracted = int(digits)
+                if extracted in POLICY_LINESTYLES:
+                    return POLICY_LINESTYLES[extracted]
+            except ValueError:
+                pass
+
+        return '-'
+
+    def _policy_sort_key(policy_value):
+        """Ensure consistent ordering: policy 0, then 1, then 2, then others."""
+        try:
+            numeric = int(float(policy_value))
+        except (ValueError, TypeError):
+            return (3, str(policy_value))
+        order_bucket = {0: 0, 1: 1, 2: 2}.get(numeric, 3)
+        return (order_bucket, numeric)
+
+    def _policy_label(policy_value):
+        if policy_value is None or (isinstance(policy_value, float) and np.isnan(policy_value)):
+            return 'Policy ?'
+        try:
+            return f"Policy {int(float(policy_value))}"
+        except (ValueError, TypeError):
+            return str(policy_value)
+
+    def plot_segmented_series(
+        ax,
+        value_col=None,
+        *,
+        color,
+        label=None,
+        min_year=None,
+        already_smoothed=False,
+        series=None,
+        separate_policy_labels=True,
+    ):
+        """Plot a series with optional smoothing, splitting and labeling by policy."""
+        if series is not None:
+            data_series = pd.Series(series, index=df.index)
+        else:
+            if value_col is None or value_col not in df.columns:
+                return False
+            data_series = df[value_col]
+
+        if 'time_in_years' not in df.columns:
+            return False
+
+        if 'policy_option' in df.columns:
+            available_policies = df['policy_option'].dropna().unique().tolist()
+            groups = []
+            for policy_value in POLICIES_TO_PLOT:
+                if policy_value in available_policies:
+                    groups.append((policy_value, df[df['policy_option'] == policy_value]))
+
+            extra_policies = [
+                value for value in available_policies if value not in POLICIES_TO_PLOT
+            ]
+            for policy_value in sorted(extra_policies, key=_policy_sort_key):
+                groups.append((policy_value, df[df['policy_option'] == policy_value]))
+
+            if not groups:
+                groups = [(None, df)]
+        else:
+            groups = [(None, df)]
+
+        label_used = False
+        plotted = False
+
+        for policy_value, group_df in groups:
+            if group_df.empty:
+                continue
+
+            segment = group_df
+            if min_year is not None:
+                segment = segment[segment['time_in_years'] >= min_year]
+            if segment.empty:
+                continue
+
+            segment = segment.sort_values('time_in_years')
+            values = data_series.reindex(segment.index)
+            if values.dropna().empty:
+                continue
+
+            if already_smoothed:
+                series_to_plot = values
+            else:
+                series_to_plot = (
+                    pd.Series(values)
+                    .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
+                    .mean()
+                )
+
+            if separate_policy_labels and policy_value is not None:
+                line_label = f"{label or value_col or 'Series'} – {_policy_label(policy_value)}"
+            else:
+                line_label = label if not label_used else None
+
+            ax.plot(
+                segment['time_in_years'],
+                series_to_plot,
+                color=color,
+                linewidth=2,
+                linestyle=_policy_linestyle(policy_value),
+                label=line_label,
+            )
+            label_used = label_used or line_label is not None
+            plotted = True
+
+        return plotted
+
+    def sum_rows(column_list):
+        """Row-wise sum that preserves NaN for all-NaN rows."""
+        if not column_list:
+            return pd.Series(np.nan, index=df.index)
+        return df[column_list].sum(axis=1, min_count=1)
+
     # Generate figures based on individual configuration settings
     if config.grouped_plots:
         # --- Group 1 ---
@@ -60,11 +232,23 @@ def create_grouped_plots(df, config=None):
             fig1.suptitle('Figure 1: Population, Sepsis Incidence, Hospitalization, Resistance', fontsize=16, fontweight='bold', y=0.95)
         
         # 1. Living Population Over Time
-        axes1[0].plot(df['time_in_years'], pd.Series(df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'b-', linewidth=2)
-        axes1[0].set_title('Living Population Over Time')
-        axes1[0].set_ylabel('Count')
-        axes1[0].set_ylim(bottom=0)
-        axes1[0].grid(True, alpha=0.3)
+        if 'total_population' in df.columns:
+            if plot_segmented_series(
+                axes1[0],
+                'total_population',
+                color='b',
+                label='Living Population',
+            ):
+                axes1[0].set_title('Living Population Over Time')
+                axes1[0].set_ylabel('Count')
+                axes1[0].set_ylim(bottom=0)
+                axes1[0].grid(True, alpha=0.3)
+            else:
+                axes1[0].text(0.5, 0.5, 'Population data not available', ha='center', va='center')
+                axes1[0].set_axis_off()
+        else:
+            axes1[0].text(0.5, 0.5, 'Population data not available', ha='center', va='center')
+            axes1[0].set_axis_off()
         
         # 2. Daily Sepsis Incidence Rate (separate lines for each bacteria)
         sepsis_cols = [col for col in df.columns if col.endswith('_new_sepsis_cases')]
@@ -101,17 +285,18 @@ def create_grouped_plots(df, config=None):
                     # Calculate at-risk population and incidence rate for this bacteria
                     at_risk = df[current_infected_col] - df[current_sepsis_col]
                     incidence_rate = safe_divide(df[col], at_risk)
-                    
-                    # Plot smoothed incidence rate
-                    smoothed_incidence = pd.Series(incidence_rate).rolling(
-                        window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                    
+
                     # Clean bacteria name for legend
                     clean_name = bacteria_name.replace('_', ' ').title()
-                    axes1[1].plot(df['time_in_years'], smoothed_incidence, 
-                                color=colors[i % len(colors)], linewidth=1.5, 
-                                label=f"{clean_name} ({total_cases})", alpha=0.7)
-                    plotted_count += 1
+                    plotted_line = plot_segmented_series(
+                        axes1[1],
+                        series=pd.Series(incidence_rate, index=df.index),
+                        color=colors[i % len(colors)],
+                        label=f"{clean_name} ({total_cases})",
+                        separate_policy_labels=False,
+                    )
+                    if plotted_line:
+                        plotted_count += 1
             
             axes1[1].set_title('Daily Sepsis Incidence Rate\\n(all bacteria)')
             axes1[1].set_ylabel('New sepsis cases per person-day')
@@ -132,27 +317,48 @@ def create_grouped_plots(df, config=None):
             axes1[1].set_axis_off()
             
         # 3. Hospitalized & Immunosuppressed as Proportions
-        hospital_proportion = pd.Series(df['number_in_hospital'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-        immunosuppressed_proportion = pd.Series(df['number_severely_immunosuppressed'] / df['total_population']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-        
-        axes1[2].plot(df['time_in_years'], hospital_proportion, 'navy', linewidth=2, label='In Hospital')
-        axes1[2].plot(df['time_in_years'], immunosuppressed_proportion, 'crimson', linewidth=2, label='Severely Immunosuppressed')
-        axes1[2].set_title('Hospitalized & Immunosuppressed\\n(Proportion of Population)')
-        axes1[2].set_ylabel('Proportion of Population')
-        axes1[2].set_ylim(bottom=0)
-        axes1[2].legend()
-        axes1[2].grid(True, alpha=0.3)
+        hospital_series = safe_divide(df['number_in_hospital'], df['total_population'], default=np.nan)
+        immunosuppressed_series = safe_divide(df['number_severely_immunosuppressed'], df['total_population'], default=np.nan)
+
+        hospital_plotted = plot_segmented_series(
+            axes1[2],
+            series=pd.Series(hospital_series, index=df.index),
+            color='navy',
+            label='In Hospital',
+        )
+        immuno_plotted = plot_segmented_series(
+            axes1[2],
+            series=pd.Series(immunosuppressed_series, index=df.index),
+            color='crimson',
+            label='Severely Immunosuppressed',
+        )
+        if hospital_plotted or immuno_plotted:
+            axes1[2].set_title('Hospitalized & Immunosuppressed\n(Proportion of Population)')
+            axes1[2].set_ylabel('Proportion of Population')
+            axes1[2].set_ylim(bottom=0)
+            axes1[2].legend(fontsize=8)
+            axes1[2].grid(True, alpha=0.3)
+        else:
+            axes1[2].text(0.5, 0.5, 'Hospitalization data not available', ha='center', va='center')
+            axes1[2].set_axis_off()
         
         # 4. Proportion with Resistance Among Currently Infected (excluding MDR-TB)
         if 'resistance_among_infected' in df.columns:
-            axes1[3].plot(df['time_in_years'], pd.Series(df['resistance_among_infected']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 'purple', linewidth=2)
-            axes1[3].set_title('Proportion with bacteria that has\nresistance to any drug (excl. MDR-TB)')
-            axes1[3].set_ylabel('Proportion')
-            axes1[3].set_ylim(bottom=0, top=1.0)
-            axes1[3].grid(True, alpha=0.3)
+            if plot_segmented_series(
+                axes1[3],
+                'resistance_among_infected',
+                color='purple',
+                label='Resistance Among Infected',
+            ):
+                axes1[3].set_title('Proportion with bacteria that has\nresistance to any drug (excl. MDR-TB)')
+                axes1[3].set_ylabel('Proportion')
+                axes1[3].set_ylim(bottom=0, top=1.0)
+                axes1[3].grid(True, alpha=0.3)
+            else:
+                axes1[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+                axes1[3].set_axis_off()
         else:
             axes1[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes1[3].set_title('Proportion with bacteria that has\nresistance to any drug (excl. MDR-TB)')
             axes1[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.92])
@@ -168,9 +374,12 @@ def create_grouped_plots(df, config=None):
         fig2.suptitle('Grouped Figure 2: New Infections, Durations, Sepsis, Past-Year Deaths', fontsize=16)
         
         # 1. Newly Infected in the Past Year as Proportion of Living Population
-        if 'newly_infected_past_year_proportion' in df.columns:
-            mask = df['time_in_years'] >= 1.0
-            axes2[0].plot(df['time_in_years'][mask], pd.Series(df['newly_infected_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='teal', linewidth=2)
+        if plot_segmented_series(
+            axes2[0],
+            'newly_infected_past_year_proportion',
+            color='teal',
+            min_year=1.0,
+        ):
             axes2[0].set_title('Newly Infected in the Past Year (as Proportion of Living Population)')
             axes2[0].set_ylabel('Proportion of Population')
             axes2[0].set_ylim(bottom=0)
@@ -182,8 +391,7 @@ def create_grouped_plots(df, config=None):
             axes2[0].set_axis_off()
             
         # 2. Proportion of Population Currently Infected
-        if 'infection_proportion' in df.columns:
-            axes2[1].plot(df['time_in_years'], pd.Series(df['infection_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='darkgreen', linewidth=2)
+        if plot_segmented_series(axes2[1], 'infection_proportion', color='darkgreen'):
             axes2[1].set_xlabel('Time (Years)')
             axes2[1].set_ylabel('Proportion of Population')
             axes2[1].set_title('Proportion of Population Currently Infected (excl. H. pylori)')
@@ -195,8 +403,11 @@ def create_grouped_plots(df, config=None):
             axes2[1].set_axis_off()
             
         # 3. Sepsis Proportion (if available)
-        if 'sepsis_among_infected_proportion' in df.columns:
-            axes2[2].plot(df['time_in_years'], pd.Series(df['sepsis_among_infected_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), color='red', linewidth=2)
+        if plot_segmented_series(
+            axes2[2],
+            'sepsis_among_infected_proportion',
+            color='red',
+        ):
             axes2[2].set_title('Proportion of Infected Individuals with Sepsis')
             axes2[2].set_xlabel('Time (Years)')
             axes2[2].set_ylabel('Proportion with Sepsis')
@@ -216,32 +427,55 @@ def create_grouped_plots(df, config=None):
             'deaths_drug_toxicity_past_year',
         ]
         if all(col in df.columns for col in required_cols):
-            mask = df['time_in_years'] >= 1.0
-            deaths_all = pd.Series(df['deaths_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            deaths_bg = pd.Series(df['deaths_background_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            deaths_sepsis = pd.Series(df['deaths_sepsis_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            deaths_infection_ns = pd.Series(
-                df['deaths_infection_non_sepsis_past_year_proportion'][mask]
-            ).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            deaths_tox = pd.Series(df['deaths_drug_toxicity_past_year_proportion'][mask]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            axes2[3].plot(df['time_in_years'][mask], deaths_all, label='All-cause', color='black', linewidth=2)
-            axes2[3].plot(df['time_in_years'][mask], deaths_bg, label='Background', color='gray', linewidth=2)
-            axes2[3].plot(df['time_in_years'][mask], deaths_sepsis, label='Sepsis', color='red', linewidth=2)
-            axes2[3].plot(
-                df['time_in_years'][mask],
-                deaths_infection_ns,
-                label='Infection (non-sepsis)',
-                color='#ff1493',
-                linewidth=2,
+            plotted_any = False
+            plotted_any |= plot_segmented_series(
+                axes2[3],
+                'deaths_past_year_proportion',
+                color='black',
+                label='All-cause',
+                min_year=1.0,
             )
-            axes2[3].plot(df['time_in_years'][mask], deaths_tox, label='Drug Toxicity', color='orange', linewidth=2)
-            axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
-            axes2[3].set_xlabel('Time (Years)')
-            axes2[3].set_ylabel('Deaths in Past Year / Current Population')
-            axes2[3].set_xlim(left=0)
-            axes2[3].set_ylim(0, 0.03)
-            axes2[3].legend()
-            axes2[3].grid(True, alpha=0.3)
+            plotted_any |= plot_segmented_series(
+                axes2[3],
+                'deaths_background_past_year_proportion',
+                color='gray',
+                label='Background',
+                min_year=1.0,
+            )
+            plotted_any |= plot_segmented_series(
+                axes2[3],
+                'deaths_sepsis_past_year_proportion',
+                color='red',
+                label='Sepsis',
+                min_year=1.0,
+            )
+            plotted_any |= plot_segmented_series(
+                axes2[3],
+                'deaths_infection_non_sepsis_past_year_proportion',
+                color='#ff1493',
+                label='Infection (non-sepsis)',
+                min_year=1.0,
+            )
+            plotted_any |= plot_segmented_series(
+                axes2[3],
+                'deaths_drug_toxicity_past_year_proportion',
+                color='orange',
+                label='Drug Toxicity',
+                min_year=1.0,
+            )
+
+            if plotted_any:
+                axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
+                axes2[3].set_xlabel('Time (Years)')
+                axes2[3].set_ylabel('Deaths in Past Year / Current Population')
+                axes2[3].set_xlim(left=0)
+                axes2[3].set_ylim(0, 0.03)
+                axes2[3].legend()
+                axes2[3].grid(True, alpha=0.3)
+            else:
+                axes2[3].text(0.5, 0.5, 'No valid data to plot', ha='center', va='center')
+                axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
+                axes2[3].set_axis_off()
         else:
             axes2[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
             axes2[3].set_title('Deaths in the Past Year (Rolling 365 Days)')
@@ -260,31 +494,51 @@ def create_grouped_plots(df, config=None):
         
         # 1. Duration-Based Infection Proportions
         if 'infected_10_days_proportion' in df.columns and 'infected_30_days_proportion' in df.columns:
-            axes3[0].plot(df['time_in_years'], pd.Series(df['infected_10_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >10 Days', linewidth=2, color='green')
-            axes3[0].plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected >30 Days', linewidth=2, color='brown')
-            axes3[0].set_xlabel('Time (Years)')
-            axes3[0].set_ylabel('Proportion of Currently Infected')
-            axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
-            axes3[0].set_ylim(bottom=0)
-            axes3[0].legend()
-            axes3[0].grid(True, alpha=0.3)
+            plotted_10 = plot_segmented_series(
+                axes3[0],
+                'infected_10_days_proportion',
+                color='green',
+                label='Infected >10 Days',
+            )
+            plotted_30 = plot_segmented_series(
+                axes3[0],
+                'infected_30_days_proportion',
+                color='brown',
+                label='Infected >30 Days',
+            )
+            if plotted_10 or plotted_30:
+                axes3[0].set_xlabel('Time (Years)')
+                axes3[0].set_ylabel('Proportion of Currently Infected')
+                axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
+                axes3[0].set_ylim(bottom=0)
+                axes3[0].legend()
+                axes3[0].grid(True, alpha=0.3)
+            else:
+                axes3[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+                axes3[0].set_axis_off()
         else:
             axes3[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes3[0].set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')
             axes3[0].set_axis_off()
             
         # 2. Proportion of currently infected who are on drug
         if 'infected_and_on_drug_proportion' in df.columns:
-            axes3[1].plot(df['time_in_years'], pd.Series(df['infected_and_on_drug_proportion']).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label='Infected & On Drug', linewidth=2, color='blue')
-            axes3[1].set_xlabel('Time (Years)')
-            axes3[1].set_ylabel('Proportion of Currently Infected')
-            axes3[1].set_title('Proportion of Currently Infected Who Are On Drug (excl. H. pylori)')
-            axes3[1].set_ylim(0, 1)
-            axes3[1].legend()
-            axes3[1].grid(True, alpha=0.3)
+            if plot_segmented_series(
+                axes3[1],
+                'infected_and_on_drug_proportion',
+                color='blue',
+                label='Infected & On Drug',
+            ):
+                axes3[1].set_xlabel('Time (Years)')
+                axes3[1].set_ylabel('Proportion of Currently Infected')
+                axes3[1].set_title('Proportion of Currently Infected Who Are On Drug (excl. H. pylori)')
+                axes3[1].set_ylim(0, 1)
+                axes3[1].legend()
+                axes3[1].grid(True, alpha=0.3)
+            else:
+                axes3[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+                axes3[1].set_axis_off()
         else:
             axes3[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
-            axes3[1].set_title('Proportion of Currently Infected Who Are On Drug (excl. H. pylori)')
             axes3[1].set_axis_off()
             
         # 3. Proportion of living people in each age group
@@ -296,8 +550,19 @@ def create_grouped_plots(df, config=None):
             ('prop_age_80plus', '80+')
         ]
         if all(col in df.columns for col, _ in age_group_cols):
-            for col, label in age_group_cols:
-                axes3[2].plot(df['time_in_years'], pd.Series(df[col]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), label=label)
+            plotted_any = False
+            age_colors = ['#4daf4a', '#377eb8', '#ff7f00', '#984ea3', '#e41a1c']
+            for (col, label), color in zip(age_group_cols, age_colors):
+                plotted_any |= plot_segmented_series(
+                    axes3[2],
+                    col,
+                    color=color,
+                    label=label,
+                )
+        else:
+            plotted_any = False
+
+        if plotted_any:
             axes3[2].set_xlabel('Time (Years)')
             axes3[2].set_ylabel('Proportion of Living Population')
             axes3[2].set_title('Proportion of Living Population in Each Age Group')
@@ -351,16 +616,16 @@ def create_grouped_plots(df, config=None):
                 
                 # Calculate incidence rate per population
                 incidence_rate = safe_divide(new_infections, df['total_population'], 0)
-                
-                # Plot smoothed incidence rate
-                smoothed_incidence = pd.Series(incidence_rate).rolling(
-                    window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                
+
                 # Clean bacteria name for legend
                 clean_name = bacteria_name.replace('_', ' ').title()
-                axes3[3].plot(df['time_in_years'], smoothed_incidence, 
-                            color=colors[i % len(colors)], linewidth=1.5, 
-                            label=f"{clean_name} ({int(total_infections)})", alpha=0.7)
+                plot_segmented_series(
+                    axes3[3],
+                    series=pd.Series(incidence_rate, index=df.index),
+                    color=colors[i % len(colors)],
+                    label=f"{clean_name} ({int(total_infections)})",
+                    separate_policy_labels=False,
+                )
             
             axes3[3].set_title('Daily Infection Incidence (proportion of population)')
             axes3[3].set_xlabel('Time (Years)')
@@ -392,23 +657,27 @@ def create_grouped_plots(df, config=None):
         # 1. Proportion of newly infected people with any drug resistance
         if 'newly_infected_with_resistance_count' in df.columns and 'newly_infected_count' in df.columns:
             newly_infected_with_resistance_proportion = safe_divide(
-                df['newly_infected_with_resistance_count'], 
-                df['newly_infected_count'], 0
+                df['newly_infected_with_resistance_count'],
+                df['newly_infected_count'],
+                0,
             )
-            prop_smooth = pd.Series(newly_infected_with_resistance_proportion).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            axes4[0].plot(df['time_in_years'], prop_smooth, 
-                        color='red', linewidth=2, label='Resistance on Acquisition (Smoothed)')
-            axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
-            axes4[0].set_ylabel('Proportion')
-            axes4[0].set_ylim(0, 1)
-            axes4[0].grid(True, alpha=0.3)
-            axes4[0].legend()
-            
-            # Removed the inset summary box to keep the plot uncluttered
+            if plot_segmented_series(
+                axes4[0],
+                series=pd.Series(newly_infected_with_resistance_proportion, index=df.index),
+                color='red',
+                label='Resistance on Acquisition',
+            ):
+                axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
+                axes4[0].set_ylabel('Proportion')
+                axes4[0].set_ylim(0, 1)
+                axes4[0].grid(True, alpha=0.3)
+                axes4[0].legend()
+            else:
+                axes4[0].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+                axes4[0].set_axis_off()
         else:
             axes4[0].text(0.5, 0.5, 'Data not available\n(newly_infected_with_resistance_count)', 
                         ha='center', va='center', fontsize=12, color='gray')
-            axes4[0].set_title('Proportion of Newly Infected with Any Drug Resistance')
             axes4[0].set_axis_off()
         
         # 2. Proportion of infected with test_identified_infection = true
@@ -417,21 +686,24 @@ def create_grouped_plots(df, config=None):
         if test_identified_cols and 'total_currently_infected' in df.columns:
             total_test_identified = sum(df[col] for col in test_identified_cols)
             test_identified_prop = safe_divide(total_test_identified, df['total_currently_infected'], 0)
-            test_identified_smooth = pd.Series(test_identified_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            
-            axes4[1].plot(df['time_in_years'], test_identified_smooth, 
-                        color='blue', linewidth=2, label='Test Identified (Smoothed)')
-            axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria (excl. H. pylori)')
-            axes4[1].set_ylabel('Proportion')
-            axes4[1].set_ylim(0, 1)
-            axes4[1].grid(True, alpha=0.3)
-            axes4[1].legend()
-            
-            # Removed the inset summary box to keep the plot uncluttered
+
+            if plot_segmented_series(
+                axes4[1],
+                series=pd.Series(test_identified_prop, index=df.index),
+                color='blue',
+                label='Test Identified',
+            ):
+                axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria (excl. H. pylori)')
+                axes4[1].set_ylabel('Proportion')
+                axes4[1].set_ylim(0, 1)
+                axes4[1].grid(True, alpha=0.3)
+                axes4[1].legend()
+            else:
+                axes4[1].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+                axes4[1].set_axis_off()
         else:
             axes4[1].text(0.5, 0.5, 'Data not available\n(test_identified columns)', 
                         ha='center', va='center', fontsize=12, color='gray')
-            axes4[1].set_title('Proportion of Infected with Test Done to Identify Bacteria (excl. H. pylori)')
             axes4[1].set_axis_off()
         
         # 3. Proportion of infected with test_for_resistance = true
@@ -440,22 +712,25 @@ def create_grouped_plots(df, config=None):
         if test_resistance_cols and 'total_currently_infected' in df.columns:
             total_test_resistance = sum(df[col] for col in test_resistance_cols)
             test_resistance_prop = safe_divide(total_test_resistance, df['total_currently_infected'], 0)
-            test_resistance_smooth = pd.Series(test_resistance_prop).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-            
-            axes4[2].plot(df['time_in_years'], test_resistance_smooth, 
-                        color='green', linewidth=2, label='Test for Resistance (Smoothed)')
-            axes4[2].set_title('Proportion of Infected with Test for Resistance (excl. H. pylori)')
-            axes4[2].set_xlabel('Time (Years)')
-            axes4[2].set_ylabel('Proportion')
-            axes4[2].set_ylim(0, 1)
-            axes4[2].grid(True, alpha=0.3)
-            axes4[2].legend()
-            
-            # Removed the inset summary box to keep the plot uncluttered
+
+            if plot_segmented_series(
+                axes4[2],
+                series=pd.Series(test_resistance_prop, index=df.index),
+                color='green',
+                label='Test for Resistance',
+            ):
+                axes4[2].set_title('Proportion of Infected with Test for Resistance (excl. H. pylori)')
+                axes4[2].set_xlabel('Time (Years)')
+                axes4[2].set_ylabel('Proportion')
+                axes4[2].set_ylim(0, 1)
+                axes4[2].grid(True, alpha=0.3)
+                axes4[2].legend()
+            else:
+                axes4[2].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+                axes4[2].set_axis_off()
         else:
             axes4[2].text(0.5, 0.5, 'Data not available\n(test_for_resistance columns)', 
                         ha='center', va='center', fontsize=12, color='gray')
-            axes4[2].set_title('Proportion of Infected with Test for Resistance (excl. H. pylori)')
             axes4[2].set_axis_off()
         
         # 4. Mean Any-R by Region (pooled across all bacteria and drugs)
@@ -463,6 +738,7 @@ def create_grouped_plots(df, config=None):
         region_display_names = ['North America', 'South America', 'Africa', 'Asia', 'Europe', 'Oceania']
         
         found_region_data = False
+        region_colors = plt.cm.Set2(np.linspace(0, 1, len(region_names)))
         for i, region in enumerate(region_names):
             any_r_col = f"{region}_any_r_sum"
             infected_col = f"{region}_infected_count"
@@ -470,13 +746,14 @@ def create_grouped_plots(df, config=None):
             if any_r_col in df.columns and infected_col in df.columns:
                 # Calculate mean any_r using safe_divide
                 mean_any_r = safe_divide(df[any_r_col], df[infected_col], np.nan)
-                
-                # Apply smoothing
-                mean_any_r_smooth = pd.Series(mean_any_r).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                
-                axes4[3].plot(df['time_in_years'], mean_any_r_smooth, 
-                             label=region_display_names[i], linewidth=2)
-                found_region_data = True
+
+                plotted_region = plot_segmented_series(
+                    axes4[3],
+                    series=pd.Series(mean_any_r, index=df.index),
+                    color=region_colors[i],
+                    label=region_display_names[i],
+                )
+                found_region_data = found_region_data or plotted_region
         
         if found_region_data:
             axes4[3].set_title('Mean Total Resistance Burden Per Infected Person by Region\n(Sum of any_r values across all bacteria-drug combinations\ndivided by number of infected people)', fontsize=11)
@@ -538,23 +815,21 @@ def create_grouped_plots(df, config=None):
             for res_type in resolution_types:
                 type_cols = [col for col in df.columns if col.endswith(f'_{res_type}')]
                 if type_cols:
-                    resolution_data[res_type] = df[type_cols].sum(axis=1)
+                    resolution_data[res_type] = df[type_cols].sum(axis=1, min_count=1)
                 else:
-                    resolution_data[res_type] = pd.Series(0, index=df.index)
-            
-            # Pool data across all bacteria for each resolution type
-            pooled_data = {}
-            total_resolutions = []
-            for res_type in resolution_types:
-                pooled_data[res_type] = resolution_data[res_type]
-                total_resolutions.append(pooled_data[res_type])
-            
-            total_resolutions = pd.DataFrame(total_resolutions).sum()
+                    resolution_data[res_type] = pd.Series(np.nan, index=df.index)
+
+            resolution_df = pd.DataFrame(resolution_data)
+            total_resolutions = resolution_df.sum(axis=1, min_count=1)
             
             # Calculate percentages (avoid division by zero)
             percentages = {}
             for res_type in resolution_types:
-                percentages[res_type] = safe_divide(pooled_data[res_type], total_resolutions, default=0) * 100
+                percentages[res_type] = safe_divide(
+                    resolution_df[res_type],
+                    total_resolutions,
+                    default=0,
+                ) * 100
             
             # Find timesteps where we have any resolutions
             has_resolutions = total_resolutions > 0
@@ -589,17 +864,33 @@ def create_grouped_plots(df, config=None):
                 axes5[0].grid(True, alpha=0.3)
         
             # 2. Absolute counts over time (top-right)
+            axes5_count_plotted = False
             for res_type in resolution_types:
-                if np.any(pooled_data[res_type] > 0):
-                    smoothed = pd.Series(pooled_data[res_type]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                    axes5[1].plot(df['time_in_years'], smoothed, 
-                                label=labels[res_type], color=colors[res_type], linewidth=2)
-            
-            axes5[1].set_title('Infection Resolution Counts Over Time\n(All Bacteria Combined)')
-            axes5[1].set_ylabel('Resolution Events per Day')
-            axes5[1].set_ylim(bottom=0)
-            axes5[1].legend(fontsize=8)
-            axes5[1].grid(True, alpha=0.3)
+                series = resolution_df[res_type]
+                if series.notna().any():
+                    smoothed = (
+                        series
+                        .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
+                        .mean()
+                    )
+                    plotted = plot_segmented_series(
+                        axes5[1],
+                        series=smoothed,
+                        color=colors[res_type],
+                        label=labels[res_type],
+                        already_smoothed=True,
+                    )
+                    axes5_count_plotted = axes5_count_plotted or plotted
+
+            if axes5_count_plotted:
+                axes5[1].set_title('Infection Resolution Counts Over Time\n(All Bacteria Combined)')
+                axes5[1].set_ylabel('Resolution Events per Day')
+                axes5[1].set_ylim(bottom=0)
+                axes5[1].legend(fontsize=8)
+                axes5[1].grid(True, alpha=0.3)
+            else:
+                axes5[1].text(0.5, 0.5, 'No resolution count data', ha='center', va='center', fontsize=12, color='gray')
+                axes5[1].set_axis_off()
             
             # 3. Total Currently Infected vs Total On Drug (bottom-left)
             if 'total_currently_infected' in df.columns and 'currently_taking_drug_count' in df.columns:
@@ -611,17 +902,31 @@ def create_grouped_plots(df, config=None):
                     window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
                 ).mean()
                 
-                axes5[2].plot(df['time_in_years'], infected_smooth, 
-                            label='Currently Infected (excl. H. pylori)', color='red', linewidth=2)
-                axes5[2].plot(df['time_in_years'], on_drug_smooth, 
-                            label='Currently On Drug', color='blue', linewidth=2)
-                
-                axes5[2].set_title('Total Currently Infected vs Total On Drug (excl. H. pylori)')
-                axes5[2].set_xlabel('Time (Years)')
-                axes5[2].set_ylabel('Number of People')
-                axes5[2].set_ylim(bottom=0)
-                axes5[2].legend(fontsize=8)
-                axes5[2].grid(True, alpha=0.3)
+                infected_plotted = plot_segmented_series(
+                    axes5[2],
+                    series=infected_smooth,
+                    color='red',
+                    label='Currently Infected (excl. H. pylori)',
+                    already_smoothed=True,
+                )
+                on_drug_plotted = plot_segmented_series(
+                    axes5[2],
+                    series=on_drug_smooth,
+                    color='blue',
+                    label='Currently On Drug',
+                    already_smoothed=True,
+                )
+
+                if infected_plotted or on_drug_plotted:
+                    axes5[2].set_title('Total Currently Infected vs Total On Drug (excl. H. pylori)')
+                    axes5[2].set_xlabel('Time (Years)')
+                    axes5[2].set_ylabel('Number of People')
+                    axes5[2].set_ylim(bottom=0)
+                    axes5[2].legend(fontsize=8)
+                    axes5[2].grid(True, alpha=0.3)
+                else:
+                    axes5[2].text(0.5, 0.5, 'No infection or drug data to plot', ha='center', va='center', fontsize=12, color='gray')
+                    axes5[2].set_axis_off()
                 
                 # Removed the inset summary box to keep the plot uncluttered
             else:
@@ -640,14 +945,23 @@ def create_grouped_plots(df, config=None):
                 resolution_rate = np.where(smoothed_infections > 0, 
                                          (smoothed_resolutions / smoothed_infections) * 100, 0)
                 
-                axes5[3].plot(df['time_in_years'], resolution_rate, 
-                            color='black', linewidth=2, label='Daily Resolution Rate')
-                axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected, excl. H. pylori)')
-                axes5[3].set_xlabel('Time (Years)')
-                axes5[3].set_ylabel('Daily Resolutions / Current Infections (%)')
-                axes5[3].set_ylim(bottom=0)
-                axes5[3].grid(True, alpha=0.3)
-                axes5[3].legend()
+                plotted_rate = plot_segmented_series(
+                    axes5[3],
+                    series=pd.Series(resolution_rate, index=df.index),
+                    color='black',
+                    label='Daily Resolution Rate',
+                    already_smoothed=True,
+                )
+                if plotted_rate:
+                    axes5[3].set_title('Daily Resolution Rate\n(% of Currently Infected, excl. H. pylori)')
+                    axes5[3].set_xlabel('Time (Years)')
+                    axes5[3].set_ylabel('Daily Resolutions / Current Infections (%)')
+                    axes5[3].set_ylim(bottom=0)
+                    axes5[3].grid(True, alpha=0.3)
+                    axes5[3].legend()
+                else:
+                    axes5[3].text(0.5, 0.5, 'No resolution rate data', ha='center', va='center', fontsize=12, color='gray')
+                    axes5[3].set_axis_off()
             else:
                 axes5[3].text(0.5, 0.5, 'Total infection data not available', 
                             ha='center', va='center', fontsize=12, color='gray')
@@ -681,16 +995,18 @@ def create_grouped_plots(df, config=None):
         
         if bacteria_names:
             # Calculate total activity_r_sum across all bacteria
-            total_activity_r_sum = pd.Series(0, index=df.index)
-            total_infected_and_on_drug = pd.Series(0, index=df.index)
-            
+            activity_r_cols = []
+            infected_cols = []
             for bacteria_name in bacteria_names:
                 activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
                 infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
-                
+
                 if activity_r_sum_col in df.columns and infected_and_on_drug_col in df.columns:
-                    total_activity_r_sum += df[activity_r_sum_col].fillna(0)
-                    total_infected_and_on_drug += df[infected_and_on_drug_col].fillna(0)
+                    activity_r_cols.append(activity_r_sum_col)
+                    infected_cols.append(infected_and_on_drug_col)
+
+            total_activity_r_sum = sum_rows(activity_r_cols)
+            total_infected_and_on_drug = sum_rows(infected_cols)
             
             # 1. Overall Activity R Ratio (top-left)
             # Use more conservative approach: only calculate ratio when denominator > 0
@@ -706,26 +1022,29 @@ def create_grouped_plots(df, config=None):
             ).mean()
             
             overall_ratio_clipped = overall_ratio_smooth.clip(upper=1.0)
-            axes6[0].plot(
-                df['time_in_years'],
-                overall_ratio_clipped,
-                linewidth=2,
+            if plot_segmented_series(
+                axes6[0],
+                series=overall_ratio_clipped,
                 color='navy',
                 label='Overall Activity R Ratio',
-            )
-            axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug, excl. H. pylori)')
-            axes6[0].set_ylabel('Overall Activity R Ratio')
-            axes6[0].set_ylim(0, 1.0)
-            axes6[0].grid(True, alpha=0.3)
-            axes6[0].legend()
-            axes6[0].text(
-                0.01,
-                0.05,
-                'Ratios above 1.0 can occur\n(multi-drug therapy) and are clipped.',
-                transform=axes6[0].transAxes,
-                fontsize=8,
-                color='dimgray',
-            )
+                already_smoothed=True,
+            ):
+                axes6[0].set_title('Overall Activity R Ratio\n(Total Activity R Sum / Total Infected & On Drug, excl. H. pylori)')
+                axes6[0].set_ylabel('Overall Activity R Ratio')
+                axes6[0].set_ylim(0, 1.0)
+                axes6[0].grid(True, alpha=0.3)
+                axes6[0].legend()
+                axes6[0].text(
+                    0.01,
+                    0.05,
+                    'Ratios above 1.0 can occur\n(multi-drug therapy) and are clipped.',
+                    transform=axes6[0].transAxes,
+                    fontsize=8,
+                    color='dimgray',
+                )
+            else:
+                axes6[0].text(0.5, 0.5, 'No activity ratio data available', ha='center', va='center')
+                axes6[0].set_axis_off()
             
             # Removed the inset summary box to keep the plot uncluttered
             
@@ -734,27 +1053,43 @@ def create_grouped_plots(df, config=None):
                 window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
             ).mean()
             
-            axes6[1].plot(df['time_in_years'], total_activity_r_smooth, 
-                        linewidth=2, color='red', label='Total Activity R Sum')
-            axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined, excl. H. pylori)')
-            axes6[1].set_ylabel('Total Activity R Sum')
-            axes6[1].set_ylim(bottom=0)
-            axes6[1].grid(True, alpha=0.3)
-            axes6[1].legend()
+            if plot_segmented_series(
+                axes6[1],
+                series=total_activity_r_smooth,
+                color='red',
+                label='Total Activity R Sum',
+                already_smoothed=True,
+            ):
+                axes6[1].set_title('Total Activity R Sum Over Time\n(All Bacteria Combined, excl. H. pylori)')
+                axes6[1].set_ylabel('Total Activity R Sum')
+                axes6[1].set_ylim(bottom=0)
+                axes6[1].grid(True, alpha=0.3)
+                axes6[1].legend()
+            else:
+                axes6[1].text(0.5, 0.5, 'No total activity data', ha='center', va='center')
+                axes6[1].set_axis_off()
             
             # 3. Total Infected & On Drug Over Time (bottom-left)
             total_infected_smooth = total_infected_and_on_drug.rolling(
                 window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
             ).mean()
             
-            axes6[2].plot(df['time_in_years'], total_infected_smooth, 
-                        linewidth=2, color='green', label='Total Infected & On Drug (excl. H. pylori)')
-            axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined, excl. H. pylori)')
-            axes6[2].set_xlabel('Time (Years)')
-            axes6[2].set_ylabel('Count')
-            axes6[2].set_ylim(bottom=0)
-            axes6[2].grid(True, alpha=0.3)
-            axes6[2].legend()
+            if plot_segmented_series(
+                axes6[2],
+                series=total_infected_smooth,
+                color='green',
+                label='Total Infected & On Drug (excl. H. pylori)',
+                already_smoothed=True,
+            ):
+                axes6[2].set_title('Total People Infected & On Drug Over Time\n(All Bacteria Combined, excl. H. pylori)')
+                axes6[2].set_xlabel('Time (Years)')
+                axes6[2].set_ylabel('Count')
+                axes6[2].set_ylim(bottom=0)
+                axes6[2].grid(True, alpha=0.3)
+                axes6[2].legend()
+            else:
+                axes6[2].text(0.5, 0.5, 'No infected-on-drug data', ha='center', va='center')
+                axes6[2].set_axis_off()
             
             # 4. Distribution of Activity R Ratio by Bacteria (bottom-right)
             # Show individual bacteria ratios for most impactful bacteria (by infected count)
@@ -764,7 +1099,7 @@ def create_grouped_plots(df, config=None):
             for bacteria_name in bacteria_names:
                 infected_col = f"{bacteria_name}_infected_and_on_any_drug"
                 if infected_col in df.columns:
-                    avg_infected = recent_data[infected_col].fillna(0).mean()
+                    avg_infected = recent_data[infected_col].mean()
                     bacteria_impact.append((bacteria_name, avg_infected))
             
             # Sort by impact and take top 8
@@ -772,6 +1107,7 @@ def create_grouped_plots(df, config=None):
             top_bacteria = [name for name, _ in bacteria_impact[:8]]
             
             bacteria_colors = plt.cm.tab10(np.linspace(0, 1, len(top_bacteria)))
+            any_bacteria_plotted = False
             for i, bacteria_name in enumerate(top_bacteria):  # Show most impactful bacteria
                 activity_r_sum_col = f"{bacteria_name}_activity_r_sum"
                 infected_and_on_drug_col = f"{bacteria_name}_infected_and_on_any_drug"
@@ -785,17 +1121,25 @@ def create_grouped_plots(df, config=None):
                     bacteria_ratio_smooth = bacteria_ratio.rolling(
                         window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True
                     ).mean()
-                    
-                    axes6[3].plot(df['time_in_years'], bacteria_ratio_smooth, 
-                                linewidth=1.5, color=bacteria_colors[i], 
-                                label=bacteria_name.replace('_', ' ').title()[:15])
-            
-            axes6[3].set_title('Activity R Ratio by Bacteria\n(Top 8 by Infection Count)')
-            axes6[3].set_xlabel('Time (Years)')
-            axes6[3].set_ylabel('Activity R Ratio')
-            axes6[3].set_ylim(bottom=0)
-            axes6[3].grid(True, alpha=0.3)
-            axes6[3].legend(fontsize=7, loc='upper left')
+                    plotted = plot_segmented_series(
+                        axes6[3],
+                        series=bacteria_ratio_smooth,
+                        color=bacteria_colors[i],
+                        label=bacteria_name.replace('_', ' ').title()[:15],
+                        already_smoothed=True,
+                    )
+                    any_bacteria_plotted = any_bacteria_plotted or plotted
+
+            if any_bacteria_plotted:
+                axes6[3].set_title('Activity R Ratio by Bacteria\n(Top 8 by Infection Count)')
+                axes6[3].set_xlabel('Time (Years)')
+                axes6[3].set_ylabel('Activity R Ratio')
+                axes6[3].set_ylim(bottom=0)
+                axes6[3].grid(True, alpha=0.3)
+                axes6[3].legend(fontsize=7, loc='upper left')
+            else:
+                axes6[3].text(0.5, 0.5, 'No per-bacteria activity data', ha='center', va='center')
+                axes6[3].set_axis_off()
             
         else:
             # No activity_r data found
@@ -831,41 +1175,44 @@ def create_grouped_plots(df, config=None):
             
             # 1. Overall Proportion of Infections with Drug Started by Day 7 (top-left)
             # Calculate overall proportion across all bacteria
-            total_evaluations = df[day_7_eval_cols].sum(axis=1)
-            total_drug_used = df[day_7_used_cols].sum(axis=1)
+            total_evaluations = sum_rows(day_7_eval_cols)
+            total_drug_used = sum_rows(day_7_used_cols)
             
             # Calculate proportion (avoid division by zero)
             overall_proportions = total_drug_used / total_evaluations.replace(0, np.nan)
-            
-            # Apply smoothing
-            prop_smooth = overall_proportions.rolling(
-                window=min(SMOOTHING_WINDOW_DAYS, len(overall_proportions)), 
-                min_periods=1, center=True
-            ).mean()
-            
-            axes7[0].plot(df['time_in_years'], prop_smooth, linewidth=2, color='darkblue', 
-                        label='Overall Proportion')
-            axes7[0].set_title('Proportion of Infections with Drug Started by Day 7\n(All Bacteria Combined)')
-            axes7[0].set_ylabel('Proportion')
-            axes7[0].set_ylim(0, 1)
-            axes7[0].grid(True, alpha=0.3)
-            axes7[0].legend()
+
+            if plot_segmented_series(
+                axes7[0],
+                series=pd.Series(overall_proportions, index=df.index),
+                color='darkblue',
+                label='Overall Proportion',
+            ):
+                axes7[0].set_title('Proportion of Infections with Drug Started by Day 7\n(All Bacteria Combined)')
+                axes7[0].set_ylabel('Proportion')
+                axes7[0].set_ylim(0, 1)
+                axes7[0].grid(True, alpha=0.3)
+                axes7[0].legend()
+            else:
+                axes7[0].text(0.5, 0.5, 'No day-7 proportion data', ha='center', va='center')
+                axes7[0].set_axis_off()
             
             # Removed the inset summary box to keep the plot uncluttered
             
             # 2. Number of Day 7 Evaluations Over Time (top-right)
-            eval_counts_smooth = total_evaluations.rolling(
-                window=min(SMOOTHING_WINDOW_DAYS, len(total_evaluations)), 
-                min_periods=1, center=True
-            ).mean()
-            
-            axes7[1].plot(df['time_in_years'], eval_counts_smooth, linewidth=2, color='green', 
-                        label='Day 7 Evaluations')
-            axes7[1].set_title('Number of Day 7 Evaluations Over Time\n(Count of infections reaching 7 days)')
-            axes7[1].set_ylabel('Count')
-            axes7[1].set_ylim(bottom=0)
-            axes7[1].grid(True, alpha=0.3)
-            axes7[1].legend()
+            if plot_segmented_series(
+                axes7[1],
+                series=total_evaluations,
+                color='green',
+                label='Day 7 Evaluations',
+            ):
+                axes7[1].set_title('Number of Day 7 Evaluations Over Time\n(Count of infections reaching 7 days)')
+                axes7[1].set_ylabel('Count')
+                axes7[1].set_ylim(bottom=0)
+                axes7[1].grid(True, alpha=0.3)
+                axes7[1].legend()
+            else:
+                axes7[1].text(0.5, 0.5, 'No evaluation counts available', ha='center', va='center')
+                axes7[1].set_axis_off()
             
             # 3. Proportion by ALL Bacteria (bottom-left)
             # Calculate overall proportions by bacteria
@@ -914,18 +1261,18 @@ def create_grouped_plots(df, config=None):
                     bacteria_used = df[used_col]
                     bacteria_props = bacteria_used / bacteria_evals.replace(0, np.nan)
                     
-                    # Apply smoothing
-                    bacteria_props_smooth = bacteria_props.rolling(
-                        window=min(SMOOTHING_WINDOW_DAYS, len(bacteria_props)), 
-                        min_periods=1, center=True
-                    ).mean()
-                    
-                    line = axes7[2].plot(df['time_in_years'], bacteria_props_smooth, 
-                                linewidth=1.2, color=bacteria_colors[i], 
-                                label=bacteria_name[:20])
-                    
-                    # Store for legend
-                    legend_handles.append(line[0])
+                    plot_segmented_series(
+                        axes7[2],
+                        series=pd.Series(bacteria_props, index=df.index),
+                        color=bacteria_colors[i],
+                        label=bacteria_name[:20],
+                        separate_policy_labels=False,
+                    )
+
+                    # Store for legend (policy line styles explained separately)
+                    legend_handles.append(
+                        Line2D([], [], color=bacteria_colors[i], linewidth=1.2)
+                    )
                     legend_labels.append(bacteria_name[:20])
                 
                 axes7[2].set_title('Day 7 Drug Initiation by Bacteria\n(All Bacteria)')
@@ -1131,7 +1478,7 @@ def create_grouped_plots(df, config=None):
                     # Sum failure events across all regions for this bacteria
                     region_cols = [c for c in df.columns if c.startswith(f"{bacteria_name}_drug_failure_events_")]
                     if region_cols:
-                        total_failures = df[region_cols].sum(axis=1)
+                        total_failures = sum_rows(region_cols)
                         bacteria_failure_data[bacteria_display] = total_failures
                 
                 if bacteria_failure_data:
@@ -1140,17 +1487,26 @@ def create_grouped_plots(df, config=None):
                     top_bacteria = sorted(total_failures_by_bacteria.items(), key=lambda x: x[1], reverse=True)[:5]
                     
                     colors = plt.cm.Set3(np.linspace(0, 1, len(top_bacteria)))
+                    plotted_any = False
                     for (bacteria_name, _), color in zip(top_bacteria, colors):
                         if bacteria_name in bacteria_failure_data:
-                            smoothed_data = pd.Series(bacteria_failure_data[bacteria_name]).rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean()
-                            axes8[2].plot(df['time_in_years'][mask], smoothed_data[mask], label=bacteria_name, color=color, linewidth=2)
+                            plotted_any |= plot_segmented_series(
+                                axes8[2],
+                                series=pd.Series(bacteria_failure_data[bacteria_name], index=df.index),
+                                color=color,
+                                label=bacteria_name,
+                            )
                     
-                    axes8[2].set_title('Drug Failure Events Over Time\n(Top 5 Bacteria by Total Failures)')
-                    axes8[2].set_xlabel('Time (Years)')
-                    axes8[2].set_ylabel('Drug Failure Events')
-                    axes8[2].set_ylim(bottom=0)
-                    axes8[2].grid(True, alpha=0.3)
-                    axes8[2].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+                    if plotted_any:
+                        axes8[2].set_title('Drug Failure Events Over Time\n(Top 5 Bacteria by Total Failures)')
+                        axes8[2].set_xlabel('Time (Years)')
+                        axes8[2].set_ylabel('Drug Failure Events')
+                        axes8[2].set_ylim(bottom=0)
+                        axes8[2].grid(True, alpha=0.3)
+                        axes8[2].legend(fontsize=8, loc='center left', bbox_to_anchor=(1, 0.5))
+                    else:
+                        axes8[2].text(0.5, 0.5, 'No drug failure data\navailable', ha='center', va='center', fontsize=12, color='gray')
+                        axes8[2].set_axis_off()
                 else:
                     axes8[2].text(0.5, 0.5, 'No drug failure data\navailable', ha='center', va='center', fontsize=12, color='gray')
                     axes8[2].set_axis_off()
@@ -1221,30 +1577,33 @@ def create_grouped_plots(df, config=None):
             print("Processing new drug initiations data")
             
             # 1. New Drug Initiations Over Time (top-left)
-            drug_initiations_smooth = pd.Series(df['new_drug_initiations_count']).rolling(
-                window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
-                min_periods=1, center=True
-            ).mean()
-            
-            axes9[0].plot(df['time_in_years'], drug_initiations_smooth, linewidth=2, color='darkgreen', 
-                         label='All New Drug Initiations')
+            plotted_any = plot_segmented_series(
+                axes9[0],
+                'new_drug_initiations_count',
+                color='darkgreen',
+                label='All New Drug Initiations',
+            )
             
             # Plot infected drug initiations if available
             if 'new_drug_initiations_count_infected' in df.columns:
-                drug_initiations_infected_smooth = pd.Series(df['new_drug_initiations_count_infected']).rolling(
-                    window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
-                    min_periods=1, center=True
-                ).mean()
-                
-                axes9[0].plot(df['time_in_years'], drug_initiations_infected_smooth, linewidth=2, color='red', 
-                             label='New Drug Initiations (Infected)')
+                plotted_any |= plot_segmented_series(
+                    axes9[0],
+                    'new_drug_initiations_count_infected',
+                    color='red',
+                    label='New Drug Initiations (Infected)',
+                )
             
-            axes9[0].set_title('Daily New Drug Initiations Over Time')
-            axes9[0].set_xlabel('Time (Years)')
-            axes9[0].set_ylabel('Number of People Starting Drugs')
-            axes9[0].set_ylim(bottom=0)
-            axes9[0].grid(True, alpha=0.3)
-            axes9[0].legend()
+            if plotted_any:
+                axes9[0].set_title('Daily New Drug Initiations Over Time')
+                axes9[0].set_xlabel('Time (Years)')
+                axes9[0].set_ylabel('Number of People Starting Drugs')
+                axes9[0].set_ylim(bottom=0)
+                axes9[0].grid(True, alpha=0.3)
+                axes9[0].legend()
+            else:
+                axes9[0].text(0.5, 0.5, 'New drug initiations data\nnot available', 
+                             ha='center', va='center', fontsize=12, color='gray')
+                axes9[0].set_axis_off()
             
             # Removed the inset summary box to keep the plot uncluttered
         else:
@@ -1299,20 +1658,24 @@ def create_grouped_plots(df, config=None):
             # Cap the ratio at 1.0 (100%) to prevent impossible percentages
             failure_proportion = np.minimum(numerator / denominator, 1.0)
             
-            failure_proportion_smooth = pd.Series(failure_proportion).rolling(
-                window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
-                min_periods=1, center=True
-            ).mean()
-            
-            axes9[2].plot(df['time_in_years'], failure_proportion_smooth * 100, linewidth=2, color='darkred', 
-                         label='Previous Treatment Failure %')
-            
-            axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure')
-            axes9[2].set_xlabel('Time (Years)')
-            axes9[2].set_ylabel('Percentage (%)')
-            axes9[2].set_ylim(bottom=0, top=100)  # Set explicit upper limit at 100%
-            axes9[2].grid(True, alpha=0.3)
-            axes9[2].legend()
+            failure_percentage = failure_proportion * 100
+
+            if plot_segmented_series(
+                axes9[2],
+                series=pd.Series(failure_percentage, index=df.index),
+                color='darkred',
+                label='Previous Treatment Failure %',
+            ):
+                axes9[2].set_title('Proportion of Infected People on Drug\nwith Previous Treatment Failure')
+                axes9[2].set_xlabel('Time (Years)')
+                axes9[2].set_ylabel('Percentage (%)')
+                axes9[2].set_ylim(bottom=0, top=100)
+                axes9[2].grid(True, alpha=0.3)
+                axes9[2].legend()
+            else:
+                axes9[2].text(0.5, 0.5, 'Treatment failure data\nnot available', 
+                             ha='center', va='center', fontsize=12, color='gray')
+                axes9[2].set_axis_off()
             
             # Removed the inset summary box to keep the plot uncluttered
         else:
@@ -1369,18 +1732,17 @@ def create_grouped_plots(df, config=None):
                     break
                 
                 if total_preventions > 0:  # Only plot bacteria that had some preventions
-                    # Apply smoothing to prevention data
-                    prevention_smooth = pd.Series(df[col]).rolling(
-                        window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
-                        min_periods=1, center=True
-                    ).mean()
-                    
                     # Clean bacteria name for legend
                     clean_name = bacteria_name.replace('_', ' ').title()
-                    axes10[0].plot(df['time_in_years'], prevention_smooth, 
-                                  color=colors[i % len(colors)], linewidth=1.5, 
-                                  label=f"{clean_name} ({total_preventions})", alpha=0.8)
-                    plotted_count += 1
+                    plotted = plot_segmented_series(
+                        axes10[0],
+                        series=pd.Series(df[col], index=df.index),
+                        color=colors[i % len(colors)],
+                        label=f"{clean_name} ({total_preventions})",
+                        separate_policy_labels=False,
+                    )
+                    if plotted:
+                        plotted_count += 1
             
             axes10[0].set_title('Daily Infections Prevented by Drug Over Time\n(Top 15 bacteria by total preventions)')
             axes10[0].set_xlabel('Time (Years)')
@@ -1395,22 +1757,23 @@ def create_grouped_plots(df, config=None):
             # Removed the inset summary box to keep the plot uncluttered
             
             # Bottom panel: Total preventions across all bacteria
-            total_preventions_per_day = df[prevention_cols].sum(axis=1)
-            total_preventions_smooth = pd.Series(total_preventions_per_day).rolling(
-                window=min(SMOOTHING_WINDOW_DAYS, len(df)), 
-                min_periods=1, center=True
-            ).mean()
-            
-            axes10[1].plot(df['time_in_years'], total_preventions_smooth, 
-                          linewidth=2, color='darkgreen', label='Total All Bacteria')
-            axes10[1].fill_between(df['time_in_years'], total_preventions_smooth, 
-                                  alpha=0.3, color='lightgreen')
-            
-            axes10[1].set_title('Total Daily Infections Prevented by Drug Over Time\n(All bacteria combined)')
-            axes10[1].set_xlabel('Time (Years)')
-            axes10[1].set_ylabel('Total Daily Preventions')
-            axes10[1].set_ylim(bottom=0)
-            axes10[1].grid(True, alpha=0.3)
+            total_preventions_per_day = sum_rows(prevention_cols)
+
+            if plot_segmented_series(
+                axes10[1],
+                series=total_preventions_per_day,
+                color='darkgreen',
+                label='Total All Bacteria',
+            ):
+                axes10[1].set_title('Total Daily Infections Prevented by Drug Over Time\n(All bacteria combined)')
+                axes10[1].set_xlabel('Time (Years)')
+                axes10[1].set_ylabel('Total Daily Preventions')
+                axes10[1].set_ylim(bottom=0)
+                axes10[1].grid(True, alpha=0.3)
+                axes10[1].legend()
+            else:
+                axes10[1].text(0.5, 0.5, 'Total prevention data\nnot available', ha='center', va='center', fontsize=12, color='gray')
+                axes10[1].set_axis_off()
             
             # Removed the inset summary box to keep the plot uncluttered
             

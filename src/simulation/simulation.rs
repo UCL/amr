@@ -58,6 +58,10 @@ pub(crate) struct PolicyAdjustments {
     pub(crate) policy_option: u8,
     pub(crate) drug_selection_temperature: Option<f64>,
     pub(crate) minimal_potency_threshold_for_drug_selection: Option<f64>,
+    pub(crate) bacterial_testing_rate_multiplier: Option<f64>,
+    pub(crate) resistance_testing_rate_multiplier: Option<f64>,
+    pub(crate) resistance_emergence_multiplier: Option<f64>,
+    pub(crate) clear_all_resistance_on_branch_start: bool,
 }
 
 impl PolicyAdjustments {
@@ -66,6 +70,10 @@ impl PolicyAdjustments {
             policy_option: 0,
             drug_selection_temperature: None,
             minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: None,
+            resistance_testing_rate_multiplier: None,
+            resistance_emergence_multiplier: None,
+            clear_all_resistance_on_branch_start: false,
         }
     }
 
@@ -77,6 +85,22 @@ impl PolicyAdjustments {
             policy_option: 1,
             drug_selection_temperature: Some(adjusted_temperature),
             minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: Some(1.6),
+            resistance_testing_rate_multiplier: Some(1.4),
+            resistance_emergence_multiplier: None,
+            clear_all_resistance_on_branch_start: false,
+        }
+    }
+
+    fn amr_counterfactual() -> Self {
+        Self {
+            policy_option: 2,
+            drug_selection_temperature: None,
+            minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: None,
+            resistance_testing_rate_multiplier: None,
+            resistance_emergence_multiplier: Some(0.0),
+            clear_all_resistance_on_branch_start: true,
         }
     }
 }
@@ -172,9 +196,8 @@ where
     historical_sum + current_value
 }
 
-
 fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
-                matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema_pallidum"))
+    matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema_pallidum"))
 }
 
 /// Cache of majority_r proportions and positive resistance magnitudes indexed by
@@ -738,7 +761,6 @@ impl IndividualLogger {
                     activity_r.push(res.activity_r);
                     any_r.push(res.any_r);
                     majority_r.push(res.majority_r);
-
                 }
             }
 
@@ -807,11 +829,7 @@ impl IndividualLogger {
             row.push(format!("{:?}", ind.hospital_status));
             row.push(immunodeficiency_status.to_string());
             row.push(format!("{:?}", ind.date_of_death));
-            let cause_of_death = ind
-                .cause_of_death
-                .as_deref()
-                .unwrap_or("none")
-                .to_string();
+            let cause_of_death = ind.cause_of_death.as_deref().unwrap_or("none").to_string();
             row.push(cause_of_death);
             row.push(Self::fmt_vec(&ind.level));
             row.push(Self::fmt_vec(&ind.clearance_hazard));
@@ -1048,6 +1066,12 @@ pub struct TimeStepSummary {
     pub people_by_drug_count: Vec<usize>, // [0] = people on 0 drugs, [1] = people on 1 drug, etc.
 }
 
+#[derive(Clone)]
+pub struct PolicyBranchSummary {
+    pub policy_option: u8,
+    pub summaries: Vec<TimeStepSummary>,
+}
+
 // Main simulation struct: holds population, time steps, and lookup tables.
 //
 // Encapsulates the state and configuration of a simulation run, including population, time steps,
@@ -1067,8 +1091,8 @@ pub struct Simulation {
     pub majority_r_cache_next: MajorityRCache,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
-    /// Optional storage for alternate policy branch summaries (policy_option = 1).
-    pub policy_branch_summary_log: Option<Vec<TimeStepSummary>>,
+    /// Storage for per-policy alternate branch summaries keyed by policy_option.
+    pub policy_branch_summary_log: Vec<PolicyBranchSummary>,
     /// Pre-computed parameter keys to avoid string allocation during simulation.
     pub param_cache: crate::rules::ParameterKeyCache,
     /// Precomputed potency values indexed by [bacteria * num_drugs + drug]
@@ -1087,14 +1111,16 @@ pub struct Simulation {
     branch_active: bool,
     /// Policy adjustments for baseline (policy_option = 0).
     baseline_policy_adjustments: PolicyAdjustments,
-    /// Policy adjustments for the illustrative alternate policy (policy_option = 1).
-    branch_policy_adjustments: PolicyAdjustments,
+    /// Policy adjustment presets that should run after the branch checkpoint.
+    branch_policy_adjustments: Vec<PolicyAdjustments>,
     /// Policy adjustments currently in effect during the run loop.
     current_policy_adjustments: PolicyAdjustments,
     /// Flag indicating whether branch checkpoints should be persisted to disk.
     use_disk_branch_checkpoint: bool,
     /// Directory used to store branch checkpoints when disk persistence is enabled.
     branch_checkpoint_dir: PathBuf,
+    /// Majority-r configuration so caches can be rebuilt on demand.
+    majority_r_config: MajorityRConfig,
 }
 
 impl Simulation {
@@ -1188,9 +1214,24 @@ impl Simulation {
             freeze_at_last_positive: globals.majority_r_freeze_at_last_positive,
         };
 
+        let majority_r_cache_prev = MajorityRCache::new(
+            num_regions_including_home,
+            num_bacteria,
+            num_drugs,
+            &majority_r_config,
+        );
+        let majority_r_cache_next = MajorityRCache::new(
+            num_regions_including_home,
+            num_bacteria,
+            num_drugs,
+            &majority_r_config,
+        );
+
         let baseline_policy = PolicyAdjustments::baseline();
-        // Alternate policy starts here: tweak the helper to change parameters applied from the branch year onwards.
-        let branch_policy = PolicyAdjustments::alternate_example(globals);
+        let branch_policies = vec![
+            PolicyAdjustments::alternate_example(globals),
+            PolicyAdjustments::amr_counterfactual(),
+        ];
 
         Simulation {
             // Constructs and returns a new Simulation instance with the initialized population, time steps, and other data structures.
@@ -1200,20 +1241,10 @@ impl Simulation {
             bacteria_indices,
             drug_indices,
             cross_resistance_groups,
-            majority_r_cache_prev: MajorityRCache::new(
-                num_regions_including_home,
-                num_bacteria,
-                num_drugs,
-                &majority_r_config,
-            ),
-            majority_r_cache_next: MajorityRCache::new(
-                num_regions_including_home,
-                num_bacteria,
-                num_drugs,
-                &majority_r_config,
-            ),
+            majority_r_cache_prev,
+            majority_r_cache_next,
             summary_log: Vec::new(), // Initialize empty log
-            policy_branch_summary_log: None,
+            policy_branch_summary_log: Vec::new(),
             param_cache: crate::rules::ParameterKeyCache::new(),
             potency_matrix,
             mic_lt2_majority_r_thresholds,
@@ -1223,10 +1254,11 @@ impl Simulation {
             run_id: 0,
             branch_active: false,
             baseline_policy_adjustments: baseline_policy,
-            branch_policy_adjustments: branch_policy,
+            branch_policy_adjustments: branch_policies,
             current_policy_adjustments: baseline_policy,
             use_disk_branch_checkpoint: false,
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
+            majority_r_config,
         }
     }
 
@@ -1533,12 +1565,10 @@ impl Simulation {
                         newly_infected_with_resistance_count: 0,
                         new_drug_initiations_count: 0,
                         new_drug_initiations_count_infected: 0,
-                        newly_infected_by_bacteria_region:
-                            vec![0; num_bacteria * REGION_COUNT],
+                        newly_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
                         newly_infected_carrier_by_bacteria: vec![0; num_bacteria],
                         newly_infected_non_carrier_by_bacteria: vec![0; num_bacteria],
-                        deaths_infected_by_bacteria_region:
-                            vec![0; num_bacteria * REGION_COUNT],
+                        deaths_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
                         total_currently_infected: 0,
                         total_with_resistance: 0,
                         currently_infected_and_on_drug_count: 0,
@@ -1547,11 +1577,14 @@ impl Simulation {
                         presence_microbiome_resistant_by_bacteria: vec![0; num_bacteria],
                         living_microbiome_minority_by_bacteria: vec![0; num_bacteria],
                         living_microbiome_majority_by_bacteria: vec![0; num_bacteria],
-                        presence_microbiome_by_bacteria_by_region:
-                            vec![0; num_bacteria * REGION_COUNT],
+                        presence_microbiome_by_bacteria_by_region: vec![
+                            0;
+                            num_bacteria * REGION_COUNT
+                        ],
                         carriage_duration_bins_by_bacteria: vec![
                             0;
-                            num_bacteria * CARRIAGE_DURATION_BIN_COUNT
+                            num_bacteria
+                                * CARRIAGE_DURATION_BIN_COUNT
                         ],
                         microbiome_acquisitions_on_drug_by_bacteria: vec![0; num_bacteria],
                         microbiome_acquisitions_off_drug_by_bacteria: vec![0; num_bacteria],
@@ -1561,11 +1594,14 @@ impl Simulation {
                         infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
                         resistant_infected_carrier_count_by_bacteria: vec![0; num_bacteria],
                         resistant_infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
-                        drug_failure_events_by_bacteria_region:
-                            vec![0; num_bacteria * REGION_COUNT],
-                        drug_treatment_day5_events_by_bacteria_region: vec![
+                        drug_failure_events_by_bacteria_region: vec![
                             0;
                             num_bacteria * REGION_COUNT
+                        ],
+                        drug_treatment_day5_events_by_bacteria_region: vec![
+                            0;
+                            num_bacteria
+                                * REGION_COUNT
                         ],
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
                         infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
@@ -3465,7 +3501,7 @@ impl Simulation {
         self.run_id = new_run_id;
         println!("Simulation run ID: {}", self.run_id);
 
-        self.policy_branch_summary_log = None;
+        self.policy_branch_summary_log.clear();
         self.branch_active = false;
         self.current_policy_adjustments = self.baseline_policy_adjustments;
         self.summary_log.clear();
@@ -3479,28 +3515,57 @@ impl Simulation {
             }
         };
 
-        if let (Some(snapshot), Some(step)) = (baseline_snapshot, branch_step) {
+        if let (Some(stored_snapshot), Some(step)) = (baseline_snapshot, branch_step) {
+            let (branch_snapshot, snapshot_cleanup) =
+                match self.materialize_branch_snapshot(stored_snapshot) {
+                    Ok(result) => result,
+                    Err(err) => {
+                        eprintln!("Error preparing branch snapshot: {}", err);
+                        return;
+                    }
+                };
+
             let baseline_summary = self.summary_log.clone();
-            let baseline_state = match self.capture_core_state() {
-                Ok(state) => state,
+            let (baseline_state, baseline_state_cleanup) = match self
+                .capture_core_state()
+                .and_then(|state| self.materialize_core_state(state))
+            {
+                Ok(result) => result,
                 Err(err) => {
-                    eprintln!("Error capturing baseline state for policy branch: {}", err);
+                    eprintln!(
+                        "Error capturing baseline state for policy branches: {}",
+                        err
+                    );
+                    if let Some(path) = snapshot_cleanup {
+                        self.cleanup_checkpoint_file(&path);
+                    }
                     return;
                 }
             };
 
-            if let Err(err) = self.run_policy_branch(snapshot, step) {
-                eprintln!("Error running alternate policy branch: {}", err);
-                let _ = self.restore_core_state(baseline_state);
-                return;
+            let branch_policies = self.branch_policy_adjustments.clone();
+            for policy in branch_policies {
+                let branch_result = self.run_policy_branch(&branch_snapshot, step, policy);
+
+                self.summary_log = baseline_summary.clone();
+                self.apply_core_state(baseline_state.clone());
+                self.current_policy_adjustments = self.baseline_policy_adjustments;
+
+                if let Err(err) = branch_result {
+                    eprintln!(
+                        "Error running alternate policy branch (option {}): {}",
+                        policy.policy_option, err
+                    );
+                    break;
+                }
             }
 
-            self.summary_log = baseline_summary;
-            if let Err(err) = self.restore_core_state(baseline_state) {
-                eprintln!("Error restoring baseline state after branch run: {}", err);
-                return;
+            if let Some(path) = snapshot_cleanup {
+                self.cleanup_checkpoint_file(&path);
             }
-            self.current_policy_adjustments = self.baseline_policy_adjustments;
+            if let Some(path) = baseline_state_cleanup {
+                self.cleanup_checkpoint_file(&path);
+            }
         }
     }
 
@@ -3528,6 +3593,19 @@ impl Simulation {
         }
     }
 
+    fn materialize_branch_snapshot(
+        &self,
+        snapshot: StoredBranchSnapshot,
+    ) -> std::io::Result<(BranchSnapshot, Option<PathBuf>)> {
+        match snapshot {
+            StoredBranchSnapshot::InMemory(data) => Ok((data, None)),
+            StoredBranchSnapshot::OnDisk(path) => {
+                let data = self.load_branch_snapshot_from_disk(&path)?;
+                Ok((data, Some(path)))
+            }
+        }
+    }
+
     fn capture_core_state(&self) -> std::io::Result<StoredCoreState> {
         let state = CoreState {
             population: self.population.clone(),
@@ -3544,6 +3622,19 @@ impl Simulation {
         }
     }
 
+    fn materialize_core_state(
+        &self,
+        state: StoredCoreState,
+    ) -> std::io::Result<(CoreState, Option<PathBuf>)> {
+        match state {
+            StoredCoreState::InMemory(core) => Ok((core, None)),
+            StoredCoreState::OnDisk(path) => {
+                let core = self.load_core_state_from_disk(&path)?;
+                Ok((core, Some(path)))
+            }
+        }
+    }
+
     fn apply_core_state(&mut self, state: CoreState) {
         self.population = state.population;
         self.majority_r_cache_prev = state.majority_r_cache_prev;
@@ -3551,68 +3642,91 @@ impl Simulation {
         self.prev_majority_r_entries_len = state.prev_majority_r_entries_len;
     }
 
-    fn restore_core_state(&mut self, state: StoredCoreState) -> std::io::Result<()> {
-        match state {
-            StoredCoreState::InMemory(core) => {
-                self.apply_core_state(core);
-                Ok(())
-            }
-            StoredCoreState::OnDisk(path) => {
-                let core = self.load_core_state_from_disk(&path)?;
-                self.apply_core_state(core);
-                self.cleanup_checkpoint_file(&path);
-                Ok(())
-            }
-        }
-    }
-
     fn run_policy_branch(
         &mut self,
-        snapshot: StoredBranchSnapshot,
+        snapshot: &BranchSnapshot,
         branch_step: usize,
+        policy: PolicyAdjustments,
     ) -> std::io::Result<()> {
         println!(
             "Starting alternate policy branch (option {}) from time step {}",
-            self.branch_policy_adjustments.policy_option, branch_step
+            policy.policy_option, branch_step
         );
 
         self.branch_active = true;
-        self.current_policy_adjustments = self.branch_policy_adjustments;
+        self.current_policy_adjustments = policy;
 
-        let (snapshot_data, cleanup_path) = match snapshot {
-            StoredBranchSnapshot::InMemory(data) => (data, None),
-            StoredBranchSnapshot::OnDisk(path) => {
-                let data = self.load_branch_snapshot_from_disk(&path)?;
-                (data, Some(path))
-            }
-        };
+        self.population = snapshot.population.clone();
+        self.majority_r_cache_prev = snapshot.majority_r_cache_prev.clone();
+        self.majority_r_cache_next = snapshot.majority_r_cache_next.clone();
+        self.summary_log = snapshot.summary_log.clone();
+        self.prev_majority_r_entries_len = snapshot.prev_majority_r_entries_len;
 
-        self.population = snapshot_data.population;
-        self.majority_r_cache_prev = snapshot_data.majority_r_cache_prev;
-        self.majority_r_cache_next = snapshot_data.majority_r_cache_next;
-        self.summary_log = snapshot_data.summary_log;
-        self.prev_majority_r_entries_len = snapshot_data.prev_majority_r_entries_len;
-
-        let run_result = self.run_from(branch_step, None);
-
-        if let Some(path) = cleanup_path {
-            self.cleanup_checkpoint_file(&path);
+        if policy.clear_all_resistance_on_branch_start {
+            self.reset_all_resistance_state();
         }
 
-        let _ = run_result?;
+        self.run_from(branch_step, None)?;
 
-        let branch_option = self.branch_policy_adjustments.policy_option;
         let branch_summaries: Vec<TimeStepSummary> = self
             .summary_log
             .iter()
             .cloned()
-            .filter(|entry| entry.policy_option == branch_option)
+            .filter(|entry| entry.policy_option == policy.policy_option)
             .collect();
-        self.policy_branch_summary_log = Some(branch_summaries);
+        if !branch_summaries.is_empty() {
+            self.policy_branch_summary_log.push(PolicyBranchSummary {
+                policy_option: policy.policy_option,
+                summaries: branch_summaries,
+            });
+        }
 
         self.branch_active = false;
-        println!("Alternate policy branch completed");
+        println!(
+            "Alternate policy branch (option {}) completed",
+            policy.policy_option
+        );
         Ok(())
+    }
+
+    fn reset_all_resistance_state(&mut self) {
+        let num_bacteria = BACTERIA_LIST.len();
+        let num_drugs = DRUG_SHORT_NAMES.len();
+
+        for individual in &mut self.population.individuals {
+            for b_idx in 0..num_bacteria {
+                for d_idx in 0..num_drugs {
+                    let resistance = &mut individual.resistances[b_idx][d_idx];
+                    resistance.any_r = 0.0;
+                    resistance.activity_r = 0.0;
+                    resistance.majority_r = 0.0;
+                    resistance.microbiome_r = 0.0;
+                    resistance.test_r = 0.0;
+                    individual.how_resistance_acquired[b_idx][d_idx] = None;
+                }
+
+                if b_idx < individual.resistance_mechanisms.len() {
+                    for mechanism_flag in individual.resistance_mechanisms[b_idx].iter_mut() {
+                        *mechanism_flag = false;
+                    }
+                }
+            }
+        }
+
+        let num_regions = self.majority_r_cache_prev.num_regions();
+        self.majority_r_cache_prev = MajorityRCache::new(
+            num_regions,
+            num_bacteria,
+            num_drugs,
+            &self.majority_r_config,
+        );
+        self.majority_r_cache_next = MajorityRCache::new(
+            num_regions,
+            num_bacteria,
+            num_drugs,
+            &self.majority_r_config,
+        );
+        self.prev_majority_r_entries_len = 0;
     }
 
     pub fn print_summary_statistics(&self) {
@@ -3629,18 +3743,19 @@ impl Simulation {
             snapshots_logged
         );
 
-        if let Some(branch_summaries) = &self.policy_branch_summary_log {
-            if let Some(first_entry) = branch_summaries.first() {
-                let last_step = branch_summaries
+        for branch in &self.policy_branch_summary_log {
+            if let Some(first_entry) = branch.summaries.first() {
+                let last_step = branch
+                    .summaries
                     .last()
                     .map(|summary| summary.time_step)
                     .unwrap_or(first_entry.time_step);
                 println!(
                     "Alternate policy (option {}) covers time_steps {}-{} ({} records).",
-                    self.branch_policy_adjustments.policy_option,
+                    branch.policy_option,
                     first_entry.time_step,
                     last_step,
-                    branch_summaries.len()
+                    branch.summaries.len()
                 );
             }
         }
@@ -4256,8 +4371,8 @@ impl Simulation {
         // Write data with pre-built strings (baseline followed by any policy branches)
         let mut combined_summaries: Vec<&TimeStepSummary> = Vec::new();
         combined_summaries.extend(self.summary_log.iter());
-        if let Some(branch_summaries) = &self.policy_branch_summary_log {
-            combined_summaries.extend(branch_summaries.iter());
+        for branch in &self.policy_branch_summary_log {
+            combined_summaries.extend(branch.summaries.iter());
         }
 
         for summary in combined_summaries {

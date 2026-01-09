@@ -72,7 +72,10 @@ pub(crate) fn register_activity_snapshot_tracking(individual_id: usize, bacteria
 /// Remove tracking metadata when a journey completes or is aborted.
 pub(crate) fn unregister_activity_snapshot_tracking(individual_id: usize, bacteria_idx: usize) {
     if let Some(registry) = ACTIVITY_SNAPSHOT_REGISTRY.get() {
-        registry.lock().unwrap().remove(&(individual_id, bacteria_idx));
+        registry
+            .lock()
+            .unwrap()
+            .remove(&(individual_id, bacteria_idx));
     }
     if let Some(cache) = ACTIVITY_SNAPSHOT_CACHE.get() {
         cache.lock().unwrap().remove(&(individual_id, bacteria_idx));
@@ -89,7 +92,12 @@ pub(crate) fn should_cache_pre_clearance_activity(
     }
     ACTIVITY_SNAPSHOT_REGISTRY
         .get()
-        .map(|registry| registry.lock().unwrap().contains(&(individual_id, bacteria_idx)))
+        .map(|registry| {
+            registry
+                .lock()
+                .unwrap()
+                .contains(&(individual_id, bacteria_idx))
+        })
         .unwrap_or(false)
 }
 
@@ -710,11 +718,9 @@ impl JourneyLogger {
         if bacteria_cleared_this_step
             && !resistance_activity_r.iter().any(|(_, value)| *value > 0.0)
         {
-            if let Some(cached_values) = take_cached_activity_snapshot(
-                individual.id,
-                primary_bacteria_idx,
-                time_step as i32,
-            ) {
+            if let Some(cached_values) =
+                take_cached_activity_snapshot(individual.id, primary_bacteria_idx, time_step as i32)
+            {
                 let mut reconstructed: Vec<(String, f64)> = Vec::new();
                 for (drug_idx, value) in cached_values.into_iter().enumerate() {
                     if value > 0.0 {

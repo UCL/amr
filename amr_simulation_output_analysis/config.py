@@ -28,14 +28,14 @@ class PlotConfig:
     incidence_of_infection: bool = False
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
-    mean_any_r_by_drug_for_each_bacteria: bool = False
+    mean_any_r_by_drug_for_each_bacteria: bool = True
     proportion_of_people_taking_each_drug: bool = False
     for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
     proportion_of_people_infected_with_each_bacteria: bool = False
     proportion_share_among_drug_users: bool = False
     distribution_drug_use_by_bacteria: bool = False
-    death_rate_by_bacteria: bool = False
-    mean_activity_r_by_bacteria: bool = False
+    death_rate_by_bacteria: bool = False 
+    mean_activity_r_by_bacteria: bool = True
     resistance_mechanism_by_bacteria: bool = False
     microbiome_acquisition_on_off_drug: bool = False
     microbiome_clearance_on_off_drug: bool = False
@@ -45,7 +45,7 @@ class PlotConfig:
     carrier_infection_share: bool = False
     carrier_vs_non_carrier_incidence: bool = False
     carriage_duration_distribution: bool = False
-    mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
+    mean_any_r_by_drug_for_each_bacteria_hospital: bool = True
     source_of_new_resistance_by_drug_bacteria: bool = False
     infection_resolution_by_bacteria: bool = False
     drug_score_analysis_by_bacteria: bool = False
@@ -87,7 +87,7 @@ class PlotConfig:
     empirical_overlay: bool = True  # Whether to show empirical data overlays
     
     # Smoothing and styling
-    smoothing_window_days: int = 365  # 3 years
+    smoothing_window_days: int = 365  
     smoothing_window: int = 365  # Alias for smoothing_window_days
     drug_score_smoothing_window_days: int = 180  # Shorter window just for drug score plots
     plot_style: str = 'seaborn-v0_8'
@@ -183,7 +183,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_051680.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_690486.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity
