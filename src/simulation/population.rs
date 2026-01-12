@@ -7,6 +7,7 @@
 //   - Population struct and initialization logic
 //
 // Also includes legacy lists and antibiotic class reference for model expansion.
+use crate::config::parameter_store;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -529,6 +530,8 @@ pub struct Individual {
     pub days_on_current_treatment: Vec<i32>,
     /// Track if treatment failure assessment has been performed for current treatment
     pub treatment_failure_assessed: Vec<bool>,
+    /// Per-bacteria antibiotic effect scaling sampled when treatment starts
+    pub drug_activity_response_multiplier: Vec<f64>,
     /// Tracks when drugs were stopped while infection was still present (None if not applicable)
     pub drug_stopped_with_infection_day: Vec<Option<i32>>,
     /// Bacteria level when drug was stopped due to non-adherence (None if not applicable)  
@@ -559,6 +562,8 @@ impl Individual {
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
         let perceived_penicillin_allergy = rng.gen_bool(0.08);
+        let base_drug_activity_multiplier =
+            parameter_store().globals.drug_activity_to_bacteria_level_multiplier;
 
         let date_last_infected = vec![0; num_bacteria];
         let date_last_infected_keep = vec![0; num_bacteria];
@@ -624,6 +629,8 @@ impl Individual {
         let bacteria_level_at_drug_start = vec![None; num_bacteria];
         let days_on_current_treatment = vec![-1; num_bacteria]; // -1 means no current treatment
         let treatment_failure_assessed = vec![false; num_bacteria];
+        let drug_activity_response_multiplier =
+            vec![base_drug_activity_multiplier; num_bacteria];
 
         // Initialize rescue window tracking variables
         let drug_stopped_with_infection_day = vec![None; num_bacteria];
@@ -697,6 +704,7 @@ impl Individual {
             bacteria_level_at_drug_start,
             days_on_current_treatment,
             treatment_failure_assessed,
+            drug_activity_response_multiplier,
             drug_stopped_with_infection_day,
             bacteria_level_at_drug_cessation,
             bacteria_on_selection_day,

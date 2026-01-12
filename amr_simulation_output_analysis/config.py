@@ -28,14 +28,14 @@ class PlotConfig:
     incidence_of_infection: bool = False
     death_rate_by_bacteria_region: bool = False
     population_mortality_by_bacteria_region: bool = False
-    mean_any_r_by_drug_for_each_bacteria: bool = True
+    mean_any_r_by_drug_for_each_bacteria: bool = False
     proportion_of_people_taking_each_drug: bool = False
     for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2: bool = False
     proportion_of_people_infected_with_each_bacteria: bool = False
     proportion_share_among_drug_users: bool = False
     distribution_drug_use_by_bacteria: bool = False
     death_rate_by_bacteria: bool = False 
-    mean_activity_r_by_bacteria: bool = True
+    mean_activity_r_by_bacteria: bool = False
     resistance_mechanism_by_bacteria: bool = False
     microbiome_acquisition_on_off_drug: bool = False
     microbiome_clearance_on_off_drug: bool = False
@@ -45,7 +45,7 @@ class PlotConfig:
     carrier_infection_share: bool = False
     carrier_vs_non_carrier_incidence: bool = False
     carriage_duration_distribution: bool = False
-    mean_any_r_by_drug_for_each_bacteria_hospital: bool = True
+    mean_any_r_by_drug_for_each_bacteria_hospital: bool = False
     source_of_new_resistance_by_drug_bacteria: bool = False
     infection_resolution_by_bacteria: bool = False
     drug_score_analysis_by_bacteria: bool = False
@@ -183,7 +183,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_690486.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_349400.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

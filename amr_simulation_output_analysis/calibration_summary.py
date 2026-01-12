@@ -1577,9 +1577,9 @@ def _render_table_with_alignment(
         row_values = []
         for col in columns:
             value = row.get(col)
-            if isinstance(value, float) and pd.isna(value):
+            if value is None:
                 value_str = "---"
-            elif value is None:
+            elif not isinstance(value, str) and pd.isna(value):
                 value_str = "---"
             else:
                 value_str = str(value)
@@ -1601,6 +1601,70 @@ def _render_table_with_alignment(
         lines.append("  ".join(cells))
 
     return "\n".join(lines)
+
+
+def _build_mean_abs_gap_tables(
+    resistance_df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    bacteria_columns = ["Bacteria", "Mean |Δ| (pp)", "Combinations counted"]
+    drug_columns = ["Drug", "Mean |Δ| (pp)", "Bacteria counted"]
+
+    if resistance_df is None or resistance_df.empty:
+        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
+
+    working = resistance_df.copy()
+    working[RESISTANCE_SIM_COL] = pd.to_numeric(working.get(RESISTANCE_SIM_COL), errors="coerce")
+    working[RESISTANCE_TARGET_COL] = pd.to_numeric(working.get(RESISTANCE_TARGET_COL), errors="coerce")
+    working[RESISTANCE_DELTA_COL] = pd.to_numeric(working.get(RESISTANCE_DELTA_COL), errors="coerce")
+    note_series = working.get("Note", "").astype(str)
+    potency_mask = ~note_series.str.contains("negligible potency", case=False, na=False)
+    working = working.loc[potency_mask]
+
+    if working.empty:
+        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
+
+    working["abs_delta"] = (working[RESISTANCE_SIM_COL] - working[RESISTANCE_TARGET_COL]).abs()
+    working = working.dropna(subset=["abs_delta", "Bacteria", "Drug"])
+    if working.empty:
+        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
+
+    def _format_table(group_col: str, count_label: str) -> pd.DataFrame:
+        grouped = (
+            working.groupby(group_col)["abs_delta"]
+            .agg(["mean", "count"])
+            .reset_index()
+        )
+        grouped.rename(columns={
+            group_col: group_col,
+            "mean": "Mean |Δ| (pp)",
+            "count": count_label,
+        }, inplace=True)
+        grouped["Mean |Δ| (pp)"] = grouped["Mean |Δ| (pp)"].round(2)
+        grouped[count_label] = grouped[count_label].astype("Int64")
+        grouped.sort_values(by="Mean |Δ| (pp)", ascending=False, inplace=True)
+        return grouped
+
+    def _append_mean_row(table: pd.DataFrame, label: str, count_label: str) -> pd.DataFrame:
+        if table.empty:
+            return table
+
+        mean_value = table["Mean |Δ| (pp)"].astype(float).mean(skipna=True)
+        mean_row = {
+            table.columns[0]: label,
+            "Mean |Δ| (pp)": round(float(mean_value), 2),
+            count_label: pd.NA,
+        }
+        return pd.concat([table, pd.DataFrame([mean_row])], ignore_index=True)
+
+    bacteria_table = _format_table("Bacteria", "Combinations counted")
+    bacteria_table = _append_mean_row(bacteria_table, "Mean across bacteria", "Combinations counted")
+
+    drug_table = _format_table("Drug", "Bacteria counted")
+    drug_table = _append_mean_row(drug_table, "Mean across drugs", "Bacteria counted")
+    return (
+        bacteria_table if not bacteria_table.empty else pd.DataFrame(columns=bacteria_columns),
+        drug_table if not drug_table.empty else pd.DataFrame(columns=drug_columns),
+    )
 
 
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
@@ -1662,10 +1726,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     overall_resistance = context.get("overall_resistance", (None, None, 0))
     resistance_fit_metrics, resistance_component_df = _calculate_resistance_fit_metrics(resistance_df)
     reserve_drug_stats = context.get("reserve_drug_stats", {})
+    bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_690486.txt"
+    output_path = output_dir / "calibration_summary_349400.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1842,6 +1907,26 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "- Weighted overall delta (3× infection + 1× resistant-level + 1× microbiome): "
             f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_abs_delta'])}\n\n"
         )
+
+        handle.write("Per-Bacteria Mean |simulation - target| (percentage points)\n")
+        bacteria_table_text = _render_table_with_alignment(
+            bacteria_gap_df,
+            left_columns={"Bacteria"},
+        )
+        if bacteria_table_text:
+            handle.write(bacteria_table_text + "\n\n")
+        else:
+            handle.write("(no eligible bacteria/drug combinations)\n\n")
+
+        handle.write("Per-Drug Mean |simulation - target| (percentage points)\n")
+        drug_table_text = _render_table_with_alignment(
+            drug_gap_df,
+            left_columns={"Drug"},
+        )
+        if drug_table_text:
+            handle.write(drug_table_text + "\n\n")
+        else:
+            handle.write("(no eligible drug combinations)\n\n")
 
         if not microbiome_df.empty:
             handle.write("Microbiome Resistance Benchmarks\n")

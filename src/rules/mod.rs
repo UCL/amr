@@ -450,9 +450,7 @@ fn assess_treatment_failure(
             individual.cur_level_drug[new_drug_idx] = initial_level;
 
             // Reset treatment failure tracking for this bacteria
-            individual.bacteria_level_at_drug_start[bacteria_idx] = Some(current_level);
-            individual.days_on_current_treatment[bacteria_idx] = 0;
-            individual.treatment_failure_assessed[bacteria_idx] = false;
+            mark_new_treatment_course(individual, bacteria_idx, current_level, rng);
 
             return true; // Drug switch occurred
         }
@@ -482,6 +480,42 @@ fn treatment_failure_assessment_day_for(
     }
 
     final_day
+}
+
+fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
+    let globals = &parameter_store().globals;
+    let slow_probability = globals
+        .drug_activity_slow_clearance_probability
+        .clamp(0.0, 1.0);
+
+    if slow_probability > 0.0 && rng.gen_bool(slow_probability) {
+        globals.drug_activity_slow_clearance_multiplier
+    } else {
+        globals.drug_activity_to_bacteria_level_multiplier
+    }
+}
+
+fn mark_new_treatment_course(
+    individual: &mut Individual,
+    bacteria_idx: usize,
+    starting_level: f64,
+    rng: &mut impl Rng,
+) {
+    individual.bacteria_level_at_drug_start[bacteria_idx] = Some(starting_level);
+    individual.days_on_current_treatment[bacteria_idx] = 0;
+    individual.treatment_failure_assessed[bacteria_idx] = false;
+    individual.drug_activity_response_multiplier[bacteria_idx] =
+        sample_antibiotic_response_multiplier(rng);
+}
+
+fn clear_treatment_tracking(individual: &mut Individual, bacteria_idx: usize) {
+    let base_multiplier = parameter_store()
+        .globals
+        .drug_activity_to_bacteria_level_multiplier;
+    individual.bacteria_level_at_drug_start[bacteria_idx] = None;
+    individual.days_on_current_treatment[bacteria_idx] = -1;
+    individual.treatment_failure_assessed[bacteria_idx] = false;
+    individual.drug_activity_response_multiplier[bacteria_idx] = base_multiplier;
 }
 
 /// Assess restart window for patients who stopped drugs while still infected
@@ -618,10 +652,12 @@ fn start_restart_treatment(
                 individual.cur_level_drug[prev_drug_idx] = initial_level;
 
                 // Reset treatment failure tracking for new treatment
-                individual.bacteria_level_at_drug_start[bacteria_idx] =
-                    Some(individual.level[bacteria_idx]);
-                individual.days_on_current_treatment[bacteria_idx] = 0;
-                individual.treatment_failure_assessed[bacteria_idx] = false;
+                mark_new_treatment_course(
+                    individual,
+                    bacteria_idx,
+                    individual.level[bacteria_idx],
+                    rng,
+                );
 
                 return true; // Successfully restarted previously effective drug
             }
@@ -717,10 +753,12 @@ fn start_restart_treatment(
             individual.cur_level_drug[new_drug_idx] = initial_level;
 
             // Reset treatment failure tracking for new treatment
-            individual.bacteria_level_at_drug_start[bacteria_idx] =
-                Some(individual.level[bacteria_idx]);
-            individual.days_on_current_treatment[bacteria_idx] = 0;
-            individual.treatment_failure_assessed[bacteria_idx] = false;
+            mark_new_treatment_course(
+                individual,
+                bacteria_idx,
+                individual.level[bacteria_idx],
+                rng,
+            );
 
             return true; // Restart treatment started
         }
@@ -1348,9 +1386,7 @@ pub fn apply_rules(
 
                     // Reset treatment failure tracking when drug is stopped naturally
                     if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
-                        individual.bacteria_level_at_drug_start[bacteria_idx] = None;
-                        individual.days_on_current_treatment[bacteria_idx] = -1;
-                        individual.treatment_failure_assessed[bacteria_idx] = false;
+                        clear_treatment_tracking(individual, bacteria_idx);
                     }
                 }
             }
@@ -2326,10 +2362,12 @@ pub fn apply_rules(
                     for bacteria_idx in 0..BACTERIA_LIST.len() {
                         if individual.level[bacteria_idx] > 0.0 {
                             // Record bacteria level at drug start and reset tracking
-                            individual.bacteria_level_at_drug_start[bacteria_idx] =
-                                Some(individual.level[bacteria_idx]);
-                            individual.days_on_current_treatment[bacteria_idx] = 0;
-                            individual.treatment_failure_assessed[bacteria_idx] = false;
+                            mark_new_treatment_course(
+                                individual,
+                                bacteria_idx,
+                                individual.level[bacteria_idx],
+                                rng,
+                            );
                         }
                     }
                 }
@@ -2419,9 +2457,7 @@ pub fn apply_rules(
             }
         } else {
             // No active infection - reset all tracking
-            individual.bacteria_level_at_drug_start[bacteria_idx] = None;
-            individual.days_on_current_treatment[bacteria_idx] = -1;
-            individual.treatment_failure_assessed[bacteria_idx] = false;
+            clear_treatment_tracking(individual, bacteria_idx);
 
             // Also clear restart window tracking since infection has resolved
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
@@ -4027,7 +4063,7 @@ pub fn apply_rules(
             // TB synergy bonus is added here because multi-drug synergy is fundamental to TB treatment effectiveness -
             // it's not an optional enhancement but a biological requirement for meaningful bacterial killing
             let antibiotic_effect_multiplier =
-                store.globals.drug_activity_to_bacteria_level_multiplier;
+                individual.drug_activity_response_multiplier[b_idx];
             let adjusted_antibiotic_effect = (total_reduction_due_to_antibiotic + tb_synergy_bonus)
                 * antibiotic_effect_multiplier;
 
