@@ -5461,7 +5461,7 @@ lazy_static! {
 
 
 
-        // *resistance_emergence_rates  ^^^ 
+        // *resistance_emergence_rates  ^^^
 
         // PROBLEMATIC HIGH-RESISTANCE BACTERIA (higher emergence rates)
         // acinetobacter_baumannii - notorious for rapid resistance development, but calibrate to observed 35-70% resistance bands
@@ -5474,6 +5474,8 @@ lazy_static! {
                 0.003,
             );
         }
+
+        /*
         let acb_high_pressure_drugs = vec![
             "meropenem",
             "imipenem_c",
@@ -5498,7 +5500,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_acinetobacter_baumannii_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0005,
+                0.002,
             );
         }
         let acb_preserved_drugs = vec!["ceftazidime_avibactam", "meropenem_vaborbactam", "colistin"];
@@ -5511,7 +5513,7 @@ lazy_static! {
                 0.001,
             );
         }
-        
+        */
 
         // E. coli - moderate emergence rate (common pathogen with variable resistance)
         for &drug in DRUG_SHORT_NAMES.iter() {
@@ -5520,7 +5522,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000001,
+                0.0000005,
             );
         }
         let e_coli_legacy_penicillins = vec!["amoxicillin", "ampicillin", "penicilling"];
@@ -5530,7 +5532,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         let e_coli_beta_lactam_blends = vec!["ampicillin_sulbactam", "piperacillin", "piperacillin_tazobactam", "ticarcillin", "ticarcillin_clavulanate"];
@@ -5540,7 +5542,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         let e_coli_first_second_cephs = vec!["cefazolin", "cefuroxime", "cephalexin"];
@@ -5550,7 +5552,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         let e_coli_third_fourth_cephs = vec![
@@ -5569,7 +5571,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000002,
+                0.00000005,
             );
         }
         let e_coli_carbapenems = vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"];
@@ -5579,7 +5581,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.000000001,
+                0.0000005,
             );
         }
         let e_coli_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
@@ -5589,7 +5591,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         let e_coli_aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
@@ -5599,7 +5601,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         let e_coli_tetracyclines = vec!["tetracycline", "doxycycline", "minocycline"];
@@ -5609,7 +5611,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         for &drug in ["trim_sulf", "sulfanilamide"].iter() {
@@ -5618,7 +5620,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
         for &drug in ["chlorampheni", "rifampicin"].iter() {
@@ -5627,13 +5629,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_escherichia_coli_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000002,
+                0.0000005,
             );
         }
 
         // klebsiella_pneumoniae - rapid β-lactam resistance with selective retention of novel agents
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.00000005);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.00000035);
         }
         let kleb_collapse_drugs = vec![
             "amoxicillin", "ampicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate",
@@ -5641,11 +5643,11 @@ lazy_static! {
             "cephalexin", "cephalothin", "cefazolin", "cefaclor", "cefuroxime"
         ];
         for &drug in kleb_collapse_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.00000005);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.0000013);
         }
         let kleb_preserved_drugs = vec!["ceftazidime_avibactam", "meropenem_vaborbactam", "colistin", "cefiderocol"];
         for &drug in kleb_preserved_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.000000003);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.00000018);
         }
 
         // stenotrophomonas_maltophilia gs
@@ -6192,7 +6194,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.00025,
             );
         }
         let ints_high_penams = vec![
@@ -6208,7 +6210,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.0004,
             );
         }
         let ints_antipseudomonal_penams = vec![
@@ -6223,7 +6225,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.0003,
             );
         }
         let ints_first_second_cephs = vec!["cefazolin", "cefuroxime", "cephalexin"]; // oral/early IV cephalosporins
@@ -6233,7 +6235,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.00025,
             );
         }
         let ints_third_fourth_cephs = vec![
@@ -6249,13 +6251,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.00022,
             );
         }
         map.insert(
             "drug_ceftazidime_avibactam_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.00005,
+            0.00013,
         );
         let ints_carbapenems = vec!["ertapenem", "imipenem_c", "meropenem", "meropenem_vaborbactam"];
         for &drug in ints_carbapenems.iter() {
@@ -6264,7 +6266,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.00012,
             );
         }
         let ints_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
@@ -6284,7 +6286,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.0003,
             );
         }
         let ints_tetracyclines = vec!["doxycycline", "minocycline", "tetracycline"];
@@ -6294,23 +6296,23 @@ lazy_static! {
                     "drug_{}_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00005,
+                0.00027,
             );
         }
         map.insert(
             "drug_trim_sulf_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.00005,
+            0.0004,
         );
         map.insert(
             "drug_chlorampheni_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.00005,
+            0.0003,
         );
         map.insert(
             "drug_rifampicin_for_bacteria_invasive_non-typhoidal_salmonella_spp._resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.00005,
+            0.00025,
         );
 
 
@@ -6321,7 +6323,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000003,
+                0.0000001,
             );
         }
         let shigella_penams = vec![
@@ -6341,7 +6343,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000001,
+                0.0000003,
             );
         }
         let shigella_cephs = vec![
@@ -6361,7 +6363,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000001,
+                0.0000005,
             );
         }
         let shigella_carbapenems = vec!["imipenem_c", "meropenem", "ertapenem", "meropenem_vaborbactam"];
@@ -6371,7 +6373,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000001,
+                0.0000003,
             );
         }
         let shigella_fqs = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
@@ -6381,7 +6383,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000001,
+                0.0000003,
             );
         }
         let shigella_macrolides = vec!["azithromycin", "clarithromycin", "erythromycin"];
@@ -6391,7 +6393,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000001,
+                0.0000003,
             );
         }
         let shigella_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
@@ -6401,38 +6403,38 @@ lazy_static! {
                     "drug_{}_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000001,
+                0.0000003,
             );
         }
         map.insert(
             "drug_trim_sulf_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000001,
+            0.0000003,
         );
         map.insert(
             "drug_ceftaroline_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000001,
+            0.0000003,
         );
         map.insert(
             "drug_ceftazidime_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000001,
+            0.0000003,
         );
         map.insert(
             "drug_ceftazidime_avibactam_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000001,
+            0.0000003,
         );
         map.insert(
             "drug_colistin_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000001,
+            0.0000003,
         );
         map.insert(
             "drug_sulfanilamide_for_bacteria_shigella_spp_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000001,
+            0.0000003,
         );
 
 
@@ -6599,7 +6601,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_campylobacter_jejuni_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000003,
+                0.000001,
             );
         }
         let campy_macrolides = vec!["erythromycin", "azithromycin", "clarithromycin"]; // first-line therapy
@@ -6609,7 +6611,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_campylobacter_jejuni_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000003,
+                0.000001,
             );
         }
         let campy_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"]; // historical fluoro overuse
@@ -6619,7 +6621,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_campylobacter_jejuni_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000003,
+                0.000001,
             );
         }
         let campy_tetracyclines = vec!["tetracycline", "doxycycline", "minocycline"]; // fallback options
@@ -6629,7 +6631,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_campylobacter_jejuni_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000003,
+                0.000001,
             );
         }
 
@@ -6817,7 +6819,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
 
@@ -6833,7 +6835,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_cephalosporins = vec!["cefazolin", "cefuroxime", "ceftriaxone", "cephalexin"];
@@ -6843,7 +6845,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_advanced_beta_lactams = vec![
@@ -6859,7 +6861,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_carbapenems = vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"];
@@ -6869,7 +6871,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_antipseudomonal_penicillins =
@@ -6880,7 +6882,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
@@ -6890,7 +6892,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
@@ -6900,7 +6902,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         let cloacae_tetracyclines = vec!["tetracycline", "doxycycline", "minocycline"];
@@ -6910,7 +6912,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         for &drug in ["trim_sulf", "sulfanilamide"].iter() {
@@ -6919,7 +6921,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         for &drug in ["chlorampheni", "rifampicin"].iter() {
@@ -6928,13 +6930,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.8,
+                0.5,
             );
         }
         map.insert(
             "drug_nitrofurantoin_for_bacteria_enterobacter_cloacae_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.8,
+            0.5,
         );
 
         // enterobacter_spp.
@@ -7193,13 +7195,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.5,
+                0.05,
             );
         }
         map.insert(
             "drug_clindamycin_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.5,
+            0.05,
         );
         let efae_fqs = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
         for &drug in efae_fqs.iter() {
@@ -7208,7 +7210,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.5,
+                0.05,
             );
         }
         let efae_tetracyclines = vec!["tetracycline", "doxycycline", "minocycline"];
@@ -7218,13 +7220,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.5,
+                0.05,
             );
         }
         map.insert(
             "drug_chlorampheni_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.5,
+            0.05,
         );
         for &drug in ["trim_sulf", "nitrofurantoin"].iter() {
             map.insert(
@@ -7232,13 +7234,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.5,
+                0.05,
             );
         }
         map.insert(
             "drug_quinu_dalfo_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.5,
+            0.05,
         );
         let efae_oxazolidinones = vec!["linezolid", "tedizolid"];
         for &drug in efae_oxazolidinones.iter() {
@@ -7247,7 +7249,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.5,
+                0.05,
             );
         }
         for &drug in ["vancomycin", "teicoplanin", "dalbavancin", "daptomycin"].iter() {
@@ -7256,7 +7258,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_enterococcus_faecium_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.5,
+                0.05,
             );
         }
 
@@ -7267,7 +7269,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000001,
+                0.00000005,
             );
         }
 
@@ -7278,7 +7280,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000002,
+                0.00000005,
             );
         }
 
@@ -7314,7 +7316,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.000000001,
+                0.00000005,
             );
         }
 
@@ -7325,7 +7327,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000002,
+                0.00000005,
             );
         }
 
@@ -7336,14 +7338,14 @@ lazy_static! {
                     "drug_{}_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000002,
+                0.00000005,
             );
         }
 
         map.insert(
             "drug_trim_sulf_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.00000002,
+            0.00000005,
         );
         let hib_tetracyclines = vec!["doxycycline", "minocycline", "tetracycline"];
         for &drug in hib_tetracyclines.iter() {
@@ -7352,13 +7354,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000002,
+                0.00000005,
             );
         }
         map.insert(
             "drug_chlorampheni_for_bacteria_haemophilus_influenzae_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.00000002,
+            0.00000005,
         );
 
         // helicobacter_pylori
@@ -7368,139 +7370,9 @@ lazy_static! {
                     "drug_{}_for_bacteria_helicobacter_pylori_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.003,
+                0.007,
             );
         }
-        // todo: remove from below drug classes with zero potency
-        for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_penicillins = vec![
-            "amoxicillin",
-            "ampicillin",
-            "ampicillin_sulbactam",
-            "amoxicillin_clavulanate",
-        ];
-        for &drug in h_pylori_penicillins.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_cephalosporins = vec!["cefazolin", "cefuroxime", "ceftriaxone", "cephalexin"];
-        for &drug in h_pylori_cephalosporins.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_advanced_beta_lactams = vec![
-            "cefepime",
-            "ceftazidime",
-            "ceftaroline",
-            "ceftazidime_avibactam",
-            "aztreonam",
-        ];
-        for &drug in h_pylori_advanced_beta_lactams.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_carbapenems = vec!["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"];
-        for &drug in h_pylori_carbapenems.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_antipseudomonal_penicillins = vec![
-            "piperacillin",
-            "piperacillin_tazobactam",
-            "ticarcillin",
-            "ticarcillin_clavulanate",
-        ];
-        for &drug in h_pylori_antipseudomonal_penicillins.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
-        for &drug in h_pylori_fluoroquinolones.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_aminoglycosides = vec!["gentamicin", "tobramycin", "amikacin"];
-        for &drug in h_pylori_aminoglycosides.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        let h_pylori_tetracyclines = vec!["tetracycline", "doxycycline", "minocycline"];
-        for &drug in h_pylori_tetracyclines.iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        for &drug in ["trim_sulf", "sulfanilamide"].iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        for &drug in ["chlorampheni", "rifampicin"].iter() {
-            map.insert(
-                format!(
-                    "drug_{}_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline",
-                    drug
-                ),
-                0.003,
-            );
-        }
-        map.insert(
-            "drug_nitrofurantoin_for_bacteria_helicobacter_pylori._resistance_emergence_rate_per_day_baseline"
-                .to_string(),
-            0.003,
-        );
-
 
         // listeria_monocytogenes - mostly susceptible but emerging tolerance to front-line agents
         for &drug in DRUG_SHORT_NAMES.iter() {
@@ -7583,7 +7455,7 @@ lazy_static! {
 
         // serratia_spp. - AmpC-positive nosocomial pathogen with frequent multi-class resistance
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.01);
+        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5);
         }
         let serratia_penams = vec![
         "amoxicillin", "ampicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate",
@@ -7602,11 +7474,11 @@ lazy_static! {
         }
         let serratia_carbapenems = vec!["imipenem_c", "meropenem", "ertapenem", "meropenem_vaborbactam"];
         for &drug in serratia_carbapenems.iter() {
-        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.001);
+        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5);
         }
         let serratia_fqs = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
         for &drug in serratia_fqs.iter() {
-        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.2);
+        map.insert(format!("drug_{}_for_bacteria_serratia_spp._resistance_emergence_rate_per_day_baseline", drug), 0.5);
         }
         let serratia_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
         for &drug in serratia_aminoglycosides.iter() {
@@ -7824,7 +7696,7 @@ lazy_static! {
 
         // vibrio_cholerae – bump emergence so common oral classes hit 10-20% resistance bands
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.01);
         }
         let cholera_legacy_penicillins = vec![
         "penicilling", "amoxicillin", "amoxicillin_clavulanate", "ampicillin",
@@ -7832,38 +7704,38 @@ lazy_static! {
         "ticarcillin", "ticarcillin_clavulanate"
         ];
         for &drug in cholera_legacy_penicillins.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.03);
         }
         let cholera_cephalosporins = vec![
         "cefazolin", "cefuroxime", "cefotaxime", "ceftriaxone", "cefepime",
         "ceftazidime", "ceftazidime_avibactam", "ceftaroline", "cefiderocol"
         ];
         for &drug in cholera_cephalosporins.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.02);
         }
         let cholera_carbapenems = vec!["imipenem_c", "meropenem", "ertapenem", "meropenem_vaborbactam"];
         for &drug in cholera_carbapenems.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.008);
         }
         let cholera_tetracyclines = vec!["tetracycline", "doxycycline", "minocycline"];
         for &drug in cholera_tetracyclines.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.01);
         }
         let cholera_macrolides = vec!["azithromycin", "clarithromycin", "erythromycin"];
         for &drug in cholera_macrolides.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.093);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.03);
         }
         let cholera_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
         for &drug in cholera_fluoroquinolones.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.03);
         }
         let cholera_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
         for &drug in cholera_aminoglycosides.iter() {
-        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+        map.insert(format!("drug_{}_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline", drug), 0.02);
         }
-        map.insert("drug_chlorampheni_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline".to_string(), 0.003);
-        map.insert("drug_colistin_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline".to_string(), 0.003);
-        map.insert("drug_trim_sulf_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline".to_string(), 0.003);
+        map.insert("drug_chlorampheni_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline".to_string(), 0.02);
+        map.insert("drug_colistin_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline".to_string(), 0.01);
+        map.insert("drug_trim_sulf_for_bacteria_vibrio_cholerae_resistance_emergence_rate_per_day_baseline".to_string(), 0.02);
 
         // yersinia_enterocolitica – raise emergence to hit 5-30% surveillance targets for oral agents
         for &drug in DRUG_SHORT_NAMES.iter() {
@@ -7906,7 +7778,7 @@ lazy_static! {
 
         // neisseria_meningitidis
         for &drug in DRUG_SHORT_NAMES.iter() {
-        map.insert(format!("drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline", drug), 0.0003);
+        map.insert(format!("drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline", drug), 0.001);
         }
 
 /*
@@ -7961,14 +7833,14 @@ lazy_static! {
 
         // neisseria_gonorrhoeae - keep resistance emergence very low; only isolated failures should appear
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.000003);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.000005);
         }
         let gonorrhea_3rd4th_gen_cephs = vec![
             "ceftriaxone", "cefotaxime", "cefepime", "ceftazidime", "ceftaroline",
             "ceftazidime_avibactam", "cefiderocol", "aztreonam"
         ];
         for &drug in gonorrhea_3rd4th_gen_cephs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.0000015);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.000002);
         }
         let gonorrhea_penams = vec![
             "amoxicillin", "ampicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate",
@@ -7976,23 +7848,23 @@ lazy_static! {
             "penicilling"
         ];
         for &drug in gonorrhea_penams.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.000007);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
         }
         let gonorrhea_macrolides = vec!["azithromycin", "clarithromycin", "erythromycin"];
         for &drug in gonorrhea_macrolides.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00015);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.0002);
         }
         let gonorrhea_fq = vec!["ciprofloxacin", "levofloxacin", "ofloxacin", "moxifloxacin"];
         for &drug in gonorrhea_fq.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00006);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00008);
         }
         let gonorrhea_tetracyclines = vec!["doxycycline", "minocycline", "tetracycline"];
         for &drug in gonorrhea_tetracyclines.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.000015);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
         }
         let gonorrhea_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
         for &drug in gonorrhea_aminoglycosides.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.000015);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00002);
         }
 
         // neisseria_meningitidis - preserve near-universal susceptibility across treatment classes
@@ -8002,7 +7874,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000000001,
+                0.0000000003,
             );
         }
         let meningo_anchor_drugs = vec!["penicilling", "ampicillin", "ceftriaxone", "cefotaxime"];
@@ -8012,7 +7884,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000000001,
+                0.000000000045,
             );
         }
         let meningo_extended_penams = vec![
@@ -8025,7 +7897,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000000001,
+                0.000000000075,
             );
         }
         let meningo_reserve_cephs = vec![
@@ -8038,7 +7910,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000000001,
+                0.00000000006,
             );
         }
         let meningo_carbapenems = vec!["imipenem_c", "meropenem", "ertapenem", "meropenem_vaborbactam"];
@@ -8048,7 +7920,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.00000000001,
+                0.00000000005,
             );
         }
         let meningo_macrolides = vec!["azithromycin", "clarithromycin", "erythromycin"];
@@ -8058,7 +7930,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000000001,
+                0.0000000006,
             );
         }
         let meningo_fq = vec!["ciprofloxacin", "levofloxacin", "ofloxacin", "moxifloxacin"];
@@ -8068,7 +7940,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000000001,
+                0.0000000009,
             );
         }
         let meningo_tetracyclines = vec!["doxycycline", "minocycline", "tetracycline"];
@@ -8078,7 +7950,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000000001,
+                0.0000000007,
             );
         }
         let meningo_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
@@ -8088,23 +7960,23 @@ lazy_static! {
                     "drug_{}_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.0000000001,
+                0.0000000005,
             );
         }
         map.insert(
             "drug_chlorampheni_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000000001,
+            0.0000000006,
         );
         map.insert(
             "drug_rifampicin_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000000001,
+            0.0000000008,
         );
         map.insert(
             "drug_trim_sulf_for_bacteria_neisseria_meningitidis_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.0000000001,
+            0.00000000085,
         );
 
         // moraxella_catarrhalis - usually susceptible; best keep emergence low for beta-lactams/macrolides
@@ -8257,7 +8129,7 @@ lazy_static! {
         map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.5);
-        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.5);
+        map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -14.5);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -15.3);
@@ -8270,7 +8142,7 @@ lazy_static! {
         map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -16.5);
-        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -12.8);
+        map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -14.0);
@@ -8749,57 +8621,57 @@ lazy_static! {
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_target_site_mutation_emergence_multiplier"
                 .to_string(),
-            0.02,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_efflux_overexpression_emergence_multiplier"
                 .to_string(),
-            0.02,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_reduced_permeability_emergence_multiplier"
                 .to_string(),
-            0.02,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_qnr_emergence_multiplier".to_string(),
-            0.02,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_esbl_emergence_multiplier".to_string(),
-            0.02,
+            0.03,
         );
 
         // Neisseria meningitidis rarely develops high-level resistance outside of sporadic cases
         map.insert(
             "bacteria_neisseria_meningitidis_mechanism_target_site_mutation_emergence_multiplier"
                 .to_string(),
-            0.01,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_meningitidis_mechanism_efflux_overexpression_emergence_multiplier"
                 .to_string(),
-            0.01,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_meningitidis_mechanism_reduced_permeability_emergence_multiplier"
                 .to_string(),
-            0.01,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_meningitidis_mechanism_qnr_emergence_multiplier".to_string(),
-            0.01,
+            0.03,
         );
         map.insert(
             "bacteria_neisseria_meningitidis_mechanism_esbl_emergence_multiplier".to_string(),
-            0.01,
+            0.03,
         );
 
         // Klebsiella pneumoniae remains highly resistant but not universally pan-resistant
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_target_site_mutation_emergence_multiplier"
                 .to_string(),
-            0.005,
+            0.02,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_qnr_emergence_multiplier".to_string(),
@@ -8808,25 +8680,25 @@ lazy_static! {
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_efflux_overexpression_emergence_multiplier"
                 .to_string(),
-            0.005,
+            0.02,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_reduced_permeability_emergence_multiplier"
                 .to_string(),
-            0.005,
+            0.02,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier".to_string(),
-            0.005,
+            0.02,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_ampc_emergence_multiplier".to_string(),
-            0.005,
+            0.02,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_carbapenemase_emergence_multiplier"
                 .to_string(),
-            0.005,
+            0.02,
         );
 
         // Listeria monocytogenes shows creeping resistance in neonatal/pregnancy outbreaks
@@ -9220,50 +9092,50 @@ lazy_static! {
         map.insert(
             "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_mutation_emergence_multiplier"
                 .to_string(),
-            1.0,
+            2.4,
         );
         map.insert(
             "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_qnr_emergence_multiplier"
                 .to_string(),
-            1.0,
+            2.5,
         );
         map.insert(
             "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_overexpression_emergence_multiplier"
                 .to_string(),
-            1.0,
+            1.9,
         );
         map.insert(
             "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_reduced_permeability_emergence_multiplier"
                 .to_string(),
-            1.0,
+            1.6,
         );
         map.insert(
             "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_esbl_emergence_multiplier"
                 .to_string(),
-            1.0,
+            3.1,
         );
         map.insert(
             "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_ampc_emergence_multiplier"
                 .to_string(),
-            1.0,
+            2.8,
         );
 
         // Enterococcus faecium readily acquires van genes and mutational resistance under drug pressure.
         map.insert(
             "bacteria_enterococcus_faecium_mechanism_van_type_emergence_multiplier".to_string(),
-            100.0,
+            50.0,
         );
         map.insert(
             "bacteria_enterococcus_faecium_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            10.0,
+            4.0,
         );
         map.insert(
             "bacteria_enterococcus_faecium_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            10.0,
+            3.0,
         );
         map.insert(
             "bacteria_enterococcus_faecium_mechanism_reduced_permeability_emergence_multiplier".to_string(),
-            10.0,
+            4.0,
         );
 
         // Acinetobacter baumannii

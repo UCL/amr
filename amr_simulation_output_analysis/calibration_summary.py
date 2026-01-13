@@ -33,6 +33,67 @@ DRUG_CLASS_TABLE_COLUMNS = [
     "Included drugs",
 ]
 
+DEFAULT_DRUG_CLASS_LABEL = "Other / unspecified"
+
+DRUG_SLUG_NORMALIZATION_OVERRIDES = {
+    "doxyclycline": "doxycycline",
+}
+
+CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    (
+        "Penicillins & BL/BLI",
+        (
+            "penicilling",
+            "ampicillin",
+            "amoxicillin",
+            "piperacillin",
+            "ticarcillin",
+            "amoxicillin_clavulanate",
+            "ampicillin_sulbactam",
+            "piperacillin_tazobactam",
+            "ticarcillin_clavulanate",
+        ),
+    ),
+    (
+        "Cephalosporins & Monobactams",
+        (
+            "cephalexin",
+            "cefazolin",
+            "cefuroxime",
+            "ceftriaxone",
+            "ceftazidime",
+            "cefepime",
+            "ceftaroline",
+            "aztreonam",
+            "ceftazidime_avibactam",
+        ),
+    ),
+    (
+        "Carbapenems",
+        ("meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"),
+    ),
+    (
+        "Macrolide/Lincosamide",
+        ("erythromycin", "azithromycin", "clarithromycin", "clindamycin"),
+    ),
+    (
+        "Fluoroquinolones",
+        ("ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"),
+    ),
+    ("Aminoglycosides", ("gentamicin", "tobramycin", "amikacin")),
+    ("Tetracyclines", ("tetracycline", "doxycycline", "minocycline")),
+    ("Sulfonamides", ("trim_sulf",)),
+    ("Glycopeptides/Lipoglycopeptides", ("vancomycin", "teicoplanin", "dalbavancin")),
+    ("Oxazolidinones", ("linezolid", "tedizolid")),
+    ("Polymyxins", ("colistin",)),
+    ("Rifamycins", ("rifampicin",)),
+    ("Chloramphenicol", ("chlorampheni",)),
+    ("Nitrofurans", ("nitrofurantoin",)),
+    ("Fusidic acid", ("fusidic_a",)),
+    ("Pleuromutilins", ("retapamulin",)),
+    ("Streptogramins", ("quinu_dalfo",)),
+)
+
 @dataclass
 class CalibrationTargets:
     target_year: int
@@ -335,6 +396,11 @@ def _safe_mean(series: pd.Series) -> Optional[float]:
 
 def _slugify_value(name: str) -> str:
     return name.strip().lower().replace(" ", "_")
+
+
+def _normalize_drug_slug(name: str) -> str:
+    slug = _slugify_value(name)
+    return DRUG_SLUG_NORMALIZATION_OVERRIDES.get(slug, slug)
 
 
 def _compute_population_scale(year_df: pd.DataFrame, world_population: Optional[float]) -> float:
@@ -1374,6 +1440,44 @@ def _calculate_drug_class_table(
     return pd.DataFrame(records, columns=DRUG_CLASS_TABLE_COLUMNS)
 
 
+def _build_drug_class_lookup(
+    drug_cfg: Optional[Dict[str, object]],
+) -> Dict[str, Tuple[int, str]]:
+    lookup: Dict[str, Tuple[int, str]] = {}
+
+    for order, (label, slugs) in enumerate(CROSS_RESISTANCE_CLASS_OVERRIDES):
+        for slug in slugs:
+            normalized = _normalize_drug_slug(slug)
+            if not normalized:
+                continue
+            lookup.setdefault(normalized, (order, label))
+
+    if not isinstance(drug_cfg, dict):
+        return lookup
+
+    classes = drug_cfg.get("classes", [])
+    if not isinstance(classes, Iterable):
+        return lookup
+
+    order_offset = len(CROSS_RESISTANCE_CLASS_OVERRIDES)
+
+    for rel_order, entry in enumerate(classes):
+        if not isinstance(entry, dict):
+            continue
+        label = entry.get("label") or entry.get("name")
+        drugs = entry.get("drugs", [])
+        if not label or not isinstance(drugs, Iterable):
+            continue
+        order = order_offset + rel_order
+        for slug in drugs:
+            if not isinstance(slug, str):
+                continue
+            normalized = _normalize_drug_slug(slug)
+            lookup.setdefault(normalized, (order, label))
+
+    return lookup
+
+
 def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame:
     """Filter resistance rows for fit metrics, excluding rifampicin and MDR-TB.
     
@@ -1730,7 +1834,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_349400.txt"
+    output_path = output_dir / "calibration_summary_529260.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1948,6 +2052,35 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 inplace=True,
             )
 
+            class_lookup = _build_drug_class_lookup(targets.drug_class_targets)
+            max_defined_order = max((order for order, _ in class_lookup.values()), default=-1)
+            default_class_order = max_defined_order + 1
+
+            def _resolve_class(drug_value: object) -> Tuple[int, str]:
+                if isinstance(drug_value, str) and drug_value.strip():
+                    slug = _normalize_drug_slug(drug_value)
+                else:
+                    slug = ""
+                return class_lookup.get(slug, (default_class_order, DEFAULT_DRUG_CLASS_LABEL))
+
+            class_assignments = resistance_display_df["Drug"].apply(_resolve_class)
+            resistance_display_df["Drug class"] = class_assignments.map(lambda item: item[1])
+            resistance_display_df["__class_order"] = class_assignments.map(lambda item: item[0])
+            resistance_display_df.sort_values(
+                by=["Bacteria", "__class_order", "Drug"],
+                kind="mergesort",
+                inplace=True,
+            )
+            resistance_display_df.drop(columns="__class_order", inplace=True)
+
+            if "Drug class" in resistance_display_df.columns:
+                cols = resistance_display_df.columns.tolist()
+                drug_index = cols.index("Drug") if "Drug" in cols else None
+                class_index = cols.index("Drug class")
+                if drug_index is not None and class_index != drug_index + 1:
+                    cols.insert(drug_index + 1, cols.pop(class_index))
+                    resistance_display_df = resistance_display_df.loc[:, cols]
+
             def _format_numeric_value(
                 row: pd.Series,
                 column: str,
@@ -1990,7 +2123,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write(
                 _render_table_with_alignment(
                     resistance_display_df,
-                    left_columns={"Bacteria", "Drug", "Note"},
+                    left_columns={"Bacteria", "Drug class", "Drug", "Note"},
                 )
             )
             handle.write("\n")

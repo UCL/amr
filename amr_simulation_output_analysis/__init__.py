@@ -22,7 +22,8 @@ from .config import AnalysisConfig, PlotConfig, EmpiricalConfig
 from .utils import (
     safe_divide, setup_logging, safe_plot_creation,
     extract_bacteria_list_from_csv, extract_drug_list_from_csv, 
-    extract_resistance_mechanisms_from_csv, get_consistent_color_for_drug
+    extract_resistance_mechanisms_from_csv, get_consistent_color_for_drug,
+    normalize_policy_identifier_list, coerce_policy_identifier,
 )
 
 # Plotting modules
@@ -55,6 +56,26 @@ def create_all_plots(config=None):
     
     # Preprocess data (adds time_in_years and other derived columns)
     df = data_cache.get_preprocessed_data(plot_config=config)
+
+    requested_policies = normalize_policy_identifier_list(getattr(config, 'policies_to_plot', None))
+    if requested_policies is not None and 'policy_option' in df.columns:
+        policy_set = set(requested_policies)
+        numeric_policy_series = df['policy_option'].apply(coerce_policy_identifier)
+        mask = numeric_policy_series.isin(policy_set)
+
+        if not mask.any():
+            raise RuntimeError(
+                "Requested policies_to_plot do not exist in the dataset. "
+                f"Requested: {sorted(policy_set)}"
+            )
+
+        original_rows = len(df)
+        df = df.loc[mask].reset_index(drop=True)
+        dropped = original_rows - len(df)
+        print(
+            "Filtered simulation data to policies "
+            f"{sorted(policy_set)} (dropped {dropped} rows)."
+        )
     
     if df is None:
         raise RuntimeError("Failed to preprocess simulation data.")

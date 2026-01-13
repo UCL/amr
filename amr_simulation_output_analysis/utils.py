@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import logging
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict, Any, Iterable
 from functools import wraps
 
 def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> logging.Logger:
@@ -62,6 +62,52 @@ def safe_divide(numerator: Union[np.ndarray, pd.Series, float],
         np.divide(numerator_arr, denominator_arr, out=result, where=denominator_arr != 0)
 
     return result
+
+def coerce_policy_identifier(policy_value: Any) -> Optional[int]:
+    """Attempt to convert a policy identifier (int/float/str) into an integer label."""
+    if policy_value is None:
+        return None
+
+    if isinstance(policy_value, (int, np.integer)):
+        return int(policy_value)
+
+    try:
+        numeric = int(float(policy_value))
+        return numeric
+    except (ValueError, TypeError):
+        pass
+
+    policy_str = str(policy_value).lower()
+    digits = ''.join(ch for ch in policy_str if ch.isdigit() or ch == '-')
+    if digits not in ('', '-'):
+        try:
+            return int(digits)
+        except ValueError:
+            return None
+
+    return None
+
+def normalize_policy_identifier_list(policy_values: Optional[Union[int, float, str, Iterable[Any]]]) -> Optional[List[int]]:
+    """Normalize a user-provided list (or scalar) of policy identifiers into distinct ints."""
+    if policy_values is None:
+        return None
+
+    if isinstance(policy_values, (int, float, str)):
+        iterable: Iterable[Any] = [policy_values]
+    else:
+        try:
+            iterable = list(policy_values)
+        except TypeError:
+            iterable = [policy_values]
+
+    normalized: List[int] = []
+    for value in iterable:
+        numeric = coerce_policy_identifier(value)
+        if numeric is None or numeric in normalized:
+            continue
+        normalized.append(numeric)
+
+    return normalized or None
 
 def validate_dataframe(df: pd.DataFrame, required_columns: List[str] = None) -> bool:
     """

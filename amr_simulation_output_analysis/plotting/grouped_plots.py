@@ -14,7 +14,7 @@ from matplotlib.lines import Line2D
 from pathlib import Path
 
 # Import from the modular system
-from ..utils import safe_divide, setup_logging
+from ..utils import safe_divide, setup_logging, normalize_policy_identifier_list, coerce_policy_identifier
 from ..config import PlotConfig
 
 def create_grouped_plots(df, config=None):
@@ -87,50 +87,36 @@ def create_grouped_plots(df, config=None):
         1: ':',  # Policy 1 as dotted
         2: '--',  # Policy 2 as dashed
     }
-    POLICIES_TO_PLOT = [0, 1, 2]
+    raw_policy_setting = getattr(config, 'policies_to_plot', None)
+    normalized_policy_setting = normalize_policy_identifier_list(raw_policy_setting)
+    allow_extra_policies = normalized_policy_setting is None
+    POLICIES_TO_PLOT = normalized_policy_setting or [0, 1, 2]
 
     def _policy_linestyle(policy_value):
         """Resolve requested linestyle for a policy identifier."""
         if policy_value is None:
             return '-'
 
-        # Try to coerce numeric-looking entries (ints, floats, strings)
-        try:
-            numeric = int(float(policy_value))
-            if numeric in POLICY_LINESTYLES:
-                return POLICY_LINESTYLES[numeric]
-        except (ValueError, TypeError):
-            numeric = None
-
-        # Handle labels like "policy_1" or "PolicyOne" by extracting trailing digits
-        policy_str = str(policy_value).lower()
-        digits = ''.join(ch for ch in policy_str if ch.isdigit())
-        if digits:
-            try:
-                extracted = int(digits)
-                if extracted in POLICY_LINESTYLES:
-                    return POLICY_LINESTYLES[extracted]
-            except ValueError:
-                pass
-
+        numeric = coerce_policy_identifier(policy_value)
+        if numeric in POLICY_LINESTYLES:
+            return POLICY_LINESTYLES[numeric]
         return '-'
 
     def _policy_sort_key(policy_value):
         """Ensure consistent ordering: policy 0, then 1, then 2, then others."""
-        try:
-            numeric = int(float(policy_value))
-        except (ValueError, TypeError):
+        numeric = coerce_policy_identifier(policy_value)
+        if numeric is None:
             return (3, str(policy_value))
         order_bucket = {0: 0, 1: 1, 2: 2}.get(numeric, 3)
         return (order_bucket, numeric)
 
     def _policy_label(policy_value):
+        numeric = coerce_policy_identifier(policy_value)
+        if numeric is not None:
+            return f"Policy {numeric}"
         if policy_value is None or (isinstance(policy_value, float) and np.isnan(policy_value)):
             return 'Policy ?'
-        try:
-            return f"Policy {int(float(policy_value))}"
-        except (ValueError, TypeError):
-            return str(policy_value)
+        return str(policy_value)
 
     def plot_segmented_series(
         ax,
@@ -161,11 +147,12 @@ def create_grouped_plots(df, config=None):
                 if policy_value in available_policies:
                     groups.append((policy_value, df[df['policy_option'] == policy_value]))
 
-            extra_policies = [
-                value for value in available_policies if value not in POLICIES_TO_PLOT
-            ]
-            for policy_value in sorted(extra_policies, key=_policy_sort_key):
-                groups.append((policy_value, df[df['policy_option'] == policy_value]))
+            if allow_extra_policies:
+                extra_policies = [
+                    value for value in available_policies if value not in POLICIES_TO_PLOT
+                ]
+                for policy_value in sorted(extra_policies, key=_policy_sort_key):
+                    groups.append((policy_value, df[df['policy_option'] == policy_value]))
 
             if not groups:
                 groups = [(None, df)]
@@ -218,10 +205,31 @@ def create_grouped_plots(df, config=None):
         return plotted
 
     def sum_rows(column_list):
-        """Row-wise sum that preserves NaN for all-NaN rows."""
+        """Row-wise sum that avoids building enormous intermediate frames."""
         if not column_list:
             return pd.Series(np.nan, index=df.index)
-        return df[column_list].sum(axis=1, min_count=1)
+
+        valid_columns = [col for col in column_list if col in df.columns]
+        if not valid_columns:
+            return pd.Series(np.nan, index=df.index)
+
+        SMALL_BATCH_THRESHOLD = 256
+        if len(valid_columns) <= SMALL_BATCH_THRESHOLD:
+            return df[valid_columns].sum(axis=1, min_count=1)
+
+        chunk_size = SMALL_BATCH_THRESHOLD
+        running_total = pd.Series(0.0, index=df.index)
+        valid_mask = pd.Series(False, index=df.index)
+
+        for start in range(0, len(valid_columns), chunk_size):
+            chunk_cols = valid_columns[start:start + chunk_size]
+            chunk_sum = df[chunk_cols].sum(axis=1, min_count=1)
+            current_mask = chunk_sum.notna()
+            valid_mask = valid_mask | current_mask
+            running_total = running_total.add(chunk_sum.fillna(0), fill_value=0)
+
+        running_total.loc[~valid_mask] = np.nan
+        return running_total
 
     # Generate figures based on individual configuration settings
     if config.grouped_plots:
