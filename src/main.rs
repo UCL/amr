@@ -34,6 +34,16 @@ mod simulation;
 // with calibration targets just through the resistance mechanisms - but also continue to consider if 
 // drug selection algorithm is ok
 //
+// need to add other anaerobes ? and legionella ?  tick-borne bacteria ?
+//
+// any_r is always moving rapidly to 1
+//
+// check on mapping of bacteria to syndrome
+//
+// add mechanisms L1/L2 β-lactamases, sme efflux pumps (at least for Stenotrophomonas maltophilia) ? 
+//
+// should we have a more gradual drop in incidence of infections, continuing beyond the 2000s ?
+//
 //  ? need plot of drug usage over time ?
 //
 // should the population majority_r be based on infections where spread is more likely ? such as

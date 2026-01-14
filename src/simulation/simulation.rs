@@ -4593,16 +4593,17 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
-            for value in &summary.any_r_sum_by_bacteria_drug_hospital {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
             for value in &summary.infected_with_any_r_positive_by_bacteria_drug {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
 
             for value in &summary.mic_sum_by_bacteria_drug {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+
+            for value in &summary.any_r_sum_by_bacteria_drug_hospital {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

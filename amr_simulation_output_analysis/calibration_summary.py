@@ -596,13 +596,15 @@ def _extract_bacteria_and_drugs(df: pd.DataFrame) -> Tuple[set[str], set[str]]:
 def _compute_resistance_stats(
     frame: pd.DataFrame,
     infected_col: str,
-    sum_any_col: str,
+    positive_count_col: str,
 ) -> Optional[Tuple[float, float]]:
-    if frame.empty or infected_col not in frame or sum_any_col not in frame:
+    required = {infected_col, positive_count_col}
+    if frame.empty or any(col not in frame for col in required):
         return None
 
-    infected_series = frame[infected_col]
-    sum_any_series = frame[sum_any_col]
+    infected_series = frame[infected_col].astype(float)
+    positive_series = frame[positive_count_col].astype(float)
+
     mask = infected_series > 0
     if not mask.any():
         return (np.nan, 0.0)
@@ -611,9 +613,9 @@ def _compute_resistance_stats(
     if total_infected <= 0:
         return (np.nan, 0.0)
 
-    total_any_r = float(sum_any_series[mask].sum())
-    mean_resistance = total_any_r / total_infected
-    percent = float(mean_resistance * 100.0)
+    total_positive = float(positive_series[mask].sum())
+    prevalence = total_positive / total_infected
+    percent = float(np.clip(prevalence, 0.0, 1.0) * 100.0)
     return (percent, total_infected)
 
 
@@ -807,7 +809,9 @@ def _calculate_resistance_table(
         microbiome_positive_col = f"{b_slug}_microbiome_r_positive_{d_slug}"
         presence_col = f"{b_slug}_presence_microbiome"
 
-        if infected_col not in year_df.columns or sum_any_r_col not in year_df.columns:
+        required_cols = [infected_col, sum_any_r_col, positive_col]
+        missing_cols = [col for col in required_cols if col not in year_df.columns]
+        if missing_cols:
             note_parts.append("not modelled in simulation")
             records.append({
                 "Bacteria": bacteria_name,
@@ -868,7 +872,7 @@ def _calculate_resistance_table(
             prevalence_used_expanded,
             _,
         ) = compute_with_fallback(
-            lambda frame: _compute_resistance_stats(frame, infected_col, sum_any_r_col)
+            lambda frame: _compute_resistance_stats(frame, infected_col, positive_col)
         )
 
         average_simulation = np.nan
@@ -1753,12 +1757,20 @@ def _build_mean_abs_gap_tables(
             return table
 
         mean_value = table["Mean |Δ| (pp)"].astype(float).mean(skipna=True)
-        mean_row = {
-            table.columns[0]: label,
-            "Mean |Δ| (pp)": round(float(mean_value), 2),
-            count_label: pd.NA,
-        }
-        return pd.concat([table, pd.DataFrame([mean_row])], ignore_index=True)
+        new_row = {}
+        for col in table.columns:
+            if col == table.columns[0]:
+                new_row[col] = label
+            elif col == "Mean |Δ| (pp)":
+                new_row[col] = round(float(mean_value), 2)
+            elif col == count_label:
+                new_row[col] = pd.NA
+            else:
+                new_row[col] = pd.NA
+
+        result = table.copy()
+        result.loc[len(result)] = new_row
+        return result
 
     bacteria_table = _format_table("Bacteria", "Combinations counted")
     bacteria_table = _append_mean_row(bacteria_table, "Mean across bacteria", "Combinations counted")
@@ -1834,7 +1846,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_529260.txt"
+    output_path = output_dir / "calibration_summary_545309.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
