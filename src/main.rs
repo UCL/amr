@@ -30,32 +30,22 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// need to look at specific drug x bacteria and see if it is feasible to align
-// with calibration targets just through the resistance mechanisms - but also continue to consider if 
-// drug selection algorithm is ok
+// concentrate on some calibration to historic patterns of drug use 
+// ? need plot of drug usage over time ?
+// continue to consider if drug selection algorithm is ok
 //
-// need to add other anaerobes ? and legionella ?  tick-borne bacteria ?
-//
-// any_r is always moving rapidly to 1
-//
+// remember calibration to any_r level
+// 
 // check on mapping of bacteria to syndrome
 //
-// add mechanisms L1/L2 β-lactamases, sme efflux pumps (at least for Stenotrophomonas maltophilia) ? 
-//
 // should we have a more gradual drop in incidence of infections, continuing beyond the 2000s ?
-//
-//  ? need plot of drug usage over time ?
 //
 // should the population majority_r be based on infections where spread is more likely ? such as
 // respiratory infections rather than some other infection sites ?
 //
-// need a general drug selection algorithm per syndrome and calendar year and then one once bacteria / resistance known
-//
-// maybe have a separate population majority_r value for environment so those infected from environment sample from this
-// value - would have to think about how best to inform this and might have to be directly specified by time and region -
-// or maybe continue to use the pop majority r for environment infections but just to have this only for
-// drugs which have been introduced in animals by this date (directly specified) and perhaps with a multiplier with higher
-// resistance levels for drugs that have been introduced in animals ?
+// continue to use the pop majority r for environment infections but have this only for
+// drugs which have been introduced in animals by this date (directly specified) and perhaps with a 
+// multiplier with higher resistance levels for drugs that have been introduced in animals ?
 //
 // what about hgt in the environment ? would need to directly take this into account ? can this mean that bacteria from
 // animals never exposed to a drug can get resistance to newer drugs never used in animals to that point ?
@@ -64,15 +54,15 @@ mod simulation;
 //
 // should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
 //
-// model low level "treatment" resulting from antimicrobials in the environment ?
-//
 // vary time to symptom onset by bacteria ?
 //
-//
+// need to add other anaerobes ? bacteroides fragilis 
+// ? add mycoplasma genitalium, providencia stuartii ?
 //
 //
 // consider for future iterations:
 //
+// model low level "treatment" resulting from antimicrobials in the environment ?
 // consider having incidence of infection rising in situations if they occur in future in which infections cannot be treated
 // reduced bacterial growth rates for resistant strains ?
 // competition between sensitive and resistant strains in microbiome ?
@@ -84,14 +74,15 @@ mod simulation;
 // biofilm resistance - reduced drug effectiveness in chronic infections ?
 // use gbd super regions instead of continents ?
 // need to add fidaxomicin as a drug ?
+// add mechanisms L1/L2 β-lactamases, sme efflux pumps (at least for Stenotrophomonas maltophilia) ? 
 // bear in mind that strep pneu for example has a vaccine against it but this has resulted in growth of non-vaccine-covered serotypes
 // we may still decide we need to model drug-specific drug levels but not clear how we would get data
 // consider whether infection from the environment should also depend on concurrent majority_r - or do we need
 // to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ?
 // (maybe someone can do this in a future interation.....)
-//
-//
-//
+// add legionella ?  tick-borne bacteria ? 
+// remember that we model use of antibiotics when no modelled bacteria present so 
+// in some ways this takes care of bacteria not modelled 
 //
 //
 //

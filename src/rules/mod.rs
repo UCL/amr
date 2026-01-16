@@ -4545,12 +4545,10 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (6, 0.02),
         ],
         "streptococcus_pneumoniae" => &[
-            (3, 0.70),
-            (6, 0.15),
+            (3, 0.74),
+            (6, 0.16),
             (4, 0.08),
-            (1, 0.04),
-            (2, 0.02),
-            (10, 0.01),
+            (10, 0.02),
         ],
         "streptococcus_pyogenes" => &[
             (2, 0.50),
@@ -4681,26 +4679,24 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         }
         "shigella_spp." => &[(7, 0.95), (4, 0.03), (5, 0.01), (10, 0.01)],
         "vibrio_cholerae" => &[(7, 0.98), (5, 0.01), (10, 0.01)],
-        "campylobacter_jejuni" => &[(7, 0.70), (9, 0.15), (4, 0.08), (5, 0.05), (3, 0.02)],
-        "yersinia_enterocolitica" => &[(7, 0.75), (5, 0.15), (4, 0.05), (9, 0.03), (3, 0.02)],
-        "clostridioides_difficile" => &[(7, 0.90), (5, 0.08), (4, 0.01), (10, 0.01)],
+        "campylobacter_jejuni" => &[(7, 0.80), (4, 0.08), (5, 0.07), (3, 0.03), (10, 0.02)],
+        "yersinia_enterocolitica" => &[(7, 0.80), (5, 0.12), (4, 0.04), (3, 0.02), (10, 0.02)],
+        "clostridioides_difficile" => &[(7, 0.92), (5, 0.07), (10, 0.01)],
 
         // Sexually transmitted pathogens
-        "neisseria_gonorrhoeae" => &[(8, 0.85), (1, 0.10), (5, 0.03), (4, 0.01), (10, 0.01)],
-        "chlamydia_trachomatis" => &[(8, 0.70), (1, 0.20), (5, 0.05), (6, 0.03), (10, 0.02)],
-        "treponema_pallidum" => &[(8, 0.60), (2, 0.20), (6, 0.10), (4, 0.05), (10, 0.05)],
+        "neisseria_gonorrhoeae" => &[(8, 0.85), (5, 0.08), (4, 0.03), (10, 0.04)],
+        "chlamydia_trachomatis" => &[(8, 0.80), (5, 0.10), (4, 0.05), (10, 0.05)],
+        "treponema_pallidum" => &[(8, 0.55), (4, 0.15), (6, 0.15), (5, 0.05), (10, 0.10)],
 
         // Respiratory pathogens
         "haemophilus_influenzae" => &[
-            (3, 0.70),
+            (3, 0.75),
             (6, 0.15),
-            (4, 0.08),
-            (1, 0.04),
-            (2, 0.02),
-            (10, 0.01),
+            (4, 0.07),
+            (10, 0.03),
         ],
-        "moraxella_catarrhalis" => &[(3, 0.85), (4, 0.08), (1, 0.04), (2, 0.02), (10, 0.01)],
-        "neisseria_meningitidis" => &[(6, 0.60), (4, 0.25), (3, 0.10), (2, 0.03), (1, 0.02)],
+        "moraxella_catarrhalis" => &[(3, 0.90), (4, 0.07), (10, 0.03)],
+        "neisseria_meningitidis" => &[(6, 0.65), (4, 0.25), (3, 0.08), (10, 0.02)],
         "bordetella_pertussis" => &[(3, 0.95), (6, 0.03), (4, 0.01), (10, 0.01)], // Primarily respiratory (whooping cough)
 
         // Gastrointestinal pathogens
