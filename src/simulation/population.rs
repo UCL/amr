@@ -68,6 +68,60 @@ impl ResistanceMechanism {
     }
 }
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BacteriaGroup {
+    GramPositive,
+    Enterobacterales,
+    NonFermenter,
+    EntericPathogen,
+    Fastidious,
+    Anaerobe,
+    Spirochete,
+    Helicobacter,
+    Mycobacteria,
+}
+
+const ALL_BACTERIA_GROUPS: [BacteriaGroup; 9] = [
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::NonFermenter,
+    BacteriaGroup::EntericPathogen,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::Anaerobe,
+    BacteriaGroup::Spirochete,
+    BacteriaGroup::Helicobacter,
+    BacteriaGroup::Mycobacteria,
+];
+
+impl BacteriaGroup {
+    pub const fn all() -> &'static [BacteriaGroup] {
+        &ALL_BACTERIA_GROUPS
+    }
+
+    #[inline]
+    pub const fn bit(self) -> u32 {
+        1u32 << (self as u8)
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CarriageCompartment {
+    Gut,
+    Respiratory,
+    SkinSoftTissue,
+    Genitourinary,
+    Systemic,
+}
+
+impl CarriageCompartment {
+    #[inline]
+    pub const fn bit(self) -> u32 {
+        1u32 << (self as u8)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResistanceAcquisitionType {
     AtInfectionCommunity,
@@ -262,7 +316,7 @@ impl ImmunodeficiencyType {
 /// - Population-level ecosystem effects
 ///
 /// **Usage:** Simply add/remove bacteria names, recompile, and run!
-pub const BACTERIA_LIST: &[&str] = &[
+pub const BACTERIA_LIST: [&str; 36] = [
     "acinetobacter_baumannii",
     "citrobacter_spp.",
     "enterobacter_spp.",
@@ -300,6 +354,131 @@ pub const BACTERIA_LIST: &[&str] = &[
     "helicobacter_pylori",
     "mdr_mycobacterium_tuberculosis",
 ];
+
+pub const BACTERIA_COUNT: usize = BACTERIA_LIST.len();
+
+pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
+    BacteriaGroup::NonFermenter,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::NonFermenter,
+    BacteriaGroup::NonFermenter,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::EntericPathogen,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::GramPositive,
+    BacteriaGroup::Anaerobe,
+    BacteriaGroup::EntericPathogen,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::Spirochete,
+    BacteriaGroup::Fastidious,
+    BacteriaGroup::Helicobacter,
+    BacteriaGroup::Mycobacteria,
+];
+
+pub const BACTERIA_CARRIAGE_COMPARTMENTS: [CarriageCompartment; BACTERIA_COUNT] = [
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::SkinSoftTissue,
+    CarriageCompartment::SkinSoftTissue,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Genitourinary,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Genitourinary,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Genitourinary,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Genitourinary,
+    CarriageCompartment::Respiratory,
+    CarriageCompartment::Gut,
+    CarriageCompartment::Respiratory,
+];
+
+#[inline]
+pub fn bacteria_group_mask(bacteria_idx: usize) -> u32 {
+    BACTERIA_GROUPS
+        .get(bacteria_idx)
+        .copied()
+        .map(|group| group.bit())
+        .unwrap_or(0)
+}
+
+#[inline]
+pub fn carriage_compartment_mask(bacteria_idx: usize) -> u32 {
+    BACTERIA_CARRIAGE_COMPARTMENTS
+        .get(bacteria_idx)
+        .copied()
+        .map(|compartment| compartment.bit())
+        .unwrap_or(0)
+}
+
+fn mask_for_groups(groups: &[BacteriaGroup]) -> u32 {
+    groups
+        .iter()
+        .fold(0u32, |mask, group| mask | group.bit())
+}
+
+pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
+    use ResistanceMechanism::*;
+
+    match mechanism {
+        ESBL | Carbapenemase | AmpC => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::NonFermenter,
+            BacteriaGroup::EntericPathogen,
+        ]),
+        SixteenSMethyltransferase | Qnr => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::NonFermenter,
+            BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Fastidious,
+        ]),
+        EffluxOverexpression | ReducedPermeability | TargetSiteMutation =>
+            mask_for_groups(BacteriaGroup::all()),
+        ErmMethylation | VanType | MecA => mask_for_groups(&[BacteriaGroup::GramPositive]),
+    }
+}
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[
     "sulfanilamide",

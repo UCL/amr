@@ -3,13 +3,20 @@ We are developing a stochastic individual-based model for anti-bacterial resista
 
 Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 30 bacteria (matching the GBD AMR set) and 42 antibiotics, but both lists can grow without changing core data structures.
 
-Resistance tracking relies on five per-bacteria/drug metrics defined in [src/simulation/population.rs#L410-L442](src/simulation/population.rs#L410-L442):
+Resistance tracking relies on five per-bacteria/drug metrics defined in [src/simulation/population.rs#L589-L612](src/simulation/population.rs#L589-L612):
 
 - `any_r`: fractional resistance in the infection at all (0 = completely susceptible). The value copies from the source case at transmission or emerges through mutation, and reaches 1.0 when the drug has no effect.
 - `majority_r`: identical to `any_r` but only recorded when resistant strains are the majority of the infection.
 - `activity_r`: current killing power of the drug given its intrinsic potency, resistance level, and current drug concentration.
 - `test_r`: resistance level last confirmed by diagnostic testing.
 - `microbiome_r`: resistance carried in the microbiome rather than the active infection.
+
+### Bacteria taxonomy & carriage sites
+Every bacteria listed in [`BACTERIA_LIST`](src/simulation/population.rs#L300-L357) now carries lightweight metadata that the rules engine can query without scanning strings:
+
+- `BacteriaGroup` enumerations in [src/simulation/population.rs#L73-L128](src/simulation/population.rs#L73-L128) tag each organism as Gram-positive, Enterobacterales, non-fermenter, etc. The per-pathogen assignments live in [src/simulation/population.rs#L359-L397](src/simulation/population.rs#L359-L397) where they are flattened for fast lookup.
+- `CarriageCompartment` enumerations in [src/simulation/population.rs#L109-L123](src/simulation/population.rs#L109-L123) capture whether a bacteria’s default reservoir is gut, respiratory, skin/soft tissue, genitourinary, or systemic, with per-bacteria assignments recorded in [src/simulation/population.rs#L398-L430](src/simulation/population.rs#L398-L430).
+- Helper functions [src/simulation/population.rs#L439-L455](src/simulation/population.rs#L439-L455) convert those enumerations into bit masks. The `rules` module uses those masks to restrict resistance mechanism eligibility, require shared compartments before horizontal gene transfer (HGT), and compute empiric scoring heuristics.
 
 The level of any antibiotic is kept on a standardized 0–10 scale per day of standard dosing (double doses reach 20). Drug levels decay after cessation, but residual levels continue to influence `activity_r`. Testing variables capture whether the causative bacteria has been identified and whether resistance testing was performed. Exposure multipliers (sexual, airborne adult/child, oral, mosquito) combine with age and region to set acquisition risks; when acquisition is person-to-person the new infection inherits `any_r` from a sampled source in the same region.
 
@@ -150,9 +157,9 @@ All parameter sets originate from `ParameterStore` in [src/config.rs#L108-L173](
 | RegionBacteriaAcquisition | [src/config.rs#L1700-L1755](src/config.rs#L1700-L1755) | Region-specific acquisition log-odds for each bacteria, allowing local epidemiology or healthcare settings to differ. | `asia_klebsiella_pneumoniae_acquisition_log_odds` raises or lowers Asian exposure independent of other regions. |
 | AgeTables | [src/config.rs#L1756-L1829](src/config.rs#L1756-L1829) | Pre-computed age log-odds tables used when detailed multipliers are required for reporting or defaults. | `default_log_odds_adult` supplies fallback risk when bacteria-specific data is missing. |
 | AgeCategoryParameters | [src/config.rs#L1831-L1933](src/config.rs#L1831-L1933) | Combined bacteria, region, and age log-odds that drive acquisition, enabling fine-grained age-structured risks. | `streptococcus_pneumoniae_log_odds_child` modifies odds for children; `asia_log_odds_elderly` adjusts regional age effects. |
-| HgtMatrix | [src/config.rs#L1940-L1990](src/config.rs#L1940-L1990) | Horizontal gene transfer probabilities from donor to recipient bacteria, feeding microbiome-driven resistance acquisition. | `hgt_prob_klebsiella_pneumoniae_to_escherichia_coli` sets how likely resistance moves across species. |
-| ResistanceMechanismParameters | [src/config.rs#L1992-L2038](src/config.rs#L1992-L2038) | Global emergence, enhancement, and reversion rates for each enumerated mechanism (e.g., ESBL, carbapenemase). | `resistance_mechanism_esbl_emergence_rate` tunes how often the mechanism activates; `_reversion_rate` governs loss when pressure lifts. |
-| BacteriaMechanismEmergenceMultipliers | [src/config.rs#L2040-L2085](src/config.rs#L2040-L2085) | Bacteria-specific multipliers applied on top of global mechanism rates, capturing organism-level propensities. | `bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier` increases ESBL emergence relative to baseline. |
+| HgtMatrix | [src/config.rs#L1972-L2074](src/config.rs#L1972-L2074) | Horizontal gene transfer probabilities from donor to recipient bacteria, with defaults derived from group-based compatibility and plasmid pools. | Override `hgt_prob_*` keys (seeded by `default_hgt_probability`) to deviate from the Gram-positive/Enteric/Respiratory baseline. |
+| ResistanceMechanismParameters | [src/config.rs#L2077-L2129](src/config.rs#L2077-L2129) | Global emergence, enhancement, and reversion rates for each enumerated mechanism (e.g., ESBL, carbapenemase). | `resistance_mechanism_esbl_emergence_rate` tunes how often the mechanism activates; `_reversion_rate` governs loss when pressure lifts. |
+| BacteriaMechanismEmergenceMultipliers | [src/config.rs#L2132-L2166](src/config.rs#L2132-L2166) | Bacteria-specific multipliers applied on top of global mechanism rates, capturing organism-level propensities. | `bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier` increases ESBL emergence relative to baseline. |
 
 The parameter system is extensible: new bacteria, drugs, or mechanisms become available simply by extending the relevant lists in [src/simulation/population.rs](src/simulation/population.rs) and adding keyed entries to the configuration map.
 
@@ -344,6 +351,14 @@ Derived from [src/config.rs#L174-L739](src/config.rs#L174-L739). Values affect e
 | `majority_r_min_total_samples` | Minimum number of samples required before majority statistics are stable. |
 | `majority_r_freeze_at_last_positive` | If true, freezes the majority metric once resistance is last observed during the window. |
 
+#### Horizontal gene transfer context multipliers
+| Parameter | Description |
+| --- | --- |
+| `hgt_hospital_multiplier` | Multiplier applied inside [`hgt_context_multiplier`](src/rules/mod.rs#L316-L341) when either participant is hospitalized, reflecting higher plasmid exchange risk in acute-care environments. |
+| `hgt_antibiotic_pressure_multiplier` | Boost applied when any antibiotic is active in the host, modeling selective pressure that favors plasmid uptake. |
+| `hgt_coinfection_multiplier` | Additional multiplier when both donor and recipient have active infections, mirroring higher DNA release and uptake during symptomatic disease. |
+| `hgt_microbiome_only_penalty` | Penalty applied when the transfer attempt is purely microbiome-to-microbiome (no infections on either side), preventing unrealistic amplification outside infections. |
+
 ### ImmunodeficiencyParameters
 
 Defined in [src/config.rs#L770-L833](src/config.rs#L770-L833). All values are per-day hazards or age-stratified probabilities.
@@ -431,6 +446,7 @@ Defined in [src/config.rs#L1196-L1505](src/config.rs#L1196-L1505) for each bacte
 | `symptom_onset_threshold_level` | Bacteria level required before symptoms can occur. |
 | `symptom_onset_delay_days` | Delay after infection before symptoms may appear. |
 | `symptom_onset_level_multiplier` | Multiplier to the bacteria level when symptoms start. |
+| `mechanismless_resistance_reversion_rate` | Daily probability that residual resistance without an active mechanism collapses once drug pressure stops. |
 | `microbiome_vs_infection_log_odds` | Log-odds of an exposure resulting in microbiome carriage instead of infection. |
 | `drug_cessation_probability` | Override for cessation hazard specific to this pathogen. |
 | `treatment_recognition_year` | Optional year when targeted therapy becomes routinely recognized. |
@@ -497,12 +513,18 @@ Defined in [src/config.rs#L1831-L1933](src/config.rs#L1831-L1933).
 
 ### HgtMatrix
 
-Defined in [src/config.rs#L1952-L1982](src/config.rs#L1952-L1982).
+Defined in [src/config.rs#L1972-L2074](src/config.rs#L1972-L2074).
 
 | Parameter | Description |
 | --- | --- |
 | `values` | Flattened donor × recipient probability matrix for horizontal gene transfer. |
 | `num_bacteria` | Dimension used for indexing into `values`. |
+
+`ParameterStore::builder()` seeds every `hgt_prob_*` key using [`default_hgt_probability`](src/config.rs#L2033-L2074), which groups bacteria into plasmid-compatibility pools and applies realistic structural exclusions ([src/config.rs#L4353-L4369](src/config.rs#L4353-L4369)). Gram-positive, enteric gram-negative, respiratory gram-negative, and anaerobe pools receive different default magnitudes, while spirochetes, *Helicobacter*, and *Mycobacterium* never donate or receive.
+
+At runtime, HGT only triggers when the donor and recipient occupy at least one shared carriage compartment. That check leverages [`bacteria_presence_compartment_mask`](src/rules/mod.rs#L286-L343), which combines the static compartment metadata from [src/simulation/population.rs#L398-L455](src/simulation/population.rs#L398-L455) with per-person infection and microbiome state. The main HGT loop in [src/rules/mod.rs#L4335-L4415](src/rules/mod.rs#L4335-L4415) enforces this overlap before sampling transfers.
+
+Environmental context further scales the transfer probability through [`hgt_context_multiplier`](src/rules/mod.rs#L316-L341): hospitalization, concurrent antibiotic pressure, and donor/recipient co-infections boost the chance via the new global scalars documented below, whereas microbiome-only interactions incur a penalty. This keeps plasmid exchange concentrated in plausible clinical settings while still allowing overrides through the configuration surface.
 
 ### ResistanceMechanismParameters
 

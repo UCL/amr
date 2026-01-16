@@ -40,8 +40,8 @@
 
 // src/config.rs
 use crate::simulation::population::{
-    AgeCategory, Region, ResistanceMechanism, AGE_CATEGORY_SEQUENCE, BACTERIA_LIST,
-    DRUG_SHORT_NAMES,
+    AgeCategory, BacteriaGroup, Region, ResistanceMechanism, AGE_CATEGORY_SEQUENCE,
+    BACTERIA_GROUPS, BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 use lazy_static::lazy_static;
 use std::borrow::Cow;
@@ -280,6 +280,10 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
+    pub hgt_hospital_multiplier: f64,
+    pub hgt_antibiotic_pressure_multiplier: f64,
+    pub hgt_coinfection_multiplier: f64,
+    pub hgt_microbiome_only_penalty: f64,
     #[allow(dead_code)]
     pub majority_r_memory_retention_per_day: f64,
     pub microbiome_majority_decay_half_life_days: f64,
@@ -727,6 +731,22 @@ impl GlobalScalars {
                 map,
                 "carrier_resistance_inheritance_probability",
                 0.32,
+            ),
+            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),
+            hgt_antibiotic_pressure_multiplier: get_or_default(
+                map,
+                "hgt_antibiotic_pressure_multiplier",
+                1.5,
+            ),
+            hgt_coinfection_multiplier: get_or_default(
+                map,
+                "hgt_coinfection_multiplier",
+                1.25,
+            ),
+            hgt_microbiome_only_penalty: get_or_default(
+                map,
+                "hgt_microbiome_only_penalty",
+                0.65,
             ),
             majority_r_memory_retention_per_day: get_or_default(
                 map,
@@ -1266,6 +1286,7 @@ pub struct BacteriaParameters {
     pub symptom_onset_threshold_level: Vec<f64>,
     pub symptom_onset_delay_days: Vec<f64>,
     pub symptom_onset_level_multiplier: Vec<f64>,
+    pub mechanismless_resistance_reversion_rate: Vec<f64>,
     pub microbiome_vs_infection_log_odds: Vec<f64>,
     pub drug_cessation_probability: Vec<f64>,
     pub treatment_recognition_year: Vec<Option<f64>>,
@@ -1290,6 +1311,7 @@ impl BacteriaParameters {
         let mut symptom_onset_threshold_level = Vec::with_capacity(num_bacteria);
         let mut symptom_onset_delay_days = Vec::with_capacity(num_bacteria);
         let mut symptom_onset_level_multiplier = Vec::with_capacity(num_bacteria);
+        let mut mechanismless_resistance_reversion_rate = Vec::with_capacity(num_bacteria);
         let mut microbiome_vs_infection_log_odds = Vec::with_capacity(num_bacteria);
         let mut drug_cessation_probability = Vec::with_capacity(num_bacteria);
         let mut treatment_recognition_year = Vec::with_capacity(num_bacteria);
@@ -1365,6 +1387,15 @@ impl BacteriaParameters {
                 &format!("{}_symptom_onset_level_multiplier", prefix),
                 1.0,
             ));
+            mechanismless_resistance_reversion_rate.push(get_or_default(
+                map,
+                &format!("{}_mechanismless_resistance_reversion_rate", prefix),
+                get_or_default(
+                    map,
+                    "mechanismless_resistance_reversion_rate",
+                    0.0004,
+                ),
+            ));
             microbiome_vs_infection_log_odds.push(get_or_default(
                 map,
                 &format!("{}_log_odds_microbiome_vs_infection", prefix),
@@ -1411,6 +1442,7 @@ impl BacteriaParameters {
             symptom_onset_threshold_level,
             symptom_onset_delay_days,
             symptom_onset_level_multiplier,
+            mechanismless_resistance_reversion_rate,
             microbiome_vs_infection_log_odds,
             drug_cessation_probability,
             treatment_recognition_year,
@@ -1485,6 +1517,11 @@ impl BacteriaParameters {
     #[inline]
     pub fn symptom_onset_threshold_level(&self, bacteria_idx: usize) -> f64 {
         self.symptom_onset_threshold_level[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn mechanismless_resistance_reversion_rate(&self, bacteria_idx: usize) -> f64 {
+        self.mechanismless_resistance_reversion_rate[bacteria_idx]
     }
 
     #[inline]
@@ -1977,6 +2014,80 @@ impl HgtMatrix {
     #[inline]
     pub fn probability(&self, donor_idx: usize, recipient_idx: usize) -> f64 {
         self.values[donor_idx * self.num_bacteria + recipient_idx]
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlasmidPool {
+    None,
+    GramPositive,
+    EntericGramNegative,
+    RespiratoryGramNegative,
+    Anaerobe,
+}
+
+fn group_has_structural_hgt_exclusion(group: BacteriaGroup) -> bool {
+    matches!(
+        group,
+        BacteriaGroup::Spirochete | BacteriaGroup::Helicobacter | BacteriaGroup::Mycobacteria
+    )
+}
+
+fn pool_for_group(group: BacteriaGroup) -> PlasmidPool {
+    match group {
+        BacteriaGroup::GramPositive => PlasmidPool::GramPositive,
+        BacteriaGroup::Enterobacterales
+        | BacteriaGroup::NonFermenter
+        | BacteriaGroup::EntericPathogen => PlasmidPool::EntericGramNegative,
+        BacteriaGroup::Fastidious => PlasmidPool::RespiratoryGramNegative,
+        BacteriaGroup::Anaerobe => PlasmidPool::Anaerobe,
+        BacteriaGroup::Spirochete | BacteriaGroup::Helicobacter | BacteriaGroup::Mycobacteria => {
+            PlasmidPool::None
+        }
+    }
+}
+
+fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
+    let donor_group = BACTERIA_GROUPS
+        .get(donor_idx)
+        .copied()
+        .unwrap_or(BacteriaGroup::Enterobacterales);
+    let recipient_group = BACTERIA_GROUPS
+        .get(recipient_idx)
+        .copied()
+        .unwrap_or(BacteriaGroup::Enterobacterales);
+
+    if group_has_structural_hgt_exclusion(donor_group)
+        || group_has_structural_hgt_exclusion(recipient_group)
+    {
+        return 0.0;
+    }
+
+    let donor_pool = pool_for_group(donor_group);
+    let recipient_pool = pool_for_group(recipient_group);
+
+    if donor_pool == PlasmidPool::None || recipient_pool == PlasmidPool::None {
+        return 0.0;
+    }
+
+    let same_group = donor_group == recipient_group;
+
+    match (donor_pool, recipient_pool) {
+        (PlasmidPool::GramPositive, PlasmidPool::GramPositive) => {
+            if same_group { 4.0e-7 } else { 1.5e-7 }
+        }
+        (PlasmidPool::EntericGramNegative, PlasmidPool::EntericGramNegative) => {
+            if same_group { 8.0e-7 } else { 2.0e-7 }
+        }
+        (PlasmidPool::RespiratoryGramNegative, PlasmidPool::RespiratoryGramNegative) => {
+            if same_group { 6.0e-8 } else { 2.0e-8 }
+        }
+        (PlasmidPool::EntericGramNegative, PlasmidPool::RespiratoryGramNegative)
+        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 5.0e-9,
+        (PlasmidPool::Anaerobe, PlasmidPool::EntericGramNegative)
+        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 2.0e-9,
+        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 1.0e-8,
+        _ => 0.0,
     }
 }
 
@@ -4222,6 +4333,10 @@ lazy_static! {
             map.insert(format!("{}_symptom_onset_threshold_level", bacteria), 0.5); // Minimum bacteria level needed for symptom onset
             map.insert(format!("{}_symptom_onset_delay_days", bacteria), 1.0); // Minimum days infected before symptoms can start
             map.insert(format!("{}_symptom_onset_level_multiplier", bacteria), 1.0); // How much higher bacteria levels increase symptom probability
+            map.insert(
+                format!("{}_mechanismless_resistance_reversion_rate", bacteria),
+                0.0004,
+            ); // Daily probability of losing resistance when no specific mechanism is present
             // --- Clearance tuning ---
             // To specialize hazard-based immune clearance, override keys like
             // "{bacteria}_clearance_delay_days" or "{bacteria}_clearance_hazard_multiplier"
@@ -4260,12 +4375,17 @@ lazy_static! {
         // Baseline daily probabilities for each donor/recipient pair; tweak here for broad shifts,
         // or override specific pairs in input templates.
         // --- HGT Probabilities for All Donor-Recipient Bacteria Pairs ---
-        for &donor in BACTERIA_LIST.iter() {
-            for &recipient in BACTERIA_LIST.iter() {
-                if donor != recipient {
-                    // Default HGT probability (adjust as needed)
-                    map.insert(format!("hgt_prob_{}_to_{}", donor, recipient), 0.0000000001);
+        for (donor_idx, &donor) in BACTERIA_LIST.iter().enumerate() {
+            for (recipient_idx, &recipient) in BACTERIA_LIST.iter().enumerate() {
+                if donor_idx == recipient_idx {
+                    continue;
                 }
+
+                let default_prob = default_hgt_probability(donor_idx, recipient_idx);
+                map.insert(
+                    format!("hgt_prob_{}_to_{}", donor, recipient),
+                    default_prob,
+                );
             }
         }
 
@@ -5234,7 +5354,7 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_symptom_onset_delay_days".to_string(), 2.5);          // Early signs once established
         map.insert("stenotrophomonas_maltophilia_base_bacteria_level_change".to_string(), 0.45);       // Moderate growth rate
         map.insert("stenotrophomonas_maltophilia_max_level".to_string(), 5.0);                          // Can reach high burdens in lungs
-        map.insert("stenotrophomonas_maltophilia_environmental_acquisition_proportion".to_string(), 0.08); // Calibrated lower to curb runaway incidence
+        map.insert("stenotrophomonas_maltophilia_environmental_acquisition_proportion".to_string(), 0.08); 
         map.insert("stenotrophomonas_maltophilia_microbiome_clearance_probability_per_day".to_string(), 0.06); // Persistent colonizer in ICU settings
         map.insert("stenotrophomonas_maltophilia_sepsis_baseline_log_odds".to_string(), -9.2);          // Opportunistic but still requires high burden or host compromise
         map.insert("stenotrophomonas_maltophilia_log_odds_sepsis_infection_level".to_string(), 0.08);   // Rising burden increases risk notably
@@ -10189,7 +10309,7 @@ lazy_static! {
         );  // note this is not currently implemented
 
         // Majority_r cache defaults: rolling window horizon and minimum sample threshold.
-        map.insert("majority_r_window_days".to_string(), 1825.0);
+        map.insert("majority_r_window_days".to_string(), 365.0);
         map.insert("majority_r_min_total_samples".to_string(), 10.0);
         // Prevent small simulations from catastrophically erasing resistance prevalence once observed;
         // flip to 0 if you want buckets to decay back to zero when no positive samples remain.

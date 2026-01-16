@@ -30,34 +30,16 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// concentrate on some calibration to historic patterns of drug use 
-// ? need plot of drug usage over time ?
-// continue to consider if drug selection algorithm is ok
+// concentrate on some calibration to historic patterns of drug use continue to consider if drug selection algorithm is ok
 //
 // remember calibration to any_r level
-// 
-// check on mapping of bacteria to syndrome
-//
-// should we have a more gradual drop in incidence of infections, continuing beyond the 2000s ?
-//
-// should the population majority_r be based on infections where spread is more likely ? such as
-// respiratory infections rather than some other infection sites ?
-//
-// continue to use the pop majority r for environment infections but have this only for
-// drugs which have been introduced in animals by this date (directly specified) and perhaps with a 
-// multiplier with higher resistance levels for drugs that have been introduced in animals ?
-//
-// what about hgt in the environment ? would need to directly take this into account ? can this mean that bacteria from
-// animals never exposed to a drug can get resistance to newer drugs never used in animals to that point ?
 //
 // mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
 //
-// should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
-//
 // vary time to symptom onset by bacteria ?
 //
-// need to add other anaerobes ? bacteroides fragilis 
-// ? add mycoplasma genitalium, providencia stuartii ?
+// need to add other anaerobes ? bacteroides fragilis ? add mycoplasma genitalium, providencia stuartii ?
+//
 //
 //
 // consider for future iterations:
@@ -83,7 +65,7 @@ mod simulation;
 // add legionella ?  tick-borne bacteria ? 
 // remember that we model use of antibiotics when no modelled bacteria present so 
 // in some ways this takes care of bacteria not modelled 
-//
+// should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
 //
 //
 // calibration data: approx drug usage per 100_000 per calendar year
