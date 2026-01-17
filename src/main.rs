@@ -34,12 +34,10 @@ mod simulation;
 //
 // remember calibration to any_r level
 //
-// mechanism-specific resistance costs: high-cost (carbapenemase) vs. low-cost (point mutations)
+// add bacteroides fragilis, mycoplasma genitalium, providencia stuartii  
 //
-// vary time to symptom onset by bacteria ?
-//
-// need to add other anaerobes ? bacteroides fragilis ? add mycoplasma genitalium, providencia stuartii ?
-//
+// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
+// policy comparison several times on each ?
 //
 //
 // consider for future iterations:
