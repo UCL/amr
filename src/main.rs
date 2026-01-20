@@ -18,7 +18,8 @@ mod simulation;
 //
 // -- calibration targets ----------------------------------------------------------------------------------------
 //
-// death within 30 days by bacteria, age and region ? - make a formal part of calibration score or just present as an fyi ?
+// death within 30 days by bacteria, age and region ? - make a formal part of calibration 
+// score or just present as an fyi ?
 //
 //
 //
@@ -30,14 +31,9 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// concentrate on some calibration to historic patterns of drug use continue to consider if drug selection algorithm is ok
-//
-// remember calibration to any_r level
-//
-// add bacteroides fragilis, mycoplasma genitalium, providencia stuartii  
-//
 // maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
 // policy comparison several times on each ?
+//
 //
 //
 // consider for future iterations:
@@ -61,10 +57,9 @@ mod simulation;
 // to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ?
 // (maybe someone can do this in a future interation.....)
 // add legionella ?  tick-borne bacteria ? 
-// remember that we model use of antibiotics when no modelled bacteria present so 
-// in some ways this takes care of bacteria not modelled 
+// remember that we model use of antibiotics when no modelled bacteria present so in some ways this takes care of bacteria not modelled 
 // should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
-//
+// should we consider some syndromes (from which spread is more likely) more than others for population majority_r ?
 //
 // calibration data: approx drug usage per 100_000 per calendar year
 //                   incidence of infection with each bacteria by age and calendar year

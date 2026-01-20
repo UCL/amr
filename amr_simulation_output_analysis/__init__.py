@@ -24,6 +24,7 @@ from .utils import (
     extract_bacteria_list_from_csv, extract_drug_list_from_csv, 
     extract_resistance_mechanisms_from_csv, get_consistent_color_for_drug,
     normalize_policy_identifier_list, coerce_policy_identifier,
+    extract_simulation_run_id,
 )
 
 # Plotting modules
@@ -53,6 +54,11 @@ def create_all_plots(config=None):
         )
     
     print(f"Loaded simulation data: {df.shape[0]} time steps, {df.shape[1]} columns")
+
+    simulation_csv_path = data_cache.get_simulation_csv_path()
+    run_identifier = extract_simulation_run_id(simulation_csv_path)
+    if run_identifier:
+        config.simulation_run_id = run_identifier
     
     # Preprocess data (adds time_in_years and other derived columns)
     df = data_cache.get_preprocessed_data(plot_config=config)
@@ -80,9 +86,12 @@ def create_all_plots(config=None):
     if df is None:
         raise RuntimeError("Failed to preprocess simulation data.")
     
-    # Create grouped plots (Figures 1-10) - always generated
-    print("Creating grouped plots (Figures 1-10)...")
-    create_grouped_plots(df, config)
+    # Create grouped plots only when enabled
+    if getattr(config, 'grouped_plots', True):
+        print("Creating grouped plots (Figures 1-10)...")
+        create_grouped_plots(df, config, run_identifier=run_identifier)
+    else:
+        print("Skipping grouped plots (config.grouped_plots=False)...")
     
     # Create detail plots (check if any individual plot types are enabled)
     detail_plot_enabled = any([

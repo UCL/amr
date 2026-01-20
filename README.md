@@ -1,7 +1,7 @@
 
-We are developing a stochastic individual-based model for anti-bacterial resistance. The engine tracks every infection, resistance state, and treatment decision for each simulated person on a daily timestep starting in 1942 (the introduction of penicillin), although alternative start dates with pre-existing resistance are also supported.
+We are developing a stochastic individual-based model for anti-bacterial resistance. The engine tracks every infection, resistance state, and treatment decision for each simulated person on a daily timestep starting in 1942 *** (the introduction of penicillin), although alternative start dates with pre-existing resistance are also supported.
 
-Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 30 bacteria (matching the GBD AMR set) and 42 antibiotics, but both lists can grow without changing core data structures.
+Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 30 *** bacteria (matching the GBD AMR set) and 42 antibiotics, but both lists can grow without changing core data structures.
 
 Resistance tracking relies on five per-bacteria/drug metrics defined in [src/simulation/population.rs#L589-L612](src/simulation/population.rs#L589-L612):
 
@@ -131,7 +131,7 @@ All variables below are taken directly from the `Individual` struct in [src/simu
 ### Resistance Metric Fields
 | Field | Range | Meaning |
 | --- | --- | --- |
-| any_r | 0–1 | Fraction of the infection exhibiting resistance to the drug; copied at transmission or increased through emergence. |
+| any_r | 0–1 | Fraction of the infection exhibiting resistance to the drug  *** ; copied at transmission or increased through emergence. |
 | majority_r | 0–1 | Equals `any_r` when resistant strains are the majority; otherwise remains 0 to distinguish minority carriage. |
 | activity_r | 0–1 | Effective potency of the drug against the infection after accounting for current concentration and resistance. |
 | test_r | 0–1 | Resistant fraction last measured via diagnostic testing, used to drive targeted therapy choices. |

@@ -35,3 +35,6 @@ treponema pallidum,0.001,"Infection prevalence (~8M cases); no known asymptomati
 bordetella pertussis,0.0005,"Transient carriage during subclinical infection; no long-term reservoir"
 helicobacter pylori,0,"Excluded from microbiome pathway by design; infection-only pathogen"
 mdr mycobacterium tuberculosis,0.0025,"MDR-LTBI; ~1/4 of world has latent TB, estimated ~1% of those are MDR"
+bacteroides fragilis,0.85,"Core obligate anaerobe; >80% of healthy adults colonized (Human Microbiome Project)"
+mycoplasma genitalium,0.01,"Low-level genital tract carriage/infection persistence (~1% global prevalence)"
+providencia stuartii,0.01,"Rare gut colonizer concentrated in LTCF populations"

@@ -12,12 +12,21 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.lines import Line2D
 from pathlib import Path
+from typing import Optional
 
 # Import from the modular system
 from ..utils import safe_divide, setup_logging, normalize_policy_identifier_list, coerce_policy_identifier
 from ..config import PlotConfig
 
-def create_grouped_plots(df, config=None):
+
+def _grouped_figure_path(fig_number: int, config: PlotConfig, run_identifier: Optional[str]) -> Path:
+    """Return the output path for a grouped figure, suffixing the run id when available."""
+    suffix = f"_{run_identifier}" if run_identifier else ""
+    extension = getattr(config, "figure_format", "png") or "png"
+    extension = extension if extension.startswith('.') else f".{extension}"
+    return config.output_dir / f"grouped_figure_{fig_number}{suffix}{extension}"
+
+def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
     """
     Create grouped plots, each file containing 4 subplots.
     
@@ -27,6 +36,12 @@ def create_grouped_plots(df, config=None):
     """
     if config is None:
         config = PlotConfig()
+
+    run_identifier = run_identifier or getattr(config, 'simulation_run_id', None)
+
+    if not getattr(config, 'grouped_plots', True):
+        # Respect caller configuration even if this function is invoked directly
+        return
     
     # Normalize dataframe ordering and insert NaN break rows between policy segments to avoid
     # vertical line jumps when policies branch off in time.
@@ -371,9 +386,10 @@ def create_grouped_plots(df, config=None):
             
         plt.tight_layout(rect=[0, 0, 1, 0.92])
         plt.subplots_adjust(hspace=0.75, wspace=0.4)  # Increase vertical space significantly
-        plt.savefig(config.output_dir / 'grouped_figure_1.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(1, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close() # Close the figure to free memory
-        print("[OK] Grouped figure 1 saved as 'grouped_figure_1.png'")
+        print(f"[OK] Grouped figure 1 saved as '{figure_path.name}'")
 
     # --- Figure 2: New Infections, Durations, Sepsis, Past-Year Deaths ---
     if config.create_grouped_figure_2:
@@ -490,9 +506,10 @@ def create_grouped_plots(df, config=None):
             axes2[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(config.output_dir / 'grouped_figure_2.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(2, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 2 saved as 'grouped_figure_2.png'")
+        print(f"[OK] Grouped figure 2 saved as '{figure_path.name}'")
 
     # --- Figure 3: Duration-Based Infection Proportions ---
     if config.create_grouped_figure_3:
@@ -652,9 +669,10 @@ def create_grouped_plots(df, config=None):
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.subplots_adjust(hspace=0.7, wspace=0.35)
-        plt.savefig(config.output_dir / 'grouped_figure_3.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(3, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 3 saved as 'grouped_figure_3.png'")
+        print(f"[OK] Grouped figure 3 saved as '{figure_path.name}'")
 
     # --- Figure 4: Resistance and Testing Metrics ---
     if config.create_grouped_figure_4:
@@ -777,9 +795,10 @@ def create_grouped_plots(df, config=None):
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.subplots_adjust(hspace=0.65, wspace=0.4)
-        plt.savefig(config.output_dir / 'grouped_figure_4.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(4, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 4 saved as 'grouped_figure_4.png'")
+        print(f"[OK] Grouped figure 4 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 5: Infection Resolution Outcomes ---
     if config.create_grouped_figure_5:
@@ -983,9 +1002,10 @@ def create_grouped_plots(df, config=None):
                 axes5[i].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(config.output_dir / 'grouped_figure_5.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(5, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 5 saved as 'grouped_figure_5.png'")
+        print(f"[OK] Grouped figure 5 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 6: Overall Activity R Ratio ---
     if config.create_grouped_figure_6:
@@ -1158,9 +1178,10 @@ def create_grouped_plots(df, config=None):
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.subplots_adjust(hspace=0.65, wspace=0.4)
-        plt.savefig(config.output_dir / 'grouped_figure_6.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(6, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 6 saved as 'grouped_figure_6.png'")
+        print(f"[OK] Grouped figure 6 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 7: Day 7 Drug Initiation Analysis ---
     if config.create_grouped_figure_7:
@@ -1322,9 +1343,10 @@ def create_grouped_plots(df, config=None):
                 axes7[i].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(config.output_dir / 'grouped_figure_7.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(7, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 7 saved as 'grouped_figure_7.png'")
+        print(f"[OK] Grouped figure 7 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 8: Infectious Syndrome Tracking ---
     if config.create_grouped_figure_8:
@@ -1570,9 +1592,10 @@ def create_grouped_plots(df, config=None):
                 axes8[i].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(config.output_dir / 'grouped_figure_8.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(8, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 8 saved as 'grouped_figure_8.png'")
+        print(f"[OK] Grouped figure 8 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 9: Drug Initiation Patterns Over Time ---
     if config.create_grouped_figure_9:
@@ -1698,9 +1721,10 @@ def create_grouped_plots(df, config=None):
             axes9[i].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.savefig(config.output_dir / 'grouped_figure_9.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(9, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 9 saved as 'grouped_figure_9.png'")
+        print(f"[OK] Grouped figure 9 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 10: Infections Prevented by Drug Analysis ---
     if config.create_grouped_figure_10:
@@ -1793,8 +1817,9 @@ def create_grouped_plots(df, config=None):
                 axes10[i].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 0.85, 0.96])  # Leave space for legend
-        plt.savefig(config.output_dir / 'grouped_figure_10.png', dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        figure_path = _grouped_figure_path(10, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close()
-        print("[OK] Grouped figure 10 saved as 'grouped_figure_10.png'")
+        print(f"[OK] Grouped figure 10 saved as '{figure_path.name}'")
 
     print("[OK] Grouped plots (1-10) creation completed")

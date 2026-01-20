@@ -6,13 +6,14 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
 
 from .config import PlotConfig
 from .data_loader import DataCache
+from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 
@@ -147,6 +148,11 @@ class CalibrationTargets:
             path_value = drug_class_config.get("path")
             if path_value:
                 drug_class_config["path"] = (root / str(path_value)).resolve()
+            history_cfg = drug_class_config.get("history")
+            if isinstance(history_cfg, dict):
+                history_share_path = history_cfg.get("share_path")
+                if history_share_path:
+                    history_cfg["share_path"] = (root / str(history_share_path)).resolve()
 
         microbiome_target = payload.get("microbiome_resistance")
         scaling_payload = payload.get("population_scaling", {})
@@ -204,6 +210,8 @@ def _gather_calibration_context(
     if df is None or df.empty:
         return None
 
+    simulation_csv_path = data_cache.get_simulation_csv_path()
+
     df = df.copy()
     if "time_in_years" not in df.columns and "time_step" in df.columns:
         df["time_in_years"] = df["time_step"] / 365.0
@@ -234,6 +242,11 @@ def _gather_calibration_context(
     headline_df = _build_headline_table(df, year_df, targets, scale_factor, window_years)
     microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
     drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
+    drug_class_history_df = _calculate_drug_class_history_table(
+        df,
+        df["calendar_year"],
+        targets.drug_class_targets,
+    )
     resistance_targets = _load_bacteria_drug_matrix(
         targets.resistance_target_path, dot_reason="negligible potency"
     )
@@ -267,6 +280,7 @@ def _gather_calibration_context(
         "headline_df": headline_df,
         "microbiome_df": microbiome_df,
         "drug_class_df": drug_class_df,
+        "drug_class_history_df": drug_class_history_df,
         "resistance_df": resistance_df,
         "resistance_targets": resistance_targets,
         "resistance_average_targets": resistance_average_targets,
@@ -274,6 +288,7 @@ def _gather_calibration_context(
         "overall_resistance": overall_resistance,
         "bacteria_burden_df": bacteria_burden_df,
         "reserve_drug_stats": _calculate_reserve_drug_stats(year_df),
+        "simulation_csv_path": simulation_csv_path,
     }
 
 
@@ -396,6 +411,26 @@ def _safe_mean(series: pd.Series) -> Optional[float]:
 
 def _slugify_value(name: str) -> str:
     return name.strip().lower().replace(" ", "_")
+
+
+BACTERIA_SLUG_NORMALIZATION_OVERRIDES: Dict[str, str] = {
+    "p_stuartii": "providencia_stuartii",
+}
+
+
+BACTERIA_DISPLAY_NAME_OVERRIDES: Dict[str, str] = {
+    "providencia_stuartii": "Providencia stuartii",
+}
+
+
+def _canonicalize_bacteria_slug(slug: str) -> str:
+    normalized = slug.strip().lower()
+    return BACTERIA_SLUG_NORMALIZATION_OVERRIDES.get(normalized, normalized)
+
+
+def _slugify_bacteria_value(name: str) -> str:
+    slug = _slugify_value(name)
+    return _canonicalize_bacteria_slug(slug)
 
 
 def _normalize_drug_slug(name: str) -> str:
@@ -553,7 +588,7 @@ def _load_bacteria_drug_matrix(
         dot_mask = df["target_raw"].astype(str).str.strip() == "."
         df.loc[dot_mask, "reason"] = dot_reason
 
-    df["bacteria_slug"] = df["Bacteria"].apply(_slugify_value)
+    df["bacteria_slug"] = df["Bacteria"].apply(_slugify_bacteria_value)
     df["drug_slug"] = df["drug"].apply(_slugify_value)
     return df
 
@@ -575,7 +610,7 @@ def _load_bacteria_metric_values(
         "value": pd.to_numeric(df[value_column], errors="coerce"),
         "notes": df.get("notes"),
     })
-    metric_df["bacteria_slug"] = metric_df["Bacteria"].apply(_slugify_value)
+    metric_df["bacteria_slug"] = metric_df["Bacteria"].apply(_slugify_bacteria_value)
     return metric_df
 
 
@@ -1017,30 +1052,37 @@ def _calculate_bacteria_burden_table(
         targets.deaths_by_bacteria_path, "annual_deaths_millions"
     )
 
-    incidence_target_map = {
-        row["bacteria_slug"]: float(row["value"])
-        for _, row in incidence_targets_df.iterrows()
-        if pd.notna(row.get("value"))
-    }
-    carriage_target_map = {
-        row["bacteria_slug"]: float(row["value"])
-        for _, row in carriage_targets_df.iterrows()
-        if pd.notna(row.get("value"))
-    }
-    deaths_target_map = {
-        row["bacteria_slug"]: float(row["value"])
-        for _, row in deaths_targets_df.iterrows()
-        if pd.notna(row.get("value"))
-    }
+    def _build_target_map(df: pd.DataFrame) -> Dict[str, float]:
+        mapping: Dict[str, float] = {}
+        for _, row in df.iterrows():
+            slug = _canonicalize_bacteria_slug(str(row.get("bacteria_slug", "")))
+            value = row.get("value")
+            if pd.isna(value):
+                continue
+            if slug not in mapping:
+                mapping[slug] = float(value)
+        return mapping
+
+    incidence_target_map = _build_target_map(incidence_targets_df)
+    carriage_target_map = _build_target_map(carriage_targets_df)
+    deaths_target_map = _build_target_map(deaths_targets_df)
 
     name_map: Dict[str, str] = {}
     for df_source in (incidence_targets_df, carriage_targets_df, deaths_targets_df):
         for _, row in df_source.iterrows():
-            slug = row["bacteria_slug"]
-            name_map.setdefault(slug, str(row.get("Bacteria", slug.replace("_", " "))))
+            slug = _canonicalize_bacteria_slug(str(row.get("bacteria_slug", "")))
+            display = str(row.get("Bacteria", slug.replace("_", " ")))
+            display = BACTERIA_DISPLAY_NAME_OVERRIDES.get(slug, display)
+            if slug and slug not in name_map:
+                name_map[slug] = display
 
     sim_bacteria_set, _ = _extract_bacteria_and_drugs(year_df)
-    combo_slugs: Set[str] = set(sim_bacteria_set)
+    canonical_sim_map: Dict[str, Set[str]] = {}
+    for raw_slug in sim_bacteria_set:
+        canonical = _canonicalize_bacteria_slug(raw_slug)
+        canonical_sim_map.setdefault(canonical, set()).add(raw_slug)
+
+    combo_slugs: Set[str] = set(canonical_sim_map.keys())
     combo_slugs.update(incidence_target_map.keys())
     combo_slugs.update(carriage_target_map.keys())
     combo_slugs.update(deaths_target_map.keys())
@@ -1049,6 +1091,8 @@ def _calculate_bacteria_burden_table(
         return pd.DataFrame(columns=columns)
 
     def slug_display(slug: str) -> str:
+        if slug in BACTERIA_DISPLAY_NAME_OVERRIDES:
+            return BACTERIA_DISPLAY_NAME_OVERRIDES[slug]
         return name_map.get(slug, slug.replace("_", " "))
 
     records = []
@@ -1061,42 +1105,48 @@ def _calculate_bacteria_burden_table(
             # explain the discrepancy in the summary text instead of surfacing a misleading value.
             continue
 
-        infection_target_pct = np.nan
-        if slug in incidence_target_map:
-            infection_target_pct = float(incidence_target_map[slug] * 100.0)
+        infection_target_pct = float(incidence_target_map[slug] * 100.0) if slug in incidence_target_map else np.nan
+        carriage_target_pct = float(carriage_target_map[slug] * 100.0) if slug in carriage_target_map else np.nan
+        deaths_target_millions = float(deaths_target_map[slug]) if slug in deaths_target_map else np.nan
 
-        carriage_target_pct = np.nan
-        if slug in carriage_target_map:
-            carriage_target_pct = float(carriage_target_map[slug] * 100.0)
+        raw_slugs = canonical_sim_map.get(slug, {slug})
 
-        deaths_target_millions = np.nan
-        if slug in deaths_target_map:
-            deaths_target_millions = float(deaths_target_map[slug])
-
-        carrier_col = f"{slug}_newly_infected_carrier"
-        non_carrier_col = f"{slug}_newly_infected_non_carrier"
-        infection_cols = [col for col in (carrier_col, non_carrier_col) if col in year_df.columns]
         infection_sim_pct = np.nan
-        if infection_cols:
-            total_infections = sum(float(year_df[col].sum(skipna=True)) for col in infection_cols)
-            if avg_population > 0:
-                infection_sim_pct = (total_infections / annualization_factor) / avg_population * 100.0
+        total_infections = 0.0
+        infection_data = False
+        for raw_slug in raw_slugs:
+            carrier_col = f"{raw_slug}_newly_infected_carrier"
+            non_carrier_col = f"{raw_slug}_newly_infected_non_carrier"
+            for col in (carrier_col, non_carrier_col):
+                if col in year_df.columns:
+                    total_infections += float(year_df[col].sum(skipna=True))
+                    infection_data = True
+        if infection_data and avg_population > 0:
+            infection_sim_pct = (total_infections / annualization_factor) / avg_population * 100.0
 
-        presence_col = f"{slug}_presence_microbiome"
         carriage_sim_pct = np.nan
-        if presence_col in year_df.columns:
-            carriers_mean = float(year_df[presence_col].mean(skipna=True))
-            if avg_population > 0:
-                carriage_sim_pct = carriers_mean / avg_population * 100.0
+        total_carriers = 0.0
+        carriers_found = False
+        for raw_slug in raw_slugs:
+            presence_col = f"{raw_slug}_presence_microbiome"
+            if presence_col in year_df.columns:
+                total_carriers += float(year_df[presence_col].mean(skipna=True))
+                carriers_found = True
+        if carriers_found and avg_population > 0:
+            carriage_sim_pct = total_carriers / avg_population * 100.0
 
-        deaths_col = f"{slug}_deaths"
         deaths_sim_millions = np.nan
-        if deaths_col in year_df.columns:
-            total_deaths = float(year_df[deaths_col].sum(skipna=True))
-            if world_population and scale_factor and np.isfinite(scale_factor):
-                deaths_sim_millions = (
-                    (total_deaths / annualization_factor) * scale_factor / 1_000_000.0
-                )
+        total_deaths = 0.0
+        deaths_found = False
+        for raw_slug in raw_slugs:
+            deaths_col = f"{raw_slug}_deaths"
+            if deaths_col in year_df.columns:
+                total_deaths += float(year_df[deaths_col].sum(skipna=True))
+                deaths_found = True
+        if deaths_found and world_population and scale_factor and np.isfinite(scale_factor):
+            deaths_sim_millions = (
+                (total_deaths / annualization_factor) * scale_factor / 1_000_000.0
+            )
 
         records.append({
             "Bacteria": display_name,
@@ -1360,6 +1410,49 @@ def _load_drug_class_target_details(path: Optional[Path]) -> Dict[str, Dict[str,
     return details
 
 
+def _load_drug_class_history_targets(path: Optional[Path]) -> Dict[str, Dict[int, float]]:
+    if path is None or not path.exists():
+        return {}
+
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.ParserError as exc_default:
+        try:
+            df = pd.read_csv(path, engine="python", on_bad_lines="warn")
+        except pd.errors.ParserError as exc_python:
+            print(f"[ERROR] Failed to parse drug class history target file {path}: {exc_python}")
+            print(f"         Original parser error: {exc_default}")
+            return {}
+
+    if df.empty:
+        return {}
+
+    history_targets: Dict[str, Dict[int, float]] = {}
+    for _, row in df.iterrows():
+        class_name = str(row.get(df.columns[0], "")).strip()
+        if not class_name:
+            continue
+
+        year_values: Dict[int, float] = {}
+        for column in df.columns[1:]:
+            match = re.search(r"(19|20)\d{2}", str(column))
+            if not match:
+                continue
+            year = int(match.group(0))
+            value = row.get(column)
+            if pd.isna(value):
+                continue
+            try:
+                year_values[year] = float(value)
+            except (TypeError, ValueError):
+                continue
+
+        if year_values:
+            history_targets[class_name] = year_values
+
+    return history_targets
+
+
 def _calculate_drug_class_table(
     year_df: pd.DataFrame,
     drug_cfg: Optional[Dict[str, object]],
@@ -1442,6 +1535,116 @@ def _calculate_drug_class_table(
         return pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 
     return pd.DataFrame(records, columns=DRUG_CLASS_TABLE_COLUMNS)
+
+
+def _calculate_drug_class_history_table(
+    df: pd.DataFrame,
+    calendar_year: pd.Series,
+    drug_cfg: Optional[Dict[str, object]],
+) -> pd.DataFrame:
+    if df.empty or calendar_year.empty or not isinstance(drug_cfg, dict):
+        return pd.DataFrame()
+
+    history_cfg = drug_cfg.get("history")
+    if not isinstance(history_cfg, dict):
+        return pd.DataFrame()
+
+    raw_years = history_cfg.get("years", [])
+    years: List[int] = []
+    for value in raw_years:
+        try:
+            year = int(value)
+        except (TypeError, ValueError):
+            continue
+        if year not in years:
+            years.append(year)
+
+    if not years:
+        return pd.DataFrame()
+
+    classes = drug_cfg.get("classes", [])
+    if not isinstance(classes, Iterable):
+        return pd.DataFrame()
+
+    history_targets = _load_drug_class_history_targets(history_cfg.get("share_path"))
+    window_years_before = max(0, int(history_cfg.get("window_years_before", 0)))
+    window_years_after = max(0, int(history_cfg.get("window_years_after", 0)))
+
+    year_frames: Dict[int, pd.DataFrame] = {}
+    total_on_drug_by_year: Dict[int, Optional[float]] = {}
+    for year in years:
+        year_frame = _ensure_year_slice(
+            df,
+            calendar_year,
+            year,
+            window_years_before=window_years_before,
+            window_years_after=window_years_after,
+        )
+        year_frames[year] = year_frame
+        total_series = year_frame.get("currently_taking_drug_count")
+        total_on_drug_by_year[year] = _safe_mean(total_series) if total_series is not None else None
+
+    def _compute_share(frame: pd.DataFrame, total_on_drug: Optional[float], drugs: Iterable[str]) -> float:
+        if frame is None or frame.empty or total_on_drug is None or total_on_drug <= 0:
+            return np.nan
+        running_total = 0.0
+        found = False
+        for slug in drugs:
+            if not isinstance(slug, str):
+                continue
+            col_name = f"{slug}_currently_on_drug"
+            if col_name not in frame.columns:
+                continue
+            mean_value = _safe_mean(frame[col_name])
+            if mean_value is None:
+                continue
+            running_total += float(mean_value)
+            found = True
+        if not found:
+            return np.nan
+        share = running_total / total_on_drug
+        return float(share * 100.0) if np.isfinite(share) else np.nan
+
+    columns: List[str] = ["Class"]
+    for year in years:
+        columns.append(f"Share {year} (%)")
+        columns.append(f"Target {year} (%)")
+
+    records: List[Dict[str, object]] = []
+    for class_entry in classes:
+        if not isinstance(class_entry, dict):
+            continue
+
+        label = class_entry.get("label") or class_entry.get("name")
+        drug_list = class_entry.get("drugs", [])
+        if not label or not isinstance(drug_list, Iterable):
+            continue
+
+        target_candidates = [
+            str(class_entry.get("name") or "").strip(),
+            str(class_entry.get("label") or "").strip(),
+        ]
+        target_candidates = [candidate for candidate in target_candidates if candidate]
+
+        target_map: Dict[int, float] = {}
+        for candidate in target_candidates:
+            if candidate in history_targets:
+                target_map = history_targets[candidate]
+                break
+
+        row: Dict[str, object] = {"Class": label}
+        for year in years:
+            share_value = _compute_share(year_frames.get(year), total_on_drug_by_year.get(year), drug_list)
+            target_value = target_map.get(year) if target_map else np.nan
+            row[f"Share {year} (%)"] = share_value
+            row[f"Target {year} (%)"] = target_value
+
+        records.append(row)
+
+    if not records:
+        return pd.DataFrame(columns=columns)
+
+    return pd.DataFrame(records, columns=columns)
 
 
 def _build_drug_class_lookup(
@@ -1814,6 +2017,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     headline_df = context.get("headline_df")
     microbiome_df = context.get("microbiome_df")
     drug_class_df = context.get("drug_class_df")
+    drug_class_history_df = context.get("drug_class_history_df")
     resistance_df = context.get("resistance_df")
     bacteria_burden_df = context.get("bacteria_burden_df")
 
@@ -1823,6 +2027,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         microbiome_df = pd.DataFrame()
     if not isinstance(drug_class_df, pd.DataFrame):
         drug_class_df = pd.DataFrame()
+    if not isinstance(drug_class_history_df, pd.DataFrame):
+        drug_class_history_df = pd.DataFrame()
     if not isinstance(resistance_df, pd.DataFrame):
         resistance_df = pd.DataFrame()
     if not isinstance(bacteria_burden_df, pd.DataFrame):
@@ -1844,9 +2050,13 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     reserve_drug_stats = context.get("reserve_drug_stats", {})
     bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
 
+    simulation_csv_path = context.get("simulation_csv_path")
+    run_identifier = getattr(config, "simulation_run_id", None) or extract_simulation_run_id(simulation_csv_path)
+    summary_suffix = f"_{run_identifier}" if run_identifier else ""
+
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "calibration_summary_366202.txt"
+    output_path = output_dir / f"calibration_summary{summary_suffix}.txt"
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("Calibration Snapshot\n")
@@ -1975,6 +2185,21 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("\n\n")
         else:
             handle.write("Drug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n\n")
+
+        if not drug_class_history_df.empty:
+            handle.write("Drug Class Share History (simulation % vs. target %)\n")
+            handle.write(
+                drug_class_history_df.to_string(
+                    index=False,
+                    float_format=lambda x: f"{x:,.2f}",
+                    na_rep="---",
+                )
+            )
+            handle.write("\n\n")
+        else:
+            handle.write(
+                "Drug Class Share History\n(no historical share targets configured or data available)\n\n"
+            )
 
         sim_overall, target_overall, combo_count = overall_resistance
         handle.write("Overall Infection Resistance\n")

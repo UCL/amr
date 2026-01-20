@@ -90,6 +90,7 @@ class PlotConfig:
     dpi: int = 300
     show_plots: bool = False  # Whether to display plots interactively
     empirical_overlay: bool = True  # Whether to show empirical data overlays
+    simulation_run_id: Optional[str] = None  # Derived from simulation CSV filename
     
     # Smoothing and styling
     smoothing_window_days: int = 365  
@@ -188,10 +189,14 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_366202.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_738548.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity
+    enable_parquet_cache: bool = True
+      # Persist a columnar cache of the simulation CSV
+    parquet_cache_path: Optional[Path] = None  # Custom path or directory for the cache (defaults beside CSV)
+    parquet_cache_compression: str = "snappy"  # Compression codec used when writing parquet caches
     
     # Data processing settings 
     float_precision: str = '%.6f'

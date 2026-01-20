@@ -35,3 +35,6 @@ treponema pallidum,0.2,"Syphilis; ~200k+ deaths from congenital syphilis and neu
 bordetella pertussis,0.16,"Whooping cough; WHO estimate ~160,000 annual deaths"
 helicobacter pylori,0.8,"Burden primarily from gastric cancer (IARC/GBD)"
 mdr mycobacterium tuberculosis,0.19,"MDR-TB deaths; WHO Global TB Report 2024"
+bacteroides fragilis,0.03,"Complicated intra-abdominal sepsis and bacteremia; placeholder extrapolated from polymicrobial mortality fractions"
+mycoplasma genitalium,0.0005,"Direct mortality rare; accounts for small share of PID/ectopic pregnancy complications"
+providencia stuartii,0.008,"High mortality in LTC-associated outbreaks; scaled from catheter-associated bacteremia reports"

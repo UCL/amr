@@ -529,7 +529,7 @@ class IntegratedEmpiricalEnhancer:
             'serratia_marcescens': {'rate': 3.1, 'trend': 0.5},
             'citrobacter_freundii': {'rate': 1.9, 'trend': 0.4},
             'morganella_morganii': {'rate': 1.4, 'trend': 0.3},
-            'providencia_stuartii': {'rate': 1.1, 'trend': 0.2}
+            'p_stuartii': {'rate': 1.1, 'trend': 0.2}
         }
         
         regional_factors = {

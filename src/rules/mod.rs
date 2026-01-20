@@ -95,6 +95,7 @@ fn qnr_supported_bacteria(bacteria: &str) -> bool {
             | "escherichia_coli"
             | "klebsiella_pneumoniae"
             | "morganella_spp."
+            | "p_stuartii"
             | "proteus_spp."
             | "serratia_spp."
             | "pseudomonas_aeruginosa"
@@ -962,6 +963,8 @@ pub fn apply_rules(
         .minimal_potency_threshold_for_drug_selection
         .unwrap_or(store.globals.minimal_potency_threshold_for_drug_selection);
     let resistance_emergence_multiplier = policy.resistance_emergence_multiplier.unwrap_or(1.0);
+    // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
+    // of setting it to zero in a counterfactual scenario with no resistance
 
     if individual.age < 0 {
         individual.age += 1; // Only advance age by 1 day
@@ -3197,7 +3200,6 @@ pub fn apply_rules(
                             let microbiome_r_emergence_level =
                                 store.globals.any_r_emergence_level_on_first_emergence;
 
-                            // Optionally, you could scale by drug level or other factors
                             let total_emergence_prob =
                                 emergence_rate_baseline * resistance_emergence_multiplier; // * (drug_level / 10.0).clamp(0.0, 1.0);
 
@@ -3571,7 +3573,7 @@ pub fn apply_rules(
                             let emergence_rate_baseline = store
                                 .drug_bacteria
                                 .resistance_emergence_rate(bacteria_full_idx, drug_index)
-                                * store.globals.resistance_emergence_pop_size_multiplier; // Scale infection-site emergence when population size shifts
+                                * store.globals.resistance_emergence_pop_size_multiplier; // Scale infection-site emergence when population size shifts - default 1.0
                             let bacteria_level_effect_multiplier =
                                 store.globals.resistance_emergence_bacteria_level_multiplier;
                             let any_r_emergence_level_on_first_emergence =
@@ -3596,6 +3598,7 @@ pub fn apply_rules(
 
                             // resistance emergence probability
                             // bell-shaped curve: 0.02 * x * (10 - x). Peaks at 5.0, is 0.1 at 0 and 10.
+                            // ***
                             let emergence_drug_concentration_factor =
                                 0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
                             let emergence_drug_factor =
@@ -3670,8 +3673,8 @@ pub fn apply_rules(
                                 // If drugs_affected_by_this_resistance >= active_drug_count, no penalty (full cross-resistance)
                             }
 
-                            // total emergence probability with multi-drug penalty
-                            // adding 1.0 to bacteria_level_factor ensures a base contribution even if multiplier is low
+                            // total emergence probability with multi-drug penalty  ***
+                            // bacteria level factor set to 0.0 by default - resistance emergence multiplier set to 1.0 by default
                             let total_emergence_prob = emergence_rate_baseline
                                 * (1.0 + bacteria_level_factor)
                                 * emergence_drug_factor
@@ -4381,6 +4384,7 @@ pub fn apply_rules(
         }
 
         // Only process HGT if there are potential donors AND recipients
+        // note that "donors" and "recipients" are bacteria present in the same person
         if !potential_donors.is_empty() && potential_recipients.len() > 1 {
             let is_hospitalized = individual.hospital_status.is_hospitalized();
 

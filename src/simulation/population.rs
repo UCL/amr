@@ -316,7 +316,7 @@ impl ImmunodeficiencyType {
 /// - Population-level ecosystem effects
 ///
 /// **Usage:** Simply add/remove bacteria names, recompile, and run!
-pub const BACTERIA_LIST: [&str; 36] = [
+pub const BACTERIA_LIST: [&str; 39] = [
     "acinetobacter_baumannii",
     "citrobacter_spp.",
     "enterobacter_spp.",
@@ -327,6 +327,7 @@ pub const BACTERIA_LIST: [&str; 36] = [
     "morganella_spp.",
     "proteus_spp.",
     "serratia_spp.",
+    "p_stuartii",
     "pseudomonas_aeruginosa",
     "stenotrophomonas_maltophilia",
     "staphylococcus_aureus",
@@ -341,10 +342,12 @@ pub const BACTERIA_LIST: [&str; 36] = [
     "streptococcus_agalactiae",
     "haemophilus_influenzae",
     "chlamydia_trachomatis",
+    "mycoplasma_genitalium",
     "vibrio_cholerae",
     "neisseria_meningitidis",
     "listeria_monocytogenes",
     "clostridioides_difficile",
+    "bacteroides_fragilis",
     "campylobacter_jejuni",
     "enterobacter_cloacae",
     "yersinia_enterocolitica",
@@ -368,6 +371,7 @@ pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
     BacteriaGroup::Enterobacterales,
     BacteriaGroup::Enterobacterales,
     BacteriaGroup::Enterobacterales,
+    BacteriaGroup::Enterobacterales,
     BacteriaGroup::NonFermenter,
     BacteriaGroup::NonFermenter,
     BacteriaGroup::GramPositive,
@@ -380,11 +384,13 @@ pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
     BacteriaGroup::Fastidious,
     BacteriaGroup::GramPositive,
     BacteriaGroup::GramPositive,
+    BacteriaGroup::Fastidious,
     BacteriaGroup::Fastidious,
     BacteriaGroup::Fastidious,
     BacteriaGroup::EntericPathogen,
     BacteriaGroup::Fastidious,
     BacteriaGroup::GramPositive,
+    BacteriaGroup::Anaerobe,
     BacteriaGroup::Anaerobe,
     BacteriaGroup::EntericPathogen,
     BacteriaGroup::Enterobacterales,
@@ -397,42 +403,45 @@ pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
 ];
 
 pub const BACTERIA_CARRIAGE_COMPARTMENTS: [CarriageCompartment; BACTERIA_COUNT] = [
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::SkinSoftTissue,
-    CarriageCompartment::SkinSoftTissue,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Genitourinary,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Genitourinary,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Genitourinary,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Genitourinary,
-    CarriageCompartment::Respiratory,
-    CarriageCompartment::Gut,
-    CarriageCompartment::Respiratory,
+    CarriageCompartment::Respiratory,      // acinetobacter_baumannii
+    CarriageCompartment::Gut,              // citrobacter_spp.
+    CarriageCompartment::Gut,              // enterobacter_spp.
+    CarriageCompartment::Gut,              // enterococcus_faecalis
+    CarriageCompartment::Gut,              // enterococcus_faecium
+    CarriageCompartment::Gut,              // escherichia_coli
+    CarriageCompartment::Gut,              // klebsiella_pneumoniae
+    CarriageCompartment::Gut,              // morganella_spp.
+    CarriageCompartment::Gut,              // proteus_spp.
+    CarriageCompartment::Gut,              // serratia_spp.
+    CarriageCompartment::Genitourinary,    // p_stuartii
+    CarriageCompartment::Respiratory,      // pseudomonas_aeruginosa
+    CarriageCompartment::Respiratory,      // stenotrophomonas_maltophilia
+    CarriageCompartment::SkinSoftTissue,   // staphylococcus_aureus
+    CarriageCompartment::SkinSoftTissue,   // staphylococcus_epidermidis
+    CarriageCompartment::Respiratory,      // streptococcus_pneumoniae
+    CarriageCompartment::Gut,              // salmonella_enterica_serovar_typhi
+    CarriageCompartment::Gut,              // salmonella_enterica_serovar_paratyphi_a
+    CarriageCompartment::Gut,              // invasive_non-typhoidal_salmonella_spp.
+    CarriageCompartment::Gut,              // shigella_spp.
+    CarriageCompartment::Genitourinary,    // neisseria_gonorrhoeae
+    CarriageCompartment::Respiratory,      // streptococcus_pyogenes
+    CarriageCompartment::Genitourinary,    // streptococcus_agalactiae
+    CarriageCompartment::Respiratory,      // haemophilus_influenzae
+    CarriageCompartment::Genitourinary,    // chlamydia_trachomatis
+    CarriageCompartment::Genitourinary,    // mycoplasma_genitalium
+    CarriageCompartment::Gut,              // vibrio_cholerae
+    CarriageCompartment::Respiratory,      // neisseria_meningitidis
+    CarriageCompartment::Gut,              // listeria_monocytogenes
+    CarriageCompartment::Gut,              // clostridioides_difficile
+    CarriageCompartment::Gut,              // bacteroides_fragilis
+    CarriageCompartment::Gut,              // campylobacter_jejuni
+    CarriageCompartment::Gut,              // enterobacter_cloacae
+    CarriageCompartment::Gut,              // yersinia_enterocolitica
+    CarriageCompartment::Respiratory,      // moraxella_catarrhalis
+    CarriageCompartment::Genitourinary,    // treponema_pallidum
+    CarriageCompartment::Respiratory,      // bordetella_pertussis
+    CarriageCompartment::Gut,              // helicobacter_pylori
+    CarriageCompartment::Respiratory,      // mdr_mycobacterium_tuberculosis
 ];
 
 #[inline]

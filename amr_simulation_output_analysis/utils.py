@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Any, Iterable
 from functools import wraps
@@ -398,6 +399,22 @@ def extract_drug_list_from_csv(df: pd.DataFrame) -> List[str]:
     drugs.sort()  # For consistent ordering
     print(f"Detected {len(drugs)} drugs from CSV headers")
     return drugs
+
+def extract_simulation_run_id(csv_path: Optional[Union[str, Path]]) -> Optional[str]:
+    """Extract the six-digit run identifier embedded in the simulation CSV filename."""
+    if not csv_path:
+        return None
+
+    path = Path(csv_path)
+    candidates = [path.stem, path.name]
+    pattern = re.compile(r"(\d{6})(?!\d)")
+
+    for candidate in candidates:
+        match = pattern.search(candidate)
+        if match:
+            return match.group(1)
+
+    return None
 
 def extract_resistance_mechanisms_from_csv(df: pd.DataFrame) -> List[str]:
     """

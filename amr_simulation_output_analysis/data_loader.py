@@ -43,6 +43,7 @@ class DataCache:
         self._bacteria_list: Optional[list] = None
         self._drug_list: Optional[list] = None
         self._resistance_mechanisms: Optional[list] = None
+        self._simulation_csv_path: Optional[Path] = None
         self._plot_config: Optional[PlotConfig] = None
         self._preprocess_options: Dict[str, Any] = {}
         self._initialized = True
@@ -63,8 +64,10 @@ class DataCache:
         if self._simulation_data is None or force_reload:
             if csv_file is None:
                 csv_file = str(DataConfig().simulation_file)
-                
-            self._simulation_data = load_simulation_data(csv_file)
+
+            csv_path = Path(csv_file)
+            self._simulation_csv_path = csv_path
+            self._simulation_data = load_simulation_data(str(csv_path))
             
             # Clear dependent cached data when simulation data reloads
             if self._simulation_data is not None:
@@ -185,9 +188,14 @@ class DataCache:
         self._bacteria_list = None
         self._drug_list = None
         self._resistance_mechanisms = None
+        self._simulation_csv_path = None
         self._plot_config = None
         self._preprocess_options = {}
         logger.info("DataCache cleared")
+
+    def get_simulation_csv_path(self) -> Optional[Path]:
+        """Return the on-disk path of the cached simulation CSV, if available."""
+        return self._simulation_csv_path
 
 # Global cache instance
 _cache = DataCache()
@@ -195,6 +203,59 @@ _cache = DataCache()
 def get_cache() -> DataCache:
     """Get the global data cache instance."""
     return _cache
+
+
+def _resolve_parquet_cache_path(csv_path: Path, configured_path: Optional[Path]) -> Path:
+    """Determine the on-disk path to use for the parquet cache."""
+    if configured_path is None:
+        return csv_path.with_suffix('.parquet')
+
+    resolved = Path(configured_path)
+    if resolved.exists() and resolved.is_dir():
+        return resolved / f"{csv_path.stem}.parquet"
+
+    if resolved.suffix.lower() in {'.parquet', '.pq'}:
+        return resolved
+
+    return resolved / f"{csv_path.stem}.parquet"
+
+
+def _read_parquet_cache(parquet_path: Path) -> Optional[pd.DataFrame]:
+    """Attempt to load a cached parquet dataframe."""
+    try:
+        df = pd.read_parquet(parquet_path)
+    except ImportError as exc:
+        logger.warning("Parquet cache unavailable; install pyarrow or fastparquet to enable it: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("Failed to read parquet cache %s: %s", parquet_path, exc)
+        return None
+
+    logger.info("Loaded %s rows from parquet cache %s", len(df), parquet_path)
+    print(f"Loaded {len(df)} time steps of simulation data (parquet cache)")
+    return df
+
+
+def _write_parquet_cache(
+    df: pd.DataFrame,
+    parquet_path: Optional[Path],
+    compression: Optional[str],
+) -> None:
+    """Persist a dataframe to parquet, ignoring errors silently but logging them."""
+    if parquet_path is None:
+        return
+
+    try:
+        parquet_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(parquet_path, compression=compression or None, index=False)
+    except ImportError as exc:
+        logger.warning("Skipping parquet cache write; install pyarrow or fastparquet to enable it: %s", exc)
+        return
+    except Exception as exc:
+        logger.warning("Failed to write parquet cache %s: %s", parquet_path, exc)
+        return
+
+    logger.info("Wrote parquet cache to %s", parquet_path)
 
 def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
     """
@@ -206,8 +267,32 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
     Returns:
         DataFrame with simulation data or None if loading failed
     """
+    data_cfg = DataConfig()
     csv_path = Path(csv_file)
-    
+
+    parquet_path: Optional[Path] = None
+    parquet_compression = getattr(data_cfg, 'parquet_cache_compression', 'snappy')
+    configured_cache_path = getattr(data_cfg, 'parquet_cache_path', None)
+    if configured_cache_path is not None and not isinstance(configured_cache_path, Path):
+        configured_cache_path = Path(configured_cache_path)
+
+    if getattr(data_cfg, 'enable_parquet_cache', False):
+        parquet_path = _resolve_parquet_cache_path(csv_path, configured_cache_path)
+        if parquet_path.exists():
+            csv_mtime = csv_path.stat().st_mtime if csv_path.exists() else None
+            parquet_mtime = parquet_path.stat().st_mtime
+            cache_is_fresh = csv_mtime is None or parquet_mtime >= csv_mtime
+            if cache_is_fresh:
+                cache_df = _read_parquet_cache(parquet_path)
+                if cache_df is not None:
+                    return cache_df
+            else:
+                logger.info(
+                    "Parquet cache %s is older than CSV %s; refreshing from CSV",
+                    parquet_path,
+                    csv_path,
+                )
+
     if not csv_path.exists():
         logger.error(f"CSV file not found: {csv_file}")
         print(f"Error: {csv_file} not found. Run the Rust simulation first.")
@@ -217,6 +302,7 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
         df = pd.read_csv(csv_file)
         logger.info(f"Loaded {len(df)} time steps from {csv_file}")
         print(f"Loaded {len(df)} time steps of simulation data")
+        _write_parquet_cache(df, parquet_path, parquet_compression)
         return df
 
     except MemoryError as mem_err:
@@ -229,6 +315,7 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
             df = pd.read_csv(csv_file, dtype_backend="pyarrow")
             logger.info(f"Loaded {len(df)} time steps from {csv_file} using pyarrow dtype backend")
             print(f"Loaded {len(df)} time steps of simulation data (pyarrow backend)")
+            _write_parquet_cache(df, parquet_path, parquet_compression)
             return df
         except TypeError:
             # pandas < 2.0 may not support dtype_backend; try pyarrow engine instead
@@ -241,6 +328,7 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
             df = pd.read_csv(csv_file, engine="pyarrow")
             logger.info(f"Loaded {len(df)} time steps from {csv_file} using pyarrow engine")
             print(f"Loaded {len(df)} time steps of simulation data (pyarrow engine)")
+            _write_parquet_cache(df, parquet_path, parquet_compression)
             return df
         except Exception as fallback_err:
             logger.error(f"Pyarrow engine load failed: {fallback_err}")
