@@ -50,6 +50,7 @@ const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
 /// Values below this threshold are treated as numerical noise and ignored.
 const DRUG_ASSISTED_CLEARANCE_EFFECT_THRESHOLD: f64 = 1e-6;
 
+#[inline]
 fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     let anchors = if in_hospital {
         HOSPITAL_SANITATION_LOG_ODDS_ANCHORS
@@ -59,6 +60,7 @@ fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     interpolate_piecewise_linear(year, anchors)
 }
 
+#[inline]
 fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     if anchors.is_empty() {
         return 0.0;
@@ -85,6 +87,7 @@ fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     anchors[last_idx].1
 }
 
+#[inline]
 fn qnr_supported_bacteria(bacteria: &str) -> bool {
     matches!(
         bacteria,
@@ -111,6 +114,7 @@ fn qnr_supported_bacteria(bacteria: &str) -> bool {
 }
 
 /// Helper function to update the current number of drugs counter
+#[inline]
 fn update_drug_counter(individual: &mut Individual) {
     individual.current_number_of_drugs =
         individual.cur_use_drug.iter().filter(|&&on| on).count() as i32;
@@ -118,7 +122,8 @@ fn update_drug_counter(individual: &mut Individual) {
 
 /// Apply pairwise drug level interactions based on pharmacokinetic effects
 /// Modifies individual.cur_level_drug in-place to account for drug-drug interactions
-fn apply_drug_level_interactions(individual: &mut Individual) {
+#[inline]
+fn apply_drug_level_interactions(individual: &mut Individual, param_cache: &ParameterKeyCache) {
     let store = parameter_store();
     // Create a copy of current levels to calculate interactions from baseline levels
     let original_levels = individual.cur_level_drug.clone();
@@ -136,38 +141,29 @@ fn apply_drug_level_interactions(individual: &mut Individual) {
         return;
     }
 
-    // Apply each pairwise interaction
+    // Apply each pairwise interaction using pre-computed multipliers
     for &drug1_idx in &active_drugs {
-        let drug1_name = DRUG_SHORT_NAMES[drug1_idx];
-
         for &drug2_idx in &active_drugs {
             if drug1_idx == drug2_idx {
                 continue; // Skip self-interactions
             }
 
-            let drug2_name = DRUG_SHORT_NAMES[drug2_idx];
+            let multiplier = param_cache.drug_interaction_multiplier(drug1_idx, drug2_idx);
 
-            let interaction_key = format!(
-                "drug_level_multiplier_{}_when_coadministered_with_{}",
-                drug1_name, drug2_name
-            );
+            // Apply the interaction multiplier to drug1's level
+            // Only apply if it would actually change the level (avoid redundant 1.0 multipliers)
+            if (multiplier - 1.0).abs() > 0.001 {
+                individual.cur_level_drug[drug1_idx] *= multiplier;
 
-            if let Some(multiplier) = get_global_param(&interaction_key) {
-                // Apply the interaction multiplier to drug1's level
-                // Only apply if it would actually change the level (avoid redundant 1.0 multipliers)
-                if (multiplier - 1.0).abs() > 0.001 {
-                    individual.cur_level_drug[drug1_idx] *= multiplier;
+                // Ensure levels don't go negative or below detection threshold
+                if individual.cur_level_drug[drug1_idx] < INFECTION_EPS {
+                    individual.cur_level_drug[drug1_idx] = 0.0;
+                }
 
-                    // Ensure levels don't go negative or below detection threshold
-                    if individual.cur_level_drug[drug1_idx] < INFECTION_EPS {
-                        individual.cur_level_drug[drug1_idx] = 0.0;
-                    }
-
-                    // Cap levels at reasonable maximum (e.g., 5x standard dose to prevent unrealistic accumulation)
-                    let max_level = store.drug.initial_level(drug1_idx) * 5.0;
-                    if individual.cur_level_drug[drug1_idx] > max_level {
-                        individual.cur_level_drug[drug1_idx] = max_level;
-                    }
+                // Cap levels at reasonable maximum (e.g., 5x standard dose to prevent unrealistic accumulation)
+                let max_level = store.drug.initial_level(drug1_idx) * 5.0;
+                if individual.cur_level_drug[drug1_idx] > max_level {
+                    individual.cur_level_drug[drug1_idx] = max_level;
                 }
             }
         }
@@ -177,6 +173,7 @@ use rand::distributions::Distribution;
 use rand::distributions::WeightedIndex;
 
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
+#[inline]
 fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, drug: &str) -> bool {
     match mechanism {
         ResistanceMechanism::ESBL => matches!(
@@ -272,6 +269,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
     }
 }
 
+#[inline]
 fn syndrome_compartment_mask(syndrome_id: u32) -> u32 {
     match syndrome_id {
         1 => CarriageCompartment::Genitourinary.bit(),
@@ -284,6 +282,7 @@ fn syndrome_compartment_mask(syndrome_id: u32) -> u32 {
     }
 }
 
+#[inline]
 fn bacteria_presence_compartment_mask(individual: &Individual, b_idx: usize) -> u32 {
     let has_infection = individual.level[b_idx] > INFECTION_EPS;
     let has_microbiome = individual.presence_microbiome[b_idx];
@@ -314,6 +313,7 @@ fn bacteria_presence_compartment_mask(individual: &Individual, b_idx: usize) -> 
     mask
 }
 
+#[inline]
 fn hgt_context_multiplier(
     globals: &crate::config::GlobalScalars,
     is_hospitalized: bool,
@@ -349,7 +349,7 @@ fn assess_treatment_failure(
     bacteria_indices: &HashMap<&'static str, usize>,
     _drug_indices: &HashMap<&'static str, usize>,
     _cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>,
-    _param_cache: &ParameterKeyCache,
+    param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
 ) -> bool {
     let store = parameter_store();
@@ -468,13 +468,9 @@ fn assess_treatment_failure(
         }
 
         // Apply clinical multipliers (same as original logic)
-        // Add pathogen-specific preference multipliers
-        let bacteria_drug_key = format!(
-            "{}_{}_clinical_preference_multiplier",
-            bacteria_name.replace(" ", "_"),
-            drug_name
-        );
-        if let Some(preference_multiplier) = get_global_param(&bacteria_drug_key) {
+        // Use pre-computed clinical preference multiplier from cache
+        let preference_multiplier = param_cache.clinical_preference_multiplier(*bacteria_idx_for_cache, drug_idx);
+        if preference_multiplier != 1.0 {
             score *= preference_multiplier;
         }
 
@@ -551,6 +547,7 @@ fn treatment_failure_assessment_day_for(
     final_day
 }
 
+#[inline]
 fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
     let globals = &parameter_store().globals;
     let slow_probability = globals
@@ -564,6 +561,7 @@ fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
     }
 }
 
+#[inline]
 fn mark_new_treatment_course(
     individual: &mut Individual,
     bacteria_idx: usize,
@@ -577,6 +575,7 @@ fn mark_new_treatment_course(
         sample_antibiotic_response_multiplier(rng);
 }
 
+#[inline]
 fn clear_treatment_tracking(individual: &mut Individual, bacteria_idx: usize) {
     let base_multiplier = parameter_store()
         .globals
@@ -674,7 +673,7 @@ fn start_restart_treatment(
     bacteria_idx: usize,
     stopped_drug_idx: Option<usize>,
     bacteria_indices: &HashMap<&'static str, usize>,
-    _param_cache: &ParameterKeyCache,
+    param_cache: &ParameterKeyCache,
     rng: &mut impl Rng,
 ) -> bool {
     let store = parameter_store();
@@ -778,13 +777,9 @@ fn start_restart_treatment(
             score += potency;
         }
 
-        // Apply clinical preference multipliers
-        let bacteria_drug_key = format!(
-            "{}_{}_clinical_preference_multiplier",
-            bacteria_name.replace(" ", "_"),
-            drug_name
-        );
-        if let Some(preference_multiplier) = get_global_param(&bacteria_drug_key) {
+        // Apply clinical preference multipliers using cached values
+        let preference_multiplier = param_cache.clinical_preference_multiplier(*bacteria_idx_for_cache, drug_idx);
+        if preference_multiplier != 1.0 {
             score *= preference_multiplier;
         }
 
@@ -855,6 +850,12 @@ pub struct ParameterKeyCache {
     drug_bacteria_potency: Vec<f64>,
     bacteria_age_sepsis_log_odds: Vec<[f64; SEPSIS_AGE_BUCKET_COUNT]>,
     mechanism_applicability: Vec<bool>,
+    /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
+    /// Value of 1.0 means no preference adjustment (default)
+    clinical_preference_multipliers: Vec<f64>,
+    /// Pre-computed drug-drug interaction multipliers [drug1_idx * drug_count + drug2_idx]
+    /// Value of 1.0 means no interaction (default)
+    drug_interaction_multipliers: Vec<f64>,
 }
 
 impl ParameterKeyCache {
@@ -895,12 +896,41 @@ impl ParameterKeyCache {
             }
         }
 
+        // Pre-compute clinical preference multipliers for all bacteria-drug pairs
+        let mut clinical_preference_multipliers = Vec::with_capacity(bacteria_count * drug_count);
+        for &bacteria_name in BACTERIA_LIST.iter() {
+            let bacteria_slug = bacteria_name.replace(" ", "_");
+            for &drug_name in DRUG_SHORT_NAMES.iter() {
+                let key = format!(
+                    "{}_{}_clinical_preference_multiplier",
+                    bacteria_slug, drug_name
+                );
+                let multiplier = get_global_param(&key).unwrap_or(1.0);
+                clinical_preference_multipliers.push(multiplier);
+            }
+        }
+
+        // Pre-compute drug-drug interaction multipliers
+        let mut drug_interaction_multipliers = Vec::with_capacity(drug_count * drug_count);
+        for &drug1_name in DRUG_SHORT_NAMES.iter() {
+            for &drug2_name in DRUG_SHORT_NAMES.iter() {
+                let key = format!(
+                    "drug_level_multiplier_{}_when_coadministered_with_{}",
+                    drug1_name, drug2_name
+                );
+                let multiplier = get_global_param(&key).unwrap_or(1.0);
+                drug_interaction_multipliers.push(multiplier);
+            }
+        }
+
         ParameterKeyCache {
             drug_count,
             bacteria_count,
             drug_bacteria_potency,
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
+            clinical_preference_multipliers,
+            drug_interaction_multipliers,
         }
     }
 
@@ -939,6 +969,22 @@ impl ParameterKeyCache {
         let offset =
             ((mechanism_idx * self.bacteria_count) + bacteria_idx) * self.drug_count + drug_idx;
         self.mechanism_applicability[offset]
+    }
+
+    /// Get the pre-computed clinical preference multiplier for a bacteria-drug pair.
+    /// Returns 1.0 if no preference is configured.
+    #[inline]
+    pub fn clinical_preference_multiplier(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
+        let offset = bacteria_idx * self.drug_count + drug_idx;
+        self.clinical_preference_multipliers[offset]
+    }
+
+    /// Get the pre-computed drug-drug interaction multiplier.
+    /// Returns 1.0 if no interaction is configured.
+    #[inline]
+    pub fn drug_interaction_multiplier(&self, drug1_idx: usize, drug2_idx: usize) -> f64 {
+        let offset = drug1_idx * self.drug_count + drug2_idx;
+        self.drug_interaction_multipliers[offset]
     }
 }
 
@@ -1486,7 +1532,7 @@ pub fn apply_rules(
 
     // --- Apply Drug Level Interactions ---
     // Calculate final drug levels considering pairwise pharmacokinetic interactions
-    apply_drug_level_interactions(individual);
+    apply_drug_level_interactions(individual, param_cache);
 
     // --- drug initiation (two-stage process) ---
     // Stage 1: Decide whether to start any antibiotic
