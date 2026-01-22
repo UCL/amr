@@ -270,20 +270,6 @@ pub struct GlobalScalars {
     pub sepsis_age_mortality_multiplier_adult: f64,
     pub sepsis_age_mortality_multiplier_elderly: f64,
     pub sepsis_immunosuppressed_multiplier: f64,
-    // Sepsis onset additional factors
-    pub log_odds_sepsis_onset_immunosuppressed: f64,
-    pub log_odds_sepsis_onset_hospitalized: f64,
-    pub log_odds_sepsis_onset_not_under_care: f64,
-    // Sepsis death additional factors
-    pub sepsis_death_bacteria_level_coefficient: f64,
-    pub sepsis_death_duration_coefficient: f64,
-    pub sepsis_death_not_under_care_multiplier: f64,
-    // Bacteria growth rate multipliers (affect base_bacteria_level_change)
-    pub bacteria_growth_age_multiplier_infant: f64,
-    pub bacteria_growth_age_multiplier_child: f64,
-    pub bacteria_growth_age_multiplier_adult: f64,
-    pub bacteria_growth_age_multiplier_elderly: f64,
-    pub bacteria_growth_immunodeficiency_multiplier: f64,
     // Enhanced microbiome/carriage model parameters
     #[allow(dead_code)]
     pub antibiotic_disruption_decay_half_life_days: f64,
@@ -376,7 +362,7 @@ impl GlobalScalars {
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                0.0,  // 0.0008  ***
+                0.0008,
             ),
             hospital_baseline_rate_per_day: get_or_default(
                 map,
@@ -489,7 +475,7 @@ impl GlobalScalars {
             microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
                 map,
                 "microbiome_resistance_emergence_rate_per_day_baseline",
-                0.0,   // 0.0001 ***  ^^^
+                0.0001,
             ),
             default_toxicity_reservoir_half_life_days: get_or_default(
                 map,
@@ -710,62 +696,6 @@ impl GlobalScalars {
                 "sepsis_immunosuppressed_multiplier",
                 3.0,
             ),
-            log_odds_sepsis_onset_immunosuppressed: get_or_default(
-                map,
-                "log_odds_sepsis_onset_immunosuppressed",
-                0.7,
-            ),
-            log_odds_sepsis_onset_hospitalized: get_or_default(
-                map,
-                "log_odds_sepsis_onset_hospitalized",
-                0.5,
-            ),
-            log_odds_sepsis_onset_not_under_care: get_or_default(
-                map,
-                "log_odds_sepsis_onset_not_under_care",
-                1.0,
-            ),
-            sepsis_death_bacteria_level_coefficient: get_or_default(
-                map,
-                "sepsis_death_bacteria_level_coefficient",
-                0.1,
-            ),
-            sepsis_death_duration_coefficient: get_or_default(
-                map,
-                "sepsis_death_duration_coefficient",
-                0.02,
-            ),
-            sepsis_death_not_under_care_multiplier: get_or_default(
-                map,
-                "sepsis_death_not_under_care_multiplier",
-                2.0,
-            ),
-            // Bacteria growth rate multipliers by age
-            bacteria_growth_age_multiplier_infant: get_or_default(
-                map,
-                "bacteria_growth_age_multiplier_infant",
-                1.3, // Immature immune system → faster bacterial proliferation
-            ),
-            bacteria_growth_age_multiplier_child: get_or_default(
-                map,
-                "bacteria_growth_age_multiplier_child",
-                1.0, // Baseline
-            ),
-            bacteria_growth_age_multiplier_adult: get_or_default(
-                map,
-                "bacteria_growth_age_multiplier_adult",
-                1.0, // Baseline
-            ),
-            bacteria_growth_age_multiplier_elderly: get_or_default(
-                map,
-                "bacteria_growth_age_multiplier_elderly",
-                1.2, // Immunosenescence → reduced containment
-            ),
-            bacteria_growth_immunodeficiency_multiplier: get_or_default(
-                map,
-                "bacteria_growth_immunodeficiency_multiplier",
-                1.5, // Compromised immunity → faster bacterial proliferation
-            ),
             antibiotic_disruption_decay_half_life_days: get_or_default(
                 map,
                 "antibiotic_disruption_decay_half_life_days",
@@ -774,7 +704,7 @@ impl GlobalScalars {
             microbiome_resistance_multiplier_on_acquisition: get_or_default(
                 map,
                 "microbiome_resistance_multiplier_on_acquisition",
-                0.0,  // 0.18 ***
+                0.18,
             ),
             infection_from_microbiome_dampening: get_or_default(
                 map,
@@ -799,23 +729,23 @@ impl GlobalScalars {
             carrier_resistance_inheritance_probability: get_or_default(
                 map,
                 "carrier_resistance_inheritance_probability",
-                0.0,  // 0.32 ***
+                0.32,
             ),
-            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 0.0),  // 3.0  ***
+            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),
             hgt_antibiotic_pressure_multiplier: get_or_default(
                 map,
                 "hgt_antibiotic_pressure_multiplier",
-                0.0,  // 1.5  ***
+                1.5,
             ),
             hgt_coinfection_multiplier: get_or_default(
                 map,
                 "hgt_coinfection_multiplier",
-                0.0,  // 1.25 ***
+                1.25,
             ),
             hgt_microbiome_only_penalty: get_or_default(
                 map,
                 "hgt_microbiome_only_penalty",
-                0.0,  // 0.65 ***
+                0.65,
             ),
             majority_r_memory_retention_per_day: get_or_default(
                 map,
@@ -1073,13 +1003,6 @@ pub struct SyndromeParameters {
     initiation_multiplier: Vec<f64>,
     non_sepsis_mortality_log_odds: Vec<f64>,
     empiric_drug_scores: Vec<Vec<f64>>,
-    bacteria_growth_multiplier: Vec<f64>,
-    /// Drug penetration multipliers by syndrome: [syndrome_id][drug_idx] -> penetration factor (0.0-1.0)
-    /// Accounts for tissue/compartment-specific drug distribution
-    drug_penetration: Vec<Vec<f64>>,
-    /// Days required to reach therapeutic levels by syndrome
-    /// Accounts for slow equilibration in protected compartments (CNS, bone, abscess)
-    days_to_therapeutic: Vec<f64>,
 }
 
 impl SyndromeParameters {
@@ -1087,38 +1010,10 @@ impl SyndromeParameters {
 
     fn from_map(map: &HashMap<String, f64>) -> Self {
         let len = Self::MAX_SYNDROME_ID + 1;
-        let num_drugs = DRUG_SHORT_NAMES.len();
         let mut sepsis_log_odds = vec![0.0; len];
         let mut initiation_multiplier = vec![1.0; len];
         let mut non_sepsis_mortality_log_odds = vec![0.0; len];
-        let mut empiric_drug_scores = vec![vec![1.0; num_drugs]; len];
-        let mut bacteria_growth_multiplier = vec![1.0; len];
-        let mut drug_penetration = vec![vec![1.0; num_drugs]; len];
-        let mut days_to_therapeutic = vec![1.0; len];
-
-        // Initialize syndrome-specific defaults for drug penetration and time to therapeutic
-        // Syndromes: 1=UTI, 2=Skin, 3=Respiratory, 4=Bloodstream, 5=Intra-abdominal, 
-        //           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
-        
-        // Days to therapeutic level defaults (slow equilibration for protected compartments)
-        // Most syndromes: 1 day (rapid equilibration)
-        // CNS (6): 3 days - blood-brain barrier equilibration
-        // Bone/joint (9): 3 days - poor vascularity, biofilm
-        // Intra-abdominal (5): 2 days - abscess penetration
-        days_to_therapeutic[1] = 1.0;  // UTI
-        days_to_therapeutic[2] = 1.0;  // Skin
-        days_to_therapeutic[3] = 1.0;  // Respiratory
-        days_to_therapeutic[4] = 1.0;  // Bloodstream
-        days_to_therapeutic[5] = 2.0;  // Intra-abdominal (abscess)
-        days_to_therapeutic[6] = 3.0;  // CNS (blood-brain barrier)
-        days_to_therapeutic[7] = 1.0;  // GI
-        days_to_therapeutic[8] = 1.5;  // Genital (prostate barrier for males)
-        days_to_therapeutic[9] = 3.0;  // Bone/joint (poor vascularity)
-        days_to_therapeutic[10] = 1.0; // Other
-
-        // Initialize drug penetration defaults based on pharmacokinetic properties
-        // Drug class-based penetration factors by syndrome
-        Self::initialize_drug_penetration_defaults(&mut drug_penetration);
+        let mut empiric_drug_scores = vec![vec![1.0; DRUG_SHORT_NAMES.len()]; len];
 
         for syndrome_id in 1..=Self::MAX_SYNDROME_ID {
             sepsis_log_odds[syndrome_id] = get_or_default(
@@ -1139,30 +1034,10 @@ impl SyndromeParameters {
                 ),
                 0.0,
             );
-            bacteria_growth_multiplier[syndrome_id] = get_or_default(
-                map,
-                &format!("syndrome_{}_bacteria_growth_multiplier", syndrome_id),
-                1.0,
-            );
-            
-            // Override days_to_therapeutic from config if specified
-            days_to_therapeutic[syndrome_id] = get_or_default(
-                map,
-                &format!("syndrome_{}_days_to_therapeutic", syndrome_id),
-                days_to_therapeutic[syndrome_id],
-            );
 
             for (drug_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
                 let key = format!("syndrome_{}_empiric_drug_{}_score", syndrome_id, drug);
                 empiric_drug_scores[syndrome_id][drug_idx] = get_or_default(map, &key, 1.0);
-                
-                // Override drug penetration from config if specified
-                let penetration_key = format!("syndrome_{}_drug_{}_penetration", syndrome_id, drug);
-                drug_penetration[syndrome_id][drug_idx] = get_or_default(
-                    map,
-                    &penetration_key,
-                    drug_penetration[syndrome_id][drug_idx],
-                );
             }
         }
 
@@ -1171,235 +1046,7 @@ impl SyndromeParameters {
             initiation_multiplier,
             non_sepsis_mortality_log_odds,
             empiric_drug_scores,
-            bacteria_growth_multiplier,
-            drug_penetration,
-            days_to_therapeutic,
         }
-    }
-    
-    /// Initialize drug penetration defaults based on pharmacokinetic properties
-    /// Values represent fraction of serum concentration achieved at infection site
-    fn initialize_drug_penetration_defaults(drug_penetration: &mut Vec<Vec<f64>>) {
-        // Drug indices (from DRUG_SHORT_NAMES):
-        // 0=sulfanilamide, 1=penicilling, 2=ampicillin, 3=amoxicillin, 4=piperacillin, 5=ticarcillin
-        // 6=cephalexin, 7=cefazolin, 8=cefuroxime, 9=ceftriaxone, 10=ceftazidime, 11=cefepime
-        // 12=ceftaroline, 13=meropenem, 14=imipenem_c, 15=ertapenem, 16=aztreonam
-        // 17=erythromycin, 18=azithromycin, 19=clarithromycin, 20=clindamycin
-        // 21=gentamicin, 22=tobramycin, 23=amikacin (aminoglycosides)
-        // 24=ciprofloxacin, 25=levofloxacin, 26=moxifloxacin, 27=ofloxacin (fluoroquinolones)
-        // 28=tetracycline, 29=doxycycline, 30=minocycline
-        // 31=vancomycin, 32=teicoplanin, 33=dalbavancin
-        // 34=linezolid, 35=tedizolid
-        // 36=quinu_dalfo, 37=trim_sulf, 38=chlorampheni, 39=nitrofurantoin
-        // 40=retapamulin, 41=fusidic_a, 42=metronidazole, 43=furazolidone, 44=rifampicin
-        // 45=amoxicillin_clavulanate, 46=piperacillin_tazobactam, 47=ampicillin_sulbactam
-        // 48=ticarcillin_clavulanate, 49=ceftazidime_avibactam, 50=meropenem_vaborbactam
-        // 51=colistin
-        
-        // Syndrome indices: 1=UTI, 2=Skin, 3=Resp, 4=BSI, 5=Intra-abd, 6=CNS, 7=GI, 8=Genital, 9=Bone, 10=Other
-        
-        // Define drug class groupings for easier assignment
-        let penicillins = [1, 2, 3, 4, 5]; // penicilling through ticarcillin
-        let oral_cephalosporins = [6]; // cephalexin
-        let iv_cephalosporins = [7, 8, 9, 10, 11, 12]; // cefazolin through ceftaroline
-        let carbapenems = [13, 14, 15]; // meropenem, imipenem, ertapenem
-        let aztreonam_idx = 16;
-        let macrolides = [17, 18, 19]; // erythromycin, azithromycin, clarithromycin
-        let clindamycin_idx = 20;
-        let aminoglycosides = [21, 22, 23]; // gentamicin, tobramycin, amikacin
-        let fluoroquinolones = [24, 25, 26, 27]; // cipro, levo, moxi, ofloxacin
-        let tetracyclines = [28, 29, 30]; // tetracycline, doxycycline, minocycline
-        let glycopeptides = [31, 32, 33]; // vancomycin, teicoplanin, dalbavancin
-        let oxazolidinones = [34, 35]; // linezolid, tedizolid
-        let trim_sulf_idx = 37;
-        let chloramphenicol_idx = 38;
-        let nitrofurantoin_idx = 39;
-        let metronidazole_idx = 42;
-        let rifampicin_idx = 44;
-        let blbli_combinations = [45, 46, 47, 48, 49, 50]; // β-lactam/β-lactamase inhibitor combos
-        let colistin_idx = 51;
-        
-        // --- CNS (syndrome 6) - Blood-brain barrier severely limits most drugs ---
-        for &d in &penicillins { drug_penetration[6][d] = 0.15; } // Poor unless meningeal inflammation
-        for &d in &oral_cephalosporins { drug_penetration[6][d] = 0.05; } // Very poor
-        for &d in &iv_cephalosporins { drug_penetration[6][d] = 0.20; } // Ceftriaxone better ~30%
-        drug_penetration[6][9] = 0.35; // Ceftriaxone - best CSF penetration among cephalosporins
-        for &d in &carbapenems { drug_penetration[6][d] = 0.25; } // Meropenem preferred for CNS
-        drug_penetration[6][13] = 0.35; // Meropenem - good CNS penetration
-        drug_penetration[6][aztreonam_idx] = 0.10; // Poor
-        for &d in &macrolides { drug_penetration[6][d] = 0.15; } // Poor
-        drug_penetration[6][clindamycin_idx] = 0.15; // Poor
-        for &d in &aminoglycosides { drug_penetration[6][d] = 0.05; } // Very poor - aminoglycosides don't cross BBB
-        for &d in &fluoroquinolones { drug_penetration[6][d] = 0.50; } // Good - lipophilic
-        drug_penetration[6][26] = 0.60; // Moxifloxacin - excellent CNS penetration
-        for &d in &tetracyclines { drug_penetration[6][d] = 0.25; } // Moderate
-        drug_penetration[6][30] = 0.40; // Minocycline - good lipophilicity
-        for &d in &glycopeptides { drug_penetration[6][d] = 0.15; } // Poor unless inflamed meninges
-        for &d in &oxazolidinones { drug_penetration[6][d] = 0.70; } // Linezolid excellent CNS
-        drug_penetration[6][trim_sulf_idx] = 0.50; // Good - used for CNS toxoplasmosis
-        drug_penetration[6][chloramphenicol_idx] = 0.70; // Excellent CNS penetration
-        drug_penetration[6][nitrofurantoin_idx] = 0.05; // No CNS penetration
-        drug_penetration[6][metronidazole_idx] = 0.80; // Excellent - used for brain abscess
-        drug_penetration[6][rifampicin_idx] = 0.50; // Good
-        for &d in &blbli_combinations { drug_penetration[6][d] = 0.15; } // Similar to parent β-lactam
-        drug_penetration[6][colistin_idx] = 0.05; // Very poor
-        
-        // --- Bone/joint (syndrome 9) - Poor vascularity, biofilm ---
-        for &d in &penicillins { drug_penetration[9][d] = 0.40; }
-        for &d in &oral_cephalosporins { drug_penetration[9][d] = 0.30; }
-        for &d in &iv_cephalosporins { drug_penetration[9][d] = 0.45; }
-        for &d in &carbapenems { drug_penetration[9][d] = 0.50; }
-        drug_penetration[9][aztreonam_idx] = 0.35;
-        for &d in &macrolides { drug_penetration[9][d] = 0.40; }
-        drug_penetration[9][clindamycin_idx] = 0.60; // Clindamycin good bone penetration
-        for &d in &aminoglycosides { drug_penetration[9][d] = 0.25; } // Poor bone penetration
-        for &d in &fluoroquinolones { drug_penetration[9][d] = 0.70; } // Excellent bone penetration
-        for &d in &tetracyclines { drug_penetration[9][d] = 0.50; }
-        for &d in &glycopeptides { drug_penetration[9][d] = 0.35; } // Vancomycin moderate
-        for &d in &oxazolidinones { drug_penetration[9][d] = 0.75; } // Linezolid excellent
-        drug_penetration[9][trim_sulf_idx] = 0.55;
-        drug_penetration[9][chloramphenicol_idx] = 0.50;
-        drug_penetration[9][nitrofurantoin_idx] = 0.10; // Poor systemic distribution
-        drug_penetration[9][metronidazole_idx] = 0.55;
-        drug_penetration[9][rifampicin_idx] = 0.80; // Excellent - key for osteomyelitis
-        for &d in &blbli_combinations { drug_penetration[9][d] = 0.40; }
-        drug_penetration[9][colistin_idx] = 0.20;
-        
-        // --- Intra-abdominal (syndrome 5) - Abscess cavities, acidic pH ---
-        for &d in &penicillins { drug_penetration[5][d] = 0.60; }
-        for &d in &oral_cephalosporins { drug_penetration[5][d] = 0.45; }
-        for &d in &iv_cephalosporins { drug_penetration[5][d] = 0.65; }
-        for &d in &carbapenems { drug_penetration[5][d] = 0.75; }
-        drug_penetration[5][aztreonam_idx] = 0.55;
-        for &d in &macrolides { drug_penetration[5][d] = 0.50; }
-        drug_penetration[5][clindamycin_idx] = 0.65;
-        for &d in &aminoglycosides { drug_penetration[5][d] = 0.30; } // Inactivated at acidic pH
-        for &d in &fluoroquinolones { drug_penetration[5][d] = 0.75; }
-        for &d in &tetracyclines { drug_penetration[5][d] = 0.55; }
-        for &d in &glycopeptides { drug_penetration[5][d] = 0.45; }
-        for &d in &oxazolidinones { drug_penetration[5][d] = 0.70; }
-        drug_penetration[5][trim_sulf_idx] = 0.60;
-        drug_penetration[5][chloramphenicol_idx] = 0.60;
-        drug_penetration[5][nitrofurantoin_idx] = 0.15;
-        drug_penetration[5][metronidazole_idx] = 0.90; // Excellent for anaerobic abscesses
-        drug_penetration[5][rifampicin_idx] = 0.65;
-        for &d in &blbli_combinations { drug_penetration[5][d] = 0.65; }
-        drug_penetration[5][colistin_idx] = 0.35;
-        
-        // --- UTI (syndrome 1) - Renal excretion concentrates many drugs ---
-        for &d in &penicillins { drug_penetration[1][d] = 0.80; }
-        for &d in &oral_cephalosporins { drug_penetration[1][d] = 0.85; }
-        for &d in &iv_cephalosporins { drug_penetration[1][d] = 0.85; }
-        for &d in &carbapenems { drug_penetration[1][d] = 0.85; }
-        drug_penetration[1][aztreonam_idx] = 0.80;
-        for &d in &macrolides { drug_penetration[1][d] = 0.40; } // Poor urinary excretion
-        drug_penetration[1][clindamycin_idx] = 0.30; // Poor for UTI
-        for &d in &aminoglycosides { drug_penetration[1][d] = 0.75; } // Renally excreted
-        for &d in &fluoroquinolones { drug_penetration[1][d] = 1.0; } // Excellent urinary concentration
-        for &d in &tetracyclines { drug_penetration[1][d] = 0.50; }
-        for &d in &glycopeptides { drug_penetration[1][d] = 0.60; }
-        for &d in &oxazolidinones { drug_penetration[1][d] = 0.70; }
-        drug_penetration[1][trim_sulf_idx] = 1.0; // Excellent - first-line UTI
-        drug_penetration[1][chloramphenicol_idx] = 0.40;
-        drug_penetration[1][nitrofurantoin_idx] = 1.0; // Concentrated in urine - first-line UTI
-        drug_penetration[1][metronidazole_idx] = 0.50;
-        drug_penetration[1][rifampicin_idx] = 0.40;
-        for &d in &blbli_combinations { drug_penetration[1][d] = 0.80; }
-        drug_penetration[1][colistin_idx] = 0.70;
-        
-        // --- Skin/soft tissue (syndrome 2) - Generally good penetration ---
-        for &d in &penicillins { drug_penetration[2][d] = 0.85; }
-        for &d in &oral_cephalosporins { drug_penetration[2][d] = 0.80; }
-        for &d in &iv_cephalosporins { drug_penetration[2][d] = 0.85; }
-        for &d in &carbapenems { drug_penetration[2][d] = 0.85; }
-        drug_penetration[2][aztreonam_idx] = 0.75;
-        for &d in &macrolides { drug_penetration[2][d] = 0.80; }
-        drug_penetration[2][clindamycin_idx] = 0.85; // Excellent skin penetration
-        for &d in &aminoglycosides { drug_penetration[2][d] = 0.60; }
-        for &d in &fluoroquinolones { drug_penetration[2][d] = 0.90; }
-        for &d in &tetracyclines { drug_penetration[2][d] = 0.80; }
-        for &d in &glycopeptides { drug_penetration[2][d] = 0.75; }
-        for &d in &oxazolidinones { drug_penetration[2][d] = 0.90; }
-        drug_penetration[2][trim_sulf_idx] = 0.80;
-        drug_penetration[2][chloramphenicol_idx] = 0.70;
-        drug_penetration[2][nitrofurantoin_idx] = 0.20; // Poor systemic distribution
-        drug_penetration[2][metronidazole_idx] = 0.75;
-        drug_penetration[2][rifampicin_idx] = 0.80;
-        for &d in &blbli_combinations { drug_penetration[2][d] = 0.85; }
-        drug_penetration[2][colistin_idx] = 0.50;
-        
-        // --- Respiratory (syndrome 3) - ELF penetration varies significantly ---
-        for &d in &penicillins { drug_penetration[3][d] = 0.65; }
-        for &d in &oral_cephalosporins { drug_penetration[3][d] = 0.55; }
-        for &d in &iv_cephalosporins { drug_penetration[3][d] = 0.70; }
-        for &d in &carbapenems { drug_penetration[3][d] = 0.75; }
-        drug_penetration[3][aztreonam_idx] = 0.60;
-        for &d in &macrolides { drug_penetration[3][d] = 0.95; } // Excellent lung tissue concentration
-        drug_penetration[3][clindamycin_idx] = 0.75;
-        for &d in &aminoglycosides { drug_penetration[3][d] = 0.40; } // Poor ELF penetration
-        for &d in &fluoroquinolones { drug_penetration[3][d] = 0.95; } // Excellent respiratory penetration
-        for &d in &tetracyclines { drug_penetration[3][d] = 0.70; }
-        for &d in &glycopeptides { drug_penetration[3][d] = 0.50; } // Vancomycin poor ELF
-        for &d in &oxazolidinones { drug_penetration[3][d] = 0.90; } // Excellent
-        drug_penetration[3][trim_sulf_idx] = 0.80;
-        drug_penetration[3][chloramphenicol_idx] = 0.70;
-        drug_penetration[3][nitrofurantoin_idx] = 0.15;
-        drug_penetration[3][metronidazole_idx] = 0.60;
-        drug_penetration[3][rifampicin_idx] = 0.85; // Excellent - TB treatment
-        for &d in &blbli_combinations { drug_penetration[3][d] = 0.65; }
-        drug_penetration[3][colistin_idx] = 0.30; // Poor systemic, but used inhaled
-        
-        // --- Bloodstream (syndrome 4) - Direct access, reference compartment ---
-        // All drugs get 1.0 (full serum concentration) by default initialization
-        
-        // --- GI (syndrome 7) - Luminal vs systemic varies ---
-        for &d in &penicillins { drug_penetration[7][d] = 0.55; }
-        for &d in &oral_cephalosporins { drug_penetration[7][d] = 0.50; }
-        for &d in &iv_cephalosporins { drug_penetration[7][d] = 0.60; }
-        for &d in &carbapenems { drug_penetration[7][d] = 0.65; }
-        drug_penetration[7][aztreonam_idx] = 0.50;
-        for &d in &macrolides { drug_penetration[7][d] = 0.70; } // Good GI tissue penetration
-        drug_penetration[7][clindamycin_idx] = 0.65;
-        for &d in &aminoglycosides { drug_penetration[7][d] = 0.40; }
-        for &d in &fluoroquinolones { drug_penetration[7][d] = 0.85; } // Excellent
-        for &d in &tetracyclines { drug_penetration[7][d] = 0.60; }
-        for &d in &glycopeptides { drug_penetration[7][d] = 0.35; } // Poor oral absorption but good for C.diff
-        drug_penetration[7][31] = 0.90; // Oral vancomycin excellent for C.diff (luminal)
-        for &d in &oxazolidinones { drug_penetration[7][d] = 0.75; }
-        drug_penetration[7][trim_sulf_idx] = 0.70;
-        drug_penetration[7][chloramphenicol_idx] = 0.65;
-        drug_penetration[7][nitrofurantoin_idx] = 0.25;
-        drug_penetration[7][metronidazole_idx] = 0.95; // Excellent - C.diff, amebiasis
-        drug_penetration[7][43] = 0.90; // Furazolidone - GI specific
-        drug_penetration[7][rifampicin_idx] = 0.60;
-        for &d in &blbli_combinations { drug_penetration[7][d] = 0.55; }
-        drug_penetration[7][colistin_idx] = 0.40;
-        
-        // --- Genital (syndrome 8) - Prostate barrier significant for males ---
-        for &d in &penicillins { drug_penetration[8][d] = 0.55; }
-        for &d in &oral_cephalosporins { drug_penetration[8][d] = 0.45; }
-        for &d in &iv_cephalosporins { drug_penetration[8][d] = 0.55; }
-        for &d in &carbapenems { drug_penetration[8][d] = 0.60; }
-        drug_penetration[8][aztreonam_idx] = 0.45;
-        for &d in &macrolides { drug_penetration[8][d] = 0.75; } // Good tissue penetration
-        drug_penetration[8][clindamycin_idx] = 0.60;
-        for &d in &aminoglycosides { drug_penetration[8][d] = 0.35; } // Poor prostate
-        for &d in &fluoroquinolones { drug_penetration[8][d] = 0.90; } // Excellent prostatic penetration
-        for &d in &tetracyclines { drug_penetration[8][d] = 0.75; } // Good - used for STIs
-        for &d in &glycopeptides { drug_penetration[8][d] = 0.40; }
-        for &d in &oxazolidinones { drug_penetration[8][d] = 0.70; }
-        drug_penetration[8][trim_sulf_idx] = 0.80; // Good prostatic penetration
-        drug_penetration[8][chloramphenicol_idx] = 0.55;
-        drug_penetration[8][nitrofurantoin_idx] = 0.30;
-        drug_penetration[8][metronidazole_idx] = 0.80; // Good - trichomoniasis, BV
-        drug_penetration[8][rifampicin_idx] = 0.60;
-        for &d in &blbli_combinations { drug_penetration[8][d] = 0.55; }
-        drug_penetration[8][colistin_idx] = 0.30;
-        
-        // --- Other (syndrome 10) - Use moderate defaults ---
-        // Keep at 1.0 (default) or slightly reduced
-        for &d in &aminoglycosides { drug_penetration[10][d] = 0.70; }
-        drug_penetration[10][nitrofurantoin_idx] = 0.30;
     }
 
     #[inline]
@@ -1431,36 +1078,6 @@ impl SyndromeParameters {
         self.empiric_drug_scores
             .get(syndrome_id)
             .and_then(|scores| scores.get(drug_idx))
-            .copied()
-            .unwrap_or(1.0)
-    }
-
-    #[inline]
-    pub fn bacteria_growth_multiplier(&self, syndrome_id: usize) -> f64 {
-        self.bacteria_growth_multiplier
-            .get(syndrome_id)
-            .copied()
-            .unwrap_or(1.0)
-    }
-
-    /// Get drug penetration factor for a specific syndrome and drug
-    /// Returns value between 0.0 and 1.0 representing fraction of serum concentration
-    /// achieved at the infection site
-    #[inline]
-    pub fn drug_penetration(&self, syndrome_id: usize, drug_idx: usize) -> f64 {
-        self.drug_penetration
-            .get(syndrome_id)
-            .and_then(|drugs| drugs.get(drug_idx))
-            .copied()
-            .unwrap_or(1.0)
-    }
-
-    /// Get days required to reach therapeutic level for a syndrome
-    /// Used to model delayed equilibration in protected compartments (CNS, bone, abscess)
-    #[inline]
-    pub fn days_to_therapeutic(&self, syndrome_id: usize) -> f64 {
-        self.days_to_therapeutic
-            .get(syndrome_id)
             .copied()
             .unwrap_or(1.0)
     }
@@ -2458,19 +2075,19 @@ fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
     // ***  ^^^
     match (donor_pool, recipient_pool) {
         (PlasmidPool::GramPositive, PlasmidPool::GramPositive) => {
-            if same_group { 0.0 } else { 0.0 }
+            if same_group { 1.0e-30 } else { 1.0e-35 }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::EntericGramNegative) => {
-            if same_group { 0.0 } else { 0.0 }
+            if same_group { 1.0e-30 } else { 1.0e-35 }
         }
         (PlasmidPool::RespiratoryGramNegative, PlasmidPool::RespiratoryGramNegative) => {
-            if same_group { 0.0 } else { 0.0 }
+            if same_group { 1.0e-30 } else { 1.0e-35 }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::RespiratoryGramNegative)
-        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 0.0,
+        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 1.0e-40,
         (PlasmidPool::Anaerobe, PlasmidPool::EntericGramNegative)
-        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 0.0,
-        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 0.0,
+        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 1.0e-40,
+        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 1.0e-40,
         _ => 0.0,
     }
 }
@@ -5187,70 +4804,12 @@ lazy_static! {
 
 
         // Toxicity hazard placeholders (per unit drug level). These represent best-guess daily fatal toxicity odds for active therapy.
-        // Values scaled to produce realistic fatal adverse event rates when combined with age/immunodeficiency multipliers.
-        // Reference: ~0.1-1% mortality rate for serious drug toxicity over typical 7-14 day course
-        
-        // === HIGH-TOXICITY DRUGS (nephrotoxicity, bone marrow suppression) ===
         map.insert("drug_colistin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000025); // Colistin-associated nephrotoxicity with high fatal risk
         map.insert("drug_gentamicin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000015); // Aminoglycoside renal failure/ototoxicity
-        map.insert("drug_tobramycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000013); // Similar aminoglycoside profile
-        map.insert("drug_amikacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000017); // Slightly higher renal toxicity than gentamicin
+        map.insert("drug_tobramycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000013);
+        map.insert("drug_amikacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000017);
         map.insert("drug_vancomycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000006); // Severe nephrotoxicity/red man syndrome rare but serious
-        map.insert("drug_chlorampheni_toxicity_death_hazard_per_unit_level".to_string(), 0.00000001); // Aplastic anemia risk (idiosyncratic, ~1:20,000-40,000)
-        
-        // === MODERATE-TOXICITY DRUGS (organ-specific toxicity) ===
-        // Oxazolidinones - myelosuppression, lactic acidosis, peripheral neuropathy
-        map.insert("drug_linezolid_toxicity_death_hazard_per_unit_level".to_string(), 0.000000008); // Thrombocytopenia, lactic acidosis with prolonged use
-        map.insert("drug_tedizolid_toxicity_death_hazard_per_unit_level".to_string(), 0.000000004); // Lower toxicity than linezolid
-        
-        // Fluoroquinolones - tendon rupture, QT prolongation, CNS effects, aortic dissection
-        map.insert("drug_ciprofloxacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000003); // Tendinopathy, QT prolongation
-        map.insert("drug_levofloxacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000003); // Similar to ciprofloxacin
-        map.insert("drug_moxifloxacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000005); // Higher QT prolongation risk
-        map.insert("drug_ofloxacin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000003); // Similar to other FQs
-        
-        // Other moderate-toxicity drugs
-        map.insert("drug_rifampicin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000004); // Hepatotoxicity, drug interactions
-        map.insert("drug_metronidazole_toxicity_death_hazard_per_unit_level".to_string(), 0.000000002); // Peripheral neuropathy with prolonged use
-        map.insert("drug_nitrofurantoin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000003); // Pulmonary fibrosis (chronic use), hepatotoxicity
-        map.insert("drug_trim_sulf_toxicity_death_hazard_per_unit_level".to_string(), 0.000000002); // Stevens-Johnson syndrome, bone marrow suppression
-        
-        // === LOW-TOXICITY DRUGS (rare serious adverse events) ===
-        // Tetracyclines
-        map.insert("drug_doxycycline_toxicity_death_hazard_per_unit_level".to_string(), 0.000000001); // Esophagitis, photosensitivity (rarely fatal)
-        map.insert("drug_tetracycline_toxicity_death_hazard_per_unit_level".to_string(), 0.000000001);
-        map.insert("drug_minocycline_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000015); // Slightly higher due to vestibular/autoimmune effects
-        
-        // Macrolides - QT prolongation, hepatotoxicity (rare)
-        map.insert("drug_azithromycin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000015); // QT prolongation, cardiac arrhythmia
-        map.insert("drug_erythromycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000002); // QT prolongation, hepatotoxicity
-        map.insert("drug_clarithromycin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000015); // Similar to azithromycin
-        
-        // Clindamycin - C. diff risk captured elsewhere; rare fatal anaphylaxis
-        map.insert("drug_clindamycin_toxicity_death_hazard_per_unit_level".to_string(), 0.000000001);
-        
-        // === VERY LOW TOXICITY DRUGS (beta-lactams generally safe) ===
-        // Beta-lactams - mainly anaphylaxis risk (~1:10,000-50,000 fatal reactions)
-        map.insert("drug_penicilling_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000005); // Anaphylaxis
-        map.insert("drug_ampicillin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000005);
-        map.insert("drug_amoxicillin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000004);
-        map.insert("drug_amoxicillin_clavulanate_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000006); // Slightly higher hepatotoxicity
-        map.insert("drug_piperacillin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000005);
-        map.insert("drug_piperacillin_tazobactam_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000006);
-        
-        // Cephalosporins - similar to penicillins, cross-reactivity ~1-2%
-        map.insert("drug_cephalexin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000004);
-        map.insert("drug_cefazolin_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000004);
-        map.insert("drug_cefuroxime_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000004);
-        map.insert("drug_ceftriaxone_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000005); // Biliary sludge in prolonged use
-        map.insert("drug_ceftazidime_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000004);
-        map.insert("drug_cefepime_toxicity_death_hazard_per_unit_level".to_string(), 0.000000001); // Neurotoxicity in renal impairment
-        map.insert("drug_ceftaroline_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000005);
-        
-        // Carbapenems - similar to beta-lactams, seizure risk with imipenem
-        map.insert("drug_meropenem_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000006);
-        map.insert("drug_imipenem_c_toxicity_death_hazard_per_unit_level".to_string(), 0.000000001); // Higher seizure risk
-        map.insert("drug_ertapenem_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000006);
+        map.insert("drug_chlorampheni_toxicity_death_hazard_per_unit_level".to_string(), 0.00000001); // Aplastic anemia risk
 
 
         map.insert("already_on_drug_initiation_multiplier".to_string(), 1.2); // modest boost for layered therapy when already on treatment
@@ -6210,60 +5769,6 @@ lazy_static! {
         // neisseria_gonorrhoeae - Variable symptoms (~10-20% asymptomatic in men, ~50% in women)
         map.insert("neisseria_gonorrhoeae_daily_symptom_onset_probability".to_string(), 0.25);  // Most symptomatic within 2-7 days
         map.insert("neisseria_gonorrhoeae_base_bacteria_level_change".to_string(), 0.55);       // Rapid mucosal colonization
-
-        // --- COMPREHENSIVE BACTERIA GROWTH RATE OVERRIDES ---
-        // Base level change per day reflects in vivo growth kinetics, NOT lab doubling times
-        // Clinical progression depends on host factors, tissue site, and immune response
-        // Default is 0.5/day; values below override specific pathogens based on microbiology
-        
-        // FULMINANT PATHOGENS (rapidly progressive, often life-threatening)
-        map.insert("streptococcus_pyogenes_base_bacteria_level_change".to_string(), 0.7);       // Necrotizing fasciitis progresses in hours; invasive GAS very aggressive
-        map.insert("neisseria_meningitidis_base_bacteria_level_change".to_string(), 0.65);      // Fulminant meningococcemia/purpura fulminans
-        map.insert("vibrio_cholerae_base_bacteria_level_change".to_string(), 0.7);              // Massive fluid loss within 12-24 hours, extremely rapid toxin production
-        map.insert("staphylococcus_aureus_base_bacteria_level_change".to_string(), 0.6);        // Rapid in endocarditis, bacteremia, necrotizing pneumonia
-        map.insert("streptococcus_pneumoniae_base_bacteria_level_change".to_string(), 0.6);     // Rapid pneumonia/meningitis progression
-        
-        // RAPID PROGRESSORS (symptomatic within days)
-        map.insert("acinetobacter_baumannii_base_bacteria_level_change".to_string(), 0.55);     // Rapid VAP/bacteremia in ICU patients
-        map.insert("pseudomonas_aeruginosa_base_bacteria_level_change".to_string(), 0.55);      // Rapid proliferation in ventilated/immunocompromised hosts
-        map.insert("haemophilus_influenzae_base_bacteria_level_change".to_string(), 0.55);      // Rapid otitis/meningitis in children
-        map.insert("shigella_spp._base_bacteria_level_change".to_string(), 0.55);               // Dysentery within 1-3 days, low infectious dose
-        map.insert("clostridioides_difficile_base_bacteria_level_change".to_string(), 0.55);    // Rapid toxin-mediated colitis after microbiome disruption
-        map.insert("moraxella_catarrhalis_base_bacteria_level_change".to_string(), 0.55);       // Rapid otitis/sinusitis onset
-        map.insert("neisseria_gonorrhoeae_base_bacteria_level_change".to_string(), 0.55);       // Rapid urethritis/cervicitis (2-7 days)
-        map.insert("klebsiella_pneumoniae_base_bacteria_level_change".to_string(), 0.52);       // Rapid progression in pneumonia, can be necrotizing
-        
-        // MODERATE PROGRESSORS (typical acute infections)
-        map.insert("escherichia_coli_base_bacteria_level_change".to_string(), 0.5);             // Variable by site; UTI to bacteremia
-        map.insert("enterobacter_spp._base_bacteria_level_change".to_string(), 0.5);            // Nosocomial infections
-        map.insert("enterobacter_cloacae_base_bacteria_level_change".to_string(), 0.5);         // Similar to other Enterobacter
-        map.insert("campylobacter_jejuni_base_bacteria_level_change".to_string(), 0.52);        // Gastroenteritis 2-5 day incubation
-        map.insert("enterococcus_faecalis_base_bacteria_level_change".to_string(), 0.48);       // Variable; endocarditis slow, UTI faster
-        map.insert("enterococcus_faecium_base_bacteria_level_change".to_string(), 0.48);        // Similar to E. faecalis
-        map.insert("citrobacter_spp._base_bacteria_level_change".to_string(), 0.5);             // Opportunistic, moderate progression
-        map.insert("proteus_spp._base_bacteria_level_change".to_string(), 0.5);                 // UTI with moderate progression
-        map.insert("serratia_spp._base_bacteria_level_change".to_string(), 0.48);               // Opportunistic, somewhat slower
-        map.insert("morganella_spp._base_bacteria_level_change".to_string(), 0.48);             // Opportunistic, moderate
-        map.insert("streptococcus_agalactiae_base_bacteria_level_change".to_string(), 0.52);    // Neonatal sepsis can be rapid
-        map.insert("p_stuartii_base_bacteria_level_change".to_string(), 0.5);                   // Catheter-associated UTI
-        map.insert("yersinia_enterocolitica_base_bacteria_level_change".to_string(), 0.45);     // 4-7 day incubation, pseudoappendicitis
-        map.insert("stenotrophomonas_maltophilia_base_bacteria_level_change".to_string(), 0.45); // Opportunistic, moderate growth
-        map.insert("salmonella_enterica_serovar_typhi_base_bacteria_level_change".to_string(), 0.45);      // Longer incubation (1-3 weeks)
-        map.insert("salmonella_enterica_serovar_paratyphi_a_base_bacteria_level_change".to_string(), 0.45); // Similar to typhi
-        map.insert("invasive_non-typhoidal_salmonella_spp._base_bacteria_level_change".to_string(), 0.5);  // More acute than typhi
-        
-        // SLOW PROGRESSORS (indolent or chronic infections)
-        map.insert("bacteroides_fragilis_base_bacteria_level_change".to_string(), 0.42);        // Abscess formation is gradual
-        map.insert("bordetella_pertussis_base_bacteria_level_change".to_string(), 0.42);        // 1-2 week catarrhal phase
-        map.insert("staphylococcus_epidermidis_base_bacteria_level_change".to_string(), 0.35);  // Biofilm-associated, indolent
-        map.insert("mycoplasma_genitalium_base_bacteria_level_change".to_string(), 0.28);       // Slow-growing, persistent
-        map.insert("chlamydia_trachomatis_base_bacteria_level_change".to_string(), 0.25);       // Obligate intracellular, 48-72h cycle
-        map.insert("listeria_monocytogenes_base_bacteria_level_change".to_string(), 0.25);      // Long incubation despite fast lab growth (intracellular)
-        
-        // VERY SLOW PROGRESSORS (chronic infections)
-        map.insert("helicobacter_pylori_base_bacteria_level_change".to_string(), 0.2);          // Chronic colonizer, years to decades
-        map.insert("treponema_pallidum_base_bacteria_level_change".to_string(), 0.18);          // 30+ hour doubling time, stages over weeks-months
-        map.insert("mdr_mycobacterium_tuberculosis_base_bacteria_level_change".to_string(), 0.15); // 18-24 hour doubling, months to years progression
 
         // yersinia_enterocolitica - Address intrinsic penicillin resistance
         // Reduce penicillins (intrinsic resistance)
@@ -11037,20 +10542,6 @@ lazy_static! {
         map.insert("syndrome_7_initiation_multiplier".to_string(), 8.0);  // Gastrointestinal syndrome
         map.insert("syndrome_8_initiation_multiplier".to_string(), 12.0); // Genital syndrome (example ID)
 
-        // Syndrome-specific bacteria growth multipliers
-        // Syndromes: 1=UTI, 2=Skin/soft tissue, 3=Respiratory, 4=Bloodstream, 5=Intra-abdominal,
-        //           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
-        map.insert("syndrome_1_bacteria_growth_multiplier".to_string(), 1.0);   // UTI - baseline growth
-        map.insert("syndrome_2_bacteria_growth_multiplier".to_string(), 1.1);   // Skin/soft tissue - faster in necrotizing infections
-        map.insert("syndrome_3_bacteria_growth_multiplier".to_string(), 1.2);   // Respiratory - rapid progression in pneumonia
-        map.insert("syndrome_4_bacteria_growth_multiplier".to_string(), 1.4);   // Bloodstream - fulminant bacteremia/sepsis
-        map.insert("syndrome_5_bacteria_growth_multiplier".to_string(), 1.15);  // Intra-abdominal - abscess formation but somewhat contained
-        map.insert("syndrome_6_bacteria_growth_multiplier".to_string(), 1.3);   // CNS - meningitis progresses rapidly
-        map.insert("syndrome_7_bacteria_growth_multiplier".to_string(), 1.1);   // GI - moderate progression
-        map.insert("syndrome_8_bacteria_growth_multiplier".to_string(), 0.9);   // Genital - often chronic/indolent (chlamydia, gonorrhea)
-        map.insert("syndrome_9_bacteria_growth_multiplier".to_string(), 0.85);  // Bone/joint - slow progression in osteomyelitis
-        map.insert("syndrome_10_bacteria_growth_multiplier".to_string(), 1.0);  // Other - baseline
-
         // Empiric drug scoring tables (clinician-facing heuristics per syndrome ID)
         // These preserve pre-refactor prescribing patterns when organism is unknown.
         let empiric_syndrome_templates: &[(usize, &[(&str, f64)])] = &[
@@ -11432,7 +10923,7 @@ lazy_static! {
         // Collects mortality/sepsis odds adjustments together so scenario designers can reason about
         // outcome severity in one place. These parameters shape the probability of severe outcomes
         // once infection is established.
-        map.insert("log_odds_sepsis_infection_duration".to_string(), 0.05); // Log odds increase per day of infection duration (increased from 0.001)
+        map.insert("log_odds_sepsis_infection_duration".to_string(), 0.001); // Log odds increase per day of infection duration
 
         // --- AGE-DEPENDENT SEPSIS LOG-ODDS (global baseline + age deltas + bacteria-age deltas) ---
         map.insert("sepsis_age_log_odds_baseline".to_string(), 0.0); // Reference intercept for age adjustments
@@ -11549,16 +11040,6 @@ lazy_static! {
         // CALIBRATION: Reduced from 30.0 to 15.0 - immunosuppressed multiplier was very high
         map.insert("sepsis_immunosuppressed_multiplier".to_string(), 15.0); // Immunosuppressed: 15x higher risk
 
-        // Sepsis onset additional factors (log-odds scale)
-        map.insert("log_odds_sepsis_onset_immunosuppressed".to_string(), 0.7); // ~2x higher onset risk for immunocompromised
-        map.insert("log_odds_sepsis_onset_hospitalized".to_string(), 0.5); // ~1.6x higher onset risk when hospitalized (sicker patients)
-        map.insert("log_odds_sepsis_onset_not_under_care".to_string(), 1.0); // ~2.7x higher onset risk if not receiving treatment
-
-        // Sepsis death additional factors
-        map.insert("sepsis_death_bacteria_level_coefficient".to_string(), 0.1); // 10% increase in death risk per unit bacteria level
-        map.insert("sepsis_death_duration_coefficient".to_string(), 0.02); // 2% increase in death risk per day of sepsis
-        map.insert("sepsis_death_not_under_care_multiplier".to_string(), 2.0); // 2x death risk if not receiving treatment
-
         // Region-specific sepsis mortality multipliers (reflecting healthcare quality)
         map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.8); 
         map.insert("europe_sepsis_mortality_multiplier".to_string(), 0.7); 
@@ -11656,7 +11137,7 @@ lazy_static! {
         // Population impact: Carriers maintain resistance without selective pressure (asymptomatic), then
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
-        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.0);  // 0.10 0.55  ---
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.10);  // 0.55  ---
 
  //     map.insert(
  //         "majority_r_memory_retention_per_day".to_string(),

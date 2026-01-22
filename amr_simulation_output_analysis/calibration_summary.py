@@ -212,7 +212,7 @@ def _gather_calibration_context(
 
     simulation_csv_path = data_cache.get_simulation_csv_path()
 
-    df = df.copy()
+    # Avoid full DataFrame copy - only add columns as needed
     if "time_in_years" not in df.columns and "time_step" in df.columns:
         df["time_in_years"] = df["time_step"] / 365.0
 

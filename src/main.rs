@@ -34,6 +34,8 @@ mod simulation;
 // maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
 // policy comparison several times on each ?
 //
+// hgt "ignores plasmid fitness - suggest to model plasmid persistence independent of chromosomal resistance
+//
 //
 //
 // consider for future iterations:

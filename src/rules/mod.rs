@@ -1300,14 +1300,41 @@ pub fn apply_rules(
                     Region::Home => 0.0, // Neutral/no effect for home region
                 };
 
+                // Add immunodeficiency effect on sepsis onset
+                let immunodeficiency_log_odds = if individual.immunodeficiency_type.is_some() {
+                    store.globals.log_odds_sepsis_onset_immunosuppressed
+                } else {
+                    0.0
+                };
+
+                // Add hospitalization effect on sepsis onset (sicker patients more likely to develop sepsis)
+                let hospitalization_log_odds = if individual.hospital_status.is_hospitalized() {
+                    store.globals.log_odds_sepsis_onset_hospitalized
+                } else {
+                    0.0
+                };
+
+                // Check if patient is "under care" - have they started any drug for this infection?
+                // Not under care = higher sepsis risk due to delayed treatment
+                let under_care = individual.cur_use_drug.iter().any(|&on| on);
+                let not_under_care_log_odds = if !under_care {
+                    store.globals.log_odds_sepsis_onset_not_under_care
+                } else {
+                    0.0
+                };
+
                 // COMPREHENSIVE SEPSIS RISK CALCULATION
-                // Integrates: bacteria risk, age interactions, syndrome site, regional factors
+                // Integrates: bacteria risk, age interactions, syndrome site, regional factors,
+                // immunodeficiency, hospitalization status, and whether under care
                 let log_odds_sepsis = sepsis_baseline_log_odds
                     + (current_level * log_odds_infection_level)
                     + (duration_of_infection as f64 * log_odds_infection_duration)
                     + age_specific_log_odds
                     + syndrome_log_odds
-                    + region_log_odds;
+                    + region_log_odds
+                    + immunodeficiency_log_odds
+                    + hospitalization_log_odds
+                    + not_under_care_log_odds;
 
                 // EXPLICIT H. PYLORI SEPSIS PREVENTION
                 // If H. pylori is the only infection, force sepsis risk to zero
@@ -2738,6 +2765,39 @@ pub fn apply_rules(
                 sepsis_death_risk *= store.globals.sepsis_immunosuppressed_multiplier;
             }
 
+            // Apply bacteria level effect - higher bacteria load = worse prognosis
+            // Find maximum bacteria level among septic infections
+            let max_septic_bacteria_level = individual
+                .sepsis
+                .iter()
+                .enumerate()
+                .filter(|(_, &has_sepsis)| has_sepsis)
+                .map(|(b_idx, _)| individual.level[b_idx])
+                .fold(0.0_f64, |a, b| a.max(b));
+            let bacteria_level_multiplier = 1.0
+                + (max_septic_bacteria_level * store.globals.sepsis_death_bacteria_level_coefficient);
+            sepsis_death_risk *= bacteria_level_multiplier;
+
+            // Apply sepsis duration effect - longer sepsis = worse prognosis
+            // Find maximum sepsis duration among septic infections
+            let max_sepsis_duration = individual
+                .sepsis
+                .iter()
+                .enumerate()
+                .filter(|(_, &has_sepsis)| has_sepsis)
+                .map(|(b_idx, _)| (time_step as i32 - individual.sepsis_onset_day[b_idx]).max(0))
+                .max()
+                .unwrap_or(0);
+            let duration_multiplier = 1.0
+                + (max_sepsis_duration as f64 * store.globals.sepsis_death_duration_coefficient);
+            sepsis_death_risk *= duration_multiplier;
+
+            // Apply "not under care" multiplier - patients not receiving treatment have worse outcomes
+            let under_care = individual.cur_use_drug.iter().any(|&on| on);
+            if !under_care {
+                sepsis_death_risk *= store.globals.sepsis_death_not_under_care_multiplier;
+            }
+
             // Cap the risk at 1.0 (100%)
             sepsis_death_risk = sepsis_death_risk.min(1.0);
         }
@@ -3867,8 +3927,35 @@ pub fn apply_rules(
 
                         // Calculate activity_r using the updated resistance levels
                         let normalized_any_r = resistance_data.any_r / max_resistance_level;
+                        
+                        // Apply syndrome-specific drug penetration and accumulation factors
+                        // This accounts for pharmacokinetic differences at different infection sites
+                        let syndrome_id = individual.infectious_syndrome[bacteria_full_idx] as usize;
+                        let penetration_factor = store.syndrome.drug_penetration(syndrome_id, drug_index);
+                        
+                        // Calculate time-based accumulation factor for protected compartments
+                        // Drug needs time to equilibrate in CNS, bone, abscess cavities
+                        let days_to_therapeutic = store.syndrome.days_to_therapeutic(syndrome_id);
+                        let days_on_drug = if individual.date_drug_initiated[drug_index] > i32::MIN {
+                            ((time_step as i32) - individual.date_drug_initiated[drug_index]).max(0) as f64
+                        } else {
+                            0.0
+                        };
+                        // Accumulation follows saturation kinetics: starts slow, approaches max
+                        // Uses 1 - exp(-k*t) curve where k = ln(2)/days_to_therapeutic
+                        // At t=days_to_therapeutic, reaches ~50% of max; at 3×, reaches ~87%
+                        let accumulation_factor = if days_to_therapeutic > 1.0 {
+                            let k = (2.0_f64).ln() / days_to_therapeutic;
+                            (1.0 - (-k * days_on_drug).exp()).max(0.1) // Minimum 10% effect even on day 1
+                        } else {
+                            1.0 // Immediate therapeutic levels for most syndromes
+                        };
+                        
+                        // Effective drug level at infection site
+                        let effective_drug_level = drug_current_level * penetration_factor * accumulation_factor;
+                        
                         resistance_data.activity_r =
-                            base_potency * drug_current_level * (1.0 - normalized_any_r);
+                            base_potency * effective_drug_level * (1.0 - normalized_any_r);
                     } else {
                         resistance_data.activity_r = 0.0;
                     }
@@ -3989,6 +4076,46 @@ pub fn apply_rules(
         // This entire block should only execute if the individual is currently infected with this bacteria
         if is_infected {
             let baseline_change = store.bacteria.base_level_change(b_idx);
+            
+            // Apply host-factor multipliers to bacteria growth rate
+            // Age multiplier: infants and elderly have reduced immune containment
+            // Map fine-grained age categories to 4-bucket system (infant, child, adult, elderly)
+            let age_growth_multiplier = {
+                let age_category = crate::simulation::population::get_age_category(individual.age);
+                use crate::simulation::population::AgeCategory;
+                match age_category {
+                    AgeCategory::Prenatal | AgeCategory::Age0To1 => {
+                        store.globals.bacteria_growth_age_multiplier_infant
+                    }
+                    AgeCategory::Age1To5 | AgeCategory::Age5To18 => {
+                        store.globals.bacteria_growth_age_multiplier_child
+                    }
+                    AgeCategory::Age18To50 | AgeCategory::Age50To70 => {
+                        store.globals.bacteria_growth_age_multiplier_adult
+                    }
+                    AgeCategory::Age70Plus => {
+                        store.globals.bacteria_growth_age_multiplier_elderly
+                    }
+                }
+            };
+            
+            // Immunodeficiency accelerates bacterial proliferation
+            let immuno_growth_multiplier = if individual.immunodeficiency_type.is_some() {
+                store.globals.bacteria_growth_immunodeficiency_multiplier
+            } else {
+                1.0
+            };
+            
+            // Syndrome-specific growth multiplier (some syndromes progress faster)
+            let syndrome_id = individual.infectious_syndrome[b_idx] as usize;
+            let syndrome_growth_multiplier = store.syndrome.bacteria_growth_multiplier(syndrome_id);
+            
+            // Combined multiplier for natural bacteria growth
+            let adjusted_baseline_change = baseline_change 
+                * age_growth_multiplier 
+                * immuno_growth_multiplier 
+                * syndrome_growth_multiplier;
+            
             let mut total_reduction_due_to_antibiotic = 0.0;
             let mut immune_hazard = 0.0;
             let mut immune_clearance_triggered = false;
@@ -4106,7 +4233,8 @@ pub fn apply_rules(
                 println!("mod.rs");
                 println!("bacteria: {}", bacteria);
                 println!("immune clearance hazard: {:.4}", immune_hazard);
-                println!("baseline change: {:.4}", baseline_change);
+                println!("baseline change: {:.4} (raw: {:.4}, age_mult: {:.2}, immuno_mult: {:.2}, syndrome_mult: {:.2})", 
+                    adjusted_baseline_change, baseline_change, age_growth_multiplier, immuno_growth_multiplier, syndrome_growth_multiplier);
             }
 
             for (drug_idx, _drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
@@ -4125,12 +4253,25 @@ pub fn apply_rules(
                         } else {
                             f64::INFINITY
                         };
+                        // Show syndrome-specific penetration and accumulation factors
+                        let syndrome_id = individual.infectious_syndrome[b_idx] as usize;
+                        let penetration = store.syndrome.drug_penetration(syndrome_id, drug_idx);
+                        let days_to_therapeutic = store.syndrome.days_to_therapeutic(syndrome_id);
+                        let days_on_drug = if individual.date_drug_initiated[drug_idx] > i32::MIN {
+                            ((time_step as i32) - individual.date_drug_initiated[drug_idx]).max(0) as f64
+                        } else {
+                            0.0
+                        };
                         println!(
-                            "mod.rs  {}: current level = {:.4}, activity_r = {:.4}, standardized_mic = {:.4}",
+                            "mod.rs  {}: level={:.4}, activity_r={:.4}, mic={:.4}, syndrome={}, penetration={:.2}, days_on={:.0}, days_to_ther={:.1}",
                             DRUG_SHORT_NAMES[drug_idx],
                             individual.cur_level_drug[drug_idx],
                             resistance_data.activity_r,
-                            standardized_mic
+                            standardized_mic,
+                            syndrome_id,
+                            penetration,
+                            days_on_drug,
+                            days_to_therapeutic
                         );
                     }
                 }
@@ -4227,7 +4368,7 @@ pub fn apply_rules(
                 );
             }
 
-            let decay = baseline_change - adjusted_antibiotic_effect;
+            let decay = adjusted_baseline_change - adjusted_antibiotic_effect;
 
             let max_level = store.bacteria.max_level(b_idx);
             let new_bacteria_level = (individual.level[b_idx] + decay).max(0.0).min(max_level);
@@ -4846,6 +4987,14 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.04),
             (7, 0.03),
         ],
+        // Providencia stuartii - catheter-associated UTI specialist
+        "p_stuartii" => &[
+            (1, 0.70),  // UTI - primary site (catheter-associated)
+            (4, 0.18),  // Bloodstream - urosepsis
+            (2, 0.07),  // Skin/wound
+            (5, 0.03),  // Intra-abdominal
+            (3, 0.02),  // Respiratory (rare)
+        ],
 
         // Non-fermenting Gram-negatives
         "pseudomonas_aeruginosa" => &[
@@ -4864,17 +5013,51 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (2, 0.05),
             (7, 0.05),
         ],
+        // Stenotrophomonas - healthcare-associated, often respiratory
+        "stenotrophomonas_maltophilia" => &[
+            (3, 0.50),  // Respiratory - VAP, pneumonia
+            (4, 0.32),  // Bloodstream - central line infections
+            (2, 0.10),  // Skin/wound
+            (1, 0.05),  // UTI
+            (5, 0.03),  // Intra-abdominal (rare)
+        ],
 
-        // Gastrointestinal pathogens
-        "salmonella_enterica_serovar_typhi" => {
-            &[(7, 0.80), (4, 0.15), (5, 0.03), (3, 0.01), (10, 0.01)]
-        }
-        "salmonella_enterica_serovar_paratyphi_a" => {
-            &[(7, 0.85), (4, 0.10), (5, 0.03), (3, 0.01), (10, 0.01)]
-        }
-        "invasive_non-typhoidal_salmonella_spp." => {
-            &[(7, 0.70), (4, 0.20), (5, 0.05), (3, 0.03), (1, 0.02)]
-        }
+        // Coagulase-negative staphylococci
+        "staphylococcus_epidermidis" => &[
+            (4, 0.55),  // Bloodstream - CLABSI, prosthetic valve endocarditis
+            (9, 0.20),  // Bone/joint - prosthetic joint infections
+            (2, 0.15),  // Skin/wound - surgical site infections
+            (1, 0.05),  // UTI (catheter-associated)
+            (6, 0.03),  // CNS - shunt infections
+            (10, 0.02), // Other
+        ],
+
+        // Gastrointestinal pathogens - Enteric fever (systemic, BSI-predominant)
+        "salmonella_enterica_serovar_typhi" => &[
+            (4, 0.45),  // Bloodstream - typhoid is a systemic bacteremia
+            (7, 0.40),  // GI - enteric symptoms
+            (5, 0.08),  // Intra-abdominal - intestinal perforation
+            (3, 0.04),  // Respiratory (rare)
+            (6, 0.02),  // CNS - typhoid encephalopathy
+            (10, 0.01),
+        ],
+        "salmonella_enterica_serovar_paratyphi_a" => &[
+            (4, 0.40),  // Bloodstream - paratyphoid fever
+            (7, 0.45),  // GI - slightly more GI than Typhi
+            (5, 0.08),  // Intra-abdominal
+            (3, 0.04),  // Respiratory
+            (6, 0.02),  // CNS
+            (10, 0.01),
+        ],
+        // Invasive non-typhoidal Salmonella - by definition invasive/bloodstream
+        "invasive_non-typhoidal_salmonella_spp." => &[
+            (4, 0.50),  // Bloodstream - defining feature of iNTS
+            (7, 0.30),  // GI - still causes gastroenteritis
+            (5, 0.10),  // Intra-abdominal - focal infections
+            (9, 0.05),  // Bone/joint - osteomyelitis (esp. sickle cell)
+            (3, 0.03),  // Respiratory
+            (6, 0.02),  // CNS - meningitis
+        ],
         "shigella_spp." => &[(7, 0.95), (4, 0.03), (5, 0.01), (10, 0.01)],
         "vibrio_cholerae" => &[(7, 0.98), (5, 0.01), (10, 0.01)],
         "campylobacter_jejuni" => &[(7, 0.80), (4, 0.08), (5, 0.07), (3, 0.03), (10, 0.02)],
@@ -4884,6 +5067,13 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
         // Sexually transmitted pathogens
         "neisseria_gonorrhoeae" => &[(8, 0.85), (5, 0.08), (4, 0.03), (10, 0.04)],
         "chlamydia_trachomatis" => &[(8, 0.80), (5, 0.10), (4, 0.05), (10, 0.05)],
+        // Mycoplasma genitalium - STI, urethritis/cervicitis
+        "mycoplasma_genitalium" => &[
+            (8, 0.85),  // Genital - urethritis, cervicitis, PID
+            (1, 0.10),  // UTI - urethral involvement
+            (5, 0.03),  // Intra-abdominal - PID complications
+            (10, 0.02), // Other
+        ],
         "treponema_pallidum" => &[(8, 0.55), (4, 0.15), (6, 0.15), (5, 0.05), (10, 0.10)],
 
         // Respiratory pathogens
@@ -4899,6 +5089,25 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
 
         // Gastrointestinal pathogens
         "helicobacter_pylori" => &[(7, 0.85), (5, 0.10), (4, 0.03), (10, 0.02)], // Primarily GI (peptic ulcer disease)
+
+        // Anaerobes
+        "bacteroides_fragilis" => &[
+            (5, 0.65),  // Intra-abdominal - peritonitis, abscesses
+            (4, 0.20),  // Bloodstream - often from GI source
+            (2, 0.10),  // Skin/wound - wound infections, diabetic foot
+            (8, 0.03),  // Genital - pelvic infections
+            (10, 0.02), // Other
+        ],
+
+        // Mycobacteria
+        "mdr_mycobacterium_tuberculosis" => &[
+            (3, 0.82),  // Respiratory - pulmonary TB
+            (6, 0.05),  // CNS - TB meningitis
+            (10, 0.05), // Other - miliary, lymph node
+            (4, 0.03),  // Bloodstream - disseminated
+            (5, 0.03),  // Intra-abdominal - abdominal TB
+            (9, 0.02),  // Bone/joint - Pott's disease
+        ],
 
         // Foodborne/systemic pathogens
         "listeria_monocytogenes" => &[

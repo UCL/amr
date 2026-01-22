@@ -45,7 +45,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
     
     # Normalize dataframe ordering and insert NaN break rows between policy segments to avoid
     # vertical line jumps when policies branch off in time.
-    df = df.copy().reset_index(drop=True)
+    # Use reset_index without copy to avoid memory issues with large DataFrames
+    df = df.reset_index(drop=True)
     if 'policy_option' in df.columns:
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         preserve_cols = {'time_step', 'time_in_years'}

@@ -1,15 +1,47 @@
 
-We are developing a stochastic individual-based model for anti-bacterial resistance. The engine tracks every infection, resistance state, and treatment decision for each simulated person on a daily timestep starting in 1942 *** (the introduction of penicillin), although alternative start dates with pre-existing resistance are also supported.
+We are developing a stochastic individual-based model for anti-bacterial resistance. The engine tracks every infection, resistance state, and treatment decision for each simulated person on a daily timestep starting in 1942 (the introduction of penicillin), although alternative start dates with pre-existing resistance are also supported.
 
-Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 30 *** bacteria (matching the GBD AMR set) and 42 antibiotics, but both lists can grow without changing core data structures.
+Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 39 bacteria and 52 antibiotics, but both lists can grow without changing core data structures.
 
 Resistance tracking relies on five per-bacteria/drug metrics defined in [src/simulation/population.rs#L589-L612](src/simulation/population.rs#L589-L612):
 
 - `any_r`: fractional resistance in the infection at all (0 = completely susceptible). The value copies from the source case at transmission or emerges through mutation, and reaches 1.0 when the drug has no effect.
 - `majority_r`: identical to `any_r` but only recorded when resistant strains are the majority of the infection.
-- `activity_r`: current killing power of the drug given its intrinsic potency, resistance level, and current drug concentration.
+- `activity_r`: current killing power of the drug given its intrinsic potency, resistance level, current drug concentration, **syndrome-specific tissue penetration, and time-based accumulation**.
 - `test_r`: resistance level last confirmed by diagnostic testing.
 - `microbiome_r`: resistance carried in the microbiome rather than the active infection.
+
+### Drug Activity Calculation
+
+The `activity_r` metric determines the effective antibacterial action at the infection site. It incorporates pharmacokinetic realism through syndrome-specific penetration and accumulation factors ([src/rules/mod.rs#L3928-L3960](src/rules/mod.rs#L3928-L3960)):
+
+```
+activity_r = base_potency × effective_drug_level × (1 - normalized_resistance)
+
+where:
+  effective_drug_level = serum_level × penetration_factor × accumulation_factor
+  
+  penetration_factor = syndrome_drug_penetration[syndrome_id][drug_idx]  (0.0–1.0)
+  
+  accumulation_factor = 1 - exp(-ln(2) × days_on_drug / days_to_therapeutic)
+                        with minimum floor of 0.1
+```
+
+This captures clinical reality where:
+- **Aminoglycosides** achieve only 5% CNS penetration due to the blood-brain barrier
+- **Fluoroquinolones** achieve 90% prostatic penetration, making them preferred for prostatitis
+- **CNS infections** require 3 days for drugs to equilibrate, reducing early treatment efficacy
+- **Bone/joint infections** have poor vascularity requiring prolonged therapy with good penetrating agents
+
+### Bacteria Growth and Host Factors
+
+Bacteria level changes incorporate host-specific multipliers ([src/rules/mod.rs#L4048-L4095](src/rules/mod.rs#L4048-L4095)):
+
+| Factor | Categories | Multipliers |
+| --- | --- | --- |
+| **Age** | Infant (≤1y), Child (≤18y), Adult (≤65y), Elderly (>65y) | 1.3×, 1.0×, 1.0×, 1.2× |
+| **Immunodeficiency** | Present/Absent | 1.5× / 1.0× |
+| **Syndrome** | Bloodstream, CNS, Bone/joint, UTI, etc. | 1.4×, 1.3×, 0.85×, 1.0×, etc. |
 
 ### Bacteria taxonomy & carriage sites
 Every bacteria listed in [`BACTERIA_LIST`](src/simulation/population.rs#L300-L357) now carries lightweight metadata that the rules engine can query without scanning strings:
@@ -149,7 +181,7 @@ All parameter sets originate from `ParameterStore` in [src/config.rs#L108-L173](
 | RegionParameters | [src/config.rs#L740-L834](src/config.rs#L740-L834) | Region-specific multipliers for travel, treatment cessation, mortality, sepsis lethality, and testing intensity. | `asia_travel_multiplier` influences how often travellers leave Asia; `europe_testing_multiplier` boosts identification rates for infections in Europe. |
 | SexParameters | [src/config.rs#L836-L860](src/config.rs#L836-L860) | Sex-at-birth mortality adjustments that stack with age/region baselines. | `log_odds_mortality_sex_male` and `log_odds_mortality_sex_female` shift mortality hazards for each sex. |
 | VaccinationParameters | [src/config.rs#L862-L940](src/config.rs#L862-L940) | Age- and vaccine-specific daily immunization probabilities plus availability start years for pneumococcal, meningococcal, and Hib vaccines. | `vaccine_pneumococcal_daily_prob_age_child` sets routine uptake; `vaccine_hib_availability_year` defines rollout timing. |
-| SyndromeParameters | [src/config.rs#L942-L1036](src/config.rs#L942-L1036) | Syndrome-level sepsis odds, initiation multipliers, non-sepsis mortality, and empiric drug scoring matrices. | `syndrome_3_initiation_multiplier` accelerates treatment for syndrome 3; `syndrome_5_empiric_drug_azithromycin_score` biases empiric selection. |
+| SyndromeParameters | [src/config.rs#L1071-L1460](src/config.rs#L1071-L1460) | Syndrome-level sepsis odds, initiation multipliers, non-sepsis mortality, empiric drug scoring matrices, bacteria growth multipliers, drug penetration factors by compartment, and days-to-therapeutic for protected sites. | `syndrome_3_initiation_multiplier` accelerates treatment for syndrome 3; `syndrome_6_days_to_therapeutic` (default 3.0) controls CNS drug equilibration time; `syndrome_6_drug_gentamicin_penetration` (default 0.05) reflects poor BBB penetration. |
 | DrugParameters | [src/config.rs#L1100-L1194](src/config.rs#L1100-L1194) | Drug-specific pharmacokinetics and toxicity, including starting level, double-dose multiplier, half-life, microbiome disruption, and toxicity reservoir decay. | `drug_ciprofloxacin_half_life_days` drives decay of drug levels; `drug_vancomycin_microbiome_disruption_log_odds` captures dysbiosis risk. |
 | BacteriaParameters | [src/config.rs#L1196-L1480](src/config.rs#L1196-L1480) | Per-bacteria acquisition odds, vaccination effects, symptom dynamics, sepsis risks, microbiome clearances, and infection level kinetics. | `klebsiella_pneumoniae_acquisition_log_odds_baseline` controls baseline exposure; `staphylococcus_aureus_max_level` caps infection burden. |
 | ClearanceParameters | [src/config.rs#L1506-L1597](src/config.rs#L1506-L1597) | Immune clearance timing and hazard, including age multipliers, immunodeficiency scaling, and bacteria-specific overrides. | `default_clearance_delay_days` postpones immune action after acquisition; `pseudomonas_aeruginosa_clearance_hazard_multiplier` tailors persistence. |
@@ -332,6 +364,13 @@ Derived from [src/config.rs#L174-L739](src/config.rs#L174-L739). Values affect e
 | `sepsis_immunosuppressed_multiplier` | Mortality multiplier when immunosuppressed. |
 | `log_odds_sepsis_region_a` | Region-level coefficient (A) used when evaluating sepsis odds. |
 | `log_odds_sepsis_region_b` | Region-level coefficient (B). |
+| `log_odds_sepsis_onset_immunosuppressed` | Log-odds increase for sepsis onset when immunocompromised (~2× risk at 0.7). |
+| `log_odds_sepsis_onset_hospitalized` | Log-odds increase for sepsis onset when hospitalized (~1.6× risk at 0.5). |
+| `log_odds_sepsis_onset_not_under_care` | Log-odds increase for sepsis onset when not receiving any antibiotic therapy (~2.7× risk at 1.0). |
+| `log_odds_sepsis_infection_duration` | Log-odds contribution per day of infection duration before sepsis onset. |
+| `sepsis_death_bacteria_level_coefficient` | Fractional increase in sepsis death risk per unit bacteria level (10% at 0.1). |
+| `sepsis_death_duration_coefficient` | Fractional increase in sepsis death risk per day of sepsis duration (2% at 0.02). |
+| `sepsis_death_not_under_care_multiplier` | Multiplier on sepsis death risk when not receiving any antibiotic therapy (2× at 2.0). |
 
 #### Microbiome and majority-resistance tracking
 | Parameter | Description |
@@ -404,7 +443,19 @@ Defined in [src/config.rs#L862-L940](src/config.rs#L862-L940). Arrays are sized 
 
 ### SyndromeParameters
 
-Defined in [src/config.rs#L942-L1036](src/config.rs#L942-L1036) with indices keyed by syndrome id.
+Defined in [src/config.rs#L1071-L1460](src/config.rs#L1071-L1460) with indices keyed by syndrome id.
+
+Syndromes represent the clinical presentation/infection site:
+- **1** = UTI (urinary tract infection)
+- **2** = Skin/soft tissue
+- **3** = Respiratory
+- **4** = Bloodstream (reference compartment)
+- **5** = Intra-abdominal
+- **6** = CNS (central nervous system)
+- **7** = GI (gastrointestinal)
+- **8** = Genital
+- **9** = Bone/joint
+- **10** = Other
 
 | Parameter | Description |
 | --- | --- |
@@ -412,6 +463,47 @@ Defined in [src/config.rs#L942-L1036](src/config.rs#L942-L1036) with indices key
 | `initiation_multiplier` | Syndrome-specific multiplier on drug initiation hazards. |
 | `non_sepsis_mortality_log_odds` | Non-sepsis mortality adjustment per syndrome. |
 | `empiric_drug_scores` | Matrix of empiric preference scores per syndrome and drug, used during empiric selection. |
+| `bacteria_growth_multiplier` | Syndrome-specific multiplier on bacteria growth rate (e.g., CNS 1.3×, bone 0.85×). |
+| `drug_penetration` | Matrix of drug penetration factors `[syndrome_id][drug_idx]` representing fraction of serum concentration achieved at infection site (0.0–1.0). |
+| `days_to_therapeutic` | Days required to reach therapeutic levels at each infection site, modeling slow equilibration in protected compartments. |
+
+#### Syndrome-Specific Drug Penetration
+
+Drug penetration factors account for pharmacokinetic differences at different infection sites. Key defaults:
+
+| Syndrome | Days to Therapeutic | Notable Drug Penetration |
+| --- | --- | --- |
+| **UTI (1)** | 1 | Fluoroquinolones/TMP-SMX/nitrofurantoin = 1.0 (urinary concentration) |
+| **Skin (2)** | 1 | Most drugs 0.80–0.90 (good perfusion) |
+| **Respiratory (3)** | 1 | Macrolides/FQ = 0.95, aminoglycosides = 0.40 |
+| **Bloodstream (4)** | 1 | All drugs = 1.0 (reference compartment) |
+| **Intra-abdominal (5)** | 2 | Metronidazole = 0.90, aminoglycosides = 0.30 (acidic pH) |
+| **CNS (6)** | 3 | Linezolid/metronidazole = 0.70–0.80, aminoglycosides = 0.05 (blood-brain barrier) |
+| **GI (7)** | 1 | Oral vancomycin = 0.90 (luminal), metronidazole = 0.95 |
+| **Genital (8)** | 1.5 | Fluoroquinolones = 0.90 (prostatic), aminoglycosides = 0.35 |
+| **Bone/joint (9)** | 3 | Rifampicin = 0.80, linezolid = 0.75, FQ = 0.70, aminoglycosides = 0.25 |
+| **Other (10)** | 1 | Moderate reduction for aminoglycosides/nitrofurantoin |
+
+The effective drug level at the infection site is calculated as:
+```
+effective_drug_level = serum_level × penetration_factor × accumulation_factor
+```
+where `accumulation_factor = 1 - exp(-ln(2) × days_on_drug / days_to_therapeutic)` follows saturation kinetics with a minimum floor of 10% on day 1.
+
+#### Syndrome Assignment by Bacteria
+
+Each bacteria has clinically-appropriate syndrome probability distributions defined in [src/rules/mod.rs#L4830-L5060](src/rules/mod.rs#L4830-L5060). All 39 bacteria now have explicit entries including:
+
+| Bacteria | Primary Syndrome | Distribution Highlights |
+| --- | --- | --- |
+| **p_stuartii** | UTI (70%) | Catheter-associated UTI specialist |
+| **stenotrophomonas_maltophilia** | Respiratory (50%) | VAP/pneumonia + BSI (32%) |
+| **staphylococcus_epidermidis** | Bloodstream (55%) | CLABSI, prosthetic infections |
+| **mycoplasma_genitalium** | Genital (85%) | STI causing urethritis/cervicitis |
+| **bacteroides_fragilis** | Intra-abdominal (65%) | Peritonitis, abscesses |
+| **mdr_mycobacterium_tuberculosis** | Respiratory (82%) | Pulmonary TB + CNS (5%) |
+
+Enteric fever organisms (S. Typhi, S. Paratyphi, iNTS) have corrected distributions emphasizing bloodstream involvement consistent with their systemic nature.
 
 ### DrugParameters
 
@@ -669,10 +761,11 @@ config = PlotConfig(
 - **Mortality**: Background, sepsis-related, and drug toxicity mortality
 
 ### Drug and Resistance Modeling
-- **Multi-drug Support**: 357 drugs across major antibiotic classes
+- **Multi-drug Support**: 52 drugs across major antibiotic classes
 - **Resistance Mechanisms**: Genetic and phenotypic resistance evolution
 - **Treatment Protocols**: Empirical and targeted therapy based on testing
 - **Microbiome Effects**: Commensal bacteria resistance affecting treatment
+- **Pharmacokinetic Modeling**: Syndrome-specific drug penetration and time-to-therapeutic accumulation
 
 ## Data Integration
 

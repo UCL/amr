@@ -844,9 +844,8 @@ def create_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotConfig) -> 
     out_dir = config.output_dir / "drug_usage_ddd_per_1000_per_day" / "overall_global"
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Ensure time_in_years column exists
+    # Ensure time_in_years column exists (add in-place to avoid copying large DataFrame)
     if 'time_in_years' not in df.columns:
-        df = df.copy()  # Don't modify original
         df['time_in_years'] = df['time_step'] / 365
     
     # Find drug columns
@@ -1032,9 +1031,8 @@ def create_regional_drug_usage_proportion_plots(df: pd.DataFrame, config: PlotCo
     base_out_dir = config.output_dir / "proportion_of_people_taking_each_drug"
     base_out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Ensure time_in_years column exists
+    # Ensure time_in_years column exists (add in-place to avoid copying large DataFrame)
     if 'time_in_years' not in df.columns:
-        df = df.copy()
         df['time_in_years'] = df['time_step'] / 365
     
     # Find regional drug columns - handle both naming patterns in the data
@@ -1961,9 +1959,8 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
     else:
         all_drugs_filtered = all_drugs_all
     
-    # Ensure time_in_years column exists
+    # Ensure time_in_years column exists (add in-place to avoid copying large DataFrame)
     if 'time_in_years' not in df.columns:
-        df = df.copy()  # Don't modify original
         df['time_in_years'] = df['time_step'] / 365
     
     plots_created = 0
@@ -3724,9 +3721,10 @@ def create_drug_score_summary_plots(df: pd.DataFrame, config: PlotConfig) -> Non
             logger.warning(f"No drug score columns found for {bacteria_name}")
             continue
         
-        # Calculate years from start_year
-        df_copy = df.copy()
-        df_copy['years_from_start'] = config.start_year + (df_copy['time_step'] / 365.25)
+        # Select only the columns we need to avoid copying the entire large DataFrame
+        needed_cols = ['time_step', selection_col] + score_cols
+        df_subset = df[needed_cols].copy()
+        df_subset['years_from_start'] = config.start_year + (df_subset['time_step'] / 365.25)
         
         # For each time step, calculate mean drug scores (total_score / selection_count)
         drug_data = {}
@@ -3737,12 +3735,12 @@ def create_drug_score_summary_plots(df: pd.DataFrame, config: PlotConfig) -> Non
             
             if window_days > 1:
                 # Smooth within a shorter drug-specific window so single-day spikes do not dominate.
-                rolling_scores = df_copy[col].rolling(window=window_days, min_periods=1).sum()
-                rolling_selections = df_copy[selection_col].rolling(window=window_days, min_periods=1).sum()
+                rolling_scores = df_subset[col].rolling(window=window_days, min_periods=1).sum()
+                rolling_selections = df_subset[selection_col].rolling(window=window_days, min_periods=1).sum()
             else:
                 # Fall back to raw daily values when smoothing is disabled.
-                rolling_scores = df_copy[col]
-                rolling_selections = df_copy[selection_col]
+                rolling_scores = df_subset[col]
+                rolling_selections = df_subset[selection_col]
 
             valid_mask = rolling_selections > 0
             if valid_mask.sum() == 0:
@@ -3750,7 +3748,7 @@ def create_drug_score_summary_plots(df: pd.DataFrame, config: PlotConfig) -> Non
 
             mean_scores = (rolling_scores / rolling_selections.replace(0, np.nan)).fillna(0)
             mean_scores = mean_scores[valid_mask]
-            years = df_copy.loc[valid_mask, 'years_from_start'].values
+            years = df_subset.loc[valid_mask, 'years_from_start'].values
             
             # Only include drugs with meaningful activity (some non-zero scores)
             if mean_scores.sum() > 0.01:  # threshold to avoid noise
