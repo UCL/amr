@@ -12,8 +12,9 @@
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
 
 use crate::config::{
-    get_age_dependent_bacteria_sepsis_risk_log_odds, get_drug_availability_time_aware,
-    get_drug_introduction_time_step, get_global_param, parameter_store,
+    calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
+    get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
+    parameter_store,
 };
 use crate::simulation::population::{
     self, CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual,
@@ -3481,37 +3482,50 @@ pub fn apply_rules(
                         );
 
                         if let Some(level) = assigned_level {
-                            let clamped_level = level.min(max_resistance_level).max(0.0);
+                            // Apply resistance floor for rare bacteria
+                            // The floor ensures minimum resistance levels are maintained even when
+                            // cache sampling produces sparse data (e.g., S. maltophilia, E. faecium)
+                            let floor_level = calculate_resistance_floor(
+                                bacteria,
+                                drug_name_static,
+                                time_step as i32,
+                            );
+                            let level_with_floor = level.max(floor_level);
+                            
+                            let clamped_level = level_with_floor.min(max_resistance_level).max(0.0);
                             resistance_data.any_r = clamped_level;
                             resistance_data.majority_r = clamped_level;
 
-                            // Inline mechanism assignment
-                            use crate::simulation::population::ResistanceMechanism;
-                            let mechanism_prob =
-                                store.globals.mechanism_assignment_probability_on_any_r_gain;
-                            for (mech_idx, _mechanism) in
-                                ResistanceMechanism::all().iter().enumerate()
-                            {
-                                if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
-                                    continue;
-                                }
-
-                                let enhancement =
-                                    store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                if enhancement <= resistance_data.any_r
-                                    && rng.gen_bool(mechanism_prob)
+                            // Only set how_resistance_acquired if we actually assigned non-zero resistance
+                            if clamped_level > 0.0 {
+                                // Inline mechanism assignment
+                                use crate::simulation::population::ResistanceMechanism;
+                                let mechanism_prob =
+                                    store.globals.mechanism_assignment_probability_on_any_r_gain;
+                                for (mech_idx, _mechanism) in
+                                    ResistanceMechanism::all().iter().enumerate()
                                 {
-                                    individual.resistance_mechanisms[b_idx][mech_idx] = true;
-                                }
-                            }
+                                    if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
+                                        continue;
+                                    }
 
-                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                if is_from_environment {
-                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
-                                } else {
-                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity
-                                },
-                            );
+                                    let enhancement =
+                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
+                                    if enhancement <= resistance_data.any_r
+                                        && rng.gen_bool(mechanism_prob)
+                                    {
+                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                    }
+                                }
+
+                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                    if is_from_environment {
+                                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
+                                    } else {
+                                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity
+                                    },
+                                );
+                            }
                         } else {
                             resistance_data.any_r = 0.0;
                             resistance_data.majority_r = 0.0;

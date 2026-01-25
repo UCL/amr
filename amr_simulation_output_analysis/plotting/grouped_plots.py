@@ -6,8 +6,11 @@ This module contains the create_grouped_plots function extracted from
 the original analyze_simulation.py script.
 """
 
+import gc
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to reduce memory
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.lines import Line2D
@@ -48,31 +51,35 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
     # Use reset_index without copy to avoid memory issues with large DataFrames
     df = df.reset_index(drop=True)
     if 'policy_option' in df.columns:
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        preserve_cols = {'time_step', 'time_in_years'}
+        preserve_cols = {'time_step', 'time_in_years', 'policy_option'}
         change_indices = [
             idx
             for idx in range(len(df) - 1)
             if df.at[idx, 'policy_option'] != df.at[idx + 1, 'policy_option']
         ]
         if change_indices:
-            cols_to_nan = [col for col in numeric_cols if col not in preserve_cols]
-            df['__plot_order'] = np.arange(len(df), dtype=float)
-            blank_rows = []
+            # Build minimal break rows with only essential columns to avoid memory explosion
+            # with 31k+ columns. Other columns will be NaN by default when concat fills missing.
+            blank_rows_data = []
             for idx in change_indices:
-                blank = df.iloc[[idx]].copy()
-                blank[cols_to_nan] = np.nan
-                blank['__plot_order'] = df.at[idx, '__plot_order'] + 0.5
-                blank_rows.append(blank)
+                row_data = {
+                    'time_step': df.at[idx, 'time_step'],
+                    'time_in_years': df.at[idx, 'time_in_years'] if 'time_in_years' in df.columns else df.at[idx, 'time_step'] / 365,
+                    'policy_option': df.at[idx, 'policy_option'],
+                    '__plot_order': idx + 0.5,
+                }
+                blank_rows_data.append(row_data)
 
-            if blank_rows:
-                blanks_df = pd.concat(blank_rows, ignore_index=False)
+            if blank_rows_data:
+                df['__plot_order'] = np.arange(len(df), dtype=float)
+                blanks_df = pd.DataFrame(blank_rows_data)
                 df = (
-                    pd.concat([df, blanks_df], ignore_index=False)
+                    pd.concat([df, blanks_df], ignore_index=True)
                     .sort_values('__plot_order')
                     .reset_index(drop=True)
                 )
-            df.drop(columns='__plot_order', inplace=True)
+            if '__plot_order' in df.columns:
+                df.drop(columns='__plot_order', inplace=True)
 
     # Get plot settings from config
     SMOOTHING_WINDOW_DAYS = getattr(config, 'smoothing_window_days', 1095)
@@ -389,7 +396,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.subplots_adjust(hspace=0.75, wspace=0.4)  # Increase vertical space significantly
         figure_path = _grouped_figure_path(1, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close() # Close the figure to free memory
+        plt.close('all')  # Close all figures to free memory
+        del fig1, axes1
+        gc.collect()  # Force garbage collection to reclaim memory
         print(f"[OK] Grouped figure 1 saved as '{figure_path.name}'")
 
     # --- Figure 2: New Infections, Durations, Sepsis, Past-Year Deaths ---
@@ -509,7 +518,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         figure_path = _grouped_figure_path(2, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig2, axes2
+        gc.collect()
         print(f"[OK] Grouped figure 2 saved as '{figure_path.name}'")
 
     # --- Figure 3: Duration-Based Infection Proportions ---
@@ -672,7 +683,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.subplots_adjust(hspace=0.7, wspace=0.35)
         figure_path = _grouped_figure_path(3, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig3, axes3
+        gc.collect()
         print(f"[OK] Grouped figure 3 saved as '{figure_path.name}'")
 
     # --- Figure 4: Resistance and Testing Metrics ---
@@ -798,7 +811,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.subplots_adjust(hspace=0.65, wspace=0.4)
         figure_path = _grouped_figure_path(4, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig4, axes4
+        gc.collect()
         print(f"[OK] Grouped figure 4 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 5: Infection Resolution Outcomes ---
@@ -1005,7 +1020,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         figure_path = _grouped_figure_path(5, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig5, axes5
+        gc.collect()
         print(f"[OK] Grouped figure 5 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 6: Overall Activity R Ratio ---
@@ -1181,7 +1198,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.subplots_adjust(hspace=0.65, wspace=0.4)
         figure_path = _grouped_figure_path(6, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig6, axes6
+        gc.collect()
         print(f"[OK] Grouped figure 6 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 7: Day 7 Drug Initiation Analysis ---
@@ -1346,7 +1365,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         figure_path = _grouped_figure_path(7, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig7, axes7
+        gc.collect()
         print(f"[OK] Grouped figure 7 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 8: Infectious Syndrome Tracking ---
@@ -1595,7 +1616,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         figure_path = _grouped_figure_path(8, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig8, axes8
+        gc.collect()
         print(f"[OK] Grouped figure 8 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 9: Drug Initiation Patterns Over Time ---
@@ -1724,7 +1747,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         figure_path = _grouped_figure_path(9, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig9, axes9
+        gc.collect()
         print(f"[OK] Grouped figure 9 saved as '{figure_path.name}'")
 
     # --- Grouped Figure 10: Infections Prevented by Drug Analysis ---
@@ -1820,7 +1845,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         plt.tight_layout(rect=[0, 0, 0.85, 0.96])  # Leave space for legend
         figure_path = _grouped_figure_path(10, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
-        plt.close()
+        plt.close('all')
+        del fig10, axes10
+        gc.collect()
         print(f"[OK] Grouped figure 10 saved as '{figure_path.name}'")
 
     print("[OK] Grouped plots (1-10) creation completed")

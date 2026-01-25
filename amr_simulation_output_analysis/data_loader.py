@@ -131,6 +131,20 @@ class DataCache:
         if previous_flag is not None and previous_flag != enable_microbiome_aggregates:
             force_reload = True
 
+        # Check for preprocessed parquet cache first
+        preprocessed_parquet_path = None
+        if self._simulation_csv_path is not None:
+            preprocessed_parquet_path = self._simulation_csv_path.with_suffix('.preprocessed.parquet')
+            if preprocessed_parquet_path.exists() and not force_reload:
+                try:
+                    self._preprocessed_data = pd.read_parquet(preprocessed_parquet_path)
+                    self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
+                    logger.info(f"Loaded preprocessed data from cache: {len(self._preprocessed_data)} rows")
+                    print(f"Loaded preprocessed data from cache ({len(self._preprocessed_data)} rows)")
+                    return self._preprocessed_data
+                except Exception as e:
+                    logger.warning(f"Failed to read preprocessed cache, will reprocess: {e}")
+
         if self._preprocessed_data is None or force_reload:
             sim_data = self.get_simulation_data()
             if sim_data is not None:
@@ -143,6 +157,15 @@ class DataCache:
                 )
                 self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
                 logger.info("Data preprocessing completed and cached")
+                
+                # Save preprocessed data to parquet cache for future runs
+                if preprocessed_parquet_path is not None and self._preprocessed_data is not None:
+                    try:
+                        self._preprocessed_data.to_parquet(preprocessed_parquet_path, compression='snappy', index=False)
+                        logger.info(f"Saved preprocessed data to cache: {preprocessed_parquet_path}")
+                        print(f"Saved preprocessed data to cache for faster future loads")
+                    except Exception as e:
+                        logger.warning(f"Failed to write preprocessed cache: {e}")
 
         if self._preprocessed_data is not None and 'enable_microbiome_aggregates' not in self._preprocess_options:
             self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
@@ -326,14 +349,36 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
         try:
             polars_df = load_csv_with_polars(csv_path)
             if polars_df is not None:
+                # Free up memory before conversion
+                gc.collect()
                 df = polars_to_pandas(polars_df)
+                # Release polars dataframe explicitly
+                del polars_df
+                gc.collect()
                 if df is not None:
                     _write_parquet_cache(df, parquet_path, parquet_compression)
                     return df
+        except MemoryError:
+            logger.warning("Polars load ran out of memory, falling back to pandas with pyarrow backend")
+            gc.collect()
         except Exception as e:
             logger.warning(f"Polars load failed, falling back to pandas: {e}")
+            gc.collect()
     
-    # Fallback to pandas
+    # Fallback to pandas - try PyArrow backend first for better memory efficiency
+    try:
+        df = pd.read_csv(csv_file, dtype_backend="pyarrow")
+        logger.info(f"Loaded {len(df)} time steps from {csv_file} using pyarrow dtype backend")
+        print(f"Loaded {len(df)} time steps of simulation data (pyarrow backend)")
+        _write_parquet_cache(df, parquet_path, parquet_compression)
+        return df
+    except TypeError:
+        # pandas < 2.0 may not support dtype_backend
+        logger.warning("PyArrow dtype_backend not supported, trying standard pandas")
+    except Exception as e:
+        logger.warning(f"PyArrow dtype backend failed: {e}")
+    
+    # Final fallback to standard pandas
     try:
         df = pd.read_csv(csv_file)
         logger.info(f"Loaded {len(df)} time steps from {csv_file}")
@@ -342,23 +387,9 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
         return df
 
     except MemoryError as mem_err:
-        logger.warning("Standard CSV load exhausted memory; attempting fallback strategies")
-        print("Initial CSV load exhausted memory, retrying with lower-memory settings...")
+        logger.warning("Standard CSV load exhausted memory; attempting pyarrow engine fallback")
+        print("CSV load exhausted memory, trying pyarrow engine...")
         gc.collect()
-
-        # Fallback 1: use pyarrow-backed dtypes when available to reduce memory footprint
-        try:
-            df = pd.read_csv(csv_file, dtype_backend="pyarrow")
-            logger.info(f"Loaded {len(df)} time steps from {csv_file} using pyarrow dtype backend")
-            print(f"Loaded {len(df)} time steps of simulation data (pyarrow backend)")
-            _write_parquet_cache(df, parquet_path, parquet_compression)
-            return df
-        except TypeError:
-            # pandas < 2.0 may not support dtype_backend; try pyarrow engine instead
-            pass
-        except Exception as fallback_err:
-            logger.error(f"Pyarrow dtype backend load failed: {fallback_err}")
-            print(f"Pyarrow dtype backend load failed: {fallback_err}")
 
         try:
             df = pd.read_csv(csv_file, engine="pyarrow")
@@ -396,7 +427,11 @@ def _join_new_columns(df: pd.DataFrame, columns: Dict[str, Any]) -> pd.DataFrame
         return df
 
     new_frame = pd.DataFrame(columns, index=df.index)
-    return df.join(new_frame)
+    result = df.join(new_frame)
+    # Free intermediate frame
+    del new_frame
+    gc.collect()
+    return result
 
 def preprocess_data(
     df: pd.DataFrame,
@@ -426,13 +461,23 @@ def preprocess_data(
             polars_df = pl.from_pandas(df)
             # Preprocess with Polars
             polars_result = preprocess_with_polars(polars_df, enable_microbiome_aggregates)
+            # Free polars_df to make room for conversion
+            del polars_df
+            gc.collect()
             # Convert back to pandas
             result_df = polars_to_pandas(polars_result)
+            # Free polars_result
+            del polars_result
+            gc.collect()
             if result_df is not None:
                 logger.info("Preprocessing completed with Polars optimization")
                 return result_df
+        except MemoryError:
+            logger.warning("Polars preprocessing ran out of memory, falling back to pandas")
+            gc.collect()
         except Exception as e:
             logger.warning(f"Polars preprocessing failed, falling back to pandas: {e}")
+            gc.collect()
     
     # Fallback to pandas preprocessing
     logger.info("Using pandas preprocessing")

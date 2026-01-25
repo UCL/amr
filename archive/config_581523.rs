@@ -376,7 +376,7 @@ impl GlobalScalars {
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                1.0e-20,  // 0.0008  ***
+                0.0,  // 0.0008  ***
             ),
             hospital_baseline_rate_per_day: get_or_default(
                 map,
@@ -489,7 +489,7 @@ impl GlobalScalars {
             microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
                 map,
                 "microbiome_resistance_emergence_rate_per_day_baseline",
-                1.0e-50,   // 0.0001 ***  ^^^
+                0.0,   // 0.0001 ***  ^^^
             ),
             default_toxicity_reservoir_half_life_days: get_or_default(
                 map,
@@ -774,7 +774,7 @@ impl GlobalScalars {
             microbiome_resistance_multiplier_on_acquisition: get_or_default(
                 map,
                 "microbiome_resistance_multiplier_on_acquisition",
-                0.18,  // 0.18 ***
+                0.0,  // 0.18 ***
             ),
             infection_from_microbiome_dampening: get_or_default(
                 map,
@@ -799,23 +799,23 @@ impl GlobalScalars {
             carrier_resistance_inheritance_probability: get_or_default(
                 map,
                 "carrier_resistance_inheritance_probability",
-                0.32,  // 0.32 ***
+                0.0,  // 0.32 ***
             ),
-            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),  // 3.0  ***
+            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 0.0),  // 3.0  ***
             hgt_antibiotic_pressure_multiplier: get_or_default(
                 map,
                 "hgt_antibiotic_pressure_multiplier",
-                1.5,  // 1.5  ***
+                0.0,  // 1.5  ***
             ),
             hgt_coinfection_multiplier: get_or_default(
                 map,
                 "hgt_coinfection_multiplier",
-                1.25,  // 1.25 ***
+                0.0,  // 1.25 ***
             ),
             hgt_microbiome_only_penalty: get_or_default(
                 map,
                 "hgt_microbiome_only_penalty",
-                0.65,  // 0.65 ***
+                0.0,  // 0.65 ***
             ),
             majority_r_memory_retention_per_day: get_or_default(
                 map,
@@ -2458,20 +2458,20 @@ fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
     // ***  ^^^
     match (donor_pool, recipient_pool) {
         (PlasmidPool::GramPositive, PlasmidPool::GramPositive) => {
-            if same_group { 1.0e-9 } else { 1.0e-10 }
+            if same_group { 0.0 } else { 0.0 }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::EntericGramNegative) => {
-            if same_group { 1.0e-9 } else { 1.0e-10 }
+            if same_group { 0.0 } else { 0.0 }
         }
         (PlasmidPool::RespiratoryGramNegative, PlasmidPool::RespiratoryGramNegative) => {
-            if same_group { 1.0e-9 } else { 1.0e-10 }
+            if same_group { 0.0 } else { 0.0 }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::RespiratoryGramNegative)
-        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 1.0e-9,
+        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 0.0,
         (PlasmidPool::Anaerobe, PlasmidPool::EntericGramNegative)
-        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 1.0e-9,
-        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 1.0e-9,
-        _ => 1.0e-9,
+        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 0.0,
+        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 0.0,
+        _ => 0.0,
     }
 }
 
@@ -5317,61 +5317,6 @@ lazy_static! {
         // Clinical practice often reduces doses when combining these drug classes due to cardiac safety
         map.insert("drug_level_multiplier_ciprofloxacin_when_coadministered_with_erythromycin".to_string(), 0.85); // Dose reduction for safety
         map.insert("drug_level_multiplier_levofloxacin_when_coadministered_with_azithromycin".to_string(), 0.9); // Dose reduction for safety
-
-        // === [D.2] Resistance floor configuration for rare bacteria ===
-        // For bacteria with very low infection counts (like S. maltophilia and E. faecium at 100k pop),
-        // the cache-based resistance sampling may not sustain observed resistance levels.
-        // This feature provides minimum resistance floors that ramp up after drug introduction.
-        // 
-        // Drug introduction dates are already defined in DRUG_INTRODUCTION_DATES (lazy_static at bottom of file).
-        // 
-        // Enabled per-bacteria with: bacteria_{name}_resistance_floor_enabled = 1.0 (or 0.0 to disable)
-        // Ramp period: bacteria_{name}_resistance_floor_ramp_years = years from drug intro to full floor
-        // Per-drug-class floors: bacteria_{name}_{drug_class}_resistance_floor = target floor level (0.0-1.0)
-        //
-        // The floor is applied as: floor_level * ramp_fraction, where ramp_fraction = 
-        // min(1.0, (current_day - drug_intro_day) / (ramp_years * 365)) for the earliest drug in the class.
-        // If current_day < drug_intro_day, no floor is applied (resistance can't precede drug).
-
-        // Master enable flag for resistance floors (set to 0.0 to disable globally)
-        map.insert("resistance_floor_feature_enabled".to_string(), 1.0);
-
-        // --- Stenotrophomonas maltophilia resistance floors ---
-        // S. maltophilia has intrinsic L1/L2 beta-lactamases and multi-drug efflux pumps
-        // At 100k population: ~552 infected person-days over 3 years, very sparse data
-        // Target floors based on resistance_prevalence_values.csv intrinsic resistance patterns
-        map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_enabled".to_string(), 1.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_ramp_years".to_string(), 5.0); // Quick ramp - intrinsic
-        // Drug class floors (using drug class names from potency section)
-        map.insert("bacteria_stenotrophomonas_maltophilia_penicillins_resistance_floor".to_string(), 0.95); // Intrinsic L1/L2
-        map.insert("bacteria_stenotrophomonas_maltophilia_cephalosporins_1_2_resistance_floor".to_string(), 0.95); // Intrinsic L1
-        map.insert("bacteria_stenotrophomonas_maltophilia_cephalosporins_3_4_resistance_floor".to_string(), 0.75); // Partial L1/L2 coverage
-        map.insert("bacteria_stenotrophomonas_maltophilia_carbapenems_resistance_floor".to_string(), 0.98); // Intrinsic L1 (metalloenzyme)
-        map.insert("bacteria_stenotrophomonas_maltophilia_aminoglycosides_resistance_floor".to_string(), 0.80); // Efflux + modifying enzymes
-        map.insert("bacteria_stenotrophomonas_maltophilia_fluoroquinolones_resistance_floor".to_string(), 0.45); // Moderate - acquired Smqnr
-        map.insert("bacteria_stenotrophomonas_maltophilia_macrolides_resistance_floor".to_string(), 0.95); // Intrinsic efflux
-        map.insert("bacteria_stenotrophomonas_maltophilia_tetracyclines_resistance_floor".to_string(), 0.40); // Variable - doxycycline/minocycline active
-        map.insert("bacteria_stenotrophomonas_maltophilia_folate_antagonists_resistance_floor".to_string(), 0.15); // TMP-SMX is preferred therapy
-        map.insert("bacteria_stenotrophomonas_maltophilia_polymyxins_resistance_floor".to_string(), 0.70); // Moderate colistin resistance
-
-        // --- Enterococcus faecium resistance floors ---
-        // E. faecium: intrinsically resistant to cephalosporins, low-level aminoglycosides, clindamycin
-        // VRE (vancomycin-resistant) is a major concern globally
-        // At 100k population: very low infection counts, resistance not sustained
-        map.insert("bacteria_enterococcus_faecium_resistance_floor_enabled".to_string(), 1.0);
-        map.insert("bacteria_enterococcus_faecium_resistance_floor_ramp_years".to_string(), 10.0); // Slower ramp - VRE emerged gradually
-        // Drug class floors
-        map.insert("bacteria_enterococcus_faecium_penicillins_resistance_floor".to_string(), 0.0); // Ampicillin resistance acquired, start at 0
-        map.insert("bacteria_enterococcus_faecium_cephalosporins_1_2_resistance_floor".to_string(), 0.99); // Intrinsic - all cephalosporins
-        map.insert("bacteria_enterococcus_faecium_cephalosporins_3_4_resistance_floor".to_string(), 0.99); // Intrinsic - all cephalosporins  
-        map.insert("bacteria_enterococcus_faecium_carbapenems_resistance_floor".to_string(), 0.0); // Not intrinsic
-        map.insert("bacteria_enterococcus_faecium_aminoglycosides_resistance_floor".to_string(), 0.0); // High-level resistance acquired
-        map.insert("bacteria_enterococcus_faecium_fluoroquinolones_resistance_floor".to_string(), 0.65); // High resistance observed
-        map.insert("bacteria_enterococcus_faecium_macrolides_resistance_floor".to_string(), 0.55); // Moderate resistance
-        map.insert("bacteria_enterococcus_faecium_glycopeptides_resistance_floor".to_string(), 0.35); // VRE - ~35-45% globally
-        map.insert("bacteria_enterococcus_faecium_oxazolidinones_resistance_floor".to_string(), 0.10); // Low linezolid resistance
-        map.insert("bacteria_enterococcus_faecium_tetracyclines_resistance_floor".to_string(), 0.45); // Moderate tetracycline resistance
-        map.insert("bacteria_enterococcus_faecium_folate_antagonists_resistance_floor".to_string(), 0.70); // High TMP-SMX resistance
 
         // === [E] Drug-bacteria potency & emergence settings ===
         // Qualitative potency buckets, initiation multipliers, and baseline resistance emergence
@@ -10039,7 +9984,7 @@ lazy_static! {
 
 
         // microbiome_resistance_emergence_rates ^^^
-        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 1.0e-20 ); // 1.0e-50  ***  Calibrated for microbiome resistance emergence
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0); // 1.0e-50  ***  Calibrated for microbiome resistance emergence
 
         map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.0); // 0.08 *** Multiplier for bacteria level's effect on emergence - by default this is zero and has no effect
 
@@ -10083,39 +10028,18 @@ lazy_static! {
         map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.00005); // Rare, high-level aminoglycoside resistance
 
         // --- Example bacteria-level mechanism overrides ---
-        // E. coli: All mechanism emergence rates set to 0 to prevent resistance emergence
-        // (resistance can still be acquired from the population cache if present)
+        // Lower ESBL/AmpC emergence for E. coli to trim overall beta-lactam resistance.
         map.insert(
             "bacteria_escherichia_coli_mechanism_esbl_emergence_multiplier".to_string(),
-            0.0,
+            0.0,  // 1.0e-50
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_ampc_emergence_multiplier".to_string(),
-            0.0,
+            0.0,  // 1.0e-50
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_qnr_emergence_multiplier".to_string(),
-            0.0,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_carbapenemase_emergence_multiplier".to_string(),
-            0.0,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
-            0.0,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            0.0,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            0.0,
-        );
-        map.insert(
-            "bacteria_escherichia_coli_mechanism_reduced_permeability_emergence_multiplier".to_string(),
-            0.0,
+            0.0,  // 1.0e-50
         );
 
         // Enterobacter cloacae complex carries inducible AmpC and readily acquires carbapenemases/plasmid quinolone protection
@@ -11032,16 +10956,20 @@ lazy_static! {
             100.0,
         );
 
+/*
 
 // debugging
 
         map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0);
 
+*/
 
+
+/*
 
 //      for debugging
 
-/* 
+        map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 0.0);
 
         map.insert("resistance_mechanism_target_site_mutation_emergence_rate".to_string(), 0.00 ); // Point mutations - most common
         map.insert("resistance_mechanism_efflux_overexpression_emergence_rate".to_string(), 0.00 ); // Regulatory mutations relatively common
@@ -11056,6 +10984,8 @@ lazy_static! {
         map.insert("resistance_mechanism_16s_methyltransferase_emergence_rate".to_string(), 0.00 ); // Rare, high-level aminoglycoside resistance
 
 */
+
+
 
 
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
@@ -11680,7 +11610,7 @@ lazy_static! {
         // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
         // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
         map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
-        map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.35);  //  0.0000000001  0.35  0.01  ***
+        map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.0);  //  0.0000000001  0.35  0.01  ***
         map.insert("infection_from_microbiome_dampening".to_string(), 0.10);  // 0.85  ***
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
@@ -12871,18 +12801,16 @@ pub fn sample_age_and_region_from_distribution(
     // Sample from distribution
     let random_value = rng.gen::<f64>() * running_total;
 
-    for (cumulative_prob, region, _age_min, _age_max) in cumulative_probs {
+    for (cumulative_prob, region, age_min, age_max) in cumulative_probs {
         if random_value <= cumulative_prob {
-            // DEBUG: Force all individuals to be born when antibiotics start (day 2555)
-            // This ensures we have a population to test E. coli resistance with
-            // REMOVE THIS AFTER DEBUGGING
-            let age = -2555;
+            // Sample a random age within the band
+            let age = rng.gen_range(age_min..=age_max);
             return (region, age);
         }
     }
 
     // Fallback (should rarely be reached)
-    (Region::Asia, -2555)  // DEBUG: Also force age here
+    (Region::Asia, 0)
 }
 
 /// Helper function to get drug interaction multiplier between two drugs
@@ -12930,189 +12858,4 @@ pub fn get_all_active_interactions() -> Vec<(String, String, f64)> {
     }
 
     interactions
-}
-// ============================================================================
-// === Resistance Floor Helper Functions ===
-// ============================================================================
-// These functions support the resistance floor feature for rare bacteria where
-// cache-based sampling doesn't sustain observed resistance levels.
-
-/// Get the drug class name for a given drug
-/// Returns the class name used in resistance floor parameters
-pub fn get_drug_class(drug: &str) -> Option<&'static str> {
-    match drug {
-        // Penicillins (including BL/BLI)
-        "penicilling" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" |
-        "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | 
-        "ticarcillin_clavulanate" => Some("penicillins"),
-        
-        // Cephalosporins 1st/2nd gen
-        "cephalexin" | "cefazolin" | "cefuroxime" => Some("cephalosporins_1_2"),
-        
-        // Cephalosporins 3rd/4th gen (including BL/BLI)
-        "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline" | 
-        "ceftazidime_avibactam" => Some("cephalosporins_3_4"),
-        
-        // Carbapenems (including BL/BLI)
-        "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam" => Some("carbapenems"),
-        
-        // Monobactams - no separate floor, treat like cephalosporins 3/4 for coverage
-        "aztreonam" => Some("cephalosporins_3_4"),
-        
-        // Macrolides
-        "erythromycin" | "azithromycin" | "clarithromycin" => Some("macrolides"),
-        
-        // Lincosamides - treat like macrolides (MLSb resistance)
-        "clindamycin" => Some("macrolides"),
-        
-        // Aminoglycosides
-        "gentamicin" | "tobramycin" | "amikacin" => Some("aminoglycosides"),
-        
-        // Fluoroquinolones
-        "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin" => Some("fluoroquinolones"),
-        
-        // Tetracyclines
-        "tetracycline" | "doxycycline" | "minocycline" => Some("tetracyclines"),
-        
-        // Glycopeptides
-        "vancomycin" | "teicoplanin" | "dalbavancin" => Some("glycopeptides"),
-        
-        // Oxazolidinones
-        "linezolid" | "tedizolid" => Some("oxazolidinones"),
-        
-        // Folate antagonists
-        "trim_sulf" => Some("folate_antagonists"),
-        
-        // Polymyxins
-        "colistin" => Some("polymyxins"),
-        
-        // Sulfanilamide - original sulfonamide, treat as folate antagonist
-        "sulfanilamide" => Some("folate_antagonists"),
-        
-        // Others without specific floors
-        _ => None,
-    }
-}
-
-/// Get the introduction day for a drug (uses existing DRUG_INTRODUCTION_DATES)
-/// Returns None if drug introduction is not configured
-pub fn get_drug_introduction_day(drug: &str) -> Option<i32> {
-    // Use the existing DRUG_INTRODUCTION_DATES via get_drug_introduction_time_step
-    get_drug_introduction_time_step(drug).map(|ts| ts as i32)
-}
-
-/// Get the earliest introduction day for any drug in a class
-/// This is used to determine when resistance floors should start ramping
-pub fn get_drug_class_introduction_day(drug_class: &str) -> Option<i32> {
-    // Map drug class to its constituent drugs and find earliest introduction
-    let drugs: &[&str] = match drug_class {
-        "penicillins" => &["penicilling", "ampicillin", "amoxicillin", "piperacillin", "ticarcillin",
-                          "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", 
-                          "ticarcillin_clavulanate"],
-        "cephalosporins_1_2" => &["cephalexin", "cefazolin", "cefuroxime"],
-        "cephalosporins_3_4" => &["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", 
-                                  "ceftazidime_avibactam", "aztreonam"],
-        "carbapenems" => &["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"],
-        "macrolides" => &["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
-        "aminoglycosides" => &["gentamicin", "tobramycin", "amikacin"],
-        "fluoroquinolones" => &["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"],
-        "tetracyclines" => &["tetracycline", "doxycycline", "minocycline"],
-        "glycopeptides" => &["vancomycin", "teicoplanin", "dalbavancin"],
-        "oxazolidinones" => &["linezolid", "tedizolid"],
-        "folate_antagonists" => &["trim_sulf", "sulfanilamide"],
-        "polymyxins" => &["colistin"],
-        _ => return None,
-    };
-    
-    drugs.iter()
-        .filter_map(|drug| get_drug_introduction_day(drug))
-        .min()
-}
-
-/// Check if resistance floors are enabled globally
-pub fn resistance_floors_enabled() -> bool {
-    get_global_param("resistance_floor_feature_enabled").unwrap_or(0.0) > 0.5
-}
-
-/// Check if resistance floors are enabled for a specific bacteria
-pub fn bacteria_resistance_floor_enabled(bacteria_name: &str) -> bool {
-    if !resistance_floors_enabled() {
-        return false;
-    }
-    let canonical = canonicalize_bacteria_slug(bacteria_name);
-    let key = format!("bacteria_{}_resistance_floor_enabled", canonical.as_ref());
-    get_global_param(&key).unwrap_or(0.0) > 0.5
-}
-
-/// Get the resistance floor ramp period for a bacteria (in years)
-pub fn get_resistance_floor_ramp_years(bacteria_name: &str) -> f64 {
-    let canonical = canonicalize_bacteria_slug(bacteria_name);
-    let key = format!("bacteria_{}_resistance_floor_ramp_years", canonical.as_ref());
-    get_global_param(&key).unwrap_or(10.0) // Default 10 year ramp
-}
-
-/// Get the target resistance floor for a bacteria-drug combination
-/// Returns 0.0 if no floor is configured
-pub fn get_resistance_floor_target(bacteria_name: &str, drug: &str) -> f64 {
-    let drug_class = match get_drug_class(drug) {
-        Some(class) => class,
-        None => return 0.0,
-    };
-    
-    let canonical = canonicalize_bacteria_slug(bacteria_name);
-    let key = format!("bacteria_{}_{}_resistance_floor", canonical.as_ref(), drug_class);
-    get_global_param(&key).unwrap_or(0.0)
-}
-
-/// Calculate the effective resistance floor for a bacteria-drug pair at a given simulation day
-/// 
-/// The floor ramps linearly from 0 at drug class introduction to the target floor
-/// over the configured ramp period.
-/// 
-/// Returns 0.0 if:
-/// - Resistance floors are disabled
-/// - The bacteria doesn't have floors enabled  
-/// - The simulation day is before the drug class was introduced
-/// - No floor is configured for this bacteria-drug combination
-pub fn calculate_resistance_floor(bacteria_name: &str, drug: &str, current_day: i32) -> f64 {
-    // Check if floors are enabled for this bacteria
-    if !bacteria_resistance_floor_enabled(bacteria_name) {
-        return 0.0;
-    }
-    
-    // Get drug class
-    let drug_class = match get_drug_class(drug) {
-        Some(class) => class,
-        None => return 0.0,
-    };
-    
-    // Get drug class introduction day
-    let intro_day = match get_drug_class_introduction_day(drug_class) {
-        Some(day) => day,
-        None => return 0.0,
-    };
-    
-    // If before drug introduction, no floor
-    if current_day < intro_day {
-        return 0.0;
-    }
-    
-    // Get target floor
-    let target_floor = get_resistance_floor_target(bacteria_name, drug);
-    if target_floor <= 0.0 {
-        return 0.0;
-    }
-    
-    // Calculate ramp fraction
-    let ramp_years = get_resistance_floor_ramp_years(bacteria_name);
-    let ramp_days = (ramp_years * 365.0) as i32;
-    let days_since_intro = current_day - intro_day;
-    
-    let ramp_fraction = if ramp_days <= 0 {
-        1.0
-    } else {
-        (days_since_intro as f64 / ramp_days as f64).min(1.0)
-    };
-    
-    target_floor * ramp_fraction
 }

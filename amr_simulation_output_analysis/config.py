@@ -15,7 +15,7 @@ class PlotConfig:
     """Configuration for individual plot types and categories."""
     
     # Main plot category controls
-    grouped_plots: bool = True   # Enable/disable grouped figures 1-9
+    grouped_plots: bool = False   # Enable/disable grouped figures 1-9
     grouped_microbiome_acquisition_panel: bool = False  # Toggle grouped Figure 3 microbiome acquisition panel
     
     # Individual grouped figure controls
@@ -87,10 +87,13 @@ class PlotConfig:
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))
     figure_format: str = "png"
-    dpi: int = 300
+    dpi: int = 150  # Reduced from 300 to lower memory usage (use 300 for publication quality)
     show_plots: bool = False  # Whether to display plots interactively
     empirical_overlay: bool = True  # Whether to show empirical data overlays
     simulation_run_id: Optional[str] = None  # Derived from simulation CSV filename
+    
+    # Memory management
+    low_memory_mode: bool = True  # Enable memory-saving optimizations for large datasets
     
     # Smoothing and styling
     smoothing_window_days: int = 365  
@@ -109,16 +112,16 @@ class PlotConfig:
     calibration_window_years_after: int = 0  # Years after target year to include in calibration window
     
     # Grouped figure toggles (always True to ensure figures 1-9 are generated)
-    create_grouped_figure_1: bool = True
-    create_grouped_figure_2: bool = True
-    create_grouped_figure_3: bool = True
-    create_grouped_figure_4: bool = True
-    create_grouped_figure_5: bool = True
-    create_grouped_figure_6: bool = True
-    create_grouped_figure_7: bool = True
-    create_grouped_figure_8: bool = True
-    create_grouped_figure_9: bool = True
-    create_grouped_figure_10: bool = True
+    create_grouped_figure_1: bool = False
+    create_grouped_figure_2: bool = False
+    create_grouped_figure_3: bool = False
+    create_grouped_figure_4: bool = False
+    create_grouped_figure_5: bool = False
+    create_grouped_figure_6: bool = False
+    create_grouped_figure_7: bool = False
+    create_grouped_figure_8: bool = False
+    create_grouped_figure_9: bool = False
+    create_grouped_figure_10: bool = False
     
     # Convenience properties
     @property
@@ -189,7 +192,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_287736.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_581523.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

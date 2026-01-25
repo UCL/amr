@@ -283,12 +283,21 @@ impl MajorityRBuffer {
     }
 
     fn probability(&self) -> f64 {
+        // Safety check: never return positive probability if there are no positive samples
+        // This prevents phantom resistance from propagating through the cache
+        if self.positive_samples == 0 && self.total_samples > 0 {
+            // We have samples but none are positive - return 0 regardless of freeze_on_zero
+            return 0.0;
+        }
+        
         let base = self.current_probability();
         if base > 0.0 {
             base
         } else if self.freeze_on_zero {
             // Preserve the last observed prevalence instead of letting small-sample simulations
             // drive the cache back to zero once a strain has been seen.
+            // Note: This only triggers when we have no samples yet (total_samples == 0)
+            // not when we have samples that are all negative
             self.last_nonzero_probability
         } else {
             0.0
@@ -476,6 +485,7 @@ impl MajorityRCache {
         bacteria_idx: usize,
         drug_idx: usize,
         value: f64,
+        _current_timestep: u32,
     ) {
         let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
         self.pending_total_counts[idx] = self.pending_total_counts[idx].saturating_add(1);
@@ -592,6 +602,7 @@ impl MajorityRCache {
                 .map(|bucket| bucket.probability())
                 .unwrap_or(0.0)
         };
+        
         if probability <= 0.0 {
             return Some(0.0);
         }
@@ -606,6 +617,11 @@ impl MajorityRCache {
                 {
                     return Some(value.min(1.0));
                 }
+                // Only use fallback if there are actual positive samples stored
+                // This prevents phantom resistance when probability > 0 but no real samples exist
+                if self.buckets.get(idx).map(|b| b.positive_samples).unwrap_or(0) > 0 {
+                    return Some(probability.min(1.0));
+                }
             } else {
                 let world_idx = self.world_index(bacteria_idx, drug_idx);
                 if let Some(value) = self
@@ -615,9 +631,12 @@ impl MajorityRCache {
                 {
                     return Some(value.min(1.0));
                 }
+                // Only use fallback if there are actual positive samples stored
+                // This prevents phantom resistance when probability > 0 but no real samples exist
+                if self.world_buckets.get(world_idx).map(|b| b.positive_samples).unwrap_or(0) > 0 {
+                    return Some(probability.min(1.0));
+                }
             }
-            // Fall back to using the probability itself as a low-level resistance marker
-            return Some(probability.min(1.0));
         }
 
         Some(0.0)
@@ -2692,6 +2711,7 @@ impl Simulation {
                                         if resistance_data.any_r > 0.0 {
                                             infection_any_r_positive = true;
                                             individual_has_any_r_positive = true;
+                                            
                                             if individual.date_last_infected[b_idx] == t as i32 && !was_newly_infected_with_resistance {
                                                 lt.newly_infected_with_resistance_count += 1;
                                                 was_newly_infected_with_resistance = true;
@@ -2965,6 +2985,7 @@ impl Simulation {
                         bacteria_idx,
                         drug_idx,
                         value,
+                        t as u32,  // Pass current timestep for debug
                     );
                     total_entries += 1;
                 }

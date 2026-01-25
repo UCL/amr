@@ -55,10 +55,10 @@ def load_csv_with_polars(csv_path: Path) -> Optional["pl.DataFrame"]:
         df = pl.scan_csv(
             csv_path,
             infer_schema_length=50000,  # Sample more rows for better type inference
-            low_memory=False,  # Prefer speed over memory
-            rechunk=True,  # Rechunk for better memory layout
+            low_memory=True,  # Prefer memory efficiency over speed
+            rechunk=False,  # Skip rechunking to reduce memory usage
             ignore_errors=True,  # Be lenient with parsing errors
-        ).collect()
+        ).collect(streaming=True)  # Use streaming mode for large files
         
         logger.info(f"Loaded {len(df)} rows from {csv_path} using Polars")
         print(f"Loaded {len(df)} time steps of simulation data (Polars)")
@@ -434,6 +434,8 @@ def polars_to_pandas(df: "pl.DataFrame"):
     """
     Convert Polars DataFrame to pandas DataFrame for downstream compatibility.
     
+    Uses optimized conversion with memory-efficient data types.
+    
     Args:
         df: Polars DataFrame
         
@@ -444,10 +446,24 @@ def polars_to_pandas(df: "pl.DataFrame"):
         return None
     
     try:
-        return df.to_pandas()
+        import gc
+        
+        # Use use_pyarrow_extension_array=True for memory-efficient conversion
+        # This avoids creating large intermediate numpy arrays
+        result = df.to_pandas(use_pyarrow_extension_array=True)
+        
+        # Force garbage collection after conversion
+        gc.collect()
+        
+        return result
     except Exception as e:
-        logger.error(f"Failed to convert Polars to pandas: {e}")
-        return None
+        logger.warning(f"PyArrow extension array conversion failed: {e}, trying standard conversion")
+        try:
+            # Fallback to standard conversion
+            return df.to_pandas()
+        except Exception as e2:
+            logger.error(f"Failed to convert Polars to pandas: {e2}")
+            return None
 
 
 def is_polars_available() -> bool:

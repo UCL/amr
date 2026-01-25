@@ -7,6 +7,9 @@ the original analyze_simulation.py script. Each function creates specific
 visualizations for different aspects of the AMR simulation data.
 """
 
+import gc
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to reduce memory
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np

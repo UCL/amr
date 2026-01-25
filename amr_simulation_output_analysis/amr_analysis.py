@@ -21,9 +21,15 @@ The script will generate comprehensive analysis including:
 Configure the analysis by modifying the PlotConfig settings in config.py.
 """
 
+import gc
 import logging
 import os
+import sys
 from pathlib import Path
+
+# Force matplotlib to use non-interactive backend BEFORE any other imports
+import matplotlib
+matplotlib.use('Agg')
 
 import pandas as pd
 
@@ -34,8 +40,6 @@ if Path.cwd() != PROJECT_ROOT:
 
 # Allow script execution both via `python -m` and direct path invocation
 if __package__ is None or __package__ == "":
-    import sys
-
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from amr_simulation_output_analysis import create_all_plots, PlotConfig
     from amr_simulation_output_analysis.calibration_summary import (
@@ -52,6 +56,26 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+
+def check_system_memory():
+    """Check available system memory and warn if it may be insufficient."""
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        available_gb = mem.available / (1024**3)
+        total_gb = mem.total / (1024**3)
+        print(f"System memory: {available_gb:.1f} GB available / {total_gb:.1f} GB total")
+        
+        if available_gb < 8:
+            print("⚠️  WARNING: Less than 8 GB RAM available.")
+            print("   Large CSV files (~3GB) may cause system instability.")
+            print("   Consider closing other applications or using low_memory_mode.\n")
+            return False
+        return True
+    except ImportError:
+        print("(Install 'psutil' package for memory monitoring)")
+        return True
 
 def generate_summary_statistics():
     """Compute and print summary statistics for quick inspection."""
@@ -99,6 +123,9 @@ def main():
     """Main comprehensive analysis function."""
 
     print("=== AMR Simulation Analysis - Comprehensive Analysis ===\n")
+    
+    # Check system memory before starting
+    check_system_memory()
 
     # Main comprehensive analysis - equivalent to original analyze_simulation.py
     print("Running comprehensive AMR analysis...")
@@ -109,9 +136,13 @@ def main():
         config.carriage_duration_distribution = True
         config.microbiome_resistance_microbiome_vs_infection = True
         create_all_plots(config)
+        
+        # Force garbage collection after all plots are done
+        gc.collect()
         print("   [OK] Comprehensive analysis completed successfully!\n")
     except Exception as e:  # noqa: BLE001 - top-level CLI
         print(f"   [ERROR] Error: {e}\n")
+        gc.collect()  # Clean up on error too
 
     # Generate summary statistics (equivalent to original script)
     # try:
