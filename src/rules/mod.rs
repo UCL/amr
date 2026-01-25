@@ -1,13 +1,82 @@
+// =====================================================================================
+// src/rules/mod.rs
+// =====================================================================================
 //
-// Core model rules and update logic for the AMR simulation.
+// CORE UPDATE LOGIC FOR AMR SIMULATION
 //
-// Contains:
-//   - apply_rules: main function to update an individual's state for one time step
-//   - Logic for resistance emergence, drug effects, MIC calculation, cross-resistance, HGT, and reversion
-//   - Helper functions for parameter lookup and stochastic events
+// This is the largest and most important file in the simulation. It contains all the
+// logic that updates individual state each time step (day).
 //
-// src/rules/mod.rs\
+// =====================================================================================
+// KEY FUNCTIONS
+// =====================================================================================
 //
+// apply_rules() - Main entry point, called once per individual per day
+//   This function orchestrates all updates in the correct order:
+//   1. Age update
+//   2. Hospitalization updates
+//   3. Infection acquisition (community, hospital, microbiome seeding)
+//   4. Infection progression (level growth, symptoms, sepsis)
+//   5. Drug selection and treatment initiation
+//   6. Drug effects (level decay, activity calculations, toxicity)
+//   7. Infection clearance (immune or drug-assisted)
+//   8. Resistance dynamics (emergence, HGT, reversion, floors)
+//   9. Microbiome dynamics (colonization, clearance)
+//   10. Mortality check
+//
+// =====================================================================================
+// IMPORTANT HELPER FUNCTIONS
+// =====================================================================================
+//
+// Drug Selection:
+//   - select_drug_for_bacteria(): Chooses antibiotic based on scoring algorithm
+//   - calculate_drug_score(): Computes selection score for one drug
+//   - drug_available(): Checks if drug exists in simulated time period
+//
+// Resistance:
+//   - update_resistance_from_drug_use(): De novo emergence during treatment
+//   - apply_hgt(): Horizontal gene transfer between bacteria
+//   - apply_resistance_reversion(): Fitness-cost-driven resistance decay
+//   - apply_resistance_floors(): Maintain minimum resistance for rare bacteria
+//
+// Infection:
+//   - infection_acquisition(): Check for new infections
+//   - infection_progression(): Update infection levels
+//   - check_clearance(): Immune and drug-assisted clearance
+//
+// Drug Effects:
+//   - update_drug_levels(): Pharmacokinetic decay
+//   - calculate_drug_activity(): Compute drug effect on bacteria
+//   - update_toxicity(): Accumulate drug toxicity
+//
+// =====================================================================================
+// UNDERSTANDING THE CODE
+// =====================================================================================
+//
+// ARRAY INDEXING PATTERN:
+//   Most loops iterate over bacteria or drugs by index:
+//     for bacteria_idx in 0..BACTERIA_LIST.len() { ... }
+//     for drug_idx in 0..DRUG_SHORT_NAMES.len() { ... }
+//
+// PARAMETER ACCESS:
+//   Configuration parameters are accessed via parameter_store():
+//     let params = parameter_store();
+//     let value = params.get_bacteria_drug_param(bacteria, drug, "potency");
+//
+// STOCHASTIC EVENTS:
+//   Random events use rng.gen_bool(probability):
+//     if rng.gen_bool(infection_probability) { ... }
+//
+// =====================================================================================
+// DOCUMENTATION REFERENCES
+// =====================================================================================
+// For detailed documentation, see the docs/ folder:
+//   - docs/02_resistance_system.md: Resistance emergence, HGT, mechanisms
+//   - docs/03_drug_treatment.md: Drug selection, pharmacokinetics
+//   - docs/04_infection_dynamics.md: Acquisition, progression, clearance
+//   - docs/07_simulation_flow.md: Daily update sequence
+//
+// =====================================================================================
 
 // for printing individual 0 per time step replace .id == 1000001 with .id == 1000001 (cntrl h to find and replace)
 
@@ -27,7 +96,13 @@ use crate::simulation::simulation::{MajorityRCache, PolicyAdjustments};
 use std::collections::HashMap;
 use std::f64::consts::LN_2;
 
-/// Drugs that should be avoided in individuals with perceived penicillin allergy
+// =====================================================================================
+// CONSTANTS
+// =====================================================================================
+
+/// Drugs that should be avoided in individuals with perceived penicillin allergy.
+/// These are all penicillin-class drugs including beta-lactam/beta-lactamase inhibitor combos.
+/// If perceived_penicillin_allergy is true, these drugs get score=0 during selection.
 const PENICILLIN_CLASS_DRUGS: &[&str] = &[
     "penicilling",
     "ampicillin",
@@ -40,17 +115,28 @@ const PENICILLIN_CLASS_DRUGS: &[&str] = &[
     "ticarcillin_clavulanate",
 ];
 
-// Historical sanitation log-odds adjustments (kept very small to avoid distorting probabilities).
+/// Historical sanitation adjustment factors (log-odds scale).
+/// Models improvement in sanitation over time, reducing community-acquired infections.
+/// Format: (year, log_odds_adjustment). Linear interpolation between anchors.
 const COMMUNITY_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
     &[(1930.0, 1.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
+/// Hospital sanitation adjustment factors (log-odds scale).
+/// Models improvement in infection control practices over time.
 const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
     &[(1930.0, 1.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
 /// Minimum antibiotic effect (per time step) required to classify a clearance as drug-assisted.
-/// Values below this threshold are treated as numerical noise and ignored.
+/// Values below this threshold are treated as numerical noise and counted as immune clearance.
+/// This prevents near-zero drug effects from being incorrectly attributed to treatment success.
 const DRUG_ASSISTED_CLEARANCE_EFFECT_THRESHOLD: f64 = 1e-6;
 
+// =====================================================================================
+// HELPER FUNCTIONS
+// =====================================================================================
+
+/// Returns sanitation-related log-odds adjustment for infection probability.
+/// Decreases over historical time as sanitation improved.
 #[inline]
 fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     let anchors = if in_hospital {
@@ -61,6 +147,8 @@ fn historical_sanitation_log_odds(year: f64, in_hospital: bool) -> f64 {
     interpolate_piecewise_linear(year, anchors)
 }
 
+/// Linear interpolation between piecewise anchor points.
+/// Used for time-varying parameters like sanitation improvements.
 #[inline]
 fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     if anchors.is_empty() {
@@ -88,6 +176,8 @@ fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     anchors[last_idx].1
 }
 
+/// Checks if a bacteria can harbor qnr (quinolone resistance) genes.
+/// Only certain Gram-negative bacteria (mainly Enterobacterales) can carry qnr.
 #[inline]
 fn qnr_supported_bacteria(bacteria: &str) -> bool {
     matches!(
