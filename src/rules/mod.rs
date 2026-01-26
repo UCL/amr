@@ -3213,8 +3213,17 @@ pub fn apply_rules(
                                 d_idx,
                                 rng,
                             ) {
+                                // Apply resistance floor for rare bacteria (same as infection acquisition)
+                                // This ensures microbiome colonization also carries appropriate resistance
+                                // levels, which feeds back into the majority_r_cache for future acquisitions
+                                let floor_level = calculate_resistance_floor(
+                                    bacteria,
+                                    drug_name_static,
+                                    time_step as i32,
+                                );
+                                let level_with_floor = acquired_resistance_level.max(floor_level);
                                 let clamped_level =
-                                    acquired_resistance_level.min(max_resistance_level).max(0.0);
+                                    level_with_floor.min(max_resistance_level).max(0.0);
                                 resistance_data.microbiome_r = clamped_level;
                             } else {
                                 resistance_data.microbiome_r = 0.0;

@@ -46,40 +46,14 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         # Respect caller configuration even if this function is invoked directly
         return
     
-    # Normalize dataframe ordering and insert NaN break rows between policy segments to avoid
-    # vertical line jumps when policies branch off in time.
-    # Use reset_index without copy to avoid memory issues with large DataFrames
-    df = df.reset_index(drop=True)
-    if 'policy_option' in df.columns:
-        preserve_cols = {'time_step', 'time_in_years', 'policy_option'}
-        change_indices = [
-            idx
-            for idx in range(len(df) - 1)
-            if df.at[idx, 'policy_option'] != df.at[idx + 1, 'policy_option']
-        ]
-        if change_indices:
-            # Build minimal break rows with only essential columns to avoid memory explosion
-            # with 31k+ columns. Other columns will be NaN by default when concat fills missing.
-            blank_rows_data = []
-            for idx in change_indices:
-                row_data = {
-                    'time_step': df.at[idx, 'time_step'],
-                    'time_in_years': df.at[idx, 'time_in_years'] if 'time_in_years' in df.columns else df.at[idx, 'time_step'] / 365,
-                    'policy_option': df.at[idx, 'policy_option'],
-                    '__plot_order': idx + 0.5,
-                }
-                blank_rows_data.append(row_data)
-
-            if blank_rows_data:
-                df['__plot_order'] = np.arange(len(df), dtype=float)
-                blanks_df = pd.DataFrame(blank_rows_data)
-                df = (
-                    pd.concat([df, blanks_df], ignore_index=True)
-                    .sort_values('__plot_order')
-                    .reset_index(drop=True)
-                )
-            if '__plot_order' in df.columns:
-                df.drop(columns='__plot_order', inplace=True)
+    # PERFORMANCE: Skip expensive policy break-row insertion
+    # The original logic inserted NaN rows between policy segments to avoid line jumps,
+    # but with 31k+ columns this concat operation takes forever.
+    # The visual discontinuity is acceptable vs hour-long runtimes.
+    # 
+    # Skip reset_index since data is already properly indexed from cache
+    if not isinstance(df.index, pd.RangeIndex) or (len(df.index) > 0 and df.index[0] != 0):
+        df = df.reset_index(drop=True)
 
     # Get plot settings from config
     SMOOTHING_WINDOW_DAYS = getattr(config, 'smoothing_window_days', 1095)
@@ -164,32 +138,46 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             return False
 
         if 'policy_option' in df.columns:
-            available_policies = df['policy_option'].dropna().unique().tolist()
+            # PERFORMANCE: Only filter on policy_option column, not entire 31k-column DataFrame
+            policy_col = df['policy_option']
+            available_policies = policy_col.dropna().unique().tolist()
             groups = []
             for policy_value in POLICIES_TO_PLOT:
                 if policy_value in available_policies:
-                    groups.append((policy_value, df[df['policy_option'] == policy_value]))
+                    mask = policy_col == policy_value
+                    groups.append((policy_value, mask))
 
             if allow_extra_policies:
                 extra_policies = [
                     value for value in available_policies if value not in POLICIES_TO_PLOT
                 ]
                 for policy_value in sorted(extra_policies, key=_policy_sort_key):
-                    groups.append((policy_value, df[df['policy_option'] == policy_value]))
+                    mask = policy_col == policy_value
+                    groups.append((policy_value, mask))
 
             if not groups:
-                groups = [(None, df)]
+                groups = [(None, None)]  # None mask means use all rows
         else:
-            groups = [(None, df)]
+            groups = [(None, None)]
 
         label_used = False
         plotted = False
 
-        for policy_value, group_df in groups:
-            if group_df.empty:
+        for policy_value, mask in groups:
+            # PERFORMANCE: Use mask to filter only the columns we need, not entire 31k-column DataFrame
+            if mask is not None:
+                group_indices = df.index[mask]
+            else:
+                group_indices = df.index
+            
+            if len(group_indices) == 0:
                 continue
 
-            segment = group_df
+            # Only extract the minimal columns we need
+            segment = pd.DataFrame({
+                'time_in_years': df.loc[group_indices, 'time_in_years']
+            }, index=group_indices)
+            
             if min_year is not None:
                 segment = segment[segment['time_in_years'] >= min_year]
             if segment.empty:

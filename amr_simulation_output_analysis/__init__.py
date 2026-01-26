@@ -33,6 +33,8 @@ from .plotting.detail_plots import create_detail_plots
 # TODO: Add when implemented
 # from .plotting.base_plots import BasePlot
 
+import time as _time
+
 def create_all_plots(config=None):
     """
     Main function to create all plots - equivalent to original analyze_simulation.py
@@ -45,8 +47,10 @@ def create_all_plots(config=None):
         config = PlotConfig()
     
     # Load and cache data
+    _t0 = _time.time()
     data_cache = DataCache()
     df = data_cache.get_simulation_data()
+    print(f"[TIME] CSV load took {_time.time() - _t0:.1f} seconds")
     
     if df is None:
         raise RuntimeError(
@@ -61,7 +65,9 @@ def create_all_plots(config=None):
         config.simulation_run_id = run_identifier
     
     # Preprocess data (adds time_in_years and other derived columns)
+    _t1 = _time.time()
     df = data_cache.get_preprocessed_data(plot_config=config)
+    print(f"[TIME] Preprocessing took {_time.time() - _t1:.1f} seconds")
 
     requested_policies = normalize_policy_identifier_list(getattr(config, 'policies_to_plot', None))
     if requested_policies is not None and 'policy_option' in df.columns:
@@ -89,7 +95,9 @@ def create_all_plots(config=None):
     # Create grouped plots only when enabled
     if getattr(config, 'grouped_plots', True):
         print("Creating grouped plots (Figures 1-10)...")
+        _t2 = _time.time()
         create_grouped_plots(df, config, run_identifier=run_identifier)
+        print(f"[TIME] Grouped plots took {_time.time() - _t2:.1f} seconds")
     else:
         print("Skipping grouped plots (config.grouped_plots=False)...")
     
@@ -141,7 +149,9 @@ def create_all_plots(config=None):
     
     if detail_plot_enabled:
         print("Creating detailed individual plots...")
+        _t3 = _time.time()
         create_detail_plots(df, config)
+        print(f"[TIME] Detail plots took {_time.time() - _t3:.1f} seconds")
     
     print("Plot generation completed successfully!")
 

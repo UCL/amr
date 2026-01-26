@@ -137,13 +137,28 @@ class DataCache:
             preprocessed_parquet_path = self._simulation_csv_path.with_suffix('.preprocessed.parquet')
             if preprocessed_parquet_path.exists() and not force_reload:
                 try:
-                    self._preprocessed_data = pd.read_parquet(preprocessed_parquet_path)
+                    # Use Polars for faster parquet reading if available
+                    import time as _time
+                    _t_preproc = _time.time()
+                    if is_polars_available():
+                        import polars as pl
+                        print(f"[TIME] Reading preprocessed parquet with Polars...")
+                        polars_df = pl.read_parquet(preprocessed_parquet_path)
+                        print(f"[TIME] Polars preprocessed parquet read took {_time.time() - _t_preproc:.1f}s")
+                        _t_conv = _time.time()
+                        self._preprocessed_data = polars_df.to_pandas()
+                        print(f"[TIME] Polars->pandas conversion took {_time.time() - _t_conv:.1f}s")
+                    else:
+                        print(f"[TIME] Reading preprocessed parquet with pandas...")
+                        self._preprocessed_data = pd.read_parquet(preprocessed_parquet_path)
+                        print(f"[TIME] pandas preprocessed parquet read took {_time.time() - _t_preproc:.1f}s")
                     self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
                     logger.info(f"Loaded preprocessed data from cache: {len(self._preprocessed_data)} rows")
                     print(f"Loaded preprocessed data from cache ({len(self._preprocessed_data)} rows)")
                     return self._preprocessed_data
                 except Exception as e:
                     logger.warning(f"Failed to read preprocessed cache, will reprocess: {e}")
+                    print(f"[WARN] Failed to read preprocessed cache: {e}")
 
         if self._preprocessed_data is None or force_reload:
             sim_data = self.get_simulation_data()
@@ -264,9 +279,32 @@ def _resolve_parquet_cache_path(csv_path: Path, configured_path: Optional[Path])
 
 
 def _read_parquet_cache(parquet_path: Path) -> Optional[pd.DataFrame]:
-    """Attempt to load a cached parquet dataframe."""
+    """Attempt to load a cached parquet dataframe using Polars (faster) or pandas."""
+    import time as _time
+    _t_start = _time.time()
+    
+    # Try Polars first - much faster parquet reading
+    if is_polars_available():
+        try:
+            import polars as pl
+            print(f"[TIME] Reading parquet with Polars...")
+            polars_df = pl.read_parquet(parquet_path)
+            print(f"[TIME] Polars parquet read took {_time.time() - _t_start:.1f}s")
+            _t_conv = _time.time()
+            df = polars_df.to_pandas()
+            print(f"[TIME] Polars->pandas conversion took {_time.time() - _t_conv:.1f}s")
+            logger.info("Loaded %s rows from parquet cache %s (Polars)", len(df), parquet_path)
+            print(f"Loaded {len(df)} time steps of simulation data (parquet cache via Polars)")
+            return df
+        except Exception as exc:
+            logger.warning("Polars parquet read failed, trying pandas: %s", exc)
+            print(f"[WARN] Polars parquet read failed: {exc}")
+    
+    # Fallback to pandas
     try:
+        print(f"[TIME] Reading parquet with pandas/pyarrow...")
         df = pd.read_parquet(parquet_path)
+        print(f"[TIME] pandas parquet read took {_time.time() - _t_start:.1f}s")
     except ImportError as exc:
         logger.warning("Parquet cache unavailable; install pyarrow or fastparquet to enable it: %s", exc)
         return None
@@ -451,36 +489,54 @@ def preprocess_data(
     Returns:
         DataFrame with additional calculated columns
     """
+    import time as _time
+    _preprocess_start = _time.time()
     logger.info("Starting data preprocessing")
+    print(f"[TIME] Preprocessing started at {_time.strftime('%H:%M:%S')}")
     
     # Try Polars for faster preprocessing
     if is_polars_available():
         try:
             import polars as pl
+            print(f"[TIME] Converting pandas->polars...")
+            _t = _time.time()
             # Convert pandas to polars
             polars_df = pl.from_pandas(df)
+            print(f"[TIME] pandas->polars took {_time.time() - _t:.1f}s")
             # Preprocess with Polars
+            print(f"[TIME] Running Polars preprocessing...")
+            _t = _time.time()
             polars_result = preprocess_with_polars(polars_df, enable_microbiome_aggregates)
+            print(f"[TIME] Polars preprocess took {_time.time() - _t:.1f}s")
             # Free polars_df to make room for conversion
             del polars_df
             gc.collect()
             # Convert back to pandas
+            print(f"[TIME] Converting polars->pandas...")
+            _t = _time.time()
             result_df = polars_to_pandas(polars_result)
+            print(f"[TIME] polars->pandas took {_time.time() - _t:.1f}s")
             # Free polars_result
             del polars_result
             gc.collect()
             if result_df is not None:
                 logger.info("Preprocessing completed with Polars optimization")
+                print(f"[TIME] Total preprocessing: {_time.time() - _preprocess_start:.1f}s (Polars)")
                 return result_df
         except MemoryError:
             logger.warning("Polars preprocessing ran out of memory, falling back to pandas")
+            print("[WARN] Polars ran out of memory, falling back to pandas")
             gc.collect()
         except Exception as e:
             logger.warning(f"Polars preprocessing failed, falling back to pandas: {e}")
+            print(f"[WARN] Polars failed: {e}, falling back to pandas")
             gc.collect()
+    else:
+        print("[WARN] Polars not available, using pandas (slower)")
     
     # Fallback to pandas preprocessing
     logger.info("Using pandas preprocessing")
+    print(f"[TIME] Using pandas preprocessing (this may take a while)...")
     
     # Age group proportions
     if 'num_age_0_5' in df.columns and 'total_population' in df.columns:

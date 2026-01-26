@@ -25,13 +25,20 @@ import gc
 import logging
 import os
 import sys
+import time as _time
 from pathlib import Path
+
+_script_start = _time.time()
+print(f"[TIME] Script starting at {_time.strftime('%H:%M:%S')}")
 
 # Force matplotlib to use non-interactive backend BEFORE any other imports
 import matplotlib
 matplotlib.use('Agg')
+print(f"[TIME] matplotlib import took {_time.time() - _script_start:.1f}s")
 
+_t_pd = _time.time()
 import pandas as pd
+print(f"[TIME] pandas import took {_time.time() - _t_pd:.1f}s")
 
 # Ensure relative paths resolve against the project root when executed from any directory
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +46,7 @@ if Path.cwd() != PROJECT_ROOT:
     os.chdir(PROJECT_ROOT)
 
 # Allow script execution both via `python -m` and direct path invocation
+_t_mod = _time.time()
 if __package__ is None or __package__ == "":
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from amr_simulation_output_analysis import create_all_plots, PlotConfig
@@ -50,6 +58,8 @@ else:
     from . import create_all_plots, PlotConfig
     from .calibration_summary import generate_calibration_summary
     from .data_loader import DataCache
+print(f"[TIME] Module imports took {_time.time() - _t_mod:.1f}s")
+print(f"[TIME] Total import time: {_time.time() - _script_start:.1f}s")
 
 # Configure logging
 logging.basicConfig(
@@ -68,7 +78,7 @@ def check_system_memory():
         print(f"System memory: {available_gb:.1f} GB available / {total_gb:.1f} GB total")
         
         if available_gb < 8:
-            print("⚠️  WARNING: Less than 8 GB RAM available.")
+            print("[WARN] WARNING: Less than 8 GB RAM available.")
             print("   Large CSV files (~3GB) may cause system instability.")
             print("   Consider closing other applications or using low_memory_mode.\n")
             return False
@@ -154,7 +164,9 @@ def main():
 
     # Generate calibration summary file (not printed to console)
     try:
+        _t_cal = _time.time()
         summary_path = generate_calibration_summary(config)
+        print(f"[TIME] Calibration summary took {_time.time() - _t_cal:.1f} seconds")
         if summary_path is not None:
             print(f"   [OK] Calibration snapshot written to {summary_path}\n")
     except Exception as e:  # noqa: BLE001 - top-level CLI
