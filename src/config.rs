@@ -12869,18 +12869,16 @@ pub fn sample_age_and_region_from_distribution(
     // Sample from distribution
     let random_value = rng.gen::<f64>() * running_total;
 
-    for (cumulative_prob, region, _age_min, _age_max) in cumulative_probs {
+    for (cumulative_prob, region, age_min, age_max) in cumulative_probs {
         if random_value <= cumulative_prob {
-            // DEBUG: Force all individuals to be born when antibiotics start (day 2555)
-            // This ensures we have a population to test E. coli resistance with
-            // REMOVE THIS AFTER DEBUGGING
-            let age = -2555;
+            // Sample uniformly within the age band
+            let age = rng.gen_range(age_min..age_max);
             return (region, age);
         }
     }
 
     // Fallback (should rarely be reached)
-    (Region::Asia, -2555)  // DEBUG: Also force age here
+    (Region::Asia, 0)
 }
 
 /// Helper function to get drug interaction multiplier between two drugs
