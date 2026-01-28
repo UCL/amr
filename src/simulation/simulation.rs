@@ -386,6 +386,10 @@ pub struct MajorityRCache {
     num_bacteria: usize,
     num_drugs: usize,
     threshold_min_samples: u32,
+    /// Tracks which buckets received data this timestep for sparse finalization
+    dirty_buckets: Vec<bool>,
+    /// Tracks which world buckets received data this timestep
+    dirty_world_buckets: Vec<bool>,
 }
 
 impl MajorityRCache {
@@ -415,6 +419,8 @@ impl MajorityRCache {
             num_bacteria,
             num_drugs,
             threshold_min_samples,
+            dirty_buckets: vec![false; total_buckets],
+            dirty_world_buckets: vec![false; world_len],
         }
     }
 
@@ -475,6 +481,13 @@ impl MajorityRCache {
         for count in &mut self.world_pending_total_counts {
             *count = 0;
         }
+        // Reset dirty tracking for new timestep
+        for dirty in &mut self.dirty_buckets {
+            *dirty = false;
+        }
+        for dirty in &mut self.dirty_world_buckets {
+            *dirty = false;
+        }
     }
 
     #[inline]
@@ -491,6 +504,7 @@ impl MajorityRCache {
         self.pending_total_counts[idx] = self.pending_total_counts[idx].saturating_add(1);
         self.pending_positive_counts[idx] = self.pending_positive_counts[idx].saturating_add(1);
         self.pending_positive_values[idx].push(value);
+        self.dirty_buckets[idx] = true;
 
         let world_idx = self.world_index(bacteria_idx, drug_idx);
         self.world_pending_total_counts[world_idx] =
@@ -498,6 +512,7 @@ impl MajorityRCache {
         self.world_pending_positive_counts[world_idx] =
             self.world_pending_positive_counts[world_idx].saturating_add(1);
         self.world_pending_positive_values[world_idx].push(value);
+        self.dirty_world_buckets[world_idx] = true;
     }
 
     #[inline]
@@ -507,15 +522,23 @@ impl MajorityRCache {
         }
         self.pending_total_counts[bucket_idx] =
             self.pending_total_counts[bucket_idx].saturating_add(zero_count);
+        self.dirty_buckets[bucket_idx] = true;
 
         let (_, _, bacteria_idx, drug_idx) = self.decode(bucket_idx);
         let world_idx = self.world_index(bacteria_idx, drug_idx);
         self.world_pending_total_counts[world_idx] =
             self.world_pending_total_counts[world_idx].saturating_add(zero_count);
+        self.dirty_world_buckets[world_idx] = true;
     }
 
     pub fn finalize_step(&mut self, current_day: u32) {
+        // Only process dirty buckets (those that received data this timestep)
+        // This reduces iterations from ~22K to typically ~1-5K active buckets
         for idx in 0..self.total_buckets() {
+            if !self.dirty_buckets[idx] {
+                continue;
+            }
+            
             let total = self.pending_total_counts[idx];
             let positive = self.pending_positive_counts[idx];
             let values_arc = if positive > 0 {
@@ -558,7 +581,12 @@ impl MajorityRCache {
             self.pending_total_counts[idx] = 0;
         }
 
+        // Only process dirty world buckets
         for idx in 0..self.world_buckets.len() {
+            if !self.dirty_world_buckets[idx] {
+                continue;
+            }
+            
             let total = self.world_pending_total_counts[idx];
             let positive = self.world_pending_positive_counts[idx];
             let values_arc = if positive > 0 {
@@ -1140,6 +1168,9 @@ pub struct Simulation {
     branch_checkpoint_dir: PathBuf,
     /// Majority-r configuration so caches can be rebuilt on demand.
     majority_r_config: MajorityRConfig,
+    /// Sparse mapping: for each bacteria, list of drug indices with potency > 0.01 (clinically relevant)
+    /// Used to skip irrelevant bacteria-drug pairs in majority_r collection loops
+    pub relevant_drugs_by_bacteria: Vec<Vec<usize>>,
 }
 
 impl Simulation {
@@ -1219,6 +1250,21 @@ impl Simulation {
             }
         }
 
+        // Build sparse bacteria->drug mapping: only include drugs with potency > 0.01 (clinically relevant)
+        // This reduces majority_r collection iterations from 52 drugs to ~8-15 per bacteria
+        let mut relevant_drugs_by_bacteria: Vec<Vec<usize>> = Vec::with_capacity(num_bacteria);
+        for b_idx in 0..num_bacteria {
+            let mut relevant_drugs = Vec::new();
+            for d_idx in 0..num_drugs {
+                let flat_idx = b_idx * num_drugs + d_idx;
+                // Potency > 0.01 means this drug has clinical relevance for this bacteria
+                if potency_matrix[flat_idx] > 0.01 {
+                    relevant_drugs.push(d_idx);
+                }
+            }
+            relevant_drugs_by_bacteria.push(relevant_drugs);
+        }
+
         let individual_logger = IndividualLogger::from_flag(log_individuals);
         let globals = &config::parameter_store().globals;
         let mut majority_r_window_days = globals.majority_r_window_days;
@@ -1278,6 +1324,7 @@ impl Simulation {
             use_disk_branch_checkpoint: false,
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
             majority_r_config,
+            relevant_drugs_by_bacteria,
         }
     }
 
@@ -2194,6 +2241,7 @@ impl Simulation {
             let drug_indices = &self.drug_indices;
             let cross_resistance_groups = &self.cross_resistance_groups;
             let param_cache = &self.param_cache;
+            let relevant_drugs_by_bacteria = &self.relevant_drugs_by_bacteria;
             let threads = rayon::current_num_threads().max(1);
             let per_thread_cap = (self.prev_majority_r_entries_len / threads).saturating_add(8);
             let seed_option = self.rng_seed;
@@ -2692,12 +2740,11 @@ impl Simulation {
                                     let cache_region_idx = individual.region_cur_in as usize;
                                     let cache_hospital_flag =
                                         individual.hospital_status.is_hospitalized();
-                                    for d_idx in 0..num_drugs {
+                                    
+                                    // Sparse iteration: only record majority_r for clinically relevant bacteria-drug pairs
+                                    // This reduces iterations from ~52 to ~8-15 per bacteria
+                                    for &d_idx in &relevant_drugs_by_bacteria[b_idx] {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        // Only sum activity_r if individual is currently on this drug
-                                        if individual.cur_use_drug[d_idx] {
-                                            activity_r_sum += resistance_data.activity_r;
-                                        }
                                         lt.record_majority_r_sample(
                                             cache_region_idx,
                                             cache_hospital_flag,
@@ -2705,6 +2752,15 @@ impl Simulation {
                                             d_idx,
                                             resistance_data.majority_r,
                                         );
+                                    }
+                                    
+                                    // Full iteration for other stats that need all drugs
+                                    for d_idx in 0..num_drugs {
+                                        let resistance_data = &individual.resistances[b_idx][d_idx];
+                                        // Only sum activity_r if individual is currently on this drug
+                                        if individual.cur_use_drug[d_idx] {
+                                            activity_r_sum += resistance_data.activity_r;
+                                        }
                                         if resistance_data.majority_r > 0.0 {
                                             lt.resistance_by_bacteria_drug[base + d_idx] += 1;
                                         }

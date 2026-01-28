@@ -206,7 +206,11 @@ def _gather_calibration_context(
     targets = CalibrationTargets.load(project_root)
 
     data_cache = DataCache()
-    df = data_cache.get_simulation_data()
+    # Use column subsetting - calibration only needs grouped plot columns
+    df = data_cache.get_simulation_data(
+        use_column_subset=True,
+        include_detail_plots=False,
+    )
     if df is None or df.empty:
         return None
 

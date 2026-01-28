@@ -1127,10 +1127,13 @@ pub fn apply_rules(
     let transfer_prob = store
         .globals
         .microbiome_resistance_transfer_probability_per_day;
-    let drug_base_initiation_rate = store.globals.drug_base_initiation_rate_per_day;
-    let drug_infection_present_multiplier = store.globals.drug_infection_present_multiplier;
-    let already_on_drug_initiation_multiplier = store.globals.already_on_drug_initiation_multiplier;
-    let drug_test_identified_multiplier = store.globals.drug_test_identified_multiplier;
+    // Logistic antibiotic initiation parameters
+    let antibiotic_init_base_log_odds = store.globals.antibiotic_initiation_base_log_odds;
+    let antibiotic_init_log_odds_symptomatic = store.globals.antibiotic_initiation_log_odds_symptomatic_infection;
+    let antibiotic_init_log_odds_test_identified = store.globals.antibiotic_initiation_log_odds_test_identified;
+    let antibiotic_init_log_odds_already_on_drug = store.globals.antibiotic_initiation_log_odds_already_on_drug;
+    let antibiotic_init_log_odds_immunodeficiency = store.globals.antibiotic_initiation_log_odds_immunodeficiency;
+    let antibiotic_init_log_odds_no_indication = store.globals.antibiotic_initiation_log_odds_no_indication;
     let double_dose_probability = store
         .globals
         .double_dose_probability_if_identified_infection;
@@ -1184,11 +1187,12 @@ pub fn apply_rules(
     }
 
     // Get parameters from config.rs once per individual for this time step
-    let baseline_rate = store.globals.hospital_baseline_rate_per_day;
-    let age_multiplier_hosp = store.globals.hospital_age_multiplier_per_day;
+    // Logistic hospitalization parameters
+    let hosp_base_log_odds = store.globals.hospitalization_base_log_odds;
+    let hosp_log_odds_per_age_year = store.globals.hospitalization_log_odds_per_age_year;
+    let hosp_log_odds_sepsis = store.globals.hospitalization_log_odds_sepsis;
     let recovery_rate = store.globals.hospital_recovery_rate_per_day;
     let max_days_in_hospital = store.globals.hospital_max_days.max(0.0) as u32;
-    let sepsis_admission_multiplier = store.globals.hospital_sepsis_admission_multiplier;
     let prevent_discharge_with_sepsis = store.globals.hospital_prevent_discharge_with_sepsis > 0.5;
 
     // Check if individual has any active sepsis
@@ -1196,13 +1200,20 @@ pub fn apply_rules(
 
     // Potentially get hospitalized (if not currently hospitalized)
     if !individual.hospital_status.is_hospitalized() {
-        let mut prob_hospitalization_today =
-            baseline_rate + (individual.age as f64 * age_multiplier_hosp);
-
+        // Calculate hospitalization probability using LOGISTIC MODEL
+        // P(hospitalization) = 1 / (1 + exp(-log_odds))
+        // log_odds = base + age_effect + sepsis_effect
+        
+        let age_years = individual.age as f64 / 365.0;
+        let mut log_odds = hosp_base_log_odds + (age_years * hosp_log_odds_per_age_year);
+        
         // Strong sepsis admission effect - sepsis patients are very likely to be hospitalized
         if has_sepsis {
-            prob_hospitalization_today *= sepsis_admission_multiplier;
+            log_odds += hosp_log_odds_sepsis;
         }
+        
+        // Logistic transformation: P = 1 / (1 + exp(-log_odds))
+        let prob_hospitalization_today = 1.0 / (1.0 + (-log_odds).exp());
 
         if rng.gen::<f64>() < prob_hospitalization_today {
             individual.hospital_status = HospitalStatus::InHospital;
@@ -1683,35 +1694,58 @@ pub fn apply_rules(
 
     // Restriction: if already using three or more drugs, cannot start another (allow up to 3 drugs for severe infections)
     if num_drugs_currently_used + drugs_initiated_this_time_step < 3 && available_drugs_count > 0 {
-        // Stage 1: Calculate probability to start any antibiotic
-        let mut start_any_antibiotic_prob = drug_base_initiation_rate * scaling_factor;
+        // Stage 1: Calculate probability to start any antibiotic using LOGISTIC MODEL
+        // P(initiation) = 1 / (1 + exp(-log_odds))
+        // log_odds = base + sum of applicable effects (additive in log-odds space)
+        // This naturally bounds P ∈ (0,1) without clamping
+        
         let infection_acquired_this_step = individual
             .date_last_infected
             .iter()
             .any(|&d| d == time_step as i32);
+        
+        // Build log-odds by adding applicable effects
+        let mut log_odds = antibiotic_init_base_log_odds;
+        
+        // Symptomatic infection present (not newly acquired this step)
         if symptomatic_infection_present && !infection_acquired_this_step {
-            start_any_antibiotic_prob *= drug_infection_present_multiplier;
+            log_odds += antibiotic_init_log_odds_symptomatic;
         }
+        
+        // Laboratory test has identified an infection
         if has_any_identified_infection {
-            start_any_antibiotic_prob *= drug_test_identified_multiplier;
+            log_odds += antibiotic_init_log_odds_test_identified;
         }
+        
+        // Already on antibiotic therapy (modest boost for layered/combination therapy)
         if initial_on_any_antibiotic || drugs_initiated_this_time_step > 0 {
-            start_any_antibiotic_prob *= already_on_drug_initiation_multiplier;
+            log_odds += antibiotic_init_log_odds_already_on_drug;
         }
-        // Immunocompromised patients more likely to receive prophylactic antibiotics
+        
+        // Immunocompromised patients - prophylactic prescribing
         if individual.immunodeficiency_type.is_some() {
-            start_any_antibiotic_prob *=
-                store.globals.immunodeficiency_prophylactic_drug_multiplier;
+            log_odds += antibiotic_init_log_odds_immunodeficiency;
         }
-        if !symptomatic_infection_present
-            && !individual.immunodeficiency_type.is_some()
-            && store.globals.misdiagnosis_antibiotic_initiation_multiplier > 0.0
-        {
-            start_any_antibiotic_prob *=
-                store.globals.misdiagnosis_antibiotic_initiation_multiplier;
+        
+        // No clinical indication (no symptomatic infection, not immunocompromised)
+        // This is a penalty term that reduces odds when prescribing without justification
+        if !symptomatic_infection_present && individual.immunodeficiency_type.is_none() {
+            log_odds += antibiotic_init_log_odds_no_indication;
         }
-        start_any_antibiotic_prob *= syndrome_administration_multiplier;
-        start_any_antibiotic_prob = start_any_antibiotic_prob.clamp(0.0, 1.0);
+        
+        // Syndrome-specific adjustment (multiplicative on odds, converted to log-odds)
+        // syndrome_administration_multiplier > 1.0 increases odds, < 1.0 decreases
+        if syndrome_administration_multiplier > 0.0 && syndrome_administration_multiplier != 1.0 {
+            log_odds += syndrome_administration_multiplier.ln();
+        }
+        
+        // Apply scaling factor for limited drug availability (converted to log-odds)
+        if scaling_factor != 1.0 && scaling_factor > 0.0 {
+            log_odds += scaling_factor.ln();
+        }
+        
+        // Logistic transformation: P = 1 / (1 + exp(-log_odds))
+        let start_any_antibiotic_prob = 1.0 / (1.0 + (-log_odds).exp());
 
         if rng.gen_bool(start_any_antibiotic_prob) {
             // Identify primary bacteria for drug score tracking (highest level among infected bacteria)
@@ -2643,30 +2677,45 @@ pub fn apply_rules(
         aggregated_toxicity_hazard += individual.drug_toxicity_reservoir[drug_idx];
     }
 
+    // === LOGISTIC MODEL FOR DRUG TOXICITY DEATH ===
+    // P(death) = 1 / (1 + exp(-log_odds))
+    // This gives a proper S-curve bounded by 0-1 without artificial clamping
+    
+    // Start with base log-odds (very low baseline when no toxicity)
+    let mut toxicity_log_odds = store.globals.toxicity_death_base_log_odds;
+    
+    // Toxicity reservoir effect - this is the main driver
+    // Higher accumulated toxicity = higher death risk
+    toxicity_log_odds += aggregated_toxicity_hazard * store.globals.toxicity_death_log_odds_per_reservoir_unit;
+
+    // Age effect (log-odds scale)
     let age_years = individual.age as f64 / 365.0;
-    let age_toxicity_multiplier = if age_years < 1.0 {
-        store.globals.toxicity_age_multiplier_infant
+    let age_log_odds = if age_years < 1.0 {
+        store.globals.toxicity_death_log_odds_age_infant
     } else if age_years < 18.0 {
-        store.globals.toxicity_age_multiplier_child
+        store.globals.toxicity_death_log_odds_age_child
     } else if age_years < 65.0 {
-        store.globals.toxicity_age_multiplier_adult
+        store.globals.toxicity_death_log_odds_age_adult
     } else {
-        store.globals.toxicity_age_multiplier_elderly
+        store.globals.toxicity_death_log_odds_age_elderly
     };
+    toxicity_log_odds += age_log_odds;
 
-    let mut toxicity_death_risk = aggregated_toxicity_hazard * age_toxicity_multiplier;
-
+    // Immunosuppression effect
     if individual.immunodeficiency_type.is_some() {
-        toxicity_death_risk *= store.globals.toxicity_immunosuppressed_multiplier;
+        toxicity_log_odds += store.globals.toxicity_death_log_odds_immunosuppressed;
     }
 
+    // Hospitalization effect (sicker patients, but also better monitoring)
     if individual.hospital_status.is_hospitalized() {
-        toxicity_death_risk *= store.globals.toxicity_hospital_multiplier;
+        toxicity_log_odds += store.globals.toxicity_death_log_odds_hospitalized;
     }
 
-    toxicity_death_risk = toxicity_death_risk.clamp(0.0, 1.0);
+    // Convert log-odds to probability using logistic function
+    // P = 1 / (1 + exp(-log_odds))
+    let toxicity_death_risk = 1.0 / (1.0 + (-toxicity_log_odds).exp());
 
-    individual.current_toxicity_hazard = aggregated_toxicity_hazard.min(1.0);
+    individual.current_toxicity_hazard = aggregated_toxicity_hazard;
     individual.mortality_risk_current_toxicity = toxicity_death_risk;
 
     // --- Treatment failure tracking and assessment ---
@@ -2829,35 +2878,40 @@ pub fn apply_rules(
         let has_sepsis = individual.sepsis.iter().any(|&status| status);
         let mut sepsis_death_risk = 0.0;
         if has_sepsis {
-            // Calculate age-adjusted sepsis mortality risk
-            sepsis_death_risk = store.globals.base_sepsis_death_risk_per_day;
+            // === LOGISTIC MODEL FOR SEPSIS DEATH ===
+            // P(death) = 1 / (1 + exp(-log_odds))
+            // This gives a proper S-curve bounded by 0-1 without artificial clamping
+            
+            // Start with base log-odds
+            let mut log_odds = store.globals.sepsis_death_base_log_odds;
 
-            // Apply age-based multiplier
+            // Age effect (log-odds scale)
             let age_years = individual.age as f64 / 365.0;
-            let age_multiplier = if age_years < 1.0 {
-                store.globals.sepsis_age_mortality_multiplier_infant
+            let age_log_odds = if age_years < 1.0 {
+                store.globals.sepsis_death_log_odds_age_infant
             } else if age_years < 18.0 {
-                store.globals.sepsis_age_mortality_multiplier_child
+                store.globals.sepsis_death_log_odds_age_child
             } else if age_years < 65.0 {
-                store.globals.sepsis_age_mortality_multiplier_adult
+                store.globals.sepsis_death_log_odds_age_adult
             } else {
-                store.globals.sepsis_age_mortality_multiplier_elderly
+                store.globals.sepsis_death_log_odds_age_elderly
             };
-            sepsis_death_risk *= age_multiplier;
+            log_odds += age_log_odds;
 
-            // Apply region-based multiplier (healthcare quality)
+            // Region effect (healthcare quality) - convert multiplier to log-odds
+            // multiplier of 2.0 → log(2.0) ≈ 0.69 log-odds
             let region_sepsis_multiplier = store
                 .region
                 .sepsis_mortality_multiplier(individual.region_living);
-            sepsis_death_risk *= region_sepsis_multiplier;
+            log_odds += region_sepsis_multiplier.ln();
 
-            // Apply immunosuppression multiplier
+            // Immunosuppression effect
             if individual.immunodeficiency_type.is_some() {
-                sepsis_death_risk *= store.globals.sepsis_immunosuppressed_multiplier;
+                log_odds += store.globals.sepsis_death_log_odds_immunosuppressed;
             }
 
-            // Apply bacteria level effect - higher bacteria load = worse prognosis
-            // Find maximum bacteria level among septic infections
+            // Bacteria level effect - higher bacterial load = worse prognosis
+            // Find maximum bacteria level among septic infections (scale 0-5)
             let max_septic_bacteria_level = individual
                 .sepsis
                 .iter()
@@ -2865,12 +2919,10 @@ pub fn apply_rules(
                 .filter(|(_, &has_sepsis)| has_sepsis)
                 .map(|(b_idx, _)| individual.level[b_idx])
                 .fold(0.0_f64, |a, b| a.max(b));
-            let bacteria_level_multiplier = 1.0
-                + (max_septic_bacteria_level * store.globals.sepsis_death_bacteria_level_coefficient);
-            sepsis_death_risk *= bacteria_level_multiplier;
+            log_odds += max_septic_bacteria_level * store.globals.sepsis_death_log_odds_bacteria_level;
 
-            // Apply sepsis duration effect - longer sepsis = worse prognosis
-            // Find maximum sepsis duration among septic infections
+            // Duration effect with early-phase surge
+            // Sepsis mortality is front-loaded: ~60% of deaths occur in first 72 hours
             let max_sepsis_duration = individual
                 .sepsis
                 .iter()
@@ -2878,19 +2930,29 @@ pub fn apply_rules(
                 .filter(|(_, &has_sepsis)| has_sepsis)
                 .map(|(b_idx, _)| (time_step as i32 - individual.sepsis_onset_day[b_idx]).max(0))
                 .max()
-                .unwrap_or(0);
-            let duration_multiplier = 1.0
-                + (max_sepsis_duration as f64 * store.globals.sepsis_death_duration_coefficient);
-            sepsis_death_risk *= duration_multiplier;
-
-            // Apply "not under care" multiplier - patients not receiving treatment have worse outcomes
-            let under_care = individual.cur_use_drug.iter().any(|&on| on);
-            if !under_care {
-                sepsis_death_risk *= store.globals.sepsis_death_not_under_care_multiplier;
+                .unwrap_or(0) as f64;
+            
+            let early_phase_days = store.globals.sepsis_death_early_phase_days;
+            if max_sepsis_duration <= early_phase_days {
+                // Early phase: elevated acute risk (septic shock, cardiovascular collapse)
+                // Linearly taper from full early_phase bonus at day 0 to zero at early_phase_days
+                let early_phase_fraction = 1.0 - (max_sepsis_duration / early_phase_days);
+                log_odds += store.globals.sepsis_death_log_odds_early_phase * early_phase_fraction;
+            } else {
+                // Late phase: gradual increase from multi-organ failure, secondary infections
+                let days_after_early = max_sepsis_duration - early_phase_days;
+                log_odds += days_after_early * store.globals.sepsis_death_log_odds_duration;
             }
 
-            // Cap the risk at 1.0 (100%)
-            sepsis_death_risk = sepsis_death_risk.min(1.0);
+            // Treatment effect - patients not receiving care have much worse outcomes
+            let under_care = individual.cur_use_drug.iter().any(|&on| on);
+            if !under_care {
+                log_odds += store.globals.sepsis_death_log_odds_not_under_care;
+            }
+
+            // Convert log-odds to probability using logistic function
+            // P = 1 / (1 + exp(-log_odds))
+            sepsis_death_risk = 1.0 / (1.0 + (-log_odds).exp());
         }
         let toxicity_death_risk_for_individual = individual.mortality_risk_current_toxicity;
 
@@ -4235,6 +4297,7 @@ pub fn apply_rules(
 
             let clearance_ready_day = individual.clearance_ready_day[b_idx];
             if clearance_ready_day != -1 && (time_step as i32) >= clearance_ready_day {
+                // Logistic model naturally bounds to (0,1), no clamp needed
                 immune_hazard = store
                     .clearance
                     .hazard_for(
@@ -4242,8 +4305,7 @@ pub fn apply_rules(
                         individual.age,
                         individual.immunodeficiency_type.is_some(),
                         individual.level[b_idx],
-                    )
-                    .clamp(0.0, 1.0);
+                    );
 
                 if immune_hazard > 0.0 && rng.gen_bool(immune_hazard) {
                     immune_clearance_triggered = true;
@@ -4606,22 +4668,23 @@ pub fn apply_rules(
 
             // --- Symptom onset logic for infected bacteria ---
             if !individual.infection_has_caused_symptoms[b_idx] {
-                // Get bacteria-specific symptom parameters
-                let daily_symptom_probability =
-                    store.bacteria.daily_symptom_onset_probability(b_idx);
+                // Get bacteria-specific symptom parameters (logistic model)
+                let base_log_odds = store.bacteria.symptom_onset_base_log_odds(b_idx);
                 let threshold_level = store.bacteria.symptom_onset_threshold_level(b_idx);
                 let delay_days = store.bacteria.symptom_onset_delay_days(b_idx) as i32;
-                let level_multiplier = store.bacteria.symptom_onset_level_multiplier(b_idx);
+                let log_odds_per_level = store.bacteria.symptom_onset_log_odds_per_level_unit(b_idx);
 
                 // Check if minimum delay has passed
                 let infection_duration = (time_step as i32) - individual.date_last_infected[b_idx];
 
                 if infection_duration >= delay_days && individual.level[b_idx] >= threshold_level {
-                    // Calculate symptom onset probability (base rate × level effect)
-                    let level_effect =
-                        (individual.level[b_idx] / threshold_level).powf(level_multiplier);
-                    let symptom_probability =
-                        (daily_symptom_probability * level_effect).clamp(0.0, 1.0);
+                    // Calculate symptom onset probability using LOGISTIC MODEL
+                    // log_odds = base + (level_above_threshold × per_level_effect)
+                    let level_above_threshold = individual.level[b_idx] - threshold_level;
+                    let log_odds = base_log_odds + (level_above_threshold * log_odds_per_level);
+                    
+                    // Logistic transformation: P = 1 / (1 + exp(-log_odds))
+                    let symptom_probability = 1.0 / (1.0 + (-log_odds).exp());
 
                     // Roll for symptom onset
                     if rng.gen_bool(symptom_probability) {

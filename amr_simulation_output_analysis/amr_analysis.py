@@ -91,9 +91,12 @@ def generate_summary_statistics():
     """Compute and print summary statistics for quick inspection."""
     print("Generating summary statistics...")
 
-    # Load the simulation data
+    # Load the simulation data with column subsetting for memory efficiency
     data_cache = DataCache()
-    df = data_cache.get_simulation_data()
+    df = data_cache.get_simulation_data(
+        use_column_subset=True,
+        include_detail_plots=False,
+    )
 
     if df is None:
         print("No simulation data found for summary statistics")
@@ -135,7 +138,7 @@ def main():
     print("=== AMR Simulation Analysis - Comprehensive Analysis ===\n")
     
     # Check system memory before starting
-    check_system_memory()
+    mem_ok = check_system_memory()
 
     # Main comprehensive analysis - equivalent to original analyze_simulation.py
     print("Running comprehensive AMR analysis...")
@@ -150,6 +153,14 @@ def main():
         # Force garbage collection after all plots are done
         gc.collect()
         print("   [OK] Comprehensive analysis completed successfully!\n")
+    except MemoryError:
+        print("\n   [ERROR] OUT OF MEMORY!")
+        print("   Try these solutions:")
+        print("   1. Close other applications")
+        print("   2. Disable some figures in config.py (set create_grouped_figure_X = False)")
+        print("   3. Delete the .parquet cache files and re-run")
+        print("   4. Run with fewer time steps in the Rust simulation\n")
+        gc.collect()
     except Exception as e:  # noqa: BLE001 - top-level CLI
         print(f"   [ERROR] Error: {e}\n")
         gc.collect()  # Clean up on error too

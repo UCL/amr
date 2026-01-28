@@ -8,15 +8,44 @@ analyze_simulation.py script.
 
 Performance optimization: Uses Polars for 2-5x faster CSV loading when available,
 with automatic fallback to pandas if Polars is not installed.
+
+Memory optimization: Uses column subsetting to load only needed columns,
+reducing memory by 70-90% for large simulation files.
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import logging
 import gc
 from .config import DataConfig, PlotConfig
+from .column_selector import get_required_columns, estimate_memory_savings
+
+
+def downcast_floats(df: pd.DataFrame, target_dtype: str = 'float32') -> pd.DataFrame:
+    """
+    Downcast float64 columns to float32 to reduce memory by ~50%.
+    
+    Args:
+        df: DataFrame with float64 columns
+        target_dtype: Target dtype ('float32' or 'float16')
+        
+    Returns:
+        DataFrame with downcasted float columns
+    """
+    float_cols = df.select_dtypes(include=['float64']).columns
+    if len(float_cols) > 0:
+        mem_before = df.memory_usage(deep=True).sum() / 1024**2
+        df[float_cols] = df[float_cols].astype(target_dtype)
+        mem_after = df.memory_usage(deep=True).sum() / 1024**2
+        print(f"[MEMORY] Downcasted {len(float_cols)} float columns: {mem_before:.0f}MB -> {mem_after:.0f}MB")
+    return df
+
+
+def get_csv_columns(csv_path: Path) -> List[str]:
+    """Read only the header row to get column names without loading data."""
+    return pd.read_csv(csv_path, nrows=0).columns.tolist()
 
 # Import Polars loader for optimized CSV processing
 try:
@@ -67,13 +96,21 @@ class DataCache:
         
         logger.info("DataCache initialized")
     
-    def get_simulation_data(self, csv_file: str = None, force_reload: bool = False) -> Optional[pd.DataFrame]:
+    def get_simulation_data(
+        self,
+        csv_file: str = None,
+        force_reload: bool = False,
+        use_column_subset: bool = True,
+        include_detail_plots: bool = False,
+    ) -> Optional[pd.DataFrame]:
         """
         Get cached simulation data, loading if necessary.
         
         Args:
             csv_file: Path to CSV file (uses default if None)
             force_reload: Force reload even if cached
+            use_column_subset: Only load columns needed for grouped plots + calibration
+            include_detail_plots: Also include columns for detail plots
             
         Returns:
             DataFrame with simulation data or None if loading failed
@@ -84,7 +121,11 @@ class DataCache:
 
             csv_path = Path(csv_file)
             self._simulation_csv_path = csv_path
-            self._simulation_data = load_simulation_data(str(csv_path))
+            self._simulation_data = load_simulation_data(
+                str(csv_path),
+                use_column_subset=use_column_subset,
+                include_detail_plots=include_detail_plots,
+            )
             
             # Clear dependent cached data when simulation data reloads
             if self._simulation_data is not None:
@@ -93,6 +134,8 @@ class DataCache:
                 self._drug_list = None 
                 self._resistance_mechanisms = None
                 logger.info(f"Simulation data loaded and cached: {len(self._simulation_data)} rows")
+        
+        return self._simulation_data
         
         return self._simulation_data
     
@@ -172,6 +215,15 @@ class DataCache:
                 )
                 self._preprocess_options['enable_microbiome_aggregates'] = enable_microbiome_aggregates
                 logger.info("Data preprocessing completed and cached")
+                
+                # MEMORY OPTIMIZATION: Drop raw data after preprocessing to free memory
+                # The preprocessed data contains everything needed for plotting
+                drop_raw = getattr(plot_cfg, 'drop_raw_data_after_preprocess', True)
+                if drop_raw and self._simulation_data is not None:
+                    mem_freed = self._simulation_data.memory_usage(deep=True).sum() / 1024**2
+                    self._simulation_data = None
+                    gc.collect()
+                    print(f"[MEMORY] Freed raw data after preprocessing ({mem_freed:.0f}MB)")
                 
                 # Save preprocessed data to parquet cache for future runs
                 if preprocessed_parquet_path is not None and self._preprocessed_data is not None:
@@ -338,15 +390,24 @@ def _write_parquet_cache(
 
     logger.info("Wrote parquet cache to %s", parquet_path)
 
-def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
+def load_simulation_data(
+    csv_file: str,
+    use_column_subset: bool = True,
+    include_detail_plots: bool = False,
+) -> Optional[pd.DataFrame]:
     """
-    Load simulation data from CSV file.
+    Load simulation data from CSV file with optional column subsetting.
     
     Uses Polars for 2-5x faster loading when available, with automatic
     fallback to pandas if Polars is not installed.
     
+    Memory optimization: When use_column_subset=True (default), only loads
+    columns needed for grouped plots and calibration, reducing memory by 70-90%.
+    
     Args:
         csv_file: Path to the simulation summary CSV file
+        use_column_subset: If True, only load columns needed for grouped plots + calibration
+        include_detail_plots: If True, also include columns for detail plots (more memory)
         
     Returns:
         DataFrame with simulation data or None if loading failed
@@ -360,8 +421,29 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
     if configured_cache_path is not None and not isinstance(configured_cache_path, Path):
         configured_cache_path = Path(configured_cache_path)
 
+    # Determine which columns to load
+    usecols: Optional[List[str]] = None
+    if use_column_subset and not include_detail_plots:
+        try:
+            all_columns = get_csv_columns(csv_path)
+            usecols = get_required_columns(
+                all_columns,
+                include_grouped_plots=True,
+                include_calibration=True,
+                include_detail_plots=include_detail_plots,
+            )
+            print(f"[MEMORY] {estimate_memory_savings(len(all_columns), len(usecols))}")
+        except Exception as e:
+            logger.warning(f"Could not determine column subset, loading all: {e}")
+            usecols = None
+
     if getattr(data_cfg, 'enable_parquet_cache', False):
+        # Use a different cache file for subsetted vs full data
+        cache_suffix = ".subset" if usecols else ""
         parquet_path = _resolve_parquet_cache_path(csv_path, configured_cache_path)
+        if usecols:
+            parquet_path = parquet_path.with_suffix(f'{cache_suffix}.parquet')
+        
         if parquet_path.exists():
             csv_mtime = csv_path.stat().st_mtime if csv_path.exists() else None
             parquet_mtime = parquet_path.stat().st_mtime
@@ -382,8 +464,8 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
         print(f"Error: {csv_file} not found. Run the Rust simulation first.")
         return None
     
-    # Try Polars first for 2-5x faster loading
-    if is_polars_available():
+    # Try Polars first for 2-5x faster loading (but only if not subsetting, as polars API differs)
+    if is_polars_available() and usecols is None:
         try:
             polars_df = load_csv_with_polars(csv_path)
             if polars_df is not None:
@@ -394,53 +476,33 @@ def load_simulation_data(csv_file: str) -> Optional[pd.DataFrame]:
                 del polars_df
                 gc.collect()
                 if df is not None:
+                    # Downcast floats to reduce memory by ~50%
+                    df = downcast_floats(df)
                     _write_parquet_cache(df, parquet_path, parquet_compression)
                     return df
         except MemoryError:
-            logger.warning("Polars load ran out of memory, falling back to pandas with pyarrow backend")
+            logger.warning("Polars load ran out of memory, falling back to pandas with column subset")
             gc.collect()
         except Exception as e:
             logger.warning(f"Polars load failed, falling back to pandas: {e}")
             gc.collect()
     
-    # Fallback to pandas - try PyArrow backend first for better memory efficiency
+    # Pandas with column subsetting for memory efficiency
     try:
-        df = pd.read_csv(csv_file, dtype_backend="pyarrow")
-        logger.info(f"Loaded {len(df)} time steps from {csv_file} using pyarrow dtype backend")
-        print(f"Loaded {len(df)} time steps of simulation data (pyarrow backend)")
-        _write_parquet_cache(df, parquet_path, parquet_compression)
-        return df
-    except TypeError:
-        # pandas < 2.0 may not support dtype_backend
-        logger.warning("PyArrow dtype_backend not supported, trying standard pandas")
-    except Exception as e:
-        logger.warning(f"PyArrow dtype backend failed: {e}")
-    
-    # Final fallback to standard pandas
-    try:
-        df = pd.read_csv(csv_file)
-        logger.info(f"Loaded {len(df)} time steps from {csv_file}")
-        print(f"Loaded {len(df)} time steps of simulation data")
+        print(f"[MEMORY] Loading CSV with pandas (usecols={len(usecols) if usecols else 'all'} columns)...")
+        df = pd.read_csv(csv_file, usecols=usecols)
+        logger.info(f"Loaded {len(df)} time steps, {len(df.columns)} columns from {csv_file}")
+        print(f"Loaded {len(df)} time steps × {len(df.columns)} columns")
+        df = downcast_floats(df)
         _write_parquet_cache(df, parquet_path, parquet_compression)
         return df
 
     except MemoryError as mem_err:
-        logger.warning("Standard CSV load exhausted memory; attempting pyarrow engine fallback")
-        print("CSV load exhausted memory, trying pyarrow engine...")
+        logger.error(f"Out of memory loading {csv_file}: {mem_err}")
+        print(f"\n[ERROR] OUT OF MEMORY loading CSV!")
+        print("The file is too large for available RAM.")
+        print("Try: 1) Close other apps  2) Run simulation with fewer time steps")
         gc.collect()
-
-        try:
-            df = pd.read_csv(csv_file, engine="pyarrow")
-            logger.info(f"Loaded {len(df)} time steps from {csv_file} using pyarrow engine")
-            print(f"Loaded {len(df)} time steps of simulation data (pyarrow engine)")
-            _write_parquet_cache(df, parquet_path, parquet_compression)
-            return df
-        except Exception as fallback_err:
-            logger.error(f"Pyarrow engine load failed: {fallback_err}")
-            print(f"Pyarrow engine load failed: {fallback_err}")
-
-        logger.error(f"Error loading {csv_file} after memory fallback: {mem_err}")
-        print(f"Error loading {csv_file}: {mem_err}")
         return None
 
     except Exception as e:

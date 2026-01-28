@@ -172,29 +172,24 @@ impl ParameterStore {
 // ---------------- 3) Global scalar defaults & helpers ----------------
 #[derive(Debug)]
 pub struct GlobalScalars {
-    // Logistic model for antibiotic initiation probability
-    // P(initiation) = 1 / (1 + exp(-log_odds)) where log_odds = base + sum of applicable effects
-    pub antibiotic_initiation_base_log_odds: f64,
-    pub antibiotic_initiation_log_odds_symptomatic_infection: f64,
-    pub antibiotic_initiation_log_odds_test_identified: f64,
-    pub antibiotic_initiation_log_odds_already_on_drug: f64,
-    pub antibiotic_initiation_log_odds_immunodeficiency: f64,
-    pub antibiotic_initiation_log_odds_no_indication: f64, // negative effect when prescribing without infection/immunodeficiency
-    // Drug activity parameters (still used for bacteria level effects)
+    pub drug_base_initiation_rate_per_day: f64,
+    pub drug_infection_present_multiplier: f64,
     pub drug_activity_to_bacteria_level_multiplier: f64,
     pub drug_activity_slow_clearance_probability: f64,
     pub drug_activity_slow_clearance_multiplier: f64,
+    pub already_on_drug_initiation_multiplier: f64,
+    pub drug_test_identified_multiplier: f64,
     pub double_dose_probability_if_identified_infection: f64,
     pub random_drug_cessation_probability: f64,
     pub random_drug_cessation_probability_if_no_active_infection: f64,
+    pub misdiagnosis_antibiotic_initiation_multiplier: f64,
+    pub immunodeficiency_prophylactic_drug_multiplier: f64,
     pub microbiome_resistance_transfer_probability_per_day: f64,
-    // Logistic model for hospitalization probability
-    // P(hospitalization) = 1 / (1 + exp(-log_odds)) where log_odds = base + age_effect + sepsis_effect
-    pub hospitalization_base_log_odds: f64,
-    pub hospitalization_log_odds_per_age_year: f64,
-    pub hospitalization_log_odds_sepsis: f64,
+    pub hospital_baseline_rate_per_day: f64,
+    pub hospital_age_multiplier_per_day: f64,
     pub hospital_recovery_rate_per_day: f64,
     pub hospital_max_days: f64,
+    pub hospital_sepsis_admission_multiplier: f64,
     pub hospital_prevent_discharge_with_sepsis: f64,
     pub travel_probability_per_day: f64,
     pub antibiotic_infection_prevention_efficacy: f64,
@@ -224,15 +219,12 @@ pub struct GlobalScalars {
     pub mdr_tb_modern_era_multiplier: f64,
     pub microbiome_resistance_emergence_rate_per_day_baseline: f64,
     pub default_toxicity_reservoir_half_life_days: f64,
-    // Drug toxicity death logistic model parameters (log-odds scale)
-    pub toxicity_death_base_log_odds: f64,
-    pub toxicity_death_log_odds_per_reservoir_unit: f64,
-    pub toxicity_death_log_odds_age_infant: f64,
-    pub toxicity_death_log_odds_age_child: f64,
-    pub toxicity_death_log_odds_age_adult: f64,
-    pub toxicity_death_log_odds_age_elderly: f64,
-    pub toxicity_death_log_odds_immunosuppressed: f64,
-    pub toxicity_death_log_odds_hospitalized: f64,
+    pub toxicity_age_multiplier_infant: f64,
+    pub toxicity_age_multiplier_child: f64,
+    pub toxicity_age_multiplier_adult: f64,
+    pub toxicity_age_multiplier_elderly: f64,
+    pub toxicity_immunosuppressed_multiplier: f64,
+    pub toxicity_hospital_multiplier: f64,
     pub regional_resistance_threshold_very_high: f64,
     pub regional_resistance_threshold_high: f64,
     pub regional_resistance_threshold_moderate: f64,
@@ -272,22 +264,20 @@ pub struct GlobalScalars {
     pub log_odds_mortality_per_year_of_age_squared: f64,
     pub log_odds_mortality_immunosuppressed: f64,
     pub log_odds_mortality_hospitalized: f64,
+    pub base_sepsis_death_risk_per_day: f64,
+    pub sepsis_age_mortality_multiplier_infant: f64,
+    pub sepsis_age_mortality_multiplier_child: f64,
+    pub sepsis_age_mortality_multiplier_adult: f64,
+    pub sepsis_age_mortality_multiplier_elderly: f64,
+    pub sepsis_immunosuppressed_multiplier: f64,
     // Sepsis onset additional factors
     pub log_odds_sepsis_onset_immunosuppressed: f64,
     pub log_odds_sepsis_onset_hospitalized: f64,
     pub log_odds_sepsis_onset_not_under_care: f64,
-    // Sepsis death logistic model parameters (log-odds scale)
-    pub sepsis_death_base_log_odds: f64,
-    pub sepsis_death_log_odds_age_infant: f64,
-    pub sepsis_death_log_odds_age_child: f64,
-    pub sepsis_death_log_odds_age_adult: f64,
-    pub sepsis_death_log_odds_age_elderly: f64,
-    pub sepsis_death_log_odds_immunosuppressed: f64,
-    pub sepsis_death_log_odds_bacteria_level: f64,
-    pub sepsis_death_log_odds_duration: f64,
-    pub sepsis_death_log_odds_early_phase: f64,
-    pub sepsis_death_early_phase_days: f64,
-    pub sepsis_death_log_odds_not_under_care: f64,
+    // Sepsis death additional factors
+    pub sepsis_death_bacteria_level_coefficient: f64,
+    pub sepsis_death_duration_coefficient: f64,
+    pub sepsis_death_not_under_care_multiplier: f64,
     // Bacteria growth rate multipliers (affect base_bacteria_level_change)
     pub bacteria_growth_age_multiplier_infant: f64,
     pub bacteria_growth_age_multiplier_child: f64,
@@ -323,41 +313,16 @@ impl GlobalScalars {
         let majority_r_freeze_at_last_positive =
             get_or_default(map, "majority_r_freeze_at_last_positive", 1.0) > 0.5;
         GlobalScalars {
-            // Logistic antibiotic initiation parameters
-            // Defaults calibrated to produce similar rates to old multiplicative model
-            // Base: P=0.001 → log(0.001/0.999) ≈ -6.9
-            // With symptomatic infection: P=0.26 → need +5.85 log-odds
-            antibiotic_initiation_base_log_odds: get_or_default(
+            drug_base_initiation_rate_per_day: get_or_default(
                 map,
-                "antibiotic_initiation_base_log_odds",
-                -6.9,
+                "drug_base_initiation_rate_per_day",
+                0.0010,
             ),
-            antibiotic_initiation_log_odds_symptomatic_infection: get_or_default(
+            drug_infection_present_multiplier: get_or_default(
                 map,
-                "antibiotic_initiation_log_odds_symptomatic_infection",
-                5.85,
+                "drug_infection_present_multiplier",
+                260.0,
             ),
-            antibiotic_initiation_log_odds_test_identified: get_or_default(
-                map,
-                "antibiotic_initiation_log_odds_test_identified",
-                0.92, // log(2.5) ≈ 0.92
-            ),
-            antibiotic_initiation_log_odds_already_on_drug: get_or_default(
-                map,
-                "antibiotic_initiation_log_odds_already_on_drug",
-                0.18, // log(1.2) ≈ 0.18
-            ),
-            antibiotic_initiation_log_odds_immunodeficiency: get_or_default(
-                map,
-                "antibiotic_initiation_log_odds_immunodeficiency",
-                2.08, // log(8.0) ≈ 2.08
-            ),
-            antibiotic_initiation_log_odds_no_indication: get_or_default(
-                map,
-                "antibiotic_initiation_log_odds_no_indication",
-                -1.05, // log(0.35) ≈ -1.05, reduces odds when no clinical indication
-            ),
-            // Drug activity parameters (still used for bacteria level effects)
             drug_activity_to_bacteria_level_multiplier: get_or_default(
                 map,
                 "drug_activity_to_bacteria_level_multiplier",
@@ -372,6 +337,16 @@ impl GlobalScalars {
                 map,
                 "drug_activity_slow_clearance_multiplier",
                 0.2,
+            ),
+            already_on_drug_initiation_multiplier: get_or_default(
+                map,
+                "already_on_drug_initiation_multiplier",
+                1.2,
+            ),
+            drug_test_identified_multiplier: get_or_default(
+                map,
+                "drug_test_identified_multiplier",
+                2.5,
             ),
             double_dose_probability_if_identified_infection: get_or_default(
                 map,
@@ -388,28 +363,30 @@ impl GlobalScalars {
                 "random_drug_cessation_probability_if_no_active_infection",
                 0.15,
             ),
+            misdiagnosis_antibiotic_initiation_multiplier: get_or_default(
+                map,
+                "misdiagnosis_antibiotic_initiation_multiplier",
+                0.35,
+            ),
+            immunodeficiency_prophylactic_drug_multiplier: get_or_default(
+                map,
+                "immunodeficiency_prophylactic_drug_multiplier",
+                8.0,
+            ),
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                1.0e-40,  // 0.0008  ***
+                1.0e-30,  // 0.0008  ***
             ),
-            // Logistic hospitalization parameters
-            // Calibrated to produce similar rates to old multiplicative model
-            // Base: P=0.00003 at age 0 → log(0.00003/0.99997) ≈ -10.4
-            hospitalization_base_log_odds: get_or_default(
+            hospital_baseline_rate_per_day: get_or_default(
                 map,
-                "hospitalization_base_log_odds",
-                -10.4,
+                "hospitalization_baseline_rate_per_day",
+                0.00003,
             ),
-            hospitalization_log_odds_per_age_year: get_or_default(
+            hospital_age_multiplier_per_day: get_or_default(
                 map,
-                "hospitalization_log_odds_per_age_year",
-                0.02, // ~2% increase in log-odds per year of age
-            ),
-            hospitalization_log_odds_sepsis: get_or_default(
-                map,
-                "hospitalization_log_odds_sepsis",
-                4.4, // log(80) ≈ 4.4, equivalent to 80x multiplier
+                "hospitalization_age_multiplier_per_day",
+                0.00000005,
             ),
             hospital_recovery_rate_per_day: get_or_default(
                 map,
@@ -417,6 +394,11 @@ impl GlobalScalars {
                 0.25,
             ),
             hospital_max_days: get_or_default(map, "hospitalization_max_days", 30.0),
+            hospital_sepsis_admission_multiplier: get_or_default(
+                map,
+                "hospitalization_sepsis_admission_multiplier",
+                80.0,
+            ),
             hospital_prevent_discharge_with_sepsis: get_or_default(
                 map,
                 "hospitalization_prevent_discharge_with_sepsis",
@@ -507,7 +489,7 @@ impl GlobalScalars {
             microbiome_resistance_emergence_rate_per_day_baseline: get_or_default(
                 map,
                 "microbiome_resistance_emergence_rate_per_day_baseline",
-                1.0e-100,   // 0.0001 ***  ^^^
+                1.0e-50,   // 0.0001 ***  ^^^
             ),
             default_toxicity_reservoir_half_life_days: get_or_default(
                 map,
@@ -515,47 +497,32 @@ impl GlobalScalars {
                 1.5,
             )
             .max(0.0),
-            // Drug toxicity death logistic model parameters
-            toxicity_death_base_log_odds: get_or_default(
+            toxicity_age_multiplier_infant: get_or_default(
                 map,
-                "toxicity_death_base_log_odds",
-                -8.0, // Very low baseline (~0.03% daily risk with no toxicity)
+                "toxicity_age_multiplier_infant",
+                1.5,
             ),
-            toxicity_death_log_odds_per_reservoir_unit: get_or_default(
+            toxicity_age_multiplier_child: get_or_default(
                 map,
-                "toxicity_death_log_odds_per_reservoir_unit",
-                2.0, // Each unit of toxicity reservoir adds ~7x risk
+                "toxicity_age_multiplier_child",
+                1.1,
             ),
-            toxicity_death_log_odds_age_infant: get_or_default(
+            toxicity_age_multiplier_adult: get_or_default(
                 map,
-                "toxicity_death_log_odds_age_infant",
-                0.6, // ~1.8x baseline for infants
+                "toxicity_age_multiplier_adult",
+                1.0,
             ),
-            toxicity_death_log_odds_age_child: get_or_default(
+            toxicity_age_multiplier_elderly: get_or_default(
                 map,
-                "toxicity_death_log_odds_age_child",
-                0.2, // ~1.2x baseline for children
+                "toxicity_age_multiplier_elderly",
+                2.0,
             ),
-            toxicity_death_log_odds_age_adult: get_or_default(
+            toxicity_immunosuppressed_multiplier: get_or_default(
                 map,
-                "toxicity_death_log_odds_age_adult",
-                0.0, // Reference category
+                "toxicity_immunosuppressed_multiplier",
+                2.5,
             ),
-            toxicity_death_log_odds_age_elderly: get_or_default(
-                map,
-                "toxicity_death_log_odds_age_elderly",
-                0.8, // ~2.2x baseline for elderly
-            ),
-            toxicity_death_log_odds_immunosuppressed: get_or_default(
-                map,
-                "toxicity_death_log_odds_immunosuppressed",
-                0.9, // ~2.5x for immunosuppressed
-            ),
-            toxicity_death_log_odds_hospitalized: get_or_default(
-                map,
-                "toxicity_death_log_odds_hospitalized",
-                0.25, // ~1.3x for hospitalized (monitoring helps but sicker)
-            ),
+            toxicity_hospital_multiplier: get_or_default(map, "toxicity_hospital_multiplier", 1.2),
             regional_resistance_threshold_very_high: get_or_default(
                 map,
                 "regional_resistance_threshold_very_high",
@@ -717,6 +684,32 @@ impl GlobalScalars {
                 "log_odds_mortality_hospitalized",
                 0.0,
             ),
+            base_sepsis_death_risk_per_day: get_required(map, "base_sepsis_death_risk_per_day"),
+            sepsis_age_mortality_multiplier_infant: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_infant",
+                3.0,
+            ),
+            sepsis_age_mortality_multiplier_child: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_child",
+                0.5,
+            ),
+            sepsis_age_mortality_multiplier_adult: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_adult",
+                1.0,
+            ),
+            sepsis_age_mortality_multiplier_elderly: get_or_default(
+                map,
+                "sepsis_age_mortality_multiplier_elderly",
+                2.5,
+            ),
+            sepsis_immunosuppressed_multiplier: get_or_default(
+                map,
+                "sepsis_immunosuppressed_multiplier",
+                3.0,
+            ),
             log_odds_sepsis_onset_immunosuppressed: get_or_default(
                 map,
                 "log_odds_sepsis_onset_immunosuppressed",
@@ -732,61 +725,20 @@ impl GlobalScalars {
                 "log_odds_sepsis_onset_not_under_care",
                 1.0,
             ),
-            // Sepsis death logistic model parameters
-            sepsis_death_base_log_odds: get_or_default(
+            sepsis_death_bacteria_level_coefficient: get_or_default(
                 map,
-                "sepsis_death_base_log_odds",
-                -4.2, // ~1.5% baseline daily mortality
+                "sepsis_death_bacteria_level_coefficient",
+                0.1,
             ),
-            sepsis_death_log_odds_age_infant: get_or_default(
+            sepsis_death_duration_coefficient: get_or_default(
                 map,
-                "sepsis_death_log_odds_age_infant",
-                1.1, // ~3x baseline for infants
+                "sepsis_death_duration_coefficient",
+                0.02,
             ),
-            sepsis_death_log_odds_age_child: get_or_default(
+            sepsis_death_not_under_care_multiplier: get_or_default(
                 map,
-                "sepsis_death_log_odds_age_child",
-                -0.7, // ~0.5x baseline for children
-            ),
-            sepsis_death_log_odds_age_adult: get_or_default(
-                map,
-                "sepsis_death_log_odds_age_adult",
-                0.0, // Reference category
-            ),
-            sepsis_death_log_odds_age_elderly: get_or_default(
-                map,
-                "sepsis_death_log_odds_age_elderly",
-                0.9, // ~2.5x baseline for elderly
-            ),
-            sepsis_death_log_odds_immunosuppressed: get_or_default(
-                map,
-                "sepsis_death_log_odds_immunosuppressed",
-                1.5, // ~4.5x baseline for immunosuppressed
-            ),
-            sepsis_death_log_odds_bacteria_level: get_or_default(
-                map,
-                "sepsis_death_log_odds_bacteria_level",
-                0.35, // Per unit bacteria level (0-5 scale), ~1.4x per unit
-            ),
-            sepsis_death_log_odds_duration: get_or_default(
-                map,
-                "sepsis_death_log_odds_duration",
-                0.04, // Per day of sepsis (after early phase)
-            ),
-            sepsis_death_log_odds_early_phase: get_or_default(
-                map,
-                "sepsis_death_log_odds_early_phase",
-                0.8, // Additional risk in first 72 hours (~2.2x)
-            ),
-            sepsis_death_early_phase_days: get_or_default(
-                map,
-                "sepsis_death_early_phase_days",
-                3.0, // Early phase lasts 3 days
-            ),
-            sepsis_death_log_odds_not_under_care: get_or_default(
-                map,
-                "sepsis_death_log_odds_not_under_care",
-                1.4, // ~4x mortality without treatment
+                "sepsis_death_not_under_care_multiplier",
+                2.0,
             ),
             // Bacteria growth rate multipliers by age
             bacteria_growth_age_multiplier_infant: get_or_default(
@@ -1712,12 +1664,10 @@ pub struct BacteriaParameters {
     pub initial_infection_level: Vec<f64>,
     pub base_bacteria_level_change: Vec<f64>,
     pub max_level: Vec<f64>,
-    // Logistic model for symptom onset probability
-    // P(symptoms) = 1 / (1 + exp(-log_odds)) where log_odds = base + level_effect
-    pub symptom_onset_base_log_odds: Vec<f64>,
+    pub daily_symptom_onset_probability: Vec<f64>,
     pub symptom_onset_threshold_level: Vec<f64>,
     pub symptom_onset_delay_days: Vec<f64>,
-    pub symptom_onset_log_odds_per_level_unit: Vec<f64>,
+    pub symptom_onset_level_multiplier: Vec<f64>,
     pub mechanismless_resistance_reversion_rate: Vec<f64>,
     pub microbiome_vs_infection_log_odds: Vec<f64>,
     pub drug_cessation_probability: Vec<f64>,
@@ -1739,10 +1689,10 @@ impl BacteriaParameters {
         let mut initial_infection_level = Vec::with_capacity(num_bacteria);
         let mut base_bacteria_level_change = Vec::with_capacity(num_bacteria);
         let mut max_level = Vec::with_capacity(num_bacteria);
-        let mut symptom_onset_base_log_odds = Vec::with_capacity(num_bacteria);
+        let mut daily_symptom_onset_probability = Vec::with_capacity(num_bacteria);
         let mut symptom_onset_threshold_level = Vec::with_capacity(num_bacteria);
         let mut symptom_onset_delay_days = Vec::with_capacity(num_bacteria);
-        let mut symptom_onset_log_odds_per_level_unit = Vec::with_capacity(num_bacteria);
+        let mut symptom_onset_level_multiplier = Vec::with_capacity(num_bacteria);
         let mut mechanismless_resistance_reversion_rate = Vec::with_capacity(num_bacteria);
         let mut microbiome_vs_infection_log_odds = Vec::with_capacity(num_bacteria);
         let mut drug_cessation_probability = Vec::with_capacity(num_bacteria);
@@ -1799,12 +1749,10 @@ impl BacteriaParameters {
                 0.5,
             ));
             max_level.push(get_or_default(map, &format!("{}_max_level", prefix), 5.0));
-            // Symptom onset logistic parameters
-            // Default base log-odds: log(0.15/0.85) ≈ -1.73 (equivalent to 15% daily probability)
-            symptom_onset_base_log_odds.push(get_or_default(
+            daily_symptom_onset_probability.push(get_or_default(
                 map,
-                &format!("{}_symptom_onset_base_log_odds", prefix),
-                -1.73,
+                &format!("{}_daily_symptom_onset_probability", prefix),
+                0.15,
             ));
             symptom_onset_threshold_level.push(get_or_default(
                 map,
@@ -1816,11 +1764,10 @@ impl BacteriaParameters {
                 &format!("{}_symptom_onset_delay_days", prefix),
                 1.0,
             ));
-            // Log-odds increase per unit of bacteria level above threshold
-            symptom_onset_log_odds_per_level_unit.push(get_or_default(
+            symptom_onset_level_multiplier.push(get_or_default(
                 map,
-                &format!("{}_symptom_onset_log_odds_per_level_unit", prefix),
-                0.5, // Each unit above threshold adds 0.5 log-odds (~1.6x odds multiplier)
+                &format!("{}_symptom_onset_level_multiplier", prefix),
+                1.0,
             ));
             mechanismless_resistance_reversion_rate.push(get_or_default(
                 map,
@@ -1873,10 +1820,10 @@ impl BacteriaParameters {
             initial_infection_level,
             base_bacteria_level_change,
             max_level,
-            symptom_onset_base_log_odds,
+            daily_symptom_onset_probability,
             symptom_onset_threshold_level,
             symptom_onset_delay_days,
-            symptom_onset_log_odds_per_level_unit,
+            symptom_onset_level_multiplier,
             mechanismless_resistance_reversion_rate,
             microbiome_vs_infection_log_odds,
             drug_cessation_probability,
@@ -1945,8 +1892,8 @@ impl BacteriaParameters {
     }
 
     #[inline]
-    pub fn symptom_onset_base_log_odds(&self, bacteria_idx: usize) -> f64 {
-        self.symptom_onset_base_log_odds[bacteria_idx]
+    pub fn daily_symptom_onset_probability(&self, bacteria_idx: usize) -> f64 {
+        self.daily_symptom_onset_probability[bacteria_idx]
     }
 
     #[inline]
@@ -1965,73 +1912,69 @@ impl BacteriaParameters {
     }
 
     #[inline]
-    pub fn symptom_onset_log_odds_per_level_unit(&self, bacteria_idx: usize) -> f64 {
-        self.symptom_onset_log_odds_per_level_unit[bacteria_idx]
+    pub fn symptom_onset_level_multiplier(&self, bacteria_idx: usize) -> f64 {
+        self.symptom_onset_level_multiplier[bacteria_idx]
     }
 }
 
 // ---------------- 8) Clearance, acquisition, and age tables ----------------
 // immune_clearance
 // ClearanceParameters encodes immune-mediated clearance of active infections.
-// Logistic model: P(clearance) = 1 / (1 + exp(-log_odds))
-// log_odds = base + bacteria_effect + age_effect + immuno_effect + level_effect
+// Delay/hazard/multipliers describe how quickly host defenses eliminate bacteria.
 #[derive(Debug)]
 pub struct ClearanceParameters {
     base_delay_days: f64,
-    // Logistic model parameters
-    base_clearance_log_odds: f64,
+    base_daily_hazard: f64,
     per_bacteria_delay_days: Vec<Option<f64>>,
-    per_bacteria_log_odds_adjustment: Vec<f64>,
-    age_log_odds_adjustments: [f64; AGE_BUCKET_COUNT],
-    immunodeficient_log_odds_adjustment: f64,
-    level_log_odds_per_unit: f64, // negative: higher level → lower clearance
+    per_bacteria_hazard_multiplier: Vec<f64>,
+    age_multipliers: [f64; AGE_BUCKET_COUNT],
+    immunodeficient_multiplier: f64,
+    level_reference: f64,
+    level_exponent: f64,
 }
 
 impl ClearanceParameters {
     fn from_map(map: &HashMap<String, f64>, num_bacteria: usize) -> Self {
-        // Base post-infection delay before clearance can occur
+        // Base post-infection delay and baseline daily clearance hazard before modifiers.
         let base_delay_days = get_or_default(map, "default_clearance_delay_days", 3.0);
-        // Logistic model: base log-odds for clearance probability
-        // Default: log(0.015/0.985) ≈ -4.2 (equivalent to 1.5% daily clearance)
-        let base_clearance_log_odds = get_or_default(map, "default_clearance_base_log_odds", -4.2);
+        // key immune_clearance parameter
+        let base_daily_hazard = get_or_default(map, "default_clearance_hazard_after_delay", 0.015); // 0.045
 
-        // Age-specific log-odds adjustments (additive in log-odds space)
-        let mut age_log_odds_adjustments = [0.0; AGE_BUCKET_COUNT];
+        let mut age_multipliers = [1.0; AGE_BUCKET_COUNT];
         for (idx, category) in AGE_BUCKETS.iter().enumerate() {
-            let key = format!("clearance_age_log_odds_{}", category.label());
-            age_log_odds_adjustments[idx] = get_or_default(map, &key, 0.0);
+            let key = format!("clearance_age_multiplier_{}", category.label());
+            age_multipliers[idx] = get_or_default(map, &key, 1.0);
         }
 
         let mut per_bacteria_delay_days = Vec::with_capacity(num_bacteria);
-        let mut per_bacteria_log_odds_adjustment = Vec::with_capacity(num_bacteria);
+        let mut per_bacteria_hazard_multiplier = Vec::with_capacity(num_bacteria);
         for &bacteria in BACTERIA_LIST.iter() {
             per_bacteria_delay_days.push(
                 map.get(&format!("{}_clearance_delay_days", bacteria))
                     .copied(),
             );
-            // Bacteria-specific log-odds adjustment (additive)
-            per_bacteria_log_odds_adjustment.push(get_or_default(
+            per_bacteria_hazard_multiplier.push(get_or_default(
                 map,
-                &format!("{}_clearance_log_odds_adjustment", bacteria),
-                0.0,
+                &format!("{}_clearance_hazard_multiplier", bacteria),
+                1.0,
             ));
         }
 
-        // Immunodeficiency effect: negative log-odds adjustment (harder to clear)
-        // Default: log(0.5) ≈ -0.69, equivalent to 50% multiplier
-        let immunodeficient_log_odds_adjustment =
-            get_or_default(map, "clearance_immunodeficient_log_odds", -0.69);
-        // Level effect: higher bacteria level → harder to clear (negative coefficient)
-        let level_log_odds_per_unit = get_or_default(map, "clearance_level_log_odds_per_unit", -0.3);
+        // Immune competence and infection-load modifiers add realism to clearance odds.
+        let immunodeficient_multiplier =
+            get_or_default(map, "clearance_immunodeficient_multiplier", 0.5);
+        let level_reference = get_or_default(map, "clearance_level_reference", 1.0);
+        let level_exponent = get_or_default(map, "clearance_level_exponent", 0.0);
 
         ClearanceParameters {
             base_delay_days,
-            base_clearance_log_odds,
+            base_daily_hazard,
             per_bacteria_delay_days,
-            per_bacteria_log_odds_adjustment,
-            age_log_odds_adjustments,
-            immunodeficient_log_odds_adjustment,
-            level_log_odds_per_unit,
+            per_bacteria_hazard_multiplier,
+            age_multipliers,
+            immunodeficient_multiplier,
+            level_reference,
+            level_exponent,
         }
     }
 
@@ -2043,33 +1986,34 @@ impl ClearanceParameters {
     }
 
     #[inline]
-    #[allow(dead_code)]
-    pub fn base_log_odds(&self) -> f64 {
-        self.base_clearance_log_odds
+    pub fn hazard(&self, bacteria_idx: usize) -> f64 {
+        (self.base_daily_hazard * self.per_bacteria_hazard_multiplier[bacteria_idx]).clamp(0.0, 1.0)
     }
 
     #[inline]
-    pub fn bacteria_log_odds_adjustment(&self, bacteria_idx: usize) -> f64 {
-        self.per_bacteria_log_odds_adjustment[bacteria_idx]
+    pub fn age_multiplier(&self, age_days: i32) -> f64 {
+        let idx =
+            AgeCategoryParameters::age_category_index(age_days).min(self.age_multipliers.len() - 1);
+        self.age_multipliers[idx]
     }
 
     #[inline]
-    pub fn age_log_odds_adjustment(&self, age_days: i32) -> f64 {
-        let idx = AgeCategoryParameters::age_category_index(age_days)
-            .min(self.age_log_odds_adjustments.len() - 1);
-        self.age_log_odds_adjustments[idx]
+    pub fn immunodeficient_multiplier(&self, is_immunodeficient: bool) -> f64 {
+        if is_immunodeficient {
+            self.immunodeficient_multiplier
+        } else {
+            1.0
+        }
     }
 
     #[inline]
-    #[allow(dead_code)]
-    pub fn immunodeficient_log_odds_adjustment(&self) -> f64 {
-        self.immunodeficient_log_odds_adjustment
-    }
+    pub fn level_modifier(&self, level: f64) -> f64 {
+        if self.level_exponent <= 0.0 {
+            return 1.0;
+        }
 
-    #[inline]
-    pub fn level_log_odds_effect(&self, level: f64) -> f64 {
-        // Higher level → more negative log-odds (harder to clear)
-        level.max(0.0) * self.level_log_odds_per_unit
+        let ratio = self.level_reference / (self.level_reference + level.max(0.0) + f64::EPSILON);
+        ratio.powf(self.level_exponent)
     }
 
     #[inline]
@@ -2080,20 +2024,16 @@ impl ClearanceParameters {
         is_immunodeficient: bool,
         level: f64,
     ) -> f64 {
-        // Logistic model: P(clearance) = 1 / (1 + exp(-log_odds))
-        // log_odds = base + bacteria + age + immuno + level
-        let mut log_odds = self.base_clearance_log_odds;
-        log_odds += self.bacteria_log_odds_adjustment(bacteria_idx);
-        log_odds += self.age_log_odds_adjustment(age_days);
-        
-        if is_immunodeficient {
-            log_odds += self.immunodeficient_log_odds_adjustment;
+        let base = self.hazard(bacteria_idx);
+        if base <= 0.0 {
+            return 0.0;
         }
-        
-        log_odds += self.level_log_odds_effect(level);
-        
-        // Logistic transformation
-        1.0 / (1.0 + (-log_odds).exp())
+
+        let age_factor = self.age_multiplier(age_days).max(0.0);
+        let immuno_factor = self.immunodeficient_multiplier(is_immunodeficient).max(0.0);
+        let level_factor = self.level_modifier(level).max(0.0);
+
+        (base * age_factor * immuno_factor * level_factor).clamp(0.0, 1.0)
     }
 }
 
@@ -2518,20 +2458,20 @@ fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
     // ***  ^^^
     match (donor_pool, recipient_pool) {
         (PlasmidPool::GramPositive, PlasmidPool::GramPositive) => {
-            if same_group { 1.0e-10 } else { 1.0e-11 }
+            if same_group { 1.0e-9 } else { 1.0e-10 }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::EntericGramNegative) => {
-            if same_group { 1.0e-10 } else { 1.0e-11 }
+            if same_group { 1.0e-9 } else { 1.0e-10 }
         }
         (PlasmidPool::RespiratoryGramNegative, PlasmidPool::RespiratoryGramNegative) => {
-            if same_group { 1.0e-10 } else { 1.0e-11 }
+            if same_group { 1.0e-9 } else { 1.0e-10 }
         }
         (PlasmidPool::EntericGramNegative, PlasmidPool::RespiratoryGramNegative)
-        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 1.0e-10,
+        | (PlasmidPool::RespiratoryGramNegative, PlasmidPool::EntericGramNegative) => 1.0e-9,
         (PlasmidPool::Anaerobe, PlasmidPool::EntericGramNegative)
-        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 1.0e-10,
-        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 1.0e-10,
-        _ => 1.0e-10,
+        | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 1.0e-9,
+        (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 1.0e-9,
+        _ => 1.0e-9,
     }
 }
 
@@ -5122,29 +5062,17 @@ lazy_static! {
         // === [C] Drug initiation, selection, and pharmacokinetics ===
         // Core knobs for therapy behaviour: initiation heuristics, scoring multipliers, and half-lives
         // that drive drug levels. Overwrite these for global experiments; use per-drug keys for specifics.
-        
-        // *** Logistic model for antibiotic initiation probability ***
-        // P(initiation) = 1 / (1 + exp(-log_odds))
-        // log_odds = base + sum of applicable effects (additive in log-odds space)
-        // This replaces the old multiplicative model and naturally bounds P ∈ (0,1)
-        // Defaults calibrated to match historical behavior:
-        //   - Base alone: P ≈ 0.1% (background rate)
-        //   - With symptomatic infection: P ≈ 26% per day
-        //   - With test + immunodeficiency: can approach high certainty
-        map.insert("antibiotic_initiation_base_log_odds".to_string(), -6.9); // baseline: log(0.001/0.999) ≈ -6.9
-        map.insert("antibiotic_initiation_log_odds_symptomatic_infection".to_string(), 5.85); // +5.85 → brings P from 0.1% to ~26%
-        map.insert("antibiotic_initiation_log_odds_test_identified".to_string(), 0.92); // log(2.5) - lab confirmation boost
-        map.insert("antibiotic_initiation_log_odds_already_on_drug".to_string(), 0.18); // log(1.2) - modest boost for layered therapy
-        map.insert("antibiotic_initiation_log_odds_immunodeficiency".to_string(), 2.08); // log(8.0) - prophylaxis for immunocompromised
-        map.insert("antibiotic_initiation_log_odds_no_indication".to_string(), -1.05); // log(0.35) - penalty when no infection/immunodeficiency
+        // General Drug Parameters
+        map.insert("drug_base_initiation_rate_per_day".to_string(), 0.001); // Higher baseline daily initiation to reach usage targets
+        map.insert("drug_infection_present_multiplier".to_string(), 260.0); // More treatment starts when infection detected
 
-        // Drug activity parameters (still used for bacteria level effects)
         // a non-bacteria-specific parameter that determines how rapidly drugs of a given potency eliminate bacteria level
         // with a value 1 it is nearly always within 1 day
+        // effect of drug activity   ***  
         map.insert(
             "drug_activity_to_bacteria_level_multiplier".to_string(),
             0.75,
-        ); // Global scaling knob for drug-driven bacteria decay
+        ); // Global scaling knob for drug-driven bacteria decay  // 0.1
         map.insert(
             "drug_activity_slow_clearance_probability".to_string(),
             0.25,
@@ -5153,6 +5081,7 @@ lazy_static! {
             "drug_activity_slow_clearance_multiplier".to_string(),
             0.2,
         ); // Activity multiplier assigned to difficult-clearance infections
+        map.insert("drug_test_identified_multiplier".to_string(), 2.5); // Multiplier when lab diagnostics confirm the pathogen
         map.insert("drug_decay_per_day".to_string(), 1.0); // Legacy parameter - now using drug-specific half-lives
 
         // Drug Selection Algorithm Parameters
@@ -5324,6 +5253,7 @@ lazy_static! {
         map.insert("drug_ertapenem_toxicity_death_hazard_per_unit_level".to_string(), 0.0000000006);
 
 
+        map.insert("already_on_drug_initiation_multiplier".to_string(), 1.2); // modest boost for layered therapy when already on treatment
         map.insert("double_dose_probability_if_identified_infection".to_string(), 0.25); // Increased from 0.1 to 0.25 for more aggressive dosing
 
         // Clinical Decision-Making Potency Thresholds
@@ -5434,12 +5364,12 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_penicillins_resistance_floor".to_string(), 0.0); // Ampicillin resistance acquired, start at 0
         map.insert("bacteria_enterococcus_faecium_carbapenems_resistance_floor".to_string(), 0.0); // Not intrinsic
         map.insert("bacteria_enterococcus_faecium_aminoglycosides_resistance_floor".to_string(), 0.0); // High-level resistance acquired
-        map.insert("bacteria_enterococcus_faecium_fluoroquinolones_resistance_floor".to_string(), 0.1); // High resistance observed
-        map.insert("bacteria_enterococcus_faecium_macrolides_resistance_floor".to_string(), 0.1); // Moderate resistance
-        map.insert("bacteria_enterococcus_faecium_glycopeptides_resistance_floor".to_string(), 0.05); // VRE - ~35-45% globally
-        map.insert("bacteria_enterococcus_faecium_oxazolidinones_resistance_floor".to_string(), 0.01); // Low linezolid resistance
-        map.insert("bacteria_enterococcus_faecium_tetracyclines_resistance_floor".to_string(), 0.05); // Moderate tetracycline resistance
-        map.insert("bacteria_enterococcus_faecium_folate_antagonists_resistance_floor".to_string(), 0.20); // High TMP-SMX resistance
+        map.insert("bacteria_enterococcus_faecium_fluoroquinolones_resistance_floor".to_string(), 0.32); // High resistance observed
+        map.insert("bacteria_enterococcus_faecium_macrolides_resistance_floor".to_string(), 0.28); // Moderate resistance
+        map.insert("bacteria_enterococcus_faecium_glycopeptides_resistance_floor".to_string(), 0.17); // VRE - ~35-45% globally
+        map.insert("bacteria_enterococcus_faecium_oxazolidinones_resistance_floor".to_string(), 0.05); // Low linezolid resistance
+        map.insert("bacteria_enterococcus_faecium_tetracyclines_resistance_floor".to_string(), 0.25); // Moderate tetracycline resistance
+        map.insert("bacteria_enterococcus_faecium_folate_antagonists_resistance_floor".to_string(), 0.50); // High TMP-SMX resistance
 
         // === [E] Drug-bacteria potency & emergence settings ===
         // Qualitative potency buckets, initiation multipliers, and baseline resistance emergence
@@ -6217,59 +6147,57 @@ lazy_static! {
         map.insert("drug_penicilling_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not used for H. pylori
         map.insert("drug_cephalexin_for_bacteria_helicobacter_pylori_potency_when_no_r".to_string(), 0.05);       // Not effective
 
-        // --- BACTERIA-SPECIFIC SYMPTOM ONSET PARAMETERS (Logistic Model) ---
-        // P(symptoms) = 1 / (1 + exp(-log_odds)), log_odds = base + level_effect
-        // Converted from probability using: log_odds = ln(p / (1-p))
+        // --- BACTERIA-SPECIFIC SYMPTOM ONSET PARAMETERS ---
 
         // H. PYLORI - Usually asymptomatic chronic gastritis
-        map.insert("helicobacter_pylori_symptom_onset_base_log_odds".to_string(), -6.9); // ~0.1% per day - very low symptomatic rate
+        map.insert("helicobacter_pylori_daily_symptom_onset_probability".to_string(), 0.001); // 0.1% per day - very low symptomatic rate
         map.insert("helicobacter_pylori_symptom_onset_threshold_level".to_string(), 2.0);     // High threshold for symptoms
         map.insert("helicobacter_pylori_symptom_onset_delay_days".to_string(), 30.0);         // Long delay before symptoms possible
 
         // chlamydia_trachomatis - Often asymptomatic
-        map.insert("chlamydia_trachomatis_symptom_onset_base_log_odds".to_string(), -4.6); // ~1% per day - often asymptomatic
+        map.insert("chlamydia_trachomatis_daily_symptom_onset_probability".to_string(), 0.01); // 1% per day - often asymptomatic
         map.insert("chlamydia_trachomatis_symptom_onset_threshold_level".to_string(), 1.5);    // Moderate threshold
         map.insert("chlamydia_trachomatis_base_bacteria_level_change".to_string(), 0.3);       // Slow intracellular replication
 
         // neisseria_meningitidis - Often asymptomatic carriage
-        map.insert("neisseria_meningitidis_symptom_onset_base_log_odds".to_string(), -1.1); // ~25% per day - increase clinical visibility
+        map.insert("neisseria_meningitidis_daily_symptom_onset_probability".to_string(), 0.25); // 25% per day - increase clinical visibility
         map.insert("neisseria_meningitidis_base_bacteria_level_change".to_string(), 0.65);      // Fulminant meningococcemia progression
         map.insert("neisseria_meningitidis_symptom_onset_threshold_level".to_string(), 3.0);    // High threshold for invasive disease
 
         // moraxella_catarrhalis - Often just colonization
-        map.insert("moraxella_catarrhalis_symptom_onset_base_log_odds".to_string(), -2.9);  // ~5% per day - often colonizer
+        map.insert("moraxella_catarrhalis_daily_symptom_onset_probability".to_string(), 0.05);  // 5% per day - often colonizer
         map.insert("moraxella_catarrhalis_symptom_onset_threshold_level".to_string(), 2.0);     // Moderate threshold
         map.insert("moraxella_catarrhalis_base_bacteria_level_change".to_string(), 0.55);       // Rapid otitis/sinusitis onset in children
 
         // bacteroides_fragilis - intra-abdominal abscesses; symptoms emerge when burden high
-        map.insert("bacteroides_fragilis_symptom_onset_base_log_odds".to_string(), -0.2); // ~45% per day
+        map.insert("bacteroides_fragilis_daily_symptom_onset_probability".to_string(), 0.45);
         map.insert("bacteroides_fragilis_symptom_onset_threshold_level".to_string(), 1.2);
         map.insert("bacteroides_fragilis_symptom_onset_delay_days".to_string(), 2.0);
         map.insert("bacteroides_fragilis_base_bacteria_level_change".to_string(), 0.42);
 
         // p_stuartii - catheter-associated UTI/bacteremia; presents promptly when burdens rise
-        map.insert("p_stuartii_symptom_onset_base_log_odds".to_string(), 0.2); // ~55% per day
+        map.insert("p_stuartii_daily_symptom_onset_probability".to_string(), 0.55);
         map.insert("p_stuartii_symptom_onset_threshold_level".to_string(), 0.75);
         map.insert("p_stuartii_base_bacteria_level_change".to_string(), 0.5);
 
         // mycoplasma_genitalium - frequently asymptomatic but persistent STI
-        map.insert("mycoplasma_genitalium_symptom_onset_base_log_odds".to_string(), -2.0); // ~12% per day
+        map.insert("mycoplasma_genitalium_daily_symptom_onset_probability".to_string(), 0.12);
         map.insert("mycoplasma_genitalium_symptom_onset_threshold_level".to_string(), 0.9);
         map.insert("mycoplasma_genitalium_symptom_onset_delay_days".to_string(), 5.0);
         map.insert("mycoplasma_genitalium_base_bacteria_level_change".to_string(), 0.28);
 
     // pseudomonas_aeruginosa - Clinically apparent when burden high
-        map.insert("pseudomonas_aeruginosa_symptom_onset_base_log_odds".to_string(), -1.4);   // ~20% per day - improve detection of invasive disease
+        map.insert("pseudomonas_aeruginosa_daily_symptom_onset_probability".to_string(), 0.2);   // 20% per day - improve detection of invasive disease
         map.insert("pseudomonas_aeruginosa_symptom_onset_threshold_level".to_string(), 0.8);     // Higher burden needed before symptoms manifest
         map.insert("pseudomonas_aeruginosa_base_bacteria_level_change".to_string(), 0.55);       // Rapid proliferation in ventilated hosts
 
         // ACUTE INFECTIONS - High symptomatic rates
         map.insert("haemophilus_influenzae_base_bacteria_level_change".to_string(), 0.55);       // Rapid pediatric respiratory progression
-        map.insert("streptococcus_pneumoniae_symptom_onset_base_log_odds".to_string(), 1.4); // ~80% per day - usually symptomatic
-        map.insert("streptococcus_pyogenes_symptom_onset_base_log_odds".to_string(), 0.85);   // ~70% per day - usually symptomatic
+        map.insert("streptococcus_pneumoniae_daily_symptom_onset_probability".to_string(), 0.8); // 80% per day - usually symptomatic
+        map.insert("streptococcus_pyogenes_daily_symptom_onset_probability".to_string(), 0.7);   // 70% per day - usually symptomatic
         map.insert("streptococcus_pyogenes_base_bacteria_level_change".to_string(), 0.6);         // Fast doubling in invasive GAS
-        map.insert("staphylococcus_aureus_symptom_onset_base_log_odds".to_string(), 0.4);    // ~60% per day - usually symptomatic
-        map.insert("staphylococcus_epidermidis_symptom_onset_base_log_odds".to_string(), -1.4); // ~20% per day - device-associated pathogen often subacute
+        map.insert("staphylococcus_aureus_daily_symptom_onset_probability".to_string(), 0.6);    // 60% per day - usually symptomatic
+        map.insert("staphylococcus_epidermidis_daily_symptom_onset_probability".to_string(), 0.2); // 20% per day - device-associated pathogen often subacute
         map.insert("staphylococcus_epidermidis_symptom_onset_threshold_level".to_string(), 1.0);   // Needs higher burden for symptoms
         map.insert("staphylococcus_epidermidis_symptom_onset_delay_days".to_string(), 3.0);        // Slight delay before clinical detection
         map.insert("staphylococcus_epidermidis_base_bacteria_level_change".to_string(), 0.35);     // Slower growth kinetics than S. aureus
@@ -6284,7 +6212,7 @@ lazy_static! {
         map.insert("staphylococcus_epidermidis_log_odds_sepsis_infection_duration".to_string(), 0.005); // Chronic devices slowly accumulate risk
         map.insert("staphylococcus_epidermidis_non_sepsis_infection_death_log_odds".to_string(), -6.0); // Very low direct mortality
 
-        map.insert("stenotrophomonas_maltophilia_symptom_onset_base_log_odds".to_string(), -0.6); // ~35% per day - clinically apparent in ventilated hosts
+        map.insert("stenotrophomonas_maltophilia_daily_symptom_onset_probability".to_string(), 0.35); // 35% per day - clinically apparent in ventilated hosts
         map.insert("stenotrophomonas_maltophilia_symptom_onset_threshold_level".to_string(), 0.9);      // Moderate burden before symptoms
         map.insert("stenotrophomonas_maltophilia_symptom_onset_delay_days".to_string(), 2.5);          // Early signs once established
         map.insert("stenotrophomonas_maltophilia_base_bacteria_level_change".to_string(), 0.45);       // Moderate growth rate
@@ -6297,43 +6225,43 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_non_sepsis_infection_death_log_odds".to_string(), -4.0); // Some mortality via pneumonia progression
 
         // ENTERIC PATHOGENS - Moderate to high symptomatic rates
-        map.insert("salmonella_enterica_serovar_typhi_symptom_onset_base_log_odds".to_string(), -0.4);       // ~40% per day
+        map.insert("salmonella_enterica_serovar_typhi_daily_symptom_onset_probability".to_string(), 0.4);       // 40% per day
         map.insert("salmonella_enterica_serovar_typhi_base_bacteria_level_change".to_string(), 0.45);          // Longer incubation than typical enterics
-        map.insert("salmonella_enterica_serovar_paratyphi_a_symptom_onset_base_log_odds".to_string(), -0.4); // ~40% per day
+        map.insert("salmonella_enterica_serovar_paratyphi_a_daily_symptom_onset_probability".to_string(), 0.4); // 40% per day
         map.insert("salmonella_enterica_serovar_paratyphi_a_base_bacteria_level_change".to_string(), 0.45);     // Similar incubation to typhi
-        map.insert("shigella_spp._symptom_onset_base_log_odds".to_string(), 0.4);                           // ~60% per day
+        map.insert("shigella_spp._daily_symptom_onset_probability".to_string(), 0.6);                           // 60% per day
         map.insert("shigella_spp._base_bacteria_level_change".to_string(), 0.55);                               // Short incubation dysentery
-        map.insert("vibrio_cholerae_symptom_onset_base_log_odds".to_string(), 0.0);                         // ~50% per day
+        map.insert("vibrio_cholerae_daily_symptom_onset_probability".to_string(), 0.5);                         // 50% per day
         map.insert("vibrio_cholerae_base_bacteria_level_change".to_string(), 0.6);                              // Profuse cholera within 1-2 days
-        map.insert("campylobacter_jejuni_symptom_onset_base_log_odds".to_string(), 0.0);                    // ~50% per day
+        map.insert("campylobacter_jejuni_daily_symptom_onset_probability".to_string(), 0.5);                    // 50% per day
         map.insert("campylobacter_jejuni_base_bacteria_level_change".to_string(), 0.52);                        // Incubation typically 2-4 days
 
         // CHRONIC/SLOW-ONSET PATHOGENS - Evidence-based symptom presentation rates
         // chlamydia_trachomatis - Most infections asymptomatic (~70-80% in women, ~50% in men)
-        map.insert("chlamydia_trachomatis_symptom_onset_base_log_odds".to_string(), -3.5);  // Only ~3% daily → ~20-30% ever become symptomatic
+        map.insert("chlamydia_trachomatis_daily_symptom_onset_probability".to_string(), 0.03);  // Only ~20-30% ever become symptomatic
         map.insert("chlamydia_trachomatis_base_bacteria_level_change".to_string(), 0.25);       // Slow intracellular replication
         map.insert("chlamydia_trachomatis_symptom_onset_threshold_level".to_string(), 0.8);     // Higher threshold before symptoms
 
         // treponema_pallidum - Syphilis has defined stages with variable presentation
-        map.insert("treponema_pallidum_symptom_onset_base_log_odds".to_string(), -2.4);     // ~8% per day - Primary chancre develops in ~3-4 weeks
+        map.insert("treponema_pallidum_daily_symptom_onset_probability".to_string(), 0.08);     // Primary chancre develops in ~3-4 weeks
         map.insert("treponema_pallidum_base_bacteria_level_change".to_string(), 0.15);          // Very slow spirochete replication (33-hour doubling)
         map.insert("treponema_pallidum_symptom_onset_threshold_level".to_string(), 0.6);        // Moderate threshold
 
         // bordetella_pertussis - Catarrhal stage followed by paroxysmal cough
-        map.insert("bordetella_pertussis_symptom_onset_base_log_odds".to_string(), -0.6);   // ~35% per day - 1-2 week incubation
+        map.insert("bordetella_pertussis_daily_symptom_onset_probability".to_string(), 0.35);   // 1-2 week incubation
         map.insert("bordetella_pertussis_base_bacteria_level_change".to_string(), 0.42);        // Moderate growth during catarrhal phase
 
         // helicobacter_pylori - Most infections (~80%) are asymptomatic
-        map.insert("helicobacter_pylori_symptom_onset_base_log_odds".to_string(), -5.3);   // Only ~0.5% daily → ~20% develop symptomatic disease
+        map.insert("helicobacter_pylori_daily_symptom_onset_probability".to_string(), 0.005);   // Only ~20% develop symptomatic disease
         map.insert("helicobacter_pylori_symptom_onset_threshold_level".to_string(), 1.5);       // Very high threshold (chronic colonization)
 
         // MDR-TB - Slow progression; most latent infections never reactivate
-        map.insert("mdr_mycobacterium_tuberculosis_symptom_onset_base_log_odds".to_string(), -6.9); // ~0.1% daily → ~5-10% lifetime reactivation risk
+        map.insert("mdr_mycobacterium_tuberculosis_daily_symptom_onset_probability".to_string(), 0.001); // ~5-10% lifetime reactivation risk
         map.insert("mdr_mycobacterium_tuberculosis_base_bacteria_level_change".to_string(), 0.08);       // Very slow mycobacterial growth
         map.insert("mdr_mycobacterium_tuberculosis_symptom_onset_threshold_level".to_string(), 2.0);     // High threshold for active disease
 
         // neisseria_gonorrhoeae - Variable symptoms (~10-20% asymptomatic in men, ~50% in women)
-        map.insert("neisseria_gonorrhoeae_symptom_onset_base_log_odds".to_string(), -1.1);  // ~25% daily - Most symptomatic within 2-7 days
+        map.insert("neisseria_gonorrhoeae_daily_symptom_onset_probability".to_string(), 0.25);  // Most symptomatic within 2-7 days
         map.insert("neisseria_gonorrhoeae_base_bacteria_level_change".to_string(), 0.55);       // Rapid mucosal colonization
 
         // --- COMPREHENSIVE BACTERIA GROWTH RATE OVERRIDES ---
@@ -6755,7 +6683,7 @@ lazy_static! {
 
         // klebsiella_pneumoniae - rapid β-lactam resistance with selective retention of novel agents
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.01);
         }
         let kleb_collapse_drugs = vec![
             "amoxicillin", "ampicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate",
@@ -6763,11 +6691,11 @@ lazy_static! {
             "cephalexin", "cephalothin", "cefazolin", "cefaclor", "cefuroxime"
         ];
         for &drug in kleb_collapse_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.01);
         }
         let kleb_preserved_drugs = vec!["ceftazidime_avibactam", "meropenem_vaborbactam", "colistin", "cefiderocol"];
         for &drug in kleb_preserved_drugs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.003);
+            map.insert(format!("drug_{}_for_bacteria_klebsiella_pneumoniae_resistance_emergence_rate_per_day_baseline", drug), 0.01);
         }
 
         // stenotrophomonas_maltophilia - intrinsic efflux + L1/L2 enzymes make emergence highly class-dependent
@@ -6937,7 +6865,7 @@ lazy_static! {
                         "drug_{}_for_bacteria_mycoplasma_genitalium_resistance_emergence_rate_per_day_baseline",
                         drug
                     ),
-                    0.00001,
+                    0.0001,
                 );
             }
 
@@ -6948,7 +6876,7 @@ lazy_static! {
                         "drug_{}_for_bacteria_mycoplasma_genitalium_resistance_emergence_rate_per_day_baseline",
                         drug
                     ),
-                    0.00001,
+                    0.0001,
                 );
             }
 
@@ -6959,7 +6887,7 @@ lazy_static! {
                         "drug_{}_for_bacteria_mycoplasma_genitalium_resistance_emergence_rate_per_day_baseline",
                         drug
                     ),
-                    0.00001,
+                    0.0001,
                 );
             }
 
@@ -6970,7 +6898,7 @@ lazy_static! {
                         "drug_{}_for_bacteria_mycoplasma_genitalium_resistance_emergence_rate_per_day_baseline",
                         drug
                     ),
-                    0.00001,
+                    0.0001,
                 );
             }
         }
@@ -6982,7 +6910,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_high_penams = vec![
@@ -6997,7 +6925,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_antipseudomonal_penams = vec![
@@ -7012,7 +6940,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_first_second_cephs = vec!["cefazolin", "cefuroxime", "cephalexin"];
@@ -7022,7 +6950,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_third_fourth_cephs = vec![
@@ -7038,13 +6966,13 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         map.insert(
             "drug_ceftazidime_avibactam_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.02,
+            0.03,
         );
         let proteus_carbapenems = vec!["ertapenem", "imipenem_c", "meropenem", "meropenem_vaborbactam"];
         for &drug in proteus_carbapenems.iter() {
@@ -7053,7 +6981,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.002,
+                0.003,
             );
         }
         let proteus_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
@@ -7063,7 +6991,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_fluoroquinolones = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
@@ -7073,7 +7001,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_tetracyclines = vec!["doxycycline", "minocycline"];
@@ -7083,7 +7011,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         for &drug in ["trim_sulf"].iter() {
@@ -7092,7 +7020,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
         let proteus_misc_high = vec!["chlorampheni", "rifampicin", "nitrofurantoin", "sulfanilamide", "colistin"];
@@ -7102,7 +7030,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_proteus_spp._resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.02,
+                0.03,
             );
         }
 
@@ -7872,7 +7800,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_penams = vec![
@@ -7892,7 +7820,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_cephs = vec![
@@ -7912,7 +7840,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_carbapenems = vec!["imipenem_c", "meropenem", "ertapenem", "meropenem_vaborbactam"];
@@ -7922,7 +7850,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_glyco = vec!["dalbavancin", "teicoplanin", "vancomycin"];
@@ -7932,7 +7860,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_fqs = vec!["ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"];
@@ -7942,7 +7870,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_macrolides = vec!["azithromycin", "clarithromycin", "erythromycin"];
@@ -7952,7 +7880,7 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         let staphylococcus_aureus_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
@@ -7962,38 +7890,38 @@ lazy_static! {
                     "drug_{}_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline",
                     drug
                 ),
-                0.001,
+                0.003,
             );
         }
         map.insert(
             "drug_trim_sulf_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.001,
+            0.003,
         );
         map.insert(
             "drug_ceftaroline_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.001,
+            0.003,
         );
         map.insert(
             "drug_ceftazidime_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.001,
+            0.003,
         );
         map.insert(
             "drug_ceftazidime_avibactam_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.001,
+            0.003,
         );
         map.insert(
             "drug_colistin_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.001,
+            0.003,
         );
         map.insert(
             "drug_sulfanilamide_for_bacteria_staphylococcus_aureus_resistance_emergence_rate_per_day_baseline"
                 .to_string(),
-            0.001,
+            0.003,
         );
 
 
@@ -9399,14 +9327,14 @@ lazy_static! {
 
         // neisseria_gonorrhoeae - keep resistance emergence very low; only isolated failures should appear
         for &drug in DRUG_SHORT_NAMES.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
         let gonorrhea_3rd4th_gen_cephs = vec![
             "ceftriaxone", "cefotaxime", "cefepime", "ceftazidime", "ceftaroline",
             "ceftazidime_avibactam", "cefiderocol", "aztreonam"
         ];
         for &drug in gonorrhea_3rd4th_gen_cephs.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
         let gonorrhea_penams = vec![
             "amoxicillin", "ampicillin", "ampicillin_sulbactam", "amoxicillin_clavulanate",
@@ -9414,23 +9342,23 @@ lazy_static! {
             "penicilling"
         ];
         for &drug in gonorrhea_penams.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
         let gonorrhea_macrolides = vec!["azithromycin", "clarithromycin", "erythromycin"];
         for &drug in gonorrhea_macrolides.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
         let gonorrhea_fq = vec!["ciprofloxacin", "levofloxacin", "ofloxacin", "moxifloxacin"];
         for &drug in gonorrhea_fq.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
         let gonorrhea_tetracyclines = vec!["doxycycline", "minocycline", "tetracycline"];
         for &drug in gonorrhea_tetracyclines.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
         let gonorrhea_aminoglycosides = vec!["amikacin", "gentamicin", "tobramycin"];
         for &drug in gonorrhea_aminoglycosides.iter() {
-            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00001);
+            map.insert(format!("drug_{}_for_bacteria_neisseria_gonorrhoeae_resistance_emergence_rate_per_day_baseline", drug), 0.00005);
         }
 
         // neisseria_meningitidis - preserve near-universal susceptibility across treatment classes
@@ -10315,25 +10243,25 @@ lazy_static! {
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_target_site_mutation_emergence_multiplier"
                 .to_string(),
-            0.1,
+            1.0,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_efflux_overexpression_emergence_multiplier"
                 .to_string(),
-            0.1,
+            1.0,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_reduced_permeability_emergence_multiplier"
                 .to_string(),
-            0.1,
+            1.0,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_qnr_emergence_multiplier".to_string(),
-            0.1,
+            1.0,
         );
         map.insert(
             "bacteria_neisseria_gonorrhoeae_mechanism_esbl_emergence_multiplier".to_string(),
-            0.1,
+            1.0,
         );
 
         // Neisseria meningitidis rarely develops high-level resistance outside of sporadic cases
@@ -10365,34 +10293,34 @@ lazy_static! {
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_target_site_mutation_emergence_multiplier"
                 .to_string(),
-            0.03,
+            0.1,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_qnr_emergence_multiplier".to_string(),
-            0.03,
+            0.1,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_efflux_overexpression_emergence_multiplier"
                 .to_string(),
-            0.03,
+            0.1,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_reduced_permeability_emergence_multiplier"
                 .to_string(),
-            0.03,
+            0.1,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier".to_string(),
-            0.03,
+            0.1,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_ampc_emergence_multiplier".to_string(),
-            0.03,
+            0.1,
         );
         map.insert(
             "bacteria_klebsiella_pneumoniae_mechanism_carbapenemase_emergence_multiplier"
                 .to_string(),
-            0.03,
+            0.1,
         );
 
         // Listeria monocytogenes shows creeping resistance in neonatal/pregnancy outbreaks
@@ -10445,47 +10373,47 @@ lazy_static! {
         // Mycoplasma genitalium relies on point mutations in 23S rRNA/QRDRs; other mechanisms remain essentially absent
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            0.3,
+            1.0,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_qnr_emergence_multiplier".to_string(),
-            0.3,
+            1.0,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_erm_methylation_emergence_multiplier".to_string(),
-            0.3,
+            1.0,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            0.3,
+            0.2,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_reduced_permeability_emergence_multiplier".to_string(),
-            0.3,
+            0.1,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_esbl_emergence_multiplier".to_string(),
-            0.3,
+            0.01,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_carbapenemase_emergence_multiplier".to_string(),
-            0.3,
+            0.01,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_ampc_emergence_multiplier".to_string(),
-            0.3,
+            0.01,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
-            0.3,
+            0.01,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_van_type_emergence_multiplier".to_string(),
-            0.3,
+            0.01,
         );
         map.insert(
             "bacteria_mycoplasma_genitalium_mechanism_meca_emergence_multiplier".to_string(),
-            0.3,
+            0.01,
         );
 
         // Morganella spp. constitutively expresses AmpC and readily acquires ESBL/carbapenemase plasmids
@@ -11031,23 +10959,23 @@ lazy_static! {
         // Campylobacter jejuni: keep macrolide resistance rare, fluoroquinolone mutations moderate
         map.insert(
             "bacteria_campylobacter_jejuni_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            0.00000000000001,
+            0.000000000001,
         );
         map.insert(
             "bacteria_campylobacter_jejuni_mechanism_qnr_emergence_multiplier".to_string(),
-            0.00000000000001,
+            0.000000000001,
         );
         map.insert(
             "bacteria_campylobacter_jejuni_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            0.00000000000001,
+            0.000000000001,
         );
         map.insert(
             "bacteria_campylobacter_jejuni_mechanism_reduced_permeability_emergence_multiplier".to_string(),
-            0.00000000000001,
+            0.000000000001,
         );
         map.insert(
             "bacteria_campylobacter_jejuni_mechanism_erm_methylation_emergence_multiplier".to_string(),
-            0.00000000000001,
+            0.000000000001,
         );
 
         // Chlamydia trachomatis: macrolide/tetracycline resistance remains exceedingly rare
@@ -11430,15 +11358,12 @@ lazy_static! {
             }
         }
 
-    // Hospitalization Parameters - Logistic Model
-    // P(hospitalization) = 1 / (1 + exp(-log_odds))
-    // log_odds = base + (age_years × per_year) + sepsis_effect
-    // This naturally bounds P ∈ (0,1) without clamping
-    map.insert("hospitalization_base_log_odds".to_string(), -10.4); // baseline: log(0.00003/0.99997) ≈ -10.4
-    map.insert("hospitalization_log_odds_per_age_year".to_string(), 0.02); // ~2% increase in log-odds per year
-    map.insert("hospitalization_log_odds_sepsis".to_string(), 4.4); // log(80) ≈ 4.4, sepsis strongly increases admission
+    // Hospitalization Parameters
+    map.insert("hospitalization_baseline_rate_per_day".to_string(), 0.00003); // Baseline daily probability tuned for ~0.3%-0.5% prevalence
+    map.insert("hospitalization_age_multiplier_per_day".to_string(), 0.00000005); // Incremental daily hospitalization probability per day of age (~0.07%/day at age 40)
     map.insert("hospitalization_recovery_rate_per_day".to_string(), 0.28); // Slightly shorter stays (~3.6 day avg) to reinforce target occupancy
     map.insert("hospitalization_max_days".to_string(), 30.0); // Max days in hospital before forced discharge (as fallback)
+    map.insert("hospitalization_sepsis_admission_multiplier".to_string(), 80.0); // Sepsis substantially increases admission odds
     map.insert("hospitalization_prevent_discharge_with_sepsis".to_string(), 1.0); // 1.0 = block discharge with sepsis, 0.0 = allow discharge
 
         // Testing Framework Parameters
@@ -11574,7 +11499,7 @@ lazy_static! {
         for (bacteria, log_odds) in bacteria_sepsis_baseline_overrides {
             map.insert(format!("{}_sepsis_baseline_log_odds", bacteria), *log_odds);
         }
-        map.insert("log_odds_sepsis_infection_level".to_string(), 0.5); // 2.0 Log odds increase per unit bacterial level
+        map.insert("log_odds_sepsis_infection_level".to_string(), 2.0); // Log odds increase per unit bacterial level
         // === [I] Clinical outcome scalars (mortality, sepsis, toxicity) ===
         // Collects mortality/sepsis odds adjustments together so scenario designers can reason about
         // outcome severity in one place. These parameters shape the probability of severe outcomes
@@ -11683,28 +11608,27 @@ lazy_static! {
         map.insert("chronic_immunodeficiency_probability_age_65_plus".to_string(), 0.6); // Elderly: highest chance (multiple conditions)
 
         // Prophylactic antibiotic use in immunocompromised patients
+        map.insert("immunodeficiency_prophylactic_drug_multiplier".to_string(), 8.0);  // 8x higher drug initiation rate for immunocompromised (prophylaxis)
         map.insert("antibiotic_infection_prevention_efficacy".to_string(), 0.7);       // 70% efficacy: allow more breakthrough infections despite prophylaxis
 
+
+        // Sepsis Mortality Parameters (Age, Region, and Risk Factor dependent)
+        map.insert("base_sepsis_death_risk_per_day".to_string(), 0.015); // Base 1% daily death risk for sepsis
+        map.insert("sepsis_age_mortality_multiplier_infant".to_string(), 3.0); // 0-1 years: much higher risk
+        map.insert("sepsis_age_mortality_multiplier_child".to_string(), 0.5); // 1-18 years: lower risk
+        map.insert("sepsis_age_mortality_multiplier_adult".to_string(), 1.0); // 18-65 years: baseline risk
+        map.insert("sepsis_age_mortality_multiplier_elderly".to_string(), 2.5); // 65+ years: much higher risk
+        map.insert("sepsis_immunosuppressed_multiplier".to_string(), 15.0); // Immunosuppressed: 15x higher risk
 
         // Sepsis onset additional factors (log-odds scale)
         map.insert("log_odds_sepsis_onset_immunosuppressed".to_string(), 0.7); // ~2x higher onset risk for immunocompromised
         map.insert("log_odds_sepsis_onset_hospitalized".to_string(), 0.5); // ~1.6x higher onset risk when hospitalized (sicker patients)
         map.insert("log_odds_sepsis_onset_not_under_care".to_string(), 1.0); // ~2.7x higher onset risk if not receiving treatment
 
-        // Sepsis death logistic model parameters (log-odds scale)
-        // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
-        // where log_odds = base + age_effect + region_effect + immuno_effect + level_effect + duration_effect + care_effect
-        map.insert("sepsis_death_base_log_odds".to_string(), -4.2); // Base log-odds (~1.5% daily mortality at baseline)
-        map.insert("sepsis_death_log_odds_age_infant".to_string(), 1.1); // Infants: +1.1 log-odds (~3x baseline)
-        map.insert("sepsis_death_log_odds_age_child".to_string(), -0.7); // Children: -0.7 log-odds (~0.5x baseline)
-        map.insert("sepsis_death_log_odds_age_adult".to_string(), 0.0); // Adults: reference category
-        map.insert("sepsis_death_log_odds_age_elderly".to_string(), 0.9); // Elderly: +0.9 log-odds (~2.5x baseline)
-        map.insert("sepsis_death_log_odds_immunosuppressed".to_string(), 1.5); // Immunosuppressed: +1.5 log-odds (~4.5x)
-        map.insert("sepsis_death_log_odds_bacteria_level".to_string(), 0.35); // Per unit bacteria level (0-5 scale)
-        map.insert("sepsis_death_log_odds_duration".to_string(), 0.04); // Per day of sepsis after early phase
-        map.insert("sepsis_death_log_odds_early_phase".to_string(), 0.8); // Additional risk in first 72h (~2.2x)
-        map.insert("sepsis_death_early_phase_days".to_string(), 3.0); // Early phase duration (days)
-        map.insert("sepsis_death_log_odds_not_under_care".to_string(), 1.4); // Not receiving treatment: +1.4 log-odds (~4x)
+        // Sepsis death additional factors
+        map.insert("sepsis_death_bacteria_level_coefficient".to_string(), 0.1); // 10% increase in death risk per unit bacteria level
+        map.insert("sepsis_death_duration_coefficient".to_string(), 0.02); // 2% increase in death risk per day of sepsis
+        map.insert("sepsis_death_not_under_care_multiplier".to_string(), 2.0); // 2x death risk if not receiving treatment
 
         // Region-specific sepsis mortality multipliers (reflecting healthcare quality)
         map.insert("north_america_sepsis_mortality_multiplier".to_string(), 0.8); 
@@ -11825,18 +11749,12 @@ lazy_static! {
 
         map.insert("default_drug_toxicity_death_hazard_per_unit_level".to_string(), 0.0); // Most drugs have negligible fatal toxicity risk per unit level by default
         map.insert("default_toxicity_reservoir_half_life_days".to_string(), 1.5); // Toxicity hazard persistence when drug stops (days)
-        
-        // Drug toxicity death logistic model parameters (log-odds scale)
-        // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
-        // where log_odds = base + reservoir_effect + age_effect + immuno_effect + hospital_effect
-        map.insert("toxicity_death_base_log_odds".to_string(), -8.0); // Base log-odds (~0.03% with no toxicity reservoir)
-        map.insert("toxicity_death_log_odds_per_reservoir_unit".to_string(), 2.0); // Per unit toxicity reservoir (~7x per unit)
-        map.insert("toxicity_death_log_odds_age_infant".to_string(), 0.6); // Infants: +0.6 log-odds (~1.8x baseline)
-        map.insert("toxicity_death_log_odds_age_child".to_string(), 0.2); // Children: +0.2 log-odds (~1.2x baseline)
-        map.insert("toxicity_death_log_odds_age_adult".to_string(), 0.0); // Adults: reference category
-        map.insert("toxicity_death_log_odds_age_elderly".to_string(), 0.8); // Elderly: +0.8 log-odds (~2.2x baseline)
-        map.insert("toxicity_death_log_odds_immunosuppressed".to_string(), 0.9); // Immunosuppressed: +0.9 log-odds (~2.5x)
-        map.insert("toxicity_death_log_odds_hospitalized".to_string(), 0.25); // Hospitalized: +0.25 log-odds (~1.3x)
+        map.insert("toxicity_age_multiplier_infant".to_string(), 1.8); // Neonates more vulnerable to severe toxicity
+        map.insert("toxicity_age_multiplier_child".to_string(), 1.2);
+        map.insert("toxicity_age_multiplier_adult".to_string(), 1.0);
+        map.insert("toxicity_age_multiplier_elderly".to_string(), 2.2);
+        map.insert("toxicity_immunosuppressed_multiplier".to_string(), 2.5);
+        map.insert("toxicity_hospital_multiplier".to_string(), 1.3); // Hospitalized patients often have greater monitoring but also more severe illness
 
         // --- Age Category Effects on Infection Acquisition ---
         // Default age category log-odds adjustments (applied to all bacteria unless overridden)

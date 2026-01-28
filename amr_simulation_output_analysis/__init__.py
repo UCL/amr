@@ -46,10 +46,31 @@ def create_all_plots(config=None):
     if config is None:
         config = PlotConfig()
     
-    # Load and cache data
+    # Determine if detail plots are enabled - if any detail plot setting is True
+    detail_plot_attrs = [
+        'drug_failure_rate_by_bacteria_region',
+        'mean_mic_by_drug_for_each_bacteria',
+        'incidence_of_infection_hospital',
+        'incidence_of_infection',
+        'death_rate_by_bacteria_region',
+        'population_mortality_by_bacteria_region',
+        'mean_any_r_by_drug_for_each_bacteria',
+        'proportion_of_people_taking_each_drug',
+        'for_each_bacteria_and_each_drug_proportion_of_infected_people_with_mic_lt_2',
+        'proportion_of_people_infected_with_each_bacteria',
+        'drug_score_analysis_by_bacteria',
+        'drug_score_summary',
+        'basic_plots',
+    ]
+    include_detail_plots = any(getattr(config, attr, False) for attr in detail_plot_attrs)
+    
+    # Load and cache data with column subsetting for memory efficiency
     _t0 = _time.time()
     data_cache = DataCache()
-    df = data_cache.get_simulation_data()
+    df = data_cache.get_simulation_data(
+        use_column_subset=True,
+        include_detail_plots=include_detail_plots,
+    )
     print(f"[TIME] CSV load took {_time.time() - _t0:.1f} seconds")
     
     if df is None:

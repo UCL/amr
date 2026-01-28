@@ -94,6 +94,10 @@ class PlotConfig:
     
     # Memory management
     low_memory_mode: bool = True  # Enable memory-saving optimizations for large datasets
+    gc_after_each_figure: bool = True  # Force garbage collection after each figure
+    max_figures_before_gc: int = 1  # Force GC after this many figures (1 = aggressive)
+    drop_raw_data_after_preprocess: bool = True  # Free raw CSV data after preprocessing
+    use_float32: bool = True  # Use float32 instead of float64 to halve memory
     
     # Smoothing and styling
     smoothing_window_days: int = 365  
@@ -192,7 +196,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_610829.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_154277.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

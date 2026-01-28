@@ -36,6 +36,8 @@ mod simulation;
 //
 // hgt "ignores plasmid fitness - suggest to model plasmid persistence independent of chromosomal resistance
 //
+// add the two drug levels (blood and infection site) to infection journeys and think if more to add 
+//
 //
 //
 // consider for future iterations:
@@ -116,7 +118,7 @@ fn main() {
     let population_size = 100_000;
     let time_steps = 38_325;
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false ; // Set to true to enable infection journey logging
+    let log_infection_journeys = false  ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 0.90; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
