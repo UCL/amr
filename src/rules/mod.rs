@@ -2644,7 +2644,15 @@ pub fn apply_rules(
         }
     }
 
-    // drug-specific toxicity hazard (fatal adverse events)
+    // === DRUG TOXICITY RESERVOIR MODEL ===
+    // The "toxicity reservoir" is a per-drug accumulator that models how drug toxicity
+    // builds up during treatment and decays after stopping. Key properties:
+    //   - Accumulation: While on a drug, toxicity adds daily (drug_level × hazard_rate)
+    //   - Decay: Each day the reservoir decays exponentially (half-life ~7 days typical)
+    //   - Per-drug: Each antibiotic has its own reservoir (colistin more toxic than amoxicillin)
+    //   - Aggregated: All reservoirs sum to total toxicity exposure for death risk
+    // This captures the clinical reality that organ damage (nephrotoxicity, etc.) doesn't
+    // disappear instantly when treatment stops, and prolonged courses accumulate more risk.
     let default_half_life = store.globals.default_toxicity_reservoir_half_life_days;
     let default_decay_factor = if default_half_life > 0.0 {
         (-LN_2 / default_half_life).exp()
@@ -2677,43 +2685,34 @@ pub fn apply_rules(
         aggregated_toxicity_hazard += individual.drug_toxicity_reservoir[drug_idx];
     }
 
-    // === LOGISTIC MODEL FOR DRUG TOXICITY DEATH ===
-    // P(death) = 1 / (1 + exp(-log_odds))
-    // This gives a proper S-curve bounded by 0-1 without artificial clamping
+    // === MULTIPLICATIVE MODEL FOR DRUG TOXICITY DEATH ===
+    // Death risk is directly proportional to accumulated toxicity in the reservoir.
+    // The hazard_per_unit_level values are pre-calibrated to give appropriate 
+    // per-day death probabilities (typically 10^-7 to 10^-8 range).
+    // Multipliers adjust for patient factors that affect toxicity vulnerability.
     
-    // Start with base log-odds (very low baseline when no toxicity)
-    let mut toxicity_log_odds = store.globals.toxicity_death_base_log_odds;
-    
-    // Toxicity reservoir effect - this is the main driver
-    // Higher accumulated toxicity = higher death risk
-    toxicity_log_odds += aggregated_toxicity_hazard * store.globals.toxicity_death_log_odds_per_reservoir_unit;
-
-    // Age effect (log-odds scale)
     let age_years = individual.age as f64 / 365.0;
-    let age_log_odds = if age_years < 1.0 {
-        store.globals.toxicity_death_log_odds_age_infant
+    let age_toxicity_multiplier = if age_years < 1.0 {
+        store.globals.toxicity_age_multiplier_infant
     } else if age_years < 18.0 {
-        store.globals.toxicity_death_log_odds_age_child
+        store.globals.toxicity_age_multiplier_child
     } else if age_years < 65.0 {
-        store.globals.toxicity_death_log_odds_age_adult
+        store.globals.toxicity_age_multiplier_adult
     } else {
-        store.globals.toxicity_death_log_odds_age_elderly
+        store.globals.toxicity_age_multiplier_elderly
     };
-    toxicity_log_odds += age_log_odds;
 
-    // Immunosuppression effect
+    let mut toxicity_death_risk = aggregated_toxicity_hazard * age_toxicity_multiplier;
+
     if individual.immunodeficiency_type.is_some() {
-        toxicity_log_odds += store.globals.toxicity_death_log_odds_immunosuppressed;
+        toxicity_death_risk *= store.globals.toxicity_immunosuppressed_multiplier;
     }
 
-    // Hospitalization effect (sicker patients, but also better monitoring)
     if individual.hospital_status.is_hospitalized() {
-        toxicity_log_odds += store.globals.toxicity_death_log_odds_hospitalized;
+        toxicity_death_risk *= store.globals.toxicity_hospital_multiplier;
     }
 
-    // Convert log-odds to probability using logistic function
-    // P = 1 / (1 + exp(-log_odds))
-    let toxicity_death_risk = 1.0 / (1.0 + (-toxicity_log_odds).exp());
+    toxicity_death_risk = toxicity_death_risk.clamp(0.0, 1.0);
 
     individual.current_toxicity_hazard = aggregated_toxicity_hazard;
     individual.mortality_risk_current_toxicity = toxicity_death_risk;

@@ -957,9 +957,24 @@ pub struct Individual {
     /// True if currently taking this drug.
     pub cur_use_drug: Vec<bool>,
     
-    /// Current drug concentration level. 
+    /// Current drug concentration level in blood (pharmacokinetic level).
     /// Standard level = 10.0 on a day when standard dose is taken.
     /// Decays according to drug half-life when not dosed.
+    /// 
+    /// NOTE: Drug level at the infection site differs from blood level due to tissue
+    /// penetration and accumulation kinetics. Site level is calculated on-the-fly as:
+    ///   site_level = blood_level × penetration_factor(syndrome, drug) × accumulation_factor(days_on_drug)
+    /// 
+    /// We deliberately do NOT store site level as a parallel variable because:
+    /// 1. It depends on syndrome - an individual may have multiple infections with
+    ///    different syndromes, each with different penetration factors
+    /// 2. It's purely derived data - storing it would create synchronization burden
+    ///    and risk of stale/inconsistent values
+    /// 3. Blood level is always meaningful (PK happens regardless of infection),
+    ///    while site level only matters when infected
+    /// 
+    /// The site-level calculation is performed in rules/mod.rs when computing activity_r,
+    /// using store.syndrome.drug_penetration() and accumulation kinetics.
     pub cur_level_drug: Vec<f64>,
     
     /// Day (time_step) when each drug was last initiated.

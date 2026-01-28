@@ -102,6 +102,7 @@ class DataCache:
         force_reload: bool = False,
         use_column_subset: bool = True,
         include_detail_plots: bool = False,
+        enabled_detail_plots: Optional[List[str]] = None,
     ) -> Optional[pd.DataFrame]:
         """
         Get cached simulation data, loading if necessary.
@@ -110,7 +111,8 @@ class DataCache:
             csv_file: Path to CSV file (uses default if None)
             force_reload: Force reload even if cached
             use_column_subset: Only load columns needed for grouped plots + calibration
-            include_detail_plots: Also include columns for detail plots
+            include_detail_plots: DEPRECATED - use enabled_detail_plots instead
+            enabled_detail_plots: List of specific detail plot names to load columns for
             
         Returns:
             DataFrame with simulation data or None if loading failed
@@ -125,6 +127,7 @@ class DataCache:
                 str(csv_path),
                 use_column_subset=use_column_subset,
                 include_detail_plots=include_detail_plots,
+                enabled_detail_plots=enabled_detail_plots,
             )
             
             # Clear dependent cached data when simulation data reloads
@@ -394,6 +397,7 @@ def load_simulation_data(
     csv_file: str,
     use_column_subset: bool = True,
     include_detail_plots: bool = False,
+    enabled_detail_plots: Optional[List[str]] = None,
 ) -> Optional[pd.DataFrame]:
     """
     Load simulation data from CSV file with optional column subsetting.
@@ -407,7 +411,8 @@ def load_simulation_data(
     Args:
         csv_file: Path to the simulation summary CSV file
         use_column_subset: If True, only load columns needed for grouped plots + calibration
-        include_detail_plots: If True, also include columns for detail plots (more memory)
+        include_detail_plots: DEPRECATED - use enabled_detail_plots instead
+        enabled_detail_plots: List of specific detail plot names to include columns for
         
     Returns:
         DataFrame with simulation data or None if loading failed
@@ -423,7 +428,9 @@ def load_simulation_data(
 
     # Determine which columns to load
     usecols: Optional[List[str]] = None
-    if use_column_subset and not include_detail_plots:
+    # Use column subset if enabled and we're not falling back to loading everything
+    should_subset = use_column_subset and not (include_detail_plots and not enabled_detail_plots)
+    if should_subset:
         try:
             all_columns = get_csv_columns(csv_path)
             usecols = get_required_columns(
@@ -431,6 +438,7 @@ def load_simulation_data(
                 include_grouped_plots=True,
                 include_calibration=True,
                 include_detail_plots=include_detail_plots,
+                enabled_detail_plots=enabled_detail_plots,
             )
             print(f"[MEMORY] {estimate_memory_savings(len(all_columns), len(usecols))}")
         except Exception as e:

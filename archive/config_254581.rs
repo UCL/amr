@@ -224,14 +224,7 @@ pub struct GlobalScalars {
     pub mdr_tb_modern_era_multiplier: f64,
     pub microbiome_resistance_emergence_rate_per_day_baseline: f64,
     pub default_toxicity_reservoir_half_life_days: f64,
-    // Drug toxicity death multiplicative model parameters
-    pub toxicity_age_multiplier_infant: f64,
-    pub toxicity_age_multiplier_child: f64,
-    pub toxicity_age_multiplier_adult: f64,
-    pub toxicity_age_multiplier_elderly: f64,
-    pub toxicity_immunosuppressed_multiplier: f64,
-    pub toxicity_hospital_multiplier: f64,
-    // Drug toxicity death logistic model parameters (log-odds scale) - DEPRECATED, kept for config compatibility
+    // Drug toxicity death logistic model parameters (log-odds scale)
     pub toxicity_death_base_log_odds: f64,
     pub toxicity_death_log_odds_per_reservoir_unit: f64,
     pub toxicity_death_log_odds_age_infant: f64,
@@ -522,38 +515,7 @@ impl GlobalScalars {
                 1.5,
             )
             .max(0.0),
-            // Drug toxicity death multiplicative model parameters
-            toxicity_age_multiplier_infant: get_or_default(
-                map,
-                "toxicity_age_multiplier_infant",
-                1.8, // Neonates more vulnerable to severe toxicity
-            ),
-            toxicity_age_multiplier_child: get_or_default(
-                map,
-                "toxicity_age_multiplier_child",
-                1.2,
-            ),
-            toxicity_age_multiplier_adult: get_or_default(
-                map,
-                "toxicity_age_multiplier_adult",
-                1.0,
-            ),
-            toxicity_age_multiplier_elderly: get_or_default(
-                map,
-                "toxicity_age_multiplier_elderly",
-                2.2,
-            ),
-            toxicity_immunosuppressed_multiplier: get_or_default(
-                map,
-                "toxicity_immunosuppressed_multiplier",
-                2.5,
-            ),
-            toxicity_hospital_multiplier: get_or_default(
-                map,
-                "toxicity_hospital_multiplier",
-                1.3, // Hospitalized patients often sicker but also monitored
-            ),
-            // Drug toxicity death logistic model parameters - DEPRECATED
+            // Drug toxicity death logistic model parameters
             toxicity_death_base_log_odds: get_or_default(
                 map,
                 "toxicity_death_base_log_odds",
