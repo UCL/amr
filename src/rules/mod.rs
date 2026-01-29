@@ -3357,20 +3357,14 @@ pub fn apply_rules(
                 // prophylaxis can prevent colonization, and why treatment of infections often clears carriage.
                 // EMPIRICAL BASIS: Decolonization protocols use antibiotics (e.g., mupirocin for MRSA nasal carriage).
                 // Treatment courses often clear S. aureus carriage as a side effect.
-                // IMPLEMENTATION: activity_r already accounts for drug level, potency, and resistance.
-                // Each unit of activity proportionally increases clearance log-odds.
+                // IMPLEMENTATION: For microbiome (colonization sites like gut, nasal, skin), we use blood drug level
+                // directly - these sites are well-perfused unlike protected infection compartments (CNS, bone, abscess).
+                // Microbiome activity = potency × blood_level × (1 - microbiome_resistance)
                 for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
                     if drug_level > 0.1 {
                         let resistance_data = &individual.resistances[b_idx][d_idx];
-                        let activity = resistance_data.activity_r;
-                        if activity > 0.1 {
-                            // Only count drugs with meaningful activity
-                            let clearance_boost = activity
-                                * store
-                                    .globals
-                                    .antibiotic_clearance_log_odds_per_unit_activity;
-                            clearance_log_odds += clearance_boost;
-                        }
+                        // Calculate microbiome-specific activity using blood level (not site-adjusted level)
+                        // and microbiome_r (not any_r which is for infections)
                         let normalized_micro_r = if max_resistance_level <= f64::EPSILON {
                             1.0
                         } else {
@@ -3379,6 +3373,16 @@ pub fn apply_rules(
                         let base_potency = param_cache.potency(b_idx, d_idx);
                         let effective_activity =
                             (base_potency * drug_level * (1.0 - normalized_micro_r)).max(0.0);
+                        
+                        // Use this microbiome-specific activity for clearance boost
+                        if effective_activity > 0.1 {
+                            let clearance_boost = effective_activity
+                                * store
+                                    .globals
+                                    .antibiotic_clearance_log_odds_per_unit_activity;
+                            clearance_log_odds += clearance_boost;
+                        }
+                        
                         strongest_microbiome_activity =
                             strongest_microbiome_activity.max(effective_activity);
                     }
@@ -4102,31 +4106,15 @@ pub fn apply_rules(
                         // Calculate activity_r using the updated resistance levels
                         let normalized_any_r = resistance_data.any_r / max_resistance_level;
                         
-                        // Apply syndrome-specific drug penetration and accumulation factors
+                        // Apply syndrome-specific drug penetration factor
                         // This accounts for pharmacokinetic differences at different infection sites
+                        // Penetration factor represents the fraction of blood concentration that achieves
+                        // therapeutic effect at the infection site (already incorporates clinical treatment outcomes)
                         let syndrome_id = individual.infectious_syndrome[bacteria_full_idx] as usize;
                         let penetration_factor = store.syndrome.drug_penetration(syndrome_id, drug_index);
                         
-                        // Calculate time-based accumulation factor for protected compartments
-                        // Drug needs time to equilibrate in CNS, bone, abscess cavities
-                        let days_to_therapeutic = store.syndrome.days_to_therapeutic(syndrome_id);
-                        let days_on_drug = if individual.date_drug_initiated[drug_index] > i32::MIN {
-                            ((time_step as i32) - individual.date_drug_initiated[drug_index]).max(0) as f64
-                        } else {
-                            0.0
-                        };
-                        // Accumulation follows saturation kinetics: starts slow, approaches max
-                        // Uses 1 - exp(-k*t) curve where k = ln(2)/days_to_therapeutic
-                        // At t=days_to_therapeutic, reaches ~50% of max; at 3×, reaches ~87%
-                        let accumulation_factor = if days_to_therapeutic > 1.0 {
-                            let k = (2.0_f64).ln() / days_to_therapeutic;
-                            (1.0 - (-k * days_on_drug).exp()).max(0.1) // Minimum 10% effect even on day 1
-                        } else {
-                            1.0 // Immediate therapeutic levels for most syndromes
-                        };
-                        
                         // Effective drug level at infection site
-                        let effective_drug_level = drug_current_level * penetration_factor * accumulation_factor;
+                        let effective_drug_level = drug_current_level * penetration_factor;
                         
                         resistance_data.activity_r =
                             base_potency * effective_drug_level * (1.0 - normalized_any_r);
@@ -4402,52 +4390,12 @@ pub fn apply_rules(
                 }
             }
 
-            if individual.id == 1000001 {
-                println!(" ");
-                println!("mod.rs");
-                println!("bacteria: {}", bacteria);
-                println!("immune clearance hazard: {:.4}", immune_hazard);
-                println!("baseline change: {:.4} (raw: {:.4}, age_mult: {:.2}, immuno_mult: {:.2}, syndrome_mult: {:.2})", 
-                    adjusted_baseline_change, baseline_change, age_growth_multiplier, immuno_growth_multiplier, syndrome_growth_multiplier);
-            }
-
             for (drug_idx, _drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                 if individual.cur_level_drug[drug_idx] > 0.0 {
                     let resistance_data = &individual.resistances[b_idx][drug_idx];
                     total_reduction_due_to_antibiotic += resistance_data.activity_r;
 
-                    if individual.id == 1000001 {
-                        // Calculate standardized MIC: 1 / ((1 - majority_r) * potency)
-                        let potency = param_cache.potency(b_idx, drug_idx);
-                        let max_resistance_level = store.globals.max_resistance_level;
-                        let normalized_majority_r =
-                            resistance_data.majority_r / max_resistance_level;
-                        let standardized_mic = if (1.0 - normalized_majority_r) * potency > 0.0 {
-                            1.0 / ((1.0 - normalized_majority_r) * potency)
-                        } else {
-                            f64::INFINITY
-                        };
-                        // Show syndrome-specific penetration and accumulation factors
-                        let syndrome_id = individual.infectious_syndrome[b_idx] as usize;
-                        let penetration = store.syndrome.drug_penetration(syndrome_id, drug_idx);
-                        let days_to_therapeutic = store.syndrome.days_to_therapeutic(syndrome_id);
-                        let days_on_drug = if individual.date_drug_initiated[drug_idx] > i32::MIN {
-                            ((time_step as i32) - individual.date_drug_initiated[drug_idx]).max(0) as f64
-                        } else {
-                            0.0
-                        };
-                        println!(
-                            "mod.rs  {}: level={:.4}, activity_r={:.4}, mic={:.4}, syndrome={}, penetration={:.2}, days_on={:.0}, days_to_ther={:.1}",
-                            DRUG_SHORT_NAMES[drug_idx],
-                            individual.cur_level_drug[drug_idx],
-                            resistance_data.activity_r,
-                            standardized_mic,
-                            syndrome_id,
-                            penetration,
-                            days_on_drug,
-                            days_to_therapeutic
-                        );
-                    }
+ 
                 }
             }
 
@@ -4508,17 +4456,11 @@ pub fn apply_rules(
                         * (synergy_multiplier - 1.0))
                         + background_effectiveness;
 
-                    if individual.id == 1000001 {
-                        println!(
-                            "mod.rs  TB synergy: {} active drugs, bonus = {:.4}",
-                            active_tb_drugs.len(),
-                            tb_synergy_bonus
-                        );
-                    }
+
                 }
             }
 
-            // Antibiotic effectiveness is now determined through bacteria-drug specific potency values
+            // ^^^ Antibiotic effectiveness is now determined through bacteria-drug specific potency values
             // rather than a universal treatment response modifier
             // TB synergy bonus is added here because multi-drug synergy is fundamental to TB treatment effectiveness -
             // it's not an optional enhancement but a biological requirement for meaningful bacterial killing
@@ -4526,21 +4468,6 @@ pub fn apply_rules(
                 individual.drug_activity_response_multiplier[b_idx];
             let adjusted_antibiotic_effect = (total_reduction_due_to_antibiotic + tb_synergy_bonus)
                 * antibiotic_effect_multiplier;
-
-            if individual.id == 1000001 {
-                println!(
-                    "mod.rs  total reduction due to antibiotic: {:.4}",
-                    total_reduction_due_to_antibiotic
-                );
-                println!(
-                    "mod.rs  antibiotic effect multiplier: {:.4}",
-                    antibiotic_effect_multiplier
-                );
-                println!(
-                    "mod.rs  adjusted antibiotic effect: {:.4}",
-                    adjusted_antibiotic_effect
-                );
-            }
 
             let decay = adjusted_baseline_change - adjusted_antibiotic_effect;
 

@@ -1975,9 +1975,9 @@ def _build_mean_abs_gap_tables(
             else:
                 new_row[col] = pd.NA
 
-        result = table.copy()
-        result.loc[len(result)] = new_row
-        return result
+        # Use pd.concat instead of .loc assignment to avoid FutureWarning
+        new_row_df = pd.DataFrame([new_row], columns=table.columns)
+        return pd.concat([table, new_row_df], ignore_index=True)
 
     bacteria_table = _format_table("Bacteria", "Combinations counted")
     bacteria_table = _append_mean_row(bacteria_table, "Mean across bacteria", "Combinations counted")

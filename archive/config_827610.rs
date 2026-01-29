@@ -231,6 +231,15 @@ pub struct GlobalScalars {
     pub toxicity_age_multiplier_elderly: f64,
     pub toxicity_immunosuppressed_multiplier: f64,
     pub toxicity_hospital_multiplier: f64,
+    // Drug toxicity death logistic model parameters (log-odds scale) - DEPRECATED, kept for config compatibility
+    pub toxicity_death_base_log_odds: f64,
+    pub toxicity_death_log_odds_per_reservoir_unit: f64,
+    pub toxicity_death_log_odds_age_infant: f64,
+    pub toxicity_death_log_odds_age_child: f64,
+    pub toxicity_death_log_odds_age_adult: f64,
+    pub toxicity_death_log_odds_age_elderly: f64,
+    pub toxicity_death_log_odds_immunosuppressed: f64,
+    pub toxicity_death_log_odds_hospitalized: f64,
     pub regional_resistance_threshold_very_high: f64,
     pub regional_resistance_threshold_high: f64,
     pub regional_resistance_threshold_moderate: f64,
@@ -359,7 +368,7 @@ impl GlobalScalars {
             drug_activity_to_bacteria_level_multiplier: get_or_default(
                 map,
                 "drug_activity_to_bacteria_level_multiplier",
-                1.5,
+                1.0,
             ),
             drug_activity_slow_clearance_probability: get_or_default(
                 map,
@@ -543,6 +552,47 @@ impl GlobalScalars {
                 map,
                 "toxicity_hospital_multiplier",
                 1.3, // Hospitalized patients often sicker but also monitored
+            ),
+            // Drug toxicity death logistic model parameters - DEPRECATED
+            toxicity_death_base_log_odds: get_or_default(
+                map,
+                "toxicity_death_base_log_odds",
+                -8.0, // Very low baseline (~0.03% daily risk with no toxicity)
+            ),
+            toxicity_death_log_odds_per_reservoir_unit: get_or_default(
+                map,
+                "toxicity_death_log_odds_per_reservoir_unit",
+                2.0, // Each unit of toxicity reservoir adds ~7x risk
+            ),
+            toxicity_death_log_odds_age_infant: get_or_default(
+                map,
+                "toxicity_death_log_odds_age_infant",
+                0.6, // ~1.8x baseline for infants
+            ),
+            toxicity_death_log_odds_age_child: get_or_default(
+                map,
+                "toxicity_death_log_odds_age_child",
+                0.2, // ~1.2x baseline for children
+            ),
+            toxicity_death_log_odds_age_adult: get_or_default(
+                map,
+                "toxicity_death_log_odds_age_adult",
+                0.0, // Reference category
+            ),
+            toxicity_death_log_odds_age_elderly: get_or_default(
+                map,
+                "toxicity_death_log_odds_age_elderly",
+                0.8, // ~2.2x baseline for elderly
+            ),
+            toxicity_death_log_odds_immunosuppressed: get_or_default(
+                map,
+                "toxicity_death_log_odds_immunosuppressed",
+                0.9, // ~2.5x for immunosuppressed
+            ),
+            toxicity_death_log_odds_hospitalized: get_or_default(
+                map,
+                "toxicity_death_log_odds_hospitalized",
+                0.25, // ~1.3x for hospitalized (monitoring helps but sicker)
             ),
             regional_resistance_threshold_very_high: get_or_default(
                 map,
@@ -1113,6 +1163,9 @@ pub struct SyndromeParameters {
     /// Drug penetration multipliers by syndrome: [syndrome_id][drug_idx] -> penetration factor (0.0-1.0)
     /// Accounts for tissue/compartment-specific drug distribution
     drug_penetration: Vec<Vec<f64>>,
+    /// Days required to reach therapeutic levels by syndrome
+    /// Accounts for slow equilibration in protected compartments (CNS, bone, abscess)
+    days_to_therapeutic: Vec<f64>,
 }
 
 impl SyndromeParameters {
@@ -1127,10 +1180,29 @@ impl SyndromeParameters {
         let mut empiric_drug_scores = vec![vec![1.0; num_drugs]; len];
         let mut bacteria_growth_multiplier = vec![1.0; len];
         let mut drug_penetration = vec![vec![1.0; num_drugs]; len];
+        let mut days_to_therapeutic = vec![1.0; len];
 
-        // Initialize syndrome-specific defaults for drug penetration
+        // Initialize syndrome-specific defaults for drug penetration and time to therapeutic
         // Syndromes: 1=UTI, 2=Skin, 3=Respiratory, 4=Bloodstream, 5=Intra-abdominal, 
         //           6=CNS, 7=GI, 8=Genital, 9=Bone/joint, 10=Other
+        
+        // Days to therapeutic level defaults (slow equilibration for protected compartments)
+        // Most syndromes: 1 day (rapid equilibration)
+        // CNS (6): 3 days - blood-brain barrier equilibration
+        // Bone/joint (9): 3 days - poor vascularity, biofilm
+        // Intra-abdominal (5): 2 days - abscess penetration
+        days_to_therapeutic[1] = 1.0;  // UTI
+        days_to_therapeutic[2] = 1.0;  // Skin
+        days_to_therapeutic[3] = 1.0;  // Respiratory
+        days_to_therapeutic[4] = 1.0;  // Bloodstream
+        days_to_therapeutic[5] = 2.0;  // Intra-abdominal (abscess)
+        days_to_therapeutic[6] = 3.0;  // CNS (blood-brain barrier)
+        days_to_therapeutic[7] = 1.0;  // GI
+        days_to_therapeutic[8] = 1.5;  // Genital (prostate barrier for males)
+        days_to_therapeutic[9] = 3.0;  // Bone/joint (poor vascularity)
+        days_to_therapeutic[10] = 1.0; // Other
+
+        // Initialize drug penetration defaults based on pharmacokinetic properties
         // Drug class-based penetration factors by syndrome
         Self::initialize_drug_penetration_defaults(&mut drug_penetration);
 
@@ -1158,6 +1230,13 @@ impl SyndromeParameters {
                 &format!("syndrome_{}_bacteria_growth_multiplier", syndrome_id),
                 1.0,
             );
+            
+            // Override days_to_therapeutic from config if specified
+            days_to_therapeutic[syndrome_id] = get_or_default(
+                map,
+                &format!("syndrome_{}_days_to_therapeutic", syndrome_id),
+                days_to_therapeutic[syndrome_id],
+            );
 
             for (drug_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
                 let key = format!("syndrome_{}_empiric_drug_{}_score", syndrome_id, drug);
@@ -1180,6 +1259,7 @@ impl SyndromeParameters {
             empiric_drug_scores,
             bacteria_growth_multiplier,
             drug_penetration,
+            days_to_therapeutic,
         }
     }
     
@@ -1457,6 +1537,16 @@ impl SyndromeParameters {
         self.drug_penetration
             .get(syndrome_id)
             .and_then(|drugs| drugs.get(drug_idx))
+            .copied()
+            .unwrap_or(1.0)
+    }
+
+    /// Get days required to reach therapeutic level for a syndrome
+    /// Used to model delayed equilibration in protected compartments (CNS, bone, abscess)
+    #[inline]
+    pub fn days_to_therapeutic(&self, syndrome_id: usize) -> f64 {
+        self.days_to_therapeutic
+            .get(syndrome_id)
             .copied()
             .unwrap_or(1.0)
     }
