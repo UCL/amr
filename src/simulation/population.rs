@@ -442,7 +442,7 @@ pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
     BacteriaGroup::GramPositive,
     BacteriaGroup::Anaerobe,
     BacteriaGroup::Anaerobe,
-    BacteriaGroup::EntericPathogen,
+    BacteriaGroup::Helicobacter,  // campylobacter_jejuni - Campylobacterota, excluded from Enterobacterales HGT
     BacteriaGroup::Enterobacterales,
     BacteriaGroup::Enterobacterales,
     BacteriaGroup::Fastidious,

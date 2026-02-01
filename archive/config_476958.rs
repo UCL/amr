@@ -10149,35 +10149,35 @@ lazy_static! {
         // (resistance can still be acquired from the population cache if present)
         map.insert(
             "bacteria_escherichia_coli_mechanism_esbl_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.00000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_ampc_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_qnr_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_carbapenemase_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_target_site_mutation_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
         map.insert(
             "bacteria_escherichia_coli_mechanism_reduced_permeability_emergence_multiplier".to_string(),
-            1.0e-20,
+            0.000000001,
         );
 
         // Enterobacter cloacae complex carries inducible AmpC and readily acquires carbapenemases/plasmid quinolone protection

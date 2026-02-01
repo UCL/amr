@@ -2558,8 +2558,9 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             ).mean()
             
             # Plot death proportion over time
+            # Colors match Grouped Figure 2d (Deaths in Past Year panel)
             ax.plot(df['time_in_years'], smoothed_death_prop, 
-                   label='Total Death Rate', linewidth=2, color='red')
+                   label='All-cause', linewidth=2, color='black')
             
             # Optional: Plot death causes separately
             death_bg_prop = df[death_bg_col] / df[pop_col].replace(0, 1)
@@ -2580,34 +2581,30 @@ def create_death_rate_by_region_plots(df: pd.DataFrame, config: PlotConfig) -> N
             ax.plot(
                 df['time_in_years'],
                 smooth_bg,
-                label='Background Mortality',
+                label='Background',
                 linewidth=1,
                 color='gray',
-                alpha=0.7,
             )
             ax.plot(
                 df['time_in_years'],
                 smooth_sepsis,
-                label='Sepsis Deaths',
+                label='Sepsis',
                 linewidth=1,
                 color='red',
-                alpha=0.7,
             )
             ax.plot(
                 df['time_in_years'],
                 smooth_infection_ns,
-                label='Infection (non-sepsis) Deaths',
+                label='Infection (non-sepsis)',
                 linewidth=1,
                 color='#ff1493',
-                alpha=0.7,
             )
             ax.plot(
                 df['time_in_years'],
                 smooth_tox,
-                label='Drug Toxicity Deaths',
+                label='Drug Toxicity',
                 linewidth=1,
                 color='orange',
-                alpha=0.7,
             )
             
             # Formatting

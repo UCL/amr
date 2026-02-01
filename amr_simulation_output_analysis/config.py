@@ -76,7 +76,7 @@ class PlotConfig:
     incidence_of_infection: bool = False
     death_rate_by_bacteria_region: bool = False  # ~234 columns
     population_mortality_by_bacteria_region: bool = False
-    death_rate_by_region: bool = False
+    death_rate_by_region: bool = True 
     age_distribution_by_region: bool = False
     death_rate_by_syndrome_region: bool = False
     infection_resolution_by_bacteria: bool = False  # Uses existing columns
@@ -252,7 +252,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_827610.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_476958.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

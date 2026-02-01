@@ -637,6 +637,84 @@ Defined in [src/config.rs#L2039-L2085](src/config.rs#L2039-L2085).
 | `values` | Flattened bacteria × mechanism multiplier array applied on top of the global mechanism emergence rate. |
 | `num_mechanisms` | Mechanism count used for indexing the flattened vector. |
 
+## Policy Scenarios
+
+The simulation supports branching policy scenarios that fork from the baseline trajectory at a configurable time point, allowing counterfactual comparisons. Policy adjustments are defined in [src/simulation/simulation.rs#L56-L120](src/simulation/simulation.rs#L56-L120) via the `PolicyAdjustments` struct.
+
+### Policy 0: Baseline (Status Quo)
+
+The reference scenario with no interventions. All policy multipliers default to 1.0 or `None`, meaning baseline parameters from `GlobalScalars` and other stores apply without modification. This branch always runs and serves as the comparator for alternate policies.
+
+### Policy 1: Antimicrobial Stewardship Intervention
+
+Models a comprehensive stewardship program with six coordinated interventions:
+
+| Lever | Value | Mechanism | Clinical Rationale |
+| --- | --- | --- | --- |
+| `drug_selection_temperature` | 0.65× baseline | Lower softmax temperature → more deterministic prescribing | Clinicians follow guidelines more closely; less random prescribing |
+| `bacterial_testing_rate_multiplier` | 1.5× | 50% increase in bacterial culture/identification | Better pathogen identification enables targeted therapy |
+| `resistance_testing_rate_multiplier` | 1.5× | 50% increase in antimicrobial susceptibility testing | Matched to bacterial testing; AST enables de-escalation |
+| `reserve_drug_penalty_multiplier` | 2.0× | Reserve penalty squared (penalty^2.0) | Carbapenems, colistin, linezolid restricted unless failure documented |
+| `drug_initiation_rate_multiplier` | 0.85× | 15% reduction in initiation log-odds | Reduces unnecessary prescribing ("antibiotic time-out") |
+| `drug_cessation_rate_multiplier` | 1.2× | 20% increase in cessation probability | Shorter courses (evidence supports 5-7 days for most infections) |
+
+**Implementation details:**
+- Reserve drug penalty uses exponential scaling: `penalty^multiplier`, so 2.0× squares the penalty making reserve drugs much harder to select empirically
+- Initiation reduction applies in log-odds space: `ln(0.85) ≈ -0.16` reduces odds by ~15%
+- Cessation multiplier applies to both "active infection" and "no infection" pathways
+- Testing rate increases apply multiplicatively to baseline regional testing rates
+
+**Expected effects:**
+- Reduced broad-spectrum and reserve antibiotic use
+- Faster de-escalation to narrow-spectrum agents
+- Shorter treatment courses reducing selection pressure
+- Better diagnostic-driven prescribing
+- Slower resistance emergence at population level
+
+### Policy 2: AMR Counterfactual (World Without Resistance)
+
+A hypothetical scenario estimating the burden attributable to antimicrobial resistance by simulating a world where resistance never emerged:
+
+| Lever | Value | Effect |
+| --- | --- | --- |
+| `resistance_emergence_multiplier` | 0.0 | Resistance never emerges de novo |
+| `clear_all_resistance_on_branch_start` | true | All existing resistance cleared when branch forks |
+
+**Use case:** Comparing deaths, treatment failures, and healthcare costs between Policy 0 (with resistance) and Policy 2 (without resistance) quantifies the mortality and morbidity burden directly attributable to AMR.
+
+### Adding Custom Policies
+
+New policies can be added by implementing additional constructor functions in `PolicyAdjustments`:
+
+```rust
+fn custom_policy() -> Self {
+    Self {
+        policy_option: 3,
+        drug_selection_temperature: Some(0.3),  // Very deterministic
+        bacterial_testing_rate_multiplier: Some(2.0),  // Universal testing
+        resistance_testing_rate_multiplier: Some(2.0),
+        resistance_emergence_multiplier: None,
+        clear_all_resistance_on_branch_start: false,
+        reserve_drug_penalty_multiplier: Some(3.0),  // Strict reserve restrictions
+        drug_initiation_rate_multiplier: Some(0.7),  // 30% reduction
+        drug_cessation_rate_multiplier: Some(1.5),   // Much shorter courses
+    }
+}
+```
+
+Then register the policy in `Simulation::new()`:
+```rust
+let branch_policies = vec![
+    PolicyAdjustments::alternate_example(globals),
+    PolicyAdjustments::amr_counterfactual(),
+    PolicyAdjustments::custom_policy(),  // Add here
+];
+```
+
+### Policy Output
+
+Each policy branch writes its own summary CSV with `policy_option` column distinguishing branches. The baseline (policy_option=0) summary is always written; alternate branches (policy_option=1, 2, ...) are written to separate files or appended with their option identifier. Downstream analysis can compare trajectories by joining on `time_step` and filtering by `policy_option`.
+
 
 # AMR Simulation and Analysis Project
 

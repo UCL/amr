@@ -1103,6 +1103,11 @@ pub fn apply_rules(
     // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
     // of setting it to zero in a counterfactual scenario with no resistance
 
+    // New stewardship policy levers
+    let reserve_drug_penalty_multiplier = policy.reserve_drug_penalty_multiplier.unwrap_or(1.0);
+    let drug_initiation_rate_multiplier = policy.drug_initiation_rate_multiplier.unwrap_or(1.0);
+    let drug_cessation_rate_multiplier = policy.drug_cessation_rate_multiplier.unwrap_or(1.0);
+
     if individual.age < 0 {
         individual.age += 1; // Only advance age by 1 day
         return; // Exit the function if unborn
@@ -1202,7 +1207,7 @@ pub fn apply_rules(
     if !individual.hospital_status.is_hospitalized() {
         // Calculate hospitalization probability using LOGISTIC MODEL
         // P(hospitalization) = 1 / (1 + exp(-log_odds))
-        // log_odds = base + age_effect + sepsis_effect
+        // log_odds = base + age_effect + sepsis_effect + region_effect
         
         let age_years = individual.age as f64 / 365.0;
         let mut log_odds = hosp_base_log_odds + (age_years * hosp_log_odds_per_age_year);
@@ -1211,6 +1216,10 @@ pub fn apply_rules(
         if has_sepsis {
             log_odds += hosp_log_odds_sepsis;
         }
+        
+        // Regional healthcare access effect - HICs admit patients more readily
+        // This improves sepsis survival in well-resourced regions
+        log_odds += store.region.hospitalization_log_odds(individual.region_living);
         
         // Logistic transformation: P = 1 / (1 + exp(-log_odds))
         let prob_hospitalization_today = 1.0 / (1.0 + (-log_odds).exp());
@@ -1393,12 +1402,14 @@ pub fn apply_rules(
                 };
 
                 // Add regional sepsis risk factors (healthcare access, population density, resources)
+                // Uses per-region parameters for fine-grained differentiation
                 let region_log_odds = match individual.region_living {
-                    Region::Africa | Region::Asia => store.globals.log_odds_sepsis_region_b, // Lower resource regions
-                    Region::NorthAmerica | Region::Europe | Region::Oceania => {
-                        store.globals.log_odds_sepsis_region_a
-                    } // Higher resource regions
-                    Region::SouthAmerica => store.globals.log_odds_sepsis_region_b, // Mixed resource region
+                    Region::NorthAmerica => store.globals.log_odds_sepsis_onset_region_north_america,
+                    Region::Europe => store.globals.log_odds_sepsis_onset_region_europe,
+                    Region::Oceania => store.globals.log_odds_sepsis_onset_region_oceania,
+                    Region::Asia => store.globals.log_odds_sepsis_onset_region_asia,
+                    Region::SouthAmerica => store.globals.log_odds_sepsis_onset_region_south_america,
+                    Region::Africa => store.globals.log_odds_sepsis_onset_region_africa,
                     Region::Home => 0.0, // Neutral/no effect for home region
                 };
 
@@ -1588,7 +1599,9 @@ pub fn apply_rules(
                 let random_cessation_if_no_infection = store
                     .globals
                     .random_drug_cessation_probability_if_no_active_infection;
-                if rng.gen_bool(random_cessation_if_no_infection) {
+                // Apply policy multiplier for shorter courses
+                let adjusted_cessation = (random_cessation_if_no_infection * drug_cessation_rate_multiplier).min(0.99);
+                if rng.gen_bool(adjusted_cessation) {
                     stop_drug = true;
                 }
             } else {
@@ -1600,7 +1613,8 @@ pub fn apply_rules(
                 // Apply regional multiplier based on individual's current region
                 let region_multiplier = store.region.cessation_multiplier(individual.region_cur_in);
 
-                let final_cessation_prob = (base_cessation_prob * region_multiplier).min(0.99); // Cap at 99%
+                // Apply policy multiplier for shorter/longer courses (stewardship intervention)
+                let final_cessation_prob = (base_cessation_prob * region_multiplier * drug_cessation_rate_multiplier).min(0.99); // Cap at 99%
 
                 if rng.gen_bool(final_cessation_prob) {
                     stop_drug = true;
@@ -1742,6 +1756,17 @@ pub fn apply_rules(
         // Apply scaling factor for limited drug availability (converted to log-odds)
         if scaling_factor != 1.0 && scaling_factor > 0.0 {
             log_odds += scaling_factor.ln();
+        }
+        
+        // Regional healthcare access adjustment
+        // Reflects disparities in access to prescribers and antibiotic availability
+        log_odds += store.region.antibiotic_initiation_log_odds(individual.region_living);
+        
+        // Apply policy adjustment for drug initiation rate (stewardship intervention)
+        // Multiplier < 1.0 reduces initiation (less unnecessary prescribing)
+        // Convert multiplier to log-odds adjustment: ln(0.85) ≈ -0.16 reduces odds by ~15%
+        if drug_initiation_rate_multiplier != 1.0 && drug_initiation_rate_multiplier > 0.0 {
+            log_odds += drug_initiation_rate_multiplier.ln();
         }
         
         // Logistic transformation: P = 1 / (1 + exp(-log_odds))
@@ -2538,7 +2563,9 @@ pub fn apply_rules(
                 }
 
                 if reserve_candidate {
-                    let reserve_penalty = store.globals.reserve_drug_score_penalty;
+                    let base_reserve_penalty = store.globals.reserve_drug_score_penalty;
+                    // Apply policy multiplier: higher multiplier = stronger penalty (more restrictive)
+                    let reserve_penalty = base_reserve_penalty.powf(reserve_drug_penalty_multiplier);
                     if reserve_penalty >= 0.0 {
                         score *= reserve_penalty;
                     }

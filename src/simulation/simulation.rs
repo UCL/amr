@@ -62,6 +62,10 @@ pub(crate) struct PolicyAdjustments {
     pub(crate) resistance_testing_rate_multiplier: Option<f64>,
     pub(crate) resistance_emergence_multiplier: Option<f64>,
     pub(crate) clear_all_resistance_on_branch_start: bool,
+    // New stewardship-focused policy levers
+    pub(crate) reserve_drug_penalty_multiplier: Option<f64>,     // Multiplier for reserve drug score penalty (>1 = stricter)
+    pub(crate) drug_initiation_rate_multiplier: Option<f64>,     // Multiplier for antibiotic initiation (<1 = less prescribing)
+    pub(crate) drug_cessation_rate_multiplier: Option<f64>,      // Multiplier for treatment duration (<1 = longer, >1 = shorter courses)
 }
 
 impl PolicyAdjustments {
@@ -74,21 +78,33 @@ impl PolicyAdjustments {
             resistance_testing_rate_multiplier: None,
             resistance_emergence_multiplier: None,
             clear_all_resistance_on_branch_start: false,
+            reserve_drug_penalty_multiplier: None,
+            drug_initiation_rate_multiplier: None,
+            drug_cessation_rate_multiplier: None,
         }
     }
 
     fn alternate_example(globals: &config::GlobalScalars) -> Self {
-        // Example policy tweak: make drug choice more deterministic by reducing the selection randomness level.
-        // Update the scaling and/or add more overrides below when introducing new policy experiments.
+        // Antimicrobial Stewardship Policy
+        // --------------------------------
+        // This policy models a comprehensive stewardship intervention:
+        // 1. More deterministic prescribing (lower temperature = best drug more likely)
+        // 2. Increased diagnostic testing (bacterial ID + susceptibility)
+        // 3. Stronger reserve drug restrictions (2× penalty for carbapenems, linezolid, etc.)
+        // 4. Reduced unnecessary prescribing (15% reduction in initiation)
+        // 5. Shorter treatment courses where appropriate (20% faster cessation)
         let adjusted_temperature = (globals.drug_selection_temperature * 0.65).max(0.01);
         Self {
             policy_option: 1,
             drug_selection_temperature: Some(adjusted_temperature),
             minimal_potency_threshold_for_drug_selection: None,
-            bacterial_testing_rate_multiplier: Some(1.6),
-            resistance_testing_rate_multiplier: Some(1.4),
+            bacterial_testing_rate_multiplier: Some(1.5),    // 50% more bacterial cultures
+            resistance_testing_rate_multiplier: Some(1.5),   // 50% more AST (matched to cultures)
             resistance_emergence_multiplier: None,
             clear_all_resistance_on_branch_start: false,
+            reserve_drug_penalty_multiplier: Some(2.0),      // 2× penalty for reserve drugs
+            drug_initiation_rate_multiplier: Some(0.85),     // 15% reduction in unnecessary Rx
+            drug_cessation_rate_multiplier: Some(1.2),       // Shorter courses (20% faster)
         }
     }
 
@@ -101,6 +117,9 @@ impl PolicyAdjustments {
             resistance_testing_rate_multiplier: None,
             resistance_emergence_multiplier: Some(0.0),
             clear_all_resistance_on_branch_start: true,
+            reserve_drug_penalty_multiplier: None,
+            drug_initiation_rate_multiplier: None,
+            drug_cessation_rate_multiplier: None,
         }
     }
 }
