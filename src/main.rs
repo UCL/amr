@@ -36,17 +36,9 @@ mod simulation;
 //
 // hgt "ignores plasmid fitness - suggest to model plasmid persistence independent of chromosomal resistance
 //
-// can i make most resistance emergence paramaters zero and get most resistance
-// emerging through mechanisms, including the "other" ?
-// - can have several "other"s - other for set of drugs a, other for set of drugs b, etc
-//
 // reduce overall death rate - think what must be wrong
 //
 // check on "initial_level" in mod.rs and how it is used in different contexts
-//
-// resistance emergence in infection should depend on site drug level not blood
-//
-// does bell shaped curve resistance emergence logic work for double dosing ?
 //
 // switch on dependence of new mutation on bacteria load (?)
 //

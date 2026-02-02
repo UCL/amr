@@ -29,7 +29,6 @@ use std::mem;
 use std::fmt::{self, Write as FmtWrite};
 use std::io::Write as IoWrite;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Instant;
 
 const CARRIAGE_DURATION_BIN_LABELS: [&str; 5] = ["0_29", "30_89", "90_179", "180_359", "360_plus"];
@@ -229,12 +228,14 @@ pub struct MajorityRConfig {
     pub freeze_at_last_positive: bool,
 }
 
+const HISTOGRAM_BINS: usize = 20;
+
 #[derive(Clone)]
 struct DayContribution {
     day_index: u32,
     total_samples: u32,
     positive_samples: u32,
-    positive_values: Arc<Vec<f64>>,
+    histogram: [u32; HISTOGRAM_BINS],
 }
 
 #[derive(Clone)]
@@ -284,7 +285,7 @@ impl MajorityRBuffer {
         self.refresh_probability_cache();
     }
 
-    fn push_day(&mut self, current_day: u32, total: u32, positive: u32, values: Arc<Vec<f64>>) {
+    fn push_day(&mut self, current_day: u32, total: u32, positive: u32, histogram: [u32; HISTOGRAM_BINS]) {
         if self.window_days == 0 || total == 0 {
             return;
         }
@@ -295,7 +296,7 @@ impl MajorityRBuffer {
             day_index: current_day,
             total_samples: total,
             positive_samples: positive,
-            positive_values: values,
+            histogram,
         });
 
         self.refresh_probability_cache();
@@ -328,21 +329,31 @@ impl MajorityRBuffer {
             return None;
         }
 
-        let total_values: usize = self.days.iter().map(|day| day.positive_values.len()).sum();
-        if total_values == 0 {
+        let total_positives: u32 = self.days.iter().map(|day| day.positive_samples).sum();
+        if total_positives == 0 {
             return None;
         }
 
-        let mut target = rng.gen_range(0..total_values);
+        let mut sample_idx = rng.gen_range(0..total_positives);
         for day in &self.days {
-            let values = &*day.positive_values;
-            if values.is_empty() {
+            if day.positive_samples == 0 {
                 continue;
             }
-            if target < values.len() {
-                return Some(values[target]);
+            if sample_idx < day.positive_samples {
+                for (bin_idx, &count) in day.histogram.iter().enumerate() {
+                    if count == 0 {
+                        continue;
+                    }
+                    if sample_idx < count {
+                        let min_val = bin_idx as f64 / HISTOGRAM_BINS as f64;
+                        let max_val = (bin_idx + 1) as f64 / HISTOGRAM_BINS as f64;
+                        return Some(rng.gen_range(min_val..max_val));
+                    }
+                    sample_idx -= count;
+                }
+                return Some(0.5);
             }
-            target -= values.len();
+            sample_idx -= day.positive_samples;
         }
 
         None
@@ -392,13 +403,13 @@ impl MajorityRBuffer {
 #[derive(Clone)]
 pub struct MajorityRCache {
     buckets: Vec<MajorityRBuffer>,
-    pending_positive_values: Vec<Vec<f64>>,
+    pending_histograms: Vec<[u32; HISTOGRAM_BINS]>,
     pending_positive_counts: Vec<u32>,
     pending_total_counts: Vec<u32>,
     bucket_cumulative_totals: Vec<u64>,
     bucket_threshold_met: Vec<bool>,
     world_buckets: Vec<MajorityRBuffer>,
-    world_pending_positive_values: Vec<Vec<f64>>,
+    world_pending_histograms: Vec<[u32; HISTOGRAM_BINS]>,
     world_pending_positive_counts: Vec<u32>,
     world_pending_total_counts: Vec<u32>,
     num_regions: usize,
@@ -425,13 +436,13 @@ impl MajorityRCache {
 
         MajorityRCache {
             buckets: bucket_states,
-            pending_positive_values: vec![Vec::new(); total_buckets],
+            pending_histograms: vec![[0; HISTOGRAM_BINS]; total_buckets],
             pending_positive_counts: vec![0; total_buckets],
             pending_total_counts: vec![0; total_buckets],
             bucket_cumulative_totals: vec![0u64; total_buckets],
             bucket_threshold_met: vec![false; total_buckets],
             world_buckets: vec![MajorityRBuffer::new(config); world_len],
-            world_pending_positive_values: vec![Vec::new(); world_len],
+            world_pending_histograms: vec![[0; HISTOGRAM_BINS]; world_len],
             world_pending_positive_counts: vec![0; world_len],
             world_pending_total_counts: vec![0; world_len],
             num_regions,
@@ -482,8 +493,8 @@ impl MajorityRCache {
             .clone_from(&prev.bucket_cumulative_totals);
         self.bucket_threshold_met
             .clone_from(&prev.bucket_threshold_met);
-        for vec in &mut self.pending_positive_values {
-            vec.clear();
+        for hist in &mut self.pending_histograms {
+            *hist = [0; HISTOGRAM_BINS];
         }
         for count in &mut self.pending_positive_counts {
             *count = 0;
@@ -491,8 +502,8 @@ impl MajorityRCache {
         for count in &mut self.pending_total_counts {
             *count = 0;
         }
-        for vec in &mut self.world_pending_positive_values {
-            vec.clear();
+        for hist in &mut self.world_pending_histograms {
+            *hist = [0; HISTOGRAM_BINS];
         }
         for count in &mut self.world_pending_positive_counts {
             *count = 0;
@@ -522,7 +533,9 @@ impl MajorityRCache {
         let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
         self.pending_total_counts[idx] = self.pending_total_counts[idx].saturating_add(1);
         self.pending_positive_counts[idx] = self.pending_positive_counts[idx].saturating_add(1);
-        self.pending_positive_values[idx].push(value);
+        
+        let bin = ((value * HISTOGRAM_BINS as f64) as usize).min(HISTOGRAM_BINS - 1);
+        self.pending_histograms[idx][bin] = self.pending_histograms[idx][bin].saturating_add(1);
         self.dirty_buckets[idx] = true;
 
         let world_idx = self.world_index(bacteria_idx, drug_idx);
@@ -530,7 +543,8 @@ impl MajorityRCache {
             self.world_pending_total_counts[world_idx].saturating_add(1);
         self.world_pending_positive_counts[world_idx] =
             self.world_pending_positive_counts[world_idx].saturating_add(1);
-        self.world_pending_positive_values[world_idx].push(value);
+        self.world_pending_histograms[world_idx][bin] =
+            self.world_pending_histograms[world_idx][bin].saturating_add(1);
         self.dirty_world_buckets[world_idx] = true;
     }
 
@@ -560,17 +574,16 @@ impl MajorityRCache {
             
             let total = self.pending_total_counts[idx];
             let positive = self.pending_positive_counts[idx];
-            let values_arc = if positive > 0 {
-                Arc::new(std::mem::take(&mut self.pending_positive_values[idx]))
+            let histogram = if positive > 0 {
+                self.pending_histograms[idx]
             } else {
-                self.pending_positive_values[idx].clear();
-                Arc::new(Vec::new())
+                [0; HISTOGRAM_BINS]
             };
 
             if let Some(bucket) = self.buckets.get_mut(idx) {
                 bucket.cleanup(current_day);
                 if total > 0 {
-                    bucket.push_day(current_day, total, positive, values_arc);
+                    bucket.push_day(current_day, total, positive, histogram);
                 }
             }
 
@@ -608,17 +621,16 @@ impl MajorityRCache {
             
             let total = self.world_pending_total_counts[idx];
             let positive = self.world_pending_positive_counts[idx];
-            let values_arc = if positive > 0 {
-                Arc::new(std::mem::take(&mut self.world_pending_positive_values[idx]))
+            let histogram = if positive > 0 {
+                self.world_pending_histograms[idx]
             } else {
-                self.world_pending_positive_values[idx].clear();
-                Arc::new(Vec::new())
+                [0; HISTOGRAM_BINS]
             };
 
             if let Some(bucket) = self.world_buckets.get_mut(idx) {
                 bucket.cleanup(current_day);
                 if total > 0 {
-                    bucket.push_day(current_day, total, positive, values_arc);
+                    bucket.push_day(current_day, total, positive, histogram);
                 }
             }
 

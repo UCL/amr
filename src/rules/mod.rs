@@ -428,11 +428,11 @@ fn assess_treatment_failure(
         return false;
     }
 
-    let initial_level = individual.bacteria_level_at_drug_start[bacteria_idx].unwrap();
+    let bacteria_initial_level = individual.bacteria_level_at_drug_start[bacteria_idx].unwrap();
     let current_level = individual.level[bacteria_idx];
 
     // Get failure threshold (default 0.5 = 50% of initial level)
-    let threshold_level = initial_level * store.globals.treatment_failure_threshold;
+    let threshold_level = bacteria_initial_level * store.globals.treatment_failure_threshold;
 
     // Treatment failure criterion: current bacteria level >= threshold × initial level
     let treatment_failed = current_level >= threshold_level;
@@ -557,8 +557,8 @@ fn assess_treatment_failure(
             update_drug_counter(individual);
 
             // Set drug level
-            let initial_level = store.drug.initial_level(new_drug_idx);
-            individual.cur_level_drug[new_drug_idx] = initial_level;
+            let drug_initial_level = store.drug.initial_level(new_drug_idx);
+            individual.cur_level_drug[new_drug_idx] = drug_initial_level;
 
             // Reset treatment failure tracking for this bacteria
             mark_new_treatment_course(individual, bacteria_idx, current_level, rng);
@@ -3546,8 +3546,8 @@ pub fn apply_rules(
 
                 // Only proceed with infection if not prevented by existing antibiotics
                 if !infection_prevented {
-                    let initial_level = store.bacteria.initial_infection_level(b_idx);
-                    individual.level[b_idx] = initial_level;
+                    let bacteria_initial_level = store.bacteria.initial_infection_level(b_idx);
+                    individual.level[b_idx] = bacteria_initial_level;
                     individual.date_last_infected[b_idx] = time_step as i32;
                     individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
                     individual.clearance_ready_day[b_idx] = -1;

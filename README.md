@@ -13,7 +13,7 @@ Resistance tracking relies on five per-bacteria/drug metrics defined in [src/sim
 
 ### Drug Activity Calculation
 
-The `activity_r` metric determines the effective antibacterial action at the infection site. It incorporates pharmacokinetic realism through syndrome-specific penetration and accumulation factors ([src/rules/mod.rs#L3928-L3960](src/rules/mod.rs#L3928-L3960)):
+The `activity_r` metric determines the effective antibacterial action **at the infection site**, not just in the bloodstream. It incorporates pharmacokinetic realism through syndrome-specific penetration and accumulation factors ([src/rules/mod.rs#L3928-L3960](src/rules/mod.rs#L3928-L3960)):
 
 ```
 activity_r = base_potency × effective_drug_level × (1 - normalized_resistance)
@@ -27,11 +27,12 @@ where:
                         with minimum floor of 0.1
 ```
 
-This captures clinical reality where:
-- **Aminoglycosides** achieve only 5% CNS penetration due to the blood-brain barrier
-- **Fluoroquinolones** achieve 90% prostatic penetration, making them preferred for prostatitis
-- **CNS infections** require 3 days for drugs to equilibrate, reducing early treatment efficacy
-- **Bone/joint infections** have poor vascularity requiring prolonged therapy with good penetrating agents
+This captures clinical reality where drug concentration varies wildly by tissue:
+- **Site-Specific Efficacy**: A drug with high serum levels may still fail if it cannot penetrate the infection site (e.g., Aminoglycosides in CNS).
+- **Aminoglycosides** achieve only 5% CNS penetration due to the blood-brain barrier.
+- **Fluoroquinolones** achieve 90% prostatic penetration, making them preferred for prostatitis.
+- **CNS infections** require 3 days for drugs to equilibrate, reducing early treatment efficacy.
+- **Bone/joint infections** have poor vascularity requiring prolonged therapy with good penetrating agents.
 
 ### Bacteria Growth and Host Factors
 
@@ -827,8 +828,9 @@ config = PlotConfig(
 
 ### Biological Processes
 - **Infection Acquisition**: Contact-based transmission with regional, age, and exposure factors
-- **Resistance Emergence**: Dynamic resistance development in infections and microbiomes
-- **Drug Pharmacodynamics**: Multi-drug interactions with realistic decay and efficacy
+- **Resistance Emergence**: purely mechanistic ("bottom-up") model using physics-based Gaussian dose response curves.
+- **Microbiology**: 39 tracked bacteria with species-specific fitness costs, emergence probabilities, and HGT rates (including "superbug" profiles for *Pseudomonas*, *N. gonorrhoeae*, etc.).
+- **Drug Pharmacodynamics**: Multi-drug interactions with realistic decay and site-specific efficacy
 - **Testing and Diagnosis**: Laboratory delays, identification accuracy, resistance testing
 - **Clearance Dynamics**: Bacteria-specific clearance hazards with age and immunodeficiency modifiers
 
@@ -840,7 +842,7 @@ config = PlotConfig(
 
 ### Drug and Resistance Modeling
 - **Multi-drug Support**: 52 drugs across major antibiotic classes
-- **Resistance Mechanisms**: Genetic and phenotypic resistance evolution
+- **Resistance Mechanisms**: Explicit genetic mechanisms (efflux, target mod, etc.) drive phenotypic resistance (`any_r`).
 - **Treatment Protocols**: Empirical and targeted therapy based on testing
 - **Microbiome Effects**: Commensal bacteria resistance affecting treatment
 - **Pharmacokinetic Modeling**: Syndrome-specific drug penetration and time-to-therapeutic accumulation
@@ -889,4 +891,3 @@ Previous monolithic analysis scripts have been archived in `archive/legacy_scrip
 **Python**: 3.8+ with packages listed in `requirements.txt`
 
 This project is for research and educational use in antimicrobial resistance modeling. 
-

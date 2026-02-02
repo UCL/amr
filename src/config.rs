@@ -10115,7 +10115,7 @@ lazy_static! {
         // microbiome_resistance_emergence_rates ^^^
         map.insert("microbiome_resistance_emergence_rate_per_day_baseline".to_string(), 1.0e-20 ); // 1.0e-50  ***  Calibrated for microbiome resistance emergence
 
-        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 0.0); // 0.08 *** Multiplier for bacteria level's effect on emergence - by default this is zero and has no effect
+        map.insert("resistance_emergence_bacteria_level_multiplier".to_string(), 9.0); // Multiplier for bacteria level's effect on emergence (ranges 1.0x to 10.0x)
 
         map.insert("resistance_emergence_pop_size_multiplier".to_string(),  1.0); // Debug tool to keep prevalence steady when population size changes - default pop size is 100_000
 
