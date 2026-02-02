@@ -9547,7 +9547,7 @@ lazy_static! {
 
 
         
-/*   
+
 
         // ***
 
@@ -9557,7 +9557,7 @@ lazy_static! {
             }
         }
 
-*/
+
         
 
 
@@ -13339,6 +13339,27 @@ pub fn sample_age_and_region_from_distribution(
     (Region::Asia, 0)
 }
 
+/// Helper function to get drug interaction multiplier between two drugs
+/// Returns the multiplier for drug1's level when co-administered with drug2
+/// Returns 1.0 (no interaction) if no specific interaction is defined
+#[allow(dead_code)]
+pub fn get_drug_interaction_multiplier(drug1: &str, drug2: &str) -> f64 {
+    let interaction_key = format!(
+        "drug_level_multiplier_{}_when_coadministered_with_{}",
+        drug1, drug2
+    );
+    get_global_param(&interaction_key).unwrap_or(1.0)
+}
+
+/// Helper function to check if two drugs have a defined interaction
+#[allow(dead_code)]
+pub fn drugs_have_interaction(drug1: &str, drug2: &str) -> bool {
+    let interaction_key = format!(
+        "drug_level_multiplier_{}_when_coadministered_with_{}",
+        drug1, drug2
+    );
+    get_global_param(&interaction_key).is_some()
+}
 
 /// Helper function to list all active drug interactions for debugging/analysis
 #[allow(dead_code)]

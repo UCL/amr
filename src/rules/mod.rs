@@ -211,55 +211,7 @@ fn update_drug_counter(individual: &mut Individual) {
         individual.cur_use_drug.iter().filter(|&&on| on).count() as i32;
 }
 
-/// Apply pairwise drug level interactions based on pharmacokinetic effects
-/// Modifies individual.cur_level_drug in-place to account for drug-drug interactions
-#[inline]
-fn apply_drug_level_interactions(individual: &mut Individual, param_cache: &ParameterKeyCache) {
-    let store = parameter_store();
-    // Create a copy of current levels to calculate interactions from baseline levels
-    let original_levels = individual.cur_level_drug.clone();
 
-    // Identify which drugs have significant levels (above INFECTION_EPS, roughly 0.1% of standard dose)
-    let active_drugs: Vec<usize> = original_levels
-        .iter()
-        .enumerate()
-        .filter(|(_, &level)| level > INFECTION_EPS)
-        .map(|(idx, _)| idx)
-        .collect();
-
-    // If fewer than 2 drugs active, no interactions possible
-    if active_drugs.len() < 2 {
-        return;
-    }
-
-    // Apply each pairwise interaction using pre-computed multipliers
-    for &drug1_idx in &active_drugs {
-        for &drug2_idx in &active_drugs {
-            if drug1_idx == drug2_idx {
-                continue; // Skip self-interactions
-            }
-
-            let multiplier = param_cache.drug_interaction_multiplier(drug1_idx, drug2_idx);
-
-            // Apply the interaction multiplier to drug1's level
-            // Only apply if it would actually change the level (avoid redundant 1.0 multipliers)
-            if (multiplier - 1.0).abs() > 0.001 {
-                individual.cur_level_drug[drug1_idx] *= multiplier;
-
-                // Ensure levels don't go negative or below detection threshold
-                if individual.cur_level_drug[drug1_idx] < INFECTION_EPS {
-                    individual.cur_level_drug[drug1_idx] = 0.0;
-                }
-
-                // Cap levels at reasonable maximum (e.g., 5x standard dose to prevent unrealistic accumulation)
-                let max_level = store.drug.initial_level(drug1_idx) * 5.0;
-                if individual.cur_level_drug[drug1_idx] > max_level {
-                    individual.cur_level_drug[drug1_idx] = max_level;
-                }
-            }
-        }
-    }
-}
 use rand::distributions::Distribution;
 use rand::distributions::WeightedIndex;
 
@@ -944,9 +896,6 @@ pub struct ParameterKeyCache {
     /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
     /// Value of 1.0 means no preference adjustment (default)
     clinical_preference_multipliers: Vec<f64>,
-    /// Pre-computed drug-drug interaction multipliers [drug1_idx * drug_count + drug2_idx]
-    /// Value of 1.0 means no interaction (default)
-    drug_interaction_multipliers: Vec<f64>,
 }
 
 impl ParameterKeyCache {
@@ -1001,19 +950,6 @@ impl ParameterKeyCache {
             }
         }
 
-        // Pre-compute drug-drug interaction multipliers
-        let mut drug_interaction_multipliers = Vec::with_capacity(drug_count * drug_count);
-        for &drug1_name in DRUG_SHORT_NAMES.iter() {
-            for &drug2_name in DRUG_SHORT_NAMES.iter() {
-                let key = format!(
-                    "drug_level_multiplier_{}_when_coadministered_with_{}",
-                    drug1_name, drug2_name
-                );
-                let multiplier = get_global_param(&key).unwrap_or(1.0);
-                drug_interaction_multipliers.push(multiplier);
-            }
-        }
-
         ParameterKeyCache {
             drug_count,
             bacteria_count,
@@ -1021,7 +957,6 @@ impl ParameterKeyCache {
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
             clinical_preference_multipliers,
-            drug_interaction_multipliers,
         }
     }
 
@@ -1068,14 +1003,6 @@ impl ParameterKeyCache {
     pub fn clinical_preference_multiplier(&self, bacteria_idx: usize, drug_idx: usize) -> f64 {
         let offset = bacteria_idx * self.drug_count + drug_idx;
         self.clinical_preference_multipliers[offset]
-    }
-
-    /// Get the pre-computed drug-drug interaction multiplier.
-    /// Returns 1.0 if no interaction is configured.
-    #[inline]
-    pub fn drug_interaction_multiplier(&self, drug1_idx: usize, drug2_idx: usize) -> f64 {
-        let offset = drug1_idx * self.drug_count + drug2_idx;
-        self.drug_interaction_multipliers[offset]
     }
 }
 
@@ -1672,10 +1599,6 @@ pub fn apply_rules(
             };
         }
     }
-
-    // --- Apply Drug Level Interactions ---
-    // Calculate final drug levels considering pairwise pharmacokinetic interactions
-    apply_drug_level_interactions(individual, param_cache);
 
     // --- drug initiation (two-stage process) ---
     // Stage 1: Decide whether to start any antibiotic
@@ -3897,21 +3820,37 @@ pub fn apply_rules(
                                 (current_bacteria_level / max_bacteria_level).clamp(0.0, 1.0)
                                     * bacteria_level_effect_multiplier;
 
+
                             // activity_r dependency: Bell-shaped curve
                             // Use the drug's initial level for normalization to get a comparable drug concentration scale (0-10)
                             let drug_initial_level_for_normalization =
                                 store.drug.initial_level(drug_index);
+                            
+                            // Adjust for tissue penetration - calculate site concentration
+                            let syndrome_id = individual.infectious_syndrome[bacteria_full_idx].max(0) as usize;
+                            let penetration_factor = store.syndrome.drug_penetration(syndrome_id, drug_index);
+                            
+                            // Effective level at site = Serum Level * Penetration
+                            let effective_site_level = drug_current_level * penetration_factor;
 
-                            // Normalize current drug level for bell-shaped emergence probability curve
+                            // Normalize by Standard Serum Dose
+                            // This means norm_drug_level represents "Fraction of Standard Serum Dose reaching this site"
+                            // - For Blood (Pen=1.0): 1.0 Dose -> norm = 1.0 (High killing)
+                            // - For CNS (Pen=0.05): 1.0 Dose -> norm = 0.05 (Sub-inhibitory)
+                            // - For CNS (Pen=0.05): 10.0 Dose -> norm = 0.5 (Danger Zone)
                             let mut norm_drug_level =
-                                drug_current_level / drug_initial_level_for_normalization;
+                                effective_site_level / drug_initial_level_for_normalization;
                             norm_drug_level = norm_drug_level.clamp(0.0, 10.0);
 
                             // resistance emergence probability
-                            // bell-shaped curve: 0.02 * x * (10 - x). Peaks at 5.0, is 0.1 at 0 and 10.
-                            // ***
-                            let emergence_drug_concentration_factor =
-                                0.1 + 0.02 * norm_drug_level * (10.0 - norm_drug_level);
+                            // Updated Curve: Peaks at 0.5 (Sub-inhibitory/MIC boundary) rather than 5.0 (High Dose)
+                            // Using Gaussian: Peak 1.0 at x=0.5, Sigma=0.25 (drops to low at x=1.0)
+                            // We add a small baseline of 0.05 so it's never zero.
+                            let peak_x = 0.5;
+                            let sigma = 0.4;
+                            let gaussian_exponent = -((norm_drug_level - peak_x).powi(2)) / (2.0 * sigma * sigma);
+                            let emergence_drug_concentration_factor = 0.05 + 0.95 * gaussian_exponent.exp();
+                            
                             let emergence_drug_factor =
                                 emergence_drug_concentration_factor.clamp(0.0, 1.0);
 
@@ -4007,10 +3946,12 @@ pub fn apply_rules(
                                         continue;
                                     }
 
+
                                     let enhancement =
                                         store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                    if enhancement <= resistance_data.any_r
-                                        && rng.gen_bool(mechanism_prob)
+                                    
+                                    // Modified: Remove enhancement <= any_r check to allow high-level resistance 
+                                    if rng.gen_bool(mechanism_prob)
                                     {
                                         individual.resistance_mechanisms[b_idx][mech_idx] = true;
                                     }
@@ -4493,8 +4434,16 @@ pub fn apply_rules(
             // it's not an optional enhancement but a biological requirement for meaningful bacterial killing
             let antibiotic_effect_multiplier =
                 individual.drug_activity_response_multiplier[b_idx];
+
+            let bacteria_level_scaling_factor = if individual.level[b_idx] < 1.0 {
+                individual.level[b_idx]
+            } else {
+                1.0
+            };
+
             let adjusted_antibiotic_effect = (total_reduction_due_to_antibiotic + tb_synergy_bonus)
-                * antibiotic_effect_multiplier;
+                * antibiotic_effect_multiplier
+                * bacteria_level_scaling_factor;
 
             let decay = adjusted_baseline_change - adjusted_antibiotic_effect;
 

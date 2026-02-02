@@ -40,6 +40,18 @@ mod simulation;
 // emerging through mechanisms, including the "other" ?
 // - can have several "other"s - other for set of drugs a, other for set of drugs b, etc
 //
+// reduce overall death rate - think what must be wrong
+//
+// check on "initial_level" in mod.rs and how it is used in different contexts
+//
+// resistance emergence in infection should depend on site drug level not blood
+//
+// does bell shaped curve resistance emergence logic work for double dosing ?
+//
+// switch on dependence of new mutation on bacteria load (?)
+//
+//
+//
 //
 //
 // consider for future iterations:
@@ -117,7 +129,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 100_000;
+    let population_size =     500;
     let time_steps = 38_325 ;   // 38_325 
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false ; // Set to true to enable infection journey logging
