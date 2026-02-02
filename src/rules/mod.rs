@@ -309,6 +309,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "enterococcus_faecium"
         ),
         ResistanceMechanism::TargetSiteMutation => true,
+        ResistanceMechanism::OtherMechanism1
+        | ResistanceMechanism::OtherMechanism2
+        | ResistanceMechanism::OtherMechanism3 => false,
     }
 }
 
@@ -927,11 +930,23 @@ impl ParameterKeyCache {
         for mechanism in ResistanceMechanism::all().iter() {
             for (_b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
                 for &drug_name in DRUG_SHORT_NAMES.iter() {
-                    mechanism_applicability.push(mechanism_applies_to_drug(
+                    let default_applies = mechanism_applies_to_drug(
                         *mechanism,
                         bacteria_name,
                         drug_name,
-                    ));
+                    );
+                    
+                    // Check for override in global params
+                    // Key format: "mechanism_{mechanism}_applies_to_{drug}"
+                    // Example: "mechanism_other_mechanism_1_applies_to_meropenem"
+                    let override_key = format!("mechanism_{}_applies_to_{}", mechanism.as_str(), drug_name);
+                    let applies = if let Some(val) = get_global_param(&override_key) {
+                        val > 0.5
+                    } else {
+                        default_applies
+                    };
+
+                    mechanism_applicability.push(applies);
                 }
             }
         }
@@ -3799,6 +3814,48 @@ pub fn apply_rules(
                     // this section handles the de novo emergence of resistance when it's not already present.
                     // it should come before activity_r is fully calculated for use in bacteria level reduction *this* time step.
 
+                    // --- PHYSICS CALCULATION (Lifted from Clinical Path) ---
+                    // bacteria level dependency: Higher at higher levels
+                    let max_bacteria_level = store.bacteria.max_level[b_idx];
+                    let bacteria_level_effect_multiplier =
+                        store.globals.resistance_emergence_bacteria_level_multiplier;
+                    // Normalize bacteria level to [0,1] and apply multiplier
+                    let bacteria_level_factor =
+                        (current_bacteria_level / max_bacteria_level).clamp(0.0, 1.0)
+                            * bacteria_level_effect_multiplier;
+
+                    // activity_r dependency: Bell-shaped curve
+                    // Use the drug's initial level for normalization to get a comparable drug concentration scale (0-10)
+                    let drug_initial_level_for_normalization =
+                        store.drug.initial_level(drug_index);
+                    
+                    // Adjust for tissue penetration - calculate site concentration
+                    let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
+                    let penetration_factor = store.syndrome.drug_penetration(syndrome_id, drug_index);
+                    
+                    // Effective level at site = Serum Level * Penetration
+                    let effective_site_level = drug_current_level * penetration_factor;
+
+                    // Normalize by Standard Serum Dose
+                    let mut norm_drug_level =
+                        effective_site_level / drug_initial_level_for_normalization;
+                    norm_drug_level = norm_drug_level.clamp(0.0, 10.0);
+
+                    // resistance emergence probability
+                    // Updated Curve: Peaks at 0.5 (Sub-inhibitory/MIC boundary) rather than 5.0 (High Dose)
+                    // Using Gaussian: Peak 1.0 at x=0.5, Sigma=0.25 (drops to low at x=1.0)
+                    // We add a small baseline of 0.05 so it's never zero.
+                    let peak_x = 0.5;
+                    let sigma = 0.4;
+                    let gaussian_exponent = -((norm_drug_level - peak_x).powi(2)) / (2.0 * sigma * sigma);
+                    let emergence_drug_concentration_factor = 0.05 + 0.95 * gaussian_exponent.exp();
+                    
+                    let emergence_drug_factor =
+                        emergence_drug_concentration_factor.clamp(0.0, 1.0);
+                    // --- END PHYSICS CALCULATION ---
+
+                    // --- CLINICAL PATH (COMMENTED OUT) ---
+                    /*
                     if resistance_data.any_r < 0.0001 {
                         // Check if any_r is effectively zero
                         // only consider emergence if there's drug present (either being taken or decaying)
@@ -3960,6 +4017,7 @@ pub fn apply_rules(
                             }
                         }
                     }
+                    */
                     // --- end new resistance emergence logic ---
 
                     // --- resistance mechanism emergence logic ---
@@ -3991,11 +4049,46 @@ pub fn apply_rules(
                                 let mechanism_multiplier = store
                                     .bacteria_mechanism_emergence
                                     .multiplier(bacteria_full_idx, mechanism_idx);
+
+                                // Calculate Multi-Drug Penalty tailored for this Mechanism
+                                let active_drug_count = individual
+                                    .cur_level_drug
+                                    .iter()
+                                    .filter(|&&level| level > 0.0)
+                                    .count();
+                                let multi_drug_penalty_threshold =
+                                    store.globals.multi_drug_penalty_threshold_num_drugs as usize;
+                                let mut multi_drug_penalty_factor = 1.0;
+
+                                if active_drug_count >= multi_drug_penalty_threshold {
+                                     let mut affected_count = 0;
+                                     // Iterate over ALL drugs to see which are active AND affected by THIS mechanism
+                                     for (d_i, &d_level) in individual.cur_level_drug.iter().enumerate() {
+                                         if d_level > 0.0 {
+                                             if param_cache.mechanism_applicable(mechanism_idx, b_idx, d_i) {
+                                                 affected_count += 1;
+                                             }
+                                         }
+                                     }
+                                     if affected_count == 0 { affected_count = 1; }
+
+                                    if affected_count < active_drug_count {
+                                        if affected_count == 1 {
+                                            multi_drug_penalty_factor = store.globals.resistance_development_inhibition_single_drug;
+                                        } else {
+                                            multi_drug_penalty_factor = store.globals.resistance_development_inhibition_partial_cross;
+                                        }
+                                    }
+                                }
+
                                 let mechanism_emergence_rate =
                                     store.resistance_mechanism.emergence_rate(mechanism_idx)
                                         * mechanism_multiplier
                                         * store.globals.resistance_emergence_pop_size_multiplier
-                                        * resistance_emergence_multiplier; // Use pop-size, species, and policy multipliers for infection-site mechanism emergence
+                                        * resistance_emergence_multiplier
+                                        * (1.0 + bacteria_level_factor)
+                                        * emergence_drug_factor
+                                        * multi_drug_penalty_factor;
 
                                 if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
                                     individual.resistance_mechanisms[bacteria_full_idx]

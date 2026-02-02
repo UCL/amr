@@ -80,6 +80,9 @@ pub enum ResistanceMechanism {
     MecA,                      // MecA-mediated methicillin resistance
     ReducedPermeability,       // Reduced outer membrane permeability
     TargetSiteMutation,        // Target site mutations (e.g., gyrA, parC)
+    OtherMechanism1,           // Placeholder for unknown/other mechanism 1
+    OtherMechanism2,           // Placeholder for unknown/other mechanism 2
+    OtherMechanism3,           // Placeholder for unknown/other mechanism 3
 }
 
 impl ResistanceMechanism {
@@ -97,6 +100,9 @@ impl ResistanceMechanism {
             ResistanceMechanism::MecA,
             ResistanceMechanism::ReducedPermeability,
             ResistanceMechanism::TargetSiteMutation,
+            ResistanceMechanism::OtherMechanism1,
+            ResistanceMechanism::OtherMechanism2,
+            ResistanceMechanism::OtherMechanism3,
         ]
     }
 
@@ -114,6 +120,9 @@ impl ResistanceMechanism {
             ResistanceMechanism::MecA => "meca",
             ResistanceMechanism::ReducedPermeability => "reduced_permeability",
             ResistanceMechanism::TargetSiteMutation => "target_site_mutation",
+            ResistanceMechanism::OtherMechanism1 => "other_mechanism_1",
+            ResistanceMechanism::OtherMechanism2 => "other_mechanism_2",
+            ResistanceMechanism::OtherMechanism3 => "other_mechanism_3",
         }
     }
 }
@@ -533,8 +542,12 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Fastidious,
         ]),
-        EffluxOverexpression | ReducedPermeability | TargetSiteMutation =>
-            mask_for_groups(BacteriaGroup::all()),
+        EffluxOverexpression
+        | ReducedPermeability
+        | TargetSiteMutation
+        | OtherMechanism1
+        | OtherMechanism2
+        | OtherMechanism3 => mask_for_groups(BacteriaGroup::all()),
         ErmMethylation | VanType | MecA => mask_for_groups(&[BacteriaGroup::GramPositive]),
     }
 }
