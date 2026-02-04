@@ -364,7 +364,7 @@ impl GlobalScalars {
             drug_activity_to_bacteria_level_multiplier: get_or_default(
                 map,
                 "drug_activity_to_bacteria_level_multiplier",
-                0.75,
+                1.5,
             ),
             drug_activity_slow_clearance_probability: get_or_default(
                 map,
@@ -1955,10 +1955,10 @@ impl BacteriaParameters {
 // log_odds = base + bacteria_effect + age_effect + immuno_effect + level_effect
 #[derive(Debug)]
 pub struct ClearanceParameters {
-    _base_delay_days: f64,
+    base_delay_days: f64,
     // Logistic model parameters
     base_clearance_log_odds: f64,
-    _per_bacteria_delay_days: Vec<Option<f64>>,
+    per_bacteria_delay_days: Vec<Option<f64>>,
     per_bacteria_log_odds_adjustment: Vec<f64>,
     age_log_odds_adjustments: [f64; AGE_BUCKET_COUNT],
     immunodeficient_log_odds_adjustment: f64,
@@ -2003,10 +2003,10 @@ impl ClearanceParameters {
         let level_log_odds_per_unit = get_or_default(map, "clearance_level_log_odds_per_unit", -0.3);
 
         ClearanceParameters {
-            _base_delay_days: base_delay_days,
+            base_delay_days,
             base_clearance_log_odds,
-            _per_bacteria_delay_days: per_bacteria_delay_days,
-            per_bacteria_log_odds_adjustment: per_bacteria_log_odds_adjustment,
+            per_bacteria_delay_days,
+            per_bacteria_log_odds_adjustment,
             age_log_odds_adjustments,
             immunodeficient_log_odds_adjustment,
             level_log_odds_per_unit,
@@ -2014,10 +2014,9 @@ impl ClearanceParameters {
     }
 
     #[inline]
-    #[allow(dead_code)]
     pub fn delay_days(&self, bacteria_idx: usize) -> f64 {
-        self._per_bacteria_delay_days[bacteria_idx]
-            .unwrap_or(self._base_delay_days)
+        self.per_bacteria_delay_days[bacteria_idx]
+            .unwrap_or(self.base_delay_days)
             .max(0.0)
     }
 
@@ -2058,7 +2057,6 @@ impl ClearanceParameters {
         age_days: i32,
         is_immunodeficient: bool,
         level: f64,
-        duration_days: u32,
     ) -> f64 {
         // Logistic model: P(clearance) = 1 / (1 + exp(-log_odds))
         // log_odds = base + bacteria + age + immuno + level
@@ -2071,20 +2069,6 @@ impl ClearanceParameters {
         }
         
         log_odds += self.level_log_odds_effect(level);
-
-        // --- Adaptive Immunity Recruitment ---
-        // Basic innate immunity is the baseline.
-        // As infection persists, adaptive immunity recruits (T-cells, antibodies),
-        // increasing the clearance log-odds linearly over time, which creates a sigmoidal
-        // rise in clearance probability.
-        // 
-        // We add 0.5 to log-odds per day.
-        // Example:
-        // Day 0: +0.0
-        // Day 4: +2.0 (e.g. from 1% -> 7% if base is very low, or 10% -> 50% if base is mid)
-        // Day 10: +5.0 (guarantees high clearance probability unless overridden by extreme bacterial load)
-        let adaptive_recruit_slope = 0.5; 
-        log_odds += (duration_days as f64) * adaptive_recruit_slope;
         
         // Logistic transformation
         1.0 / (1.0 + (-log_odds).exp())
@@ -2604,7 +2588,7 @@ impl BacteriaMechanismEmergenceMultipliers {
                     bacteria,
                     mechanism.as_str()
                 );
-                values.push(get_or_default(map, &key, 0.0));
+                values.push(get_or_default(map, &key, 1.0));
             }
         }
 
@@ -6088,21 +6072,6 @@ lazy_static! {
                 // Specific H. pylori drugs handled in individual overrides below
             }
         }
-
-        // === [I] Novel Resistance Mechanism Overrides (Examples) ===
-        // Use these to define emerging "Other" mechanisms specifically for certain bacteria.
-        // This allows defining highly specific resistance threats (e.g., novel pumps or plasmids)
-        // without enabling them globally for all bacteria properly.
-
-        // Example 1: Novel Efflux Pump in Pseudomonas (affecting Meropenem)
-        // map.insert("mechanism_other_mechanism_1_applies_to_meropenem_in_pseudomonas_aeruginosa".to_string(), 1.0);
-        // map.insert("mechanism_other_mechanism_1_applies_to_imipenem_c_in_pseudomonas_aeruginosa".to_string(), 1.0);
-
-        // Example 2: Novel Plasmid in E. coli (affecting Ciprofloxacin, reusing the SAME flag)
-        // map.insert("mechanism_other_mechanism_1_applies_to_ciprofloxacin_in_escherichia_coli".to_string(), 1.0);
-
-        // Example 3: Global Override (affects ALL bacteria with this mechanism - use with caution)
-        // map.insert("mechanism_other_mechanism_2_applies_to_colistin".to_string(), 1.0);
 
 
 
@@ -10191,646 +10160,1278 @@ lazy_static! {
         map.insert("resistance_mechanism_other_mechanism_3_emergence_rate".to_string(), 0.0);
 
         // --- Example bacteria-level mechanism overrides ---
+        // E. coli: All mechanism emergence rates set to 0 to prevent resistance emergence
+        // (resistance can still be acquired from the population cache if present)
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_esbl_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_ampc_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_qnr_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
+        map.insert(
+            "bacteria_escherichia_coli_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            1.0e-10,
+        );
 
-        // E. coli
-        map.insert("bacteria_escherichia_coli_mechanism_target_site_mutation_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_reduced_permeability_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_qnr_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0); 
-        map.insert("bacteria_escherichia_coli_mechanism_esbl_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_ampc_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_meca_emergence_multiplier".to_string(), 0.0); 
-        map.insert("bacteria_escherichia_coli_mechanism_carbapenemase_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_van_type_emergence_multiplier".to_string(), 0.0); 
-        map.insert("bacteria_escherichia_coli_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 1.0e-10); 
-        map.insert("bacteria_escherichia_coli_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_escherichia_coli_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_escherichia_coli_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
-
- 
         // Enterobacter cloacae complex carries inducible AmpC and readily acquires carbapenemases/plasmid quinolone protection
-        map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 30.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 3.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 3.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_qnr_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_esbl_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_ampc_emergence_multiplier".to_string(), 30.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_carbapenemase_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            1000.0,
+        );
 
         // --- Enterobacter spp. (General) ---
         // Defaults: High AmpC (inducible), Moderate ESBL/Efflux
-        map.insert("bacteria_enterobacter_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.5);
-        map.insert("bacteria_enterobacter_spp._mechanism_qnr_emergence_multiplier".to_string(), 0.2);
-        map.insert("bacteria_enterobacter_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_esbl_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_ampc_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_enterobacter_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterobacter_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_enterobacter_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_enterobacter_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_ampc_emergence_multiplier".to_string(),
+            5.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_esbl_emergence_multiplier".to_string(),
+            5.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            5.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            5.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_carbapenemase_emergence_multiplier".to_string(),
+            0.5,
+        );
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_qnr_emergence_multiplier".to_string(),
+            0.5,
+        );
+        map.insert(
+            "bacteria_enterobacter_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            1.0,
+        );
+        // Default others to 0.0 implied by omission? No, defaults are 1.0 in `get_or_default`.
+        // We must override irrelevant ones to low/zero if we want to suppress them.
+        map.insert(
+             "bacteria_enterobacter_spp._mechanism_van_type_emergence_multiplier".to_string(),
+             0.0,
+        );
+        map.insert(
+             "bacteria_enterobacter_spp._mechanism_meca_emergence_multiplier".to_string(),
+             0.0,
+        );
 
         // --- Enterococcus faecalis ---
         // Primarily intrinsic cephalosporin resistance (not emergence), but acquires Van-type (less than faecium)
         // and HLAR (High Level Aminoglycoside Resistance)
-        map.insert("bacteria_enterococcus_faecalis_mechanism_van_type_emergence_multiplier".to_string(), 0.5);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 1.0); // Proxy for HLAR
-        map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 1.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_enterococcus_faecalis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_van_type_emergence_multiplier".to_string(),
+            0.5,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            1.0, // Proxy for HLAR
+        );
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            1.0,
+        );
+        
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_esbl_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecalis_mechanism_ampc_emergence_multiplier".to_string(),
+            0.0,
+        );
 
         // --- Staphylococcus epidermidis ---
         // High MecA (MRSE), Macrolide (Erm)
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_meca_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.4);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.4);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_van_type_emergence_multiplier".to_string(), 0.001); // Less common Vancomycin
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_staphylococcus_epidermidis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_staphylococcus_epidermidis_mechanism_meca_emergence_multiplier".to_string(),
+            0.8,
+        );
+        map.insert(
+            "bacteria_staphylococcus_epidermidis_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            0.4,
+        );
+        map.insert(
+            "bacteria_staphylococcus_epidermidis_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.4,
+        );
+        map.insert(
+            "bacteria_staphylococcus_epidermidis_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.1,
+        );
+        // Less common Vancomycin
+        map.insert(
+            "bacteria_staphylococcus_epidermidis_mechanism_van_type_emergence_multiplier".to_string(),
+            0.001,
+        );
 
          // --- Streptococcus pyogenes (Group A Strep) ---
          // Penicillin still effective (Beta-lactamases ~0). Macrolide resistance via Erm/Efflux.
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.2); // Macrolide resistance
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.2);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+         map.insert(
+            "bacteria_streptococcus_pyogenes_mechanism_esbl_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_streptococcus_pyogenes_mechanism_ampc_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_streptococcus_pyogenes_mechanism_meca_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_streptococcus_pyogenes_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            0.2, // Macrolide resistance
+        );
+        map.insert(
+            "bacteria_streptococcus_pyogenes_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.2,
+        );
+        map.insert(
+            "bacteria_streptococcus_pyogenes_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.1,
+        );
 
         // --- Vibrio cholerae ---
         // Efflux, Quinolone (Target Site)
-        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_vibrio_cholerae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_vibrio_cholerae_mechanism_esbl_emergence_multiplier".to_string(), 0.001); // MDR strains (SXT element)
-        map.insert("bacteria_vibrio_cholerae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_meca_emergence_multiplier".to_string(), 0.0); 
-        map.insert("bacteria_vibrio_cholerae_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_vibrio_cholerae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_vibrio_cholerae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_vibrio_cholerae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_vibrio_cholerae_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.001,
+        );
+        map.insert(
+            "bacteria_vibrio_cholerae_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+             0.001,
+        );
+        // Often susceptible to basics, but MDR strains exist (SXT element).
+        map.insert(
+            "bacteria_vibrio_cholerae_mechanism_esbl_emergence_multiplier".to_string(),
+            0.001,
+        );
 
         // --- Clostridioides difficile ---
         // Anaerobe. Metro/Vanc use. Quinolones drove BI/NAP1.
-        map.insert("bacteria_clostridioides_difficile_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.3); // GyrA/B
-        map.insert("bacteria_clostridioides_difficile_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.4); // Clindamycin
-        map.insert("bacteria_clostridioides_difficile_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_clostridioides_difficile_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_clostridioides_difficile_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_clostridioides_difficile_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_clostridioides_difficile_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_clostridioides_difficile_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+             0.3, // GyrA/B
+        );
+        map.insert(
+            "bacteria_clostridioides_difficile_mechanism_erm_methylation_emergence_multiplier".to_string(),
+             0.4, // Clindamycin
+        );
+        map.insert(
+            "bacteria_clostridioides_difficile_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+             0.1,
+        );
 
         // --- Yersinia enterocolitica ---
         // Intrinsic BlaA/BlaB (AmpC-like)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_ampc_emergence_multiplier".to_string(), 0.5);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_yersinia_enterocolitica_mechanism_ampc_emergence_multiplier".to_string(),
+             0.5,
+        );
+        map.insert(
+            "bacteria_yersinia_enterocolitica_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+             0.1,
+        );
 
         // --- Treponema pallidum (Syphilis) ---
         // Macrolide resistance high (23S rRNA). Penicillin remains king.
-        map.insert("bacteria_treponema_pallidum_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.6); // Rapid emergence to Azithro
-        map.insert("bacteria_treponema_pallidum_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_treponema_pallidum_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_treponema_pallidum_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_treponema_pallidum_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_treponema_pallidum_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_treponema_pallidum_mechanism_erm_methylation_emergence_multiplier".to_string(),
+             0.6, // Rapid emergence to Azithro
+        );
+        map.insert(
+            "bacteria_treponema_pallidum_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+             0.1,
+        );
+        map.insert(
+            "bacteria_treponema_pallidum_mechanism_esbl_emergence_multiplier".to_string(),
+             0.0,
+        );
+        map.insert(
+            "bacteria_treponema_pallidum_mechanism_ampc_emergence_multiplier".to_string(),
+             0.0,
+        );
 
         // --- MDR Mycobacterium tuberculosis ---
         // Chromosomal mutations (Target Site) are the rule.
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 1.0); // High propensity for further mutations (XDR) if treatment inadequate
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.3);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_mdr_mycobacterium_tuberculosis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_mdr_mycobacterium_tuberculosis_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+             1.0, // High propensity for further mutations (XDR) if treatment inadequate
+        );
+        map.insert(
+            "bacteria_mdr_mycobacterium_tuberculosis_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+             0.3,
+        );
+        // Not plasmid mediated
+        map.insert(
+            "bacteria_mdr_mycobacterium_tuberculosis_mechanism_esbl_emergence_multiplier".to_string(),
+             0.0,
+        );
+        map.insert(
+            "bacteria_mdr_mycobacterium_tuberculosis_mechanism_carbapenemase_emergence_multiplier".to_string(),
+             0.0,
+        );
+        map.insert(
+            "bacteria_mdr_mycobacterium_tuberculosis_mechanism_meca_emergence_multiplier".to_string(),
+             0.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_qnr_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_esbl_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_ampc_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_16s_methyltransferase_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_van_type_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_enterobacter_cloacae_mechanism_meca_emergence_multiplier".to_string(),
+            10.0,
+        );
+
         // Haemophilus influenzae rarely maintains high-level mechanism-mediated resistance.
-        map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_ampc_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_esbl_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_qnr_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_haemophilus_influenzae_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.000001,
+        );
+        map.insert(
+            "bacteria_haemophilus_influenzae_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.000001,
+        );
+        map.insert(
+            "bacteria_haemophilus_influenzae_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.000001,
+        );
+        map.insert(
+            "bacteria_haemophilus_influenzae_mechanism_ampc_emergence_multiplier".to_string(),
+            0.000001,
+        );
+        map.insert(
+            "bacteria_haemophilus_influenzae_mechanism_esbl_emergence_multiplier".to_string(),
+            0.000001,
+        );
+        map.insert(
+            "bacteria_haemophilus_influenzae_mechanism_qnr_emergence_multiplier".to_string(),
+            0.000001,
+        );
+
 
        // Stenotrophomonas maltophilia carries constitutive L1/L2 beta-lactamases and multi-drug efflux pumps
-       // L1/L2 are intrinsic, but we model them as high emergence for "acquisition" logic if not present
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_mutation_emergence_multiplier".to_string(), 80.0); // folP/QRDR stepwise mutations emerge under TMP-SMX or fluoroquinolone pressure
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 80.0); // SmeDEF and related pumps rapidly amplify
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_reduced_permeability_emergence_multiplier".to_string(), 80.0); // Porin loss compounds intrinsic drug exclusion
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_qnr_emergence_multiplier".to_string(), 80.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_esbl_emergence_multiplier".to_string(), 80.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_ampc_emergence_multiplier".to_string(), 80.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_carbapenemase_emergence_multiplier".to_string(), 80.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 5.0); // Rare but possible
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        // Reduced from statistical infinity (1e10) to "High" (100.0) to maintain numerical stability while ensuring rapid emergence.
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            80.0,
+        ); // folP/QRDR stepwise mutations emerge under TMP-SMX or fluoroquinolone pressure
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            80.0,
+        ); // SmeDEF and related pumps rapidly amplify
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            80.0,
+        ); // Porin loss compounds intrinsic drug exclusion
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_qnr_emergence_multiplier".to_string(),
+            80.0,
+        ); 
+        // L1/L2 are intrinsic, but we model them as high emergence for "acquisition" logic if not present
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_esbl_emergence_multiplier".to_string(),
+            80.0,
+        ); 
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_ampc_emergence_multiplier".to_string(),
+            80.0,
+        ); 
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            80.0,
+        ); 
+        map.insert(
+            "bacteria_stenotrophomonas_maltophilia_mechanism_16s_methyltransferase_emergence_multiplier"
+                .to_string(),
+            5.0, // Rare but possible
+        );
 
         // Neisseria gonorrhoeae - "Superbug" potential
         // Rapidly acquires mutations (TargetSite) and Upregulates Efflux (MtrCDE)
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1); // HIGH: GyrA, ParC, PenA mutations are primary drivers
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.05); // HIGH: MtrCDE overexpression
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.03); // PorB mutations
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_qnr_emergence_multiplier".to_string(), 0.001); // Plasmid mediated less common than chromosomal
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_esbl_emergence_multiplier".to_string(), 0.02); // Plasmid TEM-1 is common ("Penicillinase") - mapped to ESBL for model purposes
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_neisseria_gonorrhoeae_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            7.0, // HIGH: GyrA, ParC, PenA mutations are primary drivers
+        );
+        map.insert(
+            "bacteria_neisseria_gonorrhoeae_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            3.0, // HIGH: MtrCDE overexpression
+        );
+        map.insert(
+            "bacteria_neisseria_gonorrhoeae_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            1.5, // PorB mutations
+        );
+        map.insert(
+            "bacteria_neisseria_gonorrhoeae_mechanism_qnr_emergence_multiplier".to_string(),
+            0.1, // Plasmid mediated less common than chromosomal
+        );
+        map.insert(
+            "bacteria_neisseria_gonorrhoeae_mechanism_esbl_emergence_multiplier".to_string(),
+            1.5, // Plasmid TEM-1 is common ("Penicillinase") - mapped to ESBL for model purposes
+        );
 
         // Neisseria meningitidis - Comparatively susceptible but gaining ground
-        map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.001); // PenA modifications occuring
-        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_qnr_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_esbl_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_neisseria_meningitidis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_neisseria_meningitidis_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.001, // PenA modifications occuring
+        );
+        map.insert(
+            "bacteria_neisseria_meningitidis_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.001,
+        );
+        map.insert(
+            "bacteria_neisseria_meningitidis_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.001,
+        );
+        map.insert(
+            "bacteria_neisseria_meningitidis_mechanism_qnr_emergence_multiplier".to_string(),
+            0.001,
+        );
+        map.insert(
+            "bacteria_neisseria_meningitidis_mechanism_esbl_emergence_multiplier".to_string(),
+            0.001,
+        );
 
         // Klebsiella pneumoniae - The "Plasmid Sponge"
         // Needs HIGH plasmid-mediated parameters (ESBL, Carbapenemase)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.3);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_qnr_emergence_multiplier".to_string(), 1.0); // Frequent co-carriage
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.2); // AcrAB-TolC
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.2); // OmpK35/36 loss
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier".to_string(), 1.0); // HIGH: CTX-M is endemic
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_ampc_emergence_multiplier".to_string(), 0.5); // Plasmid AmpC (DHA, CMY)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.8); // HIGH: KPC, NDM, OXA-48
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            3.0,
+        );
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_qnr_emergence_multiplier".to_string(),
+            10.0, // Frequent co-carriage
+        );
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            2.0, // AcrAB-TolC
+        );
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            2.0, // OmpK35/36 loss
+        );
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier".to_string(),
+            10.0, // HIGH: CTX-M is endemic
+        );
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_ampc_emergence_multiplier".to_string(),
+            5.0, // Plasmid AmpC (DHA, CMY)
+        );
+        map.insert(
+            "bacteria_klebsiella_pneumoniae_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            8.0, // HIGH: KPC, NDM, OXA-48
+        );
 
         // Listeria monocytogenes - Generally susceptible, resistance is rare (reduced)
-        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.2);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_listeria_monocytogenes_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_listeria_monocytogenes_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_listeria_monocytogenes_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.2,
+        );
+        map.insert(
+            "bacteria_listeria_monocytogenes_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_listeria_monocytogenes_mechanism_qnr_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_listeria_monocytogenes_mechanism_erm_methylation_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
 
         // Moraxella catarrhalis - 90%+ produce Beta-lactamase (BRO-1/2)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_esbl_emergence_multiplier".to_string(), 50.0); // Almost all isolates are resistant to Penicillin via BRO
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_moraxella_catarrhalis_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_moraxella_catarrhalis_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_moraxella_catarrhalis_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_moraxella_catarrhalis_mechanism_esbl_emergence_multiplier".to_string(),
+            50.0, // Almost all isolates are resistant to Penicillin via BRO
+        );
 
         // Mycoplasma genitalium - High mutation rates in 23S (Macrolide) and ParC (Fluoroquinolone)
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.01); // HIGH: Quinolone resistance
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.01); // HIGH: Macrolide resistance (mutation based, but mapped to Erm/Methylation effect)
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.001);
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            1.0, // HIGH: Quinolone resistance
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_qnr_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            1.0, // HIGH: Macrolide resistance (mutation based, but mapped to Erm/Methylation effect)
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.001,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            0.001,
+        );
         // Mycoplasmas have no cell wall -> No Beta-lactams -> No Beta-lactamases
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_esbl_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_ampc_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_van_type_emergence_multiplier".to_string(),
+            0.0,
+        );
+        map.insert(
+            "bacteria_mycoplasma_genitalium_mechanism_meca_emergence_multiplier".to_string(),
+            0.0,
+        );
 
         // Morganella spp. constitutively expresses AmpC and readily acquires ESBL/carbapenemase plasmids
-        map.insert("bacteria_morganella_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(),  0.1);
-        map.insert("bacteria_morganella_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_morganella_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_morganella_spp._mechanism_esbl_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_morganella_spp._mechanism_ampc_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_morganella_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_morganella_spp._mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_morganella_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_morganella_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_morganella_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_morganella_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_morganella_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_morganella_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_morganella_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_morganella_spp._mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_morganella_spp._mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_morganella_spp._mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_morganella_spp._mechanism_esbl_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_morganella_spp._mechanism_ampc_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_morganella_spp._mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            10.0,
+        );
 
         // Serratia spp. chronically express chromosomal AmpC and acquire porin/efflux changes in hospitals
-        map.insert("bacteria_serratia_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_qnr_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_esbl_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_ampc_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 10.0);
-        map.insert("bacteria_serratia_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_serratia_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_serratia_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_serratia_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_serratia_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_serratia_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_serratia_spp._mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_qnr_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_esbl_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_ampc_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_serratia_spp._mechanism_16s_methyltransferase_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
 
         // Pseudomonas aeruginosa typically requires prolonged ICU pressure before high-level mechanisms appear
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_qnr_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_esbl_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_ampc_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
+        map.insert(
+            "bacteria_pseudomonas_aeruginosa_mechanism_16s_methyltransferase_emergence_multiplier"
+                .to_string(),
+            0.3,
+        );
 
         // Proteus spp. readily induce beta-lactamases and accumulate QRDR mutations under therapy
-        map.insert("bacteria_proteus_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_qnr_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_esbl_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_ampc_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_proteus_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_proteus_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_proteus_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_proteus_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_proteus_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 1.0e-10);
-        map.insert("bacteria_proteus_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 1.0e-10);
+        map.insert(
+            "bacteria_proteus_spp._mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_qnr_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_esbl_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_ampc_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_proteus_spp._mechanism_16s_methyltransferase_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
 
         // Providencia stuartii rapidly induces AmpC/ESBL and accumulates efflux/porin changes in catheter-associated infections
-        map.insert("bacteria_p_stuartii_mechanism_target_site_mutation_emergence_multiplier".to_string(), 1.9);
-        map.insert("bacteria_p_stuartii_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 2.2);
-        map.insert("bacteria_p_stuartii_mechanism_reduced_permeability_emergence_multiplier".to_string(), 2.4);
-        map.insert("bacteria_p_stuartii_mechanism_qnr_emergence_multiplier".to_string(), 1.6);
-        map.insert("bacteria_p_stuartii_mechanism_esbl_emergence_multiplier".to_string(), 3.2);
-        map.insert("bacteria_p_stuartii_mechanism_ampc_emergence_multiplier".to_string(), 4.5);
-        map.insert("bacteria_p_stuartii_mechanism_carbapenemase_emergence_multiplier".to_string(), 2.4);
-        map.insert("bacteria_p_stuartii_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 1.1);
-        map.insert("bacteria_p_stuartii_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_p_stuartii_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_p_stuartii_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_p_stuartii_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_p_stuartii_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_p_stuartii_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_p_stuartii_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            1.9,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            2.2,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            2.4,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_qnr_emergence_multiplier".to_string(),
+            1.6,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_esbl_emergence_multiplier".to_string(),
+            3.2,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_ampc_emergence_multiplier".to_string(),
+            4.5,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            2.4,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            1.1,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            0.5,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_van_type_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_p_stuartii_mechanism_meca_emergence_multiplier".to_string(),
+            0.01,
+        );
 
         // Salmonella typhi rarely maintains high-level mechanism-mediated resistance outside of localized outbreaks
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_qnr_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_esbl_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_ampc_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.05);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
-
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_typhi_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
         // Salmonella paratyphi increasingly mirrors typhoid MDR clusters in recent surveillance
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_qnr_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_esbl_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_ampc_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            1.0,
+        );
+
 
         // Shigella spp. - reserve high-level resistance for localized MDR clades
-        map.insert("bacteria_shigella_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_qnr_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_esbl_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_ampc_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_shigella_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_shigella_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_shigella_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_shigella_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_shigella_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_shigella_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_shigella_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_shigella_spp._mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.00000000000001,
+        );
+        map.insert(
+            "bacteria_shigella_spp._mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.00000000000001,
+        );
+        map.insert(
+            "bacteria_shigella_spp._mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.00000000000001,
+        );
+        map.insert(
+            "bacteria_shigella_spp._mechanism_qnr_emergence_multiplier".to_string(),
+            0.00000000000001,
+        );
+        map.insert(
+            "bacteria_shigella_spp._mechanism_esbl_emergence_multiplier".to_string(),
+            0.00000000000001,
+        );
+        map.insert(
+            "bacteria_shigella_spp._mechanism_ampc_emergence_multiplier".to_string(),
+            0.00000000000001,
+        );
+        map.insert(
+            "bacteria_shigella_spp._mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            0.00000000000001,
+        );
 
         // Staphylococcus aureus - MRSA emergence requires SCCmec acquisition, which is rare de novo
         // mecA is the primary driver; target site mutations and efflux contribute to FQ/aminoglycoside resistance
         // Conservative multipliers to prevent over-accumulation of resistance
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_qnr_emergence_multiplier".to_string(), 0.001);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_meca_emergence_multiplier".to_string(), 0.01);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_van_type_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_staphylococcus_aureus_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.001, // Less relevant for Gram-positive
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            0.001, // Not a major mechanism for S. aureus
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_erm_methylation_emergence_multiplier"
+                .to_string(),
+            0.1, // Macrolide resistance via ermA/ermC
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            0.0, // S. aureus doesn't produce ESBLs
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            0.0, // S. aureus doesn't produce AmpC
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_meca_emergence_multiplier"
+                .to_string(),
+            0.001, // SCCmec acquisition is rare de novo - key MRSA mechanism
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_carbapenemase_emergence_multiplier"
+                .to_string(),
+            0.0, // S. aureus doesn't produce carbapenemases
+        );
+        map.insert(
+            "bacteria_staphylococcus_aureus_mechanism_van_type_emergence_multiplier"
+                .to_string(),
+            0.0001, // VRSA is extremely rare (vanA acquisition from enterococci)
+        );
 
         // Streptococcus pneumoniae maintains low beta-lactam resistance; macrolide resistance driven by erm/mef clusters
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_qnr_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_esbl_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_ampc_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_meca_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_erm_methylation_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_streptococcus_pneumoniae_mechanism_meca_emergence_multiplier"
+                .to_string(),
+            0.0001,
+        );
 
         // Streptococcus agalactiae retains beta-lactam susceptibility; macrolide resistance clusters surface sporadically
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.18);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.2);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.2);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_qnr_emergence_multiplier".to_string(), 0.25);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_erm_methylation_emergence_multiplier".to_string(), 2.8);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_esbl_emergence_multiplier".to_string(), 0.12);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_ampc_emergence_multiplier".to_string(), 0.12);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_meca_emergence_multiplier".to_string(), 0.1);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            0.18,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            0.2,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            0.2,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            0.25,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_erm_methylation_emergence_multiplier"
+                .to_string(),
+            2.8,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            0.12,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            0.12,
+        );
+        map.insert(
+            "bacteria_streptococcus_agalactiae_mechanism_meca_emergence_multiplier"
+                .to_string(),
+            0.1,
+        );
 
         // Invasive nontyphoidal Salmonella frequently carries ESBL/AmpC plasmids and QRDR mutations
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_qnr_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_esbl_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_ampc_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_mutation_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_qnr_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_overexpression_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_reduced_permeability_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_esbl_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_ampc_emergence_multiplier"
+                .to_string(),
+            100.0,
+        );
 
         // Enterococcus faecium readily acquires van genes and mutational resistance under drug pressure.
-        map.insert("bacteria_enterococcus_faecium_mechanism_van_type_emergence_multiplier".to_string(), 0.000003);
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.000003);
-        map.insert("bacteria_enterococcus_faecium_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.000003);
-        map.insert("bacteria_enterococcus_faecium_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.000003);
-        map.insert("bacteria_enterococcus_faecium_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_qnr_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_enterococcus_faecium_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_enterococcus_faecium_mechanism_van_type_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecium_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecium_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_enterococcus_faecium_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            0.01,
+        );
 
         // Acinetobacter baumannii
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_carbapenemase_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_esbl_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_ampc_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_reduced_permeability_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_mutation_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_qnr_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 1.5);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_esbl_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_ampc_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_qnr_emergence_multiplier".to_string(),
+            1.0,
+        );
+        map.insert(
+            "bacteria_acinetobacter_baumannii_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            1.0,
+        );
 
         // Bacteroides fragilis - reduced multipliers to control resistance emergence
-        map.insert("bacteria_bacteroides_fragilis_mechanism_esbl_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_ampc_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_qnr_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_van_type_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_meca_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.8);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bacteroides_fragilis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_esbl_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_ampc_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_qnr_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_van_type_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_meca_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            100.0,
+        );
+        map.insert(
+            "bacteria_bacteroides_fragilis_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            100.0,
+        );
 
         // Bordetella pertussis: resistance to macrolides remains exceptionally rare
-        map.insert("bacteria_bordetella_pertussis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.01);
-        map.insert("bacteria_bordetella_pertussis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.01);
-        map.insert("bacteria_bordetella_pertussis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.01);
-        map.insert("bacteria_bordetella_pertussis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.01);
-        map.insert("bacteria_bordetella_pertussis_mechanism_qnr_emergence_multiplier".to_string(), 0.01);
-        map.insert("bacteria_bordetella_pertussis_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_bordetella_pertussis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_bordetella_pertussis_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_bordetella_pertussis_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_bordetella_pertussis_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_bordetella_pertussis_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            0.01,
+        );
+        map.insert(
+            "bacteria_bordetella_pertussis_mechanism_qnr_emergence_multiplier".to_string(),
+            0.01,
+        );
 
         // Campylobacter jejuni: keep macrolide resistance rare, fluoroquinolone mutations moderate
-        map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_esbl_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_ampc_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_qnr_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.0001);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_campylobacter_jejuni_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_esbl_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_ampc_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_qnr_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.1,
+        );
+        map.insert(
+            "bacteria_campylobacter_jejuni_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            0.1,
+        );
 
-        // Helicobacter_pylori
-        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_esbl_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_ampc_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_qnr_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.003);
-        map.insert("bacteria_helicobacter_pylori_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_helicobacter_pylori_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_helicobacter_pylori_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_helicobacter_pylori_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_helicobacter_pylori_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_helicobacter_pylori_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
 
+
+               // helicobacter_pylori
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_esbl_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_ampc_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_qnr_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_carbapenemase_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_helicobacter_pylori_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        
         // Chlamydia trachomatis: macrolide/tetracycline resistance remains exceedingly rare
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_erm_methylation_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_qnr_emergence_multiplier".to_string(), 0.000001);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_esbl_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_ampc_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_carbapenemase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_chlamydia_trachomatis_mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_chlamydia_trachomatis_mechanism_erm_methylation_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_chlamydia_trachomatis_mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_chlamydia_trachomatis_mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            0.0001,
+        );
+        map.insert(
+            "bacteria_chlamydia_trachomatis_mechanism_qnr_emergence_multiplier".to_string(),
+            0.0001,
+        );
 
         // Citrobacter spp.: prone to ESBL/AmpC and fluoroquinolone resistance
-        map.insert("bacteria_citrobacter_spp._mechanism_esbl_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_ampc_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_carbapenemase_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_qnr_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(), 0.03);
-        map.insert("bacteria_citrobacter_spp._mechanism_erm_methylation_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_citrobacter_spp._mechanism_van_type_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_citrobacter_spp._mechanism_meca_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_citrobacter_spp._mechanism_other_mechanism_1_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_citrobacter_spp._mechanism_other_mechanism_2_emergence_multiplier".to_string(), 0.0);
-        map.insert("bacteria_citrobacter_spp._mechanism_other_mechanism_3_emergence_multiplier".to_string(), 0.0);
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_esbl_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_ampc_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_carbapenemase_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_efflux_overexpression_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_reduced_permeability_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_target_site_mutation_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_qnr_emergence_multiplier".to_string(),
+            10.0,
+        );
+        map.insert(
+            "bacteria_citrobacter_spp._mechanism_16s_methyltransferase_emergence_multiplier".to_string(),
+            10.0,
+        );
 
 
 // debugging
@@ -11118,8 +11719,6 @@ lazy_static! {
             (
                 9,
                 &[
-                    ("penicilling", 14.0),
-                    ("ampicillin", 12.0),
                     ("cefazolin", 13.0),
                     ("cephalexin", 11.0),
                     ("ceftriaxone", 11.0),
@@ -11459,7 +12058,7 @@ lazy_static! {
         // Sepsis death logistic model parameters (log-odds scale)
         // The logistic model: P(death) = 1 / (1 + exp(-log_odds))
         // where log_odds = base + age_effect + region_effect + immuno_effect + level_effect + duration_effect + care_effect
-        map.insert("sepsis_death_base_log_odds".to_string(), -4.5); 
+        map.insert("sepsis_death_base_log_odds".to_string(), -4.7); 
         map.insert("sepsis_death_log_odds_age_infant".to_string(), 1.1); // Infants: +1.1 log-odds (~3x baseline)
         map.insert("sepsis_death_log_odds_age_child".to_string(), -0.7); // Children: -0.7 log-odds (~0.5x baseline)
         map.insert("sepsis_death_log_odds_age_adult".to_string(), 0.0); // Adults: reference category

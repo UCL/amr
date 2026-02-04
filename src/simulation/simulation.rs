@@ -128,6 +128,8 @@ struct BranchSnapshot {
     population: Population,
     majority_r_cache_prev: MajorityRCache,
     majority_r_cache_next: MajorityRCache,
+    mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
+    mechanism_prevalence_cache_next: MechanismPrevalenceCache,
     summary_log: Vec<TimeStepSummary>,
     prev_majority_r_entries_len: usize,
 }
@@ -137,6 +139,8 @@ struct CoreState {
     population: Population,
     majority_r_cache_prev: MajorityRCache,
     majority_r_cache_next: MajorityRCache,
+    mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
+    mechanism_prevalence_cache_next: MechanismPrevalenceCache,
     prev_majority_r_entries_len: usize,
 }
 
@@ -226,6 +230,59 @@ pub struct MajorityRConfig {
     pub window_days: u32,
     pub min_total_samples: u32,
     pub freeze_at_last_positive: bool,
+}
+
+#[derive(Clone)]
+pub struct MechanismPrevalenceCache {
+    // counts[region_idx][bacteria_idx][mechanism_idx]
+    pub counts: Vec<Vec<Vec<u32>>>,
+    num_regions: usize,
+    num_bacteria: usize,
+}
+
+impl MechanismPrevalenceCache {
+    pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
+        // Initialize with zeros
+        let counts = vec![vec![vec![0; num_mechanisms]; num_bacteria]; num_regions];
+        Self {
+            counts,
+            num_regions,
+            num_bacteria,
+        }
+    }
+
+    pub fn set_counts(&mut self, data: &[Vec<Vec<u32>>]) {
+        // data matches the structure of counts: [region][bacteria][mechanism]
+        if self.counts.len() == data.len() {
+             self.counts.clone_from(&data.to_vec());
+        } else {
+             self.counts = data.to_vec();
+        }
+    }
+
+    pub fn sample<R: Rng + ?Sized>(&self, region_idx: usize, bacteria_idx: usize, rng: &mut R) -> Option<usize> {
+        if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
+            return None;
+        }
+        let mechanisms = &self.counts[region_idx][bacteria_idx];
+        let total: u32 = mechanisms.iter().sum();
+        
+        if total == 0 {
+             return None;
+        }
+
+        // Weighted sampling
+        let roll = rng.gen_range(0..total);
+        let mut sum = 0;
+        
+        for (idx, &count) in mechanisms.iter().enumerate() {
+             sum += count;
+             if roll < sum {
+                 return Some(idx);
+             }
+        }
+        Some(mechanisms.len() - 1)
+    }
 }
 
 const HISTOGRAM_BINS: usize = 20;
@@ -1167,6 +1224,8 @@ pub struct Simulation {
     /// Stores majority_r positive samples indexed by region/hospital/bacteria/drug.
     pub majority_r_cache_prev: MajorityRCache,
     pub majority_r_cache_next: MajorityRCache,
+    pub mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
+    pub mechanism_prevalence_cache_next: MechanismPrevalenceCache,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
     /// Storage for per-policy alternate branch summaries keyed by policy_option.
@@ -1323,6 +1382,18 @@ impl Simulation {
             &majority_r_config,
         );
 
+        let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
+        let mechanism_prevalence_cache_prev = MechanismPrevalenceCache::new(
+            num_regions_including_home,
+            num_bacteria,
+            num_mechanisms,
+        );
+        let mechanism_prevalence_cache_next = MechanismPrevalenceCache::new(
+            num_regions_including_home,
+            num_bacteria,
+            num_mechanisms,
+        );
+
         let baseline_policy = PolicyAdjustments::baseline();
         let branch_policies = vec![
             PolicyAdjustments::alternate_example(globals),
@@ -1339,6 +1410,8 @@ impl Simulation {
             cross_resistance_groups,
             majority_r_cache_prev,
             majority_r_cache_next,
+            mechanism_prevalence_cache_prev,
+            mechanism_prevalence_cache_next,
             summary_log: Vec::new(), // Initialize empty log
             policy_branch_summary_log: Vec::new(),
             param_cache: crate::rules::ParameterKeyCache::new(),
@@ -1493,6 +1566,7 @@ impl Simulation {
             self.majority_r_cache_next
                 .prepare_for_new_step(&self.majority_r_cache_prev);
             let majority_r_cache_prev = &self.majority_r_cache_prev;
+            let mechanism_prevalence_cache_prev = &self.mechanism_prevalence_cache_prev;
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
@@ -1555,6 +1629,7 @@ impl Simulation {
                 drug_treatment_day5_events_by_bacteria_region: Vec<usize>,
                 infected_with_test_identified_by_bacteria: Vec<usize>,
                 infected_with_test_for_resistance_by_bacteria: Vec<usize>,
+                mechanism_counts: Vec<Vec<Vec<u32>>>,
                 // Integrated previously sequential counts:
                 living_population: usize,
                 num_age_0_5: usize,
@@ -1702,6 +1777,7 @@ impl Simulation {
                         ],
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
                         infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
+                        mechanism_counts: vec![vec![vec![0; ResistanceMechanism::all().len()]; num_bacteria]; num_regions],
                         living_population: 0,
                         num_age_0_5: 0,
                         num_age_6_14: 0,
@@ -2062,6 +2138,15 @@ impl Simulation {
                     {
                         *a += b;
                     }
+
+                    for (r_idx, region_vec) in self.mechanism_counts.iter_mut().enumerate() {
+                        for (b_idx, bacteria_vec) in region_vec.iter_mut().enumerate() {
+                             for (m_idx, count) in bacteria_vec.iter_mut().enumerate() {
+                                 *count += other.mechanism_counts[r_idx][b_idx][m_idx];
+                             }
+                        }
+                    }
+
                     self.living_population += other.living_population;
                     self.num_age_0_5 += other.num_age_0_5;
                     self.num_age_6_14 += other.num_age_6_14;
@@ -2361,6 +2446,10 @@ impl Simulation {
                                         if individual.resistance_mechanisms[b_idx][mech_idx] {
                                             let flat_idx = b_idx * num_mechanisms + mech_idx;
                                             lt.infected_with_bacteria_and_mechanism[flat_idx] += 1;
+                                            
+                                            if let Some(r_idx) = effective_region_idx_for_any_r {
+                                                lt.mechanism_counts[r_idx][b_idx][mech_idx] += 1;
+                                            }
                                         }
                                     }
 
@@ -2397,6 +2486,7 @@ impl Simulation {
                         t,
                         &mut lt.rng,
                         majority_r_cache_prev,
+                        mechanism_prevalence_cache_prev,
                         bacteria_indices,
                         drug_indices,
                         cross_resistance_groups,
@@ -3010,6 +3100,7 @@ impl Simulation {
                 drug_treatment_day5_events_by_bacteria_region,
                 infected_with_test_identified_by_bacteria,
                 infected_with_test_for_resistance_by_bacteria,
+                mechanism_counts,
                 living_population,
                 num_age_0_5,
                 num_age_6_14,
@@ -3083,6 +3174,13 @@ impl Simulation {
                 &mut self.majority_r_cache_next,
             );
             self.majority_r_cache_prev.finalize_step(t as u32);
+
+            // Update mechanism prevalence cache
+            self.mechanism_prevalence_cache_next.set_counts(&mechanism_counts);
+            mem::swap(
+                &mut self.mechanism_prevalence_cache_prev,
+                &mut self.mechanism_prevalence_cache_next,
+            );
 
             // let rules_time = rules_start.elapsed();
             // if t % 10 == 0 { // Log every 10th timestep
@@ -3696,6 +3794,8 @@ impl Simulation {
             population: self.population.clone(),
             majority_r_cache_prev: self.majority_r_cache_prev.clone(),
             majority_r_cache_next: self.majority_r_cache_next.clone(),
+            mechanism_prevalence_cache_prev: self.mechanism_prevalence_cache_prev.clone(),
+            mechanism_prevalence_cache_next: self.mechanism_prevalence_cache_next.clone(),
             summary_log: self.summary_log.clone(),
             prev_majority_r_entries_len: self.prev_majority_r_entries_len,
         }
@@ -3719,6 +3819,8 @@ impl Simulation {
             population: self.population.clone(),
             majority_r_cache_prev: self.majority_r_cache_prev.clone(),
             majority_r_cache_next: self.majority_r_cache_next.clone(),
+            mechanism_prevalence_cache_prev: self.mechanism_prevalence_cache_prev.clone(),
+            mechanism_prevalence_cache_next: self.mechanism_prevalence_cache_next.clone(),
             prev_majority_r_entries_len: self.prev_majority_r_entries_len,
         };
 
@@ -3747,6 +3849,8 @@ impl Simulation {
         self.population = state.population;
         self.majority_r_cache_prev = state.majority_r_cache_prev;
         self.majority_r_cache_next = state.majority_r_cache_next;
+        self.mechanism_prevalence_cache_prev = state.mechanism_prevalence_cache_prev;
+        self.mechanism_prevalence_cache_next = state.mechanism_prevalence_cache_next;
         self.prev_majority_r_entries_len = state.prev_majority_r_entries_len;
     }
 
@@ -3767,6 +3871,8 @@ impl Simulation {
         self.population = snapshot.population.clone();
         self.majority_r_cache_prev = snapshot.majority_r_cache_prev.clone();
         self.majority_r_cache_next = snapshot.majority_r_cache_next.clone();
+        self.mechanism_prevalence_cache_prev = snapshot.mechanism_prevalence_cache_prev.clone();
+        self.mechanism_prevalence_cache_next = snapshot.mechanism_prevalence_cache_next.clone();
         self.summary_log = snapshot.summary_log.clone();
         self.prev_majority_r_entries_len = snapshot.prev_majority_r_entries_len;
 

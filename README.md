@@ -3,35 +3,44 @@ We are developing a stochastic individual-based model for anti-bacterial resista
 
 Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 39 bacteria and 52 antibiotics, but both lists can grow without changing core data structures.
 
-Resistance tracking relies on five per-bacteria/drug metrics defined in [src/simulation/population.rs#L589-L612](src/simulation/population.rs#L589-L612):
+### Resistance Calculation
 
-- `any_r`: fractional resistance in the infection at all (0 = completely susceptible). The value copies from the source case at transmission or emerges through mutation, and reaches 1.0 when the drug has no effect.
+Resistance tracking relies on five per-bacteria/drug metrics defined in [src/simulation/population.rs](src/simulation/population.rs):
+
+- `any_r`: fractional resistance in the infection (0 = completely susceptible). It is the aggregate resistance from all active mechanisms.
 - `majority_r`: identical to `any_r` but only recorded when resistant strains are the majority of the infection.
 - `activity_r`: current killing power of the drug given its intrinsic potency, resistance level, current drug concentration, **syndrome-specific tissue penetration, and time-based accumulation**.
 - `test_r`: resistance level last confirmed by diagnostic testing.
 - `microbiome_r`: resistance carried in the microbiome rather than the active infection.
 
+**Resistance Mechanism Stacking (New in v1.1)**
+The model now employs **Multiplicative Stacking** for resistance mechanisms. Instead of simply using the strongest mechanism present ("High Water Mark"), multiple mechanisms now combine to increase resistance toward 1.0 (complete immunity).
+
+$$
+TotalSusceptibility = (1.0 - Mechanism_A) \times (1.0 - Mechanism_B) \\
+TotalResistance = 1.0 - TotalSusceptibility
+$$
+
+For example, acquiring two independent mechanisms that each provide 50% resistance results in 75% total resistance ($1.0 - (0.5 \times 0.5) = 0.75$), significantly increasing the survival of MDR strains.
+
 ### Drug Activity Calculation
 
-The `activity_r` metric determines the effective antibacterial action **at the infection site**, not just in the bloodstream. It incorporates pharmacokinetic realism through syndrome-specific penetration and accumulation factors ([src/rules/mod.rs#L3928-L3960](src/rules/mod.rs#L3928-L3960)):
+The `activity_r` metric determines the effective antibacterial action **at the infection site**, not just in the bloodstream. It incorporates pharmacokinetic realism through syndrome-specific penetration factors ([src/rules/mod.rs](src/rules/mod.rs)):
 
 ```
-activity_r = base_potency × effective_drug_level × (1 - normalized_resistance)
+activity_r = base_potency × effective_drug_level × (1.0 - normalized_resistance)
 
 where:
-  effective_drug_level = serum_level × penetration_factor × accumulation_factor
+  effective_drug_level = serum_level × penetration_factor
   
   penetration_factor = syndrome_drug_penetration[syndrome_id][drug_idx]  (0.0–1.0)
-  
-  accumulation_factor = 1 - exp(-ln(2) × days_on_drug / days_to_therapeutic)
-                        with minimum floor of 0.1
+  normalized_resistance = any_r / max_resistance_level
 ```
 
 This captures clinical reality where drug concentration varies wildly by tissue:
 - **Site-Specific Efficacy**: A drug with high serum levels may still fail if it cannot penetrate the infection site (e.g., Aminoglycosides in CNS).
 - **Aminoglycosides** achieve only 5% CNS penetration due to the blood-brain barrier.
 - **Fluoroquinolones** achieve 90% prostatic penetration, making them preferred for prostatitis.
-- **CNS infections** require 3 days for drugs to equilibrate, reducing early treatment efficacy.
 - **Bone/joint infections** have poor vascularity requiring prolonged therapy with good penetrating agents.
 
 ### Bacteria Growth and Host Factors
@@ -45,11 +54,17 @@ Bacteria level changes incorporate host-specific multipliers ([src/rules/mod.rs#
 | **Syndrome** | Bloodstream, CNS, Bone/joint, UTI, etc. | 1.4×, 1.3×, 0.85×, 1.0×, etc. |
 
 ### Bacteria taxonomy & carriage sites
-Every bacteria listed in [`BACTERIA_LIST`](src/simulation/population.rs#L300-L357) now carries lightweight metadata that the rules engine can query without scanning strings:
+Every bacteria listed in [`BACTERIA_LIST`](src/simulation/population.rs) now carries lightweight metadata that the rules engine can query without scanning strings:
 
-- `BacteriaGroup` enumerations in [src/simulation/population.rs#L73-L128](src/simulation/population.rs#L73-L128) tag each organism as Gram-positive, Enterobacterales, non-fermenter, etc. The per-pathogen assignments live in [src/simulation/population.rs#L359-L397](src/simulation/population.rs#L359-L397) where they are flattened for fast lookup.
-- `CarriageCompartment` enumerations in [src/simulation/population.rs#L109-L123](src/simulation/population.rs#L109-L123) capture whether a bacteria’s default reservoir is gut, respiratory, skin/soft tissue, genitourinary, or systemic, with per-bacteria assignments recorded in [src/simulation/population.rs#L398-L430](src/simulation/population.rs#L398-L430).
-- Helper functions [src/simulation/population.rs#L439-L455](src/simulation/population.rs#L439-L455) convert those enumerations into bit masks. The `rules` module uses those masks to restrict resistance mechanism eligibility, require shared compartments before horizontal gene transfer (HGT), and compute empiric scoring heuristics.
+- `BacteriaGroup` enumerations in [src/simulation/population.rs](src/simulation/population.rs) tag each organism as Gram-positive, Enterobacterales, non-fermenter, etc.
+- `CarriageCompartment` enumerations in [src/simulation/population.rs](src/simulation/population.rs) capture whether a bacteria’s default reservoir is gut, respiratory, skin/soft tissue, genitourinary, or systemic.
+- Helper functions convert those enumerations into bit masks for fast lookup during horizontal gene transfer (HGT) checks.
+
+**Transmission Logic & "Frankenstein" Bug Fix**
+The simulation uses a `MechanismPrevalenceCache` to track the prevalence of specific resistance genotypes (mechanism combinations) in the population. When a new infection is transmitted, the recipient samples a *single* coherent genotype from the donor pool for that region/bacteria/hospital-status triplet. This prevents the "Frankenstein Strain" artifact where infections previously sampled a random independent mechanism for *every single drug*, creating impossibly resistant superbugs that did not exist in nature.
+
+**Novel Resistance Mechanisms**
+The system supports defining "Other" mechanism slots (e.g., `OtherMechanism1`, `OtherMechanism2`) as bacteria-specific resistance traits in `src/config.rs`. This allows modeling emerging threats like novel efflux pumps or plasmids that are specific to one species without polluting the global mechanism table.
 
 The level of any antibiotic is kept on a standardized 0–10 scale per day of standard dosing (double doses reach 20). Drug levels decay after cessation, but residual levels continue to influence `activity_r`. Testing variables capture whether the causative bacteria has been identified and whether resistance testing was performed. Exposure multipliers (sexual, airborne adult/child, oral, mosquito) combine with age and region to set acquisition risks; when acquisition is person-to-person the new infection inherits `any_r` from a sampled source in the same region.
 
@@ -182,7 +197,7 @@ All parameter sets originate from `ParameterStore` in [src/config.rs#L108-L173](
 | RegionParameters | [src/config.rs#L740-L834](src/config.rs#L740-L834) | Region-specific multipliers for travel, treatment cessation, mortality, sepsis lethality, and testing intensity. | `asia_travel_multiplier` influences how often travellers leave Asia; `europe_testing_multiplier` boosts identification rates for infections in Europe. |
 | SexParameters | [src/config.rs#L836-L860](src/config.rs#L836-L860) | Sex-at-birth mortality adjustments that stack with age/region baselines. | `log_odds_mortality_sex_male` and `log_odds_mortality_sex_female` shift mortality hazards for each sex. |
 | VaccinationParameters | [src/config.rs#L862-L940](src/config.rs#L862-L940) | Age- and vaccine-specific daily immunization probabilities plus availability start years for pneumococcal, meningococcal, and Hib vaccines. | `vaccine_pneumococcal_daily_prob_age_child` sets routine uptake; `vaccine_hib_availability_year` defines rollout timing. |
-| SyndromeParameters | [src/config.rs#L1071-L1460](src/config.rs#L1071-L1460) | Syndrome-level sepsis odds, initiation multipliers, non-sepsis mortality, empiric drug scoring matrices, bacteria growth multipliers, drug penetration factors by compartment, and days-to-therapeutic for protected sites. | `syndrome_3_initiation_multiplier` accelerates treatment for syndrome 3; `syndrome_6_days_to_therapeutic` (default 3.0) controls CNS drug equilibration time; `syndrome_6_drug_gentamicin_penetration` (default 0.05) reflects poor BBB penetration. |
+| SyndromeParameters | [src/config.rs#L1071-L1460](src/config.rs#L1071-L1460) | Syndrome-level sepsis odds, initiation multipliers, non-sepsis mortality, empiric drug scoring matrices, bacteria growth multipliers, and drug penetration factors by compartment. | `syndrome_3_initiation_multiplier` accelerates treatment for syndrome 3; `syndrome_6_drug_gentamicin_penetration` (default 0.05) reflects poor BBB penetration. |
 | DrugParameters | [src/config.rs#L1100-L1194](src/config.rs#L1100-L1194) | Drug-specific pharmacokinetics and toxicity, including starting level, double-dose multiplier, half-life, microbiome disruption, and toxicity reservoir decay. | `drug_ciprofloxacin_half_life_days` drives decay of drug levels; `drug_vancomycin_microbiome_disruption_log_odds` captures dysbiosis risk. |
 | BacteriaParameters | [src/config.rs#L1196-L1480](src/config.rs#L1196-L1480) | Per-bacteria acquisition odds, vaccination effects, symptom dynamics, sepsis risks, microbiome clearances, and infection level kinetics. | `klebsiella_pneumoniae_acquisition_log_odds_baseline` controls baseline exposure; `staphylococcus_aureus_max_level` caps infection burden. |
 | ClearanceParameters | [src/config.rs#L1506-L1597](src/config.rs#L1506-L1597) | Immune clearance timing and hazard, including age multipliers, immunodeficiency scaling, and bacteria-specific overrides. | `default_clearance_delay_days` postpones immune action after acquisition; `pseudomonas_aeruginosa_clearance_hazard_multiplier` tailors persistence. |
@@ -466,30 +481,29 @@ Syndromes represent the clinical presentation/infection site:
 | `empiric_drug_scores` | Matrix of empiric preference scores per syndrome and drug, used during empiric selection. |
 | `bacteria_growth_multiplier` | Syndrome-specific multiplier on bacteria growth rate (e.g., CNS 1.3×, bone 0.85×). |
 | `drug_penetration` | Matrix of drug penetration factors `[syndrome_id][drug_idx]` representing fraction of serum concentration achieved at infection site (0.0–1.0). |
-| `days_to_therapeutic` | Days required to reach therapeutic levels at each infection site, modeling slow equilibration in protected compartments. |
 
 #### Syndrome-Specific Drug Penetration
 
 Drug penetration factors account for pharmacokinetic differences at different infection sites. Key defaults:
 
-| Syndrome | Days to Therapeutic | Notable Drug Penetration |
-| --- | --- | --- |
-| **UTI (1)** | 1 | Fluoroquinolones/TMP-SMX/nitrofurantoin = 1.0 (urinary concentration) |
-| **Skin (2)** | 1 | Most drugs 0.80–0.90 (good perfusion) |
-| **Respiratory (3)** | 1 | Macrolides/FQ = 0.95, aminoglycosides = 0.40 |
-| **Bloodstream (4)** | 1 | All drugs = 1.0 (reference compartment) |
-| **Intra-abdominal (5)** | 2 | Metronidazole = 0.90, aminoglycosides = 0.30 (acidic pH) |
-| **CNS (6)** | 3 | Linezolid/metronidazole = 0.70–0.80, aminoglycosides = 0.05 (blood-brain barrier) |
-| **GI (7)** | 1 | Oral vancomycin = 0.90 (luminal), metronidazole = 0.95 |
-| **Genital (8)** | 1.5 | Fluoroquinolones = 0.90 (prostatic), aminoglycosides = 0.35 |
-| **Bone/joint (9)** | 3 | Rifampicin = 0.80, linezolid = 0.75, FQ = 0.70, aminoglycosides = 0.25 |
-| **Other (10)** | 1 | Moderate reduction for aminoglycosides/nitrofurantoin |
+| Syndrome | Notable Drug Penetration |
+| --- | --- |
+| **UTI (1)** | Fluoroquinolones/TMP-SMX/nitrofurantoin = 1.0 (urinary concentration) |
+| **Skin (2)** | Most drugs 0.80–0.90 (good perfusion) |
+| **Respiratory (3)** | Macrolides/FQ = 0.95, aminoglycosides = 0.40 |
+| **Bloodstream (4)** | All drugs = 1.0 (reference compartment) |
+| **Intra-abdominal (5)** | Metronidazole = 0.90, aminoglycosides = 0.30 (acidic pH) |
+| **CNS (6)** | Linezolid/metronidazole = 0.70–0.80, aminoglycosides = 0.05 (blood-brain barrier) |
+| **GI (7)** | Oral vancomycin = 0.90 (luminal), metronidazole = 0.95 |
+| **Genital (8)** | Fluoroquinolones = 0.90 (prostatic), aminoglycosides = 0.35 |
+| **Bone/joint (9)** | Rifampicin = 0.80, linezolid = 0.75, FQ = 0.70, aminoglycosides = 0.25 |
+| **Other (10)** | Moderate reduction for aminoglycosides/nitrofurantoin |
 
 The effective drug level at the infection site is calculated as:
 ```
-effective_drug_level = serum_level × penetration_factor × accumulation_factor
+effective_drug_level = serum_level × penetration_factor
 ```
-where `accumulation_factor = 1 - exp(-ln(2) × days_on_drug / days_to_therapeutic)` follows saturation kinetics with a minimum floor of 10% on day 1.
+where `penetration_factor` represents the fraction of serum concentration achieving therapeutic effect at the protected site.
 
 #### Syndrome Assignment by Bacteria
 

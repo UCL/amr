@@ -655,7 +655,9 @@ When no pathogen has been identified (no positive culture), the model uses **syn
 
 | Drug | Score |
 |------|-------|
+| Penicillin G | **14.0** |
 | Cefazolin | **13.0** |
+| Ampicillin | **12.0** |
 | Vancomycin | **12.0** |
 | Cephalexin | **11.0** |
 | Ceftriaxone | **11.0** |

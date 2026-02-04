@@ -939,8 +939,15 @@ impl ParameterKeyCache {
                     // Check for override in global params
                     // Key format: "mechanism_{mechanism}_applies_to_{drug}"
                     // Example: "mechanism_other_mechanism_1_applies_to_meropenem"
-                    let override_key = format!("mechanism_{}_applies_to_{}", mechanism.as_str(), drug_name);
-                    let applies = if let Some(val) = get_global_param(&override_key) {
+                    
+                    // First check specific bacteria override: "mechanism_{mechanism}_applies_to_{drug}_in_{bacteria_slug}"
+                    let bacteria_slug = bacteria_name.to_lowercase().replace(" ", "_");
+                    let specific_override_key = format!("mechanism_{}_applies_to_{}_in_{}", mechanism.as_str(), drug_name, bacteria_slug);
+                    let general_override_key = format!("mechanism_{}_applies_to_{}", mechanism.as_str(), drug_name);
+                    
+                    let applies = if let Some(val) = get_global_param(&specific_override_key) {
+                        val > 0.5
+                    } else if let Some(val) = get_global_param(&general_override_key) {
                         val > 0.5
                     } else {
                         default_applies
@@ -1027,6 +1034,7 @@ pub fn apply_rules(
     time_step: usize,
     rng: &mut impl Rng,
     majority_r_cache: &MajorityRCache,
+    mechanism_prevalence_cache: &crate::simulation::simulation::MechanismPrevalenceCache,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
     cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
@@ -2304,8 +2312,14 @@ pub fn apply_rules(
                     score *= max_bacteria_specific_multiplier;
                 }
 
-                // Apply regional resistance surveillance penalty for empirical therapy
-                if !has_any_identified_infection {
+                // Apply regional resistance surveillance penalty for BOTH empirical therapy and "blind" targeted therapy
+                // Even if we have identified the species (targeted), we must still consider population resistance
+                // if we don't have a specific sensitivity test result confirming susceptibility.
+                let sensitivity_result_available = identified_bacteria.iter().any(|&b_idx| {
+                     individual.resistances[b_idx][drug_idx].test_r > 0.0
+                });
+
+                if !sensitivity_result_available {
                     let mut regional_resistance_penalty = 1.0_f64;
                     if !majority_r_cache.is_empty() {
                         let region_idx = individual.region_cur_in as usize;
@@ -2321,7 +2335,15 @@ pub fn apply_rules(
                         let high_penalty = store.globals.regional_resistance_penalty_high;
                         let moderate_penalty = store.globals.regional_resistance_penalty_moderate;
 
-                        for b_idx in 0..BACTERIA_LIST.len() {
+                        // Start with all bacteria if empirical (unknown source)
+                        // If targeted (known source), only check surveillance for the identified pathogens
+                        let check_indices: Vec<usize> = if has_any_identified_infection {
+                            identified_bacteria.clone()
+                        } else {
+                            (0..BACTERIA_LIST.len()).collect()
+                        };
+
+                        for b_idx in check_indices {
                             let resistance_prevalence = majority_r_cache.probability(
                                 region_idx,
                                 hospital_status,
@@ -3002,10 +3024,10 @@ pub fn apply_rules(
                     (time_step as i32 - individual.sepsis_onset_day[b_idx]).max(0);
                 let minimum_duration = store.globals.sepsis_minimum_duration_days;
 
-                // Only allow recovery after minimum duration
-                if sepsis_duration >= minimum_duration {
-                    // Logistic regression model for sepsis recovery
-                    let base_log_odds = store.globals.sepsis_base_log_odds_of_recovery_per_day;
+                    // Only allow recovery after minimum duration
+                    if sepsis_duration >= minimum_duration {
+                        // Logistic regression model for sepsis recovery
+                        let base_log_odds = store.globals.sepsis_base_log_odds_of_recovery_per_day;
 
                     let mut total_log_odds = base_log_odds;
 
@@ -3249,7 +3271,7 @@ pub fn apply_rules(
                                 );
                                 let level_with_floor = acquired_resistance_level.max(floor_level);
                                 let clamped_level =
-                                    level_with_floor.min(max_resistance_level).max(0.0);
+                                    (level_with_floor * resistance_emergence_multiplier).min(max_resistance_level).max(0.0);
                                 resistance_data.microbiome_r = clamped_level;
                             } else {
                                 resistance_data.microbiome_r = 0.0;
@@ -3589,6 +3611,15 @@ pub fn apply_rules(
                     let region_idx = individual.region_cur_in as usize;
                     let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
+                    // Sample mechanism from population prevalence cache ONCE per infection (Genotype)
+                    // This prevents "Frankenstein" strains that accumulate mechanisms by sampling for every drug
+                    let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
+                    if let Some(idx) = sampled_mechanism_idx {
+                        if rng.gen::<f64>() < resistance_emergence_multiplier {
+                            individual.resistance_mechanisms[b_idx][idx] = true;
+                        }
+                    }
+
                     for drug_name_static in DRUG_SHORT_NAMES.iter() {
                         let d_idx = *drug_indices.get(drug_name_static).unwrap();
                         let resistance_data = &mut individual.resistances[b_idx][d_idx];
@@ -3621,7 +3652,7 @@ pub fn apply_rules(
                             );
                             let level_with_floor = level.max(floor_level);
                             
-                            let clamped_level = level_with_floor.min(max_resistance_level).max(0.0);
+                            let clamped_level = (level_with_floor * resistance_emergence_multiplier).min(max_resistance_level).max(0.0);
                             resistance_data.any_r = clamped_level;
                             resistance_data.majority_r = clamped_level;
 
@@ -3629,21 +3660,34 @@ pub fn apply_rules(
                             if clamped_level > 0.0 {
                                 // Inline mechanism assignment
                                 use crate::simulation::population::ResistanceMechanism;
-                                let mechanism_prob =
-                                    store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
-                                        continue;
-                                    }
 
-                                    let enhancement =
-                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
-                                    if enhancement <= resistance_data.any_r
-                                        && rng.gen_bool(mechanism_prob)
+                                // Check if the pre-sampled mechanism covers this resistance
+                                let mut mechanism_assigned = false;
+                                if let Some(sampled_mech_idx) = sampled_mechanism_idx {
+                                    if param_cache.mechanism_applicable(sampled_mech_idx, b_idx, d_idx) {
+                                        // Mechanism already set on bacteria above
+                                        mechanism_assigned = true;
+                                    }
+                                }
+
+                                // Fallback to random probability if cache sampling failed (empty cache or non-applicable mechanism)
+                                if !mechanism_assigned {
+                                    let mechanism_prob =
+                                        store.globals.mechanism_assignment_probability_on_any_r_gain;
+                                    for (mech_idx, _mechanism) in
+                                        ResistanceMechanism::all().iter().enumerate()
                                     {
-                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                        if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
+                                            continue;
+                                        }
+
+                                        let enhancement =
+                                            store.resistance_mechanism.enhancement_multiplier(mech_idx);
+                                        if enhancement <= resistance_data.any_r
+                                            && rng.gen_bool(mechanism_prob)
+                                        {
+                                            individual.resistance_mechanisms[b_idx][mech_idx] = true;
+                                        }
                                     }
                                 }
 
@@ -4108,8 +4152,11 @@ pub fn apply_rules(
                         let base_potency = param_cache.potency(bacteria_full_idx, drug_index);
 
                         if current_bacteria_level > INFECTION_EPS {
-                            // Calculate resistance mechanism enhancement
-                            let mut mechanism_resistance_boost = 0.0;
+                            // Calculate resistance mechanism enhancement using multiplicative stacking avoiding double counting
+                            // Susceptibility = Product(1 - enhancement)
+                            // Resistance = 1 - Susceptibility
+                            let mut current_susceptibility = 1.0;
+                            
                             if let Some(bacteria_full_idx) =
                                 BACTERIA_LIST.iter().position(|&b| b == bacteria)
                             {
@@ -4135,25 +4182,21 @@ pub fn apply_rules(
                                         .resistance_mechanism
                                         .enhancement_multiplier(mechanism_idx);
 
-                                    // Only add enhancement if it would actually increase resistance
-                                    // Mechanisms can't decrease resistance, but they also don't add if any_r is already higher
-                                    let normalized_any_r =
-                                        resistance_data.any_r / max_resistance_level;
-                                    if mechanism_enhancement > normalized_any_r {
-                                        let additional_resistance =
-                                            mechanism_enhancement - normalized_any_r;
-                                        mechanism_resistance_boost += additional_resistance;
-                                    }
+                                    // Multiplicative stacking of susceptibility
+                                    current_susceptibility *= 1.0 - mechanism_enhancement;
                                 }
                             }
 
-                            // Apply mechanism enhancements to resistance levels if they would increase resistance
-                            if mechanism_resistance_boost > 0.0 {
-                                let normalized_any_r = resistance_data.any_r / max_resistance_level;
-                                let new_resistance_level =
-                                    (normalized_any_r + mechanism_resistance_boost).min(1.0);
-                                let new_any_r = new_resistance_level * max_resistance_level;
+                            let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
 
+                            // Apply mechanism enhancements if they exceed current resistance
+                            // This ensures that acquiring a second mechanism increases resistance (0.5 -> 0.75)
+                            // while maintaining any potentially higher intrinsic/statistical resistance
+                            let normalized_any_r = resistance_data.any_r / max_resistance_level;
+                            
+                            if cumulative_mechanism_resistance > normalized_any_r {
+                                let new_any_r = cumulative_mechanism_resistance * max_resistance_level;
+                                
                                 // Update any_r to the new level
                                 resistance_data.any_r = new_any_r;
 
@@ -4345,6 +4388,8 @@ pub fn apply_rules(
 
             let clearance_ready_day = individual.clearance_ready_day[b_idx];
             if clearance_ready_day != -1 && (time_step as i32) >= clearance_ready_day {
+                let duration_days = (time_step as i32 - clearance_ready_day).max(0) as u32;
+
                 // Logistic model naturally bounds to (0,1), no clamp needed
                 immune_hazard = store
                     .clearance
@@ -4353,6 +4398,7 @@ pub fn apply_rules(
                         individual.age,
                         individual.immunodeficiency_type.is_some(),
                         individual.level[b_idx],
+                        duration_days,
                     );
 
                 if immune_hazard > 0.0 && rng.gen_bool(immune_hazard) {
@@ -4386,8 +4432,8 @@ pub fn apply_rules(
                     for drug_index in 0..DRUG_SHORT_NAMES.len() {
                         let resistance_data = &mut individual.resistances[b_idx][drug_index];
 
-                        // Recalculate mechanism-based resistance enhancement
-                        let mut mechanism_resistance_boost = 0.0;
+                        // Recalculate mechanism-based resistance enhancement (Multiplicative)
+                        let mut current_susceptibility = 1.0;
                         let max_resistance_level = store.globals.max_resistance_level;
 
                         for (mechanism_idx, _mechanism) in
@@ -4403,14 +4449,17 @@ pub fn apply_rules(
                             let mechanism_enhancement = store
                                 .resistance_mechanism
                                 .enhancement_multiplier(mechanism_idx);
-                            mechanism_resistance_boost += mechanism_enhancement;
+                            
+                             // Multiplicative stacking of susceptibility
+                             current_susceptibility *= 1.0 - mechanism_enhancement;
                         }
+                        
+                        let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
 
                         // Update resistance levels based on remaining mechanisms
-                        let base_resistance = resistance_data.any_r / max_resistance_level
-                            - (resistance_data.any_r / max_resistance_level)
-                                .min(mechanism_resistance_boost);
-                        let new_resistance_level = (base_resistance + mechanism_resistance_boost)
+                        // Reversion resets resistance to the calculated mechanism level (ignoring previous 'base' which is hard to track)
+                        // This ensures resistance actually drops when mechanisms are lost
+                        let new_resistance_level = cumulative_mechanism_resistance
                             .min(1.0)
                             .max(0.0);
                         let new_any_r = new_resistance_level * max_resistance_level;
@@ -4656,9 +4705,13 @@ pub fn apply_rules(
         // Clearance dynamics: arm hazard once infection persists, reset when cleared
         if is_infected {
             if individual.clearance_ready_day[b_idx] == -1 {
-                let delay_days = store.clearance.delay_days(b_idx) as i32;
-                individual.clearance_ready_day[b_idx] =
-                    individual.date_last_infected[b_idx].saturating_add(delay_days.max(0));
+                // REMOVE DELAY AS REQUESTED (User: "remove the immune 'delay period' entirely")
+                // Previously:  let delay_days = store.clearance.delay_days(b_idx) as i32;
+                //              individual.clearance_ready_day[b_idx] = individual.date_last_infected[b_idx] + delay_days; 
+                
+                // Now: Clearance is possible starting from the day of infection itself
+                // We set it to date_last_infected so (time_step >= clearance_ready_day) is true immediately
+                individual.clearance_ready_day[b_idx] = individual.date_last_infected[b_idx];
             }
 
             // --- Symptom onset logic for infected bacteria ---
@@ -4777,7 +4830,7 @@ pub fn apply_rules(
                         recipient_has_infection,
                     );
 
-                    let effective_prob = (base_prob * context_multiplier).min(1.0);
+                    let effective_prob = (base_prob * context_multiplier * resistance_emergence_multiplier).min(1.0);
                     if effective_prob <= 0.0 || rng.gen::<f64>() >= effective_prob {
                         continue;
                     }

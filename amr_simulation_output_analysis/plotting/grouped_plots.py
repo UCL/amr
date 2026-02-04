@@ -657,8 +657,9 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             axes3[3].set_ylabel('Daily infection incidence (per person-day)')
             axes3[3].set_ylim(bottom=0)
             axes3[3].ticklabel_format(style='scientific', axis='y', scilimits=(-4, -4))
-            axes3[3].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=6, 
-                           ncol=1, framealpha=0.9)
+            # Move legend to the right but use 2 columns to prevent it from being too tall/overlapping
+            axes3[3].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=5, 
+                           ncol=2, framealpha=0.9)
             axes3[3].grid(True, alpha=0.3)
             
             total_new_infections = sum(t[1] for t in bacteria_totals)
@@ -668,7 +669,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             axes3[3].set_axis_off()
             
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.subplots_adjust(hspace=0.7, wspace=0.35)
+        # Increased hspace to 0.9 to prevent Y-axis overlap and shift bottom plots down
+        plt.subplots_adjust(hspace=0.9, wspace=0.35)
         figure_path = _grouped_figure_path(3, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close('all')
@@ -910,6 +912,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                         color=colors[res_type],
                         label=labels[res_type],
                         already_smoothed=True,
+                        separate_policy_labels=False,
                     )
                     axes5_count_plotted = axes5_count_plotted or plotted
 
@@ -917,7 +920,23 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes5[1].set_title('Infection Resolution Counts Over Time\n(All Bacteria Combined)')
                 axes5[1].set_ylabel('Resolution Events per Day')
                 axes5[1].set_ylim(bottom=0)
-                axes5[1].legend(fontsize=8)
+                # Add policy line style key manually
+                from matplotlib.lines import Line2D
+                custom_lines = [
+                    Line2D([0], [0], color='gray', lw=2, linestyle='-'),
+                    Line2D([0], [0], color='gray', lw=2, linestyle=':'),
+                    Line2D([0], [0], color='gray', lw=2, linestyle='--'),
+                ]
+                # distinct colors legend
+                first_legend = axes5[1].legend(loc='upper left', fontsize=8)
+                axes5[1].add_artist(first_legend)
+                
+                # Add a second legend for policies
+                axes5[1].legend(
+                    custom_lines, ['Policy 0', 'Policy 1', 'Policy 2'],
+                    loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8, title='Policies'
+                )
+                
                 axes5[1].grid(True, alpha=0.3)
             else:
                 axes5[1].text(0.5, 0.5, 'No resolution count data', ha='center', va='center', fontsize=12, color='gray')
