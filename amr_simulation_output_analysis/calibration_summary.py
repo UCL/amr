@@ -1535,6 +1535,35 @@ def _calculate_drug_class_table(
             "Included drugs": ", ".join(included) if included else "",
         })
 
+    # Calculate residual "Other" category if shares don't sum to 100
+    if records and total_on_drug and total_on_drug > 0:
+        total_share_sum = sum((r["Share (%)"] or 0.0) for r in records)
+        
+        # If we are missing a significant chunk (>0.1%), add an "Other / Unspecified" row
+        if total_share_sum < 99.9:
+            residual_share = 100.0 - total_share_sum
+            residual_users = None
+            
+            # Calculate residual users based on the share of the total
+            if scale_factor:
+                 # Re-derive total users from the first record or calculate directly
+                 # total_users_est = total_on_drug * scale_factor / 1e6
+                 # residual_users = total_users_est * (residual_share / 100.0)
+                 residual_users = (total_on_drug * scale_factor / 1e6) * (residual_share / 100.0)
+
+            records.append({
+                "Class": DEFAULT_DRUG_CLASS_LABEL,
+                "Share (%)": residual_share,
+                "Target min (%)": None,
+                "Target max (%)": None,
+                "Delta vs mid (%)": None,
+                "Estimated users (millions)": residual_users,
+                "Target users min (millions)": None,
+                "Target users max (millions)": None,
+                "Delta vs mid users": None,
+                "Included drugs": "All drugs not listed above",
+            })
+
     if not records:
         return pd.DataFrame(columns=DRUG_CLASS_TABLE_COLUMNS)
 

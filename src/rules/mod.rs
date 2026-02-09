@@ -234,14 +234,36 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "cefepime"
                 | "ceftaroline"
                 | "aztreonam"
+            // Removed BLI combinations (Amox/Clav, Pip/Tazo, etc.) as ESBLs are typically inhibited by them
+        ),
+        ResistanceMechanism::Carbapenemase => matches!(
+            drug,
+            // Carbapenems
+            "meropenem"
+                | "imipenem_c"
+                | "ertapenem"
+                | "meropenem_vaborbactam"
+                // Penicillins (including inhibitors, as Carbapenemases often hydrolyze them too)
+                | "penicilling"
+                | "ampicillin"
+                | "amoxicillin"
+                | "piperacillin"
+                | "ticarcillin"
                 | "amoxicillin_clavulanate"
                 | "piperacillin_tazobactam"
                 | "ampicillin_sulbactam"
                 | "ticarcillin_clavulanate"
-        ),
-        ResistanceMechanism::Carbapenemase => matches!(
-            drug,
-            "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam"
+                // Cephalosporins
+                | "cephalexin"
+                | "cefazolin"
+                | "cefuroxime"
+                | "ceftriaxone"
+                | "ceftazidime"
+                | "cefepime"
+                | "ceftaroline"
+                | "ceftazidime_avibactam"
+                // Monobactams
+                | "aztreonam"
         ),
         ResistanceMechanism::AmpC => matches!(
             drug,
@@ -255,7 +277,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "cefuroxime"
                 | "ceftriaxone"
                 | "ceftazidime"
-                | "cefepime"
+                // AmpC does NOT affect cefepime (stable)
                 | "amoxicillin_clavulanate"
                 | "piperacillin_tazobactam"
                 | "ampicillin_sulbactam"
@@ -309,6 +331,18 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
                 | "enterococcus_faecium"
         ),
         ResistanceMechanism::TargetSiteMutation => true,
+        ResistanceMechanism::Mcr1 => matches!(drug, "colistin") && matches!(
+            bacteria,
+            "escherichia_coli"
+                | "klebsiella_pneumoniae"
+                | "enterobacter_spp."
+                | "pseudomonas_aeruginosa"
+                | "acinetobacter_baumannii"
+                | "salmonella_enterica_serovar_typhi"
+                | "salmonella_enterica_serovar_paratyphi_a"
+                | "invasive_non-typhoidal_salmonella_spp."
+                | "shigella_spp."
+        ),
         ResistanceMechanism::OtherMechanism1
         | ResistanceMechanism::OtherMechanism2
         | ResistanceMechanism::OtherMechanism3 => false,
@@ -653,6 +687,19 @@ fn assess_restart_window(
     if let Some(cessation_day) = individual.drug_stopped_with_infection_day[bacteria_idx] {
         let restart_window_days = store.globals.restart_window_days;
         let days_since_cessation = (time_step as i32) - cessation_day;
+
+        // CRITICAL CHECK: If patient is currently on ANY drug, do not trigger "Restart Window".
+        // The restart logic is for patients who stopped care and are failing. 
+        // If they are on a new drug (e.g. switch from Metronidazole to Amoxicillin), 
+        // we shouldn't blindly restart the old drug.
+        if individual.cur_use_drug.iter().any(|&on| on) {
+            // Already being treated, clear the restart tracking for this bacteria to prevent future firing
+            individual.drug_stopped_with_infection_day[bacteria_idx] = None;
+            individual.bacteria_level_at_drug_cessation[bacteria_idx] = None;
+            individual.stopped_drug_index[bacteria_idx] = None;
+            individual.restart_window_assessed[bacteria_idx] = false;
+            return false;
+        }
 
         // Within restart window?
         if days_since_cessation >= 1 && days_since_cessation <= restart_window_days {
@@ -1085,6 +1132,7 @@ pub fn apply_rules(
     // Logistic antibiotic initiation parameters
     let antibiotic_init_base_log_odds = store.globals.antibiotic_initiation_base_log_odds;
     let antibiotic_init_log_odds_symptomatic = store.globals.antibiotic_initiation_log_odds_symptomatic_infection;
+    let antibiotic_init_log_odds_sepsis = store.globals.antibiotic_initiation_log_odds_sepsis; // NEW
     let antibiotic_init_log_odds_test_identified = store.globals.antibiotic_initiation_log_odds_test_identified;
     let antibiotic_init_log_odds_already_on_drug = store.globals.antibiotic_initiation_log_odds_already_on_drug;
     let antibiotic_init_log_odds_immunodeficiency = store.globals.antibiotic_initiation_log_odds_immunodeficiency;
@@ -1183,10 +1231,36 @@ pub fn apply_rules(
         individual.days_hospitalized += 1; // Increment days hospitalized
 
         // Determine if discharge is allowed
-        let can_discharge = if prevent_discharge_with_sepsis {
-            !has_sepsis // Cannot discharge if patient has sepsis
+        // Check if patient is currently on any IV-only drug
+        let is_on_iv_drug = individual.cur_use_drug.iter().enumerate().any(|(idx, &on)| {
+             if !on { return false; }
+             let drug_name = DRUG_SHORT_NAMES[idx];
+             matches!(drug_name, 
+                 "penicilling" | 
+                 "piperacillin_tazobactam" | 
+                 "ceftazidime" | 
+                 "ceftriaxone" | 
+                 "cefepime" | 
+                 "meropenem" | 
+                 "meropenem_vaborbactam" | 
+                 "imipenem_c" | 
+                 "ertapenem" | 
+                 "vancomycin" | 
+                 "colistin" | 
+                 "dalbavancin" | 
+                 "quinu_dalfo" | 
+                 "gentamicin" | 
+                 "tobramycin" | 
+                 "amikacin"
+             )
+        });
+
+        let can_discharge = if prevent_discharge_with_sepsis && has_sepsis {
+            false // Cannot discharge if patient has sepsis
+        } else if is_on_iv_drug {
+            false // Cannot discharge if on IV drugs
         } else {
-            true // Can always discharge (old behavior)
+            true // Can otherwise discharge
         };
 
         // Potentially recover from hospitalization (only if discharge is allowed)
@@ -1563,8 +1637,24 @@ pub fn apply_rules(
                 // Apply regional multiplier based on individual's current region
                 let region_multiplier = store.region.cessation_multiplier(individual.region_cur_in);
 
+                // Apply Syndrome-Specific Duration Modifiers (Crucial for Site Penetration Logic)
+                // Low penetration sites (Bone, CNS) require much longer treatment courses.
+                // Multiplier < 1.0 extends duration (reduces daily stop probability).
+                let mut syndrome_duration_multiplier = 1.0;
+                if let Some(b_idx) = primary_bacteria_idx {
+                     let syndrome = individual.infectious_syndrome[b_idx];
+                     syndrome_duration_multiplier = match syndrome {
+                        4 => 0.5, // Bloodstream (Endocarditis risk): 2x longer
+                        5 => 0.8, // Intra-abdominal (Abscess risk): 1.25x longer
+                        6 => 0.3, // CNS (Meningitis/Abscess): 3.3x longer
+                        8 => 0.5, // Genital (PID/Syphilis): 2x longer (often treated past symptoms)
+                        9 => 0.15, // Bone/Joint (Osteomyelitis): ~6x longer (weeks vs days)
+                        _ => 1.0  // UTI(1), Skin(2), Resp(3), GI(7), Other(10) use baseline
+                     };
+                }
+
                 // Apply policy multiplier for shorter/longer courses (stewardship intervention)
-                let final_cessation_prob = (base_cessation_prob * region_multiplier * drug_cessation_rate_multiplier).min(0.99); // Cap at 99%
+                let final_cessation_prob = (base_cessation_prob * region_multiplier * drug_cessation_rate_multiplier * syndrome_duration_multiplier).min(0.99); // Cap at 99%
 
                 if rng.gen_bool(final_cessation_prob) {
                     stop_drug = true;
@@ -1670,6 +1760,13 @@ pub fn apply_rules(
         // Symptomatic infection present (not newly acquired this step)
         if symptomatic_infection_present && !infection_acquired_this_step {
             log_odds += antibiotic_init_log_odds_symptomatic;
+        }
+
+        // Sepsis present - strong emergency care logic
+        // This ensures septic patients get treated almost immediately regardless of 
+        // region or other factors, reflecting emergency medical necessity.
+        if individual.sepsis.iter().any(|&s| s) {
+            log_odds += antibiotic_init_log_odds_sepsis;
         }
         
         // Laboratory test has identified an infection
@@ -1806,6 +1903,12 @@ pub fn apply_rules(
                     continue;
                 }
 
+                // BLOCK: Age-based contraindications
+                // Tetracyclines avoid < 8 years due to tooth discoloration/bone growth issues
+                if individual.age < 2920 && matches!(drug_name, "tetracycline" | "doxycycline" | "minocycline") {
+                    continue;
+                }
+
                 // Score drug based on spectrum, activity, and clinical scenario
                 let mut score = 1.0;
                 let empiric_selection = (!has_any_identified_infection)
@@ -1865,6 +1968,12 @@ pub fn apply_rules(
                     for &b_idx in &identified_bacteria {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
+                            // streptococcus_agalactiae (Group B Strep)
+                            ("streptococcus_agalactiae", "penicilling" | "ampicillin") => score *= 25.0, // Preferred
+                            ("streptococcus_agalactiae", "cefazolin" | "cephalexin" | "ceftriaxone") => score *= 10.0, // Alternatives
+                            ("streptococcus_agalactiae", "vancomycin" | "clindamycin") => score *= 5.0, // Penicillin-allergic
+                            ("streptococcus_agalactiae", "tetracycline") => score *= 0.1, // Poor choice
+
                             // pseudomonas_aeruginosa - strict anti-pseudomonal agents only (MUCH stronger multipliers)
                             ("pseudomonas_aeruginosa", "piperacillin_tazobactam") => score *= 12.0,
                             ("pseudomonas_aeruginosa", "ceftazidime") => score *= 10.0,
@@ -2144,6 +2253,41 @@ pub fn apply_rules(
                                 }
                             }
                             ("acinetobacter_baumannii", "ampicillin_sulbactam") => score *= 12.0,
+
+                            // Salmonella species (Typhi, Paratyphi, iNTS)
+                            // Guidelines: Cipro (1st line adult), Ceftriaxone (severe/child), Azithro (uncomplicated)
+                            // Avoid: Metronidazole (no activity), Aminoglycosides (poor intracellular), 1st/2nd gen Cephs (ineffective)
+                            (
+                                "salmonella_enterica_serovar_typhi"
+                                | "salmonella_enterica_serovar_paratyphi_a"
+                                | "invasive_non-typhoidal_salmonella_spp.",
+                                "ciprofloxacin" | "ofloxacin" | "levofloxacin",
+                            ) => score *= 15.0, // Primary choice (fluoroquinolones)
+                            (
+                                "salmonella_enterica_serovar_typhi"
+                                | "salmonella_enterica_serovar_paratyphi_a"
+                                | "invasive_non-typhoidal_salmonella_spp.",
+                                "ceftriaxone",
+                            ) => score *= 14.0, // Severe disease / children
+                            (
+                                "salmonella_enterica_serovar_typhi"
+                                | "salmonella_enterica_serovar_paratyphi_a"
+                                | "invasive_non-typhoidal_salmonella_spp.",
+                                "azithromycin",
+                            ) => score *= 12.0, // Alternative
+                            (
+                                "salmonella_enterica_serovar_typhi"
+                                | "salmonella_enterica_serovar_paratyphi_a"
+                                | "invasive_non-typhoidal_salmonella_spp.",
+                                "trim_sulf" | "ampicillin" | "amoxicillin",
+                            ) => score *= 8.0, // Historical options (susceptibility permitting)
+                            (
+                                "salmonella_enterica_serovar_typhi"
+                                | "salmonella_enterica_serovar_paratyphi_a"
+                                | "invasive_non-typhoidal_salmonella_spp.",
+                                "metronidazole" | "gentamicin" | "tobramycin" | "amikacin" | "cefazolin" | "cephalexin",
+                            ) => score *= 0.05, // Ineffective or poor clinical activity
+
 
                             _ => {} // No specific guideline
                         }
@@ -2586,10 +2730,105 @@ pub fn apply_rules(
 
                     // Initiate the selected drug
                     let drug_name = DRUG_SHORT_NAMES[chosen_drug_idx];
+
+                    // Force hospitalization if this is an IV-only drug
+                    // This captures nosocomial risk for patients receiving parenteral therapy
+                    if matches!(drug_name, 
+                        "penicilling" | 
+                        "piperacillin_tazobactam" | 
+                        "ceftazidime" | 
+                        "ceftriaxone" | 
+                        "cefepime" | 
+                        "meropenem" | 
+                        "meropenem_vaborbactam" | 
+                        "imipenem_c" | 
+                        "ertapenem" | 
+                        "vancomycin" | 
+                        "colistin" | 
+                        "dalbavancin" | 
+                        "quinu_dalfo" | 
+                        "gentamicin" | 
+                        "tobramycin" | 
+                        "amikacin"
+                    ) {
+                        if !individual.hospital_status.is_hospitalized() {
+                            individual.hospital_status = HospitalStatus::InHospital;
+                            individual.days_hospitalized = 0;
+                        }
+                    }
+
                     individual.cur_use_drug[chosen_drug_idx] = true;
                     individual.date_drug_initiated[chosen_drug_idx] = time_step as i32;
                     individual.date_drug_initiated_keep[chosen_drug_idx] = time_step as i32; // Persistent record
                     individual.ever_taken_drug[chosen_drug_idx] = true;
+
+                    // SMART SWITCHING: If this is targeted therapy (infection identified), 
+                    // stop existing drugs that are ineffective against the identified pathogen.
+                    // This prevents "overlap" days where patients take both ineffective empiric 
+                    // and effective targeted drugs simultaneously.
+                    if !identified_bacteria.is_empty() {
+                         let min_potency = store.globals.minimal_potency_threshold_for_drug_selection;
+                         for existing_drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                            if existing_drug_idx == chosen_drug_idx { continue; } // Don't stop what we just started
+                            if !individual.cur_use_drug[existing_drug_idx] { continue; } // Only check active drugs
+
+                            // Check effectiveness against identified bacteria
+                            // If a drug is effective against ANY identified bacteria, keep it (e.g. for co-infection)
+                            // If it is effective against NONE, stop it.
+                            let mut has_efficacy = false;
+                            for &b_idx in &identified_bacteria {
+                                // Use the same potency logic as selection
+                                let potency = param_cache.potency(b_idx, existing_drug_idx);
+                                if potency >= min_potency {
+                                    has_efficacy = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If existing drug is ineffective against all identified targets, stop it
+                            if !has_efficacy {
+                                individual.cur_use_drug[existing_drug_idx] = false;
+                                individual.date_drug_initiated[existing_drug_idx] = i32::MIN; // Reset initiation date
+                                // Note: We don't record this as "failure" or "toxicity stop", just a clinical switch.
+                                // We reset heuristics to avoid "Restart Window" logic thinking we stopped prematurely
+                                for b_idx in 0..BACTERIA_LIST.len() {
+                                    if individual.drug_stopped_with_infection_day[b_idx].is_some() && 
+                                       individual.stopped_drug_index[b_idx] == Some(existing_drug_idx) {
+                                         individual.drug_stopped_with_infection_day[b_idx] = None;
+                                         individual.stopped_drug_index[b_idx] = None;
+                                    }
+                                }
+                            }
+                         }
+                    } else {
+                        // EMPIRIC SWITCHING: If this is EMPIRIC therapy (no ID), prevent polypharmacy 
+                        // by stopping existing empiric drugs unless the patient is in severe condition (Sepsis).
+                        // This fixes the "Overlap" issue where mild cases (like Campylobacter) stack Metronidazole + Clarithromycin.
+                        // In real practice, if a patient fails first-line empiric, they usually SWAP to second-line, not ADD it.
+                        let has_sepsis = individual.sepsis.iter().any(|&s| s);
+                        let is_severe = has_sepsis; // Retain dual coverage for septic patients
+
+                        if !is_severe {
+                             // In non-severe empiric cases, assume "fail and switch" rather than "add-on".
+                             for existing_drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                                if existing_drug_idx == chosen_drug_idx { continue; }
+                                if !individual.cur_use_drug[existing_drug_idx] { continue; }
+
+                                // Stop the existing drug to swap to the new one
+                                individual.cur_use_drug[existing_drug_idx] = false;
+                                individual.date_drug_initiated[existing_drug_idx] = i32::MIN;
+                                
+                                // Reset heuristics to prevent "Restart Window" from re-triggering the old drug
+                                for b_idx in 0..BACTERIA_LIST.len() {
+                                    if individual.drug_stopped_with_infection_day[b_idx].is_some() && 
+                                       individual.stopped_drug_index[b_idx] == Some(existing_drug_idx) {
+                                         individual.drug_stopped_with_infection_day[b_idx] = None;
+                                         individual.stopped_drug_index[b_idx] = None;
+                                    }
+                                }
+                             }
+                        }
+                    }
 
                     // Update drug counter
                     update_drug_counter(individual);
@@ -3082,7 +3321,7 @@ pub fn apply_rules(
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         individual.predicted_infection_risk[b_idx] = 0.0;
         let allows_microbiome = bacteria != "helicobacter_pylori";
-        let is_infected = individual.level[b_idx] > INFECTION_EPS;
+        let mut is_infected = individual.level[b_idx] > INFECTION_EPS;
 
         if !is_infected {
             let simulation_year = 1930.0 + (time_step as f64 / 365.0);
@@ -3572,7 +3811,12 @@ pub fn apply_rules(
                     individual.level[b_idx] = bacteria_initial_level;
                     individual.date_last_infected[b_idx] = time_step as i32;
                     individual.date_last_infected_keep[b_idx] = time_step as i32; // Keep persistent record
-                    individual.clearance_ready_day[b_idx] = -1;
+                    
+                    // Initialize clearance immediately so hazard applies on Day 1
+                    individual.clearance_ready_day[b_idx] = time_step as i32;
+                    
+                    // Allow growth/clearance logic to run this same timestep
+                    is_infected = true; 
 
                     // --- probabilistic syndrome assignment ---
                     let syndrome_id = assign_syndrome_for_bacteria(bacteria, rng);
@@ -4386,9 +4630,20 @@ pub fn apply_rules(
             let mut immune_hazard = 0.0;
             let mut immune_clearance_triggered = false;
 
-            let clearance_ready_day = individual.clearance_ready_day[b_idx];
-            if clearance_ready_day != -1 && (time_step as i32) >= clearance_ready_day {
-                let duration_days = (time_step as i32 - clearance_ready_day).max(0) as u32;
+            // Self-correcting logic: If we are infected but proper clearance day wasn't set, fallback to date_last_infected
+            let effective_clearance_ready_day = if individual.clearance_ready_day[b_idx] == -1 {
+                individual.date_last_infected[b_idx]
+            } else {
+                individual.clearance_ready_day[b_idx]
+            };
+            
+            // Ensure the individual struct is updated so checking logic works consistently elsewhere
+            if individual.clearance_ready_day[b_idx] == -1 && effective_clearance_ready_day != -1 {
+                individual.clearance_ready_day[b_idx] = effective_clearance_ready_day;
+            }
+
+            if effective_clearance_ready_day != -1 && (time_step as i32) >= effective_clearance_ready_day {
+                let duration_days = (time_step as i32 - effective_clearance_ready_day).max(0) as u32;
 
                 // Logistic model naturally bounds to (0,1), no clamp needed
                 immune_hazard = store

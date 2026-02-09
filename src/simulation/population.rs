@@ -80,6 +80,7 @@ pub enum ResistanceMechanism {
     MecA,                      // MecA-mediated methicillin resistance
     ReducedPermeability,       // Reduced outer membrane permeability
     TargetSiteMutation,        // Target site mutations (e.g., gyrA, parC)
+    Mcr1,                      // Mcr-mediated colistin resistance
     OtherMechanism1,           // Placeholder for unknown/other mechanism 1
     OtherMechanism2,           // Placeholder for unknown/other mechanism 2
     OtherMechanism3,           // Placeholder for unknown/other mechanism 3
@@ -100,6 +101,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::MecA,
             ResistanceMechanism::ReducedPermeability,
             ResistanceMechanism::TargetSiteMutation,
+            ResistanceMechanism::Mcr1,
             ResistanceMechanism::OtherMechanism1,
             ResistanceMechanism::OtherMechanism2,
             ResistanceMechanism::OtherMechanism3,
@@ -120,6 +122,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::MecA => "meca",
             ResistanceMechanism::ReducedPermeability => "reduced_permeability",
             ResistanceMechanism::TargetSiteMutation => "target_site_mutation",
+            ResistanceMechanism::Mcr1 => "mcr1",
             ResistanceMechanism::OtherMechanism1 => "other_mechanism_1",
             ResistanceMechanism::OtherMechanism2 => "other_mechanism_2",
             ResistanceMechanism::OtherMechanism3 => "other_mechanism_3",
@@ -531,7 +534,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
     use ResistanceMechanism::*;
 
     match mechanism {
-        ESBL | Carbapenemase | AmpC => mask_for_groups(&[
+        ESBL | Carbapenemase | AmpC | Mcr1 => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
             BacteriaGroup::EntericPathogen,

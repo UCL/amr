@@ -36,9 +36,24 @@ mod simulation;
 //
 // hgt "ignores plasmid fitness - suggest to model plasmid persistence independent of chromosomal resistance
 //
-// check that drug activity against microbiome bacteria uses blood level
+// have we covered poly-bacterial infections sufficiently ?
 //
-//  
+// need to include any other bacteria ? (e.g. anaerobes) and/or mycoplasma pneumoniae, chlamydophila, legionella
+//
+// need bacteria specific reversion rates for resistance mechanisms (incl the "other" mechanisms) ?
+// ("reversion" in practice only really refers to the microbiome resistance ?)
+//
+// consider whether can replicate recent antibiotic use as associated with resistance presence
+//
+// will prob need lots of "other" mechanisms in order to be able to reproduce resistance levels
+//
+// closer modelling of toxicities ?
+//
+// should pop majority_r - informed chance of resistance be much more diluted for community acquired ?
+//
+// re-visit whether our modelling of resistance emergence in animals is adequate
+//
+//
 //
 //
 //
@@ -68,6 +83,9 @@ mod simulation;
 // remember that we model use of antibiotics when no modelled bacteria present so in some ways this takes care of bacteria not modelled 
 // should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
 // should we consider some syndromes (from which spread is more likely) more than others for population majority_r ?
+// consider more granular breakdown of regions
+//
+//
 //
 // calibration data: approx drug usage per 100_000 per calendar year
 //                   incidence of infection with each bacteria by age and calendar year

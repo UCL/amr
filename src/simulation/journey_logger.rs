@@ -20,6 +20,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
+use crate::config::parameter_store;
+
 /// Cached pre-clearance `activity_r` snapshot for a tracked (individual, bacteria) pair.
 #[derive(Clone)]
 struct CachedActivitySnapshot {
@@ -338,7 +340,7 @@ impl JourneyLogger {
                 let has_de_novo_resistance = self.detect_de_novo_resistance_emergence(individual);
                 // Always sample if de novo resistance is detected, otherwise use normal sampling
                 if has_de_novo_resistance || self.rng.gen::<f64>() < self.sample_rate {
-                    self.start_journey(individual, time_step);
+                    self.start_journey(individual, time_step, has_de_novo_resistance);
                 }
             }
             (true, _, true) => {
@@ -359,7 +361,7 @@ impl JourneyLogger {
         }
     }
 
-    fn start_journey(&mut self, individual: &Individual, time_step: usize) {
+    fn start_journey(&mut self, individual: &Individual, time_step: usize, initial_de_novo: bool) {
         // Find primary bacteria (highest level)
         let mut primary_bacteria_idx = 0;
         let mut highest_level = 0.0;
@@ -396,7 +398,7 @@ impl JourneyLogger {
             1,
             primary_bacteria_idx,
             None,
-            false,
+            initial_de_novo,
             0,
             None,
         );
@@ -414,7 +416,7 @@ impl JourneyLogger {
             day_count: 1,
             snapshots: vec![snapshot],
             primary_bacteria_cleared_day: None,
-            has_de_novo_resistance: false,
+            has_de_novo_resistance: initial_de_novo,
             initial_failure_day,
             last_recorded_failure_day: initial_failure_day,
             treatment_failures_count: 0,
@@ -605,7 +607,17 @@ impl JourneyLogger {
         for (idx, &level) in individual.cur_level_drug.iter().enumerate() {
             if level > INFECTION_EPS {
                 let drug_name = DRUG_SHORT_NAMES[idx].to_string();
-                current_drugs.push((drug_name, level));
+                
+                // Calculate effective site level using penetration factor
+                let mut penetration = 1.0;
+                let syndrome_id = individual.infectious_syndrome[primary_bacteria_idx];
+                if syndrome_id >= 0 {
+                    let store = parameter_store();
+                    penetration = store.syndrome.drug_penetration(syndrome_id as usize, idx);
+                }
+                let effective_level = level * penetration;
+
+                current_drugs.push((drug_name, effective_level));
             }
         }
 
@@ -1177,29 +1189,34 @@ impl JourneyLogger {
         )
     }
 
-    // Detect if de novo resistance has emerged during active treatment
+    // Detect if de novo resistance has emerged or is present in a way that warrants tracking
     fn detect_de_novo_resistance_emergence(&self, individual: &Individual) -> bool {
-        // Require an active journey to compare against previously logged resistance levels.
-        let journey = if let Some(journey) = self.active_journeys.get(&individual.id) {
-            journey
-        } else {
-            return false;
-        };
-
-        // Need to be on treatment for a de novo emergence to be considered.
+        // Need to be on treatment for a de novo emergence to be considered relevant
         if !individual.cur_use_drug.iter().any(|&taking| taking) {
             return false;
         }
 
-        // Compare current resistance levels against the most recent snapshot.
-        let Some(previous_snapshot) = journey.snapshots.last() else {
-            return false;
+        let journey_opt = self.active_journeys.get(&individual.id);
+        
+        let primary_bacteria_idx = if let Some(journey) = journey_opt {
+             journey.primary_bacteria_idx
+        } else {
+             // For untracked, determine primary bacteria (highest burden)
+             let mut pb_idx = 0;
+             let mut highest_level = 0.0;
+             for (b_idx, &level) in individual.level.iter().enumerate() {
+                 if level > highest_level {
+                     highest_level = level;
+                     pb_idx = b_idx;
+                 }
+             }
+             if highest_level <= INFECTION_EPS { return false; }
+             pb_idx
         };
 
-        let primary_bacteria_idx = journey.primary_bacteria_idx;
         const RESISTANCE_EPSILON: f64 = 1e-6;
 
-        // Focus on the primary bacteria for this journey only.
+        // Focus on the primary bacteria
         for (drug_idx, acquisition_type_opt) in individual.how_resistance_acquired
             [primary_bacteria_idx]
             .iter()
@@ -1215,9 +1232,7 @@ impl JourneyLogger {
 
             let is_de_novo_source = matches!(
                 acquisition_type,
-                crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
-                    | crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB
-                    | crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR
+                crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR
                     | crate::simulation::population::ResistanceAcquisitionType::DeNovoInfection
                     | crate::simulation::population::ResistanceAcquisitionType::Hgt
             );
@@ -1226,29 +1241,42 @@ impl JourneyLogger {
                 continue;
             }
 
-            let drug_name = DRUG_SHORT_NAMES[drug_idx];
+            // Resistance source is De Novo.
+            
+            if let Some(journey) = journey_opt {
+                // TRACKED CASE: Check for INCREASE from previous snapshot
+                let Some(previous_snapshot) = journey.snapshots.last() else {
+                    // Tracked but no snapshot? Should not happen if start_journey creates one.
+                    return true;
+                };
 
-            let prev_any = previous_snapshot
-                .resistance_any_r
-                .iter()
-                .find(|(name, _)| name == drug_name)
-                .map(|(_, value)| *value)
-                .unwrap_or(0.0);
-            let current_any = individual.resistances[primary_bacteria_idx][drug_idx].any_r;
+                let drug_name = DRUG_SHORT_NAMES[drug_idx];
 
-            let prev_majority = previous_snapshot
-                .resistance_majority_r
-                .iter()
-                .find(|(name, _)| name == drug_name)
-                .map(|(_, value)| *value)
-                .unwrap_or(0.0);
-            let current_majority =
-                individual.resistances[primary_bacteria_idx][drug_idx].majority_r;
+                let prev_any = previous_snapshot
+                    .resistance_any_r
+                    .iter()
+                    .find(|(name, _)| name == drug_name)
+                    .map(|(_, value)| *value)
+                    .unwrap_or(0.0);
+                let current_any = individual.resistances[primary_bacteria_idx][drug_idx].any_r;
 
-            let any_increased = current_any > prev_any + RESISTANCE_EPSILON;
-            let majority_increased = current_majority > prev_majority + RESISTANCE_EPSILON;
+                let prev_majority = previous_snapshot
+                    .resistance_majority_r
+                    .iter()
+                    .find(|(name, _)| name == drug_name)
+                    .map(|(_, value)| *value)
+                    .unwrap_or(0.0);
+                let current_majority =
+                    individual.resistances[primary_bacteria_idx][drug_idx].majority_r;
 
-            if any_increased || majority_increased {
+                let any_increased = current_any > prev_any + RESISTANCE_EPSILON;
+                let majority_increased = current_majority > prev_majority + RESISTANCE_EPSILON;
+
+                if any_increased || majority_increased {
+                    return true;
+                }
+            } else {
+                // UNTRACKED CASE: Presence of De Novo marker while on drug is enough
                 return true;
             }
         }
