@@ -2288,8 +2288,60 @@ pub fn apply_rules(
                                 "metronidazole" | "gentamicin" | "tobramycin" | "amikacin" | "cefazolin" | "cephalexin",
                             ) => score *= 0.05, // Ineffective or poor clinical activity
 
+                            // proteus_spp. - intrinsically resistant to nitrofurantoin/tetracyclines, sensitive to penicillins
+                            ("proteus_spp.", "ampicillin" | "amoxicillin" | "penicilling") => score *= 15.0,
+                            ("proteus_spp.", "ceftriaxone" | "cefepime") => score *= 10.0,
+                            ("proteus_spp.", "nitrofurantoin" | "doxycycline" | "minocycline" | "tetracycline") => score *= 0.1,
+
+                            // "Other" Enterobacterales (Enterobacter, Serratia, Citrobacter, Morganella)
+                            // These often have AmpC (resistant to 1st/2nd gen Cephs) but are erroneously getting Aminoglycosides in sim
+                            (
+                                "enterobacter_spp."
+                                | "enterobacter_cloacae"
+                                | "serratia_spp."
+                                | "citrobacter_spp."
+                                | "morganella_spp."
+                                | "proteus_spp.",
+                                "gentamicin" | "tobramycin" | "amikacin",
+                            ) => score *= 0.05, // Reserve status - do not use as primary empiric
 
                             _ => {} // No specific guideline
+                        }
+
+                        // --- Stewardship: Restrict Reserve/Toxic Drugs ---
+                        
+                        // Severe restriction on Colistin (Polymyxin)
+                        // It is a last-resort drug with high toxicity. Should only be used when essential.
+                        if matches!(drug_name, "colistin") {
+                            score *= 0.1; 
+                        }
+
+                        // Restriction on Aminoglycosides (Gentamicin, Tobramycin, Amikacin)
+                        // Often over-simulated due to low resistance rates. 
+                        // In reality, used cautiously due to nephrotoxicity/ototoxicity.
+                        if matches!(drug_name, "gentamicin" | "tobramycin" | "amikacin") {
+                            // Apply penalty to all aminoglycosides
+                            score *= 0.25;
+                            
+                            // Restore some score for Pseudomonas which is a classic indication for Tobramycin
+                            if matches!(bacteria_name, "pseudomonas_aeruginosa") && matches!(drug_name, "tobramycin") {
+                                score *= 2.0; 
+                            }
+                        }
+
+                        // --- Stewardship: Promote Narrow Spectrum Beta-Lactams ---
+                        // Favor Penicillins for Streptococcus, Enterococcus, Syphilis, Neisseria when susceptible
+                        if matches!(drug_name, "penicilling" | "ampicillin" | "amoxicillin") {
+                            if matches!(bacteria_name, 
+                                "streptococcus_pneumoniae" | 
+                                "streptococcus_pyogenes" | 
+                                "streptococcus_agalactiae" |
+                                "enterococcus_faecalis" | 
+                                "treponema_pallidum" |
+                                "neisseria_meningitidis"
+                            ) {
+                                score *= 3.0; // Strong preference for appropriate narrow spectrum
+                            }
                         }
 
                         if matches!(
@@ -2409,6 +2461,26 @@ pub fn apply_rules(
                                 "colistin",
                                 "ampicillin_sulbactam",
                                 "minocycline",
+                            ],
+                            "enterobacter_spp."
+                            | "enterobacter_cloacae"
+                            | "citrobacter_spp."
+                            | "serratia_spp."
+                            | "morganella_spp." => vec![
+                                "cefepime",
+                                "ceftriaxone",
+                                "meropenem",
+                                "ertapenem",
+                                "ciprofloxacin",
+                                "levofloxacin",
+                                "trim_sulf",
+                            ],
+                            "proteus_spp." => vec![
+                                "ampicillin",
+                                "amoxicillin",
+                                "ceftriaxone",
+                                "ciprofloxacin",
+                                "trim_sulf",
                             ],
                             _ => vec![], // For other bacteria, no specific restriction
                         };
@@ -5596,6 +5668,22 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
             (5, 0.05),
             (3, 0.03),
             (1, 0.02),
+        ],
+
+        // Atypical Pneumonia & Other Respiratory
+        "mycoplasma_pneumoniae" => &[
+            (3, 0.95), // Respiratory - Walking Pneumonia
+            (10, 0.03), // Other - mucocutaneous (SJS), hemolytic anemia
+            (6, 0.02), // CNS - encephalitis
+        ],
+        "legionella_pneumophila" => &[
+            (3, 0.98), // Respiratory - Legionnaires' disease / Pontiac fever
+            (10, 0.02),
+        ],
+        "burkholderia_cepacia_complex" => &[
+            (3, 0.85), // Respiratory - CF exacerbations, pneumonia
+            (4, 0.10), // Bloodstream
+            (10, 0.05),
         ],
 
         // Fallback for any unmatched bacteria (should not occur with complete list above)

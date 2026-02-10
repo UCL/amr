@@ -378,7 +378,7 @@ impl ImmunodeficiencyType {
 /// - Population-level ecosystem effects
 ///
 /// **Usage:** Simply add/remove bacteria names, recompile, and run!
-pub const BACTERIA_LIST: [&str; 39] = [
+pub const BACTERIA_LIST: [&str; 42] = [
     "acinetobacter_baumannii",
     "citrobacter_spp.",
     "enterobacter_spp.",
@@ -418,6 +418,9 @@ pub const BACTERIA_LIST: [&str; 39] = [
     "bordetella_pertussis",
     "helicobacter_pylori",
     "mdr_mycobacterium_tuberculosis",
+    "mycoplasma_pneumoniae",
+    "legionella_pneumophila",
+    "burkholderia_cepacia_complex",
 ];
 
 pub const BACTERIA_COUNT: usize = BACTERIA_LIST.len();
@@ -462,6 +465,9 @@ pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
     BacteriaGroup::Fastidious,
     BacteriaGroup::Helicobacter,
     BacteriaGroup::Mycobacteria,
+    BacteriaGroup::Fastidious, // mycoplasma_pneumoniae
+    BacteriaGroup::Fastidious, // legionella_pneumophila
+    BacteriaGroup::NonFermenter, // burkholderia_cepacia_complex
 ];
 
 pub const BACTERIA_CARRIAGE_COMPARTMENTS: [CarriageCompartment; BACTERIA_COUNT] = [
@@ -504,6 +510,9 @@ pub const BACTERIA_CARRIAGE_COMPARTMENTS: [CarriageCompartment; BACTERIA_COUNT] 
     CarriageCompartment::Respiratory,      // bordetella_pertussis
     CarriageCompartment::Gut,              // helicobacter_pylori
     CarriageCompartment::Respiratory,      // mdr_mycobacterium_tuberculosis
+    CarriageCompartment::Respiratory,      // mycoplasma_pneumoniae
+    CarriageCompartment::Respiratory,      // legionella_pneumophila (Simulated as respiratory "carriage" for initial loading, though env source)
+    CarriageCompartment::Respiratory,      // burkholderia_cepacia_complex
 ];
 
 #[inline]

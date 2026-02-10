@@ -2618,6 +2618,16 @@ impl Simulation {
                                     lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
                                 }
                             }
+
+                            // Count as new sepsis case if sepsis started today, even if the patient died
+                            for b_idx in 0..num_bacteria {
+                                if individual.sepsis[b_idx] 
+                                    && individual.level[b_idx] > INFECTION_EPS
+                                    && individual.sepsis_onset_day[b_idx] == t as i32 
+                                {
+                                    lt.new_sepsis_cases_by_bacteria[b_idx] += 1;
+                                }
+                            }
                         }
                     }
 

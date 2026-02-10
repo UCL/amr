@@ -38,7 +38,7 @@ mod simulation;
 //
 // have we covered poly-bacterial infections sufficiently ?
 //
-// need to include any other bacteria ? (e.g. anaerobes) and/or mycoplasma pneumoniae, chlamydophila, legionella
+// need to include any other bacteria ? e.g. burkholderia_cepacia, anaerobes, klebsiella_oxytoca and/or mycoplasma pneumoniae, chlamydophila, legionella
 //
 // need bacteria specific reversion rates for resistance mechanisms (incl the "other" mechanisms) ?
 // ("reversion" in practice only really refers to the microbiome resistance ?)
@@ -53,7 +53,14 @@ mod simulation;
 //
 // re-visit whether our modelling of resistance emergence in animals is adequate
 //
+// need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
+// drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
+// need to add fidaxamicin ? (for c diff) 
+//
+// investigate drop in background death rate after 80 years
+//
+// add incidence of sepsis to calibration summary 
 //
 //
 //
@@ -140,7 +147,7 @@ fn main() {
     let population_size = 100_000;
     let time_steps = 38_325 ;   // 38_325 
     let log_individuals = false; // Set to false to disable detailed individual logging
-    let log_infection_journeys = false ; // Set to true to enable infection journey logging
+    let log_infection_journeys = false  ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 1.00; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true

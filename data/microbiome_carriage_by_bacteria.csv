@@ -38,3 +38,6 @@ mdr mycobacterium tuberculosis,0.0025,"MDR-LTBI; ~1/4 of world has latent TB, es
 bacteroides fragilis,0.85,"Core obligate anaerobe; >80% of healthy adults colonized (Human Microbiome Project)"
 mycoplasma genitalium,0.01,"Low-level genital tract carriage/infection persistence (~1% global prevalence)"
 providencia stuartii,0.01,"Rare gut colonizer concentrated in LTCF populations"
+mycoplasma pneumoniae,0.02,"Asymptomatic respiratory carriage reported in 1-5% of healthy individuals."
+legionella pneumophila,0.0,"Environmental pathogen (amoebae); human-to-human transmission is negligible."
+burkholderia cepacia complex,0.001,"Rare colonization in healthy individuals; environmental reservoir."

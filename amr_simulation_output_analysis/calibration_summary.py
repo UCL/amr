@@ -534,6 +534,16 @@ def _build_headline_table(
         scaled_infection_deaths / 1e6 if scaled_infection_deaths else 0.0
     )
 
+    # Calculate incident cases of sepsis (summing per-bacteria incident cases)
+    sepsis_inc_cols = [c for c in year_df.columns if c.endswith("_new_sepsis_cases")]
+    if sepsis_inc_cols:
+        raw_sepsis_sum = float(year_df[sepsis_inc_cols].sum().sum())
+        annualized_sepsis = _annualize_sum(raw_sepsis_sum)
+        scaled_sepsis = annualized_sepsis * scale_factor
+        aggregations["sepsis_incident_cases_millions"] = scaled_sepsis / 1e6
+    else:
+        aggregations["sepsis_incident_cases_millions"] = np.nan
+
     if "currently_taking_drug_count" in year_df:
         people_on_drug = year_df["currently_taking_drug_count"].mean(skipna=True)
         if pd.isna(people_on_drug):
@@ -1660,10 +1670,15 @@ def _calculate_drug_class_history_table(
         target_candidates = [candidate for candidate in target_candidates if candidate]
 
         target_map: Dict[int, float] = {}
+        found_target = False
         for candidate in target_candidates:
             if candidate in history_targets:
                 target_map = history_targets[candidate]
+                found_target = True
                 break
+        
+        if not found_target:
+             print(f"[WARNING] No history targets found for class '{label}'. Candidates: {target_candidates}")
 
         row: Dict[str, object] = {"Class": label}
         for year in years:
