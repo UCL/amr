@@ -67,65 +67,96 @@ pub const INFECTION_EPS: f64 = 0.001;
 
 /// Specific resistance mechanisms that can be present in bacteria
 /// These provide an overlay on the existing any_r/majority_r system
+// EDITED: Expanded mechanism list for higher fidelity
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResistanceMechanism {
-    ESBL,                      // Extended-spectrum beta-lactamase
-    Carbapenemase,             // Carbapenem-hydrolyzing enzymes
-    AmpC,                      // AmpC beta-lactamase
-    SixteenSMethyltransferase, // 16S rRNA methyltransferase (aminoglycoside resistance)
-    Qnr,                       // Quinolone resistance protein
-    EffluxOverexpression,      // Efflux pump overexpression
-    ErmMethylation,            // Erm-mediated ribosomal methylation (macrolide resistance)
-    VanType,                   // Van-type glycopeptide resistance
-    MecA,                      // MecA-mediated methicillin resistance
-    ReducedPermeability,       // Reduced outer membrane permeability
-    TargetSiteMutation,        // Target site mutations (e.g., gyrA, parC)
-    Mcr1,                      // Mcr-mediated colistin resistance
-    OtherMechanism1,           // Placeholder for unknown/other mechanism 1
-    OtherMechanism2,           // Placeholder for unknown/other mechanism 2
-    OtherMechanism3,           // Placeholder for unknown/other mechanism 3
+    EnzymeEsblCtxM,
+    EnzymeEsblTem,
+    EnzymeEsblShv,
+    EnzymeKpc,
+    EnzymeNdmVim,
+    EnzymeOxa48,
+    EnzymeAmpcCmy,
+    EnzymeAmpcDha,
+    TargetSitePbp2aMecA,
+    TargetSiteVanA,
+    TargetSiteVanB,
+    MutationGyrAPrimary,
+    MutationGyrAParCSecondary,
+    ProtectionQnr,
+    Enzyme16sRrmt,
+    TargetSiteErmB,
+    TargetSiteCfr,
+    EnzymeCat,
+    EffluxAcrabTolc,
+    EffluxMexxyOprm,
+    PorinLossOmpk35_36,
+    PorinLossOprd,
+    ModificationMcr1,
+    GlobalEffluxPump,
+    GlobalPorinLoss,
 }
 
 impl ResistanceMechanism {
     /// Returns all resistance mechanisms as a slice
     pub fn all() -> &'static [ResistanceMechanism] {
         &[
-            ResistanceMechanism::ESBL,
-            ResistanceMechanism::Carbapenemase,
-            ResistanceMechanism::AmpC,
-            ResistanceMechanism::SixteenSMethyltransferase,
-            ResistanceMechanism::Qnr,
-            ResistanceMechanism::EffluxOverexpression,
-            ResistanceMechanism::ErmMethylation,
-            ResistanceMechanism::VanType,
-            ResistanceMechanism::MecA,
-            ResistanceMechanism::ReducedPermeability,
-            ResistanceMechanism::TargetSiteMutation,
-            ResistanceMechanism::Mcr1,
-            ResistanceMechanism::OtherMechanism1,
-            ResistanceMechanism::OtherMechanism2,
-            ResistanceMechanism::OtherMechanism3,
+            ResistanceMechanism::EnzymeEsblCtxM,
+            ResistanceMechanism::EnzymeEsblTem,
+            ResistanceMechanism::EnzymeEsblShv,
+            ResistanceMechanism::EnzymeKpc,
+            ResistanceMechanism::EnzymeNdmVim,
+            ResistanceMechanism::EnzymeOxa48,
+            ResistanceMechanism::EnzymeAmpcCmy,
+            ResistanceMechanism::EnzymeAmpcDha,
+            ResistanceMechanism::TargetSitePbp2aMecA,
+            ResistanceMechanism::TargetSiteVanA,
+            ResistanceMechanism::TargetSiteVanB,
+            ResistanceMechanism::MutationGyrAPrimary,
+            ResistanceMechanism::MutationGyrAParCSecondary,
+            ResistanceMechanism::ProtectionQnr,
+            ResistanceMechanism::Enzyme16sRrmt,
+            ResistanceMechanism::TargetSiteErmB,
+            ResistanceMechanism::TargetSiteCfr,
+            ResistanceMechanism::EnzymeCat,
+            ResistanceMechanism::EffluxAcrabTolc,
+            ResistanceMechanism::EffluxMexxyOprm,
+            ResistanceMechanism::PorinLossOmpk35_36,
+            ResistanceMechanism::PorinLossOprd,
+            ResistanceMechanism::ModificationMcr1,
+            ResistanceMechanism::GlobalEffluxPump,
+            ResistanceMechanism::GlobalPorinLoss,
         ]
     }
 
     /// Returns the mechanism name as a string for configuration lookups
     pub fn as_str(&self) -> &'static str {
         match self {
-            ResistanceMechanism::ESBL => "esbl",
-            ResistanceMechanism::Carbapenemase => "carbapenemase",
-            ResistanceMechanism::AmpC => "ampc",
-            ResistanceMechanism::SixteenSMethyltransferase => "16s_methyltransferase",
-            ResistanceMechanism::Qnr => "qnr",
-            ResistanceMechanism::EffluxOverexpression => "efflux_overexpression",
-            ResistanceMechanism::ErmMethylation => "erm_methylation",
-            ResistanceMechanism::VanType => "van_type",
-            ResistanceMechanism::MecA => "meca",
-            ResistanceMechanism::ReducedPermeability => "reduced_permeability",
-            ResistanceMechanism::TargetSiteMutation => "target_site_mutation",
-            ResistanceMechanism::Mcr1 => "mcr1",
-            ResistanceMechanism::OtherMechanism1 => "other_mechanism_1",
-            ResistanceMechanism::OtherMechanism2 => "other_mechanism_2",
-            ResistanceMechanism::OtherMechanism3 => "other_mechanism_3",
+            ResistanceMechanism::EnzymeEsblCtxM => "enzyme_esbl_ctx_m",
+            ResistanceMechanism::EnzymeEsblTem => "enzyme_esbl_tem",
+            ResistanceMechanism::EnzymeEsblShv => "enzyme_esbl_shv",
+            ResistanceMechanism::EnzymeKpc => "enzyme_kpc",
+            ResistanceMechanism::EnzymeNdmVim => "enzyme_ndm_vim",
+            ResistanceMechanism::EnzymeOxa48 => "enzyme_oxa_48",
+            ResistanceMechanism::EnzymeAmpcCmy => "enzyme_ampc_cmy",
+            ResistanceMechanism::EnzymeAmpcDha => "enzyme_ampc_dha",
+            ResistanceMechanism::TargetSitePbp2aMecA => "target_site_pbp2a_meca",
+            ResistanceMechanism::TargetSiteVanA => "target_site_van_a",
+            ResistanceMechanism::TargetSiteVanB => "target_site_van_b",
+            ResistanceMechanism::MutationGyrAPrimary => "mutation_gyra_primary",
+            ResistanceMechanism::MutationGyrAParCSecondary => "mutation_gyra_parc_secondary",
+            ResistanceMechanism::ProtectionQnr => "protection_qnr",
+            ResistanceMechanism::Enzyme16sRrmt => "enzyme_16s_rrmt",
+            ResistanceMechanism::TargetSiteErmB => "target_site_erm_b",
+            ResistanceMechanism::TargetSiteCfr => "target_site_cfr",
+            ResistanceMechanism::EnzymeCat => "enzyme_cat",
+            ResistanceMechanism::EffluxAcrabTolc => "efflux_acrab_tolc",
+            ResistanceMechanism::EffluxMexxyOprm => "efflux_mexxy_oprm",
+            ResistanceMechanism::PorinLossOmpk35_36 => "porin_loss_ompk35_36",
+            ResistanceMechanism::PorinLossOprd => "porin_loss_oprd",
+            ResistanceMechanism::ModificationMcr1 => "modification_mcr_1",
+            ResistanceMechanism::GlobalEffluxPump => "global_efflux_pump",
+            ResistanceMechanism::GlobalPorinLoss => "global_porin_loss",
         }
     }
 }
@@ -543,30 +574,46 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
     use ResistanceMechanism::*;
 
     match mechanism {
-        ESBL | Carbapenemase | AmpC | Mcr1 => mask_for_groups(&[
+        // Gram-Negative Focused Mechanisms
+        EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv |
+        EnzymeKpc | EnzymeNdmVim | EnzymeOxa48 |
+        EnzymeAmpcCmy | EnzymeAmpcDha |
+        ModificationMcr1 |
+        EffluxAcrabTolc | EffluxMexxyOprm |
+        PorinLossOmpk35_36 | PorinLossOprd |
+        ProtectionQnr | Enzyme16sRrmt => mask_for_groups(&[
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
             BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Fastidious, 
+            BacteriaGroup::Anaerobe, // Allowed for Bacteroides (Gram-Neg Anaerobe)
         ]),
-        SixteenSMethyltransferase | Qnr => mask_for_groups(&[
-            BacteriaGroup::Enterobacterales,
-            BacteriaGroup::NonFermenter,
-            BacteriaGroup::EntericPathogen,
+
+        // Gram-Positive Specific (Cell Wall / Vancomycin)
+        TargetSitePbp2aMecA |
+        TargetSiteVanA | TargetSiteVanB => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
+        ]),
+
+        // Macrolide/Lincosamide/Streptogramin (MLS) & Phenicol Resistance
+        // Broader host range including Anaerobes and Fastidious/Atypicals (Mycoplasma)
+        TargetSiteErmB | TargetSiteCfr => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
+            BacteriaGroup::Anaerobe,
             BacteriaGroup::Fastidious,
         ]),
-        EffluxOverexpression
-        | ReducedPermeability
-        | TargetSiteMutation
-        | OtherMechanism1
-        | OtherMechanism2
-        | OtherMechanism3 => mask_for_groups(BacteriaGroup::all()),
-        ErmMethylation | VanType | MecA => mask_for_groups(&[BacteriaGroup::GramPositive]),
+
+        // Universal (or near universal) Mechanisms
+        MutationGyrAPrimary | MutationGyrAParCSecondary |
+        EnzymeCat |
+        GlobalEffluxPump | GlobalPorinLoss // Fallbacks if used
+        => mask_for_groups(BacteriaGroup::all()),
     }
 }
 
 pub const DRUG_SHORT_NAMES: &[&str] = &[
     "sulfanilamide",
-    "penicilling",
+    "penicillin_g",
     "ampicillin",
     "amoxicillin",
     "piperacillin",
@@ -578,6 +625,8 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "ceftazidime",
     "cefepime",
     "ceftaroline",
+    "ceftolozane_tazobactam", 
+    "cefiderocol",            
     "meropenem",
     "imipenem_c",
     "ertapenem",
@@ -596,18 +645,22 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "tetracycline",
     "doxycycline",
     "minocycline",
+    "tigecycline",            
     "vancomycin",
     "teicoplanin",
     "dalbavancin",
     "linezolid",
     "tedizolid",
+    "daptomycin",             
     "quinu_dalfo",
     "trim_sulf",
-    "chlorampheni",
+    "chloramphenicol",
     "nitrofurantoin",
+    "fosfomycin",             
     "retapamulin",
     "fusidic_a",
     "metronidazole",
+    "fidaxomicin",            
     "furazolidone",
     "rifampicin",
     "amoxicillin_clavulanate",
@@ -1373,7 +1426,7 @@ impl Population {
 
 Drug	        Subclass
 
-penicilling	    Penicillin (β‑lactam, natural penicillins)
+penicillin_g	    Penicillin (β‑lactam, natural penicillins)
 ampicillin	    Aminopenicillin
 amoxicillin	    Aminopenicillin
 piperacillin	Extended‑spectrum penicillin

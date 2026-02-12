@@ -42,13 +42,18 @@ DRUG_SLUG_NORMALIZATION_OVERRIDES = {
 
 CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     (
-        "Penicillins & BL/BLI",
+        "Penicillins (J01C)",
         (
-            "penicilling",
+            "penicillin_g",
             "ampicillin",
             "amoxicillin",
             "piperacillin",
             "ticarcillin",
+        ),
+    ),
+    (
+        "Beta-lactamase combinations (J01CR)",
+        (
             "amoxicillin_clavulanate",
             "ampicillin_sulbactam",
             "piperacillin_tazobactam",
@@ -56,7 +61,7 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "Cephalosporins & Monobactams",
+        "Cephalosporins (J01D)",
         (
             "cephalexin",
             "cefazolin",
@@ -65,34 +70,44 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
             "ceftazidime",
             "cefepime",
             "ceftaroline",
-            "aztreonam",
             "ceftazidime_avibactam",
         ),
     ),
     (
-        "Carbapenems",
+        "Monobactams",
+        (
+            "aztreonam",
+        ),
+    ),
+    (
+        "Carbapenems (J01DH)",
         ("meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"),
     ),
     (
-        "Macrolide/Lincosamide",
-        ("erythromycin", "azithromycin", "clarithromycin", "clindamycin"),
+        "Macrolides (J01F)",
+        ("erythromycin", "azithromycin", "clarithromycin"),
     ),
     (
-        "Fluoroquinolones",
+        "Lincosamides (J01FF)",
+        ("clindamycin",),
+    ),
+    (
+        "Fluoroquinolones (J01M)",
         ("ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"),
     ),
-    ("Aminoglycosides", ("gentamicin", "tobramycin", "amikacin")),
-    ("Tetracyclines", ("tetracycline", "doxycycline", "minocycline")),
-    ("Sulfonamides", ("trim_sulf",)),
-    ("Glycopeptides/Lipoglycopeptides", ("vancomycin", "teicoplanin", "dalbavancin")),
-    ("Oxazolidinones", ("linezolid", "tedizolid")),
-    ("Polymyxins", ("colistin",)),
-    ("Rifamycins", ("rifampicin",)),
-    ("Chloramphenicol", ("chlorampheni",)),
-    ("Nitrofurans", ("nitrofurantoin",)),
-    ("Fusidic acid", ("fusidic_a",)),
+    ("Aminoglycosides (J01G)", ("gentamicin", "tobramycin", "amikacin")),
+    ("Tetracyclines (J01A)", ("tetracycline", "doxycycline", "minocycline")),
+    ("Sulfonamides (J01E)", ("trim_sulf",)),
+    ("Glycopeptides (J01XA)", ("vancomycin", "teicoplanin")),
+    ("Lipoglycopeptides", ("dalbavancin",)),
+    ("Oxazolidinones (J01XX)", ("linezolid", "tedizolid")),
+    ("Polymyxins (J01XB)", ("colistin",)),
+    ("Rifamycins (J04AB)", ("rifampicin",)),
+    ("Chloramphenicol (J01BA)", ("chloramphenicol",)),
+    ("Nitrofurans (J01XE)", ("nitrofurantoin",)),
+    ("Fusidic acid (J01XC)", ("fusidic_a",)),
     ("Pleuromutilins", ("retapamulin",)),
-    ("Streptogramins", ("quinu_dalfo",)),
+    ("Streptogramins (J01FG)", ("quinu_dalfo",)),
 )
 
 @dataclass

@@ -38,14 +38,10 @@ mod simulation;
 //
 // have we covered poly-bacterial infections sufficiently ?
 //
-// need to include any other bacteria ? e.g. burkholderia_cepacia, anaerobes, klebsiella_oxytoca and/or mycoplasma pneumoniae, chlamydophila, legionella
-//
-// need bacteria specific reversion rates for resistance mechanisms (incl the "other" mechanisms) ?
+// need bacteria specific reversion rates for resistance mechanisms ?
 // ("reversion" in practice only really refers to the microbiome resistance ?)
 //
 // consider whether can replicate recent antibiotic use as associated with resistance presence
-//
-// will prob need lots of "other" mechanisms in order to be able to reproduce resistance levels
 //
 // closer modelling of toxicities ?
 //
@@ -56,11 +52,11 @@ mod simulation;
 // need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
 // drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
-// need to add fidaxamicin ? (for c diff) 
+// resistance floor should only have effect once prevalence of majority r > floor 
 //
-// investigate drop in background death rate after 80 years
+// errors in drug share code in calibration_summary
 //
-// add incidence of sepsis to calibration summary 
+// 
 //
 //
 //

@@ -132,7 +132,7 @@ class PlotConfig:
     #  include_bacteria: Optional[List[str]] = None
     #  include_drugs: Optional[List[str]] = None
     include_bacteria: Optional[List[str]] = None  # Only render requested bacteria when provided
-    # include_drugs: Optional[List[str]] = field(default_factory=lambda: ['erythromycin', 'penicilling', 'meropenem'])  # Only render requested drugs when provided
+    # include_drugs: Optional[List[str]] = field(default_factory=lambda: ['erythromycin', 'penicillin_g', 'meropenem'])  # Only render requested drugs when provided
     include_drugs: Optional[List[str]] = None
 
     # Policy comparison controls
@@ -252,7 +252,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_893481.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_825001.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity

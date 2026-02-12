@@ -104,7 +104,7 @@ use std::f64::consts::LN_2;
 /// These are all penicillin-class drugs including beta-lactam/beta-lactamase inhibitor combos.
 /// If perceived_penicillin_allergy is true, these drugs get score=0 during selection.
 const PENICILLIN_CLASS_DRUGS: &[&str] = &[
-    "penicilling",
+    "penicillin_g",
     "ampicillin",
     "amoxicillin",
     "piperacillin",
@@ -176,34 +176,6 @@ fn interpolate_piecewise_linear(year: f64, anchors: &[(f64, f64)]) -> f64 {
     anchors[last_idx].1
 }
 
-/// Checks if a bacteria can harbor qnr (quinolone resistance) genes.
-/// Only certain Gram-negative bacteria (mainly Enterobacterales) can carry qnr.
-#[inline]
-fn qnr_supported_bacteria(bacteria: &str) -> bool {
-    matches!(
-        bacteria,
-        "acinetobacter_baumannii"
-            | "citrobacter_spp."
-            | "enterobacter_spp."
-            | "enterobacter_cloacae"
-            | "escherichia_coli"
-            | "klebsiella_pneumoniae"
-            | "morganella_spp."
-            | "p_stuartii"
-            | "proteus_spp."
-            | "serratia_spp."
-            | "pseudomonas_aeruginosa"
-            | "stenotrophomonas_maltophilia"
-            | "salmonella_enterica_serovar_typhi"
-            | "salmonella_enterica_serovar_paratyphi_a"
-            | "invasive_non-typhoidal_salmonella_spp."
-            | "shigella_spp."
-            | "vibrio_cholerae"
-            | "campylobacter_jejuni"
-            | "yersinia_enterocolitica"
-    )
-}
-
 /// Helper function to update the current number of drugs counter
 #[inline]
 fn update_drug_counter(individual: &mut Individual) {
@@ -218,134 +190,108 @@ use rand::distributions::WeightedIndex;
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
 #[inline]
 fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, drug: &str) -> bool {
+    use crate::simulation::population::{self, ResistanceMechanism::*, BACTERIA_LIST, BACTERIA_GROUPS};
+    
+    // 1. Check Group Compatibility
+    // Find bacteria index (slow but only runs at startup for cache)
+    if let Some(b_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
+        let bacteria_group = BACTERIA_GROUPS[b_idx];
+        let allowed_mask = population::mechanism_allowed_group_mask(mechanism);
+        
+        if (allowed_mask & bacteria_group.bit()) == 0 {
+            return false;
+        }
+    }
+
+    // 2. Check Drug Specificity
     match mechanism {
-        ResistanceMechanism::ESBL => matches!(
+         EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv => matches!(
             drug,
-            "penicilling"
-                | "ampicillin"
-                | "amoxicillin"
-                | "piperacillin"
-                | "ticarcillin"
-                | "cephalexin"
-                | "cefazolin"
-                | "cefuroxime"
-                | "ceftriaxone"
-                | "ceftazidime"
-                | "cefepime"
-                | "ceftaroline"
-                | "aztreonam"
-            // Removed BLI combinations (Amox/Clav, Pip/Tazo, etc.) as ESBLs are typically inhibited by them
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            | "aztreonam"
         ),
-        ResistanceMechanism::Carbapenemase => matches!(
+
+        EnzymeAmpcCmy | EnzymeAmpcDha => matches!(
             drug,
-            // Carbapenems
-            "meropenem"
-                | "imipenem_c"
-                | "ertapenem"
-                | "meropenem_vaborbactam"
-                // Penicillins (including inhibitors, as Carbapenemases often hydrolyze them too)
-                | "penicilling"
-                | "ampicillin"
-                | "amoxicillin"
-                | "piperacillin"
-                | "ticarcillin"
-                | "amoxicillin_clavulanate"
-                | "piperacillin_tazobactam"
-                | "ampicillin_sulbactam"
-                | "ticarcillin_clavulanate"
-                // Cephalosporins
-                | "cephalexin"
-                | "cefazolin"
-                | "cefuroxime"
-                | "ceftriaxone"
-                | "ceftazidime"
-                | "cefepime"
-                | "ceftaroline"
-                | "ceftazidime_avibactam"
-                // Monobactams
-                | "aztreonam"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+             | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam"
+             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime"
+             | "aztreonam"
         ),
-        ResistanceMechanism::AmpC => matches!(
+
+        EnzymeKpc => matches!(
             drug,
-            "penicilling"
-                | "ampicillin"
-                | "amoxicillin"
-                | "piperacillin"
-                | "ticarcillin"
-                | "cephalexin"
-                | "cefazolin"
-                | "cefuroxime"
-                | "ceftriaxone"
-                | "ceftazidime"
-                // AmpC does NOT affect cefepime (stable)
-                | "amoxicillin_clavulanate"
-                | "piperacillin_tazobactam"
-                | "ampicillin_sulbactam"
-                | "ticarcillin_clavulanate"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            | "aztreonam"
+            | "meropenem" | "imipenem_c" | "ertapenem"
+            // S: ceftazidime_avibactam, meropenem_vaborbactam
         ),
-        ResistanceMechanism::SixteenSMethyltransferase => {
-            matches!(drug, "gentamicin" | "tobramycin" | "amikacin")
-        }
-        ResistanceMechanism::Qnr => {
-            qnr_supported_bacteria(bacteria)
-                && matches!(
-                    drug,
-                    "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
-                )
-        }
-        ResistanceMechanism::ErmMethylation => {
-            matches!(
-                drug,
-                "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
-            )
-        }
-        ResistanceMechanism::VanType => matches!(drug, "vancomycin" | "teicoplanin"),
-        ResistanceMechanism::MecA => {
-            matches!(
-                bacteria,
-                "staphylococcus_aureus" | "staphylococcus_epidermidis"
-            ) && matches!(
-                drug,
-                "penicilling"
-                    | "ampicillin"
-                    | "amoxicillin"
-                    | "cephalexin"
-                    | "cefazolin"
-                    | "cefuroxime"
-                    | "ceftriaxone"
-                    | "ceftazidime"
-                    | "cefepime"
-                    | "meropenem"
-                    | "imipenem_c"
-                    | "ertapenem"
-            )
-        }
-        ResistanceMechanism::EffluxOverexpression => true,
-        ResistanceMechanism::ReducedPermeability => !matches!(
-            bacteria,
-            "staphylococcus_aureus"
-                | "streptococcus_pneumoniae"
-                | "streptococcus_pyogenes"
-                | "streptococcus_agalactiae"
-                | "enterococcus_faecalis"
-                | "enterococcus_faecium"
+
+        EnzymeNdmVim => matches!(
+            drug,
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            | "ceftazidime_avibactam" | "meropenem_vaborbactam"
+            | "meropenem" | "imipenem_c" | "ertapenem"
         ),
-        ResistanceMechanism::TargetSiteMutation => true,
-        ResistanceMechanism::Mcr1 => matches!(drug, "colistin") && matches!(
-            bacteria,
-            "escherichia_coli"
-                | "klebsiella_pneumoniae"
-                | "enterobacter_spp."
-                | "pseudomonas_aeruginosa"
-                | "acinetobacter_baumannii"
-                | "salmonella_enterica_serovar_typhi"
-                | "salmonella_enterica_serovar_paratyphi_a"
-                | "invasive_non-typhoidal_salmonella_spp."
-                | "shigella_spp."
+
+        EnzymeOxa48 => matches!(
+            drug,
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam"
+            | "meropenem" | "imipenem_c" | "ertapenem"
         ),
-        ResistanceMechanism::OtherMechanism1
-        | ResistanceMechanism::OtherMechanism2
-        | ResistanceMechanism::OtherMechanism3 => false,
+
+        TargetSitePbp2aMecA => matches!(
+            drug, 
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            | "aztreonam"
+            | "meropenem" | "imipenem_c" | "ertapenem"
+        ),
+
+        MutationGyrAPrimary => matches!(
+            drug, "ciprofloxacin" | "ofloxacin" | "norfloxacin"
+        ),
+
+        MutationGyrAParCSecondary => matches!(
+            drug, "ciprofloxacin" | "ofloxacin" | "norfloxacin" | "levofloxacin" | "moxifloxacin"
+        ),
+
+        ProtectionQnr => matches!(
+            drug, "ciprofloxacin" | "ofloxacin"
+        ),
+
+        Enzyme16sRrmt => matches!(
+            drug, "gentamicin" | "tobramycin" | "amikacin" | "kanamycin" | "streptomycin"
+        ),
+
+        EnzymeCat => matches!(drug, "chloramphenicol"),
+
+        TargetSiteErmB => matches!(
+            drug, "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
+        ),
+        
+        TargetSiteCfr => matches!(drug, "linezolid" | "chloramphenicol"),
+
+        TargetSiteVanA => matches!(drug, "vancomycin" | "teicoplanin"),
+
+        TargetSiteVanB => matches!(drug, "vancomycin"),
+
+        ModificationMcr1 => matches!(drug, "colistin"),
+
+        EffluxAcrabTolc | EffluxMexxyOprm | GlobalEffluxPump => matches!(
+           drug, "tetracycline" | "chloramphenicol" | "ciprofloxacin"
+        ),
+
+        PorinLossOmpk35_36 | PorinLossOprd | GlobalPorinLoss => matches!(
+            drug, "meropenem" | "imipenem_c" | "ertapenem"
+        ),
     }
 }
 
@@ -1236,7 +1182,7 @@ pub fn apply_rules(
              if !on { return false; }
              let drug_name = DRUG_SHORT_NAMES[idx];
              matches!(drug_name, 
-                 "penicilling" | 
+                 "penicillin_g" | 
                  "piperacillin_tazobactam" | 
                  "ceftazidime" | 
                  "ceftriaxone" | 
@@ -1969,7 +1915,7 @@ pub fn apply_rules(
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
                             // streptococcus_agalactiae (Group B Strep)
-                            ("streptococcus_agalactiae", "penicilling" | "ampicillin") => score *= 25.0, // Preferred
+                            ("streptococcus_agalactiae", "penicillin_g" | "ampicillin") => score *= 25.0, // Preferred
                             ("streptococcus_agalactiae", "cefazolin" | "cephalexin" | "ceftriaxone") => score *= 10.0, // Alternatives
                             ("streptococcus_agalactiae", "vancomycin" | "clindamycin") => score *= 5.0, // Penicillin-allergic
                             ("streptococcus_agalactiae", "tetracycline") => score *= 0.1, // Poor choice
@@ -1985,7 +1931,7 @@ pub fn apply_rules(
                             ("pseudomonas_aeruginosa", "colistin") => score *= 4.0,
                             (
                                 "pseudomonas_aeruginosa",
-                                "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
+                                "penicillin_g" | "ampicillin" | "amoxicillin" | "cephalexin"
                                 | "ceftriaxone" | "vancomycin",
                             ) => {
                                 score = 0.0; // Completely block - no intrinsic activity
@@ -1993,7 +1939,7 @@ pub fn apply_rules(
                             }
 
                             // staphylococcus_aureus - DRAMATICALLY strengthen MSSA vs MRSA logic
-                            ("staphylococcus_aureus", "penicilling") => {
+                            ("staphylococcus_aureus", "penicillin_g") => {
                                 // Early periods: penicillin should dominate (MSSA era)
                                 if time_step < 7300 {
                                     // First ~20 years
@@ -2047,7 +1993,7 @@ pub fn apply_rules(
                             }
                             (
                                 "staphylococcus_epidermidis",
-                                "penicilling" | "ampicillin" | "amoxicillin" | "cephalexin"
+                                "penicillin_g" | "ampicillin" | "amoxicillin" | "cephalexin"
                                 | "cefazolin" | "ceftriaxone",
                             ) => {
                                 score *= 0.05;
@@ -2077,7 +2023,7 @@ pub fn apply_rules(
                             }
 
                             // streptococcus_pneumoniae - prefer penicillins and targeted agents
-                            ("streptococcus_pneumoniae", "penicilling") => score *= 24.0,
+                            ("streptococcus_pneumoniae", "penicillin_g") => score *= 24.0,
                             ("streptococcus_pneumoniae", "ampicillin") => score *= 22.0,
                             ("streptococcus_pneumoniae", "amoxicillin") => score *= 24.0,
                             (
@@ -2101,7 +2047,7 @@ pub fn apply_rules(
                             }
 
                             // streptococcus_pyogenes - strong penicillin preference
-                            ("streptococcus_pyogenes", "penicilling") => score *= 28.0,
+                            ("streptococcus_pyogenes", "penicillin_g") => score *= 28.0,
                             ("streptococcus_pyogenes", "ampicillin" | "amoxicillin") => {
                                 score *= 20.0;
                             }
@@ -2135,7 +2081,7 @@ pub fn apply_rules(
                             ) => score *= 0.25,
 
                             // neisseria_meningitidis - penicillin and third-gen cephalosporins preferred
-                            ("neisseria_meningitidis", "penicilling" | "ampicillin") => {
+                            ("neisseria_meningitidis", "penicillin_g" | "ampicillin") => {
                                 score *= 18.0;
                             }
                             ("neisseria_meningitidis", "ceftriaxone" | "cefepime") => {
@@ -2289,7 +2235,7 @@ pub fn apply_rules(
                             ) => score *= 0.05, // Ineffective or poor clinical activity
 
                             // proteus_spp. - intrinsically resistant to nitrofurantoin/tetracyclines, sensitive to penicillins
-                            ("proteus_spp.", "ampicillin" | "amoxicillin" | "penicilling") => score *= 15.0,
+                            ("proteus_spp.", "ampicillin" | "amoxicillin" | "penicillin_g") => score *= 15.0,
                             ("proteus_spp.", "ceftriaxone" | "cefepime") => score *= 10.0,
                             ("proteus_spp.", "nitrofurantoin" | "doxycycline" | "minocycline" | "tetracycline") => score *= 0.1,
 
@@ -2331,7 +2277,7 @@ pub fn apply_rules(
 
                         // --- Stewardship: Promote Narrow Spectrum Beta-Lactams ---
                         // Favor Penicillins for Streptococcus, Enterococcus, Syphilis, Neisseria when susceptible
-                        if matches!(drug_name, "penicilling" | "ampicillin" | "amoxicillin") {
+                        if matches!(drug_name, "penicillin_g" | "ampicillin" | "amoxicillin") {
                             if matches!(bacteria_name, 
                                 "streptococcus_pneumoniae" | 
                                 "streptococcus_pyogenes" | 
@@ -2383,7 +2329,7 @@ pub fn apply_rules(
                                 "tobramycin",
                             ],
                             "staphylococcus_aureus" => vec![
-                                "penicilling",
+                                "penicillin_g",
                                 "amoxicillin_clavulanate",
                                 "ampicillin_sulbactam",
                                 "vancomycin",
@@ -2406,7 +2352,7 @@ pub fn apply_rules(
                                 "ciprofloxacin",
                             ],
                             "streptococcus_pneumoniae" => vec![
-                                "penicilling",
+                                "penicillin_g",
                                 "ampicillin",
                                 "amoxicillin",
                                 "amoxicillin_clavulanate",
@@ -2416,7 +2362,7 @@ pub fn apply_rules(
                                 "clarithromycin",
                             ],
                             "streptococcus_pyogenes" => vec![
-                                "penicilling",
+                                "penicillin_g",
                                 "ampicillin",
                                 "amoxicillin",
                                 "amoxicillin_clavulanate",
@@ -2432,7 +2378,7 @@ pub fn apply_rules(
                                 "ceftriaxone",
                             ],
                             "neisseria_meningitidis" => {
-                                vec!["penicilling", "ampicillin", "ceftriaxone", "cefepime"]
+                                vec!["penicillin_g", "ampicillin", "ceftriaxone", "cefepime"]
                             }
                             "escherichia_coli" => vec![
                                 "ciprofloxacin",
@@ -2806,7 +2752,7 @@ pub fn apply_rules(
                     // Force hospitalization if this is an IV-only drug
                     // This captures nosocomial risk for patients receiving parenteral therapy
                     if matches!(drug_name, 
-                        "penicilling" | 
+                        "penicillin_g" | 
                         "piperacillin_tazobactam" | 
                         "ceftazidime" | 
                         "ceftriaxone" | 
