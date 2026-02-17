@@ -295,7 +295,6 @@ Derived from [src/config.rs#L174-L739](src/config.rs#L174-L739). Values affect e
 | --- | --- |
 | `max_resistance_level` | Upper bound for `any_r`/`majority_r` values. |
 | `resistance_emergence_bacteria_level_multiplier` | Scales emergence probability by infection burden. |
-| `resistance_emergence_pop_size_multiplier` | Debug multiplier to keep prevalence stable when population size changes. |
 | `any_r_emergence_level_on_first_emergence` | Initial resistance level assigned the first time a strain turns resistant. |
 | `multi_drug_penalty_threshold_num_drugs` | Number of concurrent drugs that triggers additional penalties. |
 | `resistance_development_inhibition_single_drug` | Fractional suppression of resistance growth when only one drug is in use. |
@@ -692,7 +691,7 @@ A hypothetical scenario estimating the burden attributable to antimicrobial resi
 
 | Lever | Value | Effect |
 | --- | --- | --- |
-| `resistance_emergence_multiplier` | 0.0 | Resistance never emerges de novo |
+| `counterfactual_resistance_multiplier` | 0.0 | Resistance never emerges de novo |
 | `clear_all_resistance_on_branch_start` | true | All existing resistance cleared when branch forks |
 
 **Use case:** Comparing deaths, treatment failures, and healthcare costs between Policy 0 (with resistance) and Policy 2 (without resistance) quantifies the mortality and morbidity burden directly attributable to AMR.
@@ -708,7 +707,7 @@ fn custom_policy() -> Self {
         drug_selection_temperature: Some(0.3),  // Very deterministic
         bacterial_testing_rate_multiplier: Some(2.0),  // Universal testing
         resistance_testing_rate_multiplier: Some(2.0),
-        resistance_emergence_multiplier: None,
+        counterfactual_resistance_multiplier: None,
         clear_all_resistance_on_branch_start: false,
         reserve_drug_penalty_multiplier: Some(3.0),  // Strict reserve restrictions
         drug_initiation_rate_multiplier: Some(0.7),  // 30% reduction

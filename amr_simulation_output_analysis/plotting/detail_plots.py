@@ -3830,7 +3830,7 @@ def get_clinical_guidance_info(bacteria_name: str) -> Optional[str]:
         'staphylococcus aureus': 'Expected: Penicillin (MSSA), Vancomycin (MRSA), Cephalexin\nActual guidelines: Variable multipliers based on resistance',
         'pseudomonas aeruginosa': 'Expected: Meropenem, Ceftazidime, Piperacillin-Tazobactam only\nActual guidelines: 25x, 20x, 25x multipliers',
         'klebsiella pneumoniae': 'Expected: Ceftriaxone (early), Meropenem (ESBL era)\nActual guidelines: 25x early, 8x later periods',
-        'mdr mycobacterium tuberculosis': 'Expected: Multi-drug therapy required - Rifampicin + FQs (Levofloxacin/Moxifloxacin) + Injectable (Amikacin)\nActual: MDR-TB has guaranteed rifampicin resistance, synergy when ≥2 drugs active'
+        'mdr_mycobacterium_tuberculosis': 'Expected: Multi-drug therapy required - Rifampicin + FQs (Levofloxacin/Moxifloxacin) + Injectable (Amikacin)\nActual: MDR-TB has guaranteed rifampicin resistance, synergy when ≥2 drugs active'
     }
     return guidance.get(bacteria_name)
 
@@ -3928,7 +3928,7 @@ def get_clinical_appropriateness(bacteria_name: str, drug_name: str) -> str:
             'appropriate': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam', 'colistin'],
             'inappropriate': ['vancomycin', 'penicillin', 'ampicillin']
         },
-        'mdr mycobacterium tuberculosis': {
+        'mdr_mycobacterium_tuberculosis': {
             'appropriate': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid', 'ofloxacin'],
             'inappropriate': ['penicillin', 'ampicillin', 'ceftriaxone', 'vancomycin', 'meropenem']
         }
@@ -3955,7 +3955,7 @@ def analyze_clinical_guideline_effectiveness(recent_data: pd.DataFrame, bacteria
         'staphylococcus aureus': ['vancomycin', 'penicillin', 'cephalexin'],
         'pseudomonas aeruginosa': ['meropenem', 'ceftazidime', 'piperacillin_tazobactam'],
         'klebsiella pneumoniae': ['ceftriaxone', 'meropenem', 'ciprofloxacin'],
-        'mdr mycobacterium tuberculosis': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid']
+        'mdr_mycobacterium_tuberculosis': ['rifampicin', 'levofloxacin', 'moxifloxacin', 'amikacin', 'linezolid']
     }
     
     for bacteria_name in bacteria_list:

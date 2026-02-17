@@ -59,7 +59,7 @@ pub(crate) struct PolicyAdjustments {
     pub(crate) minimal_potency_threshold_for_drug_selection: Option<f64>,
     pub(crate) bacterial_testing_rate_multiplier: Option<f64>,
     pub(crate) resistance_testing_rate_multiplier: Option<f64>,
-    pub(crate) resistance_emergence_multiplier: Option<f64>,
+    pub(crate) counterfactual_resistance_multiplier: Option<f64>,
     pub(crate) clear_all_resistance_on_branch_start: bool,
     // New stewardship-focused policy levers
     pub(crate) reserve_drug_penalty_multiplier: Option<f64>,     // Multiplier for reserve drug score penalty (>1 = stricter)
@@ -75,7 +75,7 @@ impl PolicyAdjustments {
             minimal_potency_threshold_for_drug_selection: None,
             bacterial_testing_rate_multiplier: None,
             resistance_testing_rate_multiplier: None,
-            resistance_emergence_multiplier: None,
+            counterfactual_resistance_multiplier: None,
             clear_all_resistance_on_branch_start: false,
             reserve_drug_penalty_multiplier: None,
             drug_initiation_rate_multiplier: None,
@@ -99,7 +99,7 @@ impl PolicyAdjustments {
             minimal_potency_threshold_for_drug_selection: None,
             bacterial_testing_rate_multiplier: Some(1.5),    // 50% more bacterial cultures
             resistance_testing_rate_multiplier: Some(1.5),   // 50% more AST (matched to cultures)
-            resistance_emergence_multiplier: None,
+            counterfactual_resistance_multiplier: None,
             clear_all_resistance_on_branch_start: false,
             reserve_drug_penalty_multiplier: Some(2.0),      // 2× penalty for reserve drugs
             drug_initiation_rate_multiplier: Some(0.85),     // 15% reduction in unnecessary Rx
@@ -114,7 +114,7 @@ impl PolicyAdjustments {
             minimal_potency_threshold_for_drug_selection: None,
             bacterial_testing_rate_multiplier: None,
             resistance_testing_rate_multiplier: None,
-            resistance_emergence_multiplier: Some(0.0),
+            counterfactual_resistance_multiplier: Some(0.0),
             clear_all_resistance_on_branch_start: true,
             reserve_drug_penalty_multiplier: None,
             drug_initiation_rate_multiplier: None,

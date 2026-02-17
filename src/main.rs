@@ -54,9 +54,11 @@ mod simulation;
 //
 // resistance floor should only have effect once prevalence of majority r > floor 
 //
-// errors in drug share code in calibration_summary
+// do we need an additional microbiome_r variable for gut bacteria alone to reflect high plasmid
+// spreading ?
 //
-// 
+// need logistic model for resistance mechanism emergence probability ?
+//
 //
 //
 //

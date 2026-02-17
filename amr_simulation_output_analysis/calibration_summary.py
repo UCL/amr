@@ -71,6 +71,8 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
             "cefepime",
             "ceftaroline",
             "ceftazidime_avibactam",
+            "ceftolozane_tazobactam",
+            "cefiderocol",
         ),
     ),
     (
@@ -96,18 +98,22 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         ("ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"),
     ),
     ("Aminoglycosides (J01G)", ("gentamicin", "tobramycin", "amikacin")),
-    ("Tetracyclines (J01A)", ("tetracycline", "doxycycline", "minocycline")),
-    ("Sulfonamides (J01E)", ("trim_sulf",)),
+    ("Tetracyclines (J01A)", ("tetracycline", "doxycycline", "minocycline", "tigecycline")),
+    ("Sulfonamides (J01E)", ("trim_sulf", "sulfanilamide")),
     ("Glycopeptides (J01XA)", ("vancomycin", "teicoplanin")),
     ("Lipoglycopeptides", ("dalbavancin",)),
     ("Oxazolidinones (J01XX)", ("linezolid", "tedizolid")),
+    ("Lipopeptides (J01XX09)", ("daptomycin",)),
     ("Polymyxins (J01XB)", ("colistin",)),
     ("Rifamycins (J04AB)", ("rifampicin",)),
     ("Chloramphenicol (J01BA)", ("chloramphenicol",)),
-    ("Nitrofurans (J01XE)", ("nitrofurantoin",)),
+    ("Nitrofurans (J01XE)", ("nitrofurantoin", "furazolidone")),
+    ("Fosfomycin (J01XX01)", ("fosfomycin",)),
     ("Fusidic acid (J01XC)", ("fusidic_a",)),
     ("Pleuromutilins", ("retapamulin",)),
     ("Streptogramins (J01FG)", ("quinu_dalfo",)),
+    ("Nitroimidazoles", ("metronidazole",)),
+    ("Fidaxomicin", ("fidaxomicin",)),
 )
 
 @dataclass
@@ -608,6 +614,10 @@ def _load_bacteria_drug_matrix(
     df = pd.read_csv(path)
     if df.empty:
         return pd.DataFrame(columns=["Bacteria", "drug", "target_raw", "target", "reason", "bacteria_slug", "drug_slug"])
+
+    # Drop metadata columns before melting (these are not drugs)
+    metadata_columns = ["notes", "Notes", "NOTES", "note", "Note"]
+    df = df.drop(columns=[col for col in metadata_columns if col in df.columns], errors="ignore")
 
     df = df.melt(id_vars="Bacteria", var_name="drug", value_name="target_raw")
     df["target"] = pd.to_numeric(df["target_raw"], errors="coerce")
@@ -2231,23 +2241,24 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "%",
         )
 
-        if not combined_drug_df.empty:
-            handle.write("Drug Class Usage Benchmarks (daily users in millions)\n")
-            handle.write(
-                combined_drug_df.to_string(
-                    index=False,
-                    float_format=lambda x: f"{x:,.2f}",
-                    na_rep="---",
-                )
-            )
-            if reserve_share is not None and reserve_users is not None and total_users is not None:
-                handle.write(
-                    "\nReserve row derived from mean daily reserve users "
-                    f"{reserve_users:,.0f} of total antibiotic users {total_users:,.0f}."
-                )
-            handle.write("\n\n")
-        else:
-            handle.write("Drug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n\n")
+        # Drug Class Usage Benchmarks table removed - replaced by more comprehensive Drug Class Share History
+        # if not combined_drug_df.empty:
+        #     handle.write("Drug Class Usage Benchmarks (daily users in millions)\n")
+        #     handle.write(
+        #         combined_drug_df.to_string(
+        #             index=False,
+        #             float_format=lambda x: f"{x:,.2f}",
+        #             na_rep="---",
+        #         )
+        #     )
+        #     if reserve_share is not None and reserve_users is not None and total_users is not None:
+        #         handle.write(
+        #             "\nReserve row derived from mean daily reserve users "
+        #             f"{reserve_users:,.0f} of total antibiotic users {total_users:,.0f}."
+        #         )
+        #     handle.write("\n\n")
+        # else:
+        #     handle.write("Drug Class Usage Benchmarks\n(no drug class targets configured or matching data)\n\n")
 
         if not drug_class_history_df.empty:
             handle.write("Drug Class Share History (simulation % vs. target %)\n")
@@ -2409,7 +2420,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             signed_columns: Set[str] = set()
 
             for column in resistance_display_df.columns:
-                if column in {"Bacteria", "Drug", "Note"}:
+                if column in {"Bacteria", "Drug", "Drug class", "Note"}:
                     continue
                 resistance_display_df[column] = resistance_display_df.apply(
                     _format_numeric_value,
