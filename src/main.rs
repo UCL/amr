@@ -59,6 +59,10 @@ mod simulation;
 //
 // need logistic model for resistance mechanism emergence probability ?
 //
+// review all resistance emergence logic including mechanism to any_r
+//
+// add mechanisms present by day to infection journeys
+//
 //
 //
 //

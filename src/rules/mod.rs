@@ -87,8 +87,8 @@ use crate::config::{
 };
 use crate::simulation::population::{
     self, CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual,
-    InfectionResolutionType, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_SHORT_NAMES,
-    INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    InfectionResolutionType, Region, ResistanceMechanism, BACTERIA_LIST, DRUG_CLASS_LOOKUP,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
 };
 use rand::Rng;
 
@@ -187,6 +187,79 @@ fn update_drug_counter(individual: &mut Individual) {
 use rand::distributions::Distribution;
 use rand::distributions::WeightedIndex;
 
+/// Propagate mechanism-based resistance to `any_r` (and optionally `microbiome_r`)
+/// for ALL drugs an organism's active mechanisms apply to.
+///
+/// This is the cross-resistance propagation fix: when a mechanism like ESBL CTX-M
+/// is acquired under amoxicillin pressure, ticarcillin/ceftazidime/etc. should
+/// immediately reflect the resistance because the mechanism is on the *bacterium*,
+/// not on the drug.
+///
+/// When `raise_only` is true, `any_r` is only increased (never lowered) — used after
+/// mechanism acquisition. When false, `any_r` is reset to the mechanism-derived level
+/// — used after mechanism reversion.
+///
+/// When `propagate_microbiome_r` is true, `microbiome_r` is also raised for applicable
+/// drugs — used in the microbiome context where the resistant clone in gut flora is
+/// resistant to all drugs the mechanism covers.
+fn propagate_mechanism_resistance(
+    individual: &mut Individual,
+    b_idx: usize,
+    param_cache: &ParameterKeyCache,
+    raise_only: bool,
+    propagate_microbiome_r: bool,
+) {
+    let store = parameter_store();
+    let max_resistance_level = store.globals.max_resistance_level;
+
+    for drug_index in 0..DRUG_SHORT_NAMES.len() {
+        // Compute cumulative mechanism resistance via multiplicative stacking
+        let mut current_susceptibility = 1.0_f64;
+
+        for (mechanism_idx, _) in ResistanceMechanism::all().iter().enumerate() {
+            if !individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                continue;
+            }
+            if !param_cache.mechanism_applicable(mechanism_idx, b_idx, drug_index) {
+                continue;
+            }
+
+            let mechanism_enhancement = store
+                .resistance_mechanism
+                .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_index]);
+
+            current_susceptibility *= 1.0 - mechanism_enhancement;
+        }
+
+        let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
+        let new_any_r = (cumulative_mechanism_resistance * max_resistance_level)
+            .min(max_resistance_level)
+            .max(0.0);
+
+        let resistance_data = &mut individual.resistances[b_idx][drug_index];
+
+        if raise_only {
+            // Only raise any_r — don't lower it (preserves higher cache-sampled values)
+            if new_any_r > resistance_data.any_r {
+                resistance_data.any_r = new_any_r;
+                // Mechanism = genotypic change = majority strain, so set majority_r too
+                resistance_data.majority_r = resistance_data.any_r;
+            }
+        } else {
+            // Reset mode (reversion) — set any_r to exact mechanism-derived level
+            resistance_data.any_r = new_any_r;
+            if resistance_data.majority_r > 0.0 {
+                resistance_data.majority_r = resistance_data.any_r;
+            }
+        }
+
+        // Propagate to microbiome_r if requested (microbiome context)
+        if propagate_microbiome_r && new_any_r > resistance_data.microbiome_r {
+            resistance_data.microbiome_r = new_any_r;
+        }
+    }
+}
+
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
 #[inline]
 fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, drug: &str) -> bool {
@@ -217,6 +290,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
              | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam"
              | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime"
+             | "ceftolozane_tazobactam"  // AmpC hydrolyzes ceftolozane component
              | "aztreonam"
         ),
 
@@ -225,9 +299,10 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            | "ceftolozane_tazobactam"  // KPC hydrolyzes ceftolozane
             | "aztreonam"
             | "meropenem" | "imipenem_c" | "ertapenem"
-            // S: ceftazidime_avibactam, meropenem_vaborbactam
+            // S: ceftazidime_avibactam, meropenem_vaborbactam (avibactam/vaborbactam inhibit KPC)
         ),
 
         EnzymeNdmVim => matches!(
@@ -235,7 +310,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
-            | "ceftazidime_avibactam" | "meropenem_vaborbactam"
+            | "ceftolozane_tazobactam"  // MBLs hydrolyze ceftolozane
+            | "cefiderocol"             // MBLs partially hydrolyze cefiderocol
+            | "ceftazidime_avibactam" | "meropenem_vaborbactam"  // MBLs not inhibited by avibactam/vaborbactam
             | "meropenem" | "imipenem_c" | "ertapenem"
         ),
 
@@ -256,11 +333,11 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ),
 
         MutationGyrAPrimary => matches!(
-            drug, "ciprofloxacin" | "ofloxacin" | "norfloxacin"
+            drug, "ciprofloxacin" | "ofloxacin"
         ),
 
         MutationGyrAParCSecondary => matches!(
-            drug, "ciprofloxacin" | "ofloxacin" | "norfloxacin" | "levofloxacin" | "moxifloxacin"
+            drug, "ciprofloxacin" | "ofloxacin" | "levofloxacin" | "moxifloxacin"
         ),
 
         ProtectionQnr => matches!(
@@ -268,30 +345,67 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ),
 
         Enzyme16sRrmt => matches!(
-            drug, "gentamicin" | "tobramycin" | "amikacin" | "kanamycin" | "streptomycin"
+            drug, "gentamicin" | "tobramycin" | "amikacin"
         ),
 
         EnzymeCat => matches!(drug, "chloramphenicol"),
 
         TargetSiteErmB => matches!(
             drug, "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
+            | "quinu_dalfo"   // MLSB cross-resistance affects streptogramin B component
         ),
         
-        TargetSiteCfr => matches!(drug, "linezolid" | "chloramphenicol"),
+        TargetSiteCfr => matches!(
+            drug, "linezolid" | "tedizolid"      // Cfr affects all oxazolidinones
+            | "chloramphenicol"
+            | "retapamulin"                         // Cfr confers cross-resistance to pleuromutilins
+        ),
 
-        TargetSiteVanA => matches!(drug, "vancomycin" | "teicoplanin"),
+        TargetSiteVanA => matches!(drug, "vancomycin" | "teicoplanin" | "dalbavancin"),  // VanA confers resistance to all glycopeptides/lipoglycopeptides
 
         TargetSiteVanB => matches!(drug, "vancomycin"),
 
         ModificationMcr1 => matches!(drug, "colistin"),
 
-        EffluxAcrabTolc | EffluxMexxyOprm | GlobalEffluxPump => matches!(
-           drug, "tetracycline" | "chloramphenicol" | "ciprofloxacin"
+        EffluxAcrabTolc | EffluxMexxyOprm => matches!(
+           drug, "tetracycline" | "doxycycline" | "minocycline"  // All classical tetracyclines affected by RND efflux
+           | "chloramphenicol" | "ciprofloxacin"
+        ),
+
+        GlobalEffluxPump => matches!(
+           drug, "tetracycline" | "doxycycline" | "minocycline"  // Classical tetracyclines
+           | "tigecycline"          // Tigecycline evades tet-specific efflux but susceptible to broad RND pumps
+           | "chloramphenicol" | "ciprofloxacin"
         ),
 
         PorinLossOmpk35_36 | PorinLossOprd | GlobalPorinLoss => matches!(
             drug, "meropenem" | "imipenem_c" | "ertapenem"
         ),
+
+        // Folate pathway: DHPS (sul genes) and DHFR (dfr genes) mutations
+        MutationFolatePathway => matches!(
+            drug, "sulfanilamide" | "trim_sulf"
+        ),
+
+        // Nitroreductase loss/modification: affects all prodrugs requiring nitroreduction
+        MutationNitroreductase => matches!(
+            drug, "metronidazole" | "nitrofurantoin" | "furazolidone"
+        ),
+
+        // FosA metalloenzyme: fosfomycin-modifying enzyme
+        EnzymeFosA => matches!(drug, "fosfomycin"),
+
+        // MprF membrane charge modification: daptomycin resistance
+        MutationMprF => matches!(drug, "daptomycin"),
+
+        // RpoB RNA polymerase mutation: rifampicin and fidaxomicin
+        MutationRpoB => matches!(drug, "rifampicin" | "fidaxomicin"),
+
+        // FusB/FusC protection proteins: fusidic acid resistance
+        ProtectionFusB => matches!(drug, "fusidic_a"),
+
+        // As-yet-unknown: applies to ALL drugs (generic catch-all for calibration)
+        AsYetUnknown => true,
     }
 }
 
@@ -2298,6 +2412,25 @@ pub fn apply_rules(
                             }
                         }
 
+                        // Restriction on Rifampicin
+                        // Primarily a TB drug; should be reserved for M. tuberculosis infections.
+                        // Occasionally used for MRSA, Legionella, or prophylaxis, but overused in simulation.
+                        if matches!(drug_name, "rifampicin") {
+                            let is_tb = matches!(bacteria_name, 
+                                "mdr_mycobacterium_tuberculosis" | "mycobacterium_tuberculosis"
+                            );
+                            if !is_tb {
+                                score *= 0.01; // 100× restriction for non-TB infections
+                            }
+                        }
+
+                        // Restriction on Chloramphenicol  
+                        // Older broad-spectrum drug with bone marrow toxicity (aplastic anemia risk).
+                        // Rarely used in modern practice except for specific indications (rickettsia, some CNS infections).
+                        if matches!(drug_name, "chloramphenicol") {
+                            score *= 0.02; // 50× restriction due to toxicity concerns
+                        }
+
                         // --- Stewardship: Promote Narrow Spectrum Beta-Lactams ---
                         // Favor Penicillins for Streptococcus, Enterococcus, Syphilis, Neisseria when susceptible
                         if matches!(drug_name, "penicillin_g" | "ampicillin" | "amoxicillin") {
@@ -3837,6 +3970,17 @@ pub fn apply_rules(
                             }
                         }
                     }
+
+                    // Cross-resistance propagation: ensure mechanism-based resistance
+                    // is reflected in any_r/majority_r/microbiome_r for ALL drugs
+                    // the organism's mechanisms apply to, not just the selecting drug.
+                    propagate_mechanism_resistance(
+                        individual,
+                        b_idx,
+                        param_cache,
+                        true,  // raise_only: don't lower existing resistance
+                        true,  // propagate_microbiome_r: this is the microbiome context
+                    );
                     // --- end mechanism emergence in microbiome ---
                 }
                 // --- end de novo resistance emergence in microbiome ---
@@ -4022,7 +4166,7 @@ pub fn apply_rules(
                                         }
 
                                         let enhancement =
-                                            store.resistance_mechanism.enhancement_multiplier(mech_idx);
+                                            store.resistance_mechanism.enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[d_idx]);
                                         if enhancement <= resistance_data.any_r
                                             && rng.gen_bool(mechanism_prob)
                                         {
@@ -4044,6 +4188,19 @@ pub fn apply_rules(
                             resistance_data.majority_r = 0.0;
                         }
                     }
+
+                    // Cross-resistance propagation at infection start:
+                    // After cache sampling, ensure mechanism-based resistance acts as
+                    // a floor for ALL drugs the sampled mechanism applies to.
+                    // This prevents the cache from under-representing cross-resistance
+                    // for drugs that are rarely prescribed but mechanistically affected.
+                    propagate_mechanism_resistance(
+                        individual,
+                        b_idx,
+                        param_cache,
+                        true,  // raise_only: preserve higher cache-sampled values
+                        false, // propagate_microbiome_r: this is an active infection
+                    );
 
                     // --- TB-specific guaranteed rifampicin resistance ---
                     if is_tb && guaranteed_rifampicin_resistance > 0.0 {
@@ -4072,7 +4229,7 @@ pub fn apply_rules(
                                     }
 
                                     let enhancement =
-                                        store.resistance_mechanism.enhancement_multiplier(mech_idx);
+                                        store.resistance_mechanism.enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[rifampicin_idx]);
                                     if enhancement <= resistance_data.any_r
                                         && rng.gen_bool(mechanism_prob)
                                     {
@@ -4153,13 +4310,152 @@ pub fn apply_rules(
             let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0); // Now using 1.0 from your config
 
             if let Some(bacteria_full_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
+                // --- De novo resistance mechanism emergence (evaluated ONCE per bacterium per timestep) ---
+                // Moved outside the per-drug loop so each mechanism gets exactly one emergence roll per day,
+                // using the strongest selective pressure across all active applicable drugs.
+                {
+                    use crate::simulation::population::ResistanceMechanism;
+
+                    let current_bacteria_level = individual.level[b_idx];
+                    let any_drug_present = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
+
+                    if any_drug_present && current_bacteria_level > 0.0001 {
+                        // Bacteria level dependency: Log-scale factor
+                        // Mutation emergence scales with population size which varies over orders of magnitude.
+                        // Log-scale respects this: 10^3 bacteria contribute much less than 10^9.
+                        let max_bacteria_level = store.bacteria.max_level[b_idx];
+                        let bacteria_level_effect_multiplier =
+                            store.globals.resistance_emergence_bacteria_level_multiplier;
+                        let min_threshold = 0.0001_f64; // minimum bacteria level for emergence guard
+                        let log_range = max_bacteria_level.log10() - min_threshold.log10(); // e.g. log10(10) - log10(0.0001) = 5
+                        let bacteria_level_factor = if log_range > 0.0 {
+                            ((current_bacteria_level.max(min_threshold).log10() - min_threshold.log10()) / log_range)
+                                .clamp(0.0, 1.0)
+                                * bacteria_level_effect_multiplier
+                        } else {
+                            0.0
+                        };
+
+                        // Pre-compute emergence_drug_factor for each drug
+                        // Gaussian curve peaking at 0.5 (half of standard dose at site), sigma=0.2
+                        // Baseline of 0.01 so emergence is very low at high concentrations
+                        let peak_x = 0.5_f64;
+                        let sigma = 0.2_f64;
+                        let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
+                        let num_drugs = DRUG_SHORT_NAMES.len();
+                        let mut emergence_drug_factors: Vec<f64> = Vec::with_capacity(num_drugs);
+                        for d_i in 0..num_drugs {
+                            let d_level = individual.cur_level_drug[d_i];
+                            if d_level > 0.0 {
+                                let d_initial = store.drug.initial_level(d_i);
+                                let penetration = store.syndrome.drug_penetration(syndrome_id, d_i);
+                                let effective_site = d_level * penetration;
+                                let norm = (effective_site / d_initial).clamp(0.0, 10.0);
+                                let gauss_exp = -((norm - peak_x).powi(2)) / (2.0 * sigma * sigma);
+                                emergence_drug_factors.push((0.01 + 0.99 * gauss_exp.exp()).clamp(0.0, 1.0));
+                            } else {
+                                emergence_drug_factors.push(0.0);
+                            }
+                        }
+
+                        // Count active drugs relevant to THIS bacterium (potency > 0)
+                        // Drugs targeting other bacteria should not influence the multi-drug penalty
+                        let active_relevant_drug_count: usize = (0..num_drugs)
+                            .filter(|&d_i| {
+                                individual.cur_level_drug[d_i] > 0.0
+                                    && param_cache.potency(bacteria_full_idx, d_i) > 0.0
+                            })
+                            .count();
+                        let multi_drug_penalty_threshold =
+                            store.globals.multi_drug_penalty_threshold_num_drugs as usize;
+
+                        for (mechanism_idx, _mechanism) in
+                            ResistanceMechanism::all().iter().enumerate()
+                        {
+                            // Skip if mechanism already present
+                            if individual.resistance_mechanisms[bacteria_full_idx][mechanism_idx] {
+                                continue;
+                            }
+
+                            // Find the maximum emergence_drug_factor across all active drugs
+                            // where this mechanism is applicable — represents the strongest selective pressure
+                            let mut max_emergence_drug_factor = 0.0_f64;
+                            let mut mechanism_applicable_to_any_drug = false;
+                            for d_i in 0..num_drugs {
+                                if individual.cur_level_drug[d_i] > 0.0
+                                    && param_cache.mechanism_applicable(mechanism_idx, bacteria_full_idx, d_i)
+                                {
+                                    mechanism_applicable_to_any_drug = true;
+                                    if emergence_drug_factors[d_i] > max_emergence_drug_factor {
+                                        max_emergence_drug_factor = emergence_drug_factors[d_i];
+                                    }
+                                }
+                            }
+
+                            if !mechanism_applicable_to_any_drug {
+                                continue;
+                            }
+
+                            let mechanism_rate = store
+                                .bacteria_mechanism_emergence
+                                .rate(bacteria_full_idx, mechanism_idx);
+
+                            // Multi-drug penalty: how many active relevant drugs does this mechanism NOT cover?
+                            let mut multi_drug_penalty_factor = 1.0;
+                            if active_relevant_drug_count >= multi_drug_penalty_threshold {
+                                let mut affected_count = 0;
+                                for d_i in 0..num_drugs {
+                                    if individual.cur_level_drug[d_i] > 0.0
+                                        && param_cache.potency(bacteria_full_idx, d_i) > 0.0
+                                        && param_cache.mechanism_applicable(mechanism_idx, bacteria_full_idx, d_i)
+                                    {
+                                        affected_count += 1;
+                                    }
+                                }
+                                if affected_count == 0 { affected_count = 1; }
+
+                                if affected_count < active_relevant_drug_count {
+                                    if affected_count == 1 {
+                                        multi_drug_penalty_factor = store.globals.resistance_development_inhibition_single_drug;
+                                    } else {
+                                        multi_drug_penalty_factor = store.globals.resistance_development_inhibition_partial_cross;
+                                    }
+                                }
+                            }
+
+                            let mechanism_emergence_rate =
+                                mechanism_rate
+                                    * counterfactual_resistance_multiplier
+                                    * (1.0 + bacteria_level_factor)
+                                    * max_emergence_drug_factor
+                                    * multi_drug_penalty_factor;
+
+                            if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
+                                individual.resistance_mechanisms[bacteria_full_idx]
+                                    [mechanism_idx] = true;
+                            }
+                        }
+                    }
+                }
+
+                // Cross-resistance propagation: after de novo mechanism emergence,
+                // ensure any_r/majority_r for ALL drugs the mechanism applies to
+                // are updated — not just the drug under selection pressure.
+                propagate_mechanism_resistance(
+                    individual,
+                    bacteria_full_idx,
+                    param_cache,
+                    true,  // raise_only: don't lower existing resistance
+                    false, // propagate_microbiome_r: this is an active infection
+                );
+                // --- end resistance mechanism emergence logic ---
+
                 for (drug_index, _use_drug) in individual.cur_use_drug.iter().enumerate() {
                     let resistance_data =
                         &mut individual.resistances[bacteria_full_idx][drug_index];
 
                     let drug_current_level = individual.cur_level_drug[drug_index];
-                    let drug_currently_present = drug_current_level > 0.0; // Check if drug is effectively present
-                    let current_bacteria_level = individual.level[b_idx];
+                    let drug_currently_present = drug_current_level > 0.0;
 
                     // existing majority_r evolution based on drug presence
                     if resistance_data.majority_r == 0.0
@@ -4171,21 +4467,6 @@ pub fn apply_rules(
                         }
                     }
 
-                    // any_r increase towards max_resistance_level
-                    // when drug is present and majority_r is still 0
-                    if resistance_data.majority_r == 0.0 && // No majority resistance yet
-                       resistance_data.any_r > 0.0 && // But some minority resistance exists
-                       resistance_data.any_r < max_resistance_level && // And it's not yet full resistance
-
-                       drug_currently_present
-                    // And the drug is present, providing selection pressure
-                    {
-                        let any_r_increase_rate =
-                            store.globals.any_r_increase_rate_per_day_when_drug_present;
-                        resistance_data.any_r =
-                            (resistance_data.any_r + any_r_increase_rate).min(max_resistance_level);
-                    }
-
                     // majority_r and any_r between 0 and 1
                     resistance_data.majority_r = resistance_data
                         .majority_r
@@ -4194,189 +4475,68 @@ pub fn apply_rules(
                     resistance_data.any_r =
                         resistance_data.any_r.min(max_resistance_level).max(0.0);
 
-                    //new resistance emergence ---
-                    // this section handles the de novo emergence of resistance when it's not already present.
-                    // it should come before activity_r is fully calculated for use in bacteria level reduction *this* time step.
+                    // calculate activity_r (keep it while drug levels remain detectable)
+                    // First check what the bacteria level will be after this timestep
+                    let current_bacteria_level = individual.level[bacteria_full_idx];
 
-                    // bacteria level dependency: Higher at higher levels
-                    let max_bacteria_level = store.bacteria.max_level[b_idx];
-                    let bacteria_level_effect_multiplier =
-                        store.globals.resistance_emergence_bacteria_level_multiplier;
-                    // Normalize bacteria level to [0,1] and apply multiplier
-                    let bacteria_level_factor =
-                        (current_bacteria_level / max_bacteria_level).clamp(0.0, 1.0)
-                            * bacteria_level_effect_multiplier;
-
-                    // activity_r dependency: Bell-shaped curve
-                    // Use the drug's initial level for normalization to get a comparable drug concentration scale (0-10)
-                    let drug_initial_level_for_normalization =
-                        store.drug.initial_level(drug_index);
-                    
-                    // Adjust for tissue penetration - calculate site concentration
-                    let syndrome_id = individual.infectious_syndrome[b_idx].max(0) as usize;
-                    let penetration_factor = store.syndrome.drug_penetration(syndrome_id, drug_index);
-                    
-                    // Effective level at site = Serum Level * Penetration
-                    let effective_site_level = drug_current_level * penetration_factor;
-
-                    // Normalize by Standard Serum Dose
-                    let mut norm_drug_level =
-                        effective_site_level / drug_initial_level_for_normalization;
-                    norm_drug_level = norm_drug_level.clamp(0.0, 10.0);
-
-                    // resistance emergence probability
-                    // Updated Curve: Peaks at 0.5 (Sub-inhibitory/MIC boundary) rather than 5.0 (High Dose)
-                    // Using Gaussian: Peak 1.0 at x=0.5, Sigma=0.2 (narrow mutant selection window)
-                    // We add a small baseline of 0.05 so it's never zero.
-                    let peak_x = 0.5;
-                    let sigma = 0.2;
-                    let gaussian_exponent = -((norm_drug_level - peak_x).powi(2)) / (2.0 * sigma * sigma);
-                    let emergence_drug_concentration_factor = 0.05 + 0.95 * gaussian_exponent.exp();
-                    
-                    let emergence_drug_factor =
-                        emergence_drug_concentration_factor.clamp(0.0, 1.0);
-
-
-                    // --- resistance mechanism emergence logic ---
-                    // Check for emergence of specific resistance mechanisms when drug is present
-                    if drug_current_level > 0.0 && current_bacteria_level > 0.0001 {
-                        use crate::simulation::population::ResistanceMechanism;
-
-                        if let Some(bacteria_full_idx) =
+                    // Mechanism-based cross-resistance: recalculate any_r from mechanisms
+                    // for ALL drugs every timestep (not gated on drug_current_level).
+                    // This ensures that if ESBL CTX-M is present, ticarcillin's any_r
+                    // is updated even when ticarcillin isn't being administered.
+                    if current_bacteria_level > INFECTION_EPS {
+                        let mut current_susceptibility = 1.0;
+                        
+                        if let Some(bacteria_full_idx_inner) =
                             BACTERIA_LIST.iter().position(|&b| b == bacteria)
                         {
+                            use crate::simulation::population::ResistanceMechanism;
+
                             for (mechanism_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
-                                // Skip if mechanism already present
-                                if individual.resistance_mechanisms[bacteria_full_idx]
+                                if !individual.resistance_mechanisms[bacteria_full_idx_inner]
                                     [mechanism_idx]
                                 {
                                     continue;
                                 }
-
                                 if !param_cache.mechanism_applicable(
                                     mechanism_idx,
-                                    bacteria_full_idx,
+                                    bacteria_full_idx_inner,
                                     drug_index,
                                 ) {
                                     continue;
                                 }
 
-                                let mechanism_rate = store
-                                    .bacteria_mechanism_emergence
-                                    .rate(bacteria_full_idx, mechanism_idx);
+                                let mechanism_enhancement = store
+                                    .resistance_mechanism
+                                    .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_index]);
 
-                                // Calculate Multi-Drug Penalty tailored for this Mechanism
-                                let active_drug_count = individual
-                                    .cur_level_drug
-                                    .iter()
-                                    .filter(|&&level| level > 0.0)
-                                    .count();
-                                let multi_drug_penalty_threshold =
-                                    store.globals.multi_drug_penalty_threshold_num_drugs as usize;
-                                let mut multi_drug_penalty_factor = 1.0;
-
-                                if active_drug_count >= multi_drug_penalty_threshold {
-                                     let mut affected_count = 0;
-                                     // Iterate over ALL drugs to see which are active AND affected by THIS mechanism
-                                     for (d_i, &d_level) in individual.cur_level_drug.iter().enumerate() {
-                                         if d_level > 0.0 {
-                                             if param_cache.mechanism_applicable(mechanism_idx, b_idx, d_i) {
-                                                 affected_count += 1;
-                                             }
-                                         }
-                                     }
-                                     if affected_count == 0 { affected_count = 1; }
-
-                                    if affected_count < active_drug_count {
-                                        if affected_count == 1 {
-                                            multi_drug_penalty_factor = store.globals.resistance_development_inhibition_single_drug;
-                                        } else {
-                                            multi_drug_penalty_factor = store.globals.resistance_development_inhibition_partial_cross;
-                                        }
-                                    }
-                                }
-
-                                let mechanism_emergence_rate =
-                                    mechanism_rate
-                                        * counterfactual_resistance_multiplier
-                                        * (1.0 + bacteria_level_factor)
-                                        * emergence_drug_factor
-                                        * multi_drug_penalty_factor;
-
-                                if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                    individual.resistance_mechanisms[bacteria_full_idx]
-                                        [mechanism_idx] = true;
-                                }
+                                // Multiplicative stacking of susceptibility
+                                current_susceptibility *= 1.0 - mechanism_enhancement;
                             }
                         }
-                    }
-                    // --- end resistance mechanism emergence logic ---
 
-                    // calculate activity_r (keep it while drug levels remain detectable)
-                    // First check what the bacteria level will be after this timestep
-                    let current_bacteria_level = individual.level[bacteria_full_idx];
+                        let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
+
+                        // Apply mechanism enhancements if they exceed current resistance
+                        // This ensures that acquiring a second mechanism increases resistance (0.5 -> 0.75)
+                        // while maintaining any potentially higher intrinsic/statistical resistance
+                        let normalized_any_r = resistance_data.any_r / max_resistance_level;
+                        
+                        if cumulative_mechanism_resistance > normalized_any_r {
+                            let new_any_r = cumulative_mechanism_resistance * max_resistance_level;
+                            
+                            // Update any_r to the new level
+                            resistance_data.any_r = new_any_r;
+
+                            // Mechanism = genotypic change = majority strain
+                            resistance_data.majority_r = resistance_data.any_r;
+                        }
+                    }
 
                     if drug_current_level > 0.0 {
                         // Fetch potency from cached lookup
                         let base_potency = param_cache.potency(bacteria_full_idx, drug_index);
-
-                        if current_bacteria_level > INFECTION_EPS {
-                            // Calculate resistance mechanism enhancement using multiplicative stacking avoiding double counting
-                            // Susceptibility = Product(1 - enhancement)
-                            // Resistance = 1 - Susceptibility
-                            let mut current_susceptibility = 1.0;
-                            
-                            if let Some(bacteria_full_idx) =
-                                BACTERIA_LIST.iter().position(|&b| b == bacteria)
-                            {
-                                use crate::simulation::population::ResistanceMechanism;
-
-                                for (mechanism_idx, _mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    if !individual.resistance_mechanisms[bacteria_full_idx]
-                                        [mechanism_idx]
-                                    {
-                                        continue;
-                                    }
-                                    if !param_cache.mechanism_applicable(
-                                        mechanism_idx,
-                                        bacteria_full_idx,
-                                        drug_index,
-                                    ) {
-                                        continue;
-                                    }
-
-                                    let mechanism_enhancement = store
-                                        .resistance_mechanism
-                                        .enhancement_multiplier(mechanism_idx);
-
-                                    // Multiplicative stacking of susceptibility
-                                    current_susceptibility *= 1.0 - mechanism_enhancement;
-                                }
-                            }
-
-                            let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
-
-                            // Apply mechanism enhancements if they exceed current resistance
-                            // This ensures that acquiring a second mechanism increases resistance (0.5 -> 0.75)
-                            // while maintaining any potentially higher intrinsic/statistical resistance
-                            let normalized_any_r = resistance_data.any_r / max_resistance_level;
-                            
-                            if cumulative_mechanism_resistance > normalized_any_r {
-                                let new_any_r = cumulative_mechanism_resistance * max_resistance_level;
-                                
-                                // Update any_r to the new level
-                                resistance_data.any_r = new_any_r;
-
-                                // If majority_r > 0, it must equal any_r (maintain the relationship)
-                                if resistance_data.majority_r > 0.0 {
-                                    resistance_data.majority_r = resistance_data.any_r;
-                                }
-                            }
-                        }
 
                         // Calculate activity_r using the updated resistance levels
                         let normalized_any_r = resistance_data.any_r / max_resistance_level;
@@ -4611,46 +4771,13 @@ pub fn apply_rules(
 
                 // If any mechanisms were lost, recalculate resistance levels for all drugs
                 if !mechanisms_reverted.is_empty() {
-                    for drug_index in 0..DRUG_SHORT_NAMES.len() {
-                        let resistance_data = &mut individual.resistances[b_idx][drug_index];
-
-                        // Recalculate mechanism-based resistance enhancement (Multiplicative)
-                        let mut current_susceptibility = 1.0;
-                        let max_resistance_level = store.globals.max_resistance_level;
-
-                        for (mechanism_idx, _mechanism) in
-                            ResistanceMechanism::all().iter().enumerate()
-                        {
-                            if !individual.resistance_mechanisms[b_idx][mechanism_idx] {
-                                continue;
-                            }
-                            if !param_cache.mechanism_applicable(mechanism_idx, b_idx, drug_index) {
-                                continue;
-                            }
-
-                            let mechanism_enhancement = store
-                                .resistance_mechanism
-                                .enhancement_multiplier(mechanism_idx);
-                            
-                             // Multiplicative stacking of susceptibility
-                             current_susceptibility *= 1.0 - mechanism_enhancement;
-                        }
-                        
-                        let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
-
-                        // Update resistance levels based on remaining mechanisms
-                        // Reversion resets resistance to the calculated mechanism level (ignoring previous 'base' which is hard to track)
-                        // This ensures resistance actually drops when mechanisms are lost
-                        let new_resistance_level = cumulative_mechanism_resistance
-                            .min(1.0)
-                            .max(0.0);
-                        let new_any_r = new_resistance_level * max_resistance_level;
-
-                        resistance_data.any_r = new_any_r;
-                        if resistance_data.majority_r > 0.0 {
-                            resistance_data.majority_r = resistance_data.any_r;
-                        }
-                    }
+                    propagate_mechanism_resistance(
+                        individual,
+                        b_idx,
+                        param_cache,
+                        false, // raise_only=false: reversion resets to mechanism-derived level
+                        false, // propagate_microbiome_r: reversion context is active infection
+                    );
                 }
 
                 // If no mechanisms remain but resistance persists, apply bacteria-specific reversion
@@ -5056,7 +5183,7 @@ pub fn apply_rules(
 
                                     let enhancement = store
                                         .resistance_mechanism
-                                        .enhancement_multiplier(mech_idx);
+                                        .enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[drug_idx]);
                                     if enhancement <= new_any_r && rng.gen_bool(mechanism_prob) {
                                         individual.resistance_mechanisms[recipient_idx]
                                             [mech_idx] = true;
@@ -5096,7 +5223,7 @@ pub fn apply_rules(
 
                                     let enhancement = store
                                         .resistance_mechanism
-                                        .enhancement_multiplier(mech_idx);
+                                        .enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[drug_idx]);
                                     if enhancement <= new_any_r && rng.gen_bool(mechanism_prob) {
                                         individual.resistance_mechanisms[recipient_idx]
                                             [mech_idx] = true;

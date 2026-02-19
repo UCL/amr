@@ -1,7 +1,7 @@
 
-We are developing a stochastic individual-based model for anti-bacterial resistance. The engine tracks every infection, resistance state, and treatment decision for each simulated person on a daily timestep starting in 1942 (the introduction of penicillin), although alternative start dates with pre-existing resistance are also supported.
+We are developing a stochastic individual-based model for anti-bacterial resistance. The engine tracks every infection, resistance state, and treatment decision for each simulated person on a daily timestep starting in 1930 (before the introduction of the first antibiotics), although alternative start dates with pre-existing resistance are also supported.
 
-Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 39 bacteria and 52 antibiotics, but both lists can grow without changing core data structures.
+Age is represented in days; negative ages indicate unborn individuals who remain inert until birth. Each person belongs to a home region but may be temporarily located elsewhere, letting the model differentiate home exposure, travel, and hospital-acquired events. The simulation currently includes 42 bacteria and 58 antibiotics across 18 drug classes, but all lists can grow without changing core data structures.
 
 ### Resistance Calculation
 
@@ -14,7 +14,7 @@ Resistance tracking relies on five per-bacteria/drug metrics defined in [src/sim
 - `microbiome_r`: resistance carried in the microbiome rather than the active infection.
 
 **Resistance Mechanism Stacking (New in v1.1)**
-The model now employs **Multiplicative Stacking** for resistance mechanisms. Instead of simply using the strongest mechanism present ("High Water Mark"), multiple mechanisms now combine to increase resistance toward 1.0 (complete immunity).
+The model employs **Multiplicative Stacking** for resistance mechanisms. Instead of simply using the strongest mechanism present, multiple mechanisms now combine to increase resistance toward 1.0.
 
 $$
 TotalSusceptibility = (1.0 - Mechanism_A) \times (1.0 - Mechanism_B) \\
@@ -23,9 +23,39 @@ $$
 
 For example, acquiring two independent mechanisms that each provide 50% resistance results in 75% total resistance ($1.0 - (0.5 \times 0.5) = 0.75$), significantly increasing the survival of MDR strains.
 
+### Resistance Emergence (De Novo Mechanism Acquisition)
+
+Resistance mechanisms emerge through a daily per-mechanism probability computed **once per mechanism** (not per drug). The emergence block runs outside the per-drug loop in [src/rules/mod.rs#L4156-L4283](src/rules/mod.rs#L4156-L4283):
+
+$$
+P_{emergence} = rate_{mechanism} \times counterfactual \times (1 + bacteria\_factor) \times \max_d(drug\_factor_d) \times penalty_{multi}
+$$
+
+where:
+
+- **$rate_{mechanism}$** = per-bacteria emergence rate from `BacteriaMechanismEmergenceRates` (bacteria-specific calibration lever)
+- **$counterfactual$** = policy multiplier (1.0 baseline; 0.0 in the "world without resistance" counterfactual)
+- **$bacteria\_factor$** = log-scale population pressure:
+
+$$
+bacteria\_factor = \frac{\log_{10}(level) - \log_{10}(0.0001)}{\log_{10}(max) - \log_{10}(0.0001)} \times multiplier
+$$
+
+  This respects orders-of-magnitude dynamics: $10^8$ bacteria contribute far more mutational opportunity than $10^4$.
+
+- **$drug\_factor_d$** = Gaussian mutant selection window centered at half standard dose ($\mu=0.5$, $\sigma=0.2$):
+
+$$
+drug\_factor = 0.01 + 0.99 \times \exp\!\left(-\frac{(norm\_drug - 0.5)^2}{2 \times 0.04}\right)
+$$
+
+  The model takes the **maximum** drug factor across all drugs with potency > 0 for this bacterium. At therapeutic dose (1.0 normalized), emergence drops to ~1% of peak; at half-dose (0.5), emergence peaks — reflecting the mutant selection window.
+
+- **$penalty_{multi}$** = multi-drug synergy penalty scaled by the number of concurrent active drugs with potency for this bacterium
+
 ### Drug Activity Calculation
 
-The `activity_r` metric determines the effective antibacterial action **at the infection site**, not just in the bloodstream. It incorporates pharmacokinetic realism through syndrome-specific penetration factors ([src/rules/mod.rs](src/rules/mod.rs)):
+The `activity_r` metric determines the effective antibacterial action **at the infection site**, not just in the bloodstream. It incorporates pharmacokinetic realism through syndrome-specific penetration factors ([src/rules/mod.rs#L4387-L4388](src/rules/mod.rs#L4387-L4388)):
 
 ```
 activity_r = base_potency × effective_drug_level × (1.0 - normalized_resistance)
@@ -45,7 +75,7 @@ This captures clinical reality where drug concentration varies wildly by tissue:
 
 ### Bacteria Growth and Host Factors
 
-Bacteria level changes incorporate host-specific multipliers ([src/rules/mod.rs#L4048-L4095](src/rules/mod.rs#L4048-L4095)):
+Bacteria level changes incorporate host-specific multipliers ([src/rules/mod.rs](src/rules/mod.rs)):
 
 | Factor | Categories | Multipliers |
 | --- | --- | --- |
@@ -60,8 +90,8 @@ Every bacteria listed in [`BACTERIA_LIST`](src/simulation/population.rs) now car
 - `CarriageCompartment` enumerations in [src/simulation/population.rs](src/simulation/population.rs) capture whether a bacteria’s default reservoir is gut, respiratory, skin/soft tissue, genitourinary, or systemic.
 - Helper functions convert those enumerations into bit masks for fast lookup during horizontal gene transfer (HGT) checks.
 
-**Transmission Logic & "Frankenstein" Bug Fix**
-The simulation uses a `MechanismPrevalenceCache` to track the prevalence of specific resistance genotypes (mechanism combinations) in the population. When a new infection is transmitted, the recipient samples a *single* coherent genotype from the donor pool for that region/bacteria/hospital-status triplet. This prevents the "Frankenstein Strain" artifact where infections previously sampled a random independent mechanism for *every single drug*, creating impossibly resistant superbugs that did not exist in nature.
+**Transmission Logic** 
+The simulation uses a `MechanismPrevalenceCache` to track the prevalence of specific resistance genotypes (mechanism combinations) in the population. When a new infection is transmitted, the recipient samples a *single* coherent genotype from the donor pool for that region/bacteria/hospital-status triplet. 
 
 **Novel Resistance Mechanisms**
 The system supports defining "Other" mechanism slots (e.g., `OtherMechanism1`, `OtherMechanism2`) as bacteria-specific resistance traits in `src/config.rs`. This allows modeling emerging threats like novel efflux pumps or plasmids that are specific to one species without polluting the global mechanism table.
@@ -187,27 +217,27 @@ All variables below are taken directly from the `Individual` struct in [src/simu
 
 ## Parameter Reference
 
-All parameter sets originate from `ParameterStore` in [src/config.rs#L108-L173](src/config.rs#L108-L173). Each block is instantiated by parsing a keyed map, so every field shown in code can be tuned in external configuration files. The table below summarizes how each block influences model behavior and points to its definition.
+All parameter sets originate from `ParameterStore` in [src/config.rs#L108-L170](src/config.rs#L108-L170). Each block is instantiated by parsing a keyed map, so every field shown in code can be tuned in external configuration files. The table below summarizes how each block influences model behavior and points to its definition.
 
 | Parameter block | Definition | Primary influence on the simulation | Example knobs |
 | --- | --- | --- | --- |
-| ParameterStore | [src/config.rs#L108-L173](src/config.rs#L108-L173) | Top-level container that wires every parameter subset into the simulation. Populated once at startup and shared globally. | Controls which parameter files are loaded and ensures bacteria/drug counts stay consistent with `BACTERIA_LIST` and `DRUG_SHORT_NAMES`. |
-| GlobalScalars | [src/config.rs#L174-L739](src/config.rs#L174-L739) | Whole-population multipliers controlling drug initiation/stopping, hospital flows, mortality, resistance emergence, testing bonuses, and sepsis logic. | `drug_base_initiation_rate_per_day` sets the baseline hazard for starting antibiotics; `hospital_*` values shape admission/discharge; `resistance_emergence_*` tune how quickly `any_r` grows; `majority_r_*` configure the reporting window for majority resistance. |
-| ImmunodeficiencyParameters | [src/config.rs#L872-L931](src/config.rs#L872-L931) | Rates of temporary/chronic immunosuppression onset/recovery along with age-stratified prevalence, feeding both prophylaxis and clearance modifiers. | `temporary_immunosuppression_onset_rate_per_day` controls how often people enter short-term suppression; `chronic_probability_age_*` sets baseline prevalence per age band. |
-| RegionParameters | [src/config.rs#L740-L834](src/config.rs#L740-L834) | Region-specific multipliers for travel, treatment cessation, mortality, sepsis lethality, and testing intensity. | `asia_travel_multiplier` influences how often travellers leave Asia; `europe_testing_multiplier` boosts identification rates for infections in Europe. |
-| SexParameters | [src/config.rs#L836-L860](src/config.rs#L836-L860) | Sex-at-birth mortality adjustments that stack with age/region baselines. | `log_odds_mortality_sex_male` and `log_odds_mortality_sex_female` shift mortality hazards for each sex. |
-| VaccinationParameters | [src/config.rs#L862-L940](src/config.rs#L862-L940) | Age- and vaccine-specific daily immunization probabilities plus availability start years for pneumococcal, meningococcal, and Hib vaccines. | `vaccine_pneumococcal_daily_prob_age_child` sets routine uptake; `vaccine_hib_availability_year` defines rollout timing. |
-| SyndromeParameters | [src/config.rs#L1071-L1460](src/config.rs#L1071-L1460) | Syndrome-level sepsis odds, initiation multipliers, non-sepsis mortality, empiric drug scoring matrices, bacteria growth multipliers, and drug penetration factors by compartment. | `syndrome_3_initiation_multiplier` accelerates treatment for syndrome 3; `syndrome_6_drug_gentamicin_penetration` (default 0.05) reflects poor BBB penetration. |
-| DrugParameters | [src/config.rs#L1100-L1194](src/config.rs#L1100-L1194) | Drug-specific pharmacokinetics and toxicity, including starting level, double-dose multiplier, half-life, microbiome disruption, and toxicity reservoir decay. | `drug_ciprofloxacin_half_life_days` drives decay of drug levels; `drug_vancomycin_microbiome_disruption_log_odds` captures dysbiosis risk. |
-| BacteriaParameters | [src/config.rs#L1196-L1480](src/config.rs#L1196-L1480) | Per-bacteria acquisition odds, vaccination effects, symptom dynamics, sepsis risks, microbiome clearances, and infection level kinetics. | `klebsiella_pneumoniae_acquisition_log_odds_baseline` controls baseline exposure; `staphylococcus_aureus_max_level` caps infection burden. |
-| ClearanceParameters | [src/config.rs#L1506-L1597](src/config.rs#L1506-L1597) | Immune clearance timing and hazard, including age multipliers, immunodeficiency scaling, and bacteria-specific overrides. | `default_clearance_delay_days` postpones immune action after acquisition; `pseudomonas_aeruginosa_clearance_hazard_multiplier` tailors persistence. |
-| DrugBacteriaMatrix | [src/config.rs#L1623-L1698](src/config.rs#L1623-L1698) | Potency lookup, initiation multipliers, resistance emergence rates, and MIC-derived thresholds for every bacteria–drug pair. | `drug_meropenem_for_bacteria_acinetobacter_baumannii_potency_when_no_r` encodes kill strength when susceptible; `_resistance_emergence_rate_per_day_baseline` tunes mutation pressure. |
-| RegionBacteriaAcquisition | [src/config.rs#L1700-L1755](src/config.rs#L1700-L1755) | Region-specific acquisition log-odds for each bacteria, allowing local epidemiology or healthcare settings to differ. | `asia_klebsiella_pneumoniae_acquisition_log_odds` raises or lowers Asian exposure independent of other regions. |
-| AgeTables | [src/config.rs#L1756-L1829](src/config.rs#L1756-L1829) | Pre-computed age log-odds tables used when detailed multipliers are required for reporting or defaults. | `default_log_odds_adult` supplies fallback risk when bacteria-specific data is missing. |
-| AgeCategoryParameters | [src/config.rs#L1831-L1933](src/config.rs#L1831-L1933) | Combined bacteria, region, and age log-odds that drive acquisition, enabling fine-grained age-structured risks. | `streptococcus_pneumoniae_log_odds_child` modifies odds for children; `asia_log_odds_elderly` adjusts regional age effects. |
-| HgtMatrix | [src/config.rs#L1972-L2074](src/config.rs#L1972-L2074) | Horizontal gene transfer probabilities from donor to recipient bacteria, with defaults derived from group-based compatibility and plasmid pools. | Override `hgt_prob_*` keys (seeded by `default_hgt_probability`) to deviate from the Gram-positive/Enteric/Respiratory baseline. |
-| ResistanceMechanismParameters | [src/config.rs#L2077-L2129](src/config.rs#L2077-L2129) | Global emergence, enhancement, and reversion rates for each enumerated mechanism (e.g., ESBL, carbapenemase). | `resistance_mechanism_esbl_emergence_rate` tunes how often the mechanism activates; `_reversion_rate` governs loss when pressure lifts. |
-| BacteriaMechanismEmergenceMultipliers | [src/config.rs#L2132-L2166](src/config.rs#L2132-L2166) | Bacteria-specific multipliers applied on top of global mechanism rates, capturing organism-level propensities. | `bacteria_klebsiella_pneumoniae_mechanism_esbl_emergence_multiplier` increases ESBL emergence relative to baseline. |
+| ParameterStore | [src/config.rs#L108-L170](src/config.rs#L108-L170) | Top-level container that wires every parameter subset into the simulation. Populated once at startup and shared globally. | Controls which parameter files are loaded and ensures bacteria/drug counts stay consistent with `BACTERIA_LIST` and `DRUG_SHORT_NAMES`. |
+| GlobalScalars | [src/config.rs#L174-L897](src/config.rs#L174-L897) | Whole-population multipliers controlling drug initiation/stopping, hospital flows, mortality, resistance emergence, testing bonuses, and sepsis logic. | `drug_base_initiation_rate_per_day` sets the baseline hazard for starting antibiotics; `hospital_*` values shape admission/discharge; `resistance_emergence_*` tune how quickly `any_r` grows; `majority_r_*` configure the reporting window for majority resistance. |
+| ImmunodeficiencyParameters | [src/config.rs#L900-L960](src/config.rs#L900-L960) | Rates of temporary/chronic immunosuppression onset/recovery along with age-stratified prevalence, feeding both prophylaxis and clearance modifiers. | `temporary_immunosuppression_onset_rate_per_day` controls how often people enter short-term suppression; `chronic_probability_age_*` sets baseline prevalence per age band. |
+| RegionParameters | [src/config.rs#L909-L1024](src/config.rs#L909-L1024) | Region-specific multipliers for travel, treatment cessation, mortality, sepsis lethality, and testing intensity. | `asia_travel_multiplier` influences how often travellers leave Asia; `europe_testing_multiplier` boosts identification rates for infections in Europe. |
+| SexParameters | [src/config.rs#L1026-L1051](src/config.rs#L1026-L1051) | Sex-at-birth mortality adjustments that stack with age/region baselines. | `log_odds_mortality_sex_male` and `log_odds_mortality_sex_female` shift mortality hazards for each sex. |
+| VaccinationParameters | [src/config.rs#L1053-L1130](src/config.rs#L1053-L1130) | Age- and vaccine-specific daily immunization probabilities plus availability start years for pneumococcal, meningococcal, and Hib vaccines. | `vaccine_pneumococcal_daily_prob_age_child` sets routine uptake; `vaccine_hib_availability_year` defines rollout timing. |
+| SyndromeParameters | [src/config.rs#L1132-L1588](src/config.rs#L1132-L1588) | Syndrome-level sepsis odds, initiation multipliers, non-sepsis mortality, empiric drug scoring matrices, bacteria growth multipliers, and drug penetration factors by compartment. | `syndrome_3_initiation_multiplier` accelerates treatment for syndrome 3; `syndrome_6_drug_gentamicin_penetration` (default 0.05) reflects poor BBB penetration. |
+| DrugParameters | [src/config.rs#L1590-L1703](src/config.rs#L1590-L1703) | Drug-specific pharmacokinetics and toxicity, including starting level, double-dose multiplier, half-life, microbiome disruption, and toxicity reservoir decay. | `drug_ciprofloxacin_half_life_days` drives decay of drug levels; `drug_vancomycin_microbiome_disruption_log_odds` captures dysbiosis risk. |
+| BacteriaParameters | [src/config.rs#L1705-L1977](src/config.rs#L1705-L1977) | Per-bacteria acquisition odds, vaccination effects, symptom dynamics, sepsis risks, microbiome clearances, and infection level kinetics. | `klebsiella_pneumoniae_acquisition_log_odds_baseline` controls baseline exposure; `staphylococcus_aureus_max_level` caps infection burden. |
+| ClearanceParameters | [src/config.rs#L1979-L2110](src/config.rs#L1979-L2110) | Immune clearance timing and hazard, including age multipliers, immunodeficiency scaling, and bacteria-specific overrides. | `default_clearance_delay_days` postpones immune action after acquisition; `pseudomonas_aeruginosa_clearance_hazard_multiplier` tailors persistence. |
+| DrugBacteriaMatrix | [src/config.rs#L2112-L2188](src/config.rs#L2112-L2188) | Potency lookup, initiation multipliers, resistance emergence rates, and MIC-derived thresholds for every bacteria–drug pair. | `drug_meropenem_for_bacteria_acinetobacter_baumannii_potency_when_no_r` encodes kill strength when susceptible; `_resistance_emergence_rate_per_day_baseline` tunes mutation pressure. |
+| RegionBacteriaAcquisition | [src/config.rs#L2190-L2244](src/config.rs#L2190-L2244) | Region-specific acquisition log-odds for each bacteria, allowing local epidemiology or healthcare settings to differ. | `asia_klebsiella_pneumoniae_acquisition_log_odds` raises or lowers Asian exposure independent of other regions. |
+| AgeTables | [src/config.rs#L2246-L2319](src/config.rs#L2246-L2319) | Pre-computed age log-odds tables used when detailed multipliers are required for reporting or defaults. | `default_log_odds_adult` supplies fallback risk when bacteria-specific data is missing. |
+| AgeCategoryParameters | [src/config.rs#L2321-L2440](src/config.rs#L2321-L2440) | Combined bacteria, region, and age log-odds that drive acquisition, enabling fine-grained age-structured risks. | `streptococcus_pneumoniae_log_odds_child` modifies odds for children; `asia_log_odds_elderly` adjusts regional age effects. |
+| HgtMatrix | [src/config.rs#L2442-L2548](src/config.rs#L2442-L2548) | Horizontal gene transfer probabilities from donor to recipient bacteria, with defaults derived from group-based compatibility and plasmid pools. | Override `hgt_prob_*` keys (seeded by `default_hgt_probability`) to deviate from the Gram-positive/Enteric/Respiratory baseline. |
+| ResistanceMechanismParameters | [src/config.rs#L2550-L2614](src/config.rs#L2550-L2614) | Per-drug-class enhancement multipliers and reversion rates for each of the 25 enumerated resistance mechanisms. Enhancement values are stored per mechanism × drug class (25 × 18 = 450 entries). | `resistance_mechanism_esbl_ctx_m_enhancement_cephalosporins3` tunes impact on 3rd-gen cephalosporins; `_reversion_rate` governs loss when pressure lifts. |
+| BacteriaMechanismEmergenceRates | [src/config.rs#L2616-L2648](src/config.rs#L2616-L2648) | Bacteria-specific emergence rates for each mechanism, capturing organism-level propensities (the primary calibration lever for resistance dynamics). | `bacteria_klebsiella_pneumoniae_mechanism_esbl_ctx_m_emergence_rate` controls ESBL CTX-M emergence in *K. pneumoniae*. |
 
 The parameter system is extensible: new bacteria, drugs, or mechanisms become available simply by extending the relevant lists in [src/simulation/population.rs](src/simulation/population.rs) and adding keyed entries to the configuration map.
 
@@ -253,7 +283,7 @@ Both empiric and targeted paths share the same stochastic selection temperature 
 
 ### GlobalScalars parameters
 
-Derived from [src/config.rs#L174-L739](src/config.rs#L174-L739). Values affect every individual each timestep.
+Derived from [src/config.rs#L174-L897](src/config.rs#L174-L897). Values affect every individual each timestep.
 
 #### Drug initiation, cessation, and travel
 | Parameter | Description |
@@ -344,7 +374,6 @@ Derived from [src/config.rs#L174-L739](src/config.rs#L174-L739). Values affect e
 #### Sepsis, infection mortality, and background deaths
 | Parameter | Description |
 | --- | --- |
-| `any_r_increase_rate_per_day_when_drug_present` | Daily growth in resistance while treatment pressure is present. |
 | `sepsis_minimum_duration_days` | Minimum number of days before sepsis resolution can occur. |
 | `sepsis_base_log_odds_of_recovery_per_day` | Baseline log-odds of sepsis recovery per day. |
 | `sepsis_log_odds_bacteria_level` | Incremental log-odds change per unit bacteria level. |
@@ -415,7 +444,7 @@ Derived from [src/config.rs#L174-L739](src/config.rs#L174-L739). Values affect e
 
 ### ImmunodeficiencyParameters
 
-Defined in [src/config.rs#L770-L833](src/config.rs#L770-L833). All values are per-day hazards or age-stratified probabilities.
+Defined in [src/config.rs#L900-L960](src/config.rs#L900-L960). All values are per-day hazards or age-stratified probabilities.
 
 | Parameter | Description |
 | --- | --- |
@@ -427,7 +456,7 @@ Defined in [src/config.rs#L770-L833](src/config.rs#L770-L833). All values are pe
 
 ### RegionParameters
 
-Defined in [src/config.rs#L779-L834](src/config.rs#L779-L834). Arrays index by `Region`.
+Defined in [src/config.rs#L909-L1024](src/config.rs#L909-L1024). Arrays index by `Region`.
 
 | Parameter | Description |
 | --- | --- |
@@ -440,7 +469,7 @@ Defined in [src/config.rs#L779-L834](src/config.rs#L779-L834). Arrays index by `
 
 ### SexParameters
 
-Defined in [src/config.rs#L836-L860](src/config.rs#L836-L860).
+Defined in [src/config.rs#L1026-L1051](src/config.rs#L1026-L1051).
 
 | Parameter | Description |
 | --- | --- |
@@ -449,7 +478,7 @@ Defined in [src/config.rs#L836-L860](src/config.rs#L836-L860).
 
 ### VaccinationParameters
 
-Defined in [src/config.rs#L862-L940](src/config.rs#L862-L940). Arrays are sized `3 × AGE_BUCKETS`.
+Defined in [src/config.rs#L1053-L1130](src/config.rs#L1053-L1130). Arrays are sized `3 × AGE_BUCKETS`.
 
 | Parameter | Description |
 | --- | --- |
@@ -458,7 +487,7 @@ Defined in [src/config.rs#L862-L940](src/config.rs#L862-L940). Arrays are sized 
 
 ### SyndromeParameters
 
-Defined in [src/config.rs#L1071-L1460](src/config.rs#L1071-L1460) with indices keyed by syndrome id.
+Defined in [src/config.rs#L1132-L1588](src/config.rs#L1132-L1588) with indices keyed by syndrome id.
 
 Syndromes represent the clinical presentation/infection site:
 - **1** = UTI (urinary tract infection)
@@ -506,7 +535,7 @@ where `penetration_factor` represents the fraction of serum concentration achiev
 
 #### Syndrome Assignment by Bacteria
 
-Each bacteria has clinically-appropriate syndrome probability distributions defined in [src/rules/mod.rs#L4830-L5060](src/rules/mod.rs#L4830-L5060). All 39 bacteria now have explicit entries including:
+Each bacteria has clinically-appropriate syndrome probability distributions defined in [src/rules/mod.rs#L5269](src/rules/mod.rs#L5269). All 42 bacteria have explicit entries including:
 
 | Bacteria | Primary Syndrome | Distribution Highlights |
 | --- | --- | --- |
@@ -521,7 +550,7 @@ Enteric fever organisms (S. Typhi, S. Paratyphi, iNTS) have corrected distributi
 
 ### DrugParameters
 
-Defined in [src/config.rs#L1100-L1194](src/config.rs#L1100-L1194) and indexed by drug.
+Defined in [src/config.rs#L1590-L1703](src/config.rs#L1590-L1703) and indexed by drug.
 
 | Parameter | Description |
 | --- | --- |
@@ -535,7 +564,7 @@ Defined in [src/config.rs#L1100-L1194](src/config.rs#L1100-L1194) and indexed by
 
 ### BacteriaParameters
 
-Defined in [src/config.rs#L1196-L1505](src/config.rs#L1196-L1505) for each bacteria entry.
+Defined in [src/config.rs#L1705-L1977](src/config.rs#L1705-L1977) for each bacteria entry.
 
 | Parameter | Description |
 | --- | --- |
@@ -563,7 +592,7 @@ Defined in [src/config.rs#L1196-L1505](src/config.rs#L1196-L1505) for each bacte
 
 ### ClearanceParameters
 
-Defined in [src/config.rs#L1506-L1597](src/config.rs#L1506-L1597).
+Defined in [src/config.rs#L1979-L2110](src/config.rs#L1979-L2110).
 
 | Parameter | Description |
 | --- | --- |
@@ -578,7 +607,7 @@ Defined in [src/config.rs#L1506-L1597](src/config.rs#L1506-L1597).
 
 ### DrugBacteriaMatrix
 
-Defined in [src/config.rs#L1623-L1698](src/config.rs#L1623-L1698). Indexed by bacteria × drug.
+Defined in [src/config.rs#L2112-L2188](src/config.rs#L2112-L2188). Indexed by bacteria × drug.
 
 | Parameter | Description |
 | --- | --- |
@@ -589,7 +618,7 @@ Defined in [src/config.rs#L1623-L1698](src/config.rs#L1623-L1698). Indexed by ba
 
 ### RegionBacteriaAcquisition
 
-Defined in [src/config.rs#L1700-L1755](src/config.rs#L1700-L1755).
+Defined in [src/config.rs#L2190-L2244](src/config.rs#L2190-L2244).
 
 | Parameter | Description |
 | --- | --- |
@@ -597,7 +626,7 @@ Defined in [src/config.rs#L1700-L1755](src/config.rs#L1700-L1755).
 
 ### AgeTables
 
-Defined in [src/config.rs#L1756-L1829](src/config.rs#L1756-L1829).
+Defined in [src/config.rs#L2246-L2319](src/config.rs#L2246-L2319).
 
 | Parameter | Description |
 | --- | --- |
@@ -607,7 +636,7 @@ Defined in [src/config.rs#L1756-L1829](src/config.rs#L1756-L1829).
 
 ### AgeCategoryParameters
 
-Defined in [src/config.rs#L1831-L1933](src/config.rs#L1831-L1933).
+Defined in [src/config.rs#L2321-L2440](src/config.rs#L2321-L2440).
 
 | Parameter | Description |
 | --- | --- |
@@ -619,36 +648,66 @@ Defined in [src/config.rs#L1831-L1933](src/config.rs#L1831-L1933).
 
 ### HgtMatrix
 
-Defined in [src/config.rs#L1972-L2074](src/config.rs#L1972-L2074).
+Defined in [src/config.rs#L2442-L2548](src/config.rs#L2442-L2548).
 
 | Parameter | Description |
 | --- | --- |
 | `values` | Flattened donor × recipient probability matrix for horizontal gene transfer. |
 | `num_bacteria` | Dimension used for indexing into `values`. |
 
-`ParameterStore::builder()` seeds every `hgt_prob_*` key using [`default_hgt_probability`](src/config.rs#L2033-L2074), which groups bacteria into plasmid-compatibility pools and applies realistic structural exclusions ([src/config.rs#L4353-L4369](src/config.rs#L4353-L4369)). Gram-positive, enteric gram-negative, respiratory gram-negative, and anaerobe pools receive different default magnitudes, while spirochetes, *Helicobacter*, and *Mycobacterium* never donate or receive.
+`ParameterStore::builder()` seeds every `hgt_prob_*` key using [`default_hgt_probability`](src/config.rs#L2503-L2548), which groups bacteria into plasmid-compatibility pools and applies realistic structural exclusions. Gram-positive, enteric gram-negative, respiratory gram-negative, and anaerobe pools receive different default magnitudes, while spirochetes, *Helicobacter*, and *Mycobacterium* never donate or receive.
 
-At runtime, HGT only triggers when the donor and recipient occupy at least one shared carriage compartment. That check leverages [`bacteria_presence_compartment_mask`](src/rules/mod.rs#L286-L343), which combines the static compartment metadata from [src/simulation/population.rs#L398-L455](src/simulation/population.rs#L398-L455) with per-person infection and microbiome state. The main HGT loop in [src/rules/mod.rs#L4335-L4415](src/rules/mod.rs#L4335-L4415) enforces this overlap before sampling transfers.
+At runtime, HGT only triggers when the donor and recipient occupy at least one shared carriage compartment. That check leverages [`bacteria_presence_compartment_mask`](src/rules/mod.rs#L286-L343), which combines the static compartment metadata from [src/simulation/population.rs](src/simulation/population.rs) with per-person infection and microbiome state. The main HGT loop in [src/rules/mod.rs#L4929-L5105](src/rules/mod.rs#L4929-L5105) enforces this overlap before sampling transfers.
 
 Environmental context further scales the transfer probability through [`hgt_context_multiplier`](src/rules/mod.rs#L316-L341): hospitalization, concurrent antibiotic pressure, and donor/recipient co-infections boost the chance via the new global scalars documented below, whereas microbiome-only interactions incur a penalty. This keeps plasmid exchange concentrated in plausible clinical settings while still allowing overrides through the configuration surface.
 
 ### ResistanceMechanismParameters
 
-Defined in [src/config.rs#L1984-L2037](src/config.rs#L1984-L2037) and indexed by mechanism enumeration order.
+Defined in [src/config.rs#L2550-L2614](src/config.rs#L2550-L2614) and indexed by mechanism enumeration order.
+
+The enhancement multiplier is now **per drug class**: a flat `Vec<f64>` indexed as `[mechanism_idx × 18 + drug_class_idx]`, where 18 is the number of drug classes in the `DrugClass` enum. This allows each resistance mechanism to have a different impact depending on the drug class being used — for example, an ESBL CTX-M mechanism provides strong enhancement against 3rd-generation cephalosporins but minimal enhancement against carbapenems.
+
+The system loads per-class config keys of the form `resistance_mechanism_{name}_enhancement_{class}` (e.g., `resistance_mechanism_esbl_ctx_m_enhancement_cephalosporins3`), with a legacy fallback to a single `resistance_mechanism_{name}_enhancement_multiplier` value if per-class keys are absent.
 
 | Parameter | Description |
 | --- | --- |
-| `emergence_rate` | Baseline probability that a mechanism activates on any given day. |
-| `enhancement_multiplier` | Multiplier applied to the potency penalty when the mechanism is present. |
-| `reversion_rate` | Probability that the mechanism deactivates when pressure is removed. |
+| `enhancement_multiplier` | Per-drug-class multiplier (25 mechanisms × 18 drug classes = 450 entries) controlling how much each mechanism reduces susceptibility to each drug class. Used in multiplicative stacking: $susceptibility = \prod(1 - enhancement_i)$. |
+| `reversion_rate` | Per-mechanism daily probability that the mechanism deactivates (fitness cost) when all drug pressure is removed. Ranges from 0.0001/day (stable chromosomal mutations) to 0.002/day (costly plasmid-borne mechanisms). |
 
-### BacteriaMechanismEmergenceMultipliers
+### DrugClass Enum
 
-Defined in [src/config.rs#L2039-L2085](src/config.rs#L2039-L2085).
+Defined in [src/simulation/population.rs#L678-L695](src/simulation/population.rs#L678-L695). The 58 antibiotics are mapped to 18 pharmacological classes used for per-class enhancement lookups:
+
+| Class | Examples |
+| --- | --- |
+| `Penicillins` | Penicillin, Amoxicillin, Ampicillin, Piperacillin, Oxacillin, Nafcillin, Flucloxacillin |
+| `BliCombinations` | Amoxicillin-Clavulanate, Ampicillin-Sulbactam, Piperacillin-Tazobactam |
+| `Cephalosporins1_2` | Cephalexin, Cefazolin, Cefuroxime |
+| `Cephalosporins3` | Ceftriaxone, Cefotaxime, Ceftazidime, Cefixime |
+| `Cephalosporins4_5` | Cefepime, Ceftaroline |
+| `BliNovelCombinations` | Ceftazidime-Avibactam, Ceftolozane-Tazobactam, Meropenem-Vaborbactam, Imipenem-Relebactam |
+| `Carbapenems` | Meropenem, Imipenem, Ertapenem, Doripenem |
+| `Monobactams` | Aztreonam |
+| `Fluoroquinolones` | Ciprofloxacin, Levofloxacin, Moxifloxacin |
+| `Aminoglycosides` | Gentamicin, Amikacin, Tobramycin |
+| `Macrolides` | Azithromycin, Clarithromycin, Erythromycin |
+| `Glycopeptides` | Vancomycin, Teicoplanin, Dalbavancin |
+| `Tetracyclines` | Doxycycline, Minocycline, Tigecycline, Tetracycline |
+| `Polymyxins` | Colistin |
+| `Oxazolidinones` | Linezolid |
+| `Chloramphenicol` | Chloramphenicol |
+| `Sulfonamides` | TMP-SMX, Sulfanilamide |
+| `Other` | Nitrofurantoin, Fosfomycin, Rifampicin, Metronidazole, Daptomycin, Clindamycin, Spectinomycin |
+
+A pre-computed `DRUG_CLASS_LOOKUP` table ([src/simulation/population.rs#L813](src/simulation/population.rs#L813)) maps each drug index to its class index for O(1) hot-path lookups.
+
+### BacteriaMechanismEmergenceRates
+
+Defined in [src/config.rs#L2616-L2648](src/config.rs#L2616-L2648).
 
 | Parameter | Description |
 | --- | --- |
-| `values` | Flattened bacteria × mechanism multiplier array applied on top of the global mechanism emergence rate. |
+| `values` | Flattened bacteria × mechanism emergence rate array. These are the **primary calibration lever** for resistance dynamics — each bacteria/mechanism pair can have a different daily emergence probability. |
 | `num_mechanisms` | Mechanism count used for indexing the flattened vector. |
 
 ## Policy Scenarios
@@ -842,7 +901,7 @@ config = PlotConfig(
 ### Biological Processes
 - **Infection Acquisition**: Contact-based transmission with regional, age, and exposure factors
 - **Resistance Emergence**: purely mechanistic ("bottom-up") model using physics-based Gaussian dose response curves.
-- **Microbiology**: 39 tracked bacteria with species-specific fitness costs, emergence probabilities, and HGT rates (including "superbug" profiles for *Pseudomonas*, *N. gonorrhoeae*, etc.).
+- **Microbiology**: 42 tracked bacteria with species-specific fitness costs, emergence probabilities, and HGT rates (including "superbug" profiles for *Pseudomonas*, *N. gonorrhoeae*, etc.).
 - **Drug Pharmacodynamics**: Multi-drug interactions with realistic decay and site-specific efficacy
 - **Testing and Diagnosis**: Laboratory delays, identification accuracy, resistance testing
 - **Clearance Dynamics**: Bacteria-specific clearance hazards with age and immunodeficiency modifiers
@@ -854,8 +913,8 @@ config = PlotConfig(
 - **Mortality**: Background, sepsis-related, and drug toxicity mortality
 
 ### Drug and Resistance Modeling
-- **Multi-drug Support**: 52 drugs across major antibiotic classes
-- **Resistance Mechanisms**: Explicit genetic mechanisms (efflux, target mod, etc.) drive phenotypic resistance (`any_r`).
+- **Multi-drug Support**: 58 drugs across 18 antibiotic classes
+- **Resistance Mechanisms**: 25 explicit genetic mechanisms (ESBL, carbapenemase, efflux, porin loss, target modification, etc.) drive phenotypic resistance (`any_r`) through per-drug-class enhancement multipliers.
 - **Treatment Protocols**: Empirical and targeted therapy based on testing
 - **Microbiome Effects**: Commensal bacteria resistance affecting treatment
 - **Pharmacokinetic Modeling**: Syndrome-specific drug penetration and time-to-therapeutic accumulation

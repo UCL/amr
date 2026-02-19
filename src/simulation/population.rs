@@ -95,6 +95,14 @@ pub enum ResistanceMechanism {
     ModificationMcr1,
     GlobalEffluxPump,
     GlobalPorinLoss,
+    // --- New mechanisms added to cover previously unmapped drugs ---
+    MutationFolatePathway,   // sul1/2/3 + dfrA: sulfanilamide, trim_sulf
+    MutationNitroreductase,  // nim genes, nfsA/B loss: metronidazole, nitrofurantoin, furazolidone
+    EnzymeFosA,              // fosA/B/C metalloenzymes: fosfomycin
+    MutationMprF,            // mprF/liaFSR membrane modification: daptomycin
+    MutationRpoB,            // RNA polymerase β-subunit mutation: rifampicin, fidaxomicin
+    ProtectionFusB,          // fusB/fusC protection proteins: fusidic_a
+    AsYetUnknown,            // Generic/uncharacterized resistance: applies to ALL drugs
 }
 
 impl ResistanceMechanism {
@@ -126,6 +134,13 @@ impl ResistanceMechanism {
             ResistanceMechanism::ModificationMcr1,
             ResistanceMechanism::GlobalEffluxPump,
             ResistanceMechanism::GlobalPorinLoss,
+            ResistanceMechanism::MutationFolatePathway,
+            ResistanceMechanism::MutationNitroreductase,
+            ResistanceMechanism::EnzymeFosA,
+            ResistanceMechanism::MutationMprF,
+            ResistanceMechanism::MutationRpoB,
+            ResistanceMechanism::ProtectionFusB,
+            ResistanceMechanism::AsYetUnknown,
         ]
     }
 
@@ -157,6 +172,13 @@ impl ResistanceMechanism {
             ResistanceMechanism::ModificationMcr1 => "modification_mcr_1",
             ResistanceMechanism::GlobalEffluxPump => "global_efflux_pump",
             ResistanceMechanism::GlobalPorinLoss => "global_porin_loss",
+            ResistanceMechanism::MutationFolatePathway => "mutation_folate_pathway",
+            ResistanceMechanism::MutationNitroreductase => "mutation_nitroreductase",
+            ResistanceMechanism::EnzymeFosA => "enzyme_fos_a",
+            ResistanceMechanism::MutationMprF => "mutation_mpr_f",
+            ResistanceMechanism::MutationRpoB => "mutation_rpo_b",
+            ResistanceMechanism::ProtectionFusB => "protection_fus_b",
+            ResistanceMechanism::AsYetUnknown => "as_yet_unknown",
         }
     }
 }
@@ -608,6 +630,40 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         EnzymeCat |
         GlobalEffluxPump | GlobalPorinLoss // Fallbacks if used
         => mask_for_groups(BacteriaGroup::all()),
+
+        // Folate pathway mutations: primarily Enterobacterales, but also Staph, Strep, others
+        MutationFolatePathway => mask_for_groups(BacteriaGroup::all()),
+
+        // Nitroreductase loss: anaerobes (metronidazole), Enterobacterales (nitrofurans)
+        MutationNitroreductase => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Anaerobe,
+            BacteriaGroup::Fastidious,
+        ]),
+
+        // FosA: primarily Gram-negative (plasmid-mediated)
+        EnzymeFosA => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::NonFermenter,
+            BacteriaGroup::EntericPathogen,
+        ]),
+
+        // MprF membrane modification: Gram-positive (daptomycin resistance)
+        MutationMprF => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
+        ]),
+
+        // RpoB mutation: universal (TB, but also Staph for rifampicin, C. diff for fidaxomicin)
+        MutationRpoB => mask_for_groups(BacteriaGroup::all()),
+
+        // FusB protection: Gram-positive (Staphylococci primarily)
+        ProtectionFusB => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
+        ]),
+
+        // As-yet-unknown: applies to ALL bacteria groups (calibration lever)
+        AsYetUnknown => mask_for_groups(BacteriaGroup::all()),
     }
 }
 
@@ -671,6 +727,150 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "meropenem_vaborbactam",
     "colistin",
 ];
+
+/// Drug classes for mechanism-drug-class specific enhancement multipliers.
+/// Each drug in DRUG_SHORT_NAMES maps to exactly one class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DrugClass {
+    Penicillins,           // PEN: penicillin_g, ampicillin, amoxicillin, piperacillin, ticarcillin
+    BliCombinations,       // BLI: amox-clav, pip-tazo, amp-sulb, tic-clav
+    Cephalosporins1_2,     // C1-2G: cephalexin, cefazolin, cefuroxime
+    Cephalosporins3,       // C3G: ceftriaxone, ceftazidime, ceftolozane-tazobactam
+    Cephalosporins4_5,     // C4-5G: cefepime, ceftaroline, cefiderocol
+    BliNovelCombinations,  // BL-NI: ceftazidime-avibactam, meropenem-vaborbactam
+    Carbapenems,           // CARB: meropenem, imipenem, ertapenem
+    Monobactams,           // MONO: aztreonam
+    Fluoroquinolones,      // FQ: ciprofloxacin, levofloxacin, moxifloxacin, ofloxacin
+    Aminoglycosides,       // AG: gentamicin, tobramycin, amikacin
+    Macrolides,            // MLS: erythromycin, azithromycin, clarithromycin, clindamycin
+    Glycopeptides,         // GLYC: vancomycin, teicoplanin, dalbavancin
+    Tetracyclines,         // TET: tetracycline, doxycycline, minocycline, tigecycline
+    Polymyxins,            // POLY: colistin
+    Oxazolidinones,        // OXA: linezolid, tedizolid
+    Chloramphenicol,       // CHL: chloramphenicol
+    Sulfonamides,          // SULF: sulfanilamide, trim_sulf
+    Other,                 // OTHER: daptomycin, quinu_dalfo, nitrofurantoin, fosfomycin, etc.
+}
+
+impl DrugClass {
+    pub const NUM_CLASSES: usize = 18;
+
+    pub fn all() -> &'static [DrugClass] {
+        &[
+            DrugClass::Penicillins,
+            DrugClass::BliCombinations,
+            DrugClass::Cephalosporins1_2,
+            DrugClass::Cephalosporins3,
+            DrugClass::Cephalosporins4_5,
+            DrugClass::BliNovelCombinations,
+            DrugClass::Carbapenems,
+            DrugClass::Monobactams,
+            DrugClass::Fluoroquinolones,
+            DrugClass::Aminoglycosides,
+            DrugClass::Macrolides,
+            DrugClass::Glycopeptides,
+            DrugClass::Tetracyclines,
+            DrugClass::Polymyxins,
+            DrugClass::Oxazolidinones,
+            DrugClass::Chloramphenicol,
+            DrugClass::Sulfonamides,
+            DrugClass::Other,
+        ]
+    }
+
+    pub fn index(&self) -> usize {
+        *self as usize
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DrugClass::Penicillins => "pen",
+            DrugClass::BliCombinations => "bli",
+            DrugClass::Cephalosporins1_2 => "c1_2g",
+            DrugClass::Cephalosporins3 => "c3g",
+            DrugClass::Cephalosporins4_5 => "c4_5g",
+            DrugClass::BliNovelCombinations => "bl_ni",
+            DrugClass::Carbapenems => "carb",
+            DrugClass::Monobactams => "mono",
+            DrugClass::Fluoroquinolones => "fq",
+            DrugClass::Aminoglycosides => "ag",
+            DrugClass::Macrolides => "mls",
+            DrugClass::Glycopeptides => "glyc",
+            DrugClass::Tetracyclines => "tet",
+            DrugClass::Polymyxins => "poly",
+            DrugClass::Oxazolidinones => "oxa",
+            DrugClass::Chloramphenicol => "chl",
+            DrugClass::Sulfonamides => "sulf",
+            DrugClass::Other => "other",
+        }
+    }
+}
+
+/// Map a drug index (into DRUG_SHORT_NAMES) to its DrugClass
+pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
+    match DRUG_SHORT_NAMES[drug_idx] {
+        // Penicillins
+        "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            => DrugClass::Penicillins,
+        // BLI combinations
+        "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
+            => DrugClass::BliCombinations,
+        // 1st/2nd gen cephalosporins
+        "cephalexin" | "cefazolin" | "cefuroxime"
+            => DrugClass::Cephalosporins1_2,
+        // 3rd gen cephalosporins
+        "ceftriaxone" | "ceftazidime" | "ceftolozane_tazobactam"
+            => DrugClass::Cephalosporins3,
+        // 4th/5th gen cephalosporins
+        "cefepime" | "ceftaroline" | "cefiderocol"
+            => DrugClass::Cephalosporins4_5,
+        // Novel BLI combinations
+        "ceftazidime_avibactam" | "meropenem_vaborbactam"
+            => DrugClass::BliNovelCombinations,
+        // Carbapenems
+        "meropenem" | "imipenem_c" | "ertapenem"
+            => DrugClass::Carbapenems,
+        // Monobactams
+        "aztreonam"
+            => DrugClass::Monobactams,
+        // Fluoroquinolones
+        "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
+            => DrugClass::Fluoroquinolones,
+        // Aminoglycosides
+        "gentamicin" | "tobramycin" | "amikacin"
+            => DrugClass::Aminoglycosides,
+        // Macrolides/Lincosamides
+        "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
+            => DrugClass::Macrolides,
+        // Glycopeptides
+        "vancomycin" | "teicoplanin" | "dalbavancin"
+            => DrugClass::Glycopeptides,
+        // Tetracyclines
+        "tetracycline" | "doxycycline" | "minocycline" | "tigecycline"
+            => DrugClass::Tetracyclines,
+        // Polymyxins
+        "colistin"
+            => DrugClass::Polymyxins,
+        // Oxazolidinones
+        "linezolid" | "tedizolid"
+            => DrugClass::Oxazolidinones,
+        // Chloramphenicol
+        "chloramphenicol"
+            => DrugClass::Chloramphenicol,
+        // Sulfonamides
+        "sulfanilamide" | "trim_sulf"
+            => DrugClass::Sulfonamides,
+        // Other
+        _ => DrugClass::Other,
+    }
+}
+
+/// Pre-computed lookup table: drug index → drug class index, for hot-path use
+pub static DRUG_CLASS_LOOKUP: std::sync::LazyLock<Vec<usize>> = std::sync::LazyLock::new(|| {
+    (0..DRUG_SHORT_NAMES.len())
+        .map(|d| drug_class_for_drug(d).index())
+        .collect()
+});
 
 // HospitalStatus: models healthcare-associated risk of acquiring resistant bacteria (not hospitalization due to infection/comorbidities).
 // note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with
