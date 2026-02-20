@@ -367,9 +367,16 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         ModificationMcr1 => matches!(drug, "colistin"),
 
-        EffluxAcrabTolc | EffluxMexxyOprm => matches!(
+        EffluxAcrabTolc => matches!(
            drug, "tetracycline" | "doxycycline" | "minocycline"  // All classical tetracyclines affected by RND efflux
+           | "tigecycline"          // AcrAB-TolC overexpression (via ramA/marA) is the primary documented tigecycline resistance in Enterobacterales
            | "chloramphenicol" | "ciprofloxacin"
+        ),
+
+        EffluxMexxyOprm => matches!(
+           drug, "tetracycline" | "doxycycline" | "minocycline"  // Classical tetracyclines
+           | "chloramphenicol" | "ciprofloxacin"
+           // Note: MexXY-OprM primarily targets aminoglycosides; tigecycline NOT included
         ),
 
         GlobalEffluxPump => matches!(
@@ -404,8 +411,17 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // FusB/FusC protection proteins: fusidic acid resistance
         ProtectionFusB => matches!(drug, "fusidic_a"),
 
-        // As-yet-unknown: applies to ALL drugs (generic catch-all for calibration)
-        AsYetUnknown => true,
+        // TetM/TetO ribosomal protection: GTPases that displace tetracyclines from 30S ribosomal subunit
+        // Tigecycline EXCLUDED: 9-t-butylglycylamido group sterically blocks TetM displacement
+        ProtectionTetM => matches!(
+            drug, "tetracycline" | "doxycycline" | "minocycline"
+        ),
+
+        // As-yet-unknown placeholders: apply to ALL drugs by default
+        // Drug specificity can be overridden via config keys:
+        //   mechanism_as_yet_unknown_1_applies_to_{drug} = 0.0 (to disable for specific drugs)
+        // we can also change code here to make AsYetUnknown1 apply to specific drugs
+        AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => true,
     }
 }
 
@@ -1254,6 +1270,8 @@ pub fn apply_rules(
     let hosp_base_log_odds = store.globals.hospitalization_base_log_odds;
     let hosp_log_odds_per_age_year = store.globals.hospitalization_log_odds_per_age_year;
     let hosp_log_odds_sepsis = store.globals.hospitalization_log_odds_sepsis;
+    let hosp_log_odds_symptomatic = store.globals.hospitalization_log_odds_symptomatic_infection;
+    let hosp_symptomatic_level_threshold = store.globals.hospitalization_symptomatic_infection_level_threshold;
     let recovery_rate = store.globals.hospital_recovery_rate_per_day;
     let max_days_in_hospital = store.globals.hospital_max_days.max(0.0) as u32;
     let prevent_discharge_with_sepsis = store.globals.hospital_prevent_discharge_with_sepsis > 0.5;
@@ -1261,11 +1279,17 @@ pub fn apply_rules(
     // Check if individual has any active sepsis
     let has_sepsis = individual.sepsis.iter().any(|&s| s);
 
+    // Check if individual has a severe symptomatic infection (level above threshold with symptoms)
+    // This drives pre-antibiotic era hospitalizations and ensures illness itself causes admission
+    let has_severe_symptomatic_infection = individual.level.iter().enumerate().any(|(b_idx, &lvl)| {
+        lvl > hosp_symptomatic_level_threshold && individual.infection_has_caused_symptoms[b_idx]
+    });
+
     // Potentially get hospitalized (if not currently hospitalized)
     if !individual.hospital_status.is_hospitalized() {
         // Calculate hospitalization probability using LOGISTIC MODEL
         // P(hospitalization) = 1 / (1 + exp(-log_odds))
-        // log_odds = base + age_effect + sepsis_effect + region_effect
+        // log_odds = base + age_effect + sepsis_effect + symptomatic_infection_effect + region_effect
         
         let age_years = individual.age as f64 / 365.0;
         let mut log_odds = hosp_base_log_odds + (age_years * hosp_log_odds_per_age_year);
@@ -1273,6 +1297,12 @@ pub fn apply_rules(
         // Strong sepsis admission effect - sepsis patients are very likely to be hospitalized
         if has_sepsis {
             log_odds += hosp_log_odds_sepsis;
+        }
+
+        // Severe symptomatic infection effect - patients with high bacterial burden + symptoms
+        // seek hospital care even without antibiotics being available (pre-antibiotic era driver)
+        if has_severe_symptomatic_infection {
+            log_odds += hosp_log_odds_symptomatic;
         }
         
         // Regional healthcare access effect - HICs admit patients more readily

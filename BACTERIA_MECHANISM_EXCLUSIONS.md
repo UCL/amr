@@ -9,70 +9,98 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 #### Enterobacteriaceae
 
 **Escherichia coli**
-- No exclusions (opportunistic pathogen, can acquire diverse mechanisms)
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
+- No other exclusions (opportunistic pathogen, can acquire diverse mechanisms)
 
 **Klebsiella pneumoniae**
-- No exclusions (notorious for acquiring diverse resistance)
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
+- No other exclusions (notorious for acquiring diverse resistance)
 
 **Citrobacter spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Enterobacter spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Enterobacter cloacae**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Morganella spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Proteus spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Serratia spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Providencia stuartii**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Salmonella enterica serovar Typhi**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Salmonella enterica serovar Paratyphi A**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Invasive non-typhoidal Salmonella spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Shigella spp.**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Yersinia enterocolitica**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 #### Non-fermenting Gram-Negatives
 
@@ -83,11 +111,17 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `EnzymeEsblCtxM` - Rare/not typical for Pseudomonas (has intrinsic AmpC)
 - `EnzymeEsblTem` - Not typical for Pseudomonas
 - `EnzymeEsblShv` - Not typical for Pseudomonas
+- `MutationNitroreductase` - Not in NonFermenter scope for nitroreductase
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Acinetobacter baumannii**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationNitroreductase` - Not in NonFermenter scope for nitroreductase
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Stenotrophomonas maltophilia**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
@@ -96,11 +130,17 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `EnzymeKpc` - Not typical for Stenotrophomonas
 - `EnzymeNdmVim` - Not typical for Stenotrophomonas
 - `EnzymeOxa48` - Not typical for Stenotrophomonas
+- `MutationNitroreductase` - Not in NonFermenter scope for nitroreductase
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Burkholderia cepacia complex**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationNitroreductase` - Not in NonFermenter scope for nitroreductase
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 #### Other Gram-Negatives
 
@@ -108,43 +148,66 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Campylobacter jejuni**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Helicobacter group scope for FosA
+- `MutationNitroreductase` - Not in Helicobacter group scope for nitroreductase
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 - Most ESBL/carbapenemase mechanisms - Campylobacter has different beta-lactam resistance
 
 **Helicobacter pylori**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives (though H. pylori is intrinsically resistant)
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA- `MutationNitroreductase` - Not in Helicobacter group scope for nitroreductase- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 - Most beta-lactamase mechanisms - Different resistance profile
 
 **Neisseria gonorrhoeae**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Neisseria meningitidis**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Moraxella catarrhalis**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Haemophilus influenzae**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Legionella pneumophila**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 - Most resistance mechanisms - Intracellular pathogen, different resistance profile
 
 ### Gram-Positive Bacteria
@@ -167,6 +230,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 **Staphylococcus epidermidis**
 - `EnzymeEsblCtxM` - ESBL mechanisms are Gram-negative specific
@@ -184,6 +249,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 #### Streptococci
 
@@ -204,6 +271,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 **Streptococcus pyogenes (Group A Strep)**
 - `EnzymeEsblCtxM` - ESBL mechanisms are Gram-negative specific
@@ -224,6 +293,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 **Streptococcus agalactiae (Group B Strep)**
 - `EnzymeEsblCtxM` - ESBL mechanisms are Gram-negative specific
@@ -244,6 +315,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 #### Enterococci
 
@@ -264,6 +337,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 **Enterococcus faecium**
 - `EnzymeEsblCtxM` - ESBL mechanisms are Gram-negative specific
@@ -282,6 +357,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 #### Other Gram-Positives
 
@@ -302,6 +379,8 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `MutationNitroreductase` - Not in Gram-positive group scope for nitroreductase
+- `EnzymeFosA` - FosA is Gram-negative specific (plasmid-mediated)
 
 **Clostridioides difficile**
 - `EnzymeEsblCtxM` - ESBL mechanisms are Gram-negative specific
@@ -320,6 +399,9 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane porins in Gram-positives
 - `GlobalPorinLoss` - No outer membrane porins in Gram-positives
 - `ModificationMcr1` - Colistin targets outer membrane (Gram-negative)
+- `EnzymeFosA` - FosA is Gram-negative specific, not Anaerobe group
+- `MutationMprF` - GramPositive-only mechanism; C. difficile modelled as Anaerobe group
+- `ProtectionFusB` - GramPositive-only mechanism; C. difficile modelled as Anaerobe group
 
 **Bacteroides fragilis**
 - `EnzymeEsblCtxM` - Different beta-lactamase profile (has cepA, cfiA)
@@ -330,11 +412,17 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `EffluxAcrabTolc` - Different efflux systems
 - `EffluxMexxyOprm` - Pseudomonas-specific
 - `ModificationMcr1` - Colistin not relevant for anaerobes
+- `EnzymeFosA` - FosA is Gram-negative specific, not Anaerobe group
+- `MutationMprF` - GramPositive-only mechanism; B. fragilis is Gram-negative anaerobe
+- `ProtectionFusB` - GramPositive-only mechanism; B. fragilis is Gram-negative anaerobe
 
 **Bordetella pertussis**
 - `TargetSitePbp2aMecA` - mecA is Staphylococcus-specific
 - `TargetSiteVanA` - Vancomycin doesn't work on Gram-negatives
 - `TargetSiteVanB` - Vancomycin doesn't work on Gram-negatives
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 - Most resistance mechanisms - Limited resistance profile, primarily macrolide
 
 ### Atypical Bacteria (No Cell Wall)
@@ -358,6 +446,9 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane
 - `GlobalPorinLoss` - No outer membrane
 - `ModificationMcr1` - No outer membrane
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Mycoplasma pneumoniae**
 - `EnzymeEsblCtxM` - No cell wall = no beta-lactam target
@@ -378,6 +469,9 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - No outer membrane
 - `GlobalPorinLoss` - No outer membrane
 - `ModificationMcr1` - No outer membrane
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 ### Obligate Intracellular/Special Cases
 
@@ -400,6 +494,9 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - Obligate intracellular
 - `GlobalPorinLoss` - Obligate intracellular
 - `ModificationMcr1` - Not relevant for intracellular bacteria
+- `EnzymeFosA` - Not in Fastidious group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 **Treponema pallidum**
 - `EnzymeEsblCtxM` - No beta-lactamase production documented
@@ -420,6 +517,10 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - Spirochete, different cell envelope
 - `GlobalPorinLoss` - Spirochete, different cell envelope
 - `ModificationMcr1` - Not relevant
+- `MutationNitroreductase` - Not in Spirochete group scope for nitroreductase
+- `EnzymeFosA` - Not in Spirochete group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 ### Acid-Fast Bacteria
 
@@ -442,6 +543,10 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - `PorinLossOprd` - Mycolic acid layer, no typical porins
 - `GlobalPorinLoss` - Mycolic acid layer, no typical porins
 - `ModificationMcr1` - Colistin not relevant for MTB
+- `MutationNitroreductase` - Not in Mycobacteria group scope for nitroreductase
+- `EnzymeFosA` - Not in Mycobacteria group scope for FosA
+- `MutationMprF` - Gram-positive membrane modification (daptomycin)
+- `ProtectionFusB` - Gram-positive specific (Staphylococcal fusidic acid resistance)
 
 ---
 
@@ -461,13 +566,27 @@ This document maps which resistance mechanisms are **biologically inapplicable**
 - Outer membrane porin loss: Gram-negative only (~28/42 bacteria = 67%)
 - Colistin modification: Gram-negative only (~28/42 bacteria = 67%)
 
+**New Mechanisms - Group-Specific:**
+- `MutationNitroreductase`: Enterobacterales, EntericPathogen, Anaerobe, Fastidious (~24/42 bacteria)
+- `EnzymeFosA`: Enterobacterales, NonFermenter, EntericPathogen only (~16/42 bacteria = 38%)
+- `MutationMprF`: GramPositive only (8/42 bacteria = 19%)
+- `ProtectionFusB`: GramPositive only (8/42 bacteria = 19%)
+
 **Universally Applicable Mechanisms:**
 - `MutationGyrAPrimary` - All bacteria
 - `MutationGyrAParCSecondary` - All bacteria
 - `Enzyme16sRrmt` - All bacteria
 - `EnzymeCat` - All bacteria
 - `GlobalEffluxPump` - All bacteria (though efficiency varies)
+- `MutationFolatePathway` - All bacteria (trimethoprim/sulfonamide resistance)
+- `MutationRpoB` - All bacteria (rifampicin/fidaxomicin resistance)
+- `ProtectionTetM` - All bacteria (ribosomal protection via Tn916 conjugative transposons; tigecycline excluded)
+- `AsYetUnknown1` - All bacteria (calibration placeholder 1 — drug specificity configurable via overrides)
+- `AsYetUnknown2` - All bacteria (calibration placeholder 2 — drug specificity configurable via overrides)
+- `AsYetUnknown3` - All bacteria (calibration placeholder 3 — drug specificity configurable via overrides)
 
 ---
 
 **Note:** This document represents biological plausibility. The simulation may still include all mechanisms for all bacteria with very low emergence rates (e.g., 1000.0 or higher) to represent extreme rarity while maintaining code simplicity.
+
+**Note on group model:** Each bacterium is assigned to exactly one `BacteriaGroup` in the code. Some bacteria (e.g., C. difficile) are biologically Gram-positive but modelled as `Anaerobe` group, meaning GramPositive-only mechanisms like `MutationMprF` and `ProtectionFusB` are excluded from them in the simulation.

@@ -102,7 +102,10 @@ pub enum ResistanceMechanism {
     MutationMprF,            // mprF/liaFSR membrane modification: daptomycin
     MutationRpoB,            // RNA polymerase β-subunit mutation: rifampicin, fidaxomicin
     ProtectionFusB,          // fusB/fusC protection proteins: fusidic_a
-    AsYetUnknown,            // Generic/uncharacterized resistance: applies to ALL drugs
+    ProtectionTetM,          // tet(M)/tet(O) ribosomal protection: tetracycline, doxycycline, minocycline (NOT tigecycline)
+    AsYetUnknown1,           // Calibration placeholder 1: drug specificity set via config overrides
+    AsYetUnknown2,           // Calibration placeholder 2: drug specificity set via config overrides
+    AsYetUnknown3,           // Calibration placeholder 3: drug specificity set via config overrides
 }
 
 impl ResistanceMechanism {
@@ -140,7 +143,10 @@ impl ResistanceMechanism {
             ResistanceMechanism::MutationMprF,
             ResistanceMechanism::MutationRpoB,
             ResistanceMechanism::ProtectionFusB,
-            ResistanceMechanism::AsYetUnknown,
+            ResistanceMechanism::ProtectionTetM,
+            ResistanceMechanism::AsYetUnknown1,
+            ResistanceMechanism::AsYetUnknown2,
+            ResistanceMechanism::AsYetUnknown3,
         ]
     }
 
@@ -178,7 +184,10 @@ impl ResistanceMechanism {
             ResistanceMechanism::MutationMprF => "mutation_mpr_f",
             ResistanceMechanism::MutationRpoB => "mutation_rpo_b",
             ResistanceMechanism::ProtectionFusB => "protection_fus_b",
-            ResistanceMechanism::AsYetUnknown => "as_yet_unknown",
+            ResistanceMechanism::ProtectionTetM => "protection_tet_m",
+            ResistanceMechanism::AsYetUnknown1 => "as_yet_unknown_1",
+            ResistanceMechanism::AsYetUnknown2 => "as_yet_unknown_2",
+            ResistanceMechanism::AsYetUnknown3 => "as_yet_unknown_3",
         }
     }
 }
@@ -662,8 +671,11 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::GramPositive,
         ]),
 
-        // As-yet-unknown: applies to ALL bacteria groups (calibration lever)
-        AsYetUnknown => mask_for_groups(BacteriaGroup::all()),
+        // TetM/TetO ribosomal protection: universal — Tn916 conjugative transposons found across all phyla
+        ProtectionTetM => mask_for_groups(BacteriaGroup::all()),
+
+        // As-yet-unknown placeholders: all apply to ALL bacteria groups (drug specificity via config)
+        AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => mask_for_groups(BacteriaGroup::all()),
     }
 }
 
