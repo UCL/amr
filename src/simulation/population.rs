@@ -679,6 +679,46 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
     }
 }
 
+/// Returns true if the mechanism is carried on mobile genetic elements (plasmids,
+/// transposons, integrons) and can therefore be horizontally transferred between
+/// bacteria.  Chromosomal point mutations, efflux up-regulation, and porin loss
+/// are NOT transferable — they arise only via *de novo* mutation / emergence.
+pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
+    use ResistanceMechanism::*;
+    match mechanism {
+        // --- Plasmid / transposon-borne enzymes & protection proteins → transferable ---
+        EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv => true,
+        EnzymeKpc | EnzymeNdmVim | EnzymeOxa48 => true,
+        EnzymeAmpcCmy | EnzymeAmpcDha => true,
+        TargetSitePbp2aMecA => true,           // mecA on SCCmec
+        TargetSiteVanA | TargetSiteVanB => true, // vanA/vanB on Tn1546 / plasmids
+        ProtectionQnr => true,                 // qnrA/B/S on plasmids
+        Enzyme16sRrmt => true,                 // 16S rRNA methyltransferases on plasmids
+        TargetSiteErmB => true,                // ermB on transposons (Tn917, Tn1545)
+        TargetSiteCfr => true,                 // cfr on plasmids
+        EnzymeCat => true,                     // cat genes on plasmids / transposons
+        ModificationMcr1 => true,              // mcr-1 on plasmids
+        EnzymeFosA => true,                    // fosA on plasmids
+        ProtectionFusB => true,                // fusB/fusC on SCC elements
+        ProtectionTetM => true,                // tetM on Tn916 conjugative transposons
+        MutationFolatePathway => true,         // sul1/2/3, dfrA on integrons / plasmids
+        AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => true, // conservative default
+
+        // --- Chromosomal mutations / regulatory changes → NOT transferable ---
+        MutationGyrAPrimary => false,          // point mutation in gyrA
+        MutationGyrAParCSecondary => false,    // point mutation in parC
+        EffluxAcrabTolc => false,              // chromosomal efflux up-regulation
+        EffluxMexxyOprm => false,              // chromosomal efflux up-regulation
+        PorinLossOmpk35_36 => false,           // chromosomal porin loss
+        PorinLossOprd => false,                // chromosomal porin loss
+        GlobalEffluxPump => false,             // chromosomal global efflux
+        GlobalPorinLoss => false,              // chromosomal global porin loss
+        MutationNitroreductase => false,       // chromosomal gene inactivation
+        MutationMprF => false,                 // chromosomal membrane modification
+        MutationRpoB => false,                 // chromosomal RNA polymerase mutation
+    }
+}
+
 pub const DRUG_SHORT_NAMES: &[&str] = &[
     "sulfanilamide",
     "penicillin_g",
@@ -1383,6 +1423,10 @@ pub struct Individual {
     /// Day when drug treatment last failed for each bacteria. -1 = never failed.
     pub date_last_drug_failure: Vec<i32>,
     
+    /// Per-drug day the drug was last stopped due to toxicity. i32::MIN = never.
+    /// Used by drug selection to avoid re-prescribing recently-toxic drugs.
+    pub toxicity_stopped_drug_day: Vec<i32>,
+
     /// Current number of drugs being taken by this individual.
     pub current_number_of_drugs: i32,
 }
@@ -1530,6 +1574,7 @@ impl Individual {
             drug_toxicity_reservoir: vec![0.0; num_drugs],
             current_toxicity_hazard: 0.0,
             mortality_risk_current_toxicity: 0.0,
+            toxicity_stopped_drug_day: vec![i32::MIN; num_drugs],
             resistances,
             resistance_mechanisms,
             how_resistance_acquired,

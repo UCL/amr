@@ -1029,6 +1029,7 @@ pub struct TimeStepSummary {
     pub deaths_sepsis: usize,     // Deaths from sepsis
     pub deaths_infection_non_sepsis: usize, // Deaths from infection without sepsis
     pub deaths_drug_toxicity: usize, // Deaths from drug toxicity
+    pub drug_stops_due_to_toxicity: usize, // Drug discontinuations triggered by sub-lethal toxicity
     pub deaths_past_year: usize,  // all-cause     // Rolling 1-year (365 days) death counts
     pub deaths_background_past_year: usize, // Rolling 1-year (365 days) death counts
     pub deaths_sepsis_past_year: usize, // Rolling 1-year (365 days) death counts
@@ -1590,6 +1591,7 @@ impl Simulation {
                 deaths_sepsis: usize,
                 deaths_infection_non_sepsis: usize,
                 deaths_drug_toxicity: usize,
+                drug_stops_due_to_toxicity: usize,
                 currently_taking_drug_count: usize,
                 infected_10_days_count: usize,
                 infected_30_days_count: usize,
@@ -1724,6 +1726,7 @@ impl Simulation {
                         deaths_sepsis: 0,
                         deaths_infection_non_sepsis: 0,
                         deaths_drug_toxicity: 0,
+                        drug_stops_due_to_toxicity: 0,
                         currently_taking_drug_count: 0,
                         infected_10_days_count: 0,
                         infected_30_days_count: 0,
@@ -1986,6 +1989,7 @@ impl Simulation {
                     self.deaths_sepsis += other.deaths_sepsis;
                     self.deaths_infection_non_sepsis += other.deaths_infection_non_sepsis;
                     self.deaths_drug_toxicity += other.deaths_drug_toxicity;
+                    self.drug_stops_due_to_toxicity += other.drug_stops_due_to_toxicity;
                     self.currently_taking_drug_count += other.currently_taking_drug_count;
                     self.infected_10_days_count += other.infected_10_days_count;
                     self.infected_30_days_count += other.infected_30_days_count;
@@ -2695,6 +2699,13 @@ impl Simulation {
                             }
                         }
 
+                        // Count toxicity-triggered drug stops this timestep
+                        for &tox_stop_day in individual.toxicity_stopped_drug_day.iter() {
+                            if tox_stop_day == t as i32 {
+                                lt.drug_stops_due_to_toxicity += 1;
+                            }
+                        }
+
                         if has_any_microbiome {
                             lt.num_with_any_bacteria_microbiome += 1;
                         }
@@ -3071,6 +3082,7 @@ impl Simulation {
                 deaths_sepsis,
                 deaths_infection_non_sepsis,
                 deaths_drug_toxicity,
+                drug_stops_due_to_toxicity,
                 currently_taking_drug_count,
                 infected_10_days_count,
                 infected_30_days_count,
@@ -3277,6 +3289,7 @@ impl Simulation {
                 deaths_sepsis,
                 deaths_infection_non_sepsis,
                 deaths_drug_toxicity,
+                drug_stops_due_to_toxicity,
                 // Rolling 1-year (365 days) death counts
                 deaths_past_year: rolling_sum_with_current(
                     &self.summary_log,
@@ -4004,7 +4017,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -4647,6 +4660,7 @@ impl Simulation {
             append_scalar(format_args!("{}", summary.deaths_sepsis))?;
             append_scalar(format_args!("{}", summary.deaths_infection_non_sepsis))?;
             append_scalar(format_args!("{}", summary.deaths_drug_toxicity))?;
+            append_scalar(format_args!("{}", summary.drug_stops_due_to_toxicity))?;
             append_scalar(format_args!("{}", summary.deaths_past_year))?;
             append_scalar(format_args!("{}", summary.deaths_background_past_year))?;
             append_scalar(format_args!("{}", summary.deaths_sepsis_past_year))?;

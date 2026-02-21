@@ -21,29 +21,31 @@ mod simulation;
 // death within 30 days by bacteria, age and region ? - make a formal part of calibration 
 // score or just present as an fyi ?
 //
+// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
+// policy comparison several times on each ?
+//
+//
+//
 //
 //
 // -- additional outputs / graphs ---------------------------------------------------------------------------------
 //
 // look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
+// consider whether can replicate recent antibiotic use as associated with resistance presence
+//
+// add mechanisms present by day to infection journeys
+//
+// need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
+// multiple mechansims
+//
+//
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
-// policy comparison several times on each ?
-//
-// hgt "ignores plasmid fitness - suggest to model plasmid persistence independent of chromosomal resistance
-//
-// have we covered poly-bacterial infections sufficiently ?
-//
 // need bacteria specific reversion rates for resistance mechanisms ?
 // ("reversion" in practice only really refers to the microbiome resistance ?)
-//
-// consider whether can replicate recent antibiotic use as associated with resistance presence
-//
-// closer modelling of toxicities ?
 //
 // should pop majority_r - informed chance of resistance be much more diluted for community acquired ?
 //
@@ -54,21 +56,7 @@ mod simulation;
 //
 // resistance floor should only have effect once prevalence of majority r > floor 
 //
-// do we need an additional microbiome_r variable for gut bacteria alone to reflect high plasmid
-// spreading ?
 //
-// need logistic model for resistance mechanism emergence probability ?
-//
-// review all resistance emergence logic including mechanism to any_r
-//
-// add mechanisms present by day to infection journeys
-//
-// need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
-// multiple mechansims
-//
-// consider use of cefiderocol 
-//
-// need grading of toxicity per drug
 //
 //
 //

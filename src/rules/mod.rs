@@ -510,6 +510,7 @@ fn hgt_context_multiplier(
     antibiotic_pressure_present: bool,
     donor_has_infection: bool,
     recipient_has_infection: bool,
+    shared_compartment_mask: u32,
 ) -> f64 {
     let mut multiplier = 1.0;
 
@@ -525,6 +526,12 @@ fn hgt_context_multiplier(
         multiplier *= globals.hgt_coinfection_multiplier;
     } else if !donor_has_infection && !recipient_has_infection {
         multiplier *= globals.hgt_microbiome_only_penalty;
+    }
+
+    // Gut compartment has higher bacterial density → more conjugation
+    use crate::simulation::population::CarriageCompartment;
+    if shared_compartment_mask & CarriageCompartment::Gut.bit() != 0 {
+        multiplier *= globals.hgt_gut_compartment_multiplier;
     }
 
     multiplier
@@ -2495,6 +2502,20 @@ pub fn apply_rules(
                             score *= 0.02; // 50× restriction due to toxicity concerns
                         }
 
+                        // --- Stewardship: Avoid recently toxicity-stopped drugs ---
+                        // If this drug was recently discontinued due to toxicity,
+                        // strongly penalise but don't absolutely block (may be last resort).
+                        {
+                            let avoidance_days = store.globals.toxicity_discontinuation_avoidance_days;
+                            let last_tox_stop = individual.toxicity_stopped_drug_day[drug_idx];
+                            if avoidance_days > 0
+                                && last_tox_stop != i32::MIN
+                                && (time_step as i32 - last_tox_stop) < avoidance_days
+                            {
+                                score *= 0.001; // 1000× penalty — strong avoidance
+                            }
+                        }
+
                         // --- Stewardship: Promote Narrow Spectrum Beta-Lactams ---
                         // Favor Penicillins for Streptococcus, Enterococcus, Syphilis, Neisseria when susceptible
                         if matches!(drug_name, "penicillin_g" | "ampicillin" | "amoxicillin") {
@@ -3238,6 +3259,59 @@ pub fn apply_rules(
 
     individual.current_toxicity_hazard = aggregated_toxicity_hazard;
     individual.mortality_risk_current_toxicity = toxicity_death_risk;
+
+    // --- Sub-lethal toxicity-triggered drug discontinuation ---
+    // If the adjusted toxicity risk exceeds a sub-lethal threshold, stop the most
+    // toxic active drug.  This models the far-more-common clinical response of
+    // discontinuing a drug when toxicity signs appear, rather than waiting for death.
+    let tox_disc_threshold = store.globals.toxicity_discontinuation_threshold;
+    if tox_disc_threshold > 0.0
+        && toxicity_death_risk > tox_disc_threshold
+        && individual.current_number_of_drugs > 0
+    {
+        // Find the currently-active drug with the highest toxicity reservoir
+        let mut worst_drug_idx: Option<usize> = None;
+        let mut worst_reservoir = 0.0_f64;
+        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+            if individual.cur_use_drug[drug_idx]
+                && individual.drug_toxicity_reservoir[drug_idx] > worst_reservoir
+            {
+                worst_reservoir = individual.drug_toxicity_reservoir[drug_idx];
+                worst_drug_idx = Some(drug_idx);
+            }
+        }
+
+        if let Some(drug_idx) = worst_drug_idx {
+            // Stop this drug (same pattern as regular cessation)
+            individual.cur_use_drug[drug_idx] = false;
+            individual.date_drug_initiated[drug_idx] = i32::MIN;
+            update_drug_counter(individual);
+
+            // Record this as a toxicity stop for the avoidance window
+            individual.toxicity_stopped_drug_day[drug_idx] = time_step as i32;
+
+            // Zero the reservoir so threshold isn't immediately re-triggered
+            // for the next-most-toxic drug on subsequent days
+            individual.drug_toxicity_reservoir[drug_idx] = 0.0;
+
+            // Restart window tracking (same as regular cessation)
+            for bacteria_idx in 0..BACTERIA_LIST.len() {
+                if individual.level[bacteria_idx] > 0.1
+                    && individual.bacteria_level_at_drug_start[bacteria_idx].is_some()
+                {
+                    individual.drug_stopped_with_infection_day[bacteria_idx] =
+                        Some(time_step as i32);
+                    individual.bacteria_level_at_drug_cessation[bacteria_idx] =
+                        Some(individual.level[bacteria_idx]);
+                    individual.stopped_drug_index[bacteria_idx] = Some(drug_idx);
+                    individual.restart_window_assessed[bacteria_idx] = false;
+                }
+                if individual.bacteria_level_at_drug_start[bacteria_idx].is_some() {
+                    clear_treatment_tracking(individual, bacteria_idx);
+                }
+            }
+        }
+    }
 
     // --- Treatment failure tracking and assessment ---
     // Update treatment days counter and assess treatment failure
@@ -4815,20 +4889,33 @@ pub fn apply_rules(
             individual.clearance_hazard[b_idx] = immune_hazard;
 
             // --- Mechanism-specific fitness cost reversion logic ---
-            let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
-            if !on_any_drug {
-                // Check for reversion of specific resistance mechanisms based on their fitness costs
+            // Reversion is checked per-mechanism: a mechanism can only revert if the
+            // individual is NOT on any drug that the mechanism confers resistance to.
+            // This replaces the previous blanket on_any_drug gate which incorrectly
+            // blocked all reversion whenever any antibiotic was present.
+            {
                 use crate::simulation::population::ResistanceMechanism;
+                let bacteria_name = BACTERIA_LIST[b_idx];
                 let mut mechanisms_reverted = Vec::new();
 
-                for (mechanism_idx, _) in ResistanceMechanism::all().iter().enumerate() {
+                for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
                     if individual.resistance_mechanisms[b_idx][mechanism_idx] {
-                        let mechanism_reversion_rate =
-                            store.resistance_mechanism.reversion_rate(mechanism_idx);
+                        // Check if any active drug is one this mechanism confers resistance to
+                        let selecting_drug_present = DRUG_SHORT_NAMES.iter().enumerate().any(
+                            |(d_idx, &drug_name)| {
+                                individual.cur_level_drug[d_idx] > 0.0
+                                    && mechanism_applies_to_drug(*mechanism, bacteria_name, drug_name)
+                            },
+                        );
 
-                        if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
-                            individual.resistance_mechanisms[b_idx][mechanism_idx] = false;
-                            mechanisms_reverted.push(mechanism_idx);
+                        if !selecting_drug_present {
+                            let mechanism_reversion_rate =
+                                store.resistance_mechanism.reversion_rate(mechanism_idx);
+
+                            if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
+                                individual.resistance_mechanisms[b_idx][mechanism_idx] = false;
+                                mechanisms_reverted.push(mechanism_idx);
+                            }
                         }
                     }
                 }
@@ -4845,29 +4932,34 @@ pub fn apply_rules(
                 }
 
                 // If no mechanisms remain but resistance persists, apply bacteria-specific reversion
-                let has_active_mechanism =
-                    individual.resistance_mechanisms[b_idx].iter().any(|&active| active);
-                if !has_active_mechanism
-                    && individual.resistances[b_idx]
-                        .iter()
-                        .any(|resistance| resistance.any_r > 0.0 || resistance.microbiome_r > 0.0)
-                {
-                    let reversion_rate = store
-                        .bacteria
-                        .mechanismless_resistance_reversion_rate(b_idx)
-                        .clamp(0.0, 1.0);
-                    if reversion_rate > 0.0 && rng.gen_bool(reversion_rate) {
-                        for mechanism_flag in individual.resistance_mechanisms[b_idx].iter_mut() {
-                            *mechanism_flag = false;
-                        }
-                        for drug_index in 0..DRUG_SHORT_NAMES.len() {
-                            let resistance_data = &mut individual.resistances[b_idx][drug_index];
-                            resistance_data.microbiome_r = 0.0;
-                            resistance_data.test_r = 0.0;
-                            resistance_data.activity_r = 0.0;
-                            resistance_data.any_r = 0.0;
-                            resistance_data.majority_r = 0.0;
-                            individual.how_resistance_acquired[b_idx][drug_index] = None;
+                // (mechanismless reversion still uses on_any_drug — conservative: any drug could
+                // maintain selection pressure on uncharacterised resistance)
+                let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
+                if !on_any_drug {
+                    let has_active_mechanism =
+                        individual.resistance_mechanisms[b_idx].iter().any(|&active| active);
+                    if !has_active_mechanism
+                        && individual.resistances[b_idx]
+                            .iter()
+                            .any(|resistance| resistance.any_r > 0.0 || resistance.microbiome_r > 0.0)
+                    {
+                        let reversion_rate = store
+                            .bacteria
+                            .mechanismless_resistance_reversion_rate(b_idx)
+                            .clamp(0.0, 1.0);
+                        if reversion_rate > 0.0 && rng.gen_bool(reversion_rate) {
+                            for mechanism_flag in individual.resistance_mechanisms[b_idx].iter_mut() {
+                                *mechanism_flag = false;
+                            }
+                            for drug_index in 0..DRUG_SHORT_NAMES.len() {
+                                let resistance_data = &mut individual.resistances[b_idx][drug_index];
+                                resistance_data.microbiome_r = 0.0;
+                                resistance_data.test_r = 0.0;
+                                resistance_data.activity_r = 0.0;
+                                resistance_data.any_r = 0.0;
+                                resistance_data.majority_r = 0.0;
+                                individual.how_resistance_acquired[b_idx][drug_index] = None;
+                            }
                         }
                     }
                 }
@@ -5195,12 +5287,14 @@ pub fn apply_rules(
                     }
 
                     let recipient_has_infection = infection_presence[recipient_idx];
+                    let shared_compartment = donor_mask & recipient_mask;
                     let context_multiplier = hgt_context_multiplier(
                         &store.globals,
                         is_hospitalized,
                         antibiotic_pressure_present,
                         donor_has_infection,
                         recipient_has_infection,
+                        shared_compartment,
                     );
 
                     let effective_prob = (base_prob * context_multiplier * counterfactual_resistance_multiplier).min(1.0);
@@ -5210,89 +5304,63 @@ pub fn apply_rules(
 
                     let recipient_group_mask = population::bacteria_group_mask(recipient_idx);
 
-                    // Transfer resistance for all drugs where donor has resistance
-                    for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-                        let donor_r = individual.resistances[donor_idx][drug_idx].any_r;
-                        if donor_r <= 0.0 {
+                    // ── Mechanism-driven HGT transfer ──────────────────────────
+                    // Instead of iterating over drugs and copying any_r values,
+                    // we transfer individual *mechanisms* that the donor carries
+                    // and that are biologically HGT-transferable (plasmid/transposon-borne).
+                    // After transferring mechanisms, we call propagate_mechanism_resistance()
+                    // which derives the correct any_r for every drug from the
+                    // mechanism state.
+                    let mut any_mechanism_transferred = false;
+
+                    for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                        // Donor must actually carry this mechanism
+                        if !individual.resistance_mechanisms[donor_idx][mech_idx] {
                             continue;
                         }
 
-                        // Transfer to infection
-                        if individual.level[recipient_idx] > INFECTION_EPS {
-                            let prev_any_r =
-                                individual.resistances[recipient_idx][drug_idx].any_r;
-                            let new_any_r = donor_r.max(prev_any_r);
-                            individual.resistances[recipient_idx][drug_idx].any_r = new_any_r;
-                            if prev_any_r == 0.0 && new_any_r > 0.0 {
-                                let mechanism_prob = store
-                                    .globals
-                                    .mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    if population::mechanism_allowed_group_mask(*mechanism)
-                                        & recipient_group_mask
-                                        == 0
-                                    {
-                                        continue;
-                                    }
-
-                                    if !param_cache.mechanism_applicable(
-                                        mech_idx,
-                                        recipient_idx,
-                                        drug_idx,
-                                    ) {
-                                        continue;
-                                    }
-
-                                    let enhancement = store
-                                        .resistance_mechanism
-                                        .enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[drug_idx]);
-                                    if enhancement <= new_any_r && rng.gen_bool(mechanism_prob) {
-                                        individual.resistance_mechanisms[recipient_idx]
-                                            [mech_idx] = true;
-                                    }
-                                }
-                                individual.how_resistance_acquired[recipient_idx][drug_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
-                            }
+                        // Mechanism must be HGT-transferable (not a chromosomal mutation)
+                        if !population::mechanism_is_hgt_transferable(*mechanism) {
+                            continue;
                         }
 
-                        // Transfer to microbiome
-                        if individual.presence_microbiome[recipient_idx] {
-                            let prev_any_r =
-                                individual.resistances[recipient_idx][drug_idx].any_r;
-                            let new_any_r = donor_r.max(prev_any_r);
-                            individual.resistances[recipient_idx][drug_idx].any_r = new_any_r;
-                            if prev_any_r == 0.0 && new_any_r > 0.0 {
-                                let mechanism_prob = store
-                                    .globals
-                                    .mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    if population::mechanism_allowed_group_mask(*mechanism)
-                                        & recipient_group_mask
-                                        == 0
-                                    {
-                                        continue;
-                                    }
+                        // Recipient must already have this mechanism's group mask
+                        if population::mechanism_allowed_group_mask(*mechanism)
+                            & recipient_group_mask
+                            == 0
+                        {
+                            continue;
+                        }
 
-                                    if !param_cache.mechanism_applicable(
-                                        mech_idx,
-                                        recipient_idx,
-                                        drug_idx,
-                                    ) {
-                                        continue;
-                                    }
+                        // Recipient already has this mechanism — skip
+                        if individual.resistance_mechanisms[recipient_idx][mech_idx] {
+                            continue;
+                        }
 
-                                    let enhancement = store
-                                        .resistance_mechanism
-                                        .enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[drug_idx]);
-                                    if enhancement <= new_any_r && rng.gen_bool(mechanism_prob) {
-                                        individual.resistance_mechanisms[recipient_idx]
-                                            [mech_idx] = true;
-                                    }
-                                }
+                        // Transfer the mechanism
+                        individual.resistance_mechanisms[recipient_idx][mech_idx] = true;
+                        any_mechanism_transferred = true;
+                    }
+
+                    // If at least one mechanism was transferred, re-derive any_r
+                    // for all drugs from the updated mechanism state.
+                    if any_mechanism_transferred {
+                        propagate_mechanism_resistance(
+                            individual,
+                            recipient_idx,
+                            param_cache,
+                            true,  // raise_only — don't lower existing resistance
+                            true,  // propagate_microbiome_r — update microbiome too
+                        );
+
+                        // Record HGT acquisition for drugs that gained new any_r
+                        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                            if individual.resistances[recipient_idx][drug_idx].any_r > 0.0
+                                && individual.how_resistance_acquired[recipient_idx][drug_idx]
+                                    .is_none()
+                            {
+                                individual.how_resistance_acquired[recipient_idx][drug_idx] =
+                                    Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
                             }
                         }
                     }

@@ -238,6 +238,8 @@ pub struct GlobalScalars {
     pub toxicity_age_multiplier_elderly: f64,
     pub toxicity_immunosuppressed_multiplier: f64,
     pub toxicity_hospital_multiplier: f64,
+    pub toxicity_discontinuation_threshold: f64,
+    pub toxicity_discontinuation_avoidance_days: i32,
     pub regional_resistance_threshold_very_high: f64,
     pub regional_resistance_threshold_high: f64,
     pub regional_resistance_threshold_moderate: f64,
@@ -311,6 +313,7 @@ pub struct GlobalScalars {
     pub hgt_antibiotic_pressure_multiplier: f64,
     pub hgt_coinfection_multiplier: f64,
     pub hgt_microbiome_only_penalty: f64,
+    pub hgt_gut_compartment_multiplier: f64,
     #[allow(dead_code)]
     pub majority_r_memory_retention_per_day: f64,
     pub microbiome_majority_decay_half_life_days: f64,
@@ -565,6 +568,16 @@ impl GlobalScalars {
                 "toxicity_hospital_multiplier",
                 1.3, // Hospitalized patients often sicker but also monitored
             ),
+            toxicity_discontinuation_threshold: get_or_default(
+                map,
+                "toxicity_discontinuation_threshold",
+                1.0e-5, // Sub-lethal threshold: clinician stops most-toxic drug before death risk is significant
+            ),
+            toxicity_discontinuation_avoidance_days: get_or_default(
+                map,
+                "toxicity_discontinuation_avoidance_days",
+                30.0, // Days to avoid re-prescribing the toxicity-stopped drug
+            ) as i32,
             regional_resistance_threshold_very_high: get_or_default(
                 map,
                 "regional_resistance_threshold_very_high",
@@ -868,6 +881,11 @@ impl GlobalScalars {
                 map,
                 "hgt_microbiome_only_penalty",
                 0.65,  // 0.65 ***   ^^^ micro
+            ),
+            hgt_gut_compartment_multiplier: get_or_default(
+                map,
+                "hgt_gut_compartment_multiplier",
+                2.0,  // Gut has higher bacterial density and more conjugation opportunities
             ),
             majority_r_memory_retention_per_day: get_or_default(
                 map,
@@ -2554,7 +2572,9 @@ fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
         (PlasmidPool::Anaerobe, PlasmidPool::EntericGramNegative)
         | (PlasmidPool::EntericGramNegative, PlasmidPool::Anaerobe) => 1.0e-10,
         (PlasmidPool::Anaerobe, PlasmidPool::Anaerobe) => 1.0e-10,
-        _ => 1.0e-10,
+        // Cross-Gram transfers (GramPositive <-> any GramNegative pool) are biologically
+        // negligible — incompatible replication origins, cell wall structure, etc.
+        _ => 0.0,
     }
 }
 
@@ -7344,8 +7364,8 @@ lazy_static! {
         // Tunes how quickly resistance signals appear, decay, and propagate across mechanisms.
         // Use these defaults for broad behaviour; override targeted keys for specific bacteria/drugs.
         // Resistance Emergence and Decay Parameters
-        // Resistance reversion parameter: probability per day that resistance reverts to 0 if no drug present
-        map.insert("resistance_reversion_rate_per_day".to_string(), 0.0005); // ***  Default: modest, slightly faster decay to curb relapse
+        // (Resistance reversion is handled by per-mechanism reversion_rate and per-bacteria
+        // mechanismless_resistance_reversion_rate — see their respective config sections)
         // Microbiome emergence rate: lower than infection emergence because microbiome bacteria
         // experience less intense selection pressure.
 
