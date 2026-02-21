@@ -309,6 +309,7 @@ pub struct GlobalScalars {
     pub carriage_duration_max_log_odds_effect: f64,
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
+    pub community_resistance_dilution_factor: f64,
     pub hgt_hospital_multiplier: f64,
     pub hgt_antibiotic_pressure_multiplier: f64,
     pub hgt_coinfection_multiplier: f64,
@@ -865,6 +866,11 @@ impl GlobalScalars {
                 map,
                 "carrier_resistance_inheritance_probability",
                 0.32,  // 0.32 ***
+            ),
+            community_resistance_dilution_factor: get_or_default(
+                map,
+                "community_resistance_dilution_factor",
+                0.50,  // 0.50 ***
             ),
             hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),  // 3.0  ***
             hgt_antibiotic_pressure_multiplier: get_or_default(
@@ -1738,7 +1744,6 @@ pub struct BacteriaParameters {
     pub log_odds_microbiome_present: Vec<f64>,
     pub log_odds_hospital_acquired: Vec<f64>,
     pub microbiome_clearance_probability_per_day: Vec<f64>,
-    pub environmental_acquisition_proportion: Vec<f64>,
     pub initial_infection_level: Vec<f64>,
     pub base_bacteria_level_change: Vec<f64>,
     pub max_level: Vec<f64>,
@@ -1765,7 +1770,6 @@ impl BacteriaParameters {
         let mut log_odds_microbiome_present = Vec::with_capacity(num_bacteria);
         let mut log_odds_hospital_acquired = Vec::with_capacity(num_bacteria);
         let mut microbiome_clearance_probability_per_day = Vec::with_capacity(num_bacteria);
-        let mut environmental_acquisition_proportion = Vec::with_capacity(num_bacteria);
         let mut initial_infection_level = Vec::with_capacity(num_bacteria);
         let mut base_bacteria_level_change = Vec::with_capacity(num_bacteria);
         let mut max_level = Vec::with_capacity(num_bacteria);
@@ -1812,11 +1816,6 @@ impl BacteriaParameters {
                     "default_microbiome_clearance_probability_per_day",
                     0.075,
                 ),
-            ));
-            environmental_acquisition_proportion.push(get_or_default(
-                map,
-                &format!("{}_environmental_acquisition_proportion", prefix),
-                0.1,
             ));
             initial_infection_level.push(get_or_default(
                 map,
@@ -1899,7 +1898,6 @@ impl BacteriaParameters {
             log_odds_microbiome_present,
             log_odds_hospital_acquired,
             microbiome_clearance_probability_per_day,
-            environmental_acquisition_proportion,
             initial_infection_level,
             base_bacteria_level_change,
             max_level,
@@ -1957,11 +1955,6 @@ impl BacteriaParameters {
     #[inline]
     pub fn microbiome_clearance_probability_per_day(&self, bacteria_idx: usize) -> f64 {
         self.microbiome_clearance_probability_per_day[bacteria_idx]
-    }
-
-    #[inline]
-    pub fn environmental_acquisition_proportion(&self, bacteria_idx: usize) -> f64 {
-        self.environmental_acquisition_proportion[bacteria_idx]
     }
 
     #[inline]
@@ -5278,7 +5271,6 @@ lazy_static! {
         // These are set first, and can then be overridden by specific entries below.
         for &bacteria in BACTERIA_LIST.iter() {
             map.insert(format!("{}_initial_infection_level", bacteria), 0.01); // 0.01 // bacteria level at initial infection
-            map.insert(format!("{}_environmental_acquisition_proportion", bacteria), 0.1); // 0.1  // proportion of new infections from environment
             map.insert(format!("{}_base_bacteria_level_change", bacteria), 0.5); // 0.2 // base change in bacteria level per day
             map.insert(format!("{}_max_level", bacteria), 5.0); // max bacteria level (arbitrary standardized scale)
 
@@ -6524,10 +6516,6 @@ lazy_static! {
         map.insert("staphylococcus_epidermidis_symptom_onset_delay_days".to_string(), 3.0);        // Slight delay before clinical detection
         map.insert("staphylococcus_epidermidis_base_bacteria_level_change".to_string(), 0.35);     // Slower growth kinetics than S. aureus
         map.insert("staphylococcus_epidermidis_max_level".to_string(), 4.0);                        // Lower peak burden due to biofilm focus
-        map.insert("staphylococcus_epidermidis_environmental_acquisition_proportion".to_string(), 0.05); // Mostly device/skin origin
-        map.insert("bacteroides_fragilis_environmental_acquisition_proportion".to_string(), 0.02); // Predominantly endogenous gut source
-        map.insert("p_stuartii_environmental_acquisition_proportion".to_string(), 0.18); // Catheter/device biofilms seed infections
-        map.insert("mycoplasma_genitalium_environmental_acquisition_proportion".to_string(), 0.95); // Nearly all cases acquired via sexual transmission
         map.insert("staphylococcus_epidermidis_microbiome_clearance_probability_per_day".to_string(), 0.015); // Chronic colonizer of skin/devices
         map.insert("staphylococcus_epidermidis_log_odds_sepsis_infection_level".to_string(), 0.04); // Slight level effect on sepsis risk
         map.insert("staphylococcus_epidermidis_log_odds_sepsis_infection_duration".to_string(), 0.005); // Chronic devices slowly accumulate risk
@@ -6538,7 +6526,6 @@ lazy_static! {
         map.insert("stenotrophomonas_maltophilia_symptom_onset_delay_days".to_string(), 2.5);          // Early signs once established
         map.insert("stenotrophomonas_maltophilia_base_bacteria_level_change".to_string(), 0.45);       // Moderate growth rate
         map.insert("stenotrophomonas_maltophilia_max_level".to_string(), 5.0);                          // Can reach high burdens in lungs
-        map.insert("stenotrophomonas_maltophilia_environmental_acquisition_proportion".to_string(), 0.08); 
         map.insert("stenotrophomonas_maltophilia_microbiome_clearance_probability_per_day".to_string(), 0.06); // Persistent colonizer in ICU settings
         map.insert("stenotrophomonas_maltophilia_log_odds_sepsis_infection_level".to_string(), 0.08);   // Rising burden increases risk notably
         map.insert("stenotrophomonas_maltophilia_log_odds_sepsis_infection_duration".to_string(), 0.012); // Prolonged infection raises odds
@@ -10050,7 +10037,7 @@ lazy_static! {
         map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
         // ^^^ micro
         map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.50);  //  0.0000000001  0.35  0.01  ***
-        map.insert("infection_from_microbiome_dampening".to_string(), 0.10);  // 0.85  ***
+        map.insert("infection_from_microbiome_dampening".to_string(), 0.70);  // 0.85  ***
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
 
@@ -10095,7 +10082,8 @@ lazy_static! {
         // Population impact: Carriers maintain resistance without selective pressure (asymptomatic), then
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
-        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.0);  // 0.10 0.55  ---
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);  // 0.10 0.55  ---
+        map.insert("community_resistance_dilution_factor".to_string(), 0.50);
 
  //     map.insert(
  //         "majority_r_memory_retention_per_day".to_string(),

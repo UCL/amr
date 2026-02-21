@@ -249,7 +249,6 @@ impl CarriageCompartment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResistanceAcquisitionType {
     AtInfectionCommunity,
-    AtInfectionEnv,
     AtInfectionTB,
     Hgt,
     FromMicrobiomeR,
@@ -260,7 +259,6 @@ impl ResistanceAcquisitionType {
     pub fn as_str(&self) -> &'static str {
         match self {
             ResistanceAcquisitionType::AtInfectionCommunity => "at_infection_community",
-            ResistanceAcquisitionType::AtInfectionEnv => "at_infection_env",
             ResistanceAcquisitionType::AtInfectionTB => "at_infection_tb",
             ResistanceAcquisitionType::Hgt => "hgt",
             ResistanceAcquisitionType::FromMicrobiomeR => "from_microbiome_r",
@@ -1261,9 +1259,6 @@ pub struct Individual {
     /// Only covers bacterial vaccines: pneumococcal, meningococcal, Hib.
     pub vaccination_status: Vec<bool>,
     
-    /// True if infection was acquired from environmental source (not person-to-person).
-    pub cur_infection_from_environment: Vec<bool>,
-    
     /// True if active infection has caused clinical symptoms.
     /// Once true, remains true until infection clears completely.
     /// Gates both testing and treatment initiation decisions.
@@ -1463,7 +1458,6 @@ impl Individual {
         let cleared_any_r_microbiome_categories =
             vec![[0u32; MICROBIOME_RESISTANCE_LEVEL_COUNT]; num_bacteria];
         let infection_hospital_acquired = vec![false; num_bacteria];
-        let cur_infection_from_environment = vec![false; num_bacteria];
         let infection_has_caused_symptoms = vec![false; num_bacteria];
         let test_identified_infection = vec![false; num_bacteria];
         let test_for_resistance = vec![false; num_bacteria]; // NEW: initialize all to false
@@ -1566,7 +1560,6 @@ impl Individual {
             current_infection_related_death_risk: 0.0,
             background_all_cause_mortality_rate,
             infection_hospital_acquired,
-            cur_infection_from_environment,
             infection_has_caused_symptoms,
             test_identified_infection,
             test_for_resistance,

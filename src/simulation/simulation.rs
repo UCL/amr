@@ -130,6 +130,8 @@ struct BranchSnapshot {
     majority_r_cache_next: MajorityRCache,
     mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
     mechanism_prevalence_cache_next: MechanismPrevalenceCache,
+    mechanism_profile_cache_prev: MechanismProfileCache,
+    mechanism_profile_cache_next: MechanismProfileCache,
     summary_log: Vec<TimeStepSummary>,
     prev_majority_r_entries_len: usize,
 }
@@ -141,6 +143,8 @@ struct CoreState {
     majority_r_cache_next: MajorityRCache,
     mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
     mechanism_prevalence_cache_next: MechanismPrevalenceCache,
+    mechanism_profile_cache_prev: MechanismProfileCache,
+    mechanism_profile_cache_next: MechanismProfileCache,
     prev_majority_r_entries_len: usize,
 }
 
@@ -282,6 +286,125 @@ impl MechanismPrevalenceCache {
              }
         }
         Some(mechanisms.len() - 1)
+    }
+}
+
+/// Maximum mechanism profiles stored per region×bacteria slot.
+const MAX_MECHANISM_PROFILES: usize = 200;
+
+/// Cache of *complete* mechanism boolean profiles sampled from currently-infected individuals.
+///
+/// Unlike `MechanismPrevalenceCache` (which stores marginal per-mechanism counts),
+/// this cache preserves co-occurrence patterns — so a newly-infected individual
+/// inherits a biologically-plausible combination of mechanisms from the circulating
+/// pool rather than an artefactual "Frankenstein" mix.
+///
+/// Structure: `profiles[region_idx][bacteria_idx]` → `Vec<Vec<bool>>`, capped at
+/// `MAX_MECHANISM_PROFILES` entries via reservoir sampling.
+#[derive(Clone)]
+pub struct MechanismProfileCache {
+    /// profiles[region_idx][bacteria_idx] -> Vec of boolean mechanism arrays
+    profiles: Vec<Vec<Vec<Vec<bool>>>>,
+    /// Total profiles seen per slot (for reservoir sampling even when >cap)
+    total_seen: Vec<Vec<u64>>,
+    num_regions: usize,
+    num_bacteria: usize,
+    _num_mechanisms: usize,
+}
+
+impl MechanismProfileCache {
+    pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
+        Self {
+            profiles: vec![vec![Vec::new(); num_bacteria]; num_regions],
+            total_seen: vec![vec![0u64; num_bacteria]; num_regions],
+            num_regions,
+            num_bacteria,
+            _num_mechanisms: num_mechanisms,
+        }
+    }
+
+    /// Record a mechanism profile from an infected individual.
+    /// Uses reservoir sampling to maintain a representative subset capped at MAX_MECHANISM_PROFILES.
+    pub fn record<R: Rng + ?Sized>(
+        &mut self,
+        region_idx: usize,
+        bacteria_idx: usize,
+        profile: &[bool],
+        rng: &mut R,
+    ) {
+        if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
+            return;
+        }
+        // Only record profiles that have at least one mechanism active
+        if !profile.iter().any(|&b| b) {
+            return;
+        }
+        let slot = &mut self.profiles[region_idx][bacteria_idx];
+        let seen = &mut self.total_seen[region_idx][bacteria_idx];
+        *seen += 1;
+        if slot.len() < MAX_MECHANISM_PROFILES {
+            slot.push(profile.to_vec());
+        } else {
+            // Reservoir sampling: replace a random entry with probability cap/seen
+            let j = rng.gen_range(0..*seen) as usize;
+            if j < MAX_MECHANISM_PROFILES {
+                slot[j] = profile.to_vec();
+            }
+        }
+    }
+
+    /// Sample a complete mechanism profile uniformly at random.
+    /// Returns `None` if no profiles are stored for this region×bacteria.
+    pub fn sample<R: Rng + ?Sized>(
+        &self,
+        region_idx: usize,
+        bacteria_idx: usize,
+        rng: &mut R,
+    ) -> Option<&[bool]> {
+        if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
+            return None;
+        }
+        let slot = &self.profiles[region_idx][bacteria_idx];
+        if slot.is_empty() {
+            return None;
+        }
+        let idx = rng.gen_range(0..slot.len());
+        Some(&slot[idx])
+    }
+
+    /// Merge profiles from another cache (used for per-thread aggregation).
+    /// Performs reservoir sampling when combined profiles exceed the cap.
+    pub fn merge<R: Rng + ?Sized>(&mut self, other: Self, rng: &mut R) {
+        for r in 0..self.num_regions {
+            for b in 0..self.num_bacteria {
+                let combined_seen = self.total_seen[r][b] + other.total_seen[r][b];
+                let other_profiles = &other.profiles[r][b];
+                let slot = &mut self.profiles[r][b];
+
+                for profile in other_profiles {
+                    if slot.len() < MAX_MECHANISM_PROFILES {
+                        slot.push(profile.clone());
+                    } else {
+                        // Reservoir sampling with the combined count
+                        let j = rng.gen_range(0..combined_seen) as usize;
+                        if j < MAX_MECHANISM_PROFILES {
+                            slot[j] = profile.clone();
+                        }
+                    }
+                }
+                self.total_seen[r][b] = combined_seen;
+            }
+        }
+    }
+
+    /// Reset all profiles for a new timestep.
+    pub fn clear(&mut self) {
+        for r in 0..self.num_regions {
+            for b in 0..self.num_bacteria {
+                self.profiles[r][b].clear();
+                self.total_seen[r][b] = 0;
+            }
+        }
     }
 }
 
@@ -870,7 +993,7 @@ impl IndividualLogger {
         };
 
         if !self.header_written {
-            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,cause_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,cur_infection_from_environment,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs,predicted_infection_risk") {
+            if let Err(err) = writeln!(file, "time_step,individual_index,id,age,age_category,sex_at_birth,region_living,region_cur_in,current_infection_related_death_risk,background_all_cause_mortality_rate,current_toxicity_hazard,mortality_risk_current_toxicity,hospital_status,is_severely_immunosuppressed,date_of_death,cause_of_death,level,clearance_hazard,presence_microbiome,cur_level_drug,cur_use_drug,ever_taken_drug,date_last_infected,infection_hospital_acquired,test_identified_infection,sepsis,infection_resolution_this_timestep,active_infection_activity_r,day_7_since_last_infection_drug_used,resistances_microbiome_r,resistances_test_r,resistances_activity_r,resistances_any_r,resistances_majority_r,resistance_mechanisms,bacteria_on_selection_day,drug_score_on_selection_day,date_last_drug_failure,current_number_of_drugs,predicted_infection_risk") {
                 eprintln!(
                     "Error writing header for {}: {}",
                     self.path.display(),
@@ -973,7 +1096,6 @@ impl IndividualLogger {
             row.push(Self::fmt_vec(&ind.cur_use_drug));
             row.push(Self::fmt_vec(&ind.ever_taken_drug));
             row.push(Self::fmt_vec(&ind.date_last_infected));
-            row.push(Self::fmt_vec(&ind.cur_infection_from_environment));
             row.push(Self::fmt_vec(&ind.infection_hospital_acquired));
             row.push(Self::fmt_vec(&ind.test_identified_infection));
             row.push(Self::fmt_vec(&ind.sepsis));
@@ -1127,7 +1249,6 @@ pub struct TimeStepSummary {
     // counts of newly acquired resistance by acquisition type this timestep per bacteria-drug combination
     // Each Vec has length = num_bacteria * num_drugs, indexed as [bacteria_idx * num_drugs + drug_idx]
     pub new_resistance_at_infection_community_by_bacteria_drug: Vec<usize>,
-    pub new_resistance_at_infection_env_by_bacteria_drug: Vec<usize>,
     pub new_resistance_hgt_by_bacteria_drug: Vec<usize>,
     pub new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
     pub new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
@@ -1227,6 +1348,8 @@ pub struct Simulation {
     pub majority_r_cache_next: MajorityRCache,
     pub mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
     pub mechanism_prevalence_cache_next: MechanismPrevalenceCache,
+    pub mechanism_profile_cache_prev: MechanismProfileCache,
+    pub mechanism_profile_cache_next: MechanismProfileCache,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
     /// Storage for per-policy alternate branch summaries keyed by policy_option.
@@ -1395,6 +1518,17 @@ impl Simulation {
             num_mechanisms,
         );
 
+        let mechanism_profile_cache_prev = MechanismProfileCache::new(
+            num_regions_including_home,
+            num_bacteria,
+            num_mechanisms,
+        );
+        let mechanism_profile_cache_next = MechanismProfileCache::new(
+            num_regions_including_home,
+            num_bacteria,
+            num_mechanisms,
+        );
+
         let baseline_policy = PolicyAdjustments::baseline();
         let branch_policies = vec![
             PolicyAdjustments::alternate_example(globals),
@@ -1413,6 +1547,8 @@ impl Simulation {
             majority_r_cache_next,
             mechanism_prevalence_cache_prev,
             mechanism_prevalence_cache_next,
+            mechanism_profile_cache_prev,
+            mechanism_profile_cache_next,
             summary_log: Vec::new(), // Initialize empty log
             policy_branch_summary_log: Vec::new(),
             param_cache: crate::rules::ParameterKeyCache::new(),
@@ -1568,6 +1704,7 @@ impl Simulation {
                 .prepare_for_new_step(&self.majority_r_cache_prev);
             let majority_r_cache_prev = &self.majority_r_cache_prev;
             let mechanism_prevalence_cache_prev = &self.mechanism_prevalence_cache_prev;
+            let mechanism_profile_cache_prev = &self.mechanism_profile_cache_prev;
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
@@ -1632,6 +1769,8 @@ impl Simulation {
                 infected_with_test_identified_by_bacteria: Vec<usize>,
                 infected_with_test_for_resistance_by_bacteria: Vec<usize>,
                 mechanism_counts: Vec<Vec<Vec<u32>>>,
+                /// Per-thread mechanism profile reservoir for MechanismProfileCache
+                mechanism_profiles: MechanismProfileCache,
                 // Integrated previously sequential counts:
                 living_population: usize,
                 num_age_0_5: usize,
@@ -1657,7 +1796,6 @@ impl Simulation {
                 infected_with_bacteria_and_mechanism: Vec<usize>,
                 /// counts of newly acquired resistance by acquisition type this timestep per bacteria-drug combination
                 new_resistance_at_infection_community_by_bacteria_drug: Vec<usize>,
-                new_resistance_at_infection_env_by_bacteria_drug: Vec<usize>,
                 new_resistance_hgt_by_bacteria_drug: Vec<usize>,
                 new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
                 new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
@@ -1781,6 +1919,7 @@ impl Simulation {
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
                         infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
                         mechanism_counts: vec![vec![vec![0; ResistanceMechanism::all().len()]; num_bacteria]; num_regions],
+                        mechanism_profiles: MechanismProfileCache::new(num_regions, num_bacteria, ResistanceMechanism::all().len()),
                         living_population: 0,
                         num_age_0_5: 0,
                         num_age_6_14: 0,
@@ -1804,11 +1943,6 @@ impl Simulation {
                                     .len()
                         ],
                         new_resistance_at_infection_community_by_bacteria_drug: vec![
-                            0;
-                            num_bacteria
-                                * num_drugs
-                        ],
-                        new_resistance_at_infection_env_by_bacteria_drug: vec![
                             0;
                             num_bacteria
                                 * num_drugs
@@ -2151,6 +2285,8 @@ impl Simulation {
                         }
                     }
 
+                    self.mechanism_profiles.merge(other.mechanism_profiles, &mut self.rng);
+
                     self.living_population += other.living_population;
                     self.num_age_0_5 += other.num_age_0_5;
                     self.num_age_6_14 += other.num_age_6_14;
@@ -2217,13 +2353,6 @@ impl Simulation {
                         .new_resistance_at_infection_community_by_bacteria_drug
                         .iter_mut()
                         .zip(other.new_resistance_at_infection_community_by_bacteria_drug)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
-                        .new_resistance_at_infection_env_by_bacteria_drug
-                        .iter_mut()
-                        .zip(other.new_resistance_at_infection_env_by_bacteria_drug)
                     {
                         *a += b;
                     }
@@ -2457,6 +2586,17 @@ impl Simulation {
                                         }
                                     }
 
+                                    // Record full mechanism profile for profile cache
+                                    // (only for individuals with at least one mechanism)
+                                    if let Some(r_idx) = effective_region_idx_for_any_r {
+                                        lt.mechanism_profiles.record(
+                                            r_idx,
+                                            b_idx,
+                                            &individual.resistance_mechanisms[b_idx],
+                                            &mut lt.rng,
+                                        );
+                                    }
+
                                     if individual.test_identified_infection[b_idx] {
                                         lt.infected_with_test_identified_by_bacteria[b_idx] += 1;
                                     }
@@ -2491,6 +2631,7 @@ impl Simulation {
                         &mut lt.rng,
                         majority_r_cache_prev,
                         mechanism_prevalence_cache_prev,
+                        mechanism_profile_cache_prev,
                         bacteria_indices,
                         drug_indices,
                         cross_resistance_groups,
@@ -2835,9 +2976,6 @@ impl Simulation {
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
-                                    // Track whether this infection originated from carriage or an environmental exposure.
-                                    let infection_from_environment =
-                                        individual.cur_infection_from_environment[b_idx];
                                     let mut infection_any_r_positive = false;
                                     // Count syndrome for this infected individual (take first one if multiple infections)
                                     if !individual_has_any_infection_counted_for_syndrome {
@@ -2870,12 +3008,11 @@ impl Simulation {
                                         let home_region_idx = region_to_index(individual.region_living);
                                         let flat_idx = b_idx * 6 + home_region_idx;
                                         lt.newly_infected_by_bacteria_region[flat_idx] += 1;
-                                        // Use the stored acquisition source rather than current microbiome state
-                                        // so infections seeded from the environment are counted as non-carrier events.
-                                        if infection_from_environment {
-                                            lt.newly_infected_non_carrier_by_bacteria[b_idx] += 1;
-                                        } else {
+                                        // Use microbiome carriage status to classify infection source
+                                        if is_carrier {
                                             lt.newly_infected_carrier_by_bacteria[b_idx] += 1;
+                                        } else {
+                                            lt.newly_infected_non_carrier_by_bacteria[b_idx] += 1;
                                         }
                                     }
                                     let base = b_idx * num_drugs;
@@ -2920,8 +3057,7 @@ impl Simulation {
                                                 let index = b_idx * num_drugs + d_idx;
                                                 match acq_type {
                                                     ResistanceAcquisitionType::AtInfectionCommunity => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1,
-                                                    ResistanceAcquisitionType::AtInfectionEnv => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1,
-                                                    ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_env_by_bacteria_drug[index] += 1, // Count TB-specific resistance with environmental
+                                                    ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1, // Count TB-specific resistance with community
                                                     ResistanceAcquisitionType::Hgt => lt.new_resistance_hgt_by_bacteria_drug[index] += 1,
                                                     ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
                                                     ResistanceAcquisitionType::DeNovoInfection => {
@@ -3123,6 +3259,7 @@ impl Simulation {
                 infected_with_test_identified_by_bacteria,
                 infected_with_test_for_resistance_by_bacteria,
                 mechanism_counts,
+                mechanism_profiles,
                 living_population,
                 num_age_0_5,
                 num_age_6_14,
@@ -3138,7 +3275,6 @@ impl Simulation {
                 infected_count_by_region,
                 infected_with_bacteria_and_mechanism,
                 new_resistance_at_infection_community_by_bacteria_drug,
-                new_resistance_at_infection_env_by_bacteria_drug,
                 new_resistance_hgt_by_bacteria_drug,
                 new_resistance_from_microbiome_r_by_bacteria_drug,
                 new_resistance_de_novo_infection_by_bacteria_drug,
@@ -3203,6 +3339,16 @@ impl Simulation {
                 &mut self.mechanism_prevalence_cache_prev,
                 &mut self.mechanism_prevalence_cache_next,
             );
+
+            // Update mechanism profile cache
+            // The merged per-thread profiles become the new "prev" for next step's rules
+            self.mechanism_profile_cache_next = mechanism_profiles;
+            mem::swap(
+                &mut self.mechanism_profile_cache_prev,
+                &mut self.mechanism_profile_cache_next,
+            );
+            // Clear the "next" slot so it's ready for the following step's collection
+            self.mechanism_profile_cache_next.clear();
 
             // let rules_time = rules_start.elapsed();
             // if t % 10 == 0 { // Log every 10th timestep
@@ -3331,7 +3477,6 @@ impl Simulation {
                 activity_r_sum_by_bacteria,
                 infected_with_bacteria_and_mechanism,
                 new_resistance_at_infection_community_by_bacteria_drug,
-                new_resistance_at_infection_env_by_bacteria_drug,
                 new_resistance_hgt_by_bacteria_drug,
                 new_resistance_from_microbiome_r_by_bacteria_drug,
                 new_resistance_de_novo_infection_by_bacteria_drug,
@@ -3640,7 +3785,6 @@ impl Simulation {
             // println!("cur_use_drug: {:?}", individual_0.cur_use_drug);
             // println!("ever_taken_drug: {:?}", individual_0.ever_taken_drug);
             // println!("date_last_infected: {:?}", individual_0.date_last_infected);
-            // println!("cur_infection_from_environment: {:?}", individual_0.cur_infection_from_environment);
             // println!("infection_hospital_acquired: {:?}", individual_0.infection_hospital_acquired);
             // println!("test_identified_infection: {:?}", individual_0.test_identified_infection);
             // println!("sepsis: {:?}", individual_0.sepsis);
@@ -3819,6 +3963,8 @@ impl Simulation {
             majority_r_cache_next: self.majority_r_cache_next.clone(),
             mechanism_prevalence_cache_prev: self.mechanism_prevalence_cache_prev.clone(),
             mechanism_prevalence_cache_next: self.mechanism_prevalence_cache_next.clone(),
+            mechanism_profile_cache_prev: self.mechanism_profile_cache_prev.clone(),
+            mechanism_profile_cache_next: self.mechanism_profile_cache_next.clone(),
             summary_log: self.summary_log.clone(),
             prev_majority_r_entries_len: self.prev_majority_r_entries_len,
         }
@@ -3844,6 +3990,8 @@ impl Simulation {
             majority_r_cache_next: self.majority_r_cache_next.clone(),
             mechanism_prevalence_cache_prev: self.mechanism_prevalence_cache_prev.clone(),
             mechanism_prevalence_cache_next: self.mechanism_prevalence_cache_next.clone(),
+            mechanism_profile_cache_prev: self.mechanism_profile_cache_prev.clone(),
+            mechanism_profile_cache_next: self.mechanism_profile_cache_next.clone(),
             prev_majority_r_entries_len: self.prev_majority_r_entries_len,
         };
 
@@ -3874,6 +4022,8 @@ impl Simulation {
         self.majority_r_cache_next = state.majority_r_cache_next;
         self.mechanism_prevalence_cache_prev = state.mechanism_prevalence_cache_prev;
         self.mechanism_prevalence_cache_next = state.mechanism_prevalence_cache_next;
+        self.mechanism_profile_cache_prev = state.mechanism_profile_cache_prev;
+        self.mechanism_profile_cache_next = state.mechanism_profile_cache_next;
         self.prev_majority_r_entries_len = state.prev_majority_r_entries_len;
     }
 
@@ -3896,6 +4046,8 @@ impl Simulation {
         self.majority_r_cache_next = snapshot.majority_r_cache_next.clone();
         self.mechanism_prevalence_cache_prev = snapshot.mechanism_prevalence_cache_prev.clone();
         self.mechanism_prevalence_cache_next = snapshot.mechanism_prevalence_cache_next.clone();
+        self.mechanism_profile_cache_prev = snapshot.mechanism_profile_cache_prev.clone();
+        self.mechanism_profile_cache_next = snapshot.mechanism_profile_cache_next.clone();
         self.summary_log = snapshot.summary_log.clone();
         self.prev_majority_r_entries_len = snapshot.prev_majority_r_entries_len;
 
@@ -4357,15 +4509,6 @@ impl Simulation {
                 header.push('_');
                 header.push_str(drug);
                 header.push_str("_new_resistance_at_infection_community");
-            }
-        }
-        for bacteria in BACTERIA_LIST.iter() {
-            for drug in DRUG_SHORT_NAMES.iter() {
-                header.push(',');
-                header.push_str(&bacteria.replace(" ", "_"));
-                header.push('_');
-                header.push_str(drug);
-                header.push_str("_new_resistance_at_infection_env");
             }
         }
         for bacteria in BACTERIA_LIST.iter() {
@@ -4867,10 +5010,6 @@ impl Simulation {
                 row.push_str(&value.to_string());
             }
             for value in &summary.new_resistance_at_infection_community_by_bacteria_drug {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.new_resistance_at_infection_env_by_bacteria_drug {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

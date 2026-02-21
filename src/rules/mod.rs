@@ -1199,6 +1199,7 @@ pub fn apply_rules(
     rng: &mut impl Rng,
     majority_r_cache: &MajorityRCache,
     mechanism_prevalence_cache: &crate::simulation::simulation::MechanismPrevalenceCache,
+    mechanism_profile_cache: &crate::simulation::simulation::MechanismProfileCache,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
     cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
@@ -4200,11 +4201,6 @@ pub fn apply_rules(
                     let syndrome_id = assign_syndrome_for_bacteria(bacteria, rng);
                     individual.infectious_syndrome[b_idx] = syndrome_id as i32;
 
-                    let env_acquisition_chance =
-                        store.bacteria.environmental_acquisition_proportion(b_idx);
-                    individual.cur_infection_from_environment[b_idx] =
-                        rng.gen::<f64>() < env_acquisition_chance;
-
                     individual.infection_hospital_acquired[b_idx] =
                         individual.hospital_status.is_hospitalized();
 
@@ -4227,20 +4223,46 @@ pub fn apply_rules(
                         0.0
                     };
 
-                    let is_from_environment = individual.cur_infection_from_environment[b_idx];
                     let is_hospital_acquired = individual.infection_hospital_acquired[b_idx];
 
                     let region_idx = individual.region_cur_in as usize;
                     let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
-                    // Sample mechanism from population prevalence cache ONCE per infection (Genotype)
-                    // This prevents "Frankenstein" strains that accumulate mechanisms by sampling for every drug
-                    let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
-                    if let Some(idx) = sampled_mechanism_idx {
+                    // --- Mechanism profile sampling ---
+                    // Prefer the profile cache (samples a complete mechanism genotype from
+                    // an actual circulating strain) over the marginal prevalence cache.
+                    // Fall back to marginal single-mechanism sampling for early simulation
+                    // when the profile cache is empty.
+                    let profile_sampled = if let Some(profile) =
+                        mechanism_profile_cache.sample(region_idx, b_idx, rng)
+                    {
                         if rng.gen::<f64>() < counterfactual_resistance_multiplier {
-                            individual.resistance_mechanisms[b_idx][idx] = true;
+                            for (m_idx, &active) in profile.iter().enumerate() {
+                                if active {
+                                    individual.resistance_mechanisms[b_idx][m_idx] = true;
+                                }
+                            }
                         }
-                    }
+                        true
+                    } else {
+                        // Fallback: sample ONE mechanism from marginal prevalence cache
+                        let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
+                        if let Some(idx) = sampled_mechanism_idx {
+                            if rng.gen::<f64>() < counterfactual_resistance_multiplier {
+                                individual.resistance_mechanisms[b_idx][idx] = true;
+                            }
+                        }
+                        false
+                    };
+
+                    // Community resistance dilution: community-acquired infections draw
+                    // resistance from a broader pool that includes susceptible strains
+                    // from the general environment and animal sources.
+                    let community_dilution = if !is_hospital_acquired {
+                        store.globals.community_resistance_dilution_factor
+                    } else {
+                        1.0
+                    };
 
                     for drug_name_static in DRUG_SHORT_NAMES.iter() {
                         let d_idx = *drug_indices.get(drug_name_static).unwrap();
@@ -4264,6 +4286,9 @@ pub fn apply_rules(
                         );
 
                         if let Some(level) = assigned_level {
+                            // Apply community dilution before floor (intrinsic resistance isn't diluted)
+                            let diluted_level = level * community_dilution;
+
                             // Apply resistance floor for rare bacteria
                             // The floor ensures minimum resistance levels are maintained even when
                             // cache sampling produces sparse data (e.g., S. maltophilia, E. faecium)
@@ -4272,7 +4297,7 @@ pub fn apply_rules(
                                 drug_name_static,
                                 time_step as i32,
                             );
-                            let level_with_floor = level.max(floor_level);
+                            let level_with_floor = diluted_level.max(floor_level);
                             
                             let clamped_level = (level_with_floor * counterfactual_resistance_multiplier).min(max_resistance_level).max(0.0);
                             resistance_data.any_r = clamped_level;
@@ -4280,20 +4305,13 @@ pub fn apply_rules(
 
                             // Only set how_resistance_acquired if we actually assigned non-zero resistance
                             if clamped_level > 0.0 {
-                                // Inline mechanism assignment
-                                use crate::simulation::population::ResistanceMechanism;
+                                // When we sampled a full profile, mechanisms are already assigned above.
+                                // Only do per-drug fallback assignment when using marginal sampling
+                                // (profile_sampled == false) or when the profile had no mechanism
+                                // covering this drug.
+                                if !profile_sampled {
+                                    use crate::simulation::population::ResistanceMechanism;
 
-                                // Check if the pre-sampled mechanism covers this resistance
-                                let mut mechanism_assigned = false;
-                                if let Some(sampled_mech_idx) = sampled_mechanism_idx {
-                                    if param_cache.mechanism_applicable(sampled_mech_idx, b_idx, d_idx) {
-                                        // Mechanism already set on bacteria above
-                                        mechanism_assigned = true;
-                                    }
-                                }
-
-                                // Fallback to random probability if cache sampling failed (empty cache or non-applicable mechanism)
-                                if !mechanism_assigned {
                                     let mechanism_prob =
                                         store.globals.mechanism_assignment_probability_on_any_r_gain;
                                     for (mech_idx, _mechanism) in
@@ -4314,11 +4332,7 @@ pub fn apply_rules(
                                 }
 
                                 individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                    if is_from_environment {
-                                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionEnv
-                                    } else {
-                                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity
-                                    },
+                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
                                 );
                             }
                         } else {
@@ -5146,7 +5160,6 @@ pub fn apply_rules(
                 individual.clearance_ready_day[b_idx] = -1;
                 individual.sepsis[b_idx] = false;
                 individual.infection_hospital_acquired[b_idx] = false;
-                individual.cur_infection_from_environment[b_idx] = false;
                 individual.test_identified_infection[b_idx] = false;
                 individual.test_for_resistance[b_idx] = false;
                 individual.resistance_test_initiated_day[b_idx] = -1;
