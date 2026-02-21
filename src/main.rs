@@ -63,6 +63,13 @@ mod simulation;
 //
 // add mechanisms present by day to infection journeys
 //
+// need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
+// multiple mechansims
+//
+// consider use of cefiderocol 
+//
+// need grading of toxicity per drug
+//
 //
 //
 //

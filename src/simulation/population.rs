@@ -100,7 +100,7 @@ pub enum ResistanceMechanism {
     MutationNitroreductase,  // nim genes, nfsA/B loss: metronidazole, nitrofurantoin, furazolidone
     EnzymeFosA,              // fosA/B/C metalloenzymes: fosfomycin
     MutationMprF,            // mprF/liaFSR membrane modification: daptomycin
-    MutationRpoB,            // RNA polymerase β-subunit mutation: rifampicin, fidaxomicin
+    MutationRpoB,            // RNA polymerase β-subunit mutation: fidaxomicin (rifampicin resistance modeled via MDR TB bacteria parameters)
     ProtectionFusB,          // fusB/fusC protection proteins: fusidic_a
     ProtectionTetM,          // tet(M)/tet(O) ribosomal protection: tetracycline, doxycycline, minocycline (NOT tigecycline)
     AsYetUnknown1,           // Calibration placeholder 1: drug specificity set via config overrides

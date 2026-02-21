@@ -289,7 +289,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug,
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
              | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam"
+             | "ticarcillin_clavulanate"  // AmpC not inhibited by clavulanate
              | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime"
+             | "cefepime"                // High-level/derepressed AmpC confers clinically relevant cefepime resistance
              | "ceftolozane_tazobactam"  // AmpC hydrolyzes ceftolozane component
              | "aztreonam"
         ),
@@ -311,7 +313,8 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
             | "ceftolozane_tazobactam"  // MBLs hydrolyze ceftolozane
-            | "cefiderocol"             // MBLs partially hydrolyze cefiderocol
+            // cefiderocol NOT included: siderophore cephalosporin designed to resist MBL hydrolysis;
+            // retains clinical activity against NDM/VIM producers
             | "ceftazidime_avibactam" | "meropenem_vaborbactam"  // MBLs not inhibited by avibactam/vaborbactam
             | "meropenem" | "imipenem_c" | "ertapenem"
         ),
@@ -319,14 +322,16 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         EnzymeOxa48 => matches!(
             drug,
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
-            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam"
+            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            // OXA-48 has weak but real cephalosporinase activity; low config enhancement values reflect this
             | "meropenem" | "imipenem_c" | "ertapenem"
         ),
 
         TargetSitePbp2aMecA => matches!(
             drug, 
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
-            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam"
+            | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
             | "aztreonam"
             | "meropenem" | "imipenem_c" | "ertapenem"
@@ -355,10 +360,13 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "quinu_dalfo"   // MLSB cross-resistance affects streptogramin B component
         ),
         
+        // Cfr methylates 23S rRNA A2503 → PhLOPSA phenotype:
+        // Phenicols, Lincosamides, Oxazolidinones, Pleuromutilins, Streptogramin A
         TargetSiteCfr => matches!(
-            drug, "linezolid" | "tedizolid"      // Cfr affects all oxazolidinones
-            | "chloramphenicol"
-            | "retapamulin"                         // Cfr confers cross-resistance to pleuromutilins
+            drug, "linezolid" | "tedizolid"      // Oxazolidinones
+            | "chloramphenicol"                    // Phenicols
+            | "clindamycin"                        // Lincosamides
+            | "retapamulin"                         // Pleuromutilins
         ),
 
         TargetSiteVanA => matches!(drug, "vancomycin" | "teicoplanin" | "dalbavancin"),  // VanA confers resistance to all glycopeptides/lipoglycopeptides
@@ -373,10 +381,12 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
            | "chloramphenicol" | "ciprofloxacin"
         ),
 
+        // MexXY-OprM: primary aminoglycoside efflux pump in P. aeruginosa;
+        // also effluxes tetracyclines, chloramphenicol, ciprofloxacin. Tigecycline NOT included.
         EffluxMexxyOprm => matches!(
            drug, "tetracycline" | "doxycycline" | "minocycline"  // Classical tetracyclines
+           | "gentamicin" | "tobramycin" | "amikacin"           // Primary aminoglycoside efflux
            | "chloramphenicol" | "ciprofloxacin"
-           // Note: MexXY-OprM primarily targets aminoglycosides; tigecycline NOT included
         ),
 
         GlobalEffluxPump => matches!(
@@ -385,8 +395,31 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
            | "chloramphenicol" | "ciprofloxacin"
         ),
 
-        PorinLossOmpk35_36 | PorinLossOprd | GlobalPorinLoss => matches!(
+        // OmpK35/36 loss (Klebsiella): reduces permeability to all hydrophilic antibiotics entering through porins
+        PorinLossOmpk35_36 => matches!(
+            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+            | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
+            | "aztreonam"
+            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
+            | "gentamicin" | "tobramycin" | "amikacin"                          // Weak AG permeability reduction
+        ),
+
+        // OprD loss (Pseudomonas): dedicated carbapenem channel, not a general porin
+        PorinLossOprd => matches!(
             drug, "meropenem" | "imipenem_c" | "ertapenem"
+        ),
+
+        // Generic porin loss: moderate broad-spectrum permeability reduction for hydrophilic drugs
+        GlobalPorinLoss => matches!(
+            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+            | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
+            | "aztreonam"
+            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
+            | "gentamicin" | "tobramycin" | "amikacin"                          // Weak AG permeability reduction
         ),
 
         // Folate pathway: DHPS (sul genes) and DHFR (dfr genes) mutations
@@ -405,8 +438,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // MprF membrane charge modification: daptomycin resistance
         MutationMprF => matches!(drug, "daptomycin"),
 
-        // RpoB RNA polymerase mutation: rifampicin and fidaxomicin
-        MutationRpoB => matches!(drug, "rifampicin" | "fidaxomicin"),
+        // RpoB mutation: fidaxomicin resistance (C. difficile)
+        // Rifampicin resistance modeled via MDR TB bacteria parameters, not this mechanism
+        MutationRpoB => matches!(drug, "fidaxomicin"),
 
         // FusB/FusC protection proteins: fusidic acid resistance
         ProtectionFusB => matches!(drug, "fusidic_a"),
