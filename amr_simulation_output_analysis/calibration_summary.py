@@ -2007,6 +2007,16 @@ def _build_mean_abs_gap_tables(
     if working.empty:
         return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
 
+    # Exclude rifampicin for MDR-TB: rifampicin resistance is assumed for all
+    # MDR-TB cases and should not count toward calibration error.
+    _bact_lower = working.get("Bacteria", pd.Series(dtype=str)).astype(str).str.lower()
+    _drug_lower = working.get("Drug", pd.Series(dtype=str)).astype(str).str.lower()
+    _tb_rif_mask = _bact_lower.str.contains("tuberculosis", na=False) & _drug_lower.str.contains("rifampicin", na=False)
+    working = working.loc[~_tb_rif_mask]
+
+    if working.empty:
+        return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
+
     working["abs_delta"] = (working[RESISTANCE_SIM_COL] - working[RESISTANCE_TARGET_COL]).abs()
     working = working.dropna(subset=["abs_delta", "Bacteria", "Drug"])
     if working.empty:

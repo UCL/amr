@@ -252,10 +252,10 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_984207.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_299683.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
-    validate_data: bool = True  # Whether to validate data integrity
+    validate_data: bool = True  # Whether to validate data integrity 
     enable_parquet_cache: bool = True
       # Persist a columnar cache of the simulation CSV
     parquet_cache_path: Optional[Path] = None  # Custom path or directory for the cache (defaults beside CSV)

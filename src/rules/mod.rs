@@ -4342,15 +4342,15 @@ pub fn apply_rules(
                     }
 
                     // Cross-resistance propagation at infection start:
-                    // After cache sampling, ensure mechanism-based resistance acts as
-                    // a floor for ALL drugs the sampled mechanism applies to.
-                    // This prevents the cache from under-representing cross-resistance
-                    // for drugs that are rarely prescribed but mechanistically affected.
+                    // After cache sampling, let the mechanism profile determine
+                    // per-drug resistance rather than using cache values as a floor.
+                    // This allows drug-class differentiation to emerge from the
+                    // mechanism-specific enhancement multipliers.
                     propagate_mechanism_resistance(
                         individual,
                         b_idx,
                         param_cache,
-                        true,  // raise_only: preserve higher cache-sampled values
+                        false, // raise_only: let mechanism profile determine per-drug resistance
                         false, // propagate_microbiome_r: this is an active infection
                     );
 

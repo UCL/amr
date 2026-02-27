@@ -44,17 +44,8 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// need bacteria specific reversion rates for resistance mechanisms ?
-// ("reversion" in practice only really refers to the microbiome resistance ?)
-//
-// should pop majority_r - informed chance of resistance be much more diluted for community acquired ?
-//
-// re-visit whether our modelling of resistance emergence in animals is adequate
-//
 // need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
 // drug sensitive bacteria and allowing growth of resistant bacteria ?
-//
-// resistance floor should only have effect once prevalence of majority r > floor 
 //
 //
 //
