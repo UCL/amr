@@ -9,6 +9,7 @@
 
 use crate::simulation::population::{
     Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    ResistanceMechanism,
 };
 use rand::rngs::SmallRng;
 use rand::Rng;
@@ -811,12 +812,13 @@ impl JourneyLogger {
         }
 
         // Collect active resistance mechanisms
+        let all_mechanisms = ResistanceMechanism::all();
         let resistance_mechanisms: Vec<String> = individual.resistance_mechanisms
             [primary_bacteria_idx]
             .iter()
             .enumerate()
             .filter(|(_, &is_active)| is_active)
-            .map(|(idx, _)| format!("mechanism_{}", idx)) // Will need to map to actual mechanism names
+            .map(|(idx, _)| all_mechanisms[idx].as_str().to_string())
             .collect();
 
         // Collect resistance sources for primary bacteria

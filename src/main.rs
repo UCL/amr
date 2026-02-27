@@ -47,6 +47,10 @@ mod simulation;
 // need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
 // drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
+// 
+//
+//
+//
 //
 //
 //
@@ -132,7 +136,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 100_000;
+    let population_size = 5      ;
     let time_steps = 38_325 ;   // 38_325 
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
