@@ -47,10 +47,21 @@ mod simulation;
 // need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
 // drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
+// ? add plazomycin - imipenem-cilastatin-relebactam - sulbactam-durlobactam - polymyxin b
+//
+// (need poc test for drug level at infection site)
+//
+// need kleb oxytoca ?
+//
+// cefiderocol not included in calibration summary
+//
+// cefiderocol grouped with 4th and 5th gen cephalosporins in drug_class_for_drug fn in population.rs
+//
+// consider case for real time infection site drug level monitoring 
+//
+// make sure test_r uses majority_r and not any_r 
 // 
-//
-//
-//
+// make sure drug intro year is region-specific as necessary
 //
 //
 //
@@ -136,7 +147,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 5      ;
+    let population_size = 100_000;
     let time_steps = 38_325 ;   // 38_325 
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
