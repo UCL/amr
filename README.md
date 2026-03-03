@@ -137,6 +137,7 @@ Applied in order for each individual (see `rules/mod.rs`):
 - **Location**: `hospital_status`, `hospital_days`
 - **Infection state** (per-bacteria `Vec`): `cur_bacteria_level`, `cur_infection_duration`, `cur_syndrome`, `symptomatic`, `sepsis`
 - **Microbiome** (per-bacteria `Vec`): `is_carrier`, `carriage_days`
+- **Microbiome Disruption**: `microbiome_disruption_level` (long-term antibiotic ecological damage)
 - **Treatment** (per-drug `Vec`): `cur_drug_level`, `drug_treatment_days`, `toxicity_reservoir`, `toxicity_stopped_drug_day`
 - **Resistance** (bacteria × mechanism `Vec<Vec<bool>>`): `cur_resistance`
 - **Computed resistance** (per-bacteria): `Resistance` struct with `microbiome_r`, `test_r`, `activity_r`, `any_r`, `majority_r`

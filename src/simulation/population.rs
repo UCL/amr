@@ -622,6 +622,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         TargetSitePbp2aMecA |
         TargetSiteVanA | TargetSiteVanB => mask_for_groups(&[
             BacteriaGroup::GramPositive,
+            BacteriaGroup::Helicobacter, // Added for H. pylori Amoxicillin resistance
         ]),
 
         // Macrolide/Lincosamide/Streptogramin (MLS) & Phenicol Resistance
@@ -630,6 +631,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::GramPositive,
             BacteriaGroup::Anaerobe,
             BacteriaGroup::Fastidious,
+            BacteriaGroup::Helicobacter, // Added for H. pylori Clarithromycin resistance
         ]),
 
         // Universal (or near universal) Mechanisms
@@ -647,6 +649,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Anaerobe,
             BacteriaGroup::Fastidious,
+            BacteriaGroup::Helicobacter, // Added for H. pylori Metronidazole resistance
         ]),
 
         // FosA: primarily Gram-negative (plasmid-mediated)
@@ -783,47 +786,85 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DrugClass {
     Penicillins,           // PEN: penicillin_g, ampicillin, amoxicillin, piperacillin, ticarcillin
-    BliCombinations,       // BLI: amox-clav, pip-tazo, amp-sulb, tic-clav
+    BliCombinations,       // BLI: amox-clav, tic-clav
+    BliAntiPseudomonal,    // pip-tazo
+    BliSulbactam,          // amp-sulb
     Cephalosporins1_2,     // C1-2G: cephalexin, cefazolin, cefuroxime
-    Cephalosporins3,       // C3G: ceftriaxone, ceftazidime, ceftolozane-tazobactam
-    Cephalosporins4_5,     // C4-5G: cefepime, ceftaroline, cefiderocol
+    Cephalosporins3,       // C3G: ceftriaxone, ceftazidime
+    Cephalosporins3Bli,    // ceftolozane-tazobactam
+    Cephalosporins4,       // C4G: cefepime
+    AntiMrsaCephalosporins,// C5G: ceftaroline
+    SiderophoreCephalosporins, // cefiderocol
     BliNovelCombinations,  // BL-NI: ceftazidime-avibactam, meropenem-vaborbactam
-    Carbapenems,           // CARB: meropenem, imipenem, ertapenem
+    CarbapenemsGroup1,     // ertapenem (lacks non-fermenter activity)
+    CarbapenemsGroup2,     // meropenem, imipenem_c
     Monobactams,           // MONO: aztreonam
     Fluoroquinolones,      // FQ: ciprofloxacin, levofloxacin, moxifloxacin, ofloxacin
-    Aminoglycosides,       // AG: gentamicin, tobramycin, amikacin
-    Macrolides,            // MLS: erythromycin, azithromycin, clarithromycin, clindamycin
-    Glycopeptides,         // GLYC: vancomycin, teicoplanin, dalbavancin
-    Tetracyclines,         // TET: tetracycline, doxycycline, minocycline, tigecycline
-    Polymyxins,            // POLY: colistin
-    Oxazolidinones,        // OXA: linezolid, tedizolid
-    Chloramphenicol,       // CHL: chloramphenicol
-    Sulfonamides,          // SULF: sulfanilamide, trim_sulf
-    Other,                 // OTHER: daptomycin, quinu_dalfo, nitrofurantoin, fosfomycin, etc.
+    AminoglycosidesGroup1, // gentamicin, tobramycin
+    AminoglycosidesGroup2, // amikacin (resists common AMEs)
+    Macrolides,            // erythromycin, azithromycin, clarithromycin
+    Lincosamides,          // clindamycin (evades macrolide efflux)
+    Glycopeptides,         // vancomycin
+    Lipoglycopeptides,     // teicoplanin, dalbavancin (evades vanB)
+    Tetracyclines,         // tetracycline, doxycycline, minocycline
+    Glycylcyclines,        // tigecycline (evades classical tet efflux/protection)
+    Polymyxins,            // colistin
+    Oxazolidinones,        // linezolid, tedizolid
+    Chloramphenicol,       // chloramphenicol
+    Sulfonamides,          // sulfanilamide, trim_sulf
+    Lipopeptides,          // daptomycin
+    Streptogramins,        // quinu_dalfo
+    Nitrofurans,           // nitrofurantoin, furazolidone
+    PhosphonicAcids,       // fosfomycin
+    Nitroimidazoles,       // metronidazole
+    Rifamycins,            // rifampicin
+    Macrocycles,           // fidaxomicin
+    SteroidAntibacterials, // fusidic_a
+    Pleuromutilins,        // retapamulin
+    Other,                 // Fallback catch-all
 }
 
 impl DrugClass {
-    pub const NUM_CLASSES: usize = 18;
+    pub const NUM_CLASSES: usize = 37;
 
     pub fn all() -> &'static [DrugClass] {
         &[
             DrugClass::Penicillins,
             DrugClass::BliCombinations,
+            DrugClass::BliAntiPseudomonal,
+            DrugClass::BliSulbactam,
             DrugClass::Cephalosporins1_2,
             DrugClass::Cephalosporins3,
-            DrugClass::Cephalosporins4_5,
+            DrugClass::Cephalosporins3Bli,
+            DrugClass::Cephalosporins4,
+            DrugClass::AntiMrsaCephalosporins,
+            DrugClass::SiderophoreCephalosporins,
             DrugClass::BliNovelCombinations,
-            DrugClass::Carbapenems,
+            DrugClass::CarbapenemsGroup1,
+            DrugClass::CarbapenemsGroup2,
             DrugClass::Monobactams,
             DrugClass::Fluoroquinolones,
-            DrugClass::Aminoglycosides,
+            DrugClass::AminoglycosidesGroup1,
+            DrugClass::AminoglycosidesGroup2,
             DrugClass::Macrolides,
+            DrugClass::Lincosamides,
             DrugClass::Glycopeptides,
+            DrugClass::Lipoglycopeptides,
             DrugClass::Tetracyclines,
+            DrugClass::Glycylcyclines,
             DrugClass::Polymyxins,
             DrugClass::Oxazolidinones,
             DrugClass::Chloramphenicol,
             DrugClass::Sulfonamides,
+            DrugClass::Lipopeptides,
+            DrugClass::Streptogramins,
+            DrugClass::Nitrofurans,
+            DrugClass::PhosphonicAcids,
+            DrugClass::Nitroimidazoles,
+            DrugClass::Rifamycins,
+            DrugClass::Macrocycles,
+            DrugClass::SteroidAntibacterials,
+            DrugClass::Pleuromutilins,
             DrugClass::Other,
         ]
     }
@@ -836,21 +877,40 @@ impl DrugClass {
         match self {
             DrugClass::Penicillins => "pen",
             DrugClass::BliCombinations => "bli",
+            DrugClass::BliAntiPseudomonal => "bli_anti_pseudomonal",
+            DrugClass::BliSulbactam => "bli_sulbactam",
             DrugClass::Cephalosporins1_2 => "c1_2g",
             DrugClass::Cephalosporins3 => "c3g",
-            DrugClass::Cephalosporins4_5 => "c4_5g",
+            DrugClass::Cephalosporins3Bli => "c3g_bli",
+            DrugClass::Cephalosporins4 => "c4g",
+            DrugClass::AntiMrsaCephalosporins => "anti_mrsa_ceph",
+            DrugClass::SiderophoreCephalosporins => "siderophore_ceph",
             DrugClass::BliNovelCombinations => "bl_ni",
-            DrugClass::Carbapenems => "carb",
+            DrugClass::CarbapenemsGroup1 => "carb_group1",
+            DrugClass::CarbapenemsGroup2 => "carb_group2",
             DrugClass::Monobactams => "mono",
             DrugClass::Fluoroquinolones => "fq",
-            DrugClass::Aminoglycosides => "ag",
+            DrugClass::AminoglycosidesGroup1 => "ag_group1",
+            DrugClass::AminoglycosidesGroup2 => "ag_group2",
             DrugClass::Macrolides => "mls",
+            DrugClass::Lincosamides => "lincosamides",
             DrugClass::Glycopeptides => "glyc",
+            DrugClass::Lipoglycopeptides => "lipoglycopeptides",
             DrugClass::Tetracyclines => "tet",
+            DrugClass::Glycylcyclines => "glycylcyclines",
             DrugClass::Polymyxins => "poly",
             DrugClass::Oxazolidinones => "oxa",
             DrugClass::Chloramphenicol => "chl",
             DrugClass::Sulfonamides => "sulf",
+            DrugClass::Lipopeptides => "lipopeptides",
+            DrugClass::Streptogramins => "streptogramins",
+            DrugClass::Nitrofurans => "nitrofurans",
+            DrugClass::PhosphonicAcids => "phosphonic_acids",
+            DrugClass::Nitroimidazoles => "nitroimidazoles",
+            DrugClass::Rifamycins => "rifamycins",
+            DrugClass::Macrocycles => "macrocycles",
+            DrugClass::SteroidAntibacterials => "steroid_antibacterials",
+            DrugClass::Pleuromutilins => "pleuromutilins",
             DrugClass::Other => "other",
         }
     }
@@ -863,23 +923,27 @@ pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
         "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
             => DrugClass::Penicillins,
         // BLI combinations
-        "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
+        "amoxicillin_clavulanate" | "ticarcillin_clavulanate"
             => DrugClass::BliCombinations,
+        "piperacillin_tazobactam" => DrugClass::BliAntiPseudomonal,
+        "ampicillin_sulbactam" => DrugClass::BliSulbactam,
         // 1st/2nd gen cephalosporins
         "cephalexin" | "cefazolin" | "cefuroxime"
             => DrugClass::Cephalosporins1_2,
         // 3rd gen cephalosporins
-        "ceftriaxone" | "ceftazidime" | "ceftolozane_tazobactam"
+        "ceftriaxone" | "ceftazidime"
             => DrugClass::Cephalosporins3,
+        "ceftolozane_tazobactam" => DrugClass::Cephalosporins3Bli,
         // 4th/5th gen cephalosporins
-        "cefepime" | "ceftaroline" | "cefiderocol"
-            => DrugClass::Cephalosporins4_5,
+        "cefepime" => DrugClass::Cephalosporins4,
+        "ceftaroline" => DrugClass::AntiMrsaCephalosporins,
+        "cefiderocol" => DrugClass::SiderophoreCephalosporins,
         // Novel BLI combinations
         "ceftazidime_avibactam" | "meropenem_vaborbactam"
             => DrugClass::BliNovelCombinations,
         // Carbapenems
-        "meropenem" | "imipenem_c" | "ertapenem"
-            => DrugClass::Carbapenems,
+        "ertapenem" => DrugClass::CarbapenemsGroup1,
+        "meropenem" | "imipenem_c" => DrugClass::CarbapenemsGroup2,
         // Monobactams
         "aztreonam"
             => DrugClass::Monobactams,
@@ -887,17 +951,17 @@ pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
         "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
             => DrugClass::Fluoroquinolones,
         // Aminoglycosides
-        "gentamicin" | "tobramycin" | "amikacin"
-            => DrugClass::Aminoglycosides,
+        "gentamicin" | "tobramycin" => DrugClass::AminoglycosidesGroup1,
+        "amikacin" => DrugClass::AminoglycosidesGroup2,
         // Macrolides/Lincosamides
-        "erythromycin" | "azithromycin" | "clarithromycin" | "clindamycin"
-            => DrugClass::Macrolides,
-        // Glycopeptides
-        "vancomycin" | "teicoplanin" | "dalbavancin"
-            => DrugClass::Glycopeptides,
-        // Tetracyclines
-        "tetracycline" | "doxycycline" | "minocycline" | "tigecycline"
-            => DrugClass::Tetracyclines,
+        "erythromycin" | "azithromycin" | "clarithromycin" => DrugClass::Macrolides,
+        "clindamycin" => DrugClass::Lincosamides,
+        // Glycopeptides / Lipoglycopeptides
+        "vancomycin" => DrugClass::Glycopeptides,
+        "teicoplanin" | "dalbavancin" => DrugClass::Lipoglycopeptides,
+        // Tetracyclines / Glycylcyclines
+        "tetracycline" | "doxycycline" | "minocycline" => DrugClass::Tetracyclines,
+        "tigecycline" => DrugClass::Glycylcyclines,
         // Polymyxins
         "colistin"
             => DrugClass::Polymyxins,
@@ -910,6 +974,24 @@ pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
         // Sulfonamides
         "sulfanilamide" | "trim_sulf"
             => DrugClass::Sulfonamides,
+        // Lipopeptides
+        "daptomycin" => DrugClass::Lipopeptides,
+        // Streptogramins
+        "quinu_dalfo" => DrugClass::Streptogramins,
+        // Nitrofurans
+        "nitrofurantoin" | "furazolidone" => DrugClass::Nitrofurans,
+        // Phosphonic Acids
+        "fosfomycin" => DrugClass::PhosphonicAcids,
+        // Nitroimidazoles
+        "metronidazole" => DrugClass::Nitroimidazoles,
+        // Rifamycins
+        "rifampicin" => DrugClass::Rifamycins,
+        // Macrocycles
+        "fidaxomicin" => DrugClass::Macrocycles,
+        // Steroid Antibacterials
+        "fusidic_a" => DrugClass::SteroidAntibacterials,
+        // Pleuromutilins
+        "retapamulin" => DrugClass::Pleuromutilins,
         // Other
         _ => DrugClass::Other,
     }
@@ -1233,7 +1315,11 @@ pub struct Individual {
     /// True if bacteria is colonizing this individual (carriage without infection).
     /// Carriage can persist for months and can seed future infections.
     pub presence_microbiome: Vec<bool>,
-    
+
+    /// Continuous tracking variable for ecological damage to natural flora.
+    /// Accumulates with antibiotic use and decays logarithmically. Promotes carriage acquisition.
+    pub microbiome_disruption_level: f64,
+
     /// Day when microbiome carriage was acquired. 0 = never acquired or cleared.
     pub date_microbiome_acquired: Vec<i32>,
     
@@ -1450,7 +1536,9 @@ impl Individual {
         let clearance_ready_day = vec![-1; num_bacteria];
         let sepsis = vec![false; num_bacteria];
         let sepsis_onset_day = vec![-1; num_bacteria]; // -1 indicates never had sepsis
+
         let presence_microbiome = vec![false; num_bacteria];
+        let microbiome_disruption_level = 0.0;
         let date_microbiome_acquired = vec![0; num_bacteria]; // 0 means never acquired or cleared
         let microbiome_acquired_today = vec![false; num_bacteria];
         let microbiome_acquired_on_drug_today = vec![false; num_bacteria];
@@ -1546,6 +1634,7 @@ impl Individual {
             sepsis_onset_day,
             infection_prevented_by_drug: vec![false; num_bacteria],
             presence_microbiome,
+            microbiome_disruption_level,
             date_microbiome_acquired,
             microbiome_acquired_today,
             microbiome_acquired_on_drug_today,

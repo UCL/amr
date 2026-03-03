@@ -281,7 +281,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
          EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv => matches!(
             drug,
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
             | "aztreonam"
         ),
 
@@ -291,7 +291,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
              | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam"
              | "ticarcillin_clavulanate"  // AmpC not inhibited by clavulanate
              | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime"
-             | "cefepime"                // High-level/derepressed AmpC confers clinically relevant cefepime resistance
+             | "cefepime" | "ceftaroline" // High-level/derepressed AmpC confers clinically relevant cefepime/ceftaroline resistance
              | "ceftolozane_tazobactam"  // AmpC hydrolyzes ceftolozane component
              | "aztreonam"
         ),
@@ -313,8 +313,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
             | "ceftolozane_tazobactam"  // MBLs hydrolyze ceftolozane
-            // cefiderocol NOT included: siderophore cephalosporin designed to resist MBL hydrolysis;
-            // retains clinical activity against NDM/VIM producers
+            // cefiderocol NOT included: siderophore cephalosporin designed to resist MBL hydrolysis
             | "ceftazidime_avibactam" | "meropenem_vaborbactam"  // MBLs not inhibited by avibactam/vaborbactam
             | "meropenem" | "imipenem_c" | "ertapenem"
         ),
@@ -323,9 +322,10 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug,
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
             // OXA-48 has weak but real cephalosporinase activity; low config enhancement values reflect this
             | "meropenem" | "imipenem_c" | "ertapenem"
+            | "meropenem_vaborbactam" // Vaborbactam does NOT inhibit OXA-48
         ),
 
         TargetSitePbp2aMecA => matches!(
@@ -333,6 +333,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            | "ceftolozane_tazobactam" | "cefiderocol" | "ceftazidime_avibactam" | "meropenem_vaborbactam" // PBP2a does not bind to these
             | "aztreonam"
             | "meropenem" | "imipenem_c" | "ertapenem"
         ),
@@ -3229,6 +3230,22 @@ pub fn apply_rules(
         aggregated_toxicity_hazard += individual.drug_toxicity_reservoir[drug_idx];
     }
 
+    // === MICROBIOME DISRUPTION RESERVOIR (ECOLOGICAL HANGOVER) ===
+    // Accumulate daily disruption from active drugs and decay logarithmically
+    let disruption_half_life = store.globals.antibiotic_disruption_decay_half_life_days;
+    let disruption_decay_factor = if disruption_half_life > 0.0 {
+        (-LN_2 / disruption_half_life).exp()
+    } else {
+        0.0
+    };
+
+    individual.microbiome_disruption_level *= disruption_decay_factor;
+    for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
+        if drug_level > 0.1 {
+            individual.microbiome_disruption_level += store.drug.microbiome_disruption_log_odds(d_idx);
+        }
+    }
+
     // === MULTIPLICATIVE MODEL FOR DRUG TOXICITY DEATH ===
     // Death risk is directly proportional to accumulated toxicity in the reservoir.
     // The hazard_per_unit_level values are pre-calibrated to give appropriate 
@@ -3800,16 +3817,16 @@ pub fn apply_rules(
                     // spike during/after broad-spectrum antibiotic use, and why antibiotic courses increase MRSA
                     // and ESBL-producing bacteria colonization risk.
                     // EMPIRICAL BASIS: Studies show 5-15x increased colonization risk during antibiotic therapy,
-                    // persisting for weeks to months after cessation (we model acute effect here).
-                    let mut antibiotic_disruption_log_odds = 0.0;
+                    // persisting for weeks to months after cessation. We leverage the individual's persistent
+                    // disruption reservoir (which decays via half-life) to capture this ecological hangover.
+                    let antibiotic_disruption_log_odds = individual.microbiome_disruption_level;
                     let mut acquisition_on_drug = false;
 
-                    for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
+                    for &drug_level in individual.cur_level_drug.iter() {
                         if drug_level > 0.1 {
-                            // Only count drugs with meaningful levels
+                            // Only count drugs with meaningful levels for tracking stats
                             acquisition_on_drug = true;
-                            antibiotic_disruption_log_odds +=
-                                store.drug.microbiome_disruption_log_odds(d_idx);
+                            break;
                         }
                     }
                     log_odds += antibiotic_disruption_log_odds;
@@ -4799,16 +4816,18 @@ pub fn apply_rules(
                     individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
                 if !test_r_already_set {
                     for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                        let any_r = individual.resistances[b_idx][d_idx].any_r;
+                        // Use majority_r to model standard clinical microbiologic phenotypic testing,
+                        // which reflects the dominant clone and often misses rare heteroresistant sub-strains.
+                        let major_r = individual.resistances[b_idx][d_idx].majority_r;
                         let error = rng.gen_bool(test_r_error_prob);
                         let test_r = if error {
-                            if any_r < INFECTION_EPS {
+                            if major_r < INFECTION_EPS {
                                 test_r_error_value
                             } else {
                                 0.0
                             }
                         } else {
-                            any_r
+                            major_r
                         };
                         individual.resistances[b_idx][d_idx].test_r = test_r;
                     }

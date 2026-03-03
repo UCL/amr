@@ -47,21 +47,7 @@ mod simulation;
 // need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
 // drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
-// ? add plazomycin - imipenem-cilastatin-relebactam - sulbactam-durlobactam - polymyxin b
-//
-// (need poc test for drug level at infection site)
-//
-// need kleb oxytoca ?
-//
-// cefiderocol not included in calibration summary
-//
-// cefiderocol grouped with 4th and 5th gen cephalosporins in drug_class_for_drug fn in population.rs
-//
-// consider case for real time infection site drug level monitoring 
-//
-// make sure test_r uses majority_r and not any_r 
 // 
-// make sure drug intro year is region-specific as necessary
 //
 //
 //
@@ -115,12 +101,16 @@ mod simulation;
 //
 //
 //
-//
+// default combination therapy from (i) as soon as feasible (ii) 1960 (iii) 1980 (iv) 2000 (v) 2025
 //
 // decide on time zero for mda azithromycin project
 //
 // work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
 // for azithromycin mda project
+//
+// ? need poc test for drug level at infection site
+//
+// consider case for real time infection site drug level monitoring 
 //
 // mda with azithromycin is to reduce community incidence as well as treat existing
 // infection

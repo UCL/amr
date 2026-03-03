@@ -1105,11 +1105,11 @@ Without antibiotic pressure, resistance in the microbiome decays. This represent
 
 ### 8.4 Microbiome Disruption
 
-Antibiotic use disrupts the normal microbiome, increasing susceptibility to colonisation by resistant organisms:
+Antibiotic use disrupts the normal microbiome, increasing susceptibility to colonisation by resistant organisms. The model employs a **Microbiome Disruption Reservoir** (`microbiome_disruption_level`) on each individual that accumulates positive disruption while actively taking antibiotics (scaled by the drug's `spectrum_breadth`). When antibiotics are discontinued, this ecological disruption acts as a trailing "hangover" penalty, decaying logarithmically over the specified half-life timeframe. This persistent disruption allows the model to accurately capture the prolonged colonization window for opportunistic pathogens (e.g. VRE, C. difficile) following rigorous, multi-drug therapies.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `default_microbiome_disruption_log_odds` | 0.3 | ~1.35× disruption per drug |
+| `default_microbiome_disruption_log_odds` | 0.3 | Base disruption accumulation rate per active unit |
 | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | Resistance level at acquisition |
 | `antibiotic_disruption_decay_half_life_days` | 30.0 | Recovery time after stopping antibiotics |
 
