@@ -780,7 +780,6 @@ def _calculate_resistance_table(
         "Microbiome target",
         "Microbiome delta",
         "Source: Community",
-        "Source: Environment",
         "Source: HGT",
         "Source: Microbiome",
         "Source: De Novo",
@@ -876,7 +875,6 @@ def _calculate_resistance_table(
                 "Microbiome target": microbiome_target,
                 "Microbiome delta": np.nan,
                 "Source: Community": np.nan,
-                "Source: Environment": np.nan,
                 "Source: HGT": np.nan,
                 "Source: Microbiome": np.nan,
                 "Source: De Novo": np.nan,
@@ -910,7 +908,6 @@ def _calculate_resistance_table(
                 "Microbiome target": microbiome_target,
                 "Microbiome delta": np.nan,
                 "Source: Community": np.nan,
-                "Source: Environment": np.nan,
                 "Source: HGT": np.nan,
                 "Source: Microbiome": np.nan,
                 "Source: De Novo": np.nan,
@@ -1039,11 +1036,10 @@ def _calculate_resistance_table(
                 return np.nan
             return float(np.rint(value))
 
-        src_community = year_df[f"{b_slug}_{d_slug}_new_resistance_Community"].sum() if f"{b_slug}_{d_slug}_new_resistance_Community" in year_df.columns else np.nan
-        src_environment = year_df[f"{b_slug}_{d_slug}_new_resistance_Environment"].sum() if f"{b_slug}_{d_slug}_new_resistance_Environment" in year_df.columns else np.nan
-        src_hgt = year_df[f"{b_slug}_{d_slug}_new_resistance_HGT"].sum() if f"{b_slug}_{d_slug}_new_resistance_HGT" in year_df.columns else np.nan
-        src_microbiome = year_df[f"{b_slug}_{d_slug}_new_resistance_Microbiome"].sum() if f"{b_slug}_{d_slug}_new_resistance_Microbiome" in year_df.columns else np.nan
-        src_de_novo = year_df[f"{b_slug}_{d_slug}_new_resistance_Mutation"].sum() if f"{b_slug}_{d_slug}_new_resistance_Mutation" in year_df.columns else np.nan
+        src_community = year_df[f"{b_slug}_{d_slug}_new_resistance_at_infection_community"].sum() if f"{b_slug}_{d_slug}_new_resistance_at_infection_community" in year_df.columns else np.nan
+        src_hgt = year_df[f"{b_slug}_{d_slug}_new_resistance_hgt"].sum() if f"{b_slug}_{d_slug}_new_resistance_hgt" in year_df.columns else np.nan
+        src_microbiome = year_df[f"{b_slug}_{d_slug}_new_resistance_from_microbiome_r"].sum() if f"{b_slug}_{d_slug}_new_resistance_from_microbiome_r" in year_df.columns else np.nan
+        src_de_novo = year_df[f"{b_slug}_{d_slug}_new_resistance_de_novo_infection"].sum() if f"{b_slug}_{d_slug}_new_resistance_de_novo_infection" in year_df.columns else np.nan
 
         infected_person_days = _rounded_person_days(total_infected)
         resistant_person_days = _rounded_person_days(total_resistant)
@@ -1061,6 +1057,10 @@ def _calculate_resistance_table(
             "Microbiome simulation": microbiome_simulation,
             "Microbiome target": microbiome_target,
             "Microbiome delta": microbiome_delta,
+            "Source: Community": src_community,
+            "Source: HGT": src_hgt,
+            "Source: Microbiome": src_microbiome,
+            "Source: De Novo": src_de_novo,
             "Infected person-days": infected_person_days,
             "Resistant person-days": resistant_person_days,
             "Microbiome carrier-days": microbiome_carrier_days,

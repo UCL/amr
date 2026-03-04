@@ -4173,7 +4173,6 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
     bacteria_drug_pairs = []
     acquisition_types = [
         'at_infection_community',
-        'at_infection_env',
         'hgt',
         'from_microbiome_r',
         'de_novo_infection',
@@ -4199,7 +4198,6 @@ def create_source_of_new_resistance_by_drug_bacteria_plots(df: pd.DataFrame, con
     
     labels = {
         'at_infection_community': 'Community Infection',
-        'at_infection_env': 'Environmental Infection',
         'hgt': 'Horizontal Gene Transfer',
         'from_microbiome_r': 'From Microbiome',
         'de_novo_infection': 'De Novo Infection',
