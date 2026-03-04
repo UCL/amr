@@ -140,6 +140,7 @@ CALIBRATION_PATTERNS = [
     r'.*_infected_with_any_r_positive_.*',   # Count of infected with resistance
     r'.*_microbiome_r_positive_.*',          # Microbiome resistance counts
     r'.*_presence_microbiome$',              # Microbiome presence per bacteria
+    #r'.*_new_resistance_.*',                 # Breakdown of new resistance sources
 ]
 
 
@@ -177,6 +178,10 @@ DETAIL_PLOT_PATTERNS = {
     ],
     # infection_resolution_by_bacteria (already in grouped patterns)
     'infection_resolution_by_bacteria': [],
+    # source_of_new_resistance_by_drug_bacteria
+    'source_of_new_resistance_by_drug_bacteria': [
+        #r'.*_new_resistance_.*',
+    ],
     
     # === MODERATE PLOTS (~500-1000 columns) ===
     # incidence_of_infection_hospital
@@ -220,12 +225,12 @@ DETAIL_PLOT_PATTERNS = {
     # resistance_mechanism_by_bacteria
     'resistance_mechanism_by_bacteria': [
         r'.*_resistance_source_.*',
-        r'.*_new_resistance_.*',
+        #r'.*_new_resistance_.*',
     ],
     # source_of_new_resistance_by_drug_bacteria
     'source_of_new_resistance_by_drug_bacteria': [
         r'.*_resistance_source_.*',
-        r'.*_new_resistance_.*',
+        #r'.*_new_resistance_.*',
     ],
 }
 
@@ -249,7 +254,7 @@ EXCLUDED_PATTERNS = [
     
     # Detailed resistance source tracking
     r'.*_resistance_source_.*',
-    r'.*_new_resistance_.*',
+    #r'.*_new_resistance_.*',
     
     # Per-drug hospital columns (redundant with aggregated)
     r'.*_hospital_.*_drug_.*',
