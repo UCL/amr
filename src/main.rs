@@ -47,9 +47,11 @@ mod simulation;
 // need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
 // drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
-// 
+// review logic for determining resistance at infection 
 //
-//
+// add flucloxacilin
+// consider drug scores
+// consider relative chance of drug start by infection site
 //
 //
 //
@@ -68,8 +70,6 @@ mod simulation;
 // model dormancy - especially for chronic infections like mdr tb ?
 // biofilm resistance - reduced drug effectiveness in chronic infections ?
 // use gbd super regions instead of continents ?
-// need to add fidaxomicin as a drug ?
-// add mechanisms L1/L2 β-lactamases, sme efflux pumps (at least for Stenotrophomonas maltophilia) ? 
 // bear in mind that strep pneu for example has a vaccine against it but this has resulted in growth of non-vaccine-covered serotypes
 // we may still decide we need to model drug-specific drug levels but not clear how we would get data
 // consider whether infection from the environment should also depend on concurrent majority_r - or do we need
@@ -101,7 +101,23 @@ mod simulation;
 //
 //
 //
-// default combination therapy from (i) as soon as feasible (ii) 1960 (iii) 1980 (iv) 2000 (v) 2025
+// default combination therapy from (i) 1950 (ii) 1975 (iii) 2000 (iv) 2000 (v) 2025
+// - consider modelling of lower replication capacity of resistant virus in absence of drug
+// - consider if raise this what effect has on emergence rates 
+// - consider effect of having the floor for some bacteria
+// - consider various approaches to choice of the two drugs 
+//
+// other counterfactuals to include in first paper:
+// - stop all antibiotic use  
+// - drug can be started from infection
+// - test_r known at infection and drug can be started
+// - no further existence of resistance (already in)
+// - 
+//
+//
+//
+//
+//
 //
 // decide on time zero for mda azithromycin project
 //

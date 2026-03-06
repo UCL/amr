@@ -140,7 +140,8 @@ CALIBRATION_PATTERNS = [
     r'.*_infected_with_any_r_positive_.*',   # Count of infected with resistance
     r'.*_microbiome_r_positive_.*',          # Microbiome resistance counts
     r'.*_presence_microbiome$',              # Microbiome presence per bacteria
-    #r'.*_new_resistance_.*',                 # Breakdown of new resistance sources
+    r'.*_new_resistance_.*',                 # Breakdown of new resistance sources
+    r'.*_asymptomatic_microbiome_hgt_events', # Asymptomatic HGT events
 ]
 
 

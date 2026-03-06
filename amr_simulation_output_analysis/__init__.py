@@ -61,6 +61,7 @@ def create_all_plots(config=None):
         'drug_score_analysis_by_bacteria',
         'drug_score_summary',
         'basic_plots',
+        'source_of_new_resistance_by_drug_bacteria',
     ]
     # Collect names of enabled detail plots for selective column loading
     enabled_detail_plots = [attr for attr in detail_plot_attrs if getattr(config, attr, False)]

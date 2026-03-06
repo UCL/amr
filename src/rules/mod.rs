@@ -93,6 +93,7 @@ use crate::simulation::population::{
 use rand::Rng;
 
 use crate::simulation::simulation::{MajorityRCache, PolicyAdjustments};
+use log;
 use std::collections::HashMap;
 use std::f64::consts::LN_2;
 
@@ -130,6 +131,31 @@ const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
 /// Values below this threshold are treated as numerical noise and counted as immune clearance.
 /// This prevents near-zero drug effects from being incorrectly attributed to treatment success.
 const DRUG_ASSISTED_CLEARANCE_EFFECT_THRESHOLD: f64 = 1e-6;
+
+// =====================================================================================
+// DRUG AVAILABILITY HELPER
+// =====================================================================================
+
+/// Check whether a drug is both historically introduced and regionally available.
+/// Returns `true` when availability ≥ 0.01 **and** the drug's introduction time step
+/// has been reached.  This consolidates the repeated availability + introduction
+/// checks that previously appeared in 5+ places.
+#[inline]
+fn is_drug_available(drug_name: &str, region_cur_in: &str, region_living: &str, time_step: usize) -> bool {
+    let avail = get_drug_availability_time_aware(
+        drug_name,
+        region_cur_in,
+        Some(region_living),
+        time_step,
+    );
+    if avail < 0.01 {
+        return false;
+    }
+    match get_drug_introduction_time_step(drug_name) {
+        Some(intro_step) => time_step >= intro_step,
+        None => true,
+    }
+}
 
 // =====================================================================================
 // HELPER FUNCTIONS
@@ -635,21 +661,8 @@ fn assess_treatment_failure(
             }
         }
 
-        // Check if drug is available (using same logic as original selection)
-        let avail = get_drug_availability_time_aware(
-            drug_name,
-            &individual.region_cur_in.to_string(),
-            Some(&individual.region_living.to_string()),
-            time_step,
-        );
-
-        // Check if drug has been historically introduced (CRITICAL: was missing!)
-        let intro_ok = match get_drug_introduction_time_step(drug_name) {
-            Some(intro_step) => time_step >= intro_step,
-            None => true,
-        };
-        if avail < 0.01 || !intro_ok {
-            // Drug not sufficiently available OR not yet introduced
+        // Check if drug is available and historically introduced
+        if !is_drug_available(drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step) {
             continue;
         }
 
@@ -897,20 +910,9 @@ fn start_restart_treatment(
         let prev_drug_name = DRUG_SHORT_NAMES[prev_drug_idx];
 
         // Check if previously effective drug is still available
-        let avail = get_drug_availability_time_aware(
-            prev_drug_name,
-            &individual.region_cur_in.to_string(),
-            Some(&individual.region_living.to_string()),
-            time_step,
-        );
+        let drug_avail = is_drug_available(prev_drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step);
 
-        // Check if drug has been historically introduced
-        let intro_ok = match get_drug_introduction_time_step(prev_drug_name) {
-            Some(intro_step) => time_step >= intro_step,
-            None => true,
-        };
-
-        if avail >= 0.01 && intro_ok && !individual.cur_use_drug[prev_drug_idx] {
+        if drug_avail && !individual.cur_use_drug[prev_drug_idx] {
             // Check if drug has adequate potency (basic safety check)
             let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
             let potency = store
@@ -958,21 +960,8 @@ fn start_restart_treatment(
         // We'll identify failed drugs by checking against treatment failure history
         // For now, we don't avoid any recently used drugs since stopped ≠ failed
 
-        // Check if drug is available
-        let avail = get_drug_availability_time_aware(
-            drug_name,
-            &individual.region_cur_in.to_string(),
-            Some(&individual.region_living.to_string()),
-            time_step,
-        );
-
-        // Check if drug has been historically introduced
-        let intro_ok = match get_drug_introduction_time_step(drug_name) {
-            Some(intro_step) => time_step >= intro_step,
-            None => true,
-        };
-
-        if avail < 0.01 || !intro_ok {
+        // Check if drug is available and historically introduced
+        if !is_drug_available(drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step) {
             continue;
         }
 
@@ -1244,6 +1233,12 @@ pub fn apply_rules(
         *flag = false;
     }
 
+    for bacteria_arr in &mut individual.asymptomatic_microbiome_hgt_events_today {
+        for event_count in bacteria_arr {
+            *event_count = 0;
+        }
+    }
+
     // --- all these parameter lookups at the top so they're in scope everywhere ---
     let transfer_prob = store
         .globals
@@ -1262,6 +1257,37 @@ pub fn apply_rules(
     let random_drug_cessation_prob = store.globals.random_drug_cessation_probability;
     let resistance_test_result_delay_days =
         get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32;
+
+    // --- Pre-compute per-individual constants that were previously looked up inside the per-bacteria loop ---
+    let cached_microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
+        .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+    let cached_majority_r_evolution_rate =
+        get_global_param("majority_r_evolution_rate_per_day_when_drug_present").unwrap_or(0.0);
+    let cached_max_resistance_level = store.globals.max_resistance_level;
+    let cached_test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
+    let cached_bacterial_testing_available_from_day =
+        get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32;
+    let cached_bacterial_testing_available =
+        time_step >= cached_bacterial_testing_available_from_day as usize;
+    let cached_test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
+    let cached_test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
+    let cached_resistance_testing_available_from_day =
+        get_global_param("resistance_testing_available_from_day").unwrap_or(9131.0) as i32;
+    let cached_resistance_testing_available =
+        time_step >= cached_resistance_testing_available_from_day as usize;
+    let cached_tb_synergy_threshold =
+        get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold")
+            .unwrap_or(2.0) as usize;
+    let cached_tb_synergy_multiplier =
+        get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier")
+            .unwrap_or(2.5);
+    let cached_tb_background_effectiveness =
+        get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness")
+            .unwrap_or(0.8);
+    let cached_microbiome_clearance_on_drug_treatment =
+        get_global_param("microbiome_clearance_probability_on_drug_treatment").unwrap_or(0.8);
+    let cached_drug_evaluation_days =
+        get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
 
     // update non-infection, bacteria or antibiotic-specific variables
     // need a variable for vulnerability to serious toxicity ?
@@ -1848,22 +1874,12 @@ pub fn apply_rules(
 
     // --- drug initiation (two-stage process) ---
     // Stage 1: Decide whether to start any antibiotic
+    let region_cur_str = individual.region_cur_in.as_str();
+    let region_liv_str = individual.region_living.as_str();
     let available_drugs: Vec<usize> = DRUG_SHORT_NAMES
         .iter()
         .enumerate()
-        .filter(|(_, &name)| {
-            let avail = get_drug_availability_time_aware(
-                name,
-                &individual.region_cur_in.to_string(),
-                Some(&individual.region_living.to_string()),
-                time_step,
-            );
-            let intro_ok = match get_drug_introduction_time_step(name) {
-                Some(intro_step) => time_step >= intro_step,
-                None => true,
-            };
-            avail >= 0.01 && intro_ok
-        })
+        .filter(|(_, &name)| is_drug_available(name, region_cur_str, region_liv_str, time_step))
         .map(|(idx, _)| idx)
         .collect();
     let available_drugs_count = available_drugs.len();
@@ -2993,30 +3009,23 @@ pub fn apply_rules(
                         score *= reserve_penalty;
                     }
                 }
-                // Apply drug availability multiplier
-                let current_region_str = individual.region_cur_in.to_string();
-                let living_region_str = individual.region_living.to_string();
+                // Apply drug availability multiplier (drug is already in available_drugs
+                // so introduction check passed, but we still use the continuous availability
+                // value as a score weight)
                 let drug_availability = get_drug_availability_time_aware(
                     drug_name,
-                    &current_region_str,
-                    Some(&living_region_str),
+                    region_cur_str,
+                    Some(region_liv_str),
                     time_step,
                 );
 
-                // Check if drug has been introduced yet
-                let mut drug_introduced = false;
-                if let Some(intro_time) = crate::config::get_drug_introduction_time_step(drug_name)
-                {
-                    if time_step >= intro_time {
-                        drug_introduced = true;
-                    }
-                }
-                // If no introduction date specified, assume drug is NOT available yet
-                // This prevents anachronistic drug use
-
                 score *= drug_availability;
-                if !drug_introduced {
-                    score = 0.0; // Drug not yet introduced, can't be prescribed
+                // Introduction gate: drugs not yet introduced get zero score.
+                // (available_drugs pre-filter already handles this, but guard defensively)
+                if let Some(intro_time) = get_drug_introduction_time_step(drug_name) {
+                    if time_step < intro_time {
+                        score = 0.0;
+                    }
                 }
 
                 // Store drug score for the primary bacteria
@@ -3156,14 +3165,13 @@ pub fn apply_rules(
                         num_drugs_currently_used + drugs_initiated_this_time_step <= 3,
                         "Exceeded max concurrent drug starts in one timestep"
                     );
-                    if individual.id == 1000001 {
-                        println!(
-                            "mod.rs   started {} - two-stage rate of starting was {:.4} (score: {:.3})",
-                            drug_name,
-                            start_any_antibiotic_prob,
-                            drug_scores[chosen_idx].1
-                        );
-                    }
+                    log::debug!(
+                        "mod.rs   started {} for individual {} - two-stage rate of starting was {:.4} (score: {:.3})",
+                        drug_name,
+                        individual.id,
+                        start_any_antibiotic_prob,
+                        drug_scores[chosen_idx].1
+                    );
                     let mut chosen_initial_level = store.drug.initial_level(chosen_drug_idx);
                     if has_any_identified_infection && rng.gen_bool(double_dose_probability) {
                         let double_dose_multiplier =
@@ -4013,8 +4021,7 @@ pub fn apply_rules(
 
                 // --- de novo resistance emergence in microbiome when on drug ---
                 if individual.presence_microbiome[b_idx] {
-                    let majority_threshold = get_global_param("microbiome_majority_threshold")
-                        .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
+                    let majority_threshold = cached_microbiome_majority_threshold;
                     let decay_multiplier = |half_life: f64| -> f64 {
                         if half_life <= 0.0 {
                             0.0
@@ -4473,12 +4480,11 @@ pub fn apply_rules(
         } else {
             // Bacteria is already present (infection progression)
             // --- majority_r evolution ---
-            let majority_r_evolution_rate =
-                get_global_param("majority_r_evolution_rate_per_day_when_drug_present")
-                    .unwrap_or(0.0);
-            let max_resistance_level = get_global_param("max_resistance_level").unwrap_or(1.0); // Now using 1.0 from your config
+            let majority_r_evolution_rate = cached_majority_r_evolution_rate;
+            let max_resistance_level = cached_max_resistance_level;
 
-            if let Some(bacteria_full_idx) = BACTERIA_LIST.iter().position(|&b| b == bacteria) {
+            {  // bacteria_full_idx == b_idx (avoid redundant .position() lookup)
+                let bacteria_full_idx = b_idx;
                 // --- De novo resistance mechanism emergence (evaluated ONCE per bacterium per timestep) ---
                 // Moved outside the per-drug loop so each mechanism gets exactly one emergence roll per day,
                 // using the strongest selective pressure across all active applicable drugs.
@@ -4655,22 +4661,20 @@ pub fn apply_rules(
                     if current_bacteria_level > INFECTION_EPS {
                         let mut current_susceptibility = 1.0;
                         
-                        if let Some(bacteria_full_idx_inner) =
-                            BACTERIA_LIST.iter().position(|&b| b == bacteria)
-                        {
+                        {  // bacteria_full_idx == b_idx (avoid redundant .position() lookup)
                             use crate::simulation::population::ResistanceMechanism;
 
                             for (mechanism_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
-                                if !individual.resistance_mechanisms[bacteria_full_idx_inner]
+                                if !individual.resistance_mechanisms[b_idx]
                                     [mechanism_idx]
                                 {
                                     continue;
                                 }
                                 if !param_cache.mechanism_applicable(
                                     mechanism_idx,
-                                    bacteria_full_idx_inner,
+                                    b_idx,
                                     drug_index,
                                 ) {
                                     continue;
@@ -4731,13 +4735,11 @@ pub fn apply_rules(
 
         // testing and diagnosis - Enhanced testing framework
         let last_infected_time = individual.date_last_infected[b_idx];
-        let test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
+        let test_delay_days = cached_test_delay_days;
 
         // Check if bacterial testing is available yet (historically realistic dates)
-        let bacterial_testing_available_from_day =
-            get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32;
-        let bacterial_testing_available =
-            time_step >= bacterial_testing_available_from_day as usize;
+        let bacterial_testing_available_from_day = cached_bacterial_testing_available_from_day;
+        let bacterial_testing_available = cached_bacterial_testing_available;
 
         // Check bacteria-specific test availability for late-discovered bacteria (e.g., H. pylori 1982)
         // Most bacteria are available once general bacterial testing is available (~1945)
@@ -4779,13 +4781,11 @@ pub fn apply_rules(
         }
 
         // --- test_r assignment logic ---
-        let test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
-        let test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
+        let test_r_error_prob = cached_test_r_error_prob;
+        let test_r_error_value = cached_test_r_error_value;
         // Check if resistance testing is available yet (historically realistic dates)
-        let resistance_testing_available_from_day =
-            get_global_param("resistance_testing_available_from_day").unwrap_or(9131.0) as i32;
-        let resistance_testing_available =
-            time_step >= resistance_testing_available_from_day as usize;
+        let resistance_testing_available_from_day = cached_resistance_testing_available_from_day;
+        let resistance_testing_available = cached_resistance_testing_available;
 
         if individual.test_identified_infection[b_idx] && resistance_testing_available {
             // Check if we should initiate resistance testing (if not already initiated)
@@ -5030,23 +5030,15 @@ pub fn apply_rules(
                     })
                     .collect();
 
-                let synergy_threshold =
-                    get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold")
-                        .unwrap_or(2.0) as usize;
+                let synergy_threshold = cached_tb_synergy_threshold;
 
                 if active_tb_drugs.len() >= synergy_threshold {
-                    let synergy_multiplier = get_global_param(
-                        "mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier",
-                    )
-                    .unwrap_or(2.5);
+                    let synergy_multiplier = cached_tb_synergy_multiplier;
                     // Background effectiveness represents unmodeled TB-specific drugs (bedaquiline, pretomanid, delamanid,
                     // cycloserine, ethionamide, p-aminosalicylic acid) that are critical for MDR-TB treatment but not
                     // explicitly tracked in this general AMR model. Value reflects their collective contribution when
                     // proper multi-drug TB regimens are used.
-                    let mut background_effectiveness = get_global_param(
-                        "mdr_mycobacterium_tuberculosis_background_drug_effectiveness",
-                    )
-                    .unwrap_or(0.8);
+                    let mut background_effectiveness = cached_tb_background_effectiveness;
 
                     // Apply historical treatment effectiveness modifier
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
@@ -5154,10 +5146,7 @@ pub fn apply_rules(
                         InfectionResolutionType::DrugAssistedClearance
                     ) && individual.presence_microbiome[b_idx]
                     {
-                        let microbiome_clearance_on_drug_treatment =
-                            get_global_param("microbiome_clearance_probability_on_drug_treatment")
-                                .unwrap_or(0.8);
-                        if rng.gen_bool(microbiome_clearance_on_drug_treatment) {
+                        if rng.gen_bool(cached_microbiome_clearance_on_drug_treatment) {
                             individual.presence_microbiome[b_idx] = false;
                             individual.microbiome_cleared_today[b_idx] = true;
                         }
@@ -5393,6 +5382,9 @@ pub fn apply_rules(
                             {
                                 individual.how_resistance_acquired[recipient_idx][drug_idx] =
                                     Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
+                                if individual.level[recipient_idx] <= INFECTION_EPS {
+                                    individual.asymptomatic_microbiome_hgt_events_today[recipient_idx][drug_idx] += 1;
+                                }
                             }
                         }
                     }
@@ -5403,8 +5395,7 @@ pub fn apply_rules(
     // --- END HORIZONTAL GENE TRANSFER ---
 
     // Check for post-infection drug usage evaluation (configurable timing)
-    let evaluation_days =
-        get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
+    let evaluation_days = cached_drug_evaluation_days;
 
     for b_idx in 0..BACTERIA_LIST.len() {
         let infection_start_day = individual.date_last_infected_keep[b_idx];

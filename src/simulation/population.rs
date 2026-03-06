@@ -1434,6 +1434,7 @@ pub struct Individual {
     /// How resistance was acquired for each bacteria-drug combination.
     /// None if never acquired resistance.
     pub how_resistance_acquired: Vec<Vec<Option<ResistanceAcquisitionType>>>,
+    pub asymptomatic_microbiome_hgt_events_today: Vec<Vec<usize>>,
     
     // -------------------------------------------------------------------------
     // INFECTION RESOLUTION TRACKING
@@ -1578,6 +1579,11 @@ impl Individual {
             how_resistance_acquired.push(vec![None; num_drugs]);
         }
 
+        let mut asymptomatic_microbiome_hgt_events_today = Vec::with_capacity(num_bacteria);
+        for _ in 0..num_bacteria {
+            asymptomatic_microbiome_hgt_events_today.push(vec![0; num_drugs]);
+        }
+
         // Initialize infection_resolution_this_timestep (all zeros initially)
         let mut infection_resolution_this_timestep = Vec::with_capacity(num_bacteria);
         for _ in 0..num_bacteria {
@@ -1660,6 +1666,7 @@ impl Individual {
             resistances,
             resistance_mechanisms,
             how_resistance_acquired,
+            asymptomatic_microbiome_hgt_events_today,
             infection_resolution_this_timestep,
             day_7_since_last_infection_drug_used,
             date_of_death: None,

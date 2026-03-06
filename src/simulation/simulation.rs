@@ -335,10 +335,8 @@ impl MechanismProfileCache {
         if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
             return;
         }
-        // Only record profiles that have at least one mechanism active
-        if !profile.iter().any(|&b| b) {
-            return;
-        }
+        // Record ALL profiles (including all-false / susceptible) so that
+        // sampling preserves the true population prevalence of resistance.
         let slot = &mut self.profiles[region_idx][bacteria_idx];
         let seen = &mut self.total_seen[region_idx][bacteria_idx];
         *seen += 1;
@@ -1252,6 +1250,7 @@ pub struct TimeStepSummary {
     pub new_resistance_hgt_by_bacteria_drug: Vec<usize>,
     pub new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
     pub new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
+                pub asymptomatic_microbiome_hgt_events_by_bacteria_drug: Vec<usize>,
 
     // infection resolution tracking: counts by bacteria and resolution type
     // Each Vec has length = num_bacteria * num_resolution_types, indexed as [bacteria_idx * num_resolution_types + resolution_type_idx]
@@ -1799,6 +1798,7 @@ impl Simulation {
                 new_resistance_hgt_by_bacteria_drug: Vec<usize>,
                 new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
                 new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
+                asymptomatic_microbiome_hgt_events_by_bacteria_drug: Vec<usize>,
                 /// infection resolution tracking: counts by bacteria and resolution type
                 infection_resolution_immune_clearance_by_bacteria: Vec<usize>,
                 infection_resolution_drug_assisted_clearance_by_bacteria: Vec<usize>,
@@ -1954,6 +1954,11 @@ impl Simulation {
                                 * num_drugs
                         ],
                         new_resistance_de_novo_infection_by_bacteria_drug: vec![
+                            0;
+                            num_bacteria
+                                * num_drugs
+                        ],
+                        asymptomatic_microbiome_hgt_events_by_bacteria_drug: vec![
                             0;
                             num_bacteria
                                 * num_drugs
@@ -2539,6 +2544,9 @@ impl Simulation {
                             };
 
                             for b_idx in 0..num_bacteria {
+                                for d_idx in 0..num_drugs {
+                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let base = b_idx * num_drugs;
                                     if on_any_drug_current {
@@ -2587,7 +2595,7 @@ impl Simulation {
                                     }
 
                                     // Record full mechanism profile for profile cache
-                                    // (only for individuals with at least one mechanism)
+                                    // (includes susceptible / zero-mechanism profiles to preserve prevalence)
                                     if let Some(r_idx) = effective_region_idx_for_any_r {
                                         lt.mechanism_profiles.record(
                                             r_idx,
@@ -2759,6 +2767,9 @@ impl Simulation {
                             // Count deaths by bacteria and home region for currently infected individuals
                             let home_region_idx = region_to_index(individual.region_living);
                             for b_idx in 0..num_bacteria {
+                                for d_idx in 0..num_drugs {
+                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
                                 }
@@ -2960,6 +2971,9 @@ impl Simulation {
                         let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
                         {
                             for b_idx in 0..num_bacteria {
+                                for d_idx in 0..num_drugs {
+                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     // Track non-H. pylori infections separately (exclude H. pylori at index 32)
                                     if !is_microbiome_excluded(b_idx) {
@@ -2974,6 +2988,9 @@ impl Simulation {
                                 }
                             }
                             for b_idx in 0..num_bacteria {
+                                for d_idx in 0..num_drugs {
+                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
                                     let mut infection_any_r_positive = false;
@@ -3278,6 +3295,7 @@ impl Simulation {
                 new_resistance_hgt_by_bacteria_drug,
                 new_resistance_from_microbiome_r_by_bacteria_drug,
                 new_resistance_de_novo_infection_by_bacteria_drug,
+                asymptomatic_microbiome_hgt_events_by_bacteria_drug,
                 infection_resolution_immune_clearance_by_bacteria: _,
                 infection_resolution_drug_assisted_clearance_by_bacteria: _,
                 infection_resolution_death_from_sepsis_by_bacteria: _,
@@ -3480,6 +3498,7 @@ impl Simulation {
                 new_resistance_hgt_by_bacteria_drug,
                 new_resistance_from_microbiome_r_by_bacteria_drug,
                 new_resistance_de_novo_infection_by_bacteria_drug,
+                asymptomatic_microbiome_hgt_events_by_bacteria_drug,
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
                 infection_resolution_death_from_sepsis_by_bacteria,

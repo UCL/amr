@@ -202,10 +202,17 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
             else:
                 line_label = label if not label_used else None
 
+            # Handle color if it's a dict mapping policy to color
+            if isinstance(color, dict):
+                num_policy = coerce_policy_identifier(policy_value)
+                c = color.get(num_policy, color.get(None, 'black'))
+            else:
+                c = color
+
             ax.plot(
                 segment['time_in_years'],
                 series_to_plot,
-                color=color,
+                color=c,
                 linewidth=2,
                 linestyle=_policy_linestyle(policy_value),
                 label=line_label,
@@ -1745,11 +1752,39 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                          ha='center', va='center', fontsize=12, color='gray')
             axes9[2].set_axis_off()
         
-        # 4. Leave remaining panel blank for now
-        for i in range(3, 4):
-            axes9[i].text(0.5, 0.5, f'Panel {i+1}\n(Reserved for future use)', 
-                         ha='center', va='center', fontsize=12, color='lightgray')
-            axes9[i].set_axis_off()
+        # 4. Sepsis Deaths in the Past Year
+        if 'deaths_sepsis_past_year' in df.columns or 'deaths_sepsis_past_year_proportion' in df.columns:
+            # We plot the proportion series, which should have been added by add_proportions in analysis.py
+            prop_col = 'deaths_sepsis_past_year_proportion'
+            if prop_col in df.columns:
+                plotted_sepsis = plot_segmented_series(
+                    axes9[3],
+                    prop_col,
+                    color={1: 'black', 2: 'green', None: 'red'},
+                    label='Sepsis',
+                    min_year=1.0,
+                )
+                
+                if plotted_sepsis:
+                    axes9[3].set_title('Sepsis Deaths in the Past Year (Proportion)')
+                    axes9[3].set_xlabel('Time (Years)')
+                    axes9[3].set_ylabel('Proportion of Current Population')
+                    axes9[3].set_xlim(left=0)
+                    axes9[3].set_ylim(bottom=0, top=0.005)
+                    axes9[3].legend()
+                    axes9[3].grid(True, alpha=0.3)
+                else:
+                    axes9[3].text(0.5, 0.5, 'No valid data to plot', ha='center', va='center')
+                    axes9[3].set_title('Sepsis Deaths in the Past Year (Proportion)')
+                    axes9[3].set_axis_off()
+            else:
+                axes9[3].text(0.5, 0.5, 'Proportion data not available', ha='center', va='center')
+                axes9[3].set_title('Sepsis Deaths in the Past Year')
+                axes9[3].set_axis_off()
+        else:
+            axes9[3].text(0.5, 0.5, 'Data not available', ha='center', va='center')
+            axes9[3].set_title('Sepsis Deaths in the Past Year')
+            axes9[3].set_axis_off()
         
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         figure_path = _grouped_figure_path(9, config, run_identifier)
