@@ -141,20 +141,18 @@ const DRUG_ASSISTED_CLEARANCE_EFFECT_THRESHOLD: f64 = 1e-6;
 /// has been reached.  This consolidates the repeated availability + introduction
 /// checks that previously appeared in 5+ places.
 #[inline]
-fn is_drug_available(drug_name: &str, region_cur_in: &str, region_living: &str, time_step: usize) -> bool {
+fn is_drug_available(drug_idx: usize, drug_name: &str, region_cur_in: &str, region_living: &str, time_step: usize, param_cache: &ParameterKeyCache) -> bool {
+    let intro_step = param_cache.drug_introduction_day[drug_idx];
+    if time_step < intro_step {
+        return false;
+    }
     let avail = get_drug_availability_time_aware(
         drug_name,
         region_cur_in,
         Some(region_living),
         time_step,
     );
-    if avail < 0.01 {
-        return false;
-    }
-    match get_drug_introduction_time_step(drug_name) {
-        Some(intro_step) => time_step >= intro_step,
-        None => true,
-    }
+    avail >= 0.01
 }
 
 // =====================================================================================
@@ -662,7 +660,7 @@ fn assess_treatment_failure(
         }
 
         // Check if drug is available and historically introduced
-        if !is_drug_available(drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step) {
+        if !is_drug_available(drug_idx, drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step, param_cache) {
             continue;
         }
 
@@ -910,7 +908,7 @@ fn start_restart_treatment(
         let prev_drug_name = DRUG_SHORT_NAMES[prev_drug_idx];
 
         // Check if previously effective drug is still available
-        let drug_avail = is_drug_available(prev_drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step);
+        let drug_avail = is_drug_available(prev_drug_idx, prev_drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step, param_cache);
 
         if drug_avail && !individual.cur_use_drug[prev_drug_idx] {
             // Check if drug has adequate potency (basic safety check)
@@ -961,7 +959,7 @@ fn start_restart_treatment(
         // For now, we don't avoid any recently used drugs since stopped ≠ failed
 
         // Check if drug is available and historically introduced
-        if !is_drug_available(drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step) {
+        if !is_drug_available(drug_idx, drug_name, individual.region_cur_in.as_str(), individual.region_living.as_str(), time_step, param_cache) {
             continue;
         }
 
@@ -1053,6 +1051,32 @@ pub struct ParameterKeyCache {
     /// Pre-computed clinical preference multipliers [bacteria_idx * drug_count + drug_idx]
     /// Value of 1.0 means no preference adjustment (default)
     clinical_preference_multipliers: Vec<f64>,
+    pub microbiome_majority_threshold: f64,
+    pub majority_r_evolution_rate: f64,
+    pub max_resistance_level: f64,
+    pub test_delay_days: i32,
+    pub bacterial_testing_available_from_day: i32,
+    pub test_r_error_prob: f64,
+    pub test_r_error_value: f64,
+    pub resistance_testing_available_from_day: i32,
+    pub tb_synergy_threshold: usize,
+    pub tb_synergy_multiplier: f64,
+    pub tb_background_effectiveness: f64,
+    pub microbiome_clearance_on_drug_treatment: f64,
+    pub drug_evaluation_days: i32,
+    pub tb_guaranteed_rifampicin_resistance: bool,
+    pub bacterial_testing_base_rate_per_day: f64,
+    pub bacterial_testing_initial_adoption_rate: f64,
+    pub bacterial_testing_max_temporal_multiplier: f64,
+    pub bacterial_testing_hospital_multiplier: f64,
+    pub resistance_testing_base_rate_per_day: f64,
+    pub resistance_testing_initial_adoption_rate: f64,
+    pub resistance_testing_max_temporal_multiplier: f64,
+    pub resistance_testing_hospital_multiplier: f64,
+    pub testing_immunosuppressed_multiplier: f64,
+    pub testing_sepsis_multiplier: f64,
+    pub bacteria_test_availability_day: Vec<Option<usize>>,
+    pub drug_introduction_day: Vec<usize>,
 }
 
 impl ParameterKeyCache {
@@ -1133,6 +1157,41 @@ impl ParameterKeyCache {
             bacteria_age_sepsis_log_odds,
             mechanism_applicability,
             clinical_preference_multipliers,
+            microbiome_majority_threshold: crate::config::get_global_param("microbiome_majority_threshold").unwrap_or(crate::simulation::population::MICROBIOME_MAJORITY_THRESHOLD),
+            majority_r_evolution_rate: crate::config::get_global_param("majority_r_evolution_rate_per_day_when_drug_present").unwrap_or(0.0),
+            max_resistance_level: parameter_store().globals.max_resistance_level,
+            test_delay_days: crate::config::get_global_param("test_delay_days").unwrap_or(3.0) as i32,
+            bacterial_testing_available_from_day: crate::config::get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32,
+            test_r_error_prob: crate::config::get_global_param("test_r_error_probability").unwrap_or(0.02),
+            test_r_error_value: crate::config::get_global_param("test_r_error_value").unwrap_or(0.25),
+            resistance_testing_available_from_day: crate::config::get_global_param("resistance_testing_available_from_day").unwrap_or(9131.0) as i32,
+            tb_synergy_threshold: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold").unwrap_or(2.0) as usize,
+            tb_synergy_multiplier: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier").unwrap_or(2.5),
+            tb_background_effectiveness: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness").unwrap_or(0.8),
+            microbiome_clearance_on_drug_treatment: crate::config::get_global_param("microbiome_clearance_probability_on_drug_treatment").unwrap_or(0.8),
+            drug_evaluation_days: crate::config::get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32,
+            tb_guaranteed_rifampicin_resistance: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance").unwrap_or(1.0) > 0.5,
+            bacterial_testing_base_rate_per_day: crate::config::get_global_param("bacterial_testing_base_rate_per_day").unwrap_or(0.15),
+            bacterial_testing_initial_adoption_rate: crate::config::get_global_param("bacterial_testing_initial_adoption_rate").unwrap_or(0.1),
+            bacterial_testing_max_temporal_multiplier: crate::config::get_global_param("bacterial_testing_max_temporal_multiplier").unwrap_or(1.0),
+            bacterial_testing_hospital_multiplier: crate::config::get_global_param("bacterial_testing_hospital_multiplier").unwrap_or(8.0),
+            resistance_testing_base_rate_per_day: crate::config::get_global_param("resistance_testing_base_rate_per_day").unwrap_or(0.95),
+            resistance_testing_initial_adoption_rate: crate::config::get_global_param("resistance_testing_initial_adoption_rate").unwrap_or(0.05),
+            resistance_testing_max_temporal_multiplier: crate::config::get_global_param("resistance_testing_max_temporal_multiplier").unwrap_or(1.0),
+            resistance_testing_hospital_multiplier: crate::config::get_global_param("resistance_testing_hospital_multiplier").unwrap_or(5.0),
+            testing_immunosuppressed_multiplier: crate::config::get_global_param("testing_immunosuppressed_multiplier").unwrap_or(2.5),
+            testing_sepsis_multiplier: crate::config::get_global_param("testing_sepsis_multiplier").unwrap_or(4.0),
+            bacteria_test_availability_day: {
+                let mut bacteria_test_availability_day: Vec<Option<usize>> = Vec::with_capacity(bacteria_count);
+                for &bacteria_name in BACTERIA_LIST.iter() {
+                    let bacteria_param_name = bacteria_name.to_lowercase().replace(" ", "_");
+                    let bacteria_test_availability_param = format!("{}_test_availability_year", bacteria_param_name);
+                    let day = crate::config::get_global_param(&bacteria_test_availability_param).map(|year| ((year - 1930.0) * 365.25) as usize);
+                    bacteria_test_availability_day.push(day);
+                }
+                bacteria_test_availability_day
+            },
+            drug_introduction_day: DRUG_SHORT_NAMES.iter().map(|&name| crate::config::get_drug_introduction_time_step(name).unwrap_or(0)).collect(),
         }
     }
 
@@ -1259,35 +1318,21 @@ pub fn apply_rules(
         get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32;
 
     // --- Pre-compute per-individual constants that were previously looked up inside the per-bacteria loop ---
-    let cached_microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
-        .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
-    let cached_majority_r_evolution_rate =
-        get_global_param("majority_r_evolution_rate_per_day_when_drug_present").unwrap_or(0.0);
-    let cached_max_resistance_level = store.globals.max_resistance_level;
-    let cached_test_delay_days = get_global_param("test_delay_days").unwrap_or(3.0) as i32;
-    let cached_bacterial_testing_available_from_day =
-        get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32;
-    let cached_bacterial_testing_available =
-        time_step >= cached_bacterial_testing_available_from_day as usize;
-    let cached_test_r_error_prob = get_global_param("test_r_error_probability").unwrap_or(0.02);
-    let cached_test_r_error_value = get_global_param("test_r_error_value").unwrap_or(0.25);
-    let cached_resistance_testing_available_from_day =
-        get_global_param("resistance_testing_available_from_day").unwrap_or(9131.0) as i32;
-    let cached_resistance_testing_available =
-        time_step >= cached_resistance_testing_available_from_day as usize;
-    let cached_tb_synergy_threshold =
-        get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_threshold")
-            .unwrap_or(2.0) as usize;
-    let cached_tb_synergy_multiplier =
-        get_global_param("mdr_mycobacterium_tuberculosis_multi_drug_synergy_multiplier")
-            .unwrap_or(2.5);
-    let cached_tb_background_effectiveness =
-        get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness")
-            .unwrap_or(0.8);
-    let cached_microbiome_clearance_on_drug_treatment =
-        get_global_param("microbiome_clearance_probability_on_drug_treatment").unwrap_or(0.8);
-    let cached_drug_evaluation_days =
-        get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
+    let cached_microbiome_majority_threshold = param_cache.microbiome_majority_threshold;
+    let cached_majority_r_evolution_rate = param_cache.majority_r_evolution_rate;
+    let cached_max_resistance_level = param_cache.max_resistance_level;
+    let cached_test_delay_days = param_cache.test_delay_days;
+    let cached_bacterial_testing_available_from_day = param_cache.bacterial_testing_available_from_day;
+    let cached_bacterial_testing_available = time_step >= cached_bacterial_testing_available_from_day as usize;
+    let cached_test_r_error_prob = param_cache.test_r_error_prob;
+    let cached_test_r_error_value = param_cache.test_r_error_value;
+    let cached_resistance_testing_available_from_day = param_cache.resistance_testing_available_from_day;
+    let cached_resistance_testing_available = time_step >= cached_resistance_testing_available_from_day as usize;
+    let cached_tb_synergy_threshold = param_cache.tb_synergy_threshold;
+    let cached_tb_synergy_multiplier = param_cache.tb_synergy_multiplier;
+    let cached_tb_background_effectiveness = param_cache.tb_background_effectiveness;
+    let cached_microbiome_clearance_on_drug_treatment = param_cache.microbiome_clearance_on_drug_treatment;
+    let cached_drug_evaluation_days = param_cache.drug_evaluation_days;
 
     // update non-infection, bacteria or antibiotic-specific variables
     // need a variable for vulnerability to serious toxicity ?
@@ -1879,7 +1924,7 @@ pub fn apply_rules(
     let available_drugs: Vec<usize> = DRUG_SHORT_NAMES
         .iter()
         .enumerate()
-        .filter(|(_, &name)| is_drug_available(name, region_cur_str, region_liv_str, time_step))
+        .filter(|(idx, &name)| is_drug_available(*idx, name, region_cur_str, region_liv_str, time_step, param_cache))
         .map(|(idx, _)| idx)
         .collect();
     let available_drugs_count = available_drugs.len();
@@ -4252,33 +4297,6 @@ pub fn apply_rules(
                     let region_idx = individual.region_cur_in as usize;
                     let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
-                    // --- Mechanism profile sampling ---
-                    // Prefer the profile cache (samples a complete mechanism genotype from
-                    // an actual circulating strain) over the marginal prevalence cache.
-                    // Fall back to marginal single-mechanism sampling for early simulation
-                    // when the profile cache is empty.
-                    let profile_sampled = if let Some(profile) =
-                        mechanism_profile_cache.sample(region_idx, b_idx, rng)
-                    {
-                        if rng.gen::<f64>() < counterfactual_resistance_multiplier {
-                            for (m_idx, &active) in profile.iter().enumerate() {
-                                if active {
-                                    individual.resistance_mechanisms[b_idx][m_idx] = true;
-                                }
-                            }
-                        }
-                        true
-                    } else {
-                        // Fallback: sample ONE mechanism from marginal prevalence cache
-                        let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
-                        if let Some(idx) = sampled_mechanism_idx {
-                            if rng.gen::<f64>() < counterfactual_resistance_multiplier {
-                                individual.resistance_mechanisms[b_idx][idx] = true;
-                            }
-                        }
-                        false
-                    };
-
                     // Community resistance dilution: community-acquired infections draw
                     // resistance from a broader pool that includes susceptible strains
                     // from the general environment and animal sources.
@@ -4286,6 +4304,42 @@ pub fn apply_rules(
                         store.globals.community_resistance_dilution_factor
                     } else {
                         1.0
+                    };
+
+                    // Decide epidemiologically which reservoir this infection came from.
+                    // If derived from the human reservoir, we map to existing cached resistances.
+                    // If drawn from the environmental pool, we default to wild type (0.0 acquired resistance).
+                    let from_human_reservoir = rng.gen_bool(community_dilution.clamp(0.0, 1.0));
+
+                    // --- Mechanism profile sampling ---
+                    // Prefer the profile cache (samples a complete mechanism genotype from
+                    // an actual circulating strain) over the marginal prevalence cache.
+                    // Fall back to marginal single-mechanism sampling for early simulation
+                    // when the profile cache is empty.
+                    let profile_sampled = if from_human_reservoir {
+                        if let Some(profile) =
+                            mechanism_profile_cache.sample(region_idx, b_idx, rng)
+                        {
+                            if rng.gen::<f64>() < counterfactual_resistance_multiplier {
+                                for (m_idx, &active) in profile.iter().enumerate() {
+                                    if active {
+                                        individual.resistance_mechanisms[b_idx][m_idx] = true;
+                                    }
+                                }
+                            }
+                            true
+                        } else {
+                            // Fallback: sample ONE mechanism from marginal prevalence cache
+                            let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
+                            if let Some(idx) = sampled_mechanism_idx {
+                                if rng.gen::<f64>() < counterfactual_resistance_multiplier {
+                                    individual.resistance_mechanisms[b_idx][idx] = true;
+                                }
+                            }
+                            false
+                        }
+                    } else {
+                        false
                     };
 
                     for drug_name_static in DRUG_SHORT_NAMES.iter() {
@@ -4301,18 +4355,19 @@ pub fn apply_rules(
                             hospital_status_bool
                         };
 
-                        let assigned_level = majority_r_cache.sample(
-                            region_idx,
-                            sampling_hospital_status,
-                            b_idx,
-                            d_idx,
-                            rng,
-                        );
+                        let assigned_level = if from_human_reservoir {
+                            majority_r_cache.sample(
+                                region_idx,
+                                sampling_hospital_status,
+                                b_idx,
+                                d_idx,
+                                rng,
+                            )
+                        } else {
+                            None // Environmental strains provide no secondary resistance magnitude
+                        };
 
                         if let Some(level) = assigned_level {
-                            // Apply community dilution before floor (intrinsic resistance isn't diluted)
-                            let diluted_level = level * community_dilution;
-
                             // Apply resistance floor for rare bacteria
                             // The floor ensures minimum resistance levels are maintained even when
                             // cache sampling produces sparse data (e.g., S. maltophilia, E. faecium)
@@ -4321,7 +4376,7 @@ pub fn apply_rules(
                                 drug_name_static,
                                 time_step as i32,
                             );
-                            let level_with_floor = diluted_level.max(floor_level);
+                            let level_with_floor = level.max(floor_level);
                             
                             let clamped_level = (level_with_floor * counterfactual_resistance_multiplier).min(max_resistance_level).max(0.0);
                             resistance_data.any_r = clamped_level;

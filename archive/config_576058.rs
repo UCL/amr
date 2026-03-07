@@ -2522,7 +2522,7 @@ fn pool_for_group(group: BacteriaGroup) -> PlasmidPool {
     }
 }
 
-// ^^^
+
 fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
     let donor_group = BACTERIA_GROUPS
         .get(donor_idx)
@@ -2548,7 +2548,7 @@ fn default_hgt_probability(donor_idx: usize, recipient_idx: usize) -> f64 {
 
     let same_group = donor_group == recipient_group;
 
-    // ***  ^^^ default_hgt_probability
+    // ***  ^^^
     match (donor_pool, recipient_pool) {
         (PlasmidPool::GramPositive, PlasmidPool::GramPositive) => {
             if same_group { 0.000_000_01 } else { 0.000_000_001 }
@@ -2861,12 +2861,12 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
         [
             Some(0.500000),
             Some(0.100000),
-            Some(0.100000),
-            Some(0.100000),
+            Some(0.700000),
+            Some(0.700000),
             Some(0.800000),
             Some(0.750000),
-            Some(0.100000),
-            Some(0.100000),
+            Some(0.700000),
+            Some(0.750000),
             Some(0.800000),
             Some(0.850000),
             Some(0.800000),
@@ -2918,12 +2918,12 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
         [
             Some(0.500000),
             Some(0.100000),
-            Some(0.100000),
-            Some(0.100000),
+            Some(0.500000),
+            Some(0.500000),
             Some(0.750000),
             Some(0.700000),
-            Some(0.100000),
-            Some(0.100000),
+            Some(0.500000),
+            Some(0.500000),
             Some(0.600000),
             Some(0.500000),
             Some(0.800000),
@@ -3010,7 +3010,7 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
             Some(0.900000),
             Some(0.900000),
             Some(0.100000),
-            Some(0.100000),
+            Some(0.700000),
             Some(0.800000),
             Some(0.900000),
             Some(0.100000),
@@ -3032,8 +3032,8 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
         [
             Some(0.100000),
             Some(0.100000),
-            Some(0.300000),
-            Some(0.300000),
+            Some(0.850000),
+            Some(0.800000),
             Some(0.100000),
             Some(0.100000),
             Some(0.100000),
@@ -3146,8 +3146,8 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
         [
             Some(0.500000),
             Some(0.100000),
-            Some(0.100000),
-            Some(0.100000),
+            Some(0.400000),
+            Some(0.400000),
             Some(0.800000),
             Some(0.750000),
             Some(0.500000),
@@ -4475,7 +4475,7 @@ const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
             Some(0.700000),
             Some(0.750000),
             Some(0.700000),
-            Some(0.100000),
+            Some(0.800000),
             Some(0.100000),
             Some(0.100000),
             Some(0.100000),
