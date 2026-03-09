@@ -256,11 +256,14 @@ impl MechanismPrevalenceCache {
     }
 
     pub fn set_counts(&mut self, data: &[Vec<Vec<u32>>]) {
-        // data matches the structure of counts: [region][bacteria][mechanism]
-        if self.counts.len() == data.len() {
-             self.counts.clone_from(&data.to_vec());
-        } else {
-             self.counts = data.to_vec();
+        for (r_idx, region_data) in data.iter().enumerate() {
+            if r_idx < self.counts.len() {
+                for (b_idx, bacteria_data) in region_data.iter().enumerate() {
+                    if b_idx < self.counts[r_idx].len() {
+                        self.counts[r_idx][b_idx].copy_from_slice(bacteria_data);
+                    }
+                }
+            }
         }
     }
 
@@ -303,8 +306,8 @@ const MAX_MECHANISM_PROFILES: usize = 200;
 /// `MAX_MECHANISM_PROFILES` entries via reservoir sampling.
 #[derive(Clone)]
 pub struct MechanismProfileCache {
-    /// profiles[region_idx][bacteria_idx] -> Vec of boolean mechanism arrays
-    profiles: Vec<Vec<Vec<Vec<bool>>>>,
+    /// profiles[region_idx][bacteria_idx] -> Vec of mechanism bitmasks (u64)
+    profiles: Vec<Vec<Vec<u64>>>,
     /// Total profiles seen per slot (for reservoir sampling even when >cap)
     total_seen: Vec<Vec<u64>>,
     num_regions: usize,
@@ -314,8 +317,9 @@ pub struct MechanismProfileCache {
 
 impl MechanismProfileCache {
     pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
+        assert!(num_mechanisms <= 64, "Mechanism count exceeds 64, cannot use u64 bitmask");
         Self {
-            profiles: vec![vec![Vec::new(); num_bacteria]; num_regions],
+            profiles: vec![vec![Vec::with_capacity(MAX_MECHANISM_PROFILES); num_bacteria]; num_regions],
             total_seen: vec![vec![0u64; num_bacteria]; num_regions],
             num_regions,
             num_bacteria,
@@ -335,18 +339,27 @@ impl MechanismProfileCache {
         if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
             return;
         }
+        
+        // Convert &[bool] to u64 bitmask to avoid vector allocations
+        let mut mask: u64 = 0;
+        for (i, &b) in profile.iter().enumerate() {
+            if b {
+                mask |= 1 << i;
+            }
+        }
+        
         // Record ALL profiles (including all-false / susceptible) so that
         // sampling preserves the true population prevalence of resistance.
         let slot = &mut self.profiles[region_idx][bacteria_idx];
         let seen = &mut self.total_seen[region_idx][bacteria_idx];
         *seen += 1;
         if slot.len() < MAX_MECHANISM_PROFILES {
-            slot.push(profile.to_vec());
+            slot.push(mask);
         } else {
             // Reservoir sampling: replace a random entry with probability cap/seen
             let j = rng.gen_range(0..*seen) as usize;
             if j < MAX_MECHANISM_PROFILES {
-                slot[j] = profile.to_vec();
+                slot[j] = mask;
             }
         }
     }
@@ -358,7 +371,7 @@ impl MechanismProfileCache {
         region_idx: usize,
         bacteria_idx: usize,
         rng: &mut R,
-    ) -> Option<&[bool]> {
+    ) -> Option<u64> {
         if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
             return None;
         }
@@ -367,7 +380,7 @@ impl MechanismProfileCache {
             return None;
         }
         let idx = rng.gen_range(0..slot.len());
-        Some(&slot[idx])
+        Some(slot[idx])
     }
 
     /// Merge profiles from another cache (used for per-thread aggregation).
@@ -379,14 +392,14 @@ impl MechanismProfileCache {
                 let other_profiles = &other.profiles[r][b];
                 let slot = &mut self.profiles[r][b];
 
-                for profile in other_profiles {
+                for &mask in other_profiles {
                     if slot.len() < MAX_MECHANISM_PROFILES {
-                        slot.push(profile.clone());
+                        slot.push(mask);
                     } else {
                         // Reservoir sampling with the combined count
                         let j = rng.gen_range(0..combined_seen) as usize;
                         if j < MAX_MECHANISM_PROFILES {
-                            slot[j] = profile.clone();
+                            slot[j] = mask;
                         }
                     }
                 }

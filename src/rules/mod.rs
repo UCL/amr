@@ -700,7 +700,7 @@ fn assess_treatment_failure(
 
         let total_weight: f64 = weights.iter().sum();
         if total_weight > 0.0 && total_weight.is_finite() {
-            let dist = WeightedIndex::new(&weights).unwrap();
+            let dist = WeightedIndex::new(weights).unwrap();
             let chosen_idx = dist.sample(rng);
             let new_drug_idx = alternative_scores[chosen_idx].0;
 
@@ -997,7 +997,7 @@ fn start_restart_treatment(
 
         let total_weight: f64 = weights.iter().sum();
         if total_weight > 0.0 && total_weight.is_finite() {
-            let dist = WeightedIndex::new(&weights).unwrap();
+            let dist = WeightedIndex::new(weights).unwrap();
             let chosen_idx = dist.sample(rng);
             let new_drug_idx = drug_scores[chosen_idx].0;
 
@@ -1921,12 +1921,15 @@ pub fn apply_rules(
     // Stage 1: Decide whether to start any antibiotic
     let region_cur_str = individual.region_cur_in.as_str();
     let region_liv_str = individual.region_living.as_str();
-    let available_drugs: Vec<usize> = DRUG_SHORT_NAMES
-        .iter()
-        .enumerate()
-        .filter(|(idx, &name)| is_drug_available(*idx, name, region_cur_str, region_liv_str, time_step, param_cache))
-        .map(|(idx, _)| idx)
-        .collect();
+    let mut available_drugs_buf = [0usize; 70];
+    let mut available_drugs_len = 0;
+    for (idx, &name) in DRUG_SHORT_NAMES.iter().enumerate() {
+        if is_drug_available(idx, name, region_cur_str, region_liv_str, time_step, param_cache) {
+            available_drugs_buf[available_drugs_len] = idx;
+            available_drugs_len += 1;
+        }
+    }
+    let available_drugs = &available_drugs_buf[..available_drugs_len];
     let available_drugs_count = available_drugs.len();
     let min_available_drugs = 5; // Adjustable threshold
     let scaling_factor = if available_drugs_count < min_available_drugs && available_drugs_count > 0
@@ -2033,37 +2036,36 @@ pub fn apply_rules(
             // 3. Implementing TB-specific simultaneous multi-drug initiation would require substantial
             //    modification to this single-drug selection framework
             // 4. Clinical TB programs often start with sequential drug addition anyway due to tolerance testing
-            let active_syndrome_ids: Vec<usize> = individual
-                .infectious_syndrome
-                .iter()
-                .copied()
-                .filter(|&sid| sid > 0)
-                .map(|sid| sid as usize)
-                .collect();
+            let mut active_syndrome_ids_buf = [0usize; 64];
+            let mut active_syndrome_ids_len = 0;
+            for &sid in &individual.infectious_syndrome {
+                if sid > 0 {
+                    active_syndrome_ids_buf[active_syndrome_ids_len] = sid as usize;
+                    active_syndrome_ids_len += 1;
+                }
+            }
+            let active_syndrome_ids = &active_syndrome_ids_buf[..active_syndrome_ids_len];
             let prophylaxis_candidate =
                 !symptomatic_infection_present && individual.immunodeficiency_type.is_some();
             let misdiagnosed_symptom_start =
                 !symptomatic_infection_present && !prophylaxis_candidate;
-            let mut drug_scores: Vec<(usize, f64)> = Vec::new();
+            let mut drug_scores_buf = [(0usize, 0.0f64); 70];
+            let mut drug_scores_len = 0;
             let targeted_selection = has_any_identified_infection;
-            let identified_bacteria: Vec<usize> = if targeted_selection {
-                BACTERIA_LIST
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(b_idx, _)| {
-                        if individual.level[b_idx] > INFECTION_EPS
-                            && individual.test_identified_infection[b_idx]
-                        {
-                            Some(b_idx)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            for &drug_idx in &available_drugs {
+            let mut identified_bacteria_buf = [0usize; 70];
+            let mut identified_bacteria_len = 0;
+            if targeted_selection {
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.level[b_idx] > INFECTION_EPS
+                        && individual.test_identified_infection[b_idx]
+                    {
+                        identified_bacteria_buf[identified_bacteria_len] = b_idx;
+                        identified_bacteria_len += 1;
+                    }
+                }
+            }
+            let identified_bacteria = &identified_bacteria_buf[..identified_bacteria_len];
+            for &drug_idx in available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
                 // Restriction: only block this drug when resistance was detected for an active infection
                 let mut resistance_detected = false;
@@ -2136,7 +2138,7 @@ pub fn apply_rules(
                     if active_syndrome_ids.is_empty() {
                         empiric_multiplier *= store.syndrome.empiric_drug_score(0, drug_idx);
                     } else {
-                        for &syndrome_id in &active_syndrome_ids {
+                        for &syndrome_id in active_syndrome_ids {
                             empiric_signal_present = true;
                             empiric_multiplier *=
                                 store.syndrome.empiric_drug_score(syndrome_id, drug_idx);
@@ -2153,7 +2155,7 @@ pub fn apply_rules(
                     }
                     let mut has_meaningful_activity = false;
 
-                    for &b_idx in &identified_bacteria {
+                    for &b_idx in identified_bacteria {
                         // Check if bacteria treatment was recognized in current year
                         let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
@@ -2179,7 +2181,7 @@ pub fn apply_rules(
                     }
 
                     // PATHOGEN-SPECIFIC CLINICAL GUIDELINES: Boost appropriate drugs, block inappropriate ones
-                    for &b_idx in &identified_bacteria {
+                    for &b_idx in identified_bacteria {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         match (bacteria_name, drug_name) {
                             // streptococcus_agalactiae (Group B Strep)
@@ -2620,7 +2622,7 @@ pub fn apply_rules(
                     // CLINICAL CONCENTRATION FORCE: Heavily penalize drugs that aren't first/second-line
                     // This creates realistic clinical concentration patterns
                     let mut is_first_or_second_line = false;
-                    for &b_idx in &identified_bacteria {
+                    for &b_idx in identified_bacteria {
                         let bacteria_name = BACTERIA_LIST[b_idx];
                         let first_second_line_drugs = match bacteria_name {
                             "pseudomonas_aeruginosa" => vec![
@@ -2758,7 +2760,7 @@ pub fn apply_rules(
                     }
 
                     let mut max_bacteria_specific_multiplier: f64 = 1.0;
-                    for &b_idx in &identified_bacteria {
+                    for &b_idx in identified_bacteria {
                         // Check if bacteria treatment was recognized in current year
                         let current_year = 1930.0 + (time_step as f64 / 365.0);
                         if let Some(recognition_year) =
@@ -2836,13 +2838,10 @@ pub fn apply_rules(
 
                         // Start with all bacteria if empirical (unknown source)
                         // If targeted (known source), only check surveillance for the identified pathogens
-                        let check_indices: Vec<usize> = if has_any_identified_infection {
-                            identified_bacteria.clone()
-                        } else {
-                            (0..BACTERIA_LIST.len()).collect()
-                        };
-
-                        for b_idx in check_indices {
+                        for b_idx in 0..BACTERIA_LIST.len() {
+                            if has_any_identified_infection && !identified_bacteria.contains(&b_idx) {
+                                continue;
+                            }
                             let resistance_prevalence = majority_r_cache.probability(
                                 region_idx,
                                 hospital_status,
@@ -3080,24 +3079,28 @@ pub fn apply_rules(
 
                 // Only include drugs with positive scores for selection
                 if score > 0.0 {
-                    drug_scores.push((drug_idx, score));
+                    drug_scores_buf[drug_scores_len] = (drug_idx, score);
+                    drug_scores_len += 1;
                 }
             }
 
             // Weighted probabilistic selection from scored drugs
+            let drug_scores = &drug_scores_buf[..drug_scores_len];
             if !drug_scores.is_empty() {
                 // Add stochasticity parameter to control randomness vs determinism
                 // Apply randomness scaling: lower value = more deterministic (clinically realistic)
                 // Value of 0.5 = strongly favor best drugs, 1.0 = moderate, 2.0+ = random
-                let weights: Vec<f64> = drug_scores
-                    .iter()
-                    .map(|(_, score)| (score / selection_temperature).exp())
-                    .collect();
+                let mut weights_buf = [0.0f64; 70];
+                for i in 0..drug_scores.len() {
+                    let score = drug_scores[i].1;
+                    weights_buf[i] = (score / selection_temperature).exp();
+                }
+                let weights = &weights_buf[..drug_scores.len()];
 
                 // Handle edge case where all weights are zero or infinite
                 let total_weight: f64 = weights.iter().sum();
                 if total_weight > 0.0 && total_weight.is_finite() {
-                    let dist = WeightedIndex::new(&weights).unwrap();
+                    let dist = WeightedIndex::new(weights).unwrap();
                     let chosen_idx = dist.sample(rng);
                     let chosen_drug_idx = drug_scores[chosen_idx].0;
 
@@ -3149,7 +3152,7 @@ pub fn apply_rules(
                             // If a drug is effective against ANY identified bacteria, keep it (e.g. for co-infection)
                             // If it is effective against NONE, stop it.
                             let mut has_efficacy = false;
-                            for &b_idx in &identified_bacteria {
+                            for &b_idx in identified_bacteria {
                                 // Use the same potency logic as selection
                                 let potency = param_cache.potency(b_idx, existing_drug_idx);
                                 if potency >= min_potency {
@@ -4321,8 +4324,8 @@ pub fn apply_rules(
                             mechanism_profile_cache.sample(region_idx, b_idx, rng)
                         {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
-                                for (m_idx, &active) in profile.iter().enumerate() {
-                                    if active {
+                                for m_idx in 0..64 {
+                                    if (profile & (1 << m_idx)) != 0 {
                                         individual.resistance_mechanisms[b_idx][m_idx] = true;
                                     }
                                 }
@@ -4984,7 +4987,8 @@ pub fn apply_rules(
             {
                 use crate::simulation::population::ResistanceMechanism;
                 let bacteria_name = BACTERIA_LIST[b_idx];
-                let mut mechanisms_reverted = Vec::new();
+                let mut mechanisms_reverted_buf = [0usize; 64];
+                                    let mut mechanisms_reverted_len = 0;
 
                 for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
                     if individual.resistance_mechanisms[b_idx][mechanism_idx] {
@@ -5002,14 +5006,18 @@ pub fn apply_rules(
 
                             if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
                                 individual.resistance_mechanisms[b_idx][mechanism_idx] = false;
-                                mechanisms_reverted.push(mechanism_idx);
+                                if mechanisms_reverted_len < 64 {
+                                            mechanisms_reverted_buf[mechanisms_reverted_len] = mechanism_idx;
+                                            mechanisms_reverted_len += 1;
+                                        }
                             }
                         }
                     }
                 }
 
                 // If any mechanisms were lost, recalculate resistance levels for all drugs
-                if !mechanisms_reverted.is_empty() {
+                let mechanisms_reverted = &mechanisms_reverted_buf[..mechanisms_reverted_len];
+                                    if !mechanisms_reverted.is_empty() {
                     propagate_mechanism_resistance(
                         individual,
                         b_idx,
@@ -5072,22 +5080,21 @@ pub fn apply_rules(
             let mut tb_synergy_bonus = 0.0;
             if bacteria == "mdr_mycobacterium_tuberculosis" {
                 // Count active TB drugs with meaningful potency
-                let active_tb_drugs: Vec<_> = DRUG_SHORT_NAMES
+                let active_tb_drugs_count = DRUG_SHORT_NAMES
                     .iter()
                     .enumerate()
                     .filter(|(drug_idx, _drug_name)| {
                         if individual.cur_level_drug[*drug_idx] <= 0.0 {
                             return false;
                         }
-
                         let potency = param_cache.potency(b_idx, *drug_idx);
-                        potency >= 0.1 // Only count drugs with meaningful TB potency
+                        potency >= 0.1
                     })
-                    .collect();
+                    .count();
 
                 let synergy_threshold = cached_tb_synergy_threshold;
 
-                if active_tb_drugs.len() >= synergy_threshold {
+                if active_tb_drugs_count >= synergy_threshold {
                     let synergy_multiplier = cached_tb_synergy_multiplier;
                     // Background effectiveness represents unmodeled TB-specific drugs (bedaquiline, pretomanid, delamanid,
                     // cycloserine, ethionamide, p-aminosalicylic acid) that are critical for MDR-TB treatment but not
@@ -5894,6 +5901,6 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
     };
 
     let weights: Vec<f64> = syndrome_probs.iter().map(|&(_, p)| p).collect();
-    let dist = WeightedIndex::new(&weights).unwrap();
+    let dist = WeightedIndex::new(weights).unwrap();
     syndrome_probs[dist.sample(rng)].0
 }

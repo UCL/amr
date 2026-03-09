@@ -53,8 +53,10 @@ mod simulation;
 // consider drug scores
 // consider relative chance of drug start by infection site
 //
-//
-//
+// ? consider that hgt can come from non-pathogenic bacteria (which we don't model) so don't
+// necessarily need another pathogenic bacteria in the compartment to acquire
+// the resistance - but we have acquisition of resistance at infection - not sure we 
+// we should worry too much about this
 //
 //
 // consider for future iterations:
