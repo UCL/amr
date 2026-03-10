@@ -695,7 +695,7 @@ fn assess_treatment_failure(
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = alternative_scores
             .iter()
-            .map(|(_, score)| (score / selection_temperature).exp())
+            .map(|(_, score)| (score / selection_temperature).fast_exp())
             .collect();
 
         let total_weight: f64 = weights.iter().sum();
@@ -992,7 +992,7 @@ fn start_restart_treatment(
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = drug_scores
             .iter()
-            .map(|(_, score)| (score / selection_temperature).exp())
+            .map(|(_, score)| (score / selection_temperature).fast_exp())
             .collect();
 
         let total_weight: f64 = weights.iter().sum();
@@ -1042,6 +1042,7 @@ const SEPSIS_AGE_BUCKET_SAMPLE_DAYS: [u32; SEPSIS_AGE_BUCKET_COUNT] = [
 ];
 
 /// Pre-computed parameter keys to avoid string allocation during simulation
+#[allow(dead_code)]
 pub struct ParameterKeyCache {
     drug_count: usize,
     bacteria_count: usize,
@@ -1055,6 +1056,7 @@ pub struct ParameterKeyCache {
     pub majority_r_evolution_rate: f64,
     pub max_resistance_level: f64,
     pub test_delay_days: i32,
+    pub resistance_test_result_delay_days: i32,
     pub bacterial_testing_available_from_day: i32,
     pub test_r_error_prob: f64,
     pub test_r_error_value: f64,
@@ -1064,7 +1066,7 @@ pub struct ParameterKeyCache {
     pub tb_background_effectiveness: f64,
     pub microbiome_clearance_on_drug_treatment: f64,
     pub drug_evaluation_days: i32,
-    pub tb_guaranteed_rifampicin_resistance: bool,
+    pub tb_guaranteed_rifampicin_resistance: f64,
     pub bacterial_testing_base_rate_per_day: f64,
     pub bacterial_testing_initial_adoption_rate: f64,
     pub bacterial_testing_max_temporal_multiplier: f64,
@@ -1161,6 +1163,7 @@ impl ParameterKeyCache {
             majority_r_evolution_rate: crate::config::get_global_param("majority_r_evolution_rate_per_day_when_drug_present").unwrap_or(0.0),
             max_resistance_level: parameter_store().globals.max_resistance_level,
             test_delay_days: crate::config::get_global_param("test_delay_days").unwrap_or(3.0) as i32,
+            resistance_test_result_delay_days: crate::config::get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32,
             bacterial_testing_available_from_day: crate::config::get_global_param("bacterial_testing_available_from_day").unwrap_or(5478.0) as i32,
             test_r_error_prob: crate::config::get_global_param("test_r_error_probability").unwrap_or(0.02),
             test_r_error_value: crate::config::get_global_param("test_r_error_value").unwrap_or(0.25),
@@ -1170,7 +1173,7 @@ impl ParameterKeyCache {
             tb_background_effectiveness: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_background_drug_effectiveness").unwrap_or(0.8),
             microbiome_clearance_on_drug_treatment: crate::config::get_global_param("microbiome_clearance_probability_on_drug_treatment").unwrap_or(0.8),
             drug_evaluation_days: crate::config::get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32,
-            tb_guaranteed_rifampicin_resistance: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance").unwrap_or(1.0) > 0.5,
+            tb_guaranteed_rifampicin_resistance: crate::config::get_global_param("mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance").unwrap_or(0.9),
             bacterial_testing_base_rate_per_day: crate::config::get_global_param("bacterial_testing_base_rate_per_day").unwrap_or(0.15),
             bacterial_testing_initial_adoption_rate: crate::config::get_global_param("bacterial_testing_initial_adoption_rate").unwrap_or(0.1),
             bacterial_testing_max_temporal_multiplier: crate::config::get_global_param("bacterial_testing_max_temporal_multiplier").unwrap_or(1.0),
@@ -1314,8 +1317,7 @@ pub fn apply_rules(
         .globals
         .double_dose_probability_if_identified_infection;
     let random_drug_cessation_prob = store.globals.random_drug_cessation_probability;
-    let resistance_test_result_delay_days =
-        get_global_param("resistance_test_result_delay_days").unwrap_or(2.0) as i32;
+    let resistance_test_result_delay_days = param_cache.resistance_test_result_delay_days;
 
     // --- Pre-compute per-individual constants that were previously looked up inside the per-bacteria loop ---
     let cached_microbiome_majority_threshold = param_cache.microbiome_majority_threshold;
@@ -1424,7 +1426,7 @@ pub fn apply_rules(
         log_odds += store.region.hospitalization_log_odds(individual.region_living);
         
         // Logistic transformation: P = 1 / (1 + exp(-log_odds))
-        let prob_hospitalization_today = 1.0 / (1.0 + (-log_odds).exp());
+        let prob_hospitalization_today = 1.0 / (1.0 + (-log_odds).fast_exp());
 
         if rng.gen::<f64>() < prob_hospitalization_today {
             individual.hospital_status = HospitalStatus::InHospital;
@@ -1496,86 +1498,84 @@ pub fn apply_rules(
         // If not hospitalized, consider initiating travel
         if !individual.hospital_status.is_hospitalized() && rng.gen::<f64>() < travel_prob {
             // Initiate travel: select a random new region different from their living region
-            let mut new_region: Region;
-            loop {
-                // Select destination based on economic development level (main determinant of travel patterns)
-                // Higher-income regions have more global travel; lower-income regions travel more regionally
-                let destinations = match individual.region_living {
-                    Region::NorthAmerica | Region::Europe | Region::Oceania => {
-                        // High-income regions: global travel with preference for other developed regions
-                        vec![
-                            (Region::Europe, 0.35),       // Strong developed-to-developed flow
-                            (Region::Asia, 0.25),         // Major business/tourism destination
-                            (Region::NorthAmerica, 0.15), // Cross-Atlantic travel
-                            (Region::Oceania, 0.10),      // Tourism/business
-                            (Region::SouthAmerica, 0.10), // Tourism/business
-                            (Region::Africa, 0.05),       // Lower but still significant
-                        ]
-                    }
-                    Region::Asia => {
-                        // Mixed income: regional preference with some global reach
-                        vec![
-                            (Region::Asia, 0.40),         // Strong regional travel
-                            (Region::Europe, 0.20),       // Business/education
-                            (Region::NorthAmerica, 0.15), // Business/education
-                            (Region::Oceania, 0.10),      // Regional proximity
-                            (Region::Africa, 0.08),       // Growing connections
-                            (Region::SouthAmerica, 0.07), // Limited
-                        ]
-                    }
-                    Region::SouthAmerica => {
-                        // Middle income: regional focus with some international travel
-                        vec![
-                            (Region::SouthAmerica, 0.40), // Strong regional travel
-                            (Region::NorthAmerica, 0.25), // Geographic proximity
-                            (Region::Europe, 0.15),       // Historical ties
-                            (Region::Asia, 0.10),         // Growing connections
-                            (Region::Africa, 0.05),       // Limited
-                            (Region::Oceania, 0.05),      // Limited
-                        ]
-                    }
-                    Region::Africa => {
-                        // Lower income: primarily regional travel
-                        vec![
-                            (Region::Africa, 0.50),       // Strong regional travel
-                            (Region::Europe, 0.20),       // Historical/economic ties
-                            (Region::Asia, 0.15),         // Growing connections
-                            (Region::NorthAmerica, 0.08), // Limited
-                            (Region::SouthAmerica, 0.04), // Very limited
-                            (Region::Oceania, 0.03),      // Very limited
-                        ]
-                    }
-                    Region::Home => {
-                        // Should not reach here, but default to global uniform if it does
-                        vec![
-                            (Region::Asia, 0.167),
-                            (Region::Africa, 0.167),
-                            (Region::Europe, 0.166),
-                            (Region::NorthAmerica, 0.167),
-                            (Region::SouthAmerica, 0.166),
-                            (Region::Oceania, 0.167),
-                        ]
-                    }
-                };
+            // We pre-define standard travel matrix probabilities.
+            // Notice: it no longer uses dynamic vectors!
+            let (raw_destinations, len) = match individual.region_living {
+                Region::NorthAmerica | Region::Europe | Region::Oceania => (
+                    [
+                        (Region::Europe, 0.35),
+                        (Region::Asia, 0.25),
+                        (Region::NorthAmerica, 0.15),
+                        (Region::Oceania, 0.10),
+                        (Region::SouthAmerica, 0.10),
+                        (Region::Africa, 0.05),
+                    ], 6)
+                ,
+                Region::Asia => (
+                    [
+                        (Region::Asia, 0.40),
+                        (Region::Europe, 0.20),
+                        (Region::NorthAmerica, 0.15),
+                        (Region::Oceania, 0.10),
+                        (Region::Africa, 0.08),
+                        (Region::SouthAmerica, 0.07),
+                    ], 6)
+                ,
+                Region::SouthAmerica => (
+                    [
+                        (Region::SouthAmerica, 0.40),
+                        (Region::NorthAmerica, 0.25),
+                        (Region::Europe, 0.15),
+                        (Region::Asia, 0.10),
+                        (Region::Africa, 0.05),
+                        (Region::Oceania, 0.05),
+                    ], 6)
+                ,
+                Region::Africa => (
+                    [
+                        (Region::Africa, 0.50),
+                        (Region::Europe, 0.20),
+                        (Region::Asia, 0.15),
+                        (Region::NorthAmerica, 0.08),
+                        (Region::SouthAmerica, 0.04),
+                        (Region::Oceania, 0.03),
+                    ], 6)
+                ,
+                Region::Home => (
+                    [
+                        (Region::Asia, 0.167),
+                        (Region::Africa, 0.167),
+                        (Region::Europe, 0.166),
+                        (Region::NorthAmerica, 0.167),
+                        (Region::SouthAmerica, 0.166),
+                        (Region::Oceania, 0.167),
+                    ], 6)
+                ,
+            };
 
-                // Sample from the economic-based destination distribution
-                let rand_val = rng.gen::<f64>();
-                let mut cumulative_prob = 0.0;
-                new_region = Region::Asia; // Default fallback
-
-                for (region, prob) in destinations {
-                    cumulative_prob += prob;
-                    if rand_val < cumulative_prob {
-                        new_region = region;
-                        break;
-                    }
-                }
-
-                // Ensure the individual doesn't 'travel' to their own living region
-                if new_region != individual.region_living {
-                    break; // Found a suitable new region to visit
+            let mut valid_destinations = [(Region::Home, 0.0); 6];
+            let mut dest_count = 0;
+            let mut total_weight = 0.0;
+            for i in 0..len {
+                let dest = raw_destinations[i].0;
+                let weight = raw_destinations[i].1;
+                if dest != individual.region_living {
+                    valid_destinations[dest_count] = (dest, weight);
+                    total_weight += weight;
+                    dest_count += 1;
                 }
             }
+
+            let mut rand_val = rng.gen::<f64>() * total_weight;
+            let mut new_region = valid_destinations[dest_count - 1].0; // Default to last
+            for i in 0..dest_count {
+                if rand_val < valid_destinations[i].1 {
+                    new_region = valid_destinations[i].0;
+                    break;
+                }
+                rand_val -= valid_destinations[i].1;
+            }
+
             individual.region_cur_in = new_region;
             individual.days_visiting = 1; // Start the visit counter at 1
         }
@@ -1696,11 +1696,11 @@ pub fn apply_rules(
                         0.0
                     } else {
                         // H. pylori + other bacteria = use calculated risk
-                        1.0 / (1.0 + (-log_odds_sepsis).exp())
+                        1.0 / (1.0 + (-log_odds_sepsis).fast_exp())
                     }
                 } else {
                     // Non-H. pylori bacteria = use calculated risk
-                    1.0 / (1.0 + (-log_odds_sepsis).exp())
+                    1.0 / (1.0 + (-log_odds_sepsis).fast_exp())
                 };
 
                 if rng.gen::<f64>() < prob_sepsis_today {
@@ -1905,8 +1905,8 @@ pub fn apply_rules(
         } else {
             // Use exponential decay based on drug-specific half-life
             let half_life_days = store.drug.half_life_days(drug_idx);
-            let decay_constant = (2.0_f64).ln() / half_life_days; // k = ln(2) / t_half
-            let decay_factor = (-decay_constant).exp(); // e^(-k*t) where t=1 day
+            let decay_constant = (2.0_f64).fast_ln() / half_life_days; // k = ln(2) / t_half
+            let decay_factor = (-decay_constant).fast_exp(); // e^(-k*t) where t=1 day
             let new_drug_level = individual.cur_level_drug[drug_idx] * decay_factor;
             // Set levels below INFECTION_EPS to zero so residual traces do not keep treatments active
             individual.cur_level_drug[drug_idx] = if new_drug_level < INFECTION_EPS {
@@ -1990,12 +1990,12 @@ pub fn apply_rules(
         // Syndrome-specific adjustment (multiplicative on odds, converted to log-odds)
         // syndrome_administration_multiplier > 1.0 increases odds, < 1.0 decreases
         if syndrome_administration_multiplier > 0.0 && syndrome_administration_multiplier != 1.0 {
-            log_odds += syndrome_administration_multiplier.ln();
+            log_odds += syndrome_administration_multiplier.fast_ln();
         }
         
         // Apply scaling factor for limited drug availability (converted to log-odds)
         if scaling_factor != 1.0 && scaling_factor > 0.0 {
-            log_odds += scaling_factor.ln();
+            log_odds += scaling_factor.fast_ln();
         }
         
         // Regional healthcare access adjustment
@@ -2006,11 +2006,11 @@ pub fn apply_rules(
         // Multiplier < 1.0 reduces initiation (less unnecessary prescribing)
         // Convert multiplier to log-odds adjustment: ln(0.85) ≈ -0.16 reduces odds by ~15%
         if drug_initiation_rate_multiplier != 1.0 && drug_initiation_rate_multiplier > 0.0 {
-            log_odds += drug_initiation_rate_multiplier.ln();
+            log_odds += drug_initiation_rate_multiplier.fast_ln();
         }
         
         // Logistic transformation: P = 1 / (1 + exp(-log_odds))
-        let start_any_antibiotic_prob = 1.0 / (1.0 + (-log_odds).exp());
+        let start_any_antibiotic_prob = 1.0 / (1.0 + (-log_odds).fast_exp());
 
         if rng.gen_bool(start_any_antibiotic_prob) {
             // Identify primary bacteria for drug score tracking (highest level among infected bacteria)
@@ -3093,7 +3093,7 @@ pub fn apply_rules(
                 let mut weights_buf = [0.0f64; 70];
                 for i in 0..drug_scores.len() {
                     let score = drug_scores[i].1;
-                    weights_buf[i] = (score / selection_temperature).exp();
+                    weights_buf[i] = (score / selection_temperature).fast_exp();
                 }
                 let weights = &weights_buf[..drug_scores.len()];
 
@@ -3256,7 +3256,7 @@ pub fn apply_rules(
     // disappear instantly when treatment stops, and prolonged courses accumulate more risk.
     let default_half_life = store.globals.default_toxicity_reservoir_half_life_days;
     let default_decay_factor = if default_half_life > 0.0 {
-        (-LN_2 / default_half_life).exp()
+        (-LN_2 / default_half_life).fast_exp()
     } else {
         0.0
     };
@@ -3267,7 +3267,7 @@ pub fn apply_rules(
         let configured_half_life = store.drug.toxicity_reservoir_half_life_days(drug_idx);
         if configured_half_life >= 0.0 {
             decay_factor = if configured_half_life > 0.0 {
-                (-LN_2 / configured_half_life).exp()
+                (-LN_2 / configured_half_life).fast_exp()
             } else {
                 0.0
             };
@@ -3290,7 +3290,7 @@ pub fn apply_rules(
     // Accumulate daily disruption from active drugs and decay logarithmically
     let disruption_half_life = store.globals.antibiotic_disruption_decay_half_life_days;
     let disruption_decay_factor = if disruption_half_life > 0.0 {
-        (-LN_2 / disruption_half_life).exp()
+        (-LN_2 / disruption_half_life).fast_exp()
     } else {
         0.0
     };
@@ -3443,10 +3443,10 @@ pub fn apply_rules(
         let half_life_years = store.globals.mortality_improvement_half_life_years;
 
         // Exponential decay from start_multiplier to end_multiplier
-        let decay_rate = (2.0_f64).ln() / half_life_years; // ln(2) / half_life
+        let decay_rate = (2.0_f64).fast_ln() / half_life_years; // ln(2) / half_life
         let time_multiplier = end_multiplier
-            + (start_multiplier - end_multiplier) * (-decay_rate * years_since_1930).exp();
-        let time_log_odds_adjustment = time_multiplier.ln();
+            + (start_multiplier - end_multiplier) * (-decay_rate * years_since_1930).fast_exp();
+        let time_log_odds_adjustment = time_multiplier.fast_ln();
         total_log_odds += time_log_odds_adjustment;
 
         let age_years = individual.age as f64 / 365.0;
@@ -3478,7 +3478,7 @@ pub fn apply_rules(
         }
 
         // Convert total log odds to probability
-        let background_risk = 1.0 / (1.0 + (-total_log_odds).exp());
+        let background_risk = 1.0 / (1.0 + (-total_log_odds).fast_exp());
 
         let background_risk = background_risk.min(1.0);
         individual.background_all_cause_mortality_rate = background_risk;
@@ -3531,7 +3531,7 @@ pub fn apply_rules(
                 log_odds += store.globals.infection_non_sepsis_log_odds_immunosuppressed;
             }
 
-            let probability = 1.0 / (1.0 + (-log_odds).exp());
+            let probability = 1.0 / (1.0 + (-log_odds).fast_exp());
             let probability = probability.clamp(0.0, 1.0);
             infection_non_sepsis_prob_not_dying *= 1.0 - probability;
         }
@@ -3572,7 +3572,7 @@ pub fn apply_rules(
             let region_sepsis_multiplier = store
                 .region
                 .sepsis_mortality_multiplier(individual.region_living);
-            log_odds += region_sepsis_multiplier.ln();
+            log_odds += region_sepsis_multiplier.fast_ln();
 
             // Immunosuppression effect
             if individual.immunodeficiency_type.is_some() {
@@ -3621,7 +3621,7 @@ pub fn apply_rules(
 
             // Convert log-odds to probability using logistic function
             // P = 1 / (1 + exp(-log_odds))
-            sepsis_death_risk = 1.0 / (1.0 + (-log_odds).exp());
+            sepsis_death_risk = 1.0 / (1.0 + (-log_odds).fast_exp());
         }
         let toxicity_death_risk_for_individual = individual.mortality_risk_current_toxicity;
 
@@ -3748,7 +3748,7 @@ pub fn apply_rules(
                     total_log_odds += store.region.sepsis_log_odds(individual.region_living);
 
                     // Convert log odds to probability using logistic function
-                    let recovery_probability = 1.0 / (1.0 + (-total_log_odds).exp());
+                    let recovery_probability = 1.0 / (1.0 + (-total_log_odds).fast_exp());
 
                     // Check for recovery
                     if rng.gen::<f64>() < recovery_probability {
@@ -3817,7 +3817,7 @@ pub fn apply_rules(
 
             // Convert log-odds to probability
             let acquisition_log_odds = log_odds;
-            let mut acquisition_probability = 1.0 / (1.0 + (-acquisition_log_odds).exp());
+            let mut acquisition_probability = 1.0 / (1.0 + (-acquisition_log_odds).fast_exp());
 
             // Apply historical MDR TB incidence modifier
             if bacteria == "mdr_mycobacterium_tuberculosis" {
@@ -3888,7 +3888,7 @@ pub fn apply_rules(
                     log_odds += antibiotic_disruption_log_odds;
 
                     // Convert log-odds to probability
-                    let mut microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).exp());
+                    let mut microbiome_acquisition_probability = 1.0 / (1.0 + (-log_odds).fast_exp());
 
                     // Keep MDR-TB carriage aligned with historical incidence multipliers so that
                     // parameter sweeps (e.g., diagnostic run with multiplier = 0) affect carriers
@@ -3998,7 +3998,7 @@ pub fn apply_rules(
 
                 // Convert baseline probability to log-odds for additive modeling
                 let baseline_log_odds =
-                    (baseline_clearance_prob / (1.0 - baseline_clearance_prob)).ln();
+                    (baseline_clearance_prob / (1.0 - baseline_clearance_prob)).fast_ln();
                 let mut clearance_log_odds = baseline_log_odds;
                 let max_resistance_level = store.globals.max_resistance_level;
                 let mut strongest_microbiome_activity: f64 = 0.0;
@@ -4059,7 +4059,7 @@ pub fn apply_rules(
                 }
 
                 // Convert log-odds back to probability
-                let clearance_probability = 1.0 / (1.0 + (-clearance_log_odds).exp());
+                let clearance_probability = 1.0 / (1.0 + (-clearance_log_odds).fast_exp());
 
                 if rng.gen_bool(clearance_probability.clamp(0.0, 1.0)) {
                     individual.presence_microbiome[b_idx] = false;
@@ -4286,11 +4286,7 @@ pub fn apply_rules(
                     let simulation_year = 1930.0 + (time_step as f64 / 365.0);
 
                     let guaranteed_rifampicin_resistance = if is_tb && simulation_year >= 1966.0 {
-                        // Only apply guaranteed rifampicin resistance after rifampicin is available
-                        get_global_param(
-                            "mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance",
-                        )
-                        .unwrap_or(0.90)
+                        param_cache.tb_guaranteed_rifampicin_resistance
                     } else {
                         0.0
                     };
@@ -4438,7 +4434,7 @@ pub fn apply_rules(
 
                     // --- TB-specific guaranteed rifampicin resistance ---
                     if is_tb && guaranteed_rifampicin_resistance > 0.0 {
-                        if let Some(&rifampicin_idx) = drug_indices.get("rifampicin") {
+                        if let Some(rifampicin_idx) = DRUG_SHORT_NAMES.iter().position(|&n| n == "rifampicin") {
                             let resistance_data =
                                 &mut individual.resistances[b_idx][rifampicin_idx];
                             let current_resistance =
@@ -4585,7 +4581,7 @@ pub fn apply_rules(
                                 let effective_site = d_level * penetration;
                                 let norm = (effective_site / d_initial).clamp(0.0, 10.0);
                                 let gauss_exp = -((norm - peak_x).powi(2)) / (2.0 * sigma * sigma);
-                                emergence_drug_factors.push((0.01 + 0.99 * gauss_exp.exp()).clamp(0.0, 1.0));
+                                emergence_drug_factors.push((0.01 + 0.99 * gauss_exp.fast_exp()).clamp(0.0, 1.0));
                             } else {
                                 emergence_drug_factors.push(0.0);
                             }
@@ -4802,17 +4798,10 @@ pub fn apply_rules(
         // Check bacteria-specific test availability for late-discovered bacteria (e.g., H. pylori 1982)
         // Most bacteria are available once general bacterial testing is available (~1945)
         // Only specific bacteria have delayed discovery dates
-        let bacteria_name = BACTERIA_LIST[b_idx];
-        let bacteria_param_name = bacteria_name.to_lowercase().replace(" ", "_");
-        let bacteria_test_availability_param =
-            format!("{}_test_availability_year", bacteria_param_name);
-        let bacteria_specific_available = if let Some(bacteria_discovery_year) =
-            get_global_param(&bacteria_test_availability_param)
-        {
-            let bacteria_discovery_day = ((bacteria_discovery_year - 1930.0) * 365.25) as i32;
-            time_step >= bacteria_discovery_day as usize
+        let bacteria_specific_available = if let Some(bacteria_discovery_day) = param_cache.bacteria_test_availability_day[b_idx] {
+            time_step >= bacteria_discovery_day
         } else {
-            bacterial_testing_available // For most bacteria, use the general bacterial testing availability
+            bacterial_testing_available
         };
 
         if is_infected
@@ -5280,7 +5269,7 @@ pub fn apply_rules(
                     let log_odds = base_log_odds + (level_above_threshold * log_odds_per_level);
                     
                     // Logistic transformation: P = 1 / (1 + exp(-log_odds))
-                    let symptom_probability = 1.0 / (1.0 + (-log_odds).exp());
+                    let symptom_probability = 1.0 / (1.0 + (-log_odds).fast_exp());
 
                     // Roll for symptom onset
                     if rng.gen_bool(symptom_probability) {
@@ -5573,7 +5562,7 @@ fn calculate_testing_probability(
     let midpoint = adoption_years / 2.0; // Inflection point (fastest growth)
     let steepness = 6.0 / adoption_years; // Controls how steep the S-curve is
 
-    let sigmoid_factor = 1.0 / (1.0 + (-steepness * (years_since_availability - midpoint)).exp());
+    let sigmoid_factor = 1.0 / (1.0 + (-steepness * (years_since_availability - midpoint)).fast_exp());
     let temporal_multiplier = initial_rate + (max_multiplier - initial_rate) * sigmoid_factor;
 
     // Hospital status multiplier
@@ -5904,3 +5893,23 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
     let dist = WeightedIndex::new(weights).unwrap();
     syndrome_probs[dist.sample(rng)].0
 }
+
+
+pub trait FastMath {
+    fn fast_exp(self) -> Self;
+    fn fast_ln(self) -> Self;
+}
+
+impl FastMath for f64 {
+    #[inline(always)]
+    fn fast_exp(self) -> Self {
+        fast_math::exp(self as f32) as f64
+    }
+
+    #[inline(always)]
+    fn fast_ln(self) -> Self {
+        fast_math::log2(self as f32) as f64 * std::f64::consts::LN_2
+    }
+}
+
+
