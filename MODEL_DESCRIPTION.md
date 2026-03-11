@@ -21,7 +21,7 @@
 
 ## 1. Overview
 
-This model simulates the emergence, transmission, and dynamics of antimicrobial resistance (AMR) across a synthetic human population from 1930 to 2035. It is an individual-based (agent-based) model in which each person can acquire bacterial infections, receive antibiotic treatment, develop resistance through de novo mutation or horizontal gene transfer, and carry resistant organisms in their microbiome.
+This model simulates the emergence and dynamics of antimicrobial resistance (AMR) across a synthetic human population from 1930 to 2035. It is an individual-based (agent-based) model in which each person can acquire bacterial infections, receive antibiotic treatment, develop resistance through de novo mutation or horizontal gene transfer, and carry resistant organisms in their microbiome.
 
 The model tracks **42 bacterial species**, **58 antibiotics** (grouped into **18 drug classes**), and **35 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological and healthcare profiles.
 
@@ -31,7 +31,7 @@ Time advances in discrete **daily steps**. On each day, every individual in the 
 
 The model is designed for:
 
-- Estimating the global burden of AMR over time
+- Reconstructing the emergence and growth of AMR over time
 - Evaluating the potential impact of antibiotic stewardship policies
 - Exploring "what if" counterfactual scenarios (e.g., a world without resistance)
 - Understanding how resistance mechanisms spread across bacterial species and regions
@@ -41,7 +41,7 @@ The model is designed for:
 - Drug levels are modelled as abstract potency units rather than pharmacokinetic concentrations
 - Bacteria-bacteria competition within the microbiome is represented implicitly through resistance promotion and decay rather than explicit strain dynamics
 - The model does not capture within-host spatial heterogeneity (e.g., biofilm vs planktonic)
-- Vaccine effects are not explicitly modelled (though their population-level impact is partially captured through incidence parameters)
+- Vaccine effects are explicitly modelled: vaccinated people hold a proportionally lower incidence risk, though the infection risk is not dynamically dependent on background prevalence
 - Region definitions are broad continental groupings
 
 ---
@@ -56,7 +56,7 @@ The population is created at day 0 (calendar year 1930). Each individual is assi
 - **Sex**: male or female with equal probability
 - **Region**: sampled from demographic weights reflecting the global population distribution
 
-Age bands are specified in 4,000-day (~11-year) intervals. The demographic distribution is the product of per-region weights:
+The demographic distribution is the product of per-region weights:
 
 | Variable name | Description |
 |---------------|-------------|
@@ -86,7 +86,7 @@ Each day, every individual's age increments by one day. Age categories are recal
 | Middle age | 50–70 years | `middle_age` |
 | Elderly | 70+ years | `elderly` |
 
-An additional classification is used for sepsis and mortality:
+An additional classification is used specifically for sepsis and mortality. This temporary grouping exists to isolate **Neonates (0-28 days)**, who possess vastly different microbiological vulnerabilities and infection-case-fatality risks compared to older infants, which would otherwise be blurred if merged into the broader 0-1 year demographic bracket:
 
 | Category | Age range | Variable suffix |
 |----------|-----------|-----------------|
@@ -117,11 +117,11 @@ Chronic immunodeficiency probability at birth varies by age category:
 
 Hospital admission is modelled as a logistic function of clinical state:
 
-$$P(\text{admission}) = \frac{1}{1 + e^{-\text{log\_odds}}}$$
+**Probability of Admission:**  
+P(admission) = 1 / (1 + e^-log_odds)
 
-where:
-
-$$\text{log\_odds} = \text{base} + \text{age\_effect} + \text{sepsis\_effect} + \text{infection\_effect} + \text{region\_effect}$$
+Where log_odds is calculated linearly as:  
+log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect
 
 | Variable | Default | Description |
 |----------|---------|-------------|

@@ -1,17 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 2rem; color: #333; }
-h1, h2, h3 { color: #0056b3; }
-code { background-color: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; }
-pre { background-color: #f4f4f4; padding: 1em; overflow-x: auto; border-radius: 5px; }
-table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-th { background-color: #f2f2f2; }
-</style>
-</head>
-<body>
 <h1>AMR Simulation — Model Description</h1>
 <h2>Contents</h2>
 <ol>
@@ -32,13 +18,13 @@ th { background-color: #f2f2f2; }
 </ol>
 <hr />
 <h2>1. Overview</h2>
-<p>This model simulates the emergence, transmission, and dynamics of antimicrobial resistance (AMR) across a synthetic human population from 1930 to 2035. It is an individual-based (agent-based) model in which each person can acquire bacterial infections, receive antibiotic treatment, develop resistance through de novo mutation or horizontal gene transfer, and carry resistant organisms in their microbiome.</p>
+<p>This model simulates the emergence and dynamics of antimicrobial resistance (AMR) across a synthetic human population from 1930 to 2035. It is an individual-based (agent-based) model in which each person can acquire bacterial infections, receive antibiotic treatment, develop resistance through de novo mutation or horizontal gene transfer, and carry resistant organisms in their microbiome.</p>
 <p>The model tracks <strong>42 bacterial species</strong>, <strong>58 antibiotics</strong> (grouped into <strong>18 drug classes</strong>), and <strong>35 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological and healthcare profiles.</p>
 <p>Time advances in discrete <strong>daily steps</strong>. On each day, every individual in the population is processed through a sequence of 21 rules covering ageing, infection acquisition, clinical progression, treatment, resistance dynamics, and death.</p>
 <h3>Scope</h3>
 <p>The model is designed for:</p>
 <ul>
-<li>Estimating the global burden of AMR over time</li>
+<li>Reconstructing the emergence and growth of AMR over time</li>
 <li>Evaluating the potential impact of antibiotic stewardship policies</li>
 <li>Exploring "what if" counterfactual scenarios (e.g., a world without resistance)</li>
 <li>Understanding how resistance mechanisms spread across bacterial species and regions</li>
@@ -48,7 +34,7 @@ th { background-color: #f2f2f2; }
 <li>Drug levels are modelled as abstract potency units rather than pharmacokinetic concentrations</li>
 <li>Bacteria-bacteria competition within the microbiome is represented implicitly through resistance promotion and decay rather than explicit strain dynamics</li>
 <li>The model does not capture within-host spatial heterogeneity (e.g., biofilm vs planktonic)</li>
-<li>Vaccine effects are not explicitly modelled (though their population-level impact is partially captured through incidence parameters)</li>
+<li>Vaccine effects are explicitly modelled: vaccinated people hold a proportionally lower incidence risk, though the infection risk is not dynamically dependent on background prevalence</li>
 <li>Region definitions are broad continental groupings</li>
 </ul>
 <hr />
@@ -60,7 +46,7 @@ th { background-color: #f2f2f2; }
 <li><strong>Sex</strong>: male or female with equal probability</li>
 <li><strong>Region</strong>: sampled from demographic weights reflecting the global population distribution</li>
 </ul>
-<p>Age bands are specified in 4,000-day (~11-year) intervals. The demographic distribution is the product of per-region weights:</p>
+<p>The demographic distribution is the product of per-region weights:</p>
 <table>
 <thead>
 <tr>
@@ -153,7 +139,7 @@ th { background-color: #f2f2f2; }
 </tr>
 </tbody>
 </table>
-<p>An additional classification is used for sepsis and mortality:</p>
+<p>An additional classification is used specifically for sepsis and mortality. This temporary grouping exists to isolate <strong>Neonates (0-28 days)</strong>, who possess vastly different microbiological vulnerabilities and infection-case-fatality risks compared to older infants, which would otherwise be blurred if merged into the broader 0-1 year demographic bracket:</p>
 <table>
 <thead>
 <tr>
@@ -237,9 +223,10 @@ th { background-color: #f2f2f2; }
 </table>
 <h3>2.4 Hospitalisation</h3>
 <p>Hospital admission is modelled as a logistic function of clinical state:</p>
-<p>$$P(\text{admission}) = \frac{1}{1 + e^{-\text{log_odds}}}$$</p>
-<p>where:</p>
-<p>$$\text{log_odds} = \text{base} + \text{age_effect} + \text{sepsis_effect} + \text{infection_effect} + \text{region_effect}$$</p>
+<p><strong>Probability of Admission:</strong><br />
+P(admission) = 1 / (1 + e^-log_odds)</p>
+<p>Where log_odds is calculated linearly as:<br />
+log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect</p>
 <table>
 <thead>
 <tr>
@@ -2225,8 +2212,7 @@ th { background-color: #f2f2f2; }
 <h3>6.5 Drug Potency Matrix</h3>
 <p>Intrinsic drug activity against each bacterium (when no resistance is present) is defined in a 42×52 potency matrix. Values range from 0.0 (no activity) to 1.0 (maximum activity).</p>
 <p>The potency matrix is embedded as <code>POTENCY_EMBEDDED_DATA</code> in config.rs and generates parameters with the key pattern:</p>
-<pre><code>drug_{drug}_for_bacteria_{bacteria}_potency_when_no_r
-</code></pre>
+<p><code>drug_{drug}_for_bacteria_{bacteria}_potency_when_no_r</code></p>
 <p>For example, meropenem has potency 0.95 against E. coli but 0.0 against MRSA (when mecA is present). Penicillin G has potency 0.90 against S. pneumoniae but 0.0 against P. aeruginosa (intrinsically resistant).</p>
 <h3>6.6 Drug Availability by Region and Era</h3>
 <p>Drug availability varies by region and becomes available at historical introduction dates:</p>
@@ -2891,8 +2877,7 @@ th { background-color: #f2f2f2; }
 <h3>7.2 Mechanism–Drug-Class Enhancement Multipliers</h3>
 <p>Each mechanism reduces the efficacy of specific drug classes. The enhancement multiplier (0.0–1.0) determines how much a mechanism reduces drug activity: 0.0 = no effect, 1.0 = complete resistance.</p>
 <p>These are defined per mechanism × drug class (35 × 18 = 630 values), with variable pattern:</p>
-<pre><code>mech_{mechanism}_enhancement_{drug_class}
-</code></pre>
+<p><code>mech_{mechanism}_enhancement_{drug_class}</code></p>
 <p><strong>Global (legacy) enhancement multipliers</strong> (used when no per-class override exists):</p>
 <table>
 <thead>
@@ -5616,8 +5601,7 @@ th { background-color: #f2f2f2; }
 <h2>Appendix C — Output Specification</h2>
 <h3>C.1 Output File</h3>
 <p>Each simulation run produces a single CSV file:</p>
-<pre><code>amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv
-</code></pre>
+<p><code>amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv</code></p>
 <p>where <code>NNNNNN</code> is a zero-padded run identifier.</p>
 <h3>C.2 Row Structure</h3>
 <p>Each row represents one simulated day. The number of rows equals the total number of time steps (default 38,325).</p>
@@ -5839,5 +5823,3 @@ th { background-color: #f2f2f2; }
 </ul>
 <hr />
 <p><em>This document describes the model as implemented in the Rust codebase. All variable names correspond to parameter keys used in <code>src/config.rs</code>.</em></p>
-</body>
-</html>

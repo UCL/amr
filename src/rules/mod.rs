@@ -2136,12 +2136,18 @@ pub fn apply_rules(
                 let mut empiric_multiplier = 1.0;
                 if empiric_selection {
                     if active_syndrome_ids.is_empty() {
-                        empiric_multiplier *= store.syndrome.empiric_drug_score(0, drug_idx);
+                        let syn_score = store.syndrome.empiric_drug_score(0, drug_idx);
+                        if syn_score > 1.0 {
+                            empiric_signal_present = true;
+                        }
+                        empiric_multiplier *= syn_score;
                     } else {
                         for &syndrome_id in active_syndrome_ids {
-                            empiric_signal_present = true;
-                            empiric_multiplier *=
-                                store.syndrome.empiric_drug_score(syndrome_id, drug_idx);
+                            let syn_score = store.syndrome.empiric_drug_score(syndrome_id, drug_idx);
+                            if syn_score > 1.0 {
+                                empiric_signal_present = true;
+                            }
+                            empiric_multiplier *= syn_score;
                         }
                     }
                     score *= empiric_multiplier;
@@ -2807,7 +2813,8 @@ pub fn apply_rules(
                         false
                     };
                     
-                    if penicillin_strep_override {
+                    let pen_strep_override = penicillin_strep_override;
+                    if pen_strep_override {
                         regional_resistance_penalty = 1.0; // No penalty for penicillin-susceptible Strep
                     } else {
                     // Override: gentler resistance penalty for BL/BLI combinations against E. coli/Klebsiella
@@ -2835,6 +2842,9 @@ pub fn apply_rules(
                         let very_high_penalty = store.globals.regional_resistance_penalty_very_high;
                         let high_penalty = store.globals.regional_resistance_penalty_high;
                         let moderate_penalty = store.globals.regional_resistance_penalty_moderate;
+                        
+                        let mut sum_empiric_penalty = 0.0_f64;
+                        let mut count_empiric_evaluated = 0;
 
                         // Start with all bacteria if empirical (unknown source)
                         // If targeted (known source), only check surveillance for the identified pathogens
@@ -2850,6 +2860,10 @@ pub fn apply_rules(
                             );
 
                             if resistance_prevalence <= 0.0 {
+                                if !has_any_identified_infection {
+                                    sum_empiric_penalty += 1.0;
+                                    count_empiric_evaluated += 1;
+                                }
                                 continue;
                             }
 
@@ -2873,8 +2887,17 @@ pub fn apply_rules(
                                 resistance_penalty
                             };
 
-                            regional_resistance_penalty =
-                                regional_resistance_penalty.min(adjusted_penalty);
+                            if has_any_identified_infection {
+                                regional_resistance_penalty =
+                                    regional_resistance_penalty.min(adjusted_penalty);
+                            } else {
+                                sum_empiric_penalty += adjusted_penalty;
+                                count_empiric_evaluated += 1;
+                            }
+                        }
+                        
+                        if !has_any_identified_infection && count_empiric_evaluated > 0 {
+                            regional_resistance_penalty = sum_empiric_penalty / (count_empiric_evaluated as f64);
                         }
                     }
                     } // Close else block for penicillin_strep_override

@@ -435,6 +435,7 @@ struct MajorityRBuffer {
     min_total_samples: u32,
     total_samples: u32,
     positive_samples: u32,
+    global_histogram: [u32; HISTOGRAM_BINS],
     days: VecDeque<DayContribution>,
     last_nonzero_probability: f64,
     freeze_on_zero: bool,
@@ -447,6 +448,7 @@ impl MajorityRBuffer {
             min_total_samples: config.min_total_samples,
             total_samples: 0,
             positive_samples: 0,
+            global_histogram: [0; HISTOGRAM_BINS],
             days: VecDeque::new(),
             last_nonzero_probability: 0.0,
             freeze_on_zero: config.freeze_at_last_positive,
@@ -457,6 +459,7 @@ impl MajorityRBuffer {
         if self.window_days == 0 {
             self.total_samples = 0;
             self.positive_samples = 0;
+            self.global_histogram = [0; HISTOGRAM_BINS];
             self.days.clear();
             self.last_nonzero_probability = 0.0;
             return;
@@ -466,8 +469,10 @@ impl MajorityRBuffer {
             if current_day.saturating_sub(front.day_index) >= self.window_days {
                 let front = self.days.pop_front().unwrap();
                 self.total_samples = self.total_samples.saturating_sub(front.total_samples);
-                self.positive_samples =
-                    self.positive_samples.saturating_sub(front.positive_samples);
+                self.positive_samples = self.positive_samples.saturating_sub(front.positive_samples);
+                for i in 0..HISTOGRAM_BINS {
+                    self.global_histogram[i] = self.global_histogram[i].saturating_sub(front.histogram[i]);
+                }
             } else {
                 break;
             }
@@ -483,6 +488,9 @@ impl MajorityRBuffer {
 
         self.total_samples = self.total_samples.saturating_add(total);
         self.positive_samples = self.positive_samples.saturating_add(positive);
+        for i in 0..HISTOGRAM_BINS {
+            self.global_histogram[i] = self.global_histogram[i].saturating_add(histogram[i]);
+        }
         self.days.push_back(DayContribution {
             day_index: current_day,
             total_samples: total,
@@ -520,34 +528,21 @@ impl MajorityRBuffer {
             return None;
         }
 
-        let total_positives: u32 = self.days.iter().map(|day| day.positive_samples).sum();
-        if total_positives == 0 {
-            return None;
-        }
-
-        let mut sample_idx = rng.gen_range(0..total_positives);
-        for day in &self.days {
-            if day.positive_samples == 0 {
+        let mut sample_idx = rng.gen_range(0..self.positive_samples);
+        for (bin_idx, &count) in self.global_histogram.iter().enumerate() {
+            if count == 0 {
                 continue;
             }
-            if sample_idx < day.positive_samples {
-                for (bin_idx, &count) in day.histogram.iter().enumerate() {
-                    if count == 0 {
-                        continue;
-                    }
-                    if sample_idx < count {
-                        let min_val = bin_idx as f64 / HISTOGRAM_BINS as f64;
-                        let max_val = (bin_idx + 1) as f64 / HISTOGRAM_BINS as f64;
-                        return Some(rng.gen_range(min_val..max_val));
-                    }
-                    sample_idx -= count;
-                }
-                return Some(0.5);
+            if sample_idx < count {
+                let min_val = bin_idx as f64 / HISTOGRAM_BINS as f64;
+                let max_val = (bin_idx + 1) as f64 / HISTOGRAM_BINS as f64;
+                return Some(rng.gen_range(min_val..max_val));
             }
-            sample_idx -= day.positive_samples;
+            sample_idx -= count;
         }
-
-        None
+        
+        // Failsafe in case of floating point / integer math desync
+        Some(0.5)
     }
 
     fn has_sufficient_data(&self) -> bool {
