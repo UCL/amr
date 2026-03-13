@@ -12,6 +12,7 @@
 <li><a href="#9-horizontal-gene-transfer">Horizontal Gene Transfer</a></li>
 <li><a href="#10-mortality">Mortality</a></li>
 <li><a href="#11-policy-evaluation">Policy Evaluation</a></li>
+<li><a href="#12-limitations">Limitations</a></li>
 <li><a href="#appendix-a--bacteria-drugs-mechanisms-and-enums">Appendix A — Bacteria, Drugs, Mechanisms and Enums</a></li>
 <li><a href="#appendix-b--parameter-reference">Appendix B — Parameter Reference</a></li>
 <li><a href="#appendix-c--output-specification">Appendix C — Output Specification</a></li>
@@ -19,24 +20,10 @@
 <hr />
 <h2>1. Overview</h2>
 <p>This model simulates the emergence and dynamics of antimicrobial resistance (AMR) across a synthetic human population from 1930 to 2035. It is an individual-based (agent-based) model in which each person can acquire bacterial infections, receive antibiotic treatment, develop resistance through de novo mutation or horizontal gene transfer, and carry resistant organisms in their microbiome.</p>
-<p>The model tracks <strong>42 bacterial species</strong>, <strong>58 antibiotics</strong> (grouped into <strong>18 drug classes</strong>), and <strong>35 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological and healthcare profiles.</p>
+<p>The model tracks <strong>42 bacterial species</strong>, <strong>58 antibiotics</strong> (grouped into <strong>36 drug classes</strong>), and <strong>35 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological and healthcare profiles.</p>
 <p>Time advances in discrete <strong>daily steps</strong>. On each day, every individual in the population is processed through a sequence of 21 rules covering ageing, infection acquisition, clinical progression, treatment, resistance dynamics, and death.</p>
 <h3>Scope</h3>
-<p>The model is designed for:</p>
-<ul>
-<li>Reconstructing the emergence and growth of AMR over time</li>
-<li>Evaluating the potential impact of antibiotic stewardship policies</li>
-<li>Exploring "what if" counterfactual scenarios (e.g., a world without resistance)</li>
-<li>Understanding how resistance mechanisms spread across bacterial species and regions</li>
-</ul>
-<h3>Limitations</h3>
-<ul>
-<li>Drug levels are modelled as abstract potency units rather than pharmacokinetic concentrations</li>
-<li>Bacteria-bacteria competition within the microbiome is represented implicitly through resistance promotion and decay rather than explicit strain dynamics</li>
-<li>The model does not capture within-host spatial heterogeneity (e.g., biofilm vs planktonic)</li>
-<li>Vaccine effects are explicitly modelled: vaccinated people hold a proportionally lower incidence risk, though the infection risk is not dynamically dependent on background prevalence</li>
-<li>Region definitions are broad continental groupings</li>
-</ul>
+<p>The model is designed for reconstructing the emergence and growth of AMR over time, and evaluating the potential impact of antibiotic stewardship policies.</p>
 <hr />
 <h2>2. Population and Demographics</h2>
 <h3>2.1 Initialisation</h3>
@@ -2876,7 +2863,7 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 </table>
 <h3>7.2 Mechanism–Drug-Class Enhancement Multipliers</h3>
 <p>Each mechanism reduces the efficacy of specific drug classes. The enhancement multiplier (0.0–1.0) determines how much a mechanism reduces drug activity: 0.0 = no effect, 1.0 = complete resistance.</p>
-<p>These are defined per mechanism × drug class (35 × 18 = 630 values), with variable pattern:</p>
+<p>These are defined per mechanism × drug class (35 × 36 = 1260 values), with variable pattern:</p>
 <p><code>mech_{mechanism}_enhancement_{drug_class}</code></p>
 <p><strong>Global (legacy) enhancement multipliers</strong> (used when no per-class override exists):</p>
 <table>
@@ -3416,71 +3403,108 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 </tr>
 </tbody>
 </table>
+<p>The base transfer probability is defined by a probability matrix referencing the plasmid structural groups. There is no single "hgt_base_probability"—the base factor varies natively by combination.</p>
 <table>
 <thead>
 <tr>
 <th>Transfer type</th>
 <th>Probability</th>
+<th>Note</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Same group</td>
-<td>1×10⁻¹⁰</td>
+<td>Same group (same species)</td>
+<td>1×10⁻⁸</td>
+<td>Easy compatibility.</td>
 </tr>
 <tr>
-<td>Cross-group (same Gram stain)</td>
-<td>1×10⁻¹¹</td>
+<td>Within same pool (e.g., GramPositive ↔ GramPositive)</td>
+<td>1×10⁻⁹</td>
+<td>Slight compatibility drop across species.</td>
+</tr>
+<tr>
+<td>Enteric G− ↔ Respiratory G−</td>
+<td>1×10⁻⁷</td>
+<td>Cross-pool Gram-negative exchange limit.</td>
+</tr>
+<tr>
+<td>Anaerobe ↔ Enteric G−</td>
+<td>1×10⁻⁷</td>
+<td>Cross-pool gut niche interface exchanging.</td>
+</tr>
+<tr>
+<td>Anaerobe ↔ Anaerobe</td>
+<td>1×10⁻⁶</td>
+<td>Extremely common across dense anoxic communities.</td>
 </tr>
 <tr>
 <td><strong>Cross-Gram</strong></td>
 <td><strong>0.0</strong> (blocked)</td>
+<td>GramPositive ↔ Any GramNegative or Anaerobe pool structurally blocked.</td>
 </tr>
 <tr>
 <td>Excluded organisms (<code>None</code> pool)</td>
 <td>0.0</td>
+<td>No machinery.</td>
 </tr>
 </tbody>
 </table>
 <h3>9.3 HGT Modifiers</h3>
+<p>These values act as relative rates against the base transfer probability. If multiple conditions are true, all relevant relative rates are multiplied together to determine the final chance of a transfer occurring.</p>
 <table>
 <thead>
 <tr>
 <th>Variable</th>
-<th>Default</th>
+<th>Relative Rate</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>hgt_base_probability</code></td>
-<td>1×10⁻⁵</td>
-<td>Global multiplier</td>
-</tr>
-<tr>
-<td><code>hgt_co_infection_multiplier</code></td>
-<td>10.0</td>
-<td>Increased when both species are actively infecting</td>
-</tr>
-<tr>
 <td><code>hgt_hospital_multiplier</code></td>
-<td>5.0</td>
-<td>Hospital environment premium</td>
+<td>3.0</td>
+<td>Multiplier applied when the patient is hospitalized.</td>
 </tr>
 <tr>
-<td><code>hgt_microbiome_multiplier</code></td>
-<td>2.0</td>
-<td>Carriage-to-carriage transfer</td>
+<td><code>hgt_antibiotic_pressure_multiplier</code></td>
+<td>1.5</td>
+<td>Applied when antibiotic pressure is actively present in the given compartment.</td>
+</tr>
+<tr>
+<td><code>hgt_coinfection_multiplier</code></td>
+<td>1.25</td>
+<td>Applied when BOTH donor and recipient are actively causing an infection.</td>
+</tr>
+<tr>
+<td><code>hgt_microbiome_only_penalty</code></td>
+<td>0.65</td>
+<td>Multiplier applied when NEITHER donor nor recipient are actively causing infection (i.e., transfer from carriage to carriage). Transfers occurring between carriage and infection use a 1.0 baseline.</td>
 </tr>
 <tr>
 <td><code>hgt_gut_compartment_multiplier</code></td>
 <td>2.0</td>
-<td>Additional multiplier for gut-compartment bacteria (dense microbial environment)</td>
+<td>Multiplier applied when transfer occurs specifically within the gut compartment.</td>
 </tr>
 </tbody>
 </table>
 <h3>9.4 Mechanism Transferability</h3>
-<p>Only certain mechanisms are eligible for HGT. Transferable mechanisms include plasmid-borne determinants (ESBLs, carbapenemases, MCR-1, etc.). Chromosomal mutations (GyrA, RpoB, porin loss) are not transferable.</p>
+<p>Only certain mechanisms are biologically capable of HGT (plasmid-borne determinants, transposons, etc.). Chromosomal mutational changes are not transferable and arise strictly via selective pressure/de novo mutation.</p>
+<p><strong>Transferable Components (Eligible for HGT):</strong></p>
+<ul>
+<li>ESBLs: <code>EnzymeEsblCtxM, EnzymeEsblTem, EnzymeEsblShv</code></li>
+<li>Carbapenemases: <code>EnzymeKpc, EnzymeNdmVim, EnzymeOxa48</code></li>
+<li>AmpC Beta-lactamases: <code>EnzymeAmpcCmy, EnzymeAmpcDha</code></li>
+<li>Mobile Alterations: <code>TargetSitePbp2aMecA</code> (SCCmec), <code>TargetSiteVanA/B</code> (Tn1546), <code>TargetSiteErmB</code> (Tn917/Tn1545), <code>ModificationMcr1</code></li>
+<li>Mobile Protections/Enzymes: <code>ProtectionQnr, Enzyme16sRrmt, TargetSiteCfr, EnzymeCat, EnzymeFosA, ProtectionFusB, ProtectionTetM, MutationFolatePathway</code></li>
+</ul>
+<p><strong>Chromosomal Components (Not Transferable):</strong></p>
+<ul>
+<li>DNA/RNA modifications: <code>MutationGyrAPrimary, MutationGyrAParCSecondary, MutationRpoB</code></li>
+<li>Efflux pumping: <code>EffluxAcrabTolc, EffluxMexxyOprm, GlobalEffluxPump</code></li>
+<li>Porin loss configurations: <code>PorinLossOmpk35_36, PorinLossOprd, GlobalPorinLoss</code></li>
+<li>Disabling adaptations: <code>MutationNitroreductase, MutationMprF</code></li>
+</ul>
 <hr />
 <h2>10. Mortality</h2>
 <h3>10.1 Background Mortality</h3>
@@ -3918,7 +3942,16 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 </tbody>
 </table>
 <hr />
-<h2>Appendix A — Bacteria, Drugs, Mechanisms and Enums</h2>
+<h2 id="12-limitations">12. Limitations</h2>
+<ul>
+<li>Drug levels are modelled as abstract units rather than pharmacokinetic concentrations</li>
+<li>Bacteria-bacteria competition within the microbiome is represented implicitly through resistance promotion and decay rather than explicit strain dynamics</li>
+<li>The model does not capture within-host spatial heterogeneity (e.g., biofilm vs planktonic)</li>
+<li>Vaccine effects are explicitly modelled: vaccinated people hold a proportionally lower incidence risk, though the infection risk is not dynamically dependent on background prevalence</li>
+<li>Region definitions are broad continental groupings</li>
+</ul>
+<hr />
+<h2 id="appendix-a--bacteria-drugs-mechanisms-and-enums">Appendix A — Bacteria, Drugs, Mechanisms and Enums</h2>
 <h3>A.1 Bacteria (42 species)</h3>
 <table>
 <thead>
@@ -4184,7 +4217,7 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 </tr>
 </tbody>
 </table>
-<h3>A.2 Antibiotics (58 drugs in 18 classes)</h3>
+<h3>A.2 Antibiotics (58 drugs in 36 classes)</h3>
 <table>
 <thead>
 <tr>
@@ -4239,19 +4272,19 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 </tr>
 <tr>
 <td>cefepime</td>
-<td>Cephalosporins 4–5G</td>
+<td>Cephalosporins 4G</td>
 </tr>
 <tr>
 <td>ceftaroline</td>
-<td>Cephalosporins 4–5G</td>
+<td>Anti-MRSA Cephalosporins (5G)</td>
 </tr>
 <tr>
 <td>ceftolozane_tazobactam</td>
-<td>Cephalosporins 3G</td>
+<td>Cephalosporins 3G/BLI</td>
 </tr>
 <tr>
 <td>cefiderocol</td>
-<td>Cephalosporins 4–5G</td>
+<td>Siderophore Cephalosporins</td>
 </tr>
 <tr>
 <td>meropenem</td>
@@ -4427,7 +4460,7 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 </tr>
 </tbody>
 </table>
-<h3>A.3 Drug Classes (18)</h3>
+<h3>A.3 Drug Classes (36)</h3>
 <table>
 <thead>
 <tr>
@@ -4455,12 +4488,27 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 <tr>
 <td><code>c3g</code></td>
 <td>Cephalosporins 3G</td>
-<td>ceftriaxone, ceftazidime, ceftolozane-tazobactam</td>
+<td>ceftriaxone, ceftazidime</td>
 </tr>
 <tr>
-<td><code>c4_5g</code></td>
-<td>Cephalosporins 4–5G</td>
-<td>cefepime, ceftaroline, cefiderocol</td>
+<td><code>c3g_bli</code></td>
+<td>Cephalosporins 3G/BLI</td>
+<td>ceftolozane-tazobactam</td>
+</tr>
+<tr>
+<td><code>c4g</code></td>
+<td>Cephalosporins 4G</td>
+<td>cefepime</td>
+</tr>
+<tr>
+<td><code>c5g</code></td>
+<td>Anti-MRSA Cephalosporins (5G)</td>
+<td>ceftaroline</td>
+</tr>
+<tr>
+<td><code>sid_ceph</code></td>
+<td>Siderophore Cephalosporins</td>
+<td>cefiderocol</td>
 </tr>
 <tr>
 <td><code>bl_ni</code></td>
@@ -5587,7 +5635,7 @@ log_odds = base + age_effect + sepsis_effect + infection_effect + region_effect<
 <p>Values: probability weight for each region-age combination.</p>
 <h3>B.7 Syndrome Scoring Templates (10 syndromes)</h3>
 <p>See Section 6.2 for the full empiric scoring tables for all 10 syndromes.</p>
-<h3>B.8 Drug Penetration Table (10 syndromes × 18 drug classes)</h3>
+<h3>B.8 Drug Penetration Table (10 syndromes × 36 drug classes)</h3>
 <p>See Section 6.4 for the penetration values by syndrome and drug class.</p>
 <h3>B.9 Cross-Resistance Groups</h3>
 <p>See Section 7.6 for per-bacteria cross-resistance groupings.</p>

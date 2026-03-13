@@ -61,18 +61,49 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "Cephalosporins (J01D)",
+        "Cephalosporins 1-2G",
         (
             "cephalexin",
             "cefazolin",
             "cefuroxime",
+        ),
+    ),
+    (
+        "Cephalosporins 3G",
+        (
             "ceftriaxone",
             "ceftazidime",
-            "cefepime",
-            "ceftaroline",
-            "ceftazidime_avibactam",
+        ),
+    ),
+    (
+        "Cephalosporins 3G/BLI",
+        (
             "ceftolozane_tazobactam",
+        ),
+    ),
+    (
+        "Cephalosporins 4G",
+        (
+            "cefepime",
+        ),
+    ),
+    (
+        "Anti-MRSA Cephalosporins (5G)",
+        (
+            "ceftaroline",
+        ),
+    ),
+    (
+        "Siderophore Cephalosporins",
+        (
             "cefiderocol",
+        ),
+    ),
+    (
+        "Novel BL/BLI",
+        (
+            "ceftazidime_avibactam",
+            "meropenem_vaborbactam",
         ),
     ),
     (
@@ -83,7 +114,7 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ),
     (
         "Carbapenems (J01DH)",
-        ("meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"),
+        ("meropenem", "imipenem_c", "ertapenem"),
     ),
     (
         "Macrolides (J01F)",
@@ -2112,6 +2143,74 @@ def _build_mean_abs_gap_tables(
     )
 
 
+
+def _calculate_syndrome_incidence_table(
+    year_df: pd.DataFrame,
+    window_years: float
+) -> pd.DataFrame:
+    columns = [
+        "Syndrome", 
+        "Incidence per 100k per year", 
+        "Share of total (%)"
+    ]
+    if year_df.empty:
+        return pd.DataFrame(columns=columns)
+        
+    population_series = year_df.get("total_population")
+    if population_series is None or population_series.empty:
+        return pd.DataFrame(columns=columns)
+        
+    avg_population = float(population_series.mean(skipna=True))
+    if not np.isfinite(avg_population) or avg_population <= 0:
+        return pd.DataFrame(columns=columns)
+        
+    annualization_factor = window_years if np.isfinite(window_years) and window_years > 0 else 1.0
+    
+    syndrome_labels = {
+        1: "Urinary tract",
+        2: "Skin and soft tissue",
+        3: "Respiratory",
+        4: "Bloodstream",
+        5: "Intra-abdominal",
+        6: "Central nervous system",
+        7: "Gastrointestinal",
+        8: "Genital",
+        9: "Bone and joint",
+        10: "Other"
+    }
+    
+    records = []
+    total_all_syndromes = 0.0
+    syndrome_totals = {}
+    
+    for sid, label in syndrome_labels.items():
+        col = f"syndrome_{sid}_newly_infected"
+        if col in year_df.columns:
+            yearly_infections = float(year_df[col].sum(skipna=True)) / annualization_factor
+            syndrome_totals[sid] = yearly_infections
+            total_all_syndromes += yearly_infections
+        else:
+            syndrome_totals[sid] = 0.0
+            
+    for sid, label in syndrome_labels.items():
+        val = syndrome_totals[sid]
+        incidence_per_100k = (val * 100_000.0) / avg_population if avg_population > 0 else 0.0
+        share_pct = (val / total_all_syndromes * 100.0) if total_all_syndromes > 0 else 0.0
+        
+        records.append({
+            "Syndrome": label,
+            "Incidence per 100k per year": incidence_per_100k,
+            "Share of total (%)": share_pct
+        })
+        
+    records.append({
+        "Syndrome": "TOTAL",
+        "Incidence per 100k per year": (total_all_syndromes * 100_000.0) / avg_population if avg_population > 0 else 0.0,
+        "Share of total (%)": 100.0 if total_all_syndromes > 0 else 0.0
+    })
+        
+    return pd.DataFrame(records, columns=columns)
+
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
     """Generate calibration summary file and return its path."""
 
@@ -2162,8 +2261,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     scale_factor_obj = context.get("scale_factor")
     scale_factor = float(scale_factor_obj) if isinstance(scale_factor_obj, (int, float)) else 1.0
+
     window_years_obj = context.get("window_years")
     window_years = float(window_years_obj) if isinstance(window_years_obj, (int, float)) else 1.0
+
+    syndrome_df = _calculate_syndrome_incidence_table(year_df, window_years)
+
 
     window_label_obj = context.get("resistance_window_label")
     resistance_window_label = str(window_label_obj) if window_label_obj not in (None, "") else ""
@@ -2263,6 +2366,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("\n\n")
         else:
             handle.write("Bacteria Burden Benchmarks\n(no bacteria burden metrics available)\n\n")
+
+        if not syndrome_df.empty:
+            handle.write("Syndrome Incidence Breakdown\n")
+            handle.write(syndrome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write("\n\n")
+
 
         _write_metric_fit_summary(
             handle,

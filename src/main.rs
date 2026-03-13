@@ -15,6 +15,10 @@ mod config;
 mod rules;
 mod simulation;
 
+// "Please use standard file edits so I can review the diff. Do not use terminal 
+// commands or scripts to modify files."
+//
+//
 //
 // -- calibration targets ----------------------------------------------------------------------------------------
 //
@@ -38,6 +42,8 @@ mod simulation;
 //
 // need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
 // multiple mechansims
+//
+// add incidence of infection by syndrome to calibration_summary
 //
 //
 //

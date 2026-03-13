@@ -1280,6 +1280,9 @@ pub struct TimeStepSummary {
     // [bacteria_idx * 10 + syndrome_idx] = number of infected individuals with this bacteria and syndrome
     pub infected_by_syndrome_by_bacteria: Vec<usize>, // [bacteria][syndrome] = number of infected individuals with this bacteria and syndrome
 
+    // newly infected tracking by syndrome
+    pub newly_infected_by_syndrome: Vec<usize>, // [syndrome_idx] = number of newly infected individuals by syndrome
+
     // regional population tracking: counts by region (6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania)
     pub living_population_by_region: Vec<usize>, // [region_idx] = number of living individuals currently in this region
 
@@ -1818,6 +1821,8 @@ impl Simulation {
                 infected_by_syndrome: Vec<usize>,
                 /// counts of infected individuals by bacteria and syndrome (bacteria * 10 syndromes)
                 infected_by_syndrome_by_bacteria: Vec<usize>,
+                /// newly infected tracking by syndrome (1-10)
+                newly_infected_by_syndrome: Vec<usize>,
                 /// living population count by region (6 regions)
                 living_population_by_region: Vec<usize>,
                 /// age distribution by region (6 regions * 5 age groups = 30 values)
@@ -1988,6 +1993,7 @@ impl Simulation {
                         infection_resolution_death_from_toxicity_by_bacteria: vec![0; num_bacteria],
                         infected_by_syndrome: vec![0; 10], // Syndromes 1-10
                         infected_by_syndrome_by_bacteria: vec![0; num_bacteria * 10], // bacteria * syndromes
+                        newly_infected_by_syndrome: vec![0; 10], // Syndromes 1-10
                         living_population_by_region: vec![0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania
                         age_distribution_by_region: vec![0; 6 * 5], // 6 regions * 5 age groups = 30 values
                         deaths_by_region: vec![0; 6 * NUM_DEATH_CAUSES],
@@ -2443,6 +2449,13 @@ impl Simulation {
                         .infected_by_syndrome_by_bacteria
                         .iter_mut()
                         .zip(other.infected_by_syndrome_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .newly_infected_by_syndrome
+                        .iter_mut()
+                        .zip(other.newly_infected_by_syndrome)
                     {
                         *a += b;
                     }
@@ -2976,6 +2989,7 @@ impl Simulation {
                         let mut was_newly_infected = false;
                         let mut was_newly_infected_with_resistance = false;
                         let mut individual_has_any_infection_counted_for_syndrome = false;
+                        let mut individual_has_any_new_infection_counted_for_syndrome = false;
                         let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
                         {
                             for b_idx in 0..num_bacteria {
@@ -3029,6 +3043,16 @@ impl Simulation {
                                     }
                                     if individual.date_last_infected[b_idx] == t as i32 {
                                         was_newly_infected = true;
+
+                                        // Count newly infected by syndrome (take first one if multiple infections)
+                                        if !individual_has_any_new_infection_counted_for_syndrome {
+                                            let syndrome_id = individual.infectious_syndrome[b_idx];
+                                            if (1..=10).contains(&syndrome_id) {
+                                                lt.newly_infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
+                                                individual_has_any_new_infection_counted_for_syndrome = true;
+                                            }
+                                        }
+
                                         // Count new active infections by bacteria and home region
                                         let home_region_idx = region_to_index(individual.region_living);
                                         let flat_idx = b_idx * 6 + home_region_idx;
@@ -3312,6 +3336,7 @@ impl Simulation {
                 infection_resolution_death_from_toxicity_by_bacteria: _,
                 infected_by_syndrome,
                 infected_by_syndrome_by_bacteria,
+                newly_infected_by_syndrome,
                 living_population_by_region,
                 age_distribution_by_region,
                 deaths_by_region,
@@ -3580,6 +3605,7 @@ impl Simulation {
                 },
                 infected_by_syndrome,
                 infected_by_syndrome_by_bacteria,
+                newly_infected_by_syndrome,
                 living_population_by_region,
                 hospital_population_by_region: {
                     let mut hospital_pop_by_region = vec![0; 6]; // 6 regions
@@ -4616,6 +4642,12 @@ impl Simulation {
             header.push_str(&format!("syndrome_{}_infected", syndrome_id));
         }
 
+        // Add newly infected syndrome columns to header
+        for syndrome_id in 1..=10 {
+            header.push(',');
+            header.push_str(&format!("syndrome_{}_newly_infected", syndrome_id));
+        }
+
         // Add bacteria-specific syndrome columns to header
         for bacteria in BACTERIA_LIST.iter() {
             for syndrome_id in 1..=10 {
@@ -5091,6 +5123,12 @@ impl Simulation {
 
             // Add syndrome infection data
             for value in &summary.infected_by_syndrome {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+
+            // Add newly infected syndrome data
+            for value in &summary.newly_infected_by_syndrome {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

@@ -13,6 +13,7 @@
 9. [Horizontal Gene Transfer](#9-horizontal-gene-transfer)
 10. [Mortality](#10-mortality)
 11. [Policy Evaluation](#11-policy-evaluation)
+12. [Limitations](#12-limitations)
 - [Appendix A — Bacteria, Drugs, Mechanisms and Enums](#appendix-a--bacteria-drugs-mechanisms-and-enums)
 - [Appendix B — Parameter Reference](#appendix-b--parameter-reference)
 - [Appendix C — Output Specification](#appendix-c--output-specification)
@@ -23,26 +24,13 @@
 
 This model simulates the emergence and dynamics of antimicrobial resistance (AMR) across a synthetic human population from 1930 to 2035. It is an individual-based (agent-based) model in which each person can acquire bacterial infections, receive antibiotic treatment, develop resistance through de novo mutation or horizontal gene transfer, and carry resistant organisms in their microbiome.
 
-The model tracks **42 bacterial species**, **58 antibiotics** (grouped into **18 drug classes**), and **35 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological and healthcare profiles.
+The model tracks **42 bacterial species**, **58 antibiotics** (grouped into **36 drug classes**), and **35 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological and healthcare profiles.
 
 Time advances in discrete **daily steps**. On each day, every individual in the population is processed through a sequence of 21 rules covering ageing, infection acquisition, clinical progression, treatment, resistance dynamics, and death.
 
 ### Scope
 
-The model is designed for:
-
-- Reconstructing the emergence and growth of AMR over time
-- Evaluating the potential impact of antibiotic stewardship policies
-- Exploring "what if" counterfactual scenarios (e.g., a world without resistance)
-- Understanding how resistance mechanisms spread across bacterial species and regions
-
-### Limitations
-
-- Drug levels are modelled as abstract potency units rather than pharmacokinetic concentrations
-- Bacteria-bacteria competition within the microbiome is represented implicitly through resistance promotion and decay rather than explicit strain dynamics
-- The model does not capture within-host spatial heterogeneity (e.g., biofilm vs planktonic)
-- Vaccine effects are explicitly modelled: vaccinated people hold a proportionally lower incidence risk, though the infection risk is not dynamically dependent on background prevalence
-- Region definitions are broad continental groupings
+The model is designed for reconstructing the emergence and growth of AMR over time, and evaluating the potential impact of antibiotic stewardship policies.
 
 ---
 
@@ -939,7 +927,7 @@ The model tracks 35 distinct resistance mechanisms, each representing a biologic
 
 Each mechanism reduces the efficacy of specific drug classes. The enhancement multiplier (0.0–1.0) determines how much a mechanism reduces drug activity: 0.0 = no effect, 1.0 = complete resistance.
 
-These are defined per mechanism × drug class (35 × 18 = 630 values), with variable pattern:
+These are defined per mechanism × drug class (35 × 36 = 1260 values), with variable pattern:
 
 ```
 mech_{mechanism}_enhancement_{drug_class}
@@ -1132,7 +1120,6 @@ Population-level resistance prevalence (`majority_r`) is computed from a rolling
 Horizontal gene transfer (HGT) allows resistance mechanisms to spread between different bacterial species. The model implements mechanism-driven HGT: only mechanisms that are biologically capable of horizontal transfer (primarily plasmid-borne) can be transferred.
 
 ### 9.2 Transfer Probabilities
-
 HGT probability depends on the taxonomic relationship between donor and recipient bacteria. Bacteria are assigned to plasmid pools:
 
 | Pool | Members |
@@ -1143,26 +1130,44 @@ HGT probability depends on the taxonomic relationship between donor and recipien
 | `Anaerobe` | C. difficile, B. fragilis |
 | `None` | T. pallidum, H. pylori, C. jejuni, M. tuberculosis, N. gonorrhoeae, N. meningitidis, Chlamydia, Mycoplasma (no HGT) |
 
-| Transfer type | Probability |
-|---------------|-------------|
-| Same group | 1×10⁻¹⁰ |
-| Cross-group (same Gram stain) | 1×10⁻¹¹ |
-| **Cross-Gram** | **0.0** (blocked) |
-| Excluded organisms (`None` pool) | 0.0 |
+The base transfer probability is defined by a probability matrix referencing the plasmid structural groups. There is no single "hgt_base_probability"—the base factor varies natively by combination.
+
+| Transfer type | Probability | Note |
+|---------------|-------------|------|
+| Same group (same species) | 1×10⁻⁸ | Easy compatibility. |
+| Within same pool (e.g., GramPositive ↔ GramPositive) | 1×10⁻⁹ | Slight compatibility drop across species. |
+| Enteric G− ↔ Respiratory G− | 1×10⁻⁷ | Cross-pool Gram-negative exchange limit. |
+| Anaerobe ↔ Enteric G− | 1×10⁻⁷ | Cross-pool gut niche interface exchanging. |
+| Anaerobe ↔ Anaerobe | 1×10⁻⁶ | Extremely common across dense anoxic communities. |
+| **Cross-Gram** | **0.0** (blocked) | GramPositive ↔ Any GramNegative or Anaerobe pool structurally blocked. |
+| Excluded organisms (`None` pool) | 0.0 | No machinery. |
 
 ### 9.3 HGT Modifiers
+These values act as relative rates against the base transfer probability. If multiple conditions are true, all relevant relative rates are multiplied together to determine the final chance of a transfer occurring.
 
-| Variable | Default | Description |
+| Variable | Relative Rate | Description |
 |----------|---------|-------------|
-| `hgt_base_probability` | 1×10⁻⁵ | Global multiplier |
-| `hgt_co_infection_multiplier` | 10.0 | Increased when both species are actively infecting |
-| `hgt_hospital_multiplier` | 5.0 | Hospital environment premium |
-| `hgt_microbiome_multiplier` | 2.0 | Carriage-to-carriage transfer |
-| `hgt_gut_compartment_multiplier` | 2.0 | Additional multiplier for gut-compartment bacteria (dense microbial environment) |
+| `hgt_hospital_multiplier` | 3.0 | Multiplier applied when the patient is hospitalized. |
+| `hgt_antibiotic_pressure_multiplier` | 1.5 | Applied when antibiotic pressure is actively present in the given compartment. |
+| `hgt_coinfection_multiplier` | 1.25 | Applied when BOTH donor and recipient are actively causing an infection. |
+| `hgt_microbiome_only_penalty` | 0.65 | Multiplier applied when NEITHER donor nor recipient are actively causing infection (i.e., transfer from carriage to carriage). Transfers occurring between carriage and infection use a 1.0 baseline. |
+| `hgt_gut_compartment_multiplier` | 2.0 | Multiplier applied when transfer occurs specifically within the gut compartment. |
 
 ### 9.4 Mechanism Transferability
+Only certain mechanisms are biologically capable of HGT (plasmid-borne determinants, transposons, etc.). Chromosomal mutational changes are not transferable and arise strictly via selective pressure/de novo mutation.
 
-Only certain mechanisms are eligible for HGT. Transferable mechanisms include plasmid-borne determinants (ESBLs, carbapenemases, MCR-1, etc.). Chromosomal mutations (GyrA, RpoB, porin loss) are not transferable.
+**Transferable Components (Eligible for HGT):**
+* ESBLs: `EnzymeEsblCtxM, EnzymeEsblTem, EnzymeEsblShv`
+* Carbapenemases: `EnzymeKpc, EnzymeNdmVim, EnzymeOxa48`
+* AmpC Beta-lactamases: `EnzymeAmpcCmy, EnzymeAmpcDha`
+* Mobile Alterations: `TargetSitePbp2aMecA` (SCCmec), `TargetSiteVanA/B` (Tn1546), `TargetSiteErmB` (Tn917/Tn1545), `ModificationMcr1`
+* Mobile Protections/Enzymes: `ProtectionQnr, Enzyme16sRrmt, TargetSiteCfr, EnzymeCat, EnzymeFosA, ProtectionFusB, ProtectionTetM, MutationFolatePathway`
+
+**Chromosomal Components (Not Transferable):**
+* DNA/RNA modifications: `MutationGyrAPrimary, MutationGyrAParCSecondary, MutationRpoB`
+* Efflux pumping: `EffluxAcrabTolc, EffluxMexxyOprm, GlobalEffluxPump`
+* Porin loss configurations: `PorinLossOmpk35_36, PorinLossOprd, GlobalPorinLoss`
+* Disabling adaptations: `MutationNitroreductase, MutationMprF`
 
 ---
 
@@ -1299,6 +1304,16 @@ Each branch can modify:
 
 ---
 
+## 12. Limitations
+
+- Drug levels are modelled as abstract units rather than pharmacokinetic concentrations
+- Bacteria-bacteria competition within the microbiome is represented implicitly through resistance promotion and decay rather than explicit strain dynamics
+- The model does not capture within-host spatial heterogeneity (e.g., biofilm vs planktonic)
+- Vaccine effects are explicitly modelled: vaccinated people hold a proportionally lower incidence risk, though the infection risk is not dynamically dependent on background prevalence
+- Region definitions are broad continental groupings
+
+---
+
 ## Appendix A — Bacteria, Drugs, Mechanisms and Enums
 
 ### A.1 Bacteria (42 species)
@@ -1348,7 +1363,7 @@ Each branch can modify:
 | 40 | Legionella pneumophila | Fastidious | Respiratory |
 | 41 | Burkholderia cepacia complex | NonFermenter | Respiratory |
 
-### A.2 Antibiotics (58 drugs in 18 classes)
+### A.2 Antibiotics (58 drugs in 36 classes)
 
 | Drug | Class |
 |------|-------|
@@ -1363,10 +1378,10 @@ Each branch can modify:
 | cefuroxime | Cephalosporins 1–2G |
 | ceftriaxone | Cephalosporins 3G |
 | ceftazidime | Cephalosporins 3G |
-| cefepime | Cephalosporins 4–5G |
-| ceftaroline | Cephalosporins 4–5G |
-| ceftolozane_tazobactam | Cephalosporins 3G |
-| cefiderocol | Cephalosporins 4–5G |
+| cefepime | Cephalosporins 4G |
+| ceftaroline | Anti-MRSA Cephalosporins (5G) |
+| ceftolozane_tazobactam | Cephalosporins 3G/BLI |
+| cefiderocol | Siderophore Cephalosporins |
 | meropenem | Carbapenems |
 | imipenem_c | Carbapenems |
 | ertapenem | Carbapenems |
@@ -1411,15 +1426,18 @@ Each branch can modify:
 | meropenem_vaborbactam | Novel BL/BLI |
 | colistin | Polymyxins |
 
-### A.3 Drug Classes (18)
+### A.3 Drug Classes (36)
 
 | Code | Full name | Drugs |
 |------|-----------|-------|
 | `pen` | Penicillins | penicillin G, ampicillin, amoxicillin, piperacillin, ticarcillin |
 | `bli` | BLI Combinations | amoxicillin-clavulanate, piperacillin-tazobactam, ampicillin-sulbactam, ticarcillin-clavulanate |
 | `c1_2g` | Cephalosporins 1–2G | cephalexin, cefazolin, cefuroxime |
-| `c3g` | Cephalosporins 3G | ceftriaxone, ceftazidime, ceftolozane-tazobactam |
-| `c4_5g` | Cephalosporins 4–5G | cefepime, ceftaroline, cefiderocol |
+| `c3g` | Cephalosporins 3G | ceftriaxone, ceftazidime |
+| `c3g_bli` | Cephalosporins 3G/BLI | ceftolozane-tazobactam |
+| `c4g` | Cephalosporins 4G | cefepime |
+| `c5g` | Anti-MRSA Cephalosporins (5G) | ceftaroline |
+| `sid_ceph` | Siderophore Cephalosporins | cefiderocol |
 | `bl_ni` | Novel BL/BLI | ceftazidime-avibactam, meropenem-vaborbactam |
 | `carb` | Carbapenems | meropenem, imipenem, ertapenem |
 | `mono` | Monobactams | aztreonam |
@@ -1818,7 +1836,7 @@ Values: probability weight for each region-age combination.
 
 See Section 6.2 for the full empiric scoring tables for all 10 syndromes.
 
-### B.8 Drug Penetration Table (10 syndromes × 18 drug classes)
+### B.8 Drug Penetration Table (10 syndromes × 36 drug classes)
 
 See Section 6.4 for the penetration values by syndrome and drug class.
 
