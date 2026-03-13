@@ -103,6 +103,12 @@ pub enum ResistanceMechanism {
     MutationRpoB,            // RNA polymerase β-subunit mutation: fidaxomicin (rifampicin resistance modeled via MDR TB bacteria parameters)
     ProtectionFusB,          // fusB/fusC protection proteins: fusidic_a
     ProtectionTetM,          // tet(M)/tet(O) ribosomal protection: tetracycline, doxycycline, minocycline (NOT tigecycline)
+    // --- Additional mechanisms for improved coverage ---
+    EnzymeAacAph,            // AAC/APH/ANT family aminoglycoside-modifying enzymes (integrons/plasmids)
+    EnzymeBlaZ,              // blaZ staphylococcal penicillinase (plasmid-borne)
+    EnzymeOxaAcinetobacter,  // OXA-23/40/58 carbapenemases (A. baumannii, plasmid/Tn2006)
+    Mutation23sRrna,         // 23S rRNA point mutation: clarithromycin/macrolide resistance (chromosomal)
+    EffluxTetAbc,            // TetA/B/C efflux pumps: Gram-negative tetracycline efflux (Tn10 / plasmids)
     AsYetUnknown1,           // Calibration placeholder 1: drug specificity set via config overrides
     AsYetUnknown2,           // Calibration placeholder 2: drug specificity set via config overrides
     AsYetUnknown3,           // Calibration placeholder 3: drug specificity set via config overrides
@@ -144,6 +150,11 @@ impl ResistanceMechanism {
             ResistanceMechanism::MutationRpoB,
             ResistanceMechanism::ProtectionFusB,
             ResistanceMechanism::ProtectionTetM,
+            ResistanceMechanism::EnzymeAacAph,
+            ResistanceMechanism::EnzymeBlaZ,
+            ResistanceMechanism::EnzymeOxaAcinetobacter,
+            ResistanceMechanism::Mutation23sRrna,
+            ResistanceMechanism::EffluxTetAbc,
             ResistanceMechanism::AsYetUnknown1,
             ResistanceMechanism::AsYetUnknown2,
             ResistanceMechanism::AsYetUnknown3,
@@ -185,6 +196,11 @@ impl ResistanceMechanism {
             ResistanceMechanism::MutationRpoB => "mutation_rpo_b",
             ResistanceMechanism::ProtectionFusB => "protection_fus_b",
             ResistanceMechanism::ProtectionTetM => "protection_tet_m",
+            ResistanceMechanism::EnzymeAacAph => "enzyme_aac_aph",
+            ResistanceMechanism::EnzymeBlaZ => "enzyme_bla_z",
+            ResistanceMechanism::EnzymeOxaAcinetobacter => "enzyme_oxa_acinetobacter",
+            ResistanceMechanism::Mutation23sRrna => "mutation_23s_rrna",
+            ResistanceMechanism::EffluxTetAbc => "efflux_tet_abc",
             ResistanceMechanism::AsYetUnknown1 => "as_yet_unknown_1",
             ResistanceMechanism::AsYetUnknown2 => "as_yet_unknown_2",
             ResistanceMechanism::AsYetUnknown3 => "as_yet_unknown_3",
@@ -675,6 +691,41 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // TetM/TetO ribosomal protection: universal — Tn916 conjugative transposons found across all phyla
         ProtectionTetM => mask_for_groups(BacteriaGroup::all()),
 
+        // AAC/APH/ANT aminoglycoside-modifying enzymes: broad — all clinically relevant Gram-negatives + Gram-positives
+        EnzymeAacAph => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::NonFermenter,
+            BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Fastidious,
+            BacteriaGroup::GramPositive,
+        ]),
+
+        // blaZ staphylococcal penicillinase: Staphylococci only
+        EnzymeBlaZ => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
+        ]),
+
+        // OXA-23/40/58 carbapenemases: A. baumannii (NonFermenter) only
+        EnzymeOxaAcinetobacter => mask_for_groups(&[
+            BacteriaGroup::NonFermenter,
+        ]),
+
+        // 23S rRNA point mutation: H. pylori, Campylobacter, atypicals, Streptococci, Mycobacteria
+        Mutation23sRrna => mask_for_groups(&[
+            BacteriaGroup::Helicobacter,
+            BacteriaGroup::EntericPathogen, // Campylobacter
+            BacteriaGroup::Fastidious,      // Mycoplasma, Chlamydia, Legionella, Bordetella
+            BacteriaGroup::GramPositive,    // S. pneumoniae, S. pyogenes, S. agalactiae
+        ]),
+
+        // TetA/B/C efflux pumps: Gram-negative only (Gram-positives use ribosomal protection TetM)
+        EffluxTetAbc => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::NonFermenter,
+            BacteriaGroup::EntericPathogen,
+            BacteriaGroup::Fastidious,
+        ]),
+
         // As-yet-unknown placeholders: all apply to ALL bacteria groups (drug specificity via config)
         AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => mask_for_groups(BacteriaGroup::all()),
     }
@@ -704,8 +755,13 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         ProtectionTetM => true,                // tetM on Tn916 conjugative transposons
         MutationFolatePathway => true,         // sul1/2/3, dfrA on integrons / plasmids
         AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => true, // conservative default
+        EnzymeAacAph => true,              // AAC/APH/ANT on integrons / plasmids
+        EnzymeBlaZ => true,                // blaZ on plasmids in Staphylococci
+        EnzymeOxaAcinetobacter => true,    // OXA-23/40/58 on plasmids / Tn2006
+        EffluxTetAbc => true,              // tetA/B/C on Tn10 and related plasmid transposons
 
         // --- Chromosomal mutations / regulatory changes → NOT transferable ---
+        Mutation23sRrna => false,          // chromosomal 23S rRNA point mutation
         MutationGyrAPrimary => false,          // point mutation in gyrA
         MutationGyrAParCSecondary => false,    // point mutation in parC
         EffluxAcrabTolc => false,              // chromosomal efflux up-regulation

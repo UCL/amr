@@ -476,6 +476,35 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug, "tetracycline" | "doxycycline" | "minocycline"
         ),
 
+        // AAC/APH/ANT aminoglycoside-modifying enzymes: gentamicin, tobramycin, amikacin, streptomycin, neomycin
+        EnzymeAacAph => matches!(
+            drug, "gentamicin" | "tobramycin" | "amikacin" | "streptomycin" | "neomycin"
+        ),
+
+        // blaZ staphylococcal penicillinase: narrow-spectrum penicillins only
+        // (does NOT confer resistance to protected penicillins or cephalosporins)
+        EnzymeBlaZ => matches!(
+            drug, "penicillin_g" | "ampicillin" | "amoxicillin"
+        ),
+
+        // OXA-23/40/58: A. baumannii carbapenemases — carbapenems; variable cephalosporin activity
+        EnzymeOxaAcinetobacter => matches!(
+            drug, "meropenem" | "imipenem_c" | "ertapenem"
+            | "ceftazidime" | "cefepime" // OXA-23/58 have weak but real cephalosporinase activity
+            | "ceftazidime_avibactam"    // avibactam does not inhibit class D OXA carbapenemases
+        ),
+
+        // 23S rRNA point mutation: macrolides (NOT lincosamides/streptogramins — distinct binding site)
+        Mutation23sRrna => matches!(
+            drug, "erythromycin" | "azithromycin" | "clarithromycin"
+        ),
+
+        // TetA/B/C efflux: classical tetracyclines — tigecycline and minocycline excluded
+        // (tigecycline 9-substituent and minocycline 7-dimethylamino group block efflux)
+        EffluxTetAbc => matches!(
+            drug, "tetracycline" | "doxycycline"
+        ),
+
         // As-yet-unknown placeholders: apply to ALL drugs by default
         // Drug specificity can be overridden via config keys:
         //   mechanism_as_yet_unknown_1_applies_to_{drug} = 0.0 (to disable for specific drugs)
@@ -2813,8 +2842,7 @@ pub fn apply_rules(
                         false
                     };
                     
-                    let pen_strep_override = penicillin_strep_override;
-                    if pen_strep_override {
+                    if penicillin_strep_override {
                         regional_resistance_penalty = 1.0; // No penalty for penicillin-susceptible Strep
                     } else {
                     // Override: gentler resistance penalty for BL/BLI combinations against E. coli/Klebsiella
@@ -2842,9 +2870,6 @@ pub fn apply_rules(
                         let very_high_penalty = store.globals.regional_resistance_penalty_very_high;
                         let high_penalty = store.globals.regional_resistance_penalty_high;
                         let moderate_penalty = store.globals.regional_resistance_penalty_moderate;
-                        
-                        let mut sum_empiric_penalty = 0.0_f64;
-                        let mut count_empiric_evaluated = 0;
 
                         // Start with all bacteria if empirical (unknown source)
                         // If targeted (known source), only check surveillance for the identified pathogens
@@ -2860,10 +2885,6 @@ pub fn apply_rules(
                             );
 
                             if resistance_prevalence <= 0.0 {
-                                if !has_any_identified_infection {
-                                    sum_empiric_penalty += 1.0;
-                                    count_empiric_evaluated += 1;
-                                }
                                 continue;
                             }
 
@@ -2887,17 +2908,8 @@ pub fn apply_rules(
                                 resistance_penalty
                             };
 
-                            if has_any_identified_infection {
-                                regional_resistance_penalty =
-                                    regional_resistance_penalty.min(adjusted_penalty);
-                            } else {
-                                sum_empiric_penalty += adjusted_penalty;
-                                count_empiric_evaluated += 1;
-                            }
-                        }
-                        
-                        if !has_any_identified_infection && count_empiric_evaluated > 0 {
-                            regional_resistance_penalty = sum_empiric_penalty / (count_empiric_evaluated as f64);
+                            regional_resistance_penalty =
+                                regional_resistance_penalty.min(adjusted_penalty);
                         }
                     }
                     } // Close else block for penicillin_strep_override
