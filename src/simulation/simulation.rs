@@ -1291,6 +1291,8 @@ pub struct TimeStepSummary {
 
     // hospital-acquired new infection tracking: counts by bacteria and region (bacteria * 6 regions)
     pub newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize>, // (bacteria_idx, region_idx) = count of new hospital infections
+    pub newly_infected_any_r_hospital_by_bacteria: Vec<usize>,
+    pub newly_infected_any_r_community_by_bacteria: Vec<usize>,
 
     // regional age distribution tracking: counts by region and age group (6 regions * 5 age groups = 30 values)
     // [region_idx * 5 + age_group_idx] where age_group_idx: 0=0-5, 1=6-14, 2=15-49, 3=50-79, 4=80+
@@ -3418,6 +3420,23 @@ impl Simulation {
             // Optional debug (uncomment if needed)
             // if t % 500 == 0 { println!("Time step {} drug usage counts: {:?}", t, currently_on_drug_by_drug); }
 
+            let mut newly_infected_any_r_hospital_by_bacteria = vec![0; BACTERIA_LIST.len()];
+            let mut newly_infected_any_r_community_by_bacteria = vec![0; BACTERIA_LIST.len()];
+            for individual in &self.population.individuals {
+                if individual.date_of_death.is_some() { continue; }
+                for b_idx in 0..BACTERIA_LIST.len() {
+                    if individual.date_last_infected_keep[b_idx] == t as i32 {
+                        if individual.resistance_mechanisms[b_idx].iter().any(|&m| m) {
+                            if individual.infection_hospital_acquired[b_idx] {
+                                newly_infected_any_r_hospital_by_bacteria[b_idx] += 1;
+                            } else {
+                                newly_infected_any_r_community_by_bacteria[b_idx] += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
             let summary = TimeStepSummary {
                 policy_option: policy.policy_option,
                 infected_and_on_any_drug_by_bacteria,
@@ -3621,6 +3640,8 @@ impl Simulation {
                     }
                     hospital_pop_by_region
                 },
+                newly_infected_any_r_hospital_by_bacteria,
+                newly_infected_any_r_community_by_bacteria,
                 newly_infected_hospital_by_bacteria_region: {
                     let mut hospital_infections = HashMap::new();
                     for individual in &self.population.individuals {

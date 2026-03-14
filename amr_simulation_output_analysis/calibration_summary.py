@@ -321,8 +321,10 @@ def _gather_calibration_context(
 
     overall_resistance = _calculate_overall_resistance(resistance_df)
     bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor, window_years)
+    resistance_incidence_locus_df = _calculate_resistance_incidence_locus_table(year_df)
 
     return {
+        "resistance_incidence_locus_df": resistance_incidence_locus_df,
         "config": config,
         "targets": targets,
         "df": df,
@@ -1125,6 +1127,69 @@ def _calculate_resistance_table(
     return result.reset_index(drop=True)
 
 
+def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "Bacteria",
+        "Total New Infections",
+        "Hospital Infections with Any Resistance (%)",
+        "Community Infections with Any Resistance (%)"
+    ]
+    if year_df.empty:
+        return pd.DataFrame(columns=columns)
+        
+    sim_bacteria_set, _ = _extract_bacteria_and_drugs(year_df)
+    canonical_sim_map: Dict[str, Set[str]] = {}
+    for raw_slug in sim_bacteria_set:
+        canonical = _canonicalize_bacteria_slug(raw_slug)
+        canonical_sim_map.setdefault(canonical, set()).add(raw_slug)
+        
+    records = []
+    
+    for slug in sorted(canonical_sim_map.keys()):
+        raw_slugs = canonical_sim_map[slug]
+        
+        display_name = BACTERIA_DISPLAY_NAME_OVERRIDES.get(slug, slug.replace("_", " "))
+        
+        total_infections = 0.0
+        hosp_infections = 0.0
+        hosp_any_r = 0.0
+        comm_any_r = 0.0
+        
+        for raw_slug in raw_slugs:
+            carrier_col = f"{raw_slug}_newly_infected_carrier"
+            non_carrier_col = f"{raw_slug}_newly_infected_non_carrier"
+            for col in (carrier_col, non_carrier_col):
+                if col in year_df.columns:
+                    total_infections += float(year_df[col].sum(skipna=True))
+                    
+            for region in ["north_america", "south_america", "europe", "asia", "africa", "oceania"]:
+                hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
+                if hosp_col in year_df.columns:
+                    hosp_infections += float(year_df[hosp_col].sum(skipna=True))
+                    
+            hosp_r_col = f"{raw_slug}_newly_infected_any_r_hospital"
+            if hosp_r_col in year_df.columns:
+                hosp_any_r += float(year_df[hosp_r_col].sum(skipna=True))
+                
+            comm_r_col = f"{raw_slug}_newly_infected_any_r_community"
+            if comm_r_col in year_df.columns:
+                comm_any_r += float(year_df[comm_r_col].sum(skipna=True))
+                
+        comm_infections = total_infections - hosp_infections
+        
+        hosp_r_pct = (hosp_any_r / hosp_infections * 100.0) if hosp_infections > 0 else np.nan
+        comm_r_pct = (comm_any_r / comm_infections * 100.0) if comm_infections > 0 else np.nan
+        
+        records.append({
+            "Bacteria": display_name,
+            "Total New Infections": total_infections,
+            "Hospital Infections with Any Resistance (%)": hosp_r_pct,
+            "Community Infections with Any Resistance (%)": comm_r_pct,
+        })
+        
+    df = pd.DataFrame(records, columns=columns)
+    return df
+
 def _calculate_bacteria_burden_table(
     year_df: pd.DataFrame,
     targets: CalibrationTargets,
@@ -1135,6 +1200,7 @@ def _calculate_bacteria_burden_table(
         "Bacteria",
         "Infection target (%)",
         "Infection simulation (%)",
+        "Hospital Acquired (%)",
         "Carriage target (%)",
         "Carriage simulation (%)",
         "Deaths target (millions)",
@@ -1225,7 +1291,9 @@ def _calculate_bacteria_burden_table(
         raw_slugs = canonical_sim_map.get(slug, {slug})
 
         infection_sim_pct = np.nan
+        hospital_acquired_pct = np.nan
         total_infections = 0.0
+        total_hospital_infections = 0.0
         infection_data = False
         for raw_slug in raw_slugs:
             carrier_col = f"{raw_slug}_newly_infected_carrier"
@@ -1234,8 +1302,15 @@ def _calculate_bacteria_burden_table(
                 if col in year_df.columns:
                     total_infections += float(year_df[col].sum(skipna=True))
                     infection_data = True
+            for region in ["north_america", "south_america", "europe", "asia", "africa", "oceania"]:
+                hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
+                if hosp_col in year_df.columns:
+                    total_hospital_infections += float(year_df[hosp_col].sum(skipna=True))
+                    
         if infection_data and avg_population > 0:
             infection_sim_pct = (total_infections / annualization_factor) / avg_population * 100.0
+        if total_infections > 0:
+            hospital_acquired_pct = (total_hospital_infections / total_infections) * 100.0
 
         carriage_sim_pct = np.nan
         total_carriers = 0.0
@@ -1265,6 +1340,7 @@ def _calculate_bacteria_burden_table(
             "Bacteria": display_name,
             "Infection target (%)": infection_target_pct,
             "Infection simulation (%)": infection_sim_pct,
+            "Hospital Acquired (%)": hospital_acquired_pct,
             "Carriage target (%)": carriage_target_pct,
             "Carriage simulation (%)": carriage_sim_pct,
             "Deaths target (millions)": deaths_target_millions,
@@ -2366,6 +2442,12 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("\n\n")
         else:
             handle.write("Bacteria Burden Benchmarks\n(no bacteria burden metrics available)\n\n")
+            
+        locus_df = context.get("resistance_incidence_locus_df")
+        if locus_df is not None and not locus_df.empty:
+            handle.write("Resistance Incidence Locus (Any Resistance at Infection)\n")
+            handle.write(locus_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write("\n\n")
 
         if not syndrome_df.empty:
             handle.write("Syndrome Incidence Breakdown\n")
