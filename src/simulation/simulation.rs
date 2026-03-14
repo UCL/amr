@@ -1397,6 +1397,8 @@ pub struct Simulation {
     /// Sparse mapping: for each bacteria, list of drug indices with potency > 0.01 (clinically relevant)
     /// Used to skip irrelevant bacteria-drug pairs in majority_r collection loops
     pub relevant_drugs_by_bacteria: Vec<Vec<usize>>,
+    /// When true, skip expensive non-calibration summary computations (day_7, polypharmacy, drug scores, etc.)
+    pub calibration_mode: bool,
 }
 
 impl Simulation {
@@ -1408,6 +1410,7 @@ impl Simulation {
         time_steps: usize,
         log_individuals: bool,
         seed: Option<u64>,
+        calibration_mode: bool,
     ) -> Self {
         let mut initialization_rng = seed
             .map(SmallRng::seed_from_u64)
@@ -1578,6 +1581,7 @@ impl Simulation {
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
             majority_r_config,
             relevant_drugs_by_bacteria,
+            calibration_mode,
         }
     }
 
@@ -3437,7 +3441,7 @@ impl Simulation {
                 }
             }
 
-            let summary = TimeStepSummary {
+            let mut summary = TimeStepSummary {
                 policy_option: policy.policy_option,
                 infected_and_on_any_drug_by_bacteria,
                 infected_and_standardized_mic_lt2_by_bacteria_drug,
@@ -3558,8 +3562,8 @@ impl Simulation {
                 infection_resolution_death_from_background_by_bacteria,
                 infection_resolution_death_from_toxicity_by_bacteria,
 
-                // Calculate day-7 drug initiation statistics
-                day_7_evaluations_by_bacteria: {
+                // Calculate day-7 drug initiation statistics (skipped in calibration mode)
+                day_7_evaluations_by_bacteria: if !self.calibration_mode {
                     let evaluation_days = get_global_param("drug_evaluation_days_post_infection")
                         .unwrap_or(7.0) as i32;
                     let mut day_7_evals = vec![0; BACTERIA_LIST.len()];
@@ -3580,8 +3584,8 @@ impl Simulation {
                         }
                     }
                     day_7_evals
-                },
-                day_7_drug_used_by_bacteria: {
+                } else { vec![0; BACTERIA_LIST.len()] },
+                day_7_drug_used_by_bacteria: if !self.calibration_mode {
                     let evaluation_days = get_global_param("drug_evaluation_days_post_infection")
                         .unwrap_or(7.0) as i32;
                     let mut day_7_used = vec![0; BACTERIA_LIST.len()];
@@ -3621,7 +3625,7 @@ impl Simulation {
                     }
 
                     day_7_used
-                },
+                } else { vec![0; BACTERIA_LIST.len()] },
                 infected_by_syndrome,
                 infected_by_syndrome_by_bacteria,
                 newly_infected_by_syndrome,
@@ -3666,7 +3670,7 @@ impl Simulation {
                 age_distribution_by_region,
                 deaths_by_region,
                 deaths_by_region_age,
-                syndrome_population_by_region: {
+                syndrome_population_by_region: if !self.calibration_mode {
                     let mut syndrome_pop_by_region = vec![0; 60]; // 10 syndromes * 6 regions
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3689,56 +3693,23 @@ impl Simulation {
                         }
                     }
                     syndrome_pop_by_region
-                },
+                } else { vec![0; 60] },
                 syndrome_deaths_sepsis_by_region: { syndrome_deaths_sepsis_by_region },
                 syndrome_deaths_infection_non_sepsis_by_region: {
                     syndrome_deaths_infection_non_sepsis_by_region
                 },
                 currently_on_drug_by_region_drug,
 
-                // Calculate polypharmacy distribution (1, 2, or ≥3 drugs)
-                people_on_1_drug: {
-                    let mut count = 0;
-                    for individual in &self.population.individuals {
-                        if individual.date_of_death.is_some() {
-                            continue;
-                        } // Skip dead individuals
-
-                        if individual.current_number_of_drugs == 1 {
-                            count += 1;
-                        }
-                    }
-                    count
-                },
-                people_on_2_drugs: {
-                    let mut count = 0;
-                    for individual in &self.population.individuals {
-                        if individual.date_of_death.is_some() {
-                            continue;
-                        } // Skip dead individuals
-
-                        if individual.current_number_of_drugs == 2 {
-                            count += 1;
-                        }
-                    }
-                    count
-                },
-                people_on_3plus_drugs: {
-                    let mut count = 0;
-                    for individual in &self.population.individuals {
-                        if individual.date_of_death.is_some() {
-                            continue;
-                        } // Skip dead individuals
-
-                        if individual.current_number_of_drugs >= 3 {
-                            count += 1;
-                        }
-                    }
-                    count
-                },
+                // Calculate polypharmacy distribution (1, 2, or ≥3 drugs) — merged single pass
+                people_on_1_drug: if !self.calibration_mode {
+                    // Computed below via merged polypharmacy block
+                    0 // placeholder — overwritten after struct init
+                } else { 0 },
+                people_on_2_drugs: if !self.calibration_mode { 0 } else { 0 },
+                people_on_3plus_drugs: if !self.calibration_mode { 0 } else { 0 },
 
                 // Calculate infected people on drug with previous treatment failure
-                infected_on_drug_with_previous_failure: {
+                infected_on_drug_with_previous_failure: if !self.calibration_mode {
                     let mut count = 0;
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3770,10 +3741,10 @@ impl Simulation {
                         }
                     }
                     count
-                },
+                } else { 0 },
 
                 // Drug score tracking for clinical guideline debugging
-                drug_selection_count_by_bacteria: {
+                drug_selection_count_by_bacteria: if !self.calibration_mode {
                     let mut counts = vec![0; BACTERIA_LIST.len()];
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3788,9 +3759,9 @@ impl Simulation {
                         }
                     }
                     counts
-                },
+                } else { vec![0; BACTERIA_LIST.len()] },
 
-                drug_score_sums_by_bacteria_drug: {
+                drug_score_sums_by_bacteria_drug: if !self.calibration_mode {
                     let mut sums = vec![0.0; BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len()];
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3815,22 +3786,36 @@ impl Simulation {
                         }
                     }
                     sums
-                },
+                } else { vec![0.0; BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len()] },
 
-                people_by_drug_count: {
-                    let mut drug_count_histogram = vec![0; 4]; // 0, 1, 2, 3+ drugs
-                    for individual in &self.population.individuals {
-                        if individual.date_of_death.is_some() {
-                            continue;
-                        } // Skip dead individuals
-
-                        let drug_count = individual.current_number_of_drugs as usize;
-                        let histogram_index = if drug_count >= 3 { 3 } else { drug_count }; // Cap at 3+ drugs
-                        drug_count_histogram[histogram_index] += 1;
-                    }
-                    drug_count_histogram
-                },
+                people_by_drug_count: if !self.calibration_mode { vec![0; 4] } else { vec![0; 4] },
             };
+
+            // Merged polypharmacy single-pass loop (replaces 4 separate loops)
+            if !self.calibration_mode {
+                let mut on_1 = 0usize;
+                let mut on_2 = 0usize;
+                let mut on_3plus = 0usize;
+                let mut drug_count_histogram = vec![0usize; 4]; // 0, 1, 2, 3+ drugs
+                for individual in &self.population.individuals {
+                    if individual.date_of_death.is_some() {
+                        continue;
+                    }
+                    let n = individual.current_number_of_drugs;
+                    match n {
+                        1 => on_1 += 1,
+                        2 => on_2 += 1,
+                        n if n >= 3 => on_3plus += 1,
+                        _ => {}
+                    }
+                    let hist_idx = if (n as usize) >= 3 { 3 } else { n as usize };
+                    drug_count_histogram[hist_idx] += 1;
+                }
+                summary.people_on_1_drug = on_1;
+                summary.people_on_2_drugs = on_2;
+                summary.people_on_3plus_drugs = on_3plus;
+                summary.people_by_drug_count = drug_count_histogram;
+            }
 
             // Comprehensive print block for individual 0
             let _individual_0 = &self.population.individuals[0];
@@ -4708,6 +4693,18 @@ impl Simulation {
             }
         }
 
+        // Add per-bacteria newly infected with any resistance (hospital vs community)
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_newly_infected_any_r_hospital");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_newly_infected_any_r_community");
+        }
+
         // Add regional age distribution columns to header
         let age_group_names = [
             "prop_age_0_5",
@@ -5183,6 +5180,16 @@ impl Simulation {
                     row.push(',');
                     row.push_str(&count.to_string());
                 }
+            }
+
+            // Add per-bacteria newly infected with any resistance (hospital vs community)
+            for value in &summary.newly_infected_any_r_hospital_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.newly_infected_any_r_community_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
             }
 
             // Add regional age distribution data (as proportions)

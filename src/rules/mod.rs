@@ -4193,9 +4193,14 @@ pub fn apply_rules(
                             continue;
                         }
 
-                        for (mechanism_idx, _mechanism) in
+                        for (mechanism_idx, mechanism) in
                             ResistanceMechanism::all().iter().enumerate()
                         {
+                            // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                            if mechanism.is_as_yet_unknown() {
+                                continue;
+                            }
+
                             if individual.resistance_mechanisms[b_idx][mechanism_idx] {
                                 continue;
                             }
@@ -4357,6 +4362,12 @@ pub fn apply_rules(
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 for m_idx in 0..64 {
                                     if (profile & (1 << m_idx)) != 0 {
+                                        // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                                        if m_idx < ResistanceMechanism::all().len()
+                                            && ResistanceMechanism::all()[m_idx].is_as_yet_unknown()
+                                        {
+                                            continue;
+                                        }
                                         individual.resistance_mechanisms[b_idx][m_idx] = true;
                                     }
                                 }
@@ -4366,7 +4377,10 @@ pub fn apply_rules(
                             // Fallback: sample ONE mechanism from marginal prevalence cache
                             let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
                             if let Some(idx) = sampled_mechanism_idx {
-                                if rng.gen::<f64>() < counterfactual_resistance_multiplier {
+                                // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                                if rng.gen::<f64>() < counterfactual_resistance_multiplier
+                                    && !ResistanceMechanism::all()[idx].is_as_yet_unknown()
+                                {
                                     individual.resistance_mechanisms[b_idx][idx] = true;
                                 }
                             }
@@ -4427,9 +4441,14 @@ pub fn apply_rules(
 
                                     let mechanism_prob =
                                         store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                    for (mech_idx, _mechanism) in
+                                    for (mech_idx, mechanism) in
                                         ResistanceMechanism::all().iter().enumerate()
                                     {
+                                        // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                                        if mechanism.is_as_yet_unknown() {
+                                            continue;
+                                        }
+
                                         if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
                                             continue;
                                         }
@@ -4482,9 +4501,14 @@ pub fn apply_rules(
                                 use crate::simulation::population::ResistanceMechanism;
                                 let mechanism_prob =
                                     store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, _mechanism) in
+                                for (mech_idx, mechanism) in
                                     ResistanceMechanism::all().iter().enumerate()
                                 {
+                                    // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                                    if mechanism.is_as_yet_unknown() {
+                                        continue;
+                                    }
+
                                     if !param_cache.mechanism_applicable(
                                         mech_idx,
                                         b_idx,
@@ -4633,9 +4657,14 @@ pub fn apply_rules(
                         let multi_drug_penalty_threshold =
                             store.globals.multi_drug_penalty_threshold_num_drugs as usize;
 
-                        for (mechanism_idx, _mechanism) in
+                        for (mechanism_idx, mechanism) in
                             ResistanceMechanism::all().iter().enumerate()
                         {
+                            // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                            if mechanism.is_as_yet_unknown() {
+                                continue;
+                            }
+
                             // Skip if mechanism already present
                             if individual.resistance_mechanisms[bacteria_full_idx][mechanism_idx] {
                                 continue;
@@ -5421,6 +5450,11 @@ pub fn apply_rules(
                     let mut any_mechanism_transferred = false;
 
                     for (mech_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                        // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                        if mechanism.is_as_yet_unknown() {
+                            continue;
+                        }
+
                         // Donor must actually carry this mechanism
                         if !individual.resistance_mechanisms[donor_idx][mech_idx] {
                             continue;

@@ -161,6 +161,12 @@ impl ResistanceMechanism {
         ]
     }
 
+    /// Returns true for AsYetUnknown1/2/3 placeholder mechanisms.
+    /// These are dormant until explicitly activated with real emergence rates.
+    pub fn is_as_yet_unknown(&self) -> bool {
+        matches!(self, ResistanceMechanism::AsYetUnknown1 | ResistanceMechanism::AsYetUnknown2 | ResistanceMechanism::AsYetUnknown3)
+    }
+
     /// Returns the mechanism name as a string for configuration lookups
     pub fn as_str(&self) -> &'static str {
         match self {
