@@ -2529,6 +2529,9 @@ impl Simulation {
             let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
                 .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let policy = self.current_policy_adjustments;
+            // When calibration_mode is on, skip expensive bacteria×drug summary
+            // accumulations for pre-calibration time steps (only needed for last ~20 years).
+            let need_full_summary = !self.calibration_mode || t >= self.time_steps.saturating_sub(20 * 365);
             let totals = self.population.individuals.par_iter_mut()
             .fold(
                 || {
@@ -2571,43 +2574,47 @@ impl Simulation {
                             };
 
                             for b_idx in 0..num_bacteria {
-                                for d_idx in 0..num_drugs {
-                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                if need_full_summary {
+                                    for d_idx in 0..num_drugs {
+                                        lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                    }
                                 }
                                 if individual.level[b_idx] > INFECTION_EPS {
-                                    let base = b_idx * num_drugs;
-                                    if on_any_drug_current {
-                                        lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
-                                    }
-                                    for d_idx in 0..num_drugs {
-                                        let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        let threshold = mic_lt2_thresholds[base + d_idx];
-                                        if resistance_data.majority_r < threshold {
-                                            lt.mic_lt2_counts[base + d_idx] += 1;
+                                    if need_full_summary {
+                                        let base = b_idx * num_drugs;
+                                        if on_any_drug_current {
+                                            lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
                                         }
-                                        if individual.cur_use_drug[d_idx] {
-                                            lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
+                                        for d_idx in 0..num_drugs {
+                                            let resistance_data = &individual.resistances[b_idx][d_idx];
+                                            let threshold = mic_lt2_thresholds[base + d_idx];
+                                            if resistance_data.majority_r < threshold {
+                                                lt.mic_lt2_counts[base + d_idx] += 1;
+                                            }
+                                            if individual.cur_use_drug[d_idx] {
+                                                lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
+                                            }
+                                            lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
+                                            let potency = potency_matrix[base + d_idx];
+                                            let mic = if potency <= 1e-9 {
+                                                1e12
+                                            } else {
+                                                let susceptible_fraction =
+                                                    (1.0 - resistance_data.majority_r).clamp(1e-6, 1.0);
+                                                1.0 / (susceptible_fraction * potency)
+                                            };
+                                            lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
+                                            if resistance_data.any_r > 0.0 {
+                                                lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
+                                            }
+                                            if individual.infection_hospital_acquired[b_idx] {
+                                                lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
+                                            }
+                                            if let Some(region_idx) = effective_region_idx_for_any_r {
+                                                lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
+                                            }
                                         }
-                                        lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
-                                        let potency = potency_matrix[base + d_idx];
-                                        let mic = if potency <= 1e-9 {
-                                            1e12
-                                        } else {
-                                            let susceptible_fraction =
-                                                (1.0 - resistance_data.majority_r).clamp(1e-6, 1.0);
-                                            1.0 / (susceptible_fraction * potency)
-                                        };
-                                        lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
-                                        if resistance_data.any_r > 0.0 {
-                                            lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
-                                        }
-                                        if individual.infection_hospital_acquired[b_idx] {
-                                            lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
-                                        }
-                                        if let Some(region_idx) = effective_region_idx_for_any_r {
-                                            lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
-                                        }
-                                    }
+                                    } // end need_full_summary for pre-rules B×D
 
                                     let num_mechanisms = ResistanceMechanism::all().len();
                                     for (mech_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
@@ -2640,7 +2647,7 @@ impl Simulation {
                                     }
                                 }
 
-                                if has_any_microbiome {
+                                if has_any_microbiome && need_full_summary {
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
                                         if resistance_data.microbiome_r > 0.0 {
@@ -2999,8 +3006,10 @@ impl Simulation {
                         let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
                         {
                             for b_idx in 0..num_bacteria {
-                                for d_idx in 0..num_drugs {
-                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                if need_full_summary {
+                                    for d_idx in 0..num_drugs {
+                                        lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                    }
                                 }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     // Track non-H. pylori infections separately (exclude H. pylori at index 32)
@@ -3016,8 +3025,10 @@ impl Simulation {
                                 }
                             }
                             for b_idx in 0..num_bacteria {
-                                for d_idx in 0..num_drugs {
-                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                if need_full_summary {
+                                    for d_idx in 0..num_drugs {
+                                        lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
+                                    }
                                 }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
@@ -3089,6 +3100,8 @@ impl Simulation {
                                     }
                                     
                                     // Full iteration for other stats that need all drugs
+                                    // (skipped for pre-calibration steps when need_full_summary is false)
+                                    if need_full_summary {
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
                                         // Only sum activity_r if individual is currently on this drug
@@ -3122,6 +3135,7 @@ impl Simulation {
                                             }
                                         }
                                     }
+                                    } // end need_full_summary for post-rules full B×D iteration
                                     if is_carrier {
                                         lt.infected_carrier_count_by_bacteria[b_idx] += 1;
                                         if infection_any_r_positive {
