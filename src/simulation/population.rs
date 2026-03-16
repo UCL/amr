@@ -1163,7 +1163,7 @@ impl Region {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resistance {
     /// Resistance level in colonizing (carriage) bacteria. Range: 0.0-1.0.
-    /// Updated when microbiome acquires resistant strains or loses them.
+    /// Derived from mechanism_microbiome via the multiplicative product formula.
     pub microbiome_r: f64,
     
     /// Resistance as would be detected by laboratory testing. Range: 0.0-1.0.
@@ -1175,14 +1175,9 @@ pub struct Resistance {
     pub activity_r: f64,
     
     /// Primary resistance level - resistance present in ANY infected bacteria. Range: 0.0-1.0.
-    /// This is the main resistance value used throughout the simulation.
-    /// Even minority resistance populations affect treatment outcomes.
+    /// Derived from mechanism_any via the multiplicative product formula:
+    ///   any_r = 1 - product(1 - enhancement_multiplier) over all present mechanisms.
     pub any_r: f64,
-    
-    /// Resistance in MAJORITY of infected bacteria. Range: 0.0-1.0.
-    /// When majority_r is non-zero, it always equals any_r.
-    /// Represents population-level resistance patterns (sampled via MajorityRCache).
-    pub majority_r: f64,
 }
 
 pub const MICROBIOME_RESISTANCE_LEVEL_COUNT: usize = 4;
@@ -1485,13 +1480,24 @@ pub struct Individual {
     // RESISTANCE STATE (2D: [bacteria][drug] or [bacteria][mechanism])
     // -------------------------------------------------------------------------
     /// Main resistance matrix: resistances[bacteria_index][drug_index] -> Resistance struct.
-    /// See Resistance struct documentation for details on any_r, majority_r, etc.
+    /// any_r and microbiome_r are derived from mechanism_any and mechanism_microbiome respectively.
     pub resistances: Vec<Vec<Resistance>>,
     
-    /// Specific resistance mechanisms present for each bacteria.
-    /// resistance_mechanisms[bacteria_index][mechanism_index] -> bool.
-    /// See ResistanceMechanism enum for mechanism types.
-    pub resistance_mechanisms: Vec<Vec<bool>>,
+    /// Active-infection resistance mechanisms: mechanism_any[bacteria][mechanism] -> bool.
+    /// True when the mechanism is present in ANY of the bacteria causing infection.
+    /// Drives any_r derivation via the multiplicative product formula.
+    pub mechanism_any: Vec<Vec<bool>>,
+    
+    /// Majority-strain mechanisms: mechanism_majority[bacteria][mechanism] -> bool.
+    /// Invariant: mechanism_majority[b][m] => mechanism_any[b][m].
+    /// Set at acquisition (established strain) or when de-novo mechanism becomes dominant.
+    /// Used as the source for HGT donor transfer eligibility.
+    pub mechanism_majority: Vec<Vec<bool>>,
+    
+    /// Microbiome/carriage mechanisms: mechanism_microbiome[bacteria][mechanism] -> bool.
+    /// Tracks resistance mechanisms in asymptomatic carriage.
+    /// Drives microbiome_r derivation; copied to mechanism_any on carrier→infection.
+    pub mechanism_microbiome: Vec<Vec<bool>>,
     
     /// How resistance was acquired for each bacteria-drug combination.
     /// None if never acquired resistance.
@@ -1624,16 +1630,20 @@ impl Individual {
                     test_r: 0.0,
                     activity_r: 0.0,
                     any_r: 0.0,
-                    majority_r: 0.0,
                 });
             }
             resistances.push(drug_resistances);
         }
 
-        // Initialize resistance mechanisms (all false initially)
-        let mut resistance_mechanisms = Vec::with_capacity(num_bacteria);
+        // Initialize mechanism arrays (all false initially)
+        let num_mechanisms = ResistanceMechanism::all().len();
+        let mut mechanism_any = Vec::with_capacity(num_bacteria);
+        let mut mechanism_majority = Vec::with_capacity(num_bacteria);
+        let mut mechanism_microbiome = Vec::with_capacity(num_bacteria);
         for _ in 0..num_bacteria {
-            resistance_mechanisms.push(vec![false; ResistanceMechanism::all().len()]);
+            mechanism_any.push(vec![false; num_mechanisms]);
+            mechanism_majority.push(vec![false; num_mechanisms]);
+            mechanism_microbiome.push(vec![false; num_mechanisms]);
         }
         // Initialize how_resistance_acquired (all None initially)
         let mut how_resistance_acquired = Vec::with_capacity(num_bacteria);
@@ -1726,7 +1736,9 @@ impl Individual {
             mortality_risk_current_toxicity: 0.0,
             toxicity_stopped_drug_day: vec![i32::MIN; num_drugs],
             resistances,
-            resistance_mechanisms,
+            mechanism_any,
+            mechanism_majority,
+            mechanism_microbiome,
             how_resistance_acquired,
             asymptomatic_microbiome_hgt_events_today,
             infection_resolution_this_timestep,

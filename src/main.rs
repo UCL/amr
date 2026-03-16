@@ -55,9 +55,17 @@ mod simulation;
 //
 // review logic for determining resistance at infection 
 //
+// check have enough hospital infections (and the expected higher resistance in those with
+//  hospital acquired infection)
+//
 // add flucloxacilin
+// add aztreonam-avibactam
 // consider drug scores
 // consider relative chance of drug start by infection site
+//
+// should these be grouped together in drug class enum in population.rs ?
+// BliNovelCombinations,  // BL-NI: ceftazidime-avibactam, meropenem-vaborbactam
+//
 //
 // ? consider that hgt can come from non-pathogenic bacteria (which we don't model) so don't
 // necessarily need another pathogenic bacteria in the compartment to acquire
@@ -158,6 +166,7 @@ mod simulation;
 use crate::config::get_global_param;
 use crate::simulation::population::BACTERIA_LIST;
 use crate::simulation::simulation::Simulation;
+use crate::simulation::simulation::CalibrationMode;
 use std::path::PathBuf;
 
 fn main() {
@@ -168,10 +177,15 @@ fn main() {
 
     // Create and run the simulation
     let population_size = 100_000;
-    let time_steps = 38_325 ;   // 38_325 
+    // CalibrationMode::Full  — sparse CSV (snapshot years + 2021-2026 only); fastest calibration runs.
+    // CalibrationMode::Partial — all 1930-2026 rows kept; time-series plots still work.
+    // CalibrationMode::None  — full run with policy branches to 2035.
+    let calibration_mode = CalibrationMode::Full;
+    // time_steps: in any calibration mode we only need up to end-2026 (35_400 ≈ 2026.99).
+    // Full run (policy branches to 2035) needs 38_325.
+    let time_steps = if calibration_mode == CalibrationMode::None { 38_325 } else { 35_400 };
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
-    let calibration_mode = true; // Set to true to skip expensive non-calibration summary computations
     let infection_journey_sample_rate = 1.00; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true

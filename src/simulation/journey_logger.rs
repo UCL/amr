@@ -689,7 +689,7 @@ impl JourneyLogger {
             .enumerate()
             .filter(|(idx, _)| {
                 let resistance_value =
-                    individual.resistances[primary_bacteria_idx][*idx].majority_r;
+                    individual.resistances[primary_bacteria_idx][*idx].any_r;
                 let drug_active = individual.cur_use_drug[*idx]
                     || individual.cur_level_drug[*idx] > INFECTION_EPS;
                 resistance_value > 0.0 || drug_active
@@ -697,7 +697,7 @@ impl JourneyLogger {
             .map(|(idx, &drug_name)| {
                 (
                     drug_name.to_string(),
-                    individual.resistances[primary_bacteria_idx][idx].majority_r,
+                    individual.resistances[primary_bacteria_idx][idx].any_r,
                 )
             })
             .collect();
@@ -813,7 +813,7 @@ impl JourneyLogger {
 
         // Collect active resistance mechanisms
         let all_mechanisms = ResistanceMechanism::all();
-        let resistance_mechanisms: Vec<String> = individual.resistance_mechanisms
+        let resistance_mechanisms: Vec<String> = individual.mechanism_any
             [primary_bacteria_idx]
             .iter()
             .enumerate()
@@ -1269,7 +1269,7 @@ impl JourneyLogger {
                     .map(|(_, value)| *value)
                     .unwrap_or(0.0);
                 let current_majority =
-                    individual.resistances[primary_bacteria_idx][drug_idx].majority_r;
+                    individual.resistances[primary_bacteria_idx][drug_idx].any_r;
 
                 let any_increased = current_any > prev_any + RESISTANCE_EPSILON;
                 let majority_increased = current_majority > prev_majority + RESISTANCE_EPSILON;

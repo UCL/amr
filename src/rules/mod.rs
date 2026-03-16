@@ -92,7 +92,7 @@ use crate::simulation::population::{
 };
 use rand::Rng;
 
-use crate::simulation::simulation::{MajorityRCache, PolicyAdjustments};
+use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
 use log;
 use std::collections::HashMap;
 use std::f64::consts::LN_2;
@@ -241,7 +241,7 @@ fn propagate_mechanism_resistance(
         let mut current_susceptibility = 1.0_f64;
 
         for (mechanism_idx, _) in ResistanceMechanism::all().iter().enumerate() {
-            if !individual.resistance_mechanisms[b_idx][mechanism_idx] {
+            if !individual.mechanism_any[b_idx][mechanism_idx] {
                 continue;
             }
             if !param_cache.mechanism_applicable(mechanism_idx, b_idx, drug_index) {
@@ -266,15 +266,10 @@ fn propagate_mechanism_resistance(
             // Only raise any_r — don't lower it (preserves higher cache-sampled values)
             if new_any_r > resistance_data.any_r {
                 resistance_data.any_r = new_any_r;
-                // Mechanism = genotypic change = majority strain, so set majority_r too
-                resistance_data.majority_r = resistance_data.any_r;
             }
         } else {
             // Reset mode (reversion) — set any_r to exact mechanism-derived level
             resistance_data.any_r = new_any_r;
-            if resistance_data.majority_r > 0.0 {
-                resistance_data.majority_r = resistance_data.any_r;
-            }
         }
 
         // Propagate to microbiome_r if requested (microbiome context)
@@ -1278,9 +1273,7 @@ pub fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
     rng: &mut impl Rng,
-    majority_r_cache: &MajorityRCache,
-    mechanism_prevalence_cache: &crate::simulation::simulation::MechanismPrevalenceCache,
-    mechanism_profile_cache: &crate::simulation::simulation::MechanismProfileCache,
+    mechanism_cache: &MechanismCache,
     bacteria_indices: &HashMap<&'static str, usize>,
     drug_indices: &HashMap<&'static str, usize>,
     cross_resistance_groups: &HashMap<usize, Vec<Vec<usize>>>, // New parameter
@@ -2857,7 +2850,7 @@ pub fn apply_rules(
                         false
                     };
                     
-                    if !majority_r_cache.is_empty() {
+                    if !mechanism_cache.is_empty() {
                         let region_idx = individual.region_cur_in as usize;
                         let hospital_status = individual.hospital_status.is_hospitalized();
 
@@ -2877,11 +2870,12 @@ pub fn apply_rules(
                             if has_any_identified_infection && !identified_bacteria.contains(&b_idx) {
                                 continue;
                             }
-                            let resistance_prevalence = majority_r_cache.probability(
+                            let resistance_prevalence = mechanism_cache.prevalence(
                                 region_idx,
                                 hospital_status,
                                 b_idx,
                                 drug_idx,
+                                param_cache,
                             );
 
                             if resistance_prevalence <= 0.0 {
@@ -3037,18 +3031,19 @@ pub fn apply_rules(
                             score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
                         } else {
                             let mut high_resistance_observed = false;
-                            if !majority_r_cache.is_empty() {
+                            if !mechanism_cache.is_empty() {
                                 let region_idx = individual.region_cur_in as usize;
                                 let hospital_status = individual.hospital_status.is_hospitalized();
                                 let high_threshold =
                                     store.globals.regional_resistance_threshold_high;
 
                                 for b_idx in 0..BACTERIA_LIST.len() {
-                                    let prevalence = majority_r_cache.probability(
+                                    let prevalence = mechanism_cache.prevalence(
                                         region_idx,
                                         hospital_status,
                                         b_idx,
                                         drug_idx,
+                                        param_cache,
                                     );
 
                                     if prevalence >= high_threshold {
@@ -3972,13 +3967,25 @@ pub fn apply_rules(
                                 hospital_status_bool // Community-acquired microbiome samples based on current status
                             };
 
-                            if let Some(acquired_resistance_level) = majority_r_cache.sample(
-                                region_idx,
-                                sampling_hospital_status,
-                                b_idx,
-                                d_idx,
-                                rng,
-                            ) {
+                            if let Some(acquired_resistance_level) = {
+                                // Use mechanism_cache EWMA prevalence to assign microbiome_r at acquisition.
+                                // Compute mechanism-derived resistance level for this drug slot.
+                                let prev = mechanism_cache.prevalence(
+                                    region_idx,
+                                    sampling_hospital_status,
+                                    b_idx,
+                                    d_idx,
+                                    param_cache,
+                                );
+                                // Only seed microbiome_r if the cache shows meaningful prevalence
+                                if prev > 1e-6 && rng.gen_bool(prev.clamp(0.0, 1.0)) {
+                                    // Level proportional to prevalence, capped to max_resistance_level
+                                    let base_level = prev * max_resistance_level;
+                                    Some(base_level)
+                                } else {
+                                    None
+                                }
+                            } {
                                 // Apply resistance floor for rare bacteria (same as infection acquisition)
                                 // This ensures microbiome colonization also carries appropriate resistance
                                 // levels, which feeds back into the majority_r_cache for future acquisitions
@@ -4201,7 +4208,7 @@ pub fn apply_rules(
                                 continue;
                             }
 
-                            if individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                            if individual.mechanism_any[b_idx][mechanism_idx] {
                                 continue;
                             }
 
@@ -4217,7 +4224,7 @@ pub fn apply_rules(
                                     * counterfactual_resistance_multiplier; // Apply species and policy multipliers to mechanism emergence in microbiome
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                individual.resistance_mechanisms[b_idx][mechanism_idx] = true;
+                                individual.mechanism_any[b_idx][mechanism_idx] = true;
                             }
                         }
                     }
@@ -4350,6 +4357,13 @@ pub fn apply_rules(
                     // If drawn from the environmental pool, we default to wild type (0.0 acquired resistance).
                     let from_human_reservoir = rng.gen_bool(community_dilution.clamp(0.0, 1.0));
 
+                    // Sampling hospital status: hospital-acquired infections sample from hospitalized pool
+                    let sampling_hospital_status = if is_hospital_acquired {
+                        true
+                    } else {
+                        hospital_status_bool
+                    };
+
                     // --- Mechanism profile sampling ---
                     // Prefer the profile cache (samples a complete mechanism genotype from
                     // an actual circulating strain) over the marginal prevalence cache.
@@ -4357,7 +4371,7 @@ pub fn apply_rules(
                     // when the profile cache is empty.
                     let profile_sampled = if from_human_reservoir {
                         if let Some(profile) =
-                            mechanism_profile_cache.sample(region_idx, b_idx, rng)
+                            mechanism_cache.sample_profile(region_idx, b_idx, rng)
                         {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 for m_idx in 0..64 {
@@ -4368,20 +4382,23 @@ pub fn apply_rules(
                                         {
                                             continue;
                                         }
-                                        individual.resistance_mechanisms[b_idx][m_idx] = true;
+                                        // Mark as any-strain AND majority-strain (established circulating strain)
+                                        individual.mechanism_any[b_idx][m_idx] = true;
+                                        individual.mechanism_majority[b_idx][m_idx] = true;
                                     }
                                 }
                             }
                             true
                         } else {
                             // Fallback: sample ONE mechanism from marginal prevalence cache
-                            let sampled_mechanism_idx = mechanism_prevalence_cache.sample(region_idx, b_idx, rng);
+                            let sampled_mechanism_idx = mechanism_cache.sample_mechanism(region_idx, sampling_hospital_status, b_idx, rng);
                             if let Some(idx) = sampled_mechanism_idx {
                                 // Skip AsYetUnknown placeholder mechanisms — dormant until activated
                                 if rng.gen::<f64>() < counterfactual_resistance_multiplier
                                     && !ResistanceMechanism::all()[idx].is_as_yet_unknown()
                                 {
-                                    individual.resistance_mechanisms[b_idx][idx] = true;
+                                    individual.mechanism_any[b_idx][idx] = true;
+                                    individual.mechanism_majority[b_idx][idx] = true;
                                 }
                             }
                             false
@@ -4390,94 +4407,68 @@ pub fn apply_rules(
                         false
                     };
 
+                    // In the new mechanism-centric architecture, any_r is derived exclusively
+                    // from mechanism state via propagate_mechanism_resistance below.
+                    // We only set how_resistance_acquired based on whether a mechanism was sampled.
+                    // The resistance floor is handled by propagate_mechanism_resistance using the
+                    // mechanism enhancement multipliers.
+                    let _ = profile_sampled; // used for documentation; propagation handles everything
+
+                    // For each drug, record acquisition provenance if mechanisms were set
                     for drug_name_static in DRUG_SHORT_NAMES.iter() {
                         let d_idx = *drug_indices.get(drug_name_static).unwrap();
-                        let resistance_data = &mut individual.resistances[b_idx][d_idx];
-
-                        // --- region/hospital-specific sampling for both hospital-acquired and community-acquired ---
-                        // For hospital-acquired infections, we sample from hospitalized people (hospital_status_bool = true)
-                        // For community-acquired infections, we sample based on the person's current hospital status
-                        let sampling_hospital_status = if is_hospital_acquired {
-                            true
-                        } else {
-                            hospital_status_bool
-                        };
-
-                        let assigned_level = if from_human_reservoir {
-                            majority_r_cache.sample(
-                                region_idx,
-                                sampling_hospital_status,
-                                b_idx,
-                                d_idx,
-                                rng,
-                            )
-                        } else {
-                            None // Environmental strains provide no secondary resistance magnitude
-                        };
-
-                        if let Some(level) = assigned_level {
-                            // Apply resistance floor for rare bacteria
-                            // The floor ensures minimum resistance levels are maintained even when
-                            // cache sampling produces sparse data (e.g., S. maltophilia, E. faecium)
-                            let floor_level = calculate_resistance_floor(
-                                bacteria,
-                                drug_name_static,
-                                time_step as i32,
+                        // Check if any mechanism applicable to this drug is now set
+                        let has_any_relevant_mechanism = individual.mechanism_any[b_idx]
+                            .iter()
+                            .enumerate()
+                            .any(|(m, &active)| {
+                                active && param_cache.mechanism_applicable(m, b_idx, d_idx)
+                            });
+                        if has_any_relevant_mechanism {
+                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
                             );
-                            let level_with_floor = level.max(floor_level);
-                            
-                            let clamped_level = (level_with_floor * counterfactual_resistance_multiplier).min(max_resistance_level).max(0.0);
-                            resistance_data.any_r = clamped_level;
-                            resistance_data.majority_r = clamped_level;
+                        }
+                    }
 
-                            // Only set how_resistance_acquired if we actually assigned non-zero resistance
-                            if clamped_level > 0.0 {
-                                // When we sampled a full profile, mechanisms are already assigned above.
-                                // Only do per-drug fallback assignment when using marginal sampling
-                                // (profile_sampled == false) or when the profile had no mechanism
-                                // covering this drug.
-                                if !profile_sampled {
-                                    use crate::simulation::population::ResistanceMechanism;
-
-                                    let mechanism_prob =
-                                        store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                    for (mech_idx, mechanism) in
-                                        ResistanceMechanism::all().iter().enumerate()
-                                    {
-                                        // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                                        if mechanism.is_as_yet_unknown() {
-                                            continue;
-                                        }
-
-                                        if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
-                                            continue;
-                                        }
-
-                                        let enhancement =
-                                            store.resistance_mechanism.enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[d_idx]);
-                                        if enhancement <= resistance_data.any_r
-                                            && rng.gen_bool(mechanism_prob)
-                                        {
-                                            individual.resistance_mechanisms[b_idx][mech_idx] = true;
-                                        }
-                                    }
+                    // Resistance floor: apply minimum resistance level for rare bacteria
+                    // by ensuring mechanism_any is set where prevalence floor applies.
+                    // (This preserves the floor semantics without injecting float values.)
+                    for drug_name_static in DRUG_SHORT_NAMES.iter() {
+                        let d_idx = *drug_indices.get(drug_name_static).unwrap();
+                        let floor_level = calculate_resistance_floor(
+                            bacteria,
+                            drug_name_static,
+                            time_step as i32,
+                        );
+                        if floor_level > 0.0 && rng.gen_bool((floor_level / max_resistance_level).clamp(0.0, 1.0)) {
+                            // Assign a mechanism applicable to this drug with floor probability
+                            let mechanism_prob =
+                                store.globals.mechanism_assignment_probability_on_any_r_gain;
+                            use crate::simulation::population::ResistanceMechanism;
+                            for (mech_idx, mechanism) in
+                                ResistanceMechanism::all().iter().enumerate()
+                            {
+                                if mechanism.is_as_yet_unknown() {
+                                    continue;
                                 }
-
-                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
-                                );
+                                if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
+                                    continue;
+                                }
+                                if rng.gen_bool(mechanism_prob) {
+                                    individual.mechanism_any[b_idx][mech_idx] = true;
+                                    individual.mechanism_majority[b_idx][mech_idx] = true;
+                                    individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
+                                    );
+                                    break; // one mechanism sufficient for floor
+                                }
                             }
-                        } else {
-                            resistance_data.any_r = 0.0;
-                            resistance_data.majority_r = 0.0;
                         }
                     }
 
                     // Cross-resistance propagation at infection start:
-                    // After cache sampling, let the mechanism profile determine
-                    // per-drug resistance rather than using cache values as a floor.
-                    // This allows drug-class differentiation to emerge from the
-                    // mechanism-specific enhancement multipliers.
+                    // Derive any_r for all drugs from the mechanism state.
                     propagate_mechanism_resistance(
                         individual,
                         b_idx,
@@ -4487,74 +4478,48 @@ pub fn apply_rules(
                     );
 
                     // --- TB-specific guaranteed rifampicin resistance ---
+                    // Per R4: seed MutationRpoB mechanism at probability 1.0 for MDR-TB
+                    // (year >= 1966), removing direct float injection.
                     if is_tb && guaranteed_rifampicin_resistance > 0.0 {
                         if let Some(rifampicin_idx) = DRUG_SHORT_NAMES.iter().position(|&n| n == "rifampicin") {
-                            let resistance_data =
-                                &mut individual.resistances[b_idx][rifampicin_idx];
-                            let current_resistance =
-                                resistance_data.majority_r.max(resistance_data.any_r);
-                            if current_resistance < guaranteed_rifampicin_resistance {
-                                resistance_data.majority_r = guaranteed_rifampicin_resistance;
-                                resistance_data.any_r = guaranteed_rifampicin_resistance;
-
-                                // Add resistance mechanism for rifampicin resistance
-                                use crate::simulation::population::ResistanceMechanism;
-                                let mechanism_prob =
-                                    store.globals.mechanism_assignment_probability_on_any_r_gain;
-                                for (mech_idx, mechanism) in
-                                    ResistanceMechanism::all().iter().enumerate()
-                                {
-                                    // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                                    if mechanism.is_as_yet_unknown() {
-                                        continue;
-                                    }
-
-                                    if !param_cache.mechanism_applicable(
-                                        mech_idx,
-                                        b_idx,
-                                        rifampicin_idx,
-                                    ) {
-                                        continue;
-                                    }
-
-                                    let enhancement =
-                                        store.resistance_mechanism.enhancement_multiplier(mech_idx, DRUG_CLASS_LOOKUP[rifampicin_idx]);
-                                    if enhancement <= resistance_data.any_r
-                                        && rng.gen_bool(mechanism_prob)
-                                    {
-                                        individual.resistance_mechanisms[b_idx][mech_idx] = true;
-                                    }
+                            // Seed the rifampicin-resistance mechanism(s) instead of injecting floats
+                            use crate::simulation::population::ResistanceMechanism;
+                            for (mech_idx, mechanism) in
+                                ResistanceMechanism::all().iter().enumerate()
+                            {
+                                // Skip AsYetUnknown placeholder mechanisms — dormant until activated
+                                if mechanism.is_as_yet_unknown() {
+                                    continue;
                                 }
-                                individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
+
+                                if !param_cache.mechanism_applicable(
+                                    mech_idx,
+                                    b_idx,
+                                    rifampicin_idx,
+                                ) {
+                                    continue;
+                                }
+
+                                // At TB acquisition (MDR era), guarantee mechanism is present
+                                individual.mechanism_any[b_idx][mech_idx] = true;
+                                individual.mechanism_majority[b_idx][mech_idx] = true;
                             }
+                            individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
+                            // Re-derive any_r from the newly set mechanisms
+                            propagate_mechanism_resistance(
+                                individual,
+                                b_idx,
+                                param_cache,
+                                true,  // raise_only: don't lower existing
+                                false, // propagate_microbiome_r: active infection
+                            );
                         }
                     }
 
                     // --- Carrier resistance inheritance (THE KEY MECHANISM FOR RESISTANCE AMPLIFICATION) ---
-                    // WHY THIS MATTERS: Carriage is the primary mechanism by which resistance spreads in populations.
-                    // Carriers are asymptomatic reservoirs who aren't on antibiotics, so resistant strains face no
-                    // selective disadvantage in their microbiome. When carriers develop infections, the infecting
-                    // strain is usually the one they carry, inheriting its resistance profile.
-                    //
-                    // EMPIRICAL BASIS:
-                    // - MRSA carriers: 80-90% of their S. aureus infections are MRSA (vs ~30% in non-carriers)
-                    // - ESBL-producing E. coli carriers: 70-80% of their UTIs are ESBL-positive
-                    // - VRE carriers: >90% of subsequent bacteremias are VRE
-                    //
-                    // POPULATION-LEVEL IMPACT: This creates a "carrier amplification effect" where:
-                    // 1. Antibiotics select for resistance in infections → some become carriers
-                    // 2. Carriers maintain resistance without antibiotic pressure (no fitness cost)
-                    // 3. When carriers get infected, resistance rates are much higher than population prevalence
-                    // 4. This amplifies observed resistance rates beyond what direct selection would predict
-                    //
-                    // MECHANISM: When infection occurs, the bacteria causing infection typically comes from
-                    // the person's own microbiome (endogenous infection) rather than the environment.
-                    // We model this with high probability (default 85%) that carriers' infections inherit
-                    // their microbiome resistance profile.
-                    //
-                    // IMPLEMENTATION NOTE: This inheritance occurs AFTER environmental/population-based resistance
-                    // assignment, overriding it when carriage is present. This ensures carriers preferentially
-                    // develop infections with their carried strain rather than acquiring new strains.
+                    // Microbiome_r is kept as the derived resistance level for microbiome carriage.
+                    // When a carrier develops an infection, any_r is raised to reflect microbiome resistance.
+                    // mechanism_microbiome is the new boolean source of truth for microbiome carriage.
                     if individual.presence_microbiome[b_idx] {
                         let inheritance_prob =
                             store.globals.carrier_resistance_inheritance_probability;
@@ -4576,7 +4541,8 @@ pub fn apply_rules(
                                     let inherited_level = dampened_microbiome_resistance
                                         .max(infection_resistance_data.any_r);
                                     infection_resistance_data.any_r = inherited_level;
-                                    infection_resistance_data.majority_r = inherited_level;
+                                    // Note: majority_r is no longer directly set here.
+                                    // any_r is the single source of truth; mechanism booleans drive it.
 
                                     // Track that this resistance came from microbiome carriage
                                     individual.how_resistance_acquired[b_idx][d_idx] = Some(
@@ -4587,7 +4553,7 @@ pub fn apply_rules(
                         }
                     }
 
-                    // --- end generalized any_r and majority_r setting logic ---
+                    // --- end generalized any_r setting logic ---
                 } // End if !infection_prevented block
             }
         } else {
@@ -4666,7 +4632,7 @@ pub fn apply_rules(
                             }
 
                             // Skip if mechanism already present
-                            if individual.resistance_mechanisms[bacteria_full_idx][mechanism_idx] {
+                            if individual.mechanism_any[bacteria_full_idx][mechanism_idx] {
                                 continue;
                             }
 
@@ -4724,8 +4690,7 @@ pub fn apply_rules(
                                     * multi_drug_penalty_factor;
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                individual.resistance_mechanisms[bacteria_full_idx]
-                                    [mechanism_idx] = true;
+                                individual.mechanism_any[bacteria_full_idx][mechanism_idx] = true;
                             }
                         }
                     }
@@ -4750,21 +4715,22 @@ pub fn apply_rules(
                     let drug_current_level = individual.cur_level_drug[drug_index];
                     let drug_currently_present = drug_current_level > 0.0;
 
-                    // existing majority_r evolution based on drug presence
-                    if resistance_data.majority_r == 0.0
-                        && resistance_data.any_r > 0.0
-                        && drug_currently_present
-                    {
-                        if rng.gen_bool(majority_r_evolution_rate) {
-                            resistance_data.majority_r = resistance_data.any_r;
+                    // mechanism_majority evolution: when drug pressure is present, minority-strain
+                    // mechanisms (mechanism_any but not mechanism_majority) can evolve to majority.
+                    if drug_currently_present {
+                        for m_idx in 0..individual.mechanism_any[bacteria_full_idx].len() {
+                            if individual.mechanism_any[bacteria_full_idx][m_idx]
+                                && !individual.mechanism_majority[bacteria_full_idx][m_idx]
+                                && param_cache.mechanism_applicable(m_idx, bacteria_full_idx, drug_index)
+                            {
+                                if rng.gen_bool(majority_r_evolution_rate) {
+                                    individual.mechanism_majority[bacteria_full_idx][m_idx] = true;
+                                }
+                            }
                         }
                     }
 
-                    // majority_r and any_r between 0 and 1
-                    resistance_data.majority_r = resistance_data
-                        .majority_r
-                        .min(max_resistance_level)
-                        .max(0.0);
+                    // Clamp any_r to valid range
                     resistance_data.any_r =
                         resistance_data.any_r.min(max_resistance_level).max(0.0);
 
@@ -4785,8 +4751,7 @@ pub fn apply_rules(
                             for (mechanism_idx, _mechanism) in
                                 ResistanceMechanism::all().iter().enumerate()
                             {
-                                if !individual.resistance_mechanisms[b_idx]
-                                    [mechanism_idx]
+                                if !individual.mechanism_any[b_idx][mechanism_idx]
                                 {
                                     continue;
                                 }
@@ -4819,9 +4784,7 @@ pub fn apply_rules(
                             
                             // Update any_r to the new level
                             resistance_data.any_r = new_any_r;
-
-                            // Mechanism = genotypic change = majority strain
-                            resistance_data.majority_r = resistance_data.any_r;
+                            // Note: majority_r removed; mechanism_majority tracks majority status
                         }
                     }
 
@@ -4927,9 +4890,9 @@ pub fn apply_rules(
                     individual.resistances[b_idx].iter().any(|r| r.test_r > 0.0);
                 if !test_r_already_set {
                     for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                        // Use majority_r to model standard clinical microbiologic phenotypic testing,
-                        // which reflects the dominant clone and often misses rare heteroresistant sub-strains.
-                        let major_r = individual.resistances[b_idx][d_idx].majority_r;
+                        // Use any_r to model standard clinical microbiologic phenotypic testing.
+                        // (majority_r removed — any_r is the primary resistance measure)
+                        let major_r = individual.resistances[b_idx][d_idx].any_r;
                         let error = rng.gen_bool(test_r_error_prob);
                         let test_r = if error {
                             if major_r < INFECTION_EPS {
@@ -5044,7 +5007,7 @@ pub fn apply_rules(
                                     let mut mechanisms_reverted_len = 0;
 
                 for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                    if individual.resistance_mechanisms[b_idx][mechanism_idx] {
+                    if individual.mechanism_any[b_idx][mechanism_idx] {
                         // Check if any active drug is one this mechanism confers resistance to
                         let selecting_drug_present = DRUG_SHORT_NAMES.iter().enumerate().any(
                             |(d_idx, &drug_name)| {
@@ -5058,7 +5021,8 @@ pub fn apply_rules(
                                 store.resistance_mechanism.reversion_rate(mechanism_idx);
 
                             if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
-                                individual.resistance_mechanisms[b_idx][mechanism_idx] = false;
+                                individual.mechanism_any[b_idx][mechanism_idx] = false;
+                                individual.mechanism_majority[b_idx][mechanism_idx] = false;
                                 if mechanisms_reverted_len < 64 {
                                             mechanisms_reverted_buf[mechanisms_reverted_len] = mechanism_idx;
                                             mechanisms_reverted_len += 1;
@@ -5086,7 +5050,7 @@ pub fn apply_rules(
                 let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
                 if !on_any_drug {
                     let has_active_mechanism =
-                        individual.resistance_mechanisms[b_idx].iter().any(|&active| active);
+                        individual.mechanism_any[b_idx].iter().any(|&active| active);
                     if !has_active_mechanism
                         && individual.resistances[b_idx]
                             .iter()
@@ -5097,7 +5061,10 @@ pub fn apply_rules(
                             .mechanismless_resistance_reversion_rate(b_idx)
                             .clamp(0.0, 1.0);
                         if reversion_rate > 0.0 && rng.gen_bool(reversion_rate) {
-                            for mechanism_flag in individual.resistance_mechanisms[b_idx].iter_mut() {
+                            for mechanism_flag in individual.mechanism_any[b_idx].iter_mut() {
+                                *mechanism_flag = false;
+                            }
+                            for mechanism_flag in individual.mechanism_majority[b_idx].iter_mut() {
                                 *mechanism_flag = false;
                             }
                             for drug_index in 0..DRUG_SHORT_NAMES.len() {
@@ -5106,7 +5073,6 @@ pub fn apply_rules(
                                 resistance_data.test_r = 0.0;
                                 resistance_data.activity_r = 0.0;
                                 resistance_data.any_r = 0.0;
-                                resistance_data.majority_r = 0.0;
                                 individual.how_resistance_acquired[b_idx][drug_index] = None;
                             }
                         }
@@ -5272,9 +5238,13 @@ pub fn apply_rules(
                 for drug_idx_clear in 0..DRUG_SHORT_NAMES.len() {
                     let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
                     resistance_data.any_r = 0.0;
-                    resistance_data.majority_r = 0.0;
                     resistance_data.activity_r = 0.0;
                     individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
+                }
+                // Clear mechanism booleans on infection clearance
+                for m_idx in 0..individual.mechanism_any[b_idx].len() {
+                    individual.mechanism_any[b_idx][m_idx] = false;
+                    individual.mechanism_majority[b_idx][m_idx] = false;
                 }
                 individual.level[b_idx] = 0.0;
                 individual.infectious_syndrome[b_idx] = 0;
@@ -5455,8 +5425,8 @@ pub fn apply_rules(
                             continue;
                         }
 
-                        // Donor must actually carry this mechanism
-                        if !individual.resistance_mechanisms[donor_idx][mech_idx] {
+                        // Donor must actually carry this mechanism (in majority — established strain)
+                        if !individual.mechanism_majority[donor_idx][mech_idx] {
                             continue;
                         }
 
@@ -5474,12 +5444,12 @@ pub fn apply_rules(
                         }
 
                         // Recipient already has this mechanism — skip
-                        if individual.resistance_mechanisms[recipient_idx][mech_idx] {
+                        if individual.mechanism_any[recipient_idx][mech_idx] {
                             continue;
                         }
 
-                        // Transfer the mechanism
-                        individual.resistance_mechanisms[recipient_idx][mech_idx] = true;
+                        // Transfer the mechanism — recipient gains any-strain presence
+                        individual.mechanism_any[recipient_idx][mech_idx] = true;
                         any_mechanism_transferred = true;
                     }
 

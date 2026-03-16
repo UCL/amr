@@ -23,8 +23,7 @@ use rand::rngs::SmallRng;
 use rand::Rng;
 use rand::SeedableRng;
 use rayon::prelude::*;
-use std::collections::{HashMap, VecDeque};
-use std::mem;
+use std::collections::HashMap;
 // Removed most atomics by using thread-local aggregation; retain no atomic imports here.
 use std::fmt::{self, Write as FmtWrite};
 use std::io::Write as IoWrite;
@@ -51,6 +50,31 @@ const REGION_COUNT: usize = 6;
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const DAYS_PER_YEAR: f64 = 365.0;
+
+/// Controls how much output the simulation writes to `summary_log`.
+///
+/// * `None`    — full run: policy branches enabled, all rows, all stats (production/scenario use).
+/// * `Partial` — skip policy branches and expensive per-timestep stats; write all 1930–2026 rows.
+///               Time-series plots remain functional.
+/// * `Full`    — as `Partial`, but only emit rows inside calibration windows:
+///               history snapshot years (1950, 1975, 2000) and the 2021–2026 analysis window.
+///               ~95% reduction in CSV size; time-series plots not supported in this mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CalibrationMode {
+    None,
+    /// Skip policy branches and expensive stats; write all 1930–2026 rows (time-series plots work).
+    #[allow(dead_code)]
+    Partial,
+    Full,
+}
+
+/// History snapshot years used by `_calculate_drug_class_history_table` in calibration_summary.py.
+/// Must match the `"years"` list in `data/calibration_targets.json`.
+const CALIBRATION_SNAPSHOT_YEARS: &[f64] = &[1950.0, 1975.0, 2000.0];
+
+/// First year of the resistance/headline analysis window (inclusive).
+/// Matches `max_years = 5` with `target_year = 2025` in `_select_resistance_windows`.
+const CALIBRATION_FULL_ANALYSIS_WINDOW_START: f64 = 2021.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PolicyAdjustments {
@@ -126,26 +150,14 @@ impl PolicyAdjustments {
 #[derive(Clone)]
 struct BranchSnapshot {
     population: Population,
-    majority_r_cache_prev: MajorityRCache,
-    majority_r_cache_next: MajorityRCache,
-    mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
-    mechanism_prevalence_cache_next: MechanismPrevalenceCache,
-    mechanism_profile_cache_prev: MechanismProfileCache,
-    mechanism_profile_cache_next: MechanismProfileCache,
+    mechanism_cache: MechanismCache,
     summary_log: Vec<TimeStepSummary>,
-    prev_majority_r_entries_len: usize,
 }
 
 #[derive(Clone)]
 struct CoreState {
     population: Population,
-    majority_r_cache_prev: MajorityRCache,
-    majority_r_cache_next: MajorityRCache,
-    mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
-    mechanism_prevalence_cache_next: MechanismPrevalenceCache,
-    mechanism_profile_cache_prev: MechanismProfileCache,
-    mechanism_profile_cache_next: MechanismProfileCache,
-    prev_majority_r_entries_len: usize,
+    mechanism_cache: MechanismCache,
 }
 
 enum StoredBranchSnapshot {
@@ -224,72 +236,6 @@ where
 
 fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
     matches!(BACTERIA_LIST.get(bacteria_idx), Some(&"treponema_pallidum"))
-}
-
-/// Cache of majority_r proportions and positive resistance magnitudes indexed by
-/// (region, hospital status, bacteria, drug).
-
-#[derive(Clone)]
-pub struct MajorityRConfig {
-    pub window_days: u32,
-    pub min_total_samples: u32,
-    pub freeze_at_last_positive: bool,
-}
-
-#[derive(Clone)]
-pub struct MechanismPrevalenceCache {
-    // counts[region_idx][bacteria_idx][mechanism_idx]
-    pub counts: Vec<Vec<Vec<u32>>>,
-    num_regions: usize,
-    num_bacteria: usize,
-}
-
-impl MechanismPrevalenceCache {
-    pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
-        // Initialize with zeros
-        let counts = vec![vec![vec![0; num_mechanisms]; num_bacteria]; num_regions];
-        Self {
-            counts,
-            num_regions,
-            num_bacteria,
-        }
-    }
-
-    pub fn set_counts(&mut self, data: &[Vec<Vec<u32>>]) {
-        for (r_idx, region_data) in data.iter().enumerate() {
-            if r_idx < self.counts.len() {
-                for (b_idx, bacteria_data) in region_data.iter().enumerate() {
-                    if b_idx < self.counts[r_idx].len() {
-                        self.counts[r_idx][b_idx].copy_from_slice(bacteria_data);
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn sample<R: Rng + ?Sized>(&self, region_idx: usize, bacteria_idx: usize, rng: &mut R) -> Option<usize> {
-        if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
-            return None;
-        }
-        let mechanisms = &self.counts[region_idx][bacteria_idx];
-        let total: u32 = mechanisms.iter().sum();
-        
-        if total == 0 {
-             return None;
-        }
-
-        // Weighted sampling
-        let roll = rng.gen_range(0..total);
-        let mut sum = 0;
-        
-        for (idx, &count) in mechanisms.iter().enumerate() {
-             sum += count;
-             if roll < sum {
-                 return Some(idx);
-             }
-        }
-        Some(mechanisms.len() - 1)
-    }
 }
 
 /// Maximum mechanism profiles stored per region×bacteria slot.
@@ -408,534 +354,157 @@ impl MechanismProfileCache {
         }
     }
 
-    /// Reset all profiles for a new timestep.
-    pub fn clear(&mut self) {
-        for r in 0..self.num_regions {
-            for b in 0..self.num_bacteria {
-                self.profiles[r][b].clear();
-                self.total_seen[r][b] = 0;
-            }
-        }
-    }
 }
 
-const HISTOGRAM_BINS: usize = 20;
-
+/// Unified mechanism resistance cache replacing `MajorityRCache`, `MechanismPrevalenceCache`,
+/// and `MechanismProfileCache` as the single shared cache consumed by `apply_rules`.
+///
+/// - `ewma[region][hosp(0=comm,1=hosp)][bacteria][mechanism]`: exponential moving average of
+///   the fraction of infected individuals carrying each mechanism, updated each simulation step.
+/// - `profiles`: profile reservoir reusing `MechanismProfileCache` for reservoir sampling.
 #[derive(Clone)]
-struct DayContribution {
-    day_index: u32,
-    total_samples: u32,
-    positive_samples: u32,
-    histogram: [u32; HISTOGRAM_BINS],
+pub struct MechanismCache {
+    /// ewma[region_idx][hosp(0=comm,1=hosp)][bacteria_idx][mechanism_idx]
+    pub ewma: Vec<Vec<Vec<Vec<f64>>>>,
+    /// Profile reservoir for profile-based acquisition sampling.
+    pub profiles: MechanismProfileCache,
+    pub num_regions: usize,
+    pub num_bacteria: usize,
+    pub num_mechanisms: usize,
 }
 
-#[derive(Clone)]
-struct MajorityRBuffer {
-    window_days: u32,
-    min_total_samples: u32,
-    total_samples: u32,
-    positive_samples: u32,
-    global_histogram: [u32; HISTOGRAM_BINS],
-    days: VecDeque<DayContribution>,
-    last_nonzero_probability: f64,
-    freeze_on_zero: bool,
-}
-
-impl MajorityRBuffer {
-    fn new(config: &MajorityRConfig) -> Self {
+impl MechanismCache {
+    pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
         Self {
-            window_days: config.window_days,
-            min_total_samples: config.min_total_samples,
-            total_samples: 0,
-            positive_samples: 0,
-            global_histogram: [0; HISTOGRAM_BINS],
-            days: VecDeque::new(),
-            last_nonzero_probability: 0.0,
-            freeze_on_zero: config.freeze_at_last_positive,
-        }
-    }
-
-    fn cleanup(&mut self, current_day: u32) {
-        if self.window_days == 0 {
-            self.total_samples = 0;
-            self.positive_samples = 0;
-            self.global_histogram = [0; HISTOGRAM_BINS];
-            self.days.clear();
-            self.last_nonzero_probability = 0.0;
-            return;
-        }
-
-        while let Some(front) = self.days.front() {
-            if current_day.saturating_sub(front.day_index) >= self.window_days {
-                let front = self.days.pop_front().unwrap();
-                self.total_samples = self.total_samples.saturating_sub(front.total_samples);
-                self.positive_samples = self.positive_samples.saturating_sub(front.positive_samples);
-                for i in 0..HISTOGRAM_BINS {
-                    self.global_histogram[i] = self.global_histogram[i].saturating_sub(front.histogram[i]);
-                }
-            } else {
-                break;
-            }
-        }
-
-        self.refresh_probability_cache();
-    }
-
-    fn push_day(&mut self, current_day: u32, total: u32, positive: u32, histogram: [u32; HISTOGRAM_BINS]) {
-        if self.window_days == 0 || total == 0 {
-            return;
-        }
-
-        self.total_samples = self.total_samples.saturating_add(total);
-        self.positive_samples = self.positive_samples.saturating_add(positive);
-        for i in 0..HISTOGRAM_BINS {
-            self.global_histogram[i] = self.global_histogram[i].saturating_add(histogram[i]);
-        }
-        self.days.push_back(DayContribution {
-            day_index: current_day,
-            total_samples: total,
-            positive_samples: positive,
-            histogram,
-        });
-
-        self.refresh_probability_cache();
-    }
-
-    fn probability(&self) -> f64 {
-        // Safety check: never return positive probability if there are no positive samples
-        // This prevents phantom resistance from propagating through the cache
-        if self.positive_samples == 0 && self.total_samples > 0 {
-            // We have samples but none are positive - return 0 regardless of freeze_on_zero
-            return 0.0;
-        }
-        
-        let base = self.current_probability();
-        if base > 0.0 {
-            base
-        } else if self.freeze_on_zero {
-            // Preserve the last observed prevalence instead of letting small-sample simulations
-            // drive the cache back to zero once a strain has been seen.
-            // Note: This only triggers when we have no samples yet (total_samples == 0)
-            // not when we have samples that are all negative
-            self.last_nonzero_probability
-        } else {
-            0.0
-        }
-    }
-
-    fn draw_positive<R: Rng + ?Sized>(&self, rng: &mut R) -> Option<f64> {
-        if self.positive_samples == 0 {
-            return None;
-        }
-
-        let mut sample_idx = rng.gen_range(0..self.positive_samples);
-        for (bin_idx, &count) in self.global_histogram.iter().enumerate() {
-            if count == 0 {
-                continue;
-            }
-            if sample_idx < count {
-                let min_val = bin_idx as f64 / HISTOGRAM_BINS as f64;
-                let max_val = (bin_idx + 1) as f64 / HISTOGRAM_BINS as f64;
-                return Some(rng.gen_range(min_val..max_val));
-            }
-            sample_idx -= count;
-        }
-        
-        // Failsafe in case of floating point / integer math desync
-        Some(0.5)
-    }
-
-    fn has_sufficient_data(&self) -> bool {
-        if self.min_total_samples == 0 {
-            if self.total_samples > 0 {
-                return true;
-            }
-        } else if self.total_samples >= self.min_total_samples {
-            return true;
-        }
-
-        self.freeze_on_zero && self.last_nonzero_probability > 0.0
-    }
-
-    fn current_probability(&self) -> f64 {
-        if self.total_samples == 0 {
-            0.0
-        } else {
-            (self.positive_samples as f64 / self.total_samples as f64).clamp(0.0, 1.0)
-        }
-    }
-
-    fn refresh_probability_cache(&mut self) {
-        let current = self.current_probability();
-        if current > 0.0 {
-            self.last_nonzero_probability = current;
-        }
-    }
-
-    /// Seed the cached probability with a fallback value supplied by another bucket.
-    /// Used when a bucket graduates from world-level fallback so it inherits the broader
-    /// prevalence instead of collapsing to zero.
-    fn seed_with_probability(&mut self, probability: f64) {
-        if !self.freeze_on_zero {
-            return;
-        }
-        let clamped = probability.clamp(0.0, 1.0);
-        if clamped > self.last_nonzero_probability {
-            self.last_nonzero_probability = clamped;
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct MajorityRCache {
-    buckets: Vec<MajorityRBuffer>,
-    pending_histograms: Vec<[u32; HISTOGRAM_BINS]>,
-    pending_positive_counts: Vec<u32>,
-    pending_total_counts: Vec<u32>,
-    bucket_cumulative_totals: Vec<u64>,
-    bucket_threshold_met: Vec<bool>,
-    world_buckets: Vec<MajorityRBuffer>,
-    world_pending_histograms: Vec<[u32; HISTOGRAM_BINS]>,
-    world_pending_positive_counts: Vec<u32>,
-    world_pending_total_counts: Vec<u32>,
-    num_regions: usize,
-    num_bacteria: usize,
-    num_drugs: usize,
-    threshold_min_samples: u32,
-    /// Tracks which buckets received data this timestep for sparse finalization
-    dirty_buckets: Vec<bool>,
-    /// Tracks which world buckets received data this timestep
-    dirty_world_buckets: Vec<bool>,
-}
-
-impl MajorityRCache {
-    pub fn new(
-        num_regions: usize,
-        num_bacteria: usize,
-        num_drugs: usize,
-        config: &MajorityRConfig,
-    ) -> Self {
-        let total_buckets = num_regions * 2 * num_bacteria * num_drugs;
-        let bucket_states = vec![MajorityRBuffer::new(config); total_buckets];
-        let world_len = num_bacteria * num_drugs;
-        let threshold_min_samples = config.min_total_samples;
-
-        MajorityRCache {
-            buckets: bucket_states,
-            pending_histograms: vec![[0; HISTOGRAM_BINS]; total_buckets],
-            pending_positive_counts: vec![0; total_buckets],
-            pending_total_counts: vec![0; total_buckets],
-            bucket_cumulative_totals: vec![0u64; total_buckets],
-            bucket_threshold_met: vec![false; total_buckets],
-            world_buckets: vec![MajorityRBuffer::new(config); world_len],
-            world_pending_histograms: vec![[0; HISTOGRAM_BINS]; world_len],
-            world_pending_positive_counts: vec![0; world_len],
-            world_pending_total_counts: vec![0; world_len],
+            ewma: vec![vec![vec![vec![0.0_f64; num_mechanisms]; num_bacteria]; 2]; num_regions],
+            profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
             num_regions,
             num_bacteria,
-            num_drugs,
-            threshold_min_samples,
-            dirty_buckets: vec![false; total_buckets],
-            dirty_world_buckets: vec![false; world_len],
+            num_mechanisms,
         }
     }
 
+    /// Apply EWMA update in-place after a simulation step.
+    /// Replaces the old 3-cache swap chain.
+    pub fn update_ewma(
+        &mut self,
+        decay: f64,
+        mech_infected_comm: &[u32],  // flat [r * nb * nm + b * nm + m]
+        mech_infected_hosp: &[u32],  // flat [r * nb * nm + b * nm + m]
+        total_infected_comm: &[u32], // flat [r * nb + b]
+        total_infected_hosp: &[u32], // flat [r * nb + b]
+        merged_profiles: MechanismProfileCache,
+    ) {
+        let nb = self.num_bacteria;
+        let nm = self.num_mechanisms;
+        for r in 0..self.num_regions {
+            for b in 0..nb {
+                let tot_c = total_infected_comm[r * nb + b] as f64;
+                let tot_h = total_infected_hosp[r * nb + b] as f64;
+                for m in 0..nm {
+                    let obs_c = if tot_c > 0.0 {
+                        mech_infected_comm[r * nb * nm + b * nm + m] as f64 / tot_c
+                    } else {
+                        0.0
+                    };
+                    let obs_h = if tot_h > 0.0 {
+                        mech_infected_hosp[r * nb * nm + b * nm + m] as f64 / tot_h
+                    } else {
+                        0.0
+                    };
+                    self.ewma[r][0][b][m] =
+                        decay * self.ewma[r][0][b][m] + (1.0 - decay) * obs_c;
+                    self.ewma[r][1][b][m] =
+                        decay * self.ewma[r][1][b][m] + (1.0 - decay) * obs_h;
+                }
+            }
+        }
+        self.profiles = merged_profiles;
+    }
+
+    /// Sample a mechanism index weighted by EWMA prevalence.
+    /// Returns `None` when all mechanism EWMA values are zero for this slot.
+    pub fn sample_mechanism<R: Rng + ?Sized>(
+        &self,
+        region_idx: usize,
+        hospital: bool,
+        bacteria_idx: usize,
+        rng: &mut R,
+    ) -> Option<usize> {
+        let h = hospital as usize;
+        let mechs = &self.ewma[region_idx][h][bacteria_idx];
+        let total: f64 = mechs.iter().sum();
+        if total <= 1e-12 {
+            return None;
+        }
+        let roll = rng.gen_range(0.0..total);
+        let mut sum = 0.0_f64;
+        for (i, &v) in mechs.iter().enumerate() {
+            sum += v;
+            if roll < sum {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    /// Sample a complete mechanism profile bitmask from the profile reservoir.
+    pub fn sample_profile<R: Rng + ?Sized>(
+        &self,
+        region_idx: usize,
+        bacteria_idx: usize,
+        rng: &mut R,
+    ) -> Option<u64> {
+        self.profiles.sample(region_idx, bacteria_idx, rng)
+    }
+
+    /// Estimate resistance prevalence for a (region, hospital, bacteria, drug) slot by
+    /// combining per-mechanism EWMA values via multiplicative susceptibility stacking.
+    ///
+    /// Returns a value in [0, 1] representing the expected fraction of infections carrying
+    /// at least one mechanism that confers resistance to this drug.
     #[inline]
-    fn index(
+    pub fn prevalence(
         &self,
         region_idx: usize,
         hospital: bool,
         bacteria_idx: usize,
         drug_idx: usize,
-    ) -> usize {
-        debug_assert!(region_idx < self.num_regions);
-        debug_assert!(bacteria_idx < self.num_bacteria);
-        debug_assert!(drug_idx < self.num_drugs);
-        (((region_idx * 2) + hospital as usize) * self.num_bacteria + bacteria_idx) * self.num_drugs
-            + drug_idx
-    }
-
-    #[inline]
-    fn decode(&self, bucket_idx: usize) -> (usize, bool, usize, usize) {
-        let drug_idx = bucket_idx % self.num_drugs;
-        let tmp = bucket_idx / self.num_drugs;
-        let bacteria_idx = tmp % self.num_bacteria;
-        let tmp = tmp / self.num_bacteria;
-        let hospital = (tmp % 2) == 1;
-        let region_idx = tmp / 2;
-        (region_idx, hospital, bacteria_idx, drug_idx)
-    }
-
-    #[inline]
-    fn world_index(&self, bacteria_idx: usize, drug_idx: usize) -> usize {
-        bacteria_idx * self.num_drugs + drug_idx
-    }
-
-    pub fn prepare_for_new_step(&mut self, prev: &MajorityRCache) {
-        debug_assert_eq!(self.total_buckets(), prev.total_buckets());
-        self.buckets.clone_from(&prev.buckets);
-        self.world_buckets.clone_from(&prev.world_buckets);
-        self.bucket_cumulative_totals
-            .clone_from(&prev.bucket_cumulative_totals);
-        self.bucket_threshold_met
-            .clone_from(&prev.bucket_threshold_met);
-        for hist in &mut self.pending_histograms {
-            *hist = [0; HISTOGRAM_BINS];
-        }
-        for count in &mut self.pending_positive_counts {
-            *count = 0;
-        }
-        for count in &mut self.pending_total_counts {
-            *count = 0;
-        }
-        for hist in &mut self.world_pending_histograms {
-            *hist = [0; HISTOGRAM_BINS];
-        }
-        for count in &mut self.world_pending_positive_counts {
-            *count = 0;
-        }
-        for count in &mut self.world_pending_total_counts {
-            *count = 0;
-        }
-        // Reset dirty tracking for new timestep
-        for dirty in &mut self.dirty_buckets {
-            *dirty = false;
-        }
-        for dirty in &mut self.dirty_world_buckets {
-            *dirty = false;
-        }
-    }
-
-    #[inline]
-    pub fn add_positive_value(
-        &mut self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-        value: f64,
-        _current_timestep: u32,
-    ) {
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        self.pending_total_counts[idx] = self.pending_total_counts[idx].saturating_add(1);
-        self.pending_positive_counts[idx] = self.pending_positive_counts[idx].saturating_add(1);
-        
-        let bin = ((value * HISTOGRAM_BINS as f64) as usize).min(HISTOGRAM_BINS - 1);
-        self.pending_histograms[idx][bin] = self.pending_histograms[idx][bin].saturating_add(1);
-        self.dirty_buckets[idx] = true;
-
-        let world_idx = self.world_index(bacteria_idx, drug_idx);
-        self.world_pending_total_counts[world_idx] =
-            self.world_pending_total_counts[world_idx].saturating_add(1);
-        self.world_pending_positive_counts[world_idx] =
-            self.world_pending_positive_counts[world_idx].saturating_add(1);
-        self.world_pending_histograms[world_idx][bin] =
-            self.world_pending_histograms[world_idx][bin].saturating_add(1);
-        self.dirty_world_buckets[world_idx] = true;
-    }
-
-    #[inline]
-    pub fn add_zero_samples_by_index(&mut self, bucket_idx: usize, zero_count: u32) {
-        if zero_count == 0 {
-            return;
-        }
-        self.pending_total_counts[bucket_idx] =
-            self.pending_total_counts[bucket_idx].saturating_add(zero_count);
-        self.dirty_buckets[bucket_idx] = true;
-
-        let (_, _, bacteria_idx, drug_idx) = self.decode(bucket_idx);
-        let world_idx = self.world_index(bacteria_idx, drug_idx);
-        self.world_pending_total_counts[world_idx] =
-            self.world_pending_total_counts[world_idx].saturating_add(zero_count);
-        self.dirty_world_buckets[world_idx] = true;
-    }
-
-    pub fn finalize_step(&mut self, current_day: u32) {
-        // Only process dirty buckets (those that received data this timestep)
-        // This reduces iterations from ~22K to typically ~1-5K active buckets
-        for idx in 0..self.total_buckets() {
-            if !self.dirty_buckets[idx] {
+        param_cache: &crate::rules::ParameterKeyCache,
+    ) -> f64 {
+        let h = hospital as usize;
+        let mechs = &self.ewma[region_idx][h][bacteria_idx];
+        let mut susceptibility = 1.0_f64;
+        for (m, &ewma_val) in mechs.iter().enumerate() {
+            if ewma_val <= 1e-12 {
                 continue;
             }
-            
-            let total = self.pending_total_counts[idx];
-            let positive = self.pending_positive_counts[idx];
-            let histogram = if positive > 0 {
-                self.pending_histograms[idx]
-            } else {
-                [0; HISTOGRAM_BINS]
-            };
-
-            if let Some(bucket) = self.buckets.get_mut(idx) {
-                bucket.cleanup(current_day);
-                if total > 0 {
-                    bucket.push_day(current_day, total, positive, histogram);
-                }
+            if !param_cache.mechanism_applicable(m, bacteria_idx, drug_idx) {
+                continue;
             }
+            susceptibility *= 1.0 - ewma_val;
+        }
+        (1.0 - susceptibility).clamp(0.0, 1.0)
+    }
 
-            self.bucket_cumulative_totals[idx] =
-                self.bucket_cumulative_totals[idx].saturating_add(total as u64);
-            if !self.bucket_threshold_met[idx] {
-                let met_threshold =
-                    self.bucket_cumulative_totals[idx] as u32 >= self.threshold_min_samples;
-                if met_threshold {
-                    self.bucket_threshold_met[idx] = true;
-                    let (_region_idx, _hospital, bacteria_idx, drug_idx) = self.decode(idx);
-                    let world_idx = self.world_index(bacteria_idx, drug_idx);
-                    let world_prob = self
-                        .world_buckets
-                        .get(world_idx)
-                        .map(|bucket| bucket.probability())
-                        .unwrap_or(0.0);
-                    if let Some(bucket) = self.buckets.get_mut(idx) {
-                        if world_prob > bucket.probability() {
-                            bucket.seed_with_probability(world_prob);
+    /// Returns true if ANY mechanism EWMA is non-zero for any region/bacteria/drug slot.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        for r in 0..self.num_regions {
+            for h in 0..2 {
+                for b in 0..self.num_bacteria {
+                    for m in 0..self.num_mechanisms {
+                        if self.ewma[r][h][b][m] > 1e-12 {
+                            return false;
                         }
                     }
                 }
             }
-
-            self.pending_positive_counts[idx] = 0;
-            self.pending_total_counts[idx] = 0;
         }
-
-        // Only process dirty world buckets
-        for idx in 0..self.world_buckets.len() {
-            if !self.dirty_world_buckets[idx] {
-                continue;
-            }
-            
-            let total = self.world_pending_total_counts[idx];
-            let positive = self.world_pending_positive_counts[idx];
-            let histogram = if positive > 0 {
-                self.world_pending_histograms[idx]
-            } else {
-                [0; HISTOGRAM_BINS]
-            };
-
-            if let Some(bucket) = self.world_buckets.get_mut(idx) {
-                bucket.cleanup(current_day);
-                if total > 0 {
-                    bucket.push_day(current_day, total, positive, histogram);
-                }
-            }
-
-            self.world_pending_positive_counts[idx] = 0;
-            self.world_pending_total_counts[idx] = 0;
-        }
-    }
-
-    #[inline]
-    pub fn sample<R: Rng + ?Sized>(
-        &self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-        rng: &mut R,
-    ) -> Option<f64> {
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        let probability = if self.bucket_threshold_met[idx] {
-            self.buckets
-                .get(idx)
-                .map(|bucket| bucket.probability())
-                .unwrap_or(0.0)
-        } else {
-            let world_idx = self.world_index(bacteria_idx, drug_idx);
-            self.world_buckets
-                .get(world_idx)
-                .map(|bucket| bucket.probability())
-                .unwrap_or(0.0)
-        };
-        
-        if probability <= 0.0 {
-            return Some(0.0);
-        }
-
-        let roll: f64 = rng.gen();
-        if roll < probability.min(1.0) {
-            if self.bucket_threshold_met[idx] {
-                if let Some(value) = self
-                    .buckets
-                    .get(idx)
-                    .and_then(|bucket| bucket.draw_positive(rng))
-                {
-                    return Some(value.min(1.0));
-                }
-                // Only use fallback if there are actual positive samples stored
-                // This prevents phantom resistance when probability > 0 but no real samples exist
-                if self.buckets.get(idx).map(|b| b.positive_samples).unwrap_or(0) > 0 {
-                    return Some(probability.min(1.0));
-                }
-            } else {
-                let world_idx = self.world_index(bacteria_idx, drug_idx);
-                if let Some(value) = self
-                    .world_buckets
-                    .get(world_idx)
-                    .and_then(|bucket| bucket.draw_positive(rng))
-                {
-                    return Some(value.min(1.0));
-                }
-                // Only use fallback if there are actual positive samples stored
-                // This prevents phantom resistance when probability > 0 but no real samples exist
-                if self.world_buckets.get(world_idx).map(|b| b.positive_samples).unwrap_or(0) > 0 {
-                    return Some(probability.min(1.0));
-                }
-            }
-        }
-
-        Some(0.0)
-    }
-
-    #[inline]
-    pub fn probability(
-        &self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        drug_idx: usize,
-    ) -> f64 {
-        let idx = self.index(region_idx, hospital, bacteria_idx, drug_idx);
-        if self.bucket_threshold_met[idx] {
-            self.buckets
-                .get(idx)
-                .map(|bucket| bucket.probability())
-                .unwrap_or(0.0)
-        } else {
-            let world_idx = self.world_index(bacteria_idx, drug_idx);
-            self.world_buckets
-                .get(world_idx)
-                .map(|bucket| bucket.probability())
-                .unwrap_or(0.0)
-        }
-    }
-
-    #[inline]
-    fn total_buckets(&self) -> usize {
-        self.buckets.len()
-    }
-
-    #[inline]
-    pub fn num_regions(&self) -> usize {
-        self.num_regions
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        let has_bucket_data = self
-            .buckets
-            .iter()
-            .zip(self.bucket_threshold_met.iter())
-            .any(|(bucket, active)| *active && bucket.has_sufficient_data());
-
-        let has_world_data = self
-            .world_buckets
-            .iter()
-            .any(|bucket| bucket.has_sufficient_data());
-
-        !(has_bucket_data || has_world_data)
+        true
     }
 }
+
 struct IndividualLogger {
     path: PathBuf,
     header_written: bool,
@@ -1017,19 +586,17 @@ impl IndividualLogger {
             let mut test_r = Vec::new();
             let mut activity_r = Vec::new();
             let mut any_r = Vec::new();
-            let mut majority_r = Vec::new();
             for bact in &ind.resistances {
                 for res in bact {
                     microbiome_r.push(res.microbiome_r);
                     test_r.push(res.test_r);
                     activity_r.push(res.activity_r);
                     any_r.push(res.any_r);
-                    majority_r.push(res.majority_r);
                 }
             }
 
             let mut mechanisms = Vec::new();
-            for bact_mechs in &ind.resistance_mechanisms {
+            for bact_mechs in &ind.mechanism_any {
                 for &present in bact_mechs {
                     mechanisms.push(if present { "1" } else { "0" });
                 }
@@ -1112,7 +679,7 @@ impl IndividualLogger {
             row.push(Self::fmt_vec(&test_r));
             row.push(Self::fmt_vec(&activity_r));
             row.push(Self::fmt_vec(&any_r));
-            row.push(Self::fmt_vec(&majority_r));
+            row.push(Self::fmt_vec(&any_r)); // majority_r column now outputs any_r (majority_r removed)
             row.push(mechanisms.join(";"));
             row.push(ind.bacteria_on_selection_day.to_string());
             row.push(Self::fmt_vec(&ind.drug_score_on_selection_day));
@@ -1355,13 +922,8 @@ pub struct Simulation {
     pub drug_indices: HashMap<&'static str, usize>,
     /// Maps bacteria index to cross-resistance groups (each group is a Vec of drug indices).
     pub cross_resistance_groups: HashMap<usize, Vec<Vec<usize>>>,
-    /// Stores majority_r positive samples indexed by region/hospital/bacteria/drug.
-    pub majority_r_cache_prev: MajorityRCache,
-    pub majority_r_cache_next: MajorityRCache,
-    pub mechanism_prevalence_cache_prev: MechanismPrevalenceCache,
-    pub mechanism_prevalence_cache_next: MechanismPrevalenceCache,
-    pub mechanism_profile_cache_prev: MechanismProfileCache,
-    pub mechanism_profile_cache_next: MechanismProfileCache,
+    /// Unified mechanism resistance cache (replaces old majority_r, mechanism_prevalence, mechanism_profile caches).
+    pub mechanism_cache: MechanismCache,
     /// Efficient storage for summary data at each time step.
     pub summary_log: Vec<TimeStepSummary>,
     /// Storage for per-policy alternate branch summaries keyed by policy_option.
@@ -1370,10 +932,8 @@ pub struct Simulation {
     pub param_cache: crate::rules::ParameterKeyCache,
     /// Precomputed potency values indexed by [bacteria * num_drugs + drug]
     pub potency_matrix: Vec<f64>,
-    /// Precomputed majority_r threshold below which standardized MIC < 2 (avoids per-step division)
+    /// Precomputed any_r threshold below which standardized MIC < 2 (avoids per-step division)
     pub mic_lt2_majority_r_thresholds: Vec<f64>,
-    /// Hint: previous timestep total majority_r entries to reserve capacity
-    pub prev_majority_r_entries_len: usize,
     /// Journey logger for tracking infection episodes
     pub journey_logger: JourneyLogger,
     /// Optional fixed RNG seed for deterministic runs
@@ -1392,13 +952,10 @@ pub struct Simulation {
     use_disk_branch_checkpoint: bool,
     /// Directory used to store branch checkpoints when disk persistence is enabled.
     branch_checkpoint_dir: PathBuf,
-    /// Majority-r configuration so caches can be rebuilt on demand.
-    majority_r_config: MajorityRConfig,
     /// Sparse mapping: for each bacteria, list of drug indices with potency > 0.01 (clinically relevant)
-    /// Used to skip irrelevant bacteria-drug pairs in majority_r collection loops
     pub relevant_drugs_by_bacteria: Vec<Vec<usize>>,
-    /// When true, skip expensive non-calibration summary computations (day_7, polypharmacy, drug scores, etc.)
-    pub calibration_mode: bool,
+    /// Controls output density and which summary statistics are computed each timestep.
+    pub calibration_mode: CalibrationMode,
 }
 
 impl Simulation {
@@ -1410,7 +967,7 @@ impl Simulation {
         time_steps: usize,
         log_individuals: bool,
         seed: Option<u64>,
-        calibration_mode: bool,
+        calibration_mode: CalibrationMode,
     ) -> Self {
         let mut initialization_rng = seed
             .map(SmallRng::seed_from_u64)
@@ -1496,49 +1053,9 @@ impl Simulation {
 
         let individual_logger = IndividualLogger::from_flag(log_individuals);
         let globals = &config::parameter_store().globals;
-        let mut majority_r_window_days = globals.majority_r_window_days;
-        let mut majority_r_min_total_samples = globals.majority_r_min_total_samples;
-        if majority_r_window_days == 0 || majority_r_min_total_samples == 0 {
-            majority_r_window_days = 500;
-            majority_r_min_total_samples = 10;
-        }
-        let majority_r_config = MajorityRConfig {
-            window_days: majority_r_window_days,
-            min_total_samples: majority_r_min_total_samples,
-            freeze_at_last_positive: globals.majority_r_freeze_at_last_positive,
-        };
-
-        let majority_r_cache_prev = MajorityRCache::new(
-            num_regions_including_home,
-            num_bacteria,
-            num_drugs,
-            &majority_r_config,
-        );
-        let majority_r_cache_next = MajorityRCache::new(
-            num_regions_including_home,
-            num_bacteria,
-            num_drugs,
-            &majority_r_config,
-        );
 
         let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
-        let mechanism_prevalence_cache_prev = MechanismPrevalenceCache::new(
-            num_regions_including_home,
-            num_bacteria,
-            num_mechanisms,
-        );
-        let mechanism_prevalence_cache_next = MechanismPrevalenceCache::new(
-            num_regions_including_home,
-            num_bacteria,
-            num_mechanisms,
-        );
-
-        let mechanism_profile_cache_prev = MechanismProfileCache::new(
-            num_regions_including_home,
-            num_bacteria,
-            num_mechanisms,
-        );
-        let mechanism_profile_cache_next = MechanismProfileCache::new(
+        let mechanism_cache = MechanismCache::new(
             num_regions_including_home,
             num_bacteria,
             num_mechanisms,
@@ -1558,18 +1075,12 @@ impl Simulation {
             bacteria_indices,
             drug_indices,
             cross_resistance_groups,
-            majority_r_cache_prev,
-            majority_r_cache_next,
-            mechanism_prevalence_cache_prev,
-            mechanism_prevalence_cache_next,
-            mechanism_profile_cache_prev,
-            mechanism_profile_cache_next,
+            mechanism_cache,
             summary_log: Vec::new(), // Initialize empty log
             policy_branch_summary_log: Vec::new(),
             param_cache: crate::rules::ParameterKeyCache::new(),
             potency_matrix,
             mic_lt2_majority_r_thresholds,
-            prev_majority_r_entries_len: 0,
             journey_logger: JourneyLogger::new(Some(journey_logger_seed)),
             rng_seed: seed,
             run_id: 0,
@@ -1579,7 +1090,6 @@ impl Simulation {
             current_policy_adjustments: baseline_policy,
             use_disk_branch_checkpoint: false,
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
-            majority_r_config,
             relevant_drugs_by_bacteria,
             calibration_mode,
         }
@@ -1705,28 +1215,16 @@ impl Simulation {
             // --- Setup counters; MIC<2 snapshot will use per-thread local vectors reduced after loop (avoids atomic contention) ---
             let num_bacteria = BACTERIA_LIST.len();
             let num_drugs = DRUG_SHORT_NAMES.len();
-            let num_regions = self.majority_r_cache_prev.num_regions();
-
-            //             let calculation_time = calculation_start.elapsed();
-            //             if t % 100 == 0 { // Log every 10th timestep
-            //                 println!("Time step {}", t);
-            //             }
-            //          println!("simulation.rs time step: {}", t);
+            let num_regions = self.mechanism_cache.num_regions;
 
             // Thread-local aggregation will replace most atomics; keep only minimal atomics if needed (none for now).
 
-            // Use previous time step's resistance data for new acquisitions
-            self.majority_r_cache_next
-                .prepare_for_new_step(&self.majority_r_cache_prev);
-            let majority_r_cache_prev = &self.majority_r_cache_prev;
-            let mechanism_prevalence_cache_prev = &self.mechanism_prevalence_cache_prev;
-            let mechanism_profile_cache_prev = &self.mechanism_profile_cache_prev;
+            // Capture immutable reference to mechanism cache for rules to read (rules only read, never write).
+            let mechanism_cache = &self.mechanism_cache;
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
                 rng: SmallRng,
-                num_bacteria: usize,
-                num_drugs: usize,
                 infected_and_on_any_drug_by_bacteria: Vec<usize>,
                 mic_lt2_counts: Vec<usize>,
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
@@ -1737,8 +1235,14 @@ impl Simulation {
                 deaths_by_bacteria: Vec<usize>,
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
-                majority_r_entries: Vec<((usize, bool, usize, usize), f64)>,
-                majority_r_zero_counts: Vec<u32>,
+                /// Per-mechanism EWMA numerators: flat [r * nb * nm + b * nm + m], community
+                mech_infected_comm: Vec<u32>,
+                /// Per-mechanism EWMA numerators: flat [r * nb * nm + b * nm + m], hospital
+                mech_infected_hosp: Vec<u32>,
+                /// EWMA denominator: flat [r * nb + b], community
+                total_infected_comm: Vec<u32>,
+                /// EWMA denominator: flat [r * nb + b], hospital
+                total_infected_hosp: Vec<u32>,
                 total_deaths: usize,
                 deaths_background: usize,
                 deaths_sepsis: usize,
@@ -1784,7 +1288,6 @@ impl Simulation {
                 drug_treatment_day5_events_by_bacteria_region: Vec<usize>,
                 infected_with_test_identified_by_bacteria: Vec<usize>,
                 infected_with_test_for_resistance_by_bacteria: Vec<usize>,
-                mechanism_counts: Vec<Vec<Vec<u32>>>,
                 /// Per-thread mechanism profile reservoir for MechanismProfileCache
                 mechanism_profiles: MechanismProfileCache,
                 // Integrated previously sequential counts:
@@ -1849,7 +1352,7 @@ impl Simulation {
                     num_regions: usize,
                     num_bacteria: usize,
                     num_drugs: usize,
-                    majority_r_capacity: usize,
+                    num_mechanisms: usize,
                     seed: Option<u64>,
                 ) -> Self {
                     let rng = match seed {
@@ -1861,8 +1364,6 @@ impl Simulation {
                     };
                     Self {
                         rng,
-                        num_bacteria,
-                        num_drugs,
                         mic_lt2_counts: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         microbiome_r_positive_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
@@ -1876,8 +1377,10 @@ impl Simulation {
                         deaths_by_bacteria: vec![0; num_bacteria],
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
-                        majority_r_entries: Vec::with_capacity(majority_r_capacity),
-                        majority_r_zero_counts: vec![0; num_regions * 2 * num_bacteria * num_drugs],
+                        mech_infected_comm: vec![0u32; num_regions * num_bacteria * num_mechanisms],
+                        mech_infected_hosp: vec![0u32; num_regions * num_bacteria * num_mechanisms],
+                        total_infected_comm: vec![0u32; num_regions * num_bacteria],
+                        total_infected_hosp: vec![0u32; num_regions * num_bacteria],
                         total_deaths: 0,
                         deaths_background: 0,
                         deaths_sepsis: 0,
@@ -1937,8 +1440,7 @@ impl Simulation {
                         ],
                         infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
                         infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
-                        mechanism_counts: vec![vec![vec![0; ResistanceMechanism::all().len()]; num_bacteria]; num_regions],
-                        mechanism_profiles: MechanismProfileCache::new(num_regions, num_bacteria, ResistanceMechanism::all().len()),
+                        mechanism_profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
                         living_population: 0,
                         num_age_0_5: 0,
                         num_age_6_14: 0,
@@ -2007,37 +1509,6 @@ impl Simulation {
                         currently_on_drug_by_region_drug: vec![0; 6 * num_drugs], // 6 regions * num_drugs
                         syndrome_deaths_sepsis_by_region: vec![0; 10 * 6], // 10 syndromes * 6 regions = 60 values
                         syndrome_deaths_infection_non_sepsis_by_region: vec![0; 10 * 6],
-                    }
-                }
-                #[inline]
-                fn majority_r_bucket_index(
-                    &self,
-                    region_idx: usize,
-                    hospital: bool,
-                    bacteria_idx: usize,
-                    drug_idx: usize,
-                ) -> usize {
-                    (((region_idx * 2) + hospital as usize) * self.num_bacteria + bacteria_idx)
-                        * self.num_drugs
-                        + drug_idx
-                }
-                #[inline]
-                fn record_majority_r_sample(
-                    &mut self,
-                    region_idx: usize,
-                    hospital: bool,
-                    bacteria_idx: usize,
-                    drug_idx: usize,
-                    value: f64,
-                ) {
-                    let idx =
-                        self.majority_r_bucket_index(region_idx, hospital, bacteria_idx, drug_idx);
-                    if value > 0.0 {
-                        self.majority_r_entries
-                            .push(((region_idx, hospital, bacteria_idx, drug_idx), value));
-                    } else {
-                        self.majority_r_zero_counts[idx] =
-                            self.majority_r_zero_counts[idx].saturating_add(1);
                     }
                 }
                 fn merge(&mut self, other: Self) {
@@ -2135,14 +1606,18 @@ impl Simulation {
                     {
                         *a += b;
                     }
-                    for (a, b) in self
-                        .majority_r_zero_counts
-                        .iter_mut()
-                        .zip(other.majority_r_zero_counts)
-                    {
+                    for (a, b) in self.mech_infected_comm.iter_mut().zip(other.mech_infected_comm) {
                         *a = (*a).saturating_add(b);
                     }
-                    self.majority_r_entries.extend(other.majority_r_entries);
+                    for (a, b) in self.mech_infected_hosp.iter_mut().zip(other.mech_infected_hosp) {
+                        *a = (*a).saturating_add(b);
+                    }
+                    for (a, b) in self.total_infected_comm.iter_mut().zip(other.total_infected_comm) {
+                        *a = (*a).saturating_add(b);
+                    }
+                    for (a, b) in self.total_infected_hosp.iter_mut().zip(other.total_infected_hosp) {
+                        *a = (*a).saturating_add(b);
+                    }
                     self.total_deaths += other.total_deaths;
                     self.deaths_background += other.deaths_background;
                     self.deaths_sepsis += other.deaths_sepsis;
@@ -2300,14 +1775,6 @@ impl Simulation {
                         .zip(other.infected_with_test_for_resistance_by_bacteria)
                     {
                         *a += b;
-                    }
-
-                    for (r_idx, region_vec) in self.mechanism_counts.iter_mut().enumerate() {
-                        for (b_idx, bacteria_vec) in region_vec.iter_mut().enumerate() {
-                             for (m_idx, count) in bacteria_vec.iter_mut().enumerate() {
-                                 *count += other.mechanism_counts[r_idx][b_idx][m_idx];
-                             }
-                        }
                     }
 
                     self.mechanism_profiles.merge(other.mechanism_profiles, &mut self.rng);
@@ -2522,16 +1989,15 @@ impl Simulation {
             let drug_indices = &self.drug_indices;
             let cross_resistance_groups = &self.cross_resistance_groups;
             let param_cache = &self.param_cache;
-            let relevant_drugs_by_bacteria = &self.relevant_drugs_by_bacteria;
+            let _relevant_drugs_by_bacteria = &self.relevant_drugs_by_bacteria;
             let threads = rayon::current_num_threads().max(1);
-            let per_thread_cap = (self.prev_majority_r_entries_len / threads).saturating_add(8);
+            let _ = threads; // suppress unused warning
             let seed_option = self.rng_seed;
+            let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
             let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
                 .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let policy = self.current_policy_adjustments;
-            // When calibration_mode is on, skip expensive bacteria×drug summary
-            // accumulations for pre-calibration time steps (only needed for last ~20 years).
-            let need_full_summary = !self.calibration_mode || t >= self.time_steps.saturating_sub(20 * 365);
+            let need_full_summary = true;
             let totals = self.population.individuals.par_iter_mut()
             .fold(
                 || {
@@ -2543,7 +2009,7 @@ impl Simulation {
                         num_regions,
                         num_bacteria,
                         num_drugs,
-                        per_thread_cap,
+                        num_mechanisms,
                         thread_seed,
                     )
                 },
@@ -2588,7 +2054,7 @@ impl Simulation {
                                         for d_idx in 0..num_drugs {
                                             let resistance_data = &individual.resistances[b_idx][d_idx];
                                             let threshold = mic_lt2_thresholds[base + d_idx];
-                                            if resistance_data.majority_r < threshold {
+                                            if resistance_data.any_r < threshold {
                                                 lt.mic_lt2_counts[base + d_idx] += 1;
                                             }
                                             if individual.cur_use_drug[d_idx] {
@@ -2600,7 +2066,7 @@ impl Simulation {
                                                 1e12
                                             } else {
                                                 let susceptible_fraction =
-                                                    (1.0 - resistance_data.majority_r).clamp(1e-6, 1.0);
+                                                    (1.0 - resistance_data.any_r).clamp(1e-6, 1.0);
                                                 1.0 / (susceptible_fraction * potency)
                                             };
                                             lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
@@ -2617,26 +2083,37 @@ impl Simulation {
                                     } // end need_full_summary for pre-rules B×D
 
                                     let num_mechanisms = ResistanceMechanism::all().len();
-                                    for (mech_idx, _mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                                        if individual.resistance_mechanisms[b_idx][mech_idx] {
+                                    let is_hosp = individual.hospital_status.is_hospitalized();
+                                    for mech_idx in 0..num_mechanisms {
+                                        if individual.mechanism_any[b_idx][mech_idx] {
                                             let flat_idx = b_idx * num_mechanisms + mech_idx;
                                             lt.infected_with_bacteria_and_mechanism[flat_idx] += 1;
-                                            
+
                                             if let Some(r_idx) = effective_region_idx_for_any_r {
-                                                lt.mechanism_counts[r_idx][b_idx][mech_idx] += 1;
+                                                let ewma_flat = r_idx * num_bacteria * num_mechanisms + b_idx * num_mechanisms + mech_idx;
+                                                if is_hosp {
+                                                    lt.mech_infected_hosp[ewma_flat] = lt.mech_infected_hosp[ewma_flat].saturating_add(1);
+                                                } else {
+                                                    lt.mech_infected_comm[ewma_flat] = lt.mech_infected_comm[ewma_flat].saturating_add(1);
+                                                }
                                             }
                                         }
                                     }
 
-                                    // Record full mechanism profile for profile cache
-                                    // (includes susceptible / zero-mechanism profiles to preserve prevalence)
+                                    // Record full mechanism profile and total infected for EWMA denominators
                                     if let Some(r_idx) = effective_region_idx_for_any_r {
                                         lt.mechanism_profiles.record(
                                             r_idx,
                                             b_idx,
-                                            &individual.resistance_mechanisms[b_idx],
+                                            &individual.mechanism_any[b_idx],
                                             &mut lt.rng,
                                         );
+                                        let denom_flat = r_idx * num_bacteria + b_idx;
+                                        if is_hosp {
+                                            lt.total_infected_hosp[denom_flat] = lt.total_infected_hosp[denom_flat].saturating_add(1);
+                                        } else {
+                                            lt.total_infected_comm[denom_flat] = lt.total_infected_comm[denom_flat].saturating_add(1);
+                                        }
                                     }
 
                                     if individual.test_identified_infection[b_idx] {
@@ -2671,9 +2148,7 @@ impl Simulation {
                         individual,
                         t,
                         &mut lt.rng,
-                        majority_r_cache_prev,
-                        mechanism_prevalence_cache_prev,
-                        mechanism_profile_cache_prev,
+                        mechanism_cache,
                         bacteria_indices,
                         drug_indices,
                         cross_resistance_groups,
@@ -3082,24 +2557,8 @@ impl Simulation {
                                         }
                                     }
                                     let base = b_idx * num_drugs;
-                                    let cache_region_idx = individual.region_cur_in as usize;
-                                    let cache_hospital_flag =
-                                        individual.hospital_status.is_hospitalized();
                                     
-                                    // Sparse iteration: only record majority_r for clinically relevant bacteria-drug pairs
-                                    // This reduces iterations from ~52 to ~8-15 per bacteria
-                                    for &d_idx in &relevant_drugs_by_bacteria[b_idx] {
-                                        let resistance_data = &individual.resistances[b_idx][d_idx];
-                                        lt.record_majority_r_sample(
-                                            cache_region_idx,
-                                            cache_hospital_flag,
-                                            b_idx,
-                                            d_idx,
-                                            resistance_data.majority_r,
-                                        );
-                                    }
-                                    
-                                    // Full iteration for other stats that need all drugs
+                                    // Full iteration for stats that need all drugs
                                     // (skipped for pre-calibration steps when need_full_summary is false)
                                     if need_full_summary {
                                     for d_idx in 0..num_drugs {
@@ -3108,7 +2567,7 @@ impl Simulation {
                                         if individual.cur_use_drug[d_idx] {
                                             activity_r_sum += resistance_data.activity_r;
                                         }
-                                        if resistance_data.majority_r > 0.0 {
+                                        if resistance_data.any_r > 0.0 {
                                             lt.resistance_by_bacteria_drug[base + d_idx] += 1;
                                         }
                                         if resistance_data.any_r > 0.0 {
@@ -3136,6 +2595,7 @@ impl Simulation {
                                         }
                                     }
                                     } // end need_full_summary for post-rules full B×D iteration
+
                                     if is_carrier {
                                         lt.infected_carrier_count_by_bacteria[b_idx] += 1;
                                         if infection_any_r_positive {
@@ -3207,7 +2667,7 @@ impl Simulation {
                 },
             )
             .reduce(
-                || LocalTotals::new(num_regions, num_bacteria, num_drugs, per_thread_cap, None),
+                || LocalTotals::new(num_regions, num_bacteria, num_drugs, num_mechanisms, None),
                 |mut a, b| {
                     a.merge(b);
                     a
@@ -3280,8 +2740,10 @@ impl Simulation {
                 deaths_by_bacteria,
                 resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                 currently_on_drug_by_drug,
-                majority_r_entries,
-                majority_r_zero_counts,
+                mech_infected_comm,
+                mech_infected_hosp,
+                total_infected_comm,
+                total_infected_hosp,
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
@@ -3327,7 +2789,6 @@ impl Simulation {
                 drug_treatment_day5_events_by_bacteria_region,
                 infected_with_test_identified_by_bacteria,
                 infected_with_test_for_resistance_by_bacteria,
-                mechanism_counts,
                 mechanism_profiles,
                 living_population,
                 num_age_0_5,
@@ -3376,67 +2837,22 @@ impl Simulation {
                 );
             }
 
-            // Populate majority_r cache with new samples for next timestep
-            let mut total_entries: usize = 0;
+            // Update mechanism cache with EWMA and new profiles
             {
-                let next_majority_r_cache = &mut self.majority_r_cache_next;
-                for (bucket_idx, zero_count) in majority_r_zero_counts.into_iter().enumerate() {
-                    next_majority_r_cache.add_zero_samples_by_index(bucket_idx, zero_count);
-                }
-                for ((region_idx, hospital_flag, bacteria_idx, drug_idx), value) in
-                    majority_r_entries
-                {
-                    next_majority_r_cache.add_positive_value(
-                        region_idx,
-                        hospital_flag,
-                        bacteria_idx,
-                        drug_idx,
-                        value,
-                        t as u32,  // Pass current timestep for debug
-                    );
-                    total_entries += 1;
-                }
+                let decay = config::parameter_store().globals.mechanism_cache_ewma_decay;
+                self.mechanism_cache.update_ewma(
+                    decay,
+                    &mech_infected_comm,
+                    &mech_infected_hosp,
+                    &total_infected_comm,
+                    &total_infected_hosp,
+                    mechanism_profiles,
+                );
             }
-            self.prev_majority_r_entries_len = total_entries;
-            mem::swap(
-                &mut self.majority_r_cache_prev,
-                &mut self.majority_r_cache_next,
-            );
-            self.majority_r_cache_prev.finalize_step(t as u32);
-
-            // Update mechanism prevalence cache
-            self.mechanism_prevalence_cache_next.set_counts(&mechanism_counts);
-            mem::swap(
-                &mut self.mechanism_prevalence_cache_prev,
-                &mut self.mechanism_prevalence_cache_next,
-            );
-
-            // Update mechanism profile cache
-            // The merged per-thread profiles become the new "prev" for next step's rules
-            self.mechanism_profile_cache_next = mechanism_profiles;
-            mem::swap(
-                &mut self.mechanism_profile_cache_prev,
-                &mut self.mechanism_profile_cache_next,
-            );
-            // Clear the "next" slot so it's ready for the following step's collection
-            self.mechanism_profile_cache_next.clear();
-
-            // let rules_time = rules_start.elapsed();
-            // if t % 10 == 0 { // Log every 10th timestep
-            //     println!("Time step {}: rules application took {:.3}ms", t, rules_time.as_secs_f64() * 1000.0);
-            // }
-
-            // Collect remaining statistics that need sequential access
-            // No need for sequential pass for per-bacteria/drug majority_r counts
-
-            // Store for next iteration (already populated in majority_r_cache)
 
             // Create summary for this time step
             let infected_10_count = infected_10_days_count;
             let infected_30_count = infected_30_days_count;
-
-            // Optional debug (uncomment if needed)
-            // if t % 500 == 0 { println!("Time step {} drug usage counts: {:?}", t, currently_on_drug_by_drug); }
 
             let mut newly_infected_any_r_hospital_by_bacteria = vec![0; BACTERIA_LIST.len()];
             let mut newly_infected_any_r_community_by_bacteria = vec![0; BACTERIA_LIST.len()];
@@ -3444,7 +2860,11 @@ impl Simulation {
                 if individual.date_of_death.is_some() { continue; }
                 for b_idx in 0..BACTERIA_LIST.len() {
                     if individual.date_last_infected_keep[b_idx] == t as i32 {
-                        if individual.resistance_mechanisms[b_idx].iter().any(|&m| m) {
+                        // Use any_r > 0 rather than mechanism_any.any(): carrier-inherited resistance
+                        // is propagated directly to resistance_data.any_r without setting mechanism
+                        // booleans, so mechanism_any would always be false for those cases.
+                        let has_any_r = individual.resistances[b_idx].iter().any(|rd| rd.any_r > 0.0);
+                        if has_any_r {
                             if individual.infection_hospital_acquired[b_idx] {
                                 newly_infected_any_r_hospital_by_bacteria[b_idx] += 1;
                             } else {
@@ -3577,7 +2997,7 @@ impl Simulation {
                 infection_resolution_death_from_toxicity_by_bacteria,
 
                 // Calculate day-7 drug initiation statistics (skipped in calibration mode)
-                day_7_evaluations_by_bacteria: if !self.calibration_mode {
+                day_7_evaluations_by_bacteria: if self.calibration_mode == CalibrationMode::None {
                     let evaluation_days = get_global_param("drug_evaluation_days_post_infection")
                         .unwrap_or(7.0) as i32;
                     let mut day_7_evals = vec![0; BACTERIA_LIST.len()];
@@ -3599,7 +3019,7 @@ impl Simulation {
                     }
                     day_7_evals
                 } else { vec![0; BACTERIA_LIST.len()] },
-                day_7_drug_used_by_bacteria: if !self.calibration_mode {
+                day_7_drug_used_by_bacteria: if self.calibration_mode == CalibrationMode::None {
                     let evaluation_days = get_global_param("drug_evaluation_days_post_infection")
                         .unwrap_or(7.0) as i32;
                     let mut day_7_used = vec![0; BACTERIA_LIST.len()];
@@ -3667,15 +3087,17 @@ impl Simulation {
                             continue;
                         } // Skip dead individuals
 
-                        if individual.hospital_status.is_hospitalized() {
-                            let region_idx = get_effective_region(individual) as usize;
-
-                            for b_idx in 0..BACTERIA_LIST.len() {
-                                if individual.date_last_infected_keep[b_idx] == t as i32 {
-                                    // This is a new infection that occurred today in hospital
-                                    *hospital_infections.entry((b_idx, region_idx)).or_insert(0) +=
-                                        1;
-                                }
+                        // Use the stored infection_hospital_acquired flag rather than the live
+                        // hospital_status at post-rules time. The flag is set at infection
+                        // acquisition time, so it correctly captures infections acquired in
+                        // hospital even if the patient was discharged later in the same timestep.
+                        let region_idx = get_effective_region(individual) as usize;
+                        for b_idx in 0..BACTERIA_LIST.len() {
+                            if individual.date_last_infected_keep[b_idx] == t as i32
+                                && individual.infection_hospital_acquired[b_idx]
+                            {
+                                // This is a new infection that was acquired in hospital today
+                                *hospital_infections.entry((b_idx, region_idx)).or_insert(0) += 1;
                             }
                         }
                     }
@@ -3684,7 +3106,7 @@ impl Simulation {
                 age_distribution_by_region,
                 deaths_by_region,
                 deaths_by_region_age,
-                syndrome_population_by_region: if !self.calibration_mode {
+                syndrome_population_by_region: if self.calibration_mode == CalibrationMode::None {
                     let mut syndrome_pop_by_region = vec![0; 60]; // 10 syndromes * 6 regions
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3715,15 +3137,14 @@ impl Simulation {
                 currently_on_drug_by_region_drug,
 
                 // Calculate polypharmacy distribution (1, 2, or ≥3 drugs) — merged single pass
-                people_on_1_drug: if !self.calibration_mode {
-                    // Computed below via merged polypharmacy block
-                    0 // placeholder — overwritten after struct init
-                } else { 0 },
-                people_on_2_drugs: if !self.calibration_mode { 0 } else { 0 },
-                people_on_3plus_drugs: if !self.calibration_mode { 0 } else { 0 },
+                // All three fields initialised to 0 here; the post-struct block below overwrites
+                // them when CalibrationMode::None via the merged polypharmacy loop.
+                people_on_1_drug: 0,
+                people_on_2_drugs: 0,
+                people_on_3plus_drugs: 0,
 
                 // Calculate infected people on drug with previous treatment failure
-                infected_on_drug_with_previous_failure: if !self.calibration_mode {
+                infected_on_drug_with_previous_failure: if self.calibration_mode == CalibrationMode::None {
                     let mut count = 0;
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3758,7 +3179,7 @@ impl Simulation {
                 } else { 0 },
 
                 // Drug score tracking for clinical guideline debugging
-                drug_selection_count_by_bacteria: if !self.calibration_mode {
+                drug_selection_count_by_bacteria: if self.calibration_mode == CalibrationMode::None {
                     let mut counts = vec![0; BACTERIA_LIST.len()];
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3775,7 +3196,7 @@ impl Simulation {
                     counts
                 } else { vec![0; BACTERIA_LIST.len()] },
 
-                drug_score_sums_by_bacteria_drug: if !self.calibration_mode {
+                drug_score_sums_by_bacteria_drug: if self.calibration_mode == CalibrationMode::None {
                     let mut sums = vec![0.0; BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len()];
                     for individual in &self.population.individuals {
                         if individual.date_of_death.is_some() {
@@ -3802,11 +3223,11 @@ impl Simulation {
                     sums
                 } else { vec![0.0; BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len()] },
 
-                people_by_drug_count: if !self.calibration_mode { vec![0; 4] } else { vec![0; 4] },
+                people_by_drug_count: vec![0; 4],
             };
 
             // Merged polypharmacy single-pass loop (replaces 4 separate loops)
-            if !self.calibration_mode {
+            if self.calibration_mode == CalibrationMode::None {
                 let mut on_1 = 0usize;
                 let mut on_2 = 0usize;
                 let mut on_3plus = 0usize;
@@ -3872,7 +3293,22 @@ impl Simulation {
             //     }
             // }
 
-            self.summary_log.push(summary);
+            // In CalibrationMode::Full, only emit rows inside the windows actually consumed by
+            // calibration_summary.py: history snapshot years (1950, 1975, 2000) and the full
+            // 2021–2026 analysis window. All other rows are dropped to cut CSV size ~95%.
+            // In Partial or None every row is kept so time-series plots remain functional.
+            let keep_row = match self.calibration_mode {
+                CalibrationMode::Full => {
+                    let simulation_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
+                    CALIBRATION_SNAPSHOT_YEARS.iter().any(|&snap| {
+                        simulation_year >= snap && simulation_year < snap + 1.0
+                    }) || simulation_year >= CALIBRATION_FULL_ANALYSIS_WINDOW_START
+                }
+                CalibrationMode::Partial | CalibrationMode::None => true,
+            };
+            if keep_row {
+                self.summary_log.push(summary);
+            }
 
             // Reset infection resolution counts for next timestep (after data has been aggregated and logged)
             self.population
@@ -3961,6 +3397,11 @@ impl Simulation {
             }
         };
 
+        // In calibration mode the policy branches are not needed — skip them entirely.
+        if self.calibration_mode != CalibrationMode::None {
+            return;
+        }
+
         if let (Some(stored_snapshot), Some(step)) = (baseline_snapshot, branch_step) {
             let (branch_snapshot, snapshot_cleanup) =
                 match self.materialize_branch_snapshot(stored_snapshot) {
@@ -4032,14 +3473,8 @@ impl Simulation {
     fn create_branch_snapshot(&self) -> BranchSnapshot {
         BranchSnapshot {
             population: self.population.clone(),
-            majority_r_cache_prev: self.majority_r_cache_prev.clone(),
-            majority_r_cache_next: self.majority_r_cache_next.clone(),
-            mechanism_prevalence_cache_prev: self.mechanism_prevalence_cache_prev.clone(),
-            mechanism_prevalence_cache_next: self.mechanism_prevalence_cache_next.clone(),
-            mechanism_profile_cache_prev: self.mechanism_profile_cache_prev.clone(),
-            mechanism_profile_cache_next: self.mechanism_profile_cache_next.clone(),
+            mechanism_cache: self.mechanism_cache.clone(),
             summary_log: self.summary_log.clone(),
-            prev_majority_r_entries_len: self.prev_majority_r_entries_len,
         }
     }
 
@@ -4059,13 +3494,7 @@ impl Simulation {
     fn capture_core_state(&self) -> std::io::Result<StoredCoreState> {
         let state = CoreState {
             population: self.population.clone(),
-            majority_r_cache_prev: self.majority_r_cache_prev.clone(),
-            majority_r_cache_next: self.majority_r_cache_next.clone(),
-            mechanism_prevalence_cache_prev: self.mechanism_prevalence_cache_prev.clone(),
-            mechanism_prevalence_cache_next: self.mechanism_prevalence_cache_next.clone(),
-            mechanism_profile_cache_prev: self.mechanism_profile_cache_prev.clone(),
-            mechanism_profile_cache_next: self.mechanism_profile_cache_next.clone(),
-            prev_majority_r_entries_len: self.prev_majority_r_entries_len,
+            mechanism_cache: self.mechanism_cache.clone(),
         };
 
         if self.use_disk_branch_checkpoint {
@@ -4091,13 +3520,7 @@ impl Simulation {
 
     fn apply_core_state(&mut self, state: CoreState) {
         self.population = state.population;
-        self.majority_r_cache_prev = state.majority_r_cache_prev;
-        self.majority_r_cache_next = state.majority_r_cache_next;
-        self.mechanism_prevalence_cache_prev = state.mechanism_prevalence_cache_prev;
-        self.mechanism_prevalence_cache_next = state.mechanism_prevalence_cache_next;
-        self.mechanism_profile_cache_prev = state.mechanism_profile_cache_prev;
-        self.mechanism_profile_cache_next = state.mechanism_profile_cache_next;
-        self.prev_majority_r_entries_len = state.prev_majority_r_entries_len;
+        self.mechanism_cache = state.mechanism_cache;
     }
 
     fn run_policy_branch(
@@ -4115,14 +3538,8 @@ impl Simulation {
         self.current_policy_adjustments = policy;
 
         self.population = snapshot.population.clone();
-        self.majority_r_cache_prev = snapshot.majority_r_cache_prev.clone();
-        self.majority_r_cache_next = snapshot.majority_r_cache_next.clone();
-        self.mechanism_prevalence_cache_prev = snapshot.mechanism_prevalence_cache_prev.clone();
-        self.mechanism_prevalence_cache_next = snapshot.mechanism_prevalence_cache_next.clone();
-        self.mechanism_profile_cache_prev = snapshot.mechanism_profile_cache_prev.clone();
-        self.mechanism_profile_cache_next = snapshot.mechanism_profile_cache_next.clone();
+        self.mechanism_cache = snapshot.mechanism_cache.clone();
         self.summary_log = snapshot.summary_log.clone();
-        self.prev_majority_r_entries_len = snapshot.prev_majority_r_entries_len;
 
         if policy.clear_all_resistance_on_branch_start {
             self.reset_all_resistance_state();
@@ -4161,34 +3578,27 @@ impl Simulation {
                     let resistance = &mut individual.resistances[b_idx][d_idx];
                     resistance.any_r = 0.0;
                     resistance.activity_r = 0.0;
-                    resistance.majority_r = 0.0;
                     resistance.microbiome_r = 0.0;
                     resistance.test_r = 0.0;
                     individual.how_resistance_acquired[b_idx][d_idx] = None;
                 }
 
-                if b_idx < individual.resistance_mechanisms.len() {
-                    for mechanism_flag in individual.resistance_mechanisms[b_idx].iter_mut() {
-                        *mechanism_flag = false;
+                if b_idx < individual.mechanism_any.len() {
+                    for flag in individual.mechanism_any[b_idx].iter_mut() {
+                        *flag = false;
+                    }
+                }
+                if b_idx < individual.mechanism_majority.len() {
+                    for flag in individual.mechanism_majority[b_idx].iter_mut() {
+                        *flag = false;
                     }
                 }
             }
         }
 
-        let num_regions = self.majority_r_cache_prev.num_regions();
-        self.majority_r_cache_prev = MajorityRCache::new(
-            num_regions,
-            num_bacteria,
-            num_drugs,
-            &self.majority_r_config,
-        );
-        self.majority_r_cache_next = MajorityRCache::new(
-            num_regions,
-            num_bacteria,
-            num_drugs,
-            &self.majority_r_config,
-        );
-        self.prev_majority_r_entries_len = 0;
+        let num_regions = self.mechanism_cache.num_regions;
+        let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
+        self.mechanism_cache = MechanismCache::new(num_regions, num_bacteria, num_mechanisms);
     }
 
     pub fn print_summary_statistics(&self) {

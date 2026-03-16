@@ -263,7 +263,7 @@ Each day, every person who does not already have an active infection has a chanc
 - **Immune status** — immunosuppressed individuals are at higher risk
 - **Season** — respiratory pathogens (e.g., *S. pneumoniae*) follow a sinusoidal seasonal pattern, peaking in winter
 - **Calendar era** — some infections have become more or less common over the decades
-- **Existing population-level resistance** (`majority_r`) — this shapes how likely it is that a newly acquired bacterium is already resistant to common drugs (see Section 3.4)
+- **Circulating resistance landscape** — the EWMA-smoothed prevalence of each resistance mechanism across currently infected individuals shapes the probability that a newly acquired bacterium already carries one or more resistance mechanisms (see Section 3.4)
 
 | Variable pattern | What it controls |
 |------------------|-----------------|
@@ -318,11 +318,23 @@ When a new infection is acquired from the community, the model needs to decide: 
 
 Rather than rolling a separate dice for each drug independently (which would produce unrealistic resistance patterns), the model uses a three-step process that reflects how resistance actually exists in bacterial populations:
 
-1. **Population-level resistance prevalence** (`majority_r`): The model continuously tracks a rolling average of resistance across all infected individuals for every bacterium–drug combination. This represents "how much resistance is circulating in the community right now." The averaging window is ~3 years (`majority_r_window_days` = 1,000 days), capturing the inertia of resistance in populations.
+1. **Mechanism-level prevalence (EWMA tracking)**: After every simulated day, the model updates an **exponential moving average** (EWMA) of the fraction of infected individuals carrying each of the 40 resistance mechanisms, tracked separately for every combination of region × care setting (community / hospital) × bacteria × mechanism. The EWMA smoothing factor (`mechanism_cache_ewma_decay` = 0.9) means today's prevalence estimate is 90% the previous estimate and 10% the newly observed fraction — giving the cache a memory that damps day-to-day noise while still following genuine trends. Mathematically:
 
-2. **Community dilution**: Clinical samples (from hospitals and sick patients) tend to over-represent resistant strains. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (`community_resistance_dilution_factor` = 0.50). In other words, if 40% of clinical *E. coli* UTIs are resistant to ciprofloxacin, the model assumes ~20% of community *E. coli* are resistant.
+   $$\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}$$
 
-3. **Correlated mechanism profiles**: Instead of assigning resistance genes one at a time (which would miss the real-world phenomenon of multi-drug resistance genes travelling together on the same plasmid), the model samples **complete resistance profiles** from other currently infected individuals via a `MechanismProfileCache`. This ensures that if a person acquires a resistant *E. coli*, its resistance pattern looks biologically realistic — for example, an ESBL-producing strain that is also fluoroquinolone-resistant, mirroring how these resistances co-occur on real plasmids.
+   where $\alpha = 0.9$. Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.
+
+2. **Community dilution**: Clinical samples tend to over-represent resistant strains. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (`community_resistance_dilution_factor` = 0.50). A draw from random determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type.
+
+3. **Correlated mechanism profiles — profile-cache sampling**: Rather than independently sampling each mechanism from its marginal EWMA prevalence (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model maintains a **profile reservoir** (`MechanismProfileCache`) of up to 200 complete resistance genotypes sampled — via reservoir sampling — from currently infected individuals. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). When a new infection is acquired from the human reservoir, the model samples a **complete genotype profile** from this reservoir and assigns all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids.
+
+   If the profile cache is empty (early in the simulation, before enough infections have accumulated), the model falls back to sampling a single mechanism from the marginal EWMA cache.
+
+   The `any_r` resistance level reported for each bacterium–drug combination is then **derived** from the mechanisms present in the individual, using the multiplicative susceptibility formula:
+
+   $$\text{any\_r} = 1 - \prod_{m : \text{mechanism}_m \text{ present}} (1 - e_m)$$
+
+   where $e_m$ is the enhancement multiplier for mechanism $m$ against the drug in question (see Section 7.2).
 
 ---
 
@@ -935,6 +947,8 @@ The model applies a 70% reduction in new infection risk for susceptible organism
 This section describes the heart of the model — how bacteria become resistant to antibiotics. For a clinician, this section explains the mechanisms behind the resistance patterns you see in microbiology reports. For example, when your lab reports "ESBL-producing *E. coli*", the model tracks the specific enzyme (CTX-M, TEM, or SHV) that produces that phenotype, which drugs it affects, and how it spreads.
 
 The model tracks resistance at the level of individual **mechanisms** — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant *K. pneumoniae*") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.
+
+**Mechanism-centric architecture.** All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (`mechanism_any`), majority strain (`mechanism_majority`), and microbiome carriage (`mechanism_microbiome`). The scalar resistance metrics (`any_r`, `activity_r`) reported in outputs are **derived** from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified `MechanismCache` maintains the population-level picture: it holds both the EWMA-smoothed per-mechanism prevalence (used as fallback sampling) and a reservoir of up to 200 complete clinical resistance genotypes (used for profile-based acquisition — see Section 3.4).
 
 
 ### 7.1 Resistance mechanisms
@@ -1931,9 +1945,7 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 | `antibiotic_clearance_log_odds_per_unit_activity` | 0.5 |
 | `carrier_resistance_inheritance_probability` | 0.50 |
 | `community_resistance_dilution_factor` | 0.50 |
-| `majority_r_window_days` | 100 |
-| `majority_r_min_total_samples` | 10 |
-| `majority_r_freeze_at_last_positive` | 0.0 |
+| `mechanism_cache_ewma_decay` | 0.9 |
 | `microbiome_majority_promotion_rate_per_day` | 0.02 |
 
 
@@ -2203,8 +2215,8 @@ Each row represents one simulated day. The number of rows equals the total numbe
 
 | Pattern | Description |
 |---------|-------------|
-| `{bacteria}_{drug}_activity_r` | Mean resistance (activity_r) |
-| `{bacteria}_{drug}_majority_r` | Population-level resistance prevalence |
+| `{bacteria}_{drug}_activity_r` | Mean resistance (activity_r, derived from mechanism flags) |
+| `{bacteria}_{drug}_majority_r` | Population-level resistance prevalence (derived from mechanism EWMA) |
 
 
 

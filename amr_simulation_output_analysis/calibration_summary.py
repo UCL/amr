@@ -687,10 +687,14 @@ def _load_bacteria_metric_values(
 
 
 def _extract_bacteria_and_drugs(df: pd.DataFrame) -> Tuple[set[str], set[str]]:
+    # Exclude aggregate scalar columns that happen to end with _currently_infected
+    # (e.g. total_currently_infected) but are not per-bacteria columns.
+    _AGGREGATE_SLUGS = frozenset({"total"})
     bacteria = {
         col.replace("_currently_infected", "")
         for col in df.columns
         if col.endswith("_currently_infected")
+        and col.replace("_currently_infected", "") not in _AGGREGATE_SLUGS
     }
     drugs = {
         col.replace("_currently_on_drug", "")
