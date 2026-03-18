@@ -2,9 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<style>body { font-family: sans-serif; line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 20px; } table { border-collapse: collapse; margin-bottom: 20px; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; } code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 4px; } pre code { display: block; padding: 10px; overflow-x: auto; }</style>
-
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<title>AMR Simulation — Model Description</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #333;
+}
+h1 { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }
+h2 { border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 40px; }
+h3 { margin-top: 30px; }
+table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+th { background-color: #f2f2f2; font-weight: 600; }
+tr:nth-child(even) { background-color: #fafafa; }
+code { background-color: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+pre code { display: block; padding: 12px; overflow-x: auto; background-color: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; }
+blockquote { border-left: 4px solid #2c3e50; margin: 1em 0; padding: 0.5em 1em; background-color: #f9f9f9; }
+strong { color: #2c3e50; }
+hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
+a { color: #2980b9; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
@@ -695,8 +717,8 @@
 <ol>
 <li><strong>Mechanism-level prevalence (EWMA tracking)</strong>: After every simulated day, the model updates an <strong>exponential moving average</strong> (EWMA) of the fraction of infected individuals carrying each of the 40 resistance mechanisms, tracked separately for every combination of region × care setting (community / hospital) × bacteria × mechanism. The EWMA smoothing factor (<code>mechanism_cache_ewma_decay</code> = 0.9) means today's prevalence estimate is 90% the previous estimate and 10% the newly observed fraction — giving the cache a memory that damps day-to-day noise while still following genuine trends. Mathematically:</li>
 </ol>
-<p>$$\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}$$</p>
-<p>where $\alpha = 0.9$. Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.</p>
+<p>\[\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}\]</p>
+<p>where \(\alpha = 0.9\). Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.</p>
 <ol>
 <li>
 <p><strong>Community dilution</strong>: Clinical samples tend to over-represent resistant strains. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (<code>community_resistance_dilution_factor</code> = 0.50). A draw from random determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type.</p>
@@ -707,8 +729,8 @@
 </ol>
 <p>If the profile cache is empty (early in the simulation, before enough infections have accumulated), the model falls back to sampling a single mechanism from the marginal EWMA cache.</p>
 <p>The <code>any_r</code> resistance level reported for each bacterium–drug combination is then <strong>derived</strong> from the mechanisms present in the individual, using the multiplicative susceptibility formula:</p>
-<p>$$\text{any_r} = 1 - \prod_{m : \text{mechanism}_m \text{ present}} (1 - e_m)$$</p>
-<p>where $e_m$ is the enhancement multiplier for mechanism $m$ against the drug in question (see Section 7.2).</p>
+<p>\[\text{any_r} = 1 - \prod_{m : \text{mechanism}_m \text{ present}} (1 - e_m)\]</p>
+<p>where \(e_m\) is the enhancement multiplier for mechanism \(m\) against the drug in question (see Section 7.2).</p>
 <hr />
 <h2 id="4-clinical-progression">4. Clinical Progression</h2>
 <p>Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. This section mirrors the natural history of infectious disease — the journey from first exposure to clinical outcome.</p>
@@ -1187,7 +1209,7 @@
 </li>
 </ol>
 <p><strong>How drug scoring works:</strong></p>
-<p>For each candidate drug, the model calculates a score based on several factors:</p>
+<p>For each candidate drug, the model calculates a score based on several factors. The final candidate scores are placed into a weighted index (probabilistic selection) using a temperature-scaled power function: <code>Weight = Score^(1.0 / Temperature)</code>. A lower temperature makes the prescribing extremely determinisic (strongly favoring the highest score), while a higher temperature reflects the stochastic variance (idiosyncratic prescribing habits) in clinical settings. </p>
 <table>
 <thead>
 <tr>
@@ -3020,7 +3042,7 @@
 <tr>
 <td style="text-align: left;"><strong>NDM / VIM</strong></td>
 <td style="text-align: left;"><code>0.0015</code></td>
-<td style="text-align: left;">Metallo-$eta$-lactamases, frequently on large, high-burden mobile genetic elements.</td>
+<td style="text-align: left;">Metallo-\(eta\)-lactamases, frequently on large, high-burden mobile genetic elements.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>OXA-48</strong></td>
@@ -3030,7 +3052,7 @@
 <tr>
 <td style="text-align: left;"><strong>ESBL CTX-M / TEM / SHV</strong></td>
 <td style="text-align: left;"><code>0.0006</code></td>
-<td style="text-align: left;">Standard extended-spectrum $eta$-lactamases.</td>
+<td style="text-align: left;">Standard extended-spectrum \(eta\)-lactamases.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>AmpC DHA</strong></td>

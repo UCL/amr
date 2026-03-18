@@ -549,7 +549,7 @@ Once the model decides to start an antibiotic, it must choose *which* antibiotic
 
 **How drug scoring works:**
 
-For each candidate drug, the model calculates a score based on several factors:
+For each candidate drug, the model calculates a score based on several factors. The final candidate scores are placed into a weighted index (probabilistic selection) using a temperature-scaled power function: `Weight = Score^(1.0 / Temperature)`. A lower temperature makes the prescribing extremely determinisic (strongly favoring the highest score), while a higher temperature reflects the stochastic variance (idiosyncratic prescribing habits) in clinical settings. 
 
 | Scoring factor | Empiric phase | Targeted phase | What it captures |
 |---------------|---------------|----------------|-----------------|

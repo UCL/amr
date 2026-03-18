@@ -142,6 +142,13 @@ CALIBRATION_PATTERNS = [
     r'.*_presence_microbiome$',              # Microbiome presence per bacteria
     r'.*_new_resistance_.*',                 # Breakdown of new resistance sources
     r'.*_asymptomatic_microbiome_hgt_events', # Asymptomatic HGT events
+    
+    # Additional infection locus columns needed for calibration mapping
+    r'.*_newly_infected_hospital_.*',
+    r'.*_newly_infected_any_r_hospital$',
+    r'.*_newly_infected_any_r_community$',
+    r'.*_newly_infected_carrier$',
+    r'.*_newly_infected_non_carrier$',
 ]
 
 

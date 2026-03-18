@@ -74,7 +74,7 @@ const CALIBRATION_SNAPSHOT_YEARS: &[f64] = &[1950.0, 1975.0, 2000.0];
 
 /// First year of the resistance/headline analysis window (inclusive).
 /// Matches `max_years = 5` with `target_year = 2025` in `_select_resistance_windows`.
-const CALIBRATION_FULL_ANALYSIS_WINDOW_START: f64 = 2021.0;
+const CALIBRATION_FULL_ANALYSIS_WINDOW_START: f64 = 2022.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PolicyAdjustments {
@@ -1265,6 +1265,9 @@ impl Simulation {
                 newly_infected_by_bacteria_region: Vec<usize>,
                 newly_infected_carrier_by_bacteria: Vec<usize>,
                 newly_infected_non_carrier_by_bacteria: Vec<usize>,
+                newly_infected_hospital_by_bacteria_region: Vec<usize>,
+                newly_infected_any_r_hospital_by_bacteria: Vec<usize>,
+                newly_infected_any_r_community_by_bacteria: Vec<usize>,
                 deaths_infected_by_bacteria_region: Vec<usize>,
                 total_currently_infected: usize,
                 total_with_resistance: usize,
@@ -1403,6 +1406,9 @@ impl Simulation {
                         newly_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
                         newly_infected_carrier_by_bacteria: vec![0; num_bacteria],
                         newly_infected_non_carrier_by_bacteria: vec![0; num_bacteria],
+                        newly_infected_hospital_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
+                        newly_infected_any_r_hospital_by_bacteria: vec![0; num_bacteria],
+                        newly_infected_any_r_community_by_bacteria: vec![0; num_bacteria],
                         deaths_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
                         total_currently_infected: 0,
                         total_with_resistance: 0,
@@ -1666,6 +1672,24 @@ impl Simulation {
                         .newly_infected_non_carrier_by_bacteria
                         .iter_mut()
                         .zip(other.newly_infected_non_carrier_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for i in 0..self.newly_infected_hospital_by_bacteria_region.len() {
+                        self.newly_infected_hospital_by_bacteria_region[i] +=
+                            other.newly_infected_hospital_by_bacteria_region[i];
+                    }
+                    for (a, b) in self
+                        .newly_infected_any_r_hospital_by_bacteria
+                        .iter_mut()
+                        .zip(other.newly_infected_any_r_hospital_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .newly_infected_any_r_community_by_bacteria
+                        .iter_mut()
+                        .zip(other.newly_infected_any_r_community_by_bacteria)
                     {
                         *a += b;
                     }
@@ -2555,6 +2579,25 @@ impl Simulation {
                                         } else {
                                             lt.newly_infected_non_carrier_by_bacteria[b_idx] += 1;
                                         }
+                                        // Hospital acquisition tracking
+                                        if individual.infection_hospital_acquired[b_idx] {
+                                            let cur_region_idx = region_to_index(
+                                                match individual.region_cur_in {
+                                                    crate::simulation::population::Region::Home => individual.region_living,
+                                                    other => other,
+                                                }
+                                            );
+                                            lt.newly_infected_hospital_by_bacteria_region[b_idx * 6 + cur_region_idx] += 1;
+                                        }
+                                        // Resistance-at-infection tracking
+                                        let has_any_r = individual.resistances[b_idx].iter().any(|rd| rd.any_r > 0.0);
+                                        if has_any_r {
+                                            if individual.infection_hospital_acquired[b_idx] {
+                                                lt.newly_infected_any_r_hospital_by_bacteria[b_idx] += 1;
+                                            } else {
+                                                lt.newly_infected_any_r_community_by_bacteria[b_idx] += 1;
+                                            }
+                                        }
                                     }
                                     let base = b_idx * num_drugs;
                                     
@@ -2766,6 +2809,9 @@ impl Simulation {
                 newly_infected_by_bacteria_region,
                 newly_infected_carrier_by_bacteria,
                 newly_infected_non_carrier_by_bacteria,
+                newly_infected_hospital_by_bacteria_region: newly_infected_hospital_flat,
+                newly_infected_any_r_hospital_by_bacteria,
+                newly_infected_any_r_community_by_bacteria,
                 deaths_infected_by_bacteria_region,
                 total_currently_infected,
                 total_with_resistance,
@@ -2854,26 +2900,19 @@ impl Simulation {
             let infected_10_count = infected_10_days_count;
             let infected_30_count = infected_30_days_count;
 
-            let mut newly_infected_any_r_hospital_by_bacteria = vec![0; BACTERIA_LIST.len()];
-            let mut newly_infected_any_r_community_by_bacteria = vec![0; BACTERIA_LIST.len()];
-            for individual in &self.population.individuals {
-                if individual.date_of_death.is_some() { continue; }
+            // Build HashMap for TimeStepSummary from the flat parallel-loop vector
+            let newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize> = {
+                let mut map = HashMap::new();
                 for b_idx in 0..BACTERIA_LIST.len() {
-                    if individual.date_last_infected_keep[b_idx] == t as i32 {
-                        // Use any_r > 0 rather than mechanism_any.any(): carrier-inherited resistance
-                        // is propagated directly to resistance_data.any_r without setting mechanism
-                        // booleans, so mechanism_any would always be false for those cases.
-                        let has_any_r = individual.resistances[b_idx].iter().any(|rd| rd.any_r > 0.0);
-                        if has_any_r {
-                            if individual.infection_hospital_acquired[b_idx] {
-                                newly_infected_any_r_hospital_by_bacteria[b_idx] += 1;
-                            } else {
-                                newly_infected_any_r_community_by_bacteria[b_idx] += 1;
-                            }
+                    for r_idx in 0..6usize {
+                        let v = newly_infected_hospital_flat[b_idx * 6 + r_idx];
+                        if v > 0 {
+                            map.insert((b_idx, r_idx), v);
                         }
                     }
                 }
-            }
+                map
+            };
 
             let mut summary = TimeStepSummary {
                 policy_option: policy.policy_option,
@@ -3080,29 +3119,7 @@ impl Simulation {
                 },
                 newly_infected_any_r_hospital_by_bacteria,
                 newly_infected_any_r_community_by_bacteria,
-                newly_infected_hospital_by_bacteria_region: {
-                    let mut hospital_infections = HashMap::new();
-                    for individual in &self.population.individuals {
-                        if individual.date_of_death.is_some() {
-                            continue;
-                        } // Skip dead individuals
-
-                        // Use the stored infection_hospital_acquired flag rather than the live
-                        // hospital_status at post-rules time. The flag is set at infection
-                        // acquisition time, so it correctly captures infections acquired in
-                        // hospital even if the patient was discharged later in the same timestep.
-                        let region_idx = get_effective_region(individual) as usize;
-                        for b_idx in 0..BACTERIA_LIST.len() {
-                            if individual.date_last_infected_keep[b_idx] == t as i32
-                                && individual.infection_hospital_acquired[b_idx]
-                            {
-                                // This is a new infection that was acquired in hospital today
-                                *hospital_infections.entry((b_idx, region_idx)).or_insert(0) += 1;
-                            }
-                        }
-                    }
-                    hospital_infections
-                },
+                newly_infected_hospital_by_bacteria_region,
                 age_distribution_by_region,
                 deaths_by_region,
                 deaths_by_region_age,

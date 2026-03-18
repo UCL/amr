@@ -407,6 +407,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
            drug, "tetracycline" | "doxycycline" | "minocycline"  // Classical tetracyclines
            | "gentamicin" | "tobramycin" | "amikacin"           // Primary aminoglycoside efflux
            | "chloramphenicol" | "ciprofloxacin"
+           
         ),
 
         GlobalEffluxPump => matches!(
@@ -719,7 +720,7 @@ fn assess_treatment_failure(
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = alternative_scores
             .iter()
-            .map(|(_, score)| (score / selection_temperature).fast_exp())
+            .map(|(_, score)| score.powf(1.0 / selection_temperature))
             .collect();
 
         let total_weight: f64 = weights.iter().sum();
@@ -1016,7 +1017,7 @@ fn start_restart_treatment(
         let selection_temperature = store.globals.drug_selection_temperature;
         let weights: Vec<f64> = drug_scores
             .iter()
-            .map(|(_, score)| (score / selection_temperature).fast_exp())
+            .map(|(_, score)| score.powf(1.0 / selection_temperature))
             .collect();
 
         let total_weight: f64 = weights.iter().sum();
@@ -2851,7 +2852,10 @@ pub fn apply_rules(
                     };
                     
                     if !mechanism_cache.is_empty() {
-                        let region_idx = individual.region_cur_in as usize;
+                        let region_idx = match individual.region_cur_in {
+                            Region::Home => individual.region_living as usize,
+                            r => r as usize,
+                        };
                         let hospital_status = individual.hospital_status.is_hospitalized();
 
                         let very_high_threshold =
@@ -3032,7 +3036,10 @@ pub fn apply_rules(
                         } else {
                             let mut high_resistance_observed = false;
                             if !mechanism_cache.is_empty() {
-                                let region_idx = individual.region_cur_in as usize;
+                                let region_idx = match individual.region_cur_in {
+                                    Region::Home => individual.region_living as usize,
+                                    r => r as usize,
+                                };
                                 let hospital_status = individual.hospital_status.is_hospitalized();
                                 let high_threshold =
                                     store.globals.regional_resistance_threshold_high;
@@ -3123,7 +3130,7 @@ pub fn apply_rules(
                 let mut weights_buf = [0.0f64; 70];
                 for i in 0..drug_scores.len() {
                     let score = drug_scores[i].1;
-                    weights_buf[i] = (score / selection_temperature).fast_exp();
+                    weights_buf[i] = score.powf(1.0 / selection_temperature);
                 }
                 let weights = &weights_buf[..drug_scores.len()];
 
@@ -3953,7 +3960,10 @@ pub fn apply_rules(
 
                         let is_hospital_acquired = individual.hospital_status.is_hospitalized();
 
-                        let region_idx = individual.region_cur_in as usize;
+                        let region_idx = match individual.region_cur_in {
+                            Region::Home => individual.region_living as usize,
+                            r => r as usize,
+                        };
                         let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
                         for drug_name_static in DRUG_SHORT_NAMES.iter() {
@@ -4340,7 +4350,10 @@ pub fn apply_rules(
 
                     let is_hospital_acquired = individual.infection_hospital_acquired[b_idx];
 
-                    let region_idx = individual.region_cur_in as usize;
+                    let region_idx = match individual.region_cur_in {
+                        Region::Home => individual.region_living as usize,
+                        r => r as usize,
+                    };
                     let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
                     // Community resistance dilution: community-acquired infections draw

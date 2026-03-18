@@ -66,7 +66,6 @@ mod simulation;
 // should these be grouped together in drug class enum in population.rs ?
 // BliNovelCombinations,  // BL-NI: ceftazidime-avibactam, meropenem-vaborbactam
 //
-//
 // ? consider that hgt can come from non-pathogenic bacteria (which we don't model) so don't
 // necessarily need another pathogenic bacteria in the compartment to acquire
 // the resistance - but we have acquisition of resistance at infection - not sure we 
@@ -183,7 +182,7 @@ fn main() {
     let calibration_mode = CalibrationMode::Full;
     // time_steps: in any calibration mode we only need up to end-2026 (35_400 ≈ 2026.99).
     // Full run (policy branches to 2035) needs 38_325.
-    let time_steps = if calibration_mode == CalibrationMode::None { 38_325 } else { 35_400 };
+    let time_steps = if calibration_mode == CalibrationMode::None { 38_325 } else { 35_040 };
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 1.00; // Log 1% of infections for analysis (0.0-1.0)
