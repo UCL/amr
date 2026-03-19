@@ -20,19 +20,12 @@ mod simulation;
 //
 //
 //
-// -- calibration targets ----------------------------------------------------------------------------------------
-//
-// death within 30 days by bacteria, age and region ? - make a formal part of calibration 
-// score or just present as an fyi ?
-//
-// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
-// policy comparison several times on each ?
 //
 //
 //
 //
 //
-// -- additional outputs / graphs ---------------------------------------------------------------------------------
+// -- additional outputs / thoughts on calibration  ---------------------------------------------------------------------------------
 //
 // look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
@@ -43,33 +36,26 @@ mod simulation;
 // need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
 // multiple mechansims
 //
-// add incidence of infection by syndrome to calibration_summary
+// relative chance of drug start by infection site
+//
+// need targets for (i) % infections started in hospital by bacteria (ii) % of hospital infections with resistance by bacteria
+// add to calibration summary: death rate from infection by bacteria
+//
+// death within 30 days by bacteria, age and region ? - make a formal part of calibration 
+// score or just present as an fyi ?
+//
+// -- calibration approach:  
+// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
+// policy comparison several times on each 
+//
 //
 //
 //
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// need to model carriage "load" so can model effect of antibiotic on resistant virus load due to killing 
-// drug sensitive bacteria and allowing growth of resistant bacteria ?
 //
-// review logic for determining resistance at infection 
 //
-// check have enough hospital infections (and the expected higher resistance in those with
-//  hospital acquired infection)
-//
-// add flucloxacilin
-// add aztreonam-avibactam
-// consider drug scores
-// consider relative chance of drug start by infection site
-//
-// should these be grouped together in drug class enum in population.rs ?
-// BliNovelCombinations,  // BL-NI: ceftazidime-avibactam, meropenem-vaborbactam
-//
-// ? consider that hgt can come from non-pathogenic bacteria (which we don't model) so don't
-// necessarily need another pathogenic bacteria in the compartment to acquire
-// the resistance - but we have acquisition of resistance at infection - not sure we 
-// we should worry too much about this
 //
 //
 //
@@ -101,7 +87,7 @@ mod simulation;
 // should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
 // should we consider some syndromes (from which spread is more likely) more than others for population majority_r ?
 // consider more granular breakdown of regions
-//
+// consider adding tb, consider adding fungi
 //
 //
 // calibration data: approx drug usage per 100_000 per calendar year
@@ -117,10 +103,10 @@ mod simulation;
 //
 //
 //
-// set up automated testing for the simulation (probably not yet though)
+// set up automated testing for the simulation (?) (probably not yet though)
 //
 //
-//
+// comparisons:
 //
 // default combination therapy from (i) 1950 (ii) 1975 (iii) 2000 (iv) 2000 (v) 2025
 // - consider modelling of lower replication capacity of resistant virus in absence of drug
@@ -158,7 +144,6 @@ mod simulation;
 //              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug
 //              - but not sure yet if this is needed / justified
 //
-// consider adding tb, consider adding fungi
 //
 //
 

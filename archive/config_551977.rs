@@ -7260,10 +7260,10 @@ lazy_static! {
     map.insert("enterococcus_faecalis_log_odds_microbiome_vs_infection".to_string(), 10.0);
     map.insert("enterococcus_faecium_log_odds_microbiome_vs_infection".to_string(), 11.0);
     map.insert("klebsiella_pneumoniae_log_odds_microbiome_vs_infection".to_string(), 9.0);
-    map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 8.5);
+    map.insert("staphylococcus_aureus_log_odds_microbiome_vs_infection".to_string(), 9.7);
     map.insert("staphylococcus_epidermidis_log_odds_microbiome_vs_infection".to_string(), 11.3);
     map.insert("enterobacter_spp._log_odds_microbiome_vs_infection".to_string(), 10.0);
-    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 11.5);
+    map.insert("enterobacter_cloacae_log_odds_microbiome_vs_infection".to_string(), 10.0);
     map.insert("citrobacter_spp._log_odds_microbiome_vs_infection".to_string(), 10.0);
     map.insert("proteus_spp._log_odds_microbiome_vs_infection".to_string(), 6.5);
     map.insert("serratia_spp._log_odds_microbiome_vs_infection".to_string(), 8.8);
@@ -7301,9 +7301,9 @@ lazy_static! {
     map.insert("enterococcus_faecalis_microbiome_clearance_probability_per_day".to_string(), 0.008); // Persistent gut flora; rarely cleared
     map.insert("enterococcus_faecium_microbiome_clearance_probability_per_day".to_string(), 0.06);
     map.insert("klebsiella_pneumoniae_microbiome_clearance_probability_per_day".to_string(), 0.03);
-    map.insert("staphylococcus_aureus_microbiome_clearance_probability_per_day".to_string(), 0.05); // Nasal carriage persists weeks-months
+    map.insert("staphylococcus_aureus_microbiome_clearance_probability_per_day".to_string(), 0.03); // Nasal carriage persists weeks-months
     map.insert("enterobacter_spp._microbiome_clearance_probability_per_day".to_string(), 0.07);
-    map.insert("enterobacter_cloacae_microbiome_clearance_probability_per_day".to_string(), 0.04);
+    map.insert("enterobacter_cloacae_microbiome_clearance_probability_per_day".to_string(), 0.08);
     map.insert("citrobacter_spp._microbiome_clearance_probability_per_day".to_string(), 0.08);
     map.insert("proteus_spp._microbiome_clearance_probability_per_day".to_string(), 0.08);
     map.insert("serratia_spp._microbiome_clearance_probability_per_day".to_string(), 0.1);
@@ -10220,16 +10220,16 @@ lazy_static! {
             ("enterobacter_spp.", -8.0),
             ("enterococcus_faecalis", -8.0),
             ("enterococcus_faecium", -8.0),
-            ("escherichia_coli", -8.5),
+            ("escherichia_coli", -21.0),
             ("klebsiella_pneumoniae", -8.0),
             ("morganella_spp.", -8.0),
             ("proteus_spp.", -8.0),
             ("serratia_spp.", -8.0),
             ("pseudomonas_aeruginosa", -8.0),
             ("stenotrophomonas_maltophilia", -8.0),
-            ("staphylococcus_aureus", -7.3),
+            ("staphylococcus_aureus", -8.0),
             ("staphylococcus_epidermidis", -8.0),
-            ("streptococcus_pneumoniae", -9.7),
+            ("streptococcus_pneumoniae", -9.0),
             ("salmonella_enterica_serovar_typhi", -8.0),
             ("salmonella_enterica_serovar_paratyphi_a", -8.0),
             ("invasive_non-typhoidal_salmonella_spp.", -8.0),

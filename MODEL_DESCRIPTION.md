@@ -1370,14 +1370,17 @@ Not all bacteria can exchange genes equally. The model uses a compatibility matr
 
 ### 9.2 The HGT process
 
-Each day, for every individual carrying resistant bacteria in their microbiome, the model evaluates potential gene transfer events:
+Each day, for every individual carrying resistant bacteria in their microbiome, the model evaluates potential gene transfer events. The model evaluates HGT dynamically per distinct resistance mechanism, allowing independent plasmids (e.g., KPC and *mcr-1*) to transmit independently rather than as a single all-or-nothing block. Furthermore, bacteria do not restrict plasmid donation to only the dominant strain; minority resistance populations can donate, but face a transfer penalty.
 
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
-| Base transfer rate | `microbiome_resistance_transfer_probability_per_day` | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure |
-| Amplification during antibiotic therapy | `hgt_antibiotic_pressure_multiplier` | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
-
-
+| Base transfer rate | microbiome_resistance_transfer_probability_per_day | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure |
+| Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
+| Hospitalization boost | hgt_hospital_multiplier | 3.0 (×3.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
+| Co-infection baseline | hgt_coinfection_multiplier | 1.25 (×1.25) | Active multi-pathogen infections slightly increase the probability of genetic collision. |
+| Microbiome-only penalty | hgt_microbiome_only_penalty | 0.65 (×0.65) | Asymptomatic carriage interactions are less frequent than active infection environments. |
+| Gut compartment boost | hgt_gut_compartment_multiplier | 2.0 (×2.0) | The gut has higher bacterial density and provides more conjugation opportunities compared to skin or respiratory tracts. |
+| Minority donor penalty | hgt_minority_donor_multiplier | 0.20 (×0.20) | If a donor bacterium carries resistance as a minority strain (sub-dominant), its probability of successful conjugation is penalized by 80%. |
 
 ## 10. Mortality
 

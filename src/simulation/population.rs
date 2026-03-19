@@ -841,6 +841,9 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "ceftazidime_avibactam",
     "meropenem_vaborbactam",
     "colistin",
+    "flucloxacillin",
+    "aztreonam_avibactam",
+    "cefixime",
 ];
 
 /// Drug classes for mechanism-drug-class specific enhancement multipliers.
@@ -857,7 +860,9 @@ pub enum DrugClass {
     Cephalosporins4,       // C4G: cefepime
     AntiMrsaCephalosporins,// C5G: ceftaroline
     SiderophoreCephalosporins, // cefiderocol
-    BliNovelCombinations,  // BL-NI: ceftazidime-avibactam, meropenem-vaborbactam
+    CeftazidimeAvibactam,
+    MeropenemVaborbactam,
+    AztreonamAvibactam,
     CarbapenemsGroup1,     // ertapenem (lacks non-fermenter activity)
     CarbapenemsGroup2,     // meropenem, imipenem_c
     Monobactams,           // MONO: aztreonam
@@ -887,7 +892,7 @@ pub enum DrugClass {
 }
 
 impl DrugClass {
-    pub const NUM_CLASSES: usize = 37;
+    pub const NUM_CLASSES: usize = 39;
 
     pub fn all() -> &'static [DrugClass] {
         &[
@@ -901,7 +906,9 @@ impl DrugClass {
             DrugClass::Cephalosporins4,
             DrugClass::AntiMrsaCephalosporins,
             DrugClass::SiderophoreCephalosporins,
-            DrugClass::BliNovelCombinations,
+            DrugClass::CeftazidimeAvibactam,
+            DrugClass::MeropenemVaborbactam,
+            DrugClass::AztreonamAvibactam,
             DrugClass::CarbapenemsGroup1,
             DrugClass::CarbapenemsGroup2,
             DrugClass::Monobactams,
@@ -947,7 +954,9 @@ impl DrugClass {
             DrugClass::Cephalosporins4 => "c4g",
             DrugClass::AntiMrsaCephalosporins => "anti_mrsa_ceph",
             DrugClass::SiderophoreCephalosporins => "siderophore_ceph",
-            DrugClass::BliNovelCombinations => "bl_ni",
+            DrugClass::CeftazidimeAvibactam => "cft_avi",
+            DrugClass::MeropenemVaborbactam => "mer_vab",
+            DrugClass::AztreonamAvibactam => "azt_avi",
             DrugClass::CarbapenemsGroup1 => "carb_group1",
             DrugClass::CarbapenemsGroup2 => "carb_group2",
             DrugClass::Monobactams => "mono",
@@ -982,7 +991,7 @@ impl DrugClass {
 pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
     match DRUG_SHORT_NAMES[drug_idx] {
         // Penicillins
-        "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+        "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             => DrugClass::Penicillins,
         // BLI combinations
         "amoxicillin_clavulanate" | "ticarcillin_clavulanate"
@@ -993,7 +1002,7 @@ pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
         "cephalexin" | "cefazolin" | "cefuroxime"
             => DrugClass::Cephalosporins1_2,
         // 3rd gen cephalosporins
-        "ceftriaxone" | "ceftazidime"
+        "ceftriaxone" | "ceftazidime" | "cefixime"
             => DrugClass::Cephalosporins3,
         "ceftolozane_tazobactam" => DrugClass::Cephalosporins3Bli,
         // 4th/5th gen cephalosporins
@@ -1001,8 +1010,9 @@ pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
         "ceftaroline" => DrugClass::AntiMrsaCephalosporins,
         "cefiderocol" => DrugClass::SiderophoreCephalosporins,
         // Novel BLI combinations
-        "ceftazidime_avibactam" | "meropenem_vaborbactam"
-            => DrugClass::BliNovelCombinations,
+        "ceftazidime_avibactam" => DrugClass::CeftazidimeAvibactam,
+        "meropenem_vaborbactam" => DrugClass::MeropenemVaborbactam,
+        "aztreonam_avibactam" => DrugClass::AztreonamAvibactam,
         // Carbapenems
         "ertapenem" => DrugClass::CarbapenemsGroup1,
         "meropenem" | "imipenem_c" => DrugClass::CarbapenemsGroup2,

@@ -74,7 +74,7 @@ const CALIBRATION_SNAPSHOT_YEARS: &[f64] = &[1950.0, 1975.0, 2000.0];
 
 /// First year of the resistance/headline analysis window (inclusive).
 /// Matches `max_years = 5` with `target_year = 2025` in `_select_resistance_windows`.
-const CALIBRATION_FULL_ANALYSIS_WINDOW_START: f64 = 2022.0;
+const CALIBRATION_FULL_ANALYSIS_WINDOW_START: f64 = 2021.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PolicyAdjustments {

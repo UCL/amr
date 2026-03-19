@@ -299,17 +299,17 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
     match mechanism {
          EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
             | "aztreonam"
         ),
 
         EnzymeAmpcCmy | EnzymeAmpcDha => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
              | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam"
              | "ticarcillin_clavulanate"  // AmpC not inhibited by clavulanate
-             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime"
+             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime"
              | "cefepime" | "ceftaroline" // High-level/derepressed AmpC confers clinically relevant cefepime/ceftaroline resistance
              | "ceftolozane_tazobactam"  // AmpC hydrolyzes ceftolozane component
              | "aztreonam"
@@ -317,20 +317,20 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         EnzymeKpc => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
             | "ceftolozane_tazobactam"  // KPC hydrolyzes ceftolozane
-            | "aztreonam"
-            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "aztreonam" 
+              | "meropenem" | "imipenem_c" | "ertapenem"
             // S: ceftazidime_avibactam, meropenem_vaborbactam (avibactam/vaborbactam inhibit KPC)
         ),
 
         EnzymeNdmVim => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
             | "ceftolozane_tazobactam"  // MBLs hydrolyze ceftolozane
             // cefiderocol NOT included: siderophore cephalosporin designed to resist MBL hydrolysis
             | "ceftazidime_avibactam" | "meropenem_vaborbactam"  // MBLs not inhibited by avibactam/vaborbactam
@@ -339,9 +339,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         EnzymeOxa48 => matches!(
             drug,
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftaroline"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
             // OXA-48 has weak but real cephalosporinase activity; low config enhancement values reflect this
             | "meropenem" | "imipenem_c" | "ertapenem"
             | "meropenem_vaborbactam" // Vaborbactam does NOT inhibit OXA-48
@@ -349,12 +349,12 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         TargetSitePbp2aMecA => matches!(
             drug, 
-            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
-            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefepime"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime"
             | "ceftolozane_tazobactam" | "cefiderocol" | "ceftazidime_avibactam" | "meropenem_vaborbactam" // PBP2a does not bind to these
-            | "aztreonam"
-            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "aztreonam" | "aztreonam_avibactam"
+              | "meropenem" | "imipenem_c" | "ertapenem"
         ),
 
         MutationGyrAPrimary => matches!(
@@ -418,11 +418,11 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         // OmpK35/36 loss (Klebsiella): reduces permeability to all hydrophilic antibiotics entering through porins
         PorinLossOmpk35_36 => matches!(
-            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
-            | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
-            | "aztreonam"
-            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
+            | "aztreonam" | "aztreonam_avibactam"
+              | "meropenem" | "imipenem_c" | "ertapenem"
             | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
             | "gentamicin" | "tobramycin" | "amikacin"                          // Weak AG permeability reduction
         ),
@@ -434,11 +434,11 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         // Generic porin loss: moderate broad-spectrum permeability reduction for hydrophilic drugs
         GlobalPorinLoss => matches!(
-            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
-            | "ceftriaxone" | "ceftazidime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
-            | "aztreonam"
-            | "meropenem" | "imipenem_c" | "ertapenem"
+            | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
+            | "aztreonam" | "aztreonam_avibactam"
+              | "meropenem" | "imipenem_c" | "ertapenem"
             | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
             | "gentamicin" | "tobramycin" | "amikacin"                          // Weak AG permeability reduction
         ),
@@ -5416,10 +5416,7 @@ pub fn apply_rules(
                         shared_compartment,
                     );
 
-                    let effective_prob = (base_prob * context_multiplier * counterfactual_resistance_multiplier).min(1.0);
-                    if effective_prob <= 0.0 || rng.gen::<f64>() >= effective_prob {
-                        continue;
-                    }
+                    let base_effective_prob = base_prob * context_multiplier * counterfactual_resistance_multiplier;
 
                     let recipient_group_mask = population::bacteria_group_mask(recipient_idx);
 
@@ -5438,8 +5435,24 @@ pub fn apply_rules(
                             continue;
                         }
 
-                        // Donor must actually carry this mechanism (in majority — established strain)
-                        if !individual.mechanism_majority[donor_idx][mech_idx] {
+                        // Donor must carry the mechanism in ANY strain (not strictly majority)
+                        let has_majority = individual.mechanism_majority[donor_idx][mech_idx];
+                        let has_any = individual.mechanism_any[donor_idx][mech_idx];
+
+                        if !has_any {
+                           continue;
+                        }
+
+                        // Calculate per-mechanism probability roll 
+                        let mut mech_prob = base_effective_prob;
+                        // Apply bottleneck if donor only has it in the minority (e.g., 0.20x penalty)
+                        if !has_majority {
+                           mech_prob *= store.globals.hgt_minority_donor_multiplier;
+                        }
+
+                        mech_prob = mech_prob.min(1.0);
+
+                        if mech_prob <= 0.0 || rng.gen::<f64>() >= mech_prob {
                             continue;
                         }
 
