@@ -706,9 +706,11 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::GramPositive,
         ]),
 
-        // blaZ staphylococcal penicillinase: Staphylococci only
+        // blaZ penicillinase: Staphylococci + H. pylori (PBP1A proxy) + GC (TEM-1 proxy)
         EnzymeBlaZ => mask_for_groups(&[
             BacteriaGroup::GramPositive,
+            BacteriaGroup::Helicobacter,
+            BacteriaGroup::Fastidious,
         ]),
 
         // OXA-23/40/58 carbapenemases: A. baumannii (NonFermenter) only

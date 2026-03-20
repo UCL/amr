@@ -182,7 +182,7 @@ The table below summarises all the ways immunosuppression changes a person's tra
 
 ### 2.4 Hospitalisation
 
-Hospital admission matters for AMR because hospitals are where the most resistant organisms are found, where the broadest-spectrum antibiotics are used, and where vulnerable patients are concentrated. The model captures this by simulating daily admission decisions, length of stay, and the elevated risks of hospital-acquired (nosocomial) infection.
+Hospital admission matters for AMR because hospitals are where the most resistant organisms are found, where the broadest-spectrum antibiotics are used, and where vulnerable patients are concentrated [32]. The model captures this by simulating daily admission decisions, length of stay, and the elevated risks of hospital-acquired (nosocomial) infection.
 
 **Who gets admitted?** Each day, the model calculates a probability of hospital admission for every person using a logistic model (see Section 1.2 for an explanation of log-odds). The key factors are:
 
@@ -229,7 +229,7 @@ Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) 
 
 ### 2.5 Travel
 
-International travel is a well-documented driver of AMR spread. Travellers who visit regions with high resistance prevalence can acquire resistant bacteria and bring them home — this is how, for example, ESBL-producing *E. coli* from South and South-East Asia has spread to European populations.
+International travel is a well-documented driver of AMR spread. Travellers who visit regions with high resistance prevalence can acquire resistant bacteria and bring them home — this is how, for example, ESBL-producing *E. coli* from South and South-East Asia has spread to European populations [24].
 
 The model simulates this by giving each person a small daily probability of travelling to another region (`0.00005` per day, roughly one trip every 55 years per person). Travel frequency varies by region of origin, reflecting real-world patterns:
 
@@ -414,7 +414,7 @@ Each day, the model calculates the probability of a person's infection progressi
 | Neonatal age | `sepsis_age_log_odds_neonatal` | +1.10 | Neonates are ~3× more likely to develop sepsis |
 | Elderly age | `sepsis_age_log_odds_elderly` | +0.69 | Over-70s are ~2× more likely |
 
-**Not all bacteria or body sites carry equal sepsis risk.** Clinically, a bloodstream infection with *N. meningitidis* is incomparably more dangerous than a *C. trachomatis* genital infection. The model captures this through:
+**Not all bacteria or body sites carry equal sepsis risk.** Clinically, a bloodstream infection with *N. meningitidis* is incomparably more dangerous than a *C. trachomatis* genital infection [25]. The model captures this through:
 
 - **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −1.2, reflecting its aggressive clinical course)
 - **Per-syndrome modifier**: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so
@@ -452,7 +452,7 @@ Modern diagnostic microbiology did not exist in 1930. The model introduces testi
 | Technology | Available from | ~ Calendar year | Clinical context |
 |------------|---------------|-----------------|-----------------|
 | **Bacterial culture** | Day 5,478 | ~1945 | Basic culture techniques became routine in the mid-20th century |
-| **Antimicrobial susceptibility testing (AST)** | Day 9,131 | ~1955 | Standardised AST methods (e.g., disc diffusion) followed about a decade later |
+| **Antimicrobial susceptibility testing (AST)** | Day 9,131 | ~1955 | Standardised AST methods (e.g., disc diffusion) followed about a decade later [26] |
 
 Before these dates, all prescribing in the model is entirely empiric — doctors have no laboratory information to guide drug choice. This accurately represents the early antibiotic era, when penicillin was prescribed without knowing the susceptibility of the infecting organism.
 
@@ -549,7 +549,7 @@ Once the model decides to start an antibiotic, it must choose *which* antibiotic
 
 **How drug scoring works:**
 
-For each candidate drug, the model calculates a score based on several factors. The final candidate scores are placed into a weighted index (probabilistic selection) using a temperature-scaled power function: `Weight = Score^(1.0 / Temperature)`. A lower temperature makes the prescribing extremely determinisic (strongly favoring the highest score), while a higher temperature reflects the stochastic variance (idiosyncratic prescribing habits) in clinical settings. 
+For each candidate drug, the model calculates a score based on several factors. The final candidate scores are placed into a weighted index (probabilistic selection) using a temperature-scaled power function: `Weight = Score^(1.0 / Temperature)`. The baseline `drug_selection_temperature` is **0.55**. A lower temperature makes prescribing more deterministic (strongly favouring the highest score), while a higher temperature reflects stochastic variance (idiosyncratic prescribing habits) in clinical settings. 
 
 | Scoring factor | Empiric phase | Targeted phase | What it captures |
 |---------------|---------------|----------------|-----------------|
@@ -584,146 +584,187 @@ Patients stop their antibiotic course based on several factors:
 
 The tables below show which drugs score highest for empiric prescribing in each syndrome. Higher scores mean the drug is more likely to be selected. These templates are calibrated to match real-world prescribing guidelines — for example, nitrofurantoin and trimethoprim-sulfamethoxazole score highest for UTI, while piperacillin-tazobactam and meropenem score highest for bloodstream infections.
 
-**Syndrome 1 — UTI** *(most common bacterial infection; oral drugs preferred)*
+**Syndrome 1 — UTI** *(most common bacterial infection; oral beta-lactams and TMP-SMX preferred, with fluoroquinolone and nitrofurantoin options)*
 
 | Drug | Score |
 |------|-------|
-| nitrofurantoin | 15.0 |
 | trim_sulf | 14.0 |
+| amoxicillin_clavulanate | 14.0 |
+| amoxicillin | 12.0 |
 | ciprofloxacin | 12.0 |
-| levofloxacin | 11.0 |
-| cephalexin | 10.0 |
-| amoxicillin_clavulanate | 9.0 |
-| cefuroxime | 8.0 |
-| ampicillin | 6.0 |
-| amoxicillin | 6.0 |
-| ceftriaxone | 5.0 |
-| gentamicin | 4.0 |
-| meropenem | 3.0 |
+| ampicillin | 10.0 |
+| levofloxacin | 10.0 |
+| nitrofurantoin | 8.0 |
+| cephalexin | 8.0 |
+| ceftriaxone | 8.0 |
+| cefazolin | 7.0 |
+| cefuroxime | 7.0 |
+| piperacillin_tazobactam | 5.0 |
+| cefepime | 4.0 |
+| ceftazidime | 4.0 |
+| meropenem | 4.0 |
+| imipenem_c | 4.0 |
+| ertapenem | 4.0 |
+| meropenem_vaborbactam | 3.0 |
+| ceftazidime_avibactam | 3.0 |
 
-**Syndrome 2 — Skin/Soft Tissue** *(anti-staphylococcal and streptococcal coverage; penicillins and cephalosporins first-line)*
+**Syndrome 2 — Skin/Soft Tissue** *(anti-staphylococcal and streptococcal coverage; penicillins and cephalosporins first-line)* [1]
 
 | Drug | Score |
 |------|-------|
-| penicillin_g | 13.0 |
-| amoxicillin_clavulanate | 12.0 |
-| cephalexin | 12.0 |
-| clindamycin | 11.0 |
-| doxycycline | 10.0 |
+| penicillin_g | 16.0 |
+| amoxicillin | 14.0 |
+| amoxicillin_clavulanate | 14.0 |
+| ampicillin | 13.0 |
+| cephalexin | 13.0 |
+| cefazolin | 12.0 |
+| clindamycin | 12.0 |
+| vancomycin | 11.0 |
+| linezolid | 10.0 |
 | trim_sulf | 9.0 |
-| cefazolin | 8.0 |
-| vancomycin | 7.0 |
-| linezolid | 6.0 |
-| ciprofloxacin | 5.0 |
-| azithromycin | 5.0 |
-| metronidazole | 4.0 |
+| doxycycline | 9.0 |
+| minocycline | 9.0 |
+| tedizolid | 9.0 |
+| dalbavancin | 9.0 |
+| quinu_dalfo | 8.0 |
+| ciprofloxacin | 4.0 |
+| piperacillin_tazobactam | 3.0 |
 
-**Syndrome 3 — Respiratory** *(community-acquired pneumonia guidelines: beta-lactam + atypical cover; co-amoxiclav scores highest)*
+**Syndrome 3 — Respiratory** *(community-acquired pneumonia guidelines: beta-lactam + atypical cover; co-amoxiclav and penicillins score highest)* [2]
 
 | Drug | Score |
 |------|-------|
 | amoxicillin_clavulanate | 20.0 |
-| amoxicillin | 12.0 |
+| amoxicillin | 17.0 |
+| penicillin_g | 16.0 |
+| ampicillin | 15.0 |
 | azithromycin | 12.0 |
-| doxycycline | 11.0 |
-| levofloxacin | 10.0 |
-| ceftriaxone | 9.0 |
-| cefuroxime | 8.0 |
-| trim_sulf | 7.0 |
-| moxifloxacin | 6.0 |
-| penicillin_g | 6.0 |
-| clarithromycin | 5.0 |
-| ampicillin | 4.0 |
-| ciprofloxacin | 3.0 |
-| erythromycin | 3.0 |
+| clarithromycin | 11.0 |
+| ceftriaxone | 9.5 |
+| erythromycin | 9.0 |
+| cefuroxime | 8.5 |
+| piperacillin_tazobactam | 8.0 |
+| levofloxacin | 8.0 |
+| moxifloxacin | 8.0 |
+| cefepime | 7.5 |
+| cephalexin | 7.0 |
+| linezolid | 7.0 |
+| doxycycline | 6.5 |
+| vancomycin | 6.5 |
+| meropenem | 6.0 |
+| imipenem_c | 6.0 |
+| ofloxacin | 6.0 |
+| minocycline | 5.5 |
 
-**Syndrome 4 — Bloodstream** *(medical emergency; broad-spectrum IV agents with good bactericidal activity)*
+**Syndrome 4 — Bloodstream** *(medical emergency; BL/BLI combinations and broad-spectrum IV agents with good bactericidal activity)* [3]
 
 | Drug | Score |
 |------|-------|
 | piperacillin_tazobactam | 18.0 |
-| meropenem | 14.0 |
-| vancomycin | 13.0 |
-| ceftriaxone | 12.0 |
-| cefepime | 11.0 |
-| ampicillin_sulbactam | 10.0 |
-| ciprofloxacin | 9.0 |
-| levofloxacin | 9.0 |
-| amoxicillin_clavulanate | 8.0 |
-| linezolid | 7.0 |
-| metronidazole | 5.0 |
-| trim_sulf | 5.0 |
-| azithromycin | 4.0 |
+| ampicillin_sulbactam | 16.0 |
+| amoxicillin_clavulanate | 16.0 |
+| meropenem | 13.0 |
+| imipenem_c | 13.0 |
+| meropenem_vaborbactam | 13.0 |
+| ceftazidime_avibactam | 12.5 |
+| cefepime | 12.0 |
+| ceftazidime | 11.0 |
+| vancomycin | 11.0 |
+| ceftriaxone | 10.0 |
+| ampicillin | 10.0 |
+| linezolid | 10.0 |
+| amoxicillin | 9.5 |
+| tedizolid | 9.0 |
+| quinu_dalfo | 8.5 |
+| dalbavancin | 8.0 |
+| penicillin_g | 6.5 |
+| cefazolin | 6.0 |
+| ciprofloxacin | 6.0 |
+| levofloxacin | 5.5 |
+| cephalexin | 4.0 |
 | gentamicin | 1.0 |
 | tobramycin | 1.0 |
 | amikacin | 1.0 |
 
-**Syndrome 5 — Intra-abdominal** *(must cover Gram-negatives and anaerobes; combination therapy common)*
+**Syndrome 5 — Intra-abdominal** *(must cover Gram-negatives and anaerobes; BL/BLI combinations and carbapenems preferred)* [4]
 
 | Drug | Score |
 |------|-------|
-| piperacillin_tazobactam | 14.0 |
+| piperacillin_tazobactam | 13.0 |
 | meropenem | 13.0 |
-| ampicillin_sulbactam | 11.0 |
-| metronidazole | 11.0 |
-| ceftriaxone | 10.0 |
-| ciprofloxacin | 9.0 |
-| levofloxacin | 9.0 |
-| cefepime | 8.0 |
-| amoxicillin_clavulanate | 7.0 |
-| clindamycin | 6.0 |
-| vancomycin | 4.0 |
-| azithromycin | 3.0 |
+| ampicillin_sulbactam | 12.5 |
+| imipenem_c | 12.5 |
+| amoxicillin_clavulanate | 11.5 |
+| ertapenem | 11.0 |
+| ceftazidime_avibactam | 10.0 |
+| meropenem_vaborbactam | 10.0 |
+| ceftazidime | 9.0 |
+| cefepime | 9.0 |
+| ceftriaxone | 9.0 |
+| ampicillin | 8.0 |
+| ciprofloxacin | 7.0 |
+| amoxicillin | 7.0 |
+| levofloxacin | 6.5 |
+| trim_sulf | 4.0 |
+| metronidazole | 2.5 |
 
-**Syndrome 6 — CNS** *(meningitis; only drugs that cross the blood-brain barrier are useful — see Section 6.4)*
+**Syndrome 6 — CNS** *(meningitis; only drugs that cross the blood-brain barrier are useful — see Section 6.4)* [5]
 
 | Drug | Score |
 |------|-------|
 | ceftriaxone | 15.0 |
-| vancomycin | 14.0 |
-| ampicillin | 12.0 |
+| ampicillin | 13.0 |
+| vancomycin | 13.0 |
+| ceftazidime | 12.0 |
+| cefepime | 12.0 |
+| penicillin_g | 11.0 |
 | meropenem | 11.0 |
-| penicillin_g | 10.0 |
-| linezolid | 8.0 |
-| chloramphenicol | 7.0 |
-| rifampicin | 6.0 |
-| ciprofloxacin | 5.0 |
-| trim_sulf | 5.0 |
-| metronidazole | 4.0 |
-| doxycycline | 3.0 |
+| linezolid | 10.0 |
+| imipenem_c | 10.0 |
+| piperacillin_tazobactam | 6.0 |
+| chloramphenicol | 2.0 |
 
-**Syndrome 7 — Gastrointestinal** *(fluoroquinolones and azithromycin for bacterial gastroenteritis; metronidazole for anaerobes)*
+**Syndrome 7 — Gastrointestinal** *(fluoroquinolones and azithromycin for bacterial gastroenteritis; oral beta-lactams prominent)*
 
 | Drug | Score |
 |------|-------|
 | ciprofloxacin | 12.0 |
-| furazolidone | 11.0 |
-| azithromycin | 11.0 |
-| metronidazole | 10.0 |
-| doxycycline | 9.0 |
-| trim_sulf | 8.0 |
-| ceftriaxone | 7.0 |
-| amoxicillin_clavulanate | 7.0 |
+| azithromycin | 12.0 |
+| amoxicillin_clavulanate | 11.0 |
+| amoxicillin | 10.0 |
+| ampicillin | 10.0 |
+| levofloxacin | 10.0 |
+| ampicillin_sulbactam | 9.0 |
+| trim_sulf | 8.5 |
+| doxycycline | 8.5 |
+| minocycline | 6.5 |
+| penicillin_g | 5.0 |
+| cephalexin | 5.0 |
+| cefuroxime | 5.0 |
+| furazolidone | 3.0 |
+| metronidazole | 1.0 |
 
-**Syndrome 8 — Genital/Pelvic** *(STI guidelines: ceftriaxone + azithromycin for gonorrhoea; doxycycline for chlamydia)*
+**Syndrome 8 — Genital/Pelvic** *(STI guidelines: ceftriaxone + azithromycin for gonorrhoea; doxycycline for chlamydia; penicillin G for syphilis)* [6]
 
 | Drug | Score |
 |------|-------|
+| penicillin_g | 14.0 |
 | azithromycin | 13.0 |
 | ceftriaxone | 13.0 |
 | doxycycline | 12.0 |
-| penicillin_g | 12.0 |
-| amoxicillin_clavulanate | 9.5 |
-| amoxicillin | 9.0 |
-| cefuroxime | 9.0 |
+| amoxicillin_clavulanate | 12.0 |
+| amoxicillin | 11.0 |
+| cefuroxime | 10.0 |
 | clindamycin | 9.0 |
+| ampicillin | 9.0 |
+| ampicillin_sulbactam | 8.0 |
 | ciprofloxacin | 7.0 |
 | levofloxacin | 6.5 |
+| cephalexin | 6.0 |
 | trim_sulf | 5.0 |
-| rifampicin | 4.0 |
-| metronidazole | 2.5 |
+| metronidazole | 1.0 |
 
-**Syndrome 9 — Bone/Joint** *(prolonged courses required; good bone penetration essential — rifampicin, fluoroquinolones, linezolid)*
+**Syndrome 9 — Bone/Joint** *(prolonged courses required; good bone penetration essential — penicillins, cephalosporins, fluoroquinolones, linezolid)*
 
 | Drug | Score |
 |------|-------|
@@ -731,18 +772,18 @@ The tables below show which drugs score highest for empiric prescribing in each 
 | cefazolin | 13.0 |
 | ampicillin | 12.0 |
 | vancomycin | 12.0 |
-| linezolid | 11.0 |
 | cephalexin | 11.0 |
 | ceftriaxone | 11.0 |
+| linezolid | 11.0 |
 | tedizolid | 10.0 |
 | dalbavancin | 10.0 |
 | clindamycin | 10.0 |
 | ciprofloxacin | 9.0 |
 | levofloxacin | 9.0 |
-| rifampicin | 9.0 |
 | trim_sulf | 8.0 |
 | meropenem | 7.0 |
 | piperacillin_tazobactam | 6.5 |
+| rifampicin | 2.0 |
 
 **Syndrome 10 — Other/Device-Related** *(broad empiric cover when site is uncertain; even scoring reflects clinical uncertainty)*
 
@@ -805,7 +846,7 @@ Broad-spectrum antibiotics kill not only the target pathogen but also many comme
 | vancomycin | 2.5 (Narrow-medium) | Mainly Gram-positive spectrum |
 | trim_sulf | 3.5 (Medium-broad) | Moderate disruption |
 | azithromycin | 4.0 (Broad) | Significant microbiome disruption |
-| ceftriaxone | 4.0 (Broad) | Major disruption; linked to *C. difficile* risk |
+| ceftriaxone | 4.0 (Broad) | Major disruption; linked to *C. difficile* risk [27] |
 | ciprofloxacin | 4.5 (Very broad) | Extensive gut microbiome disruption |
 | meropenem | 5.0 (Very broad) | Maximum disruption — the "sledgehammer" antibiotic |
 
@@ -903,7 +944,7 @@ The 58 antibiotics in the model span 82 years of pharmaceutical development:
 | ticarcillin_clavulanate | 1990 | cefiderocol | 2019 |
 | quinu_dalfo | 1999 | retapamulin | 2007 |
 
-**Special case — Colistin:** Colistin was introduced in 1952 but withdrawn from routine use between ~1970 and ~1995 due to severe nephrotoxicity. It was then reintroduced as a last-resort agent for multi-drug-resistant Gram-negative infections. The model reflects this by dropping colistin availability to 5% during the withdrawal window.
+**Special case — Colistin:** Colistin was introduced in 1952 but withdrawn from routine use between ~1970 and ~1995 due to severe nephrotoxicity. It was then reintroduced as a last-resort agent for multi-drug-resistant Gram-negative infections [28]. The model reflects this by dropping colistin availability to 5% during the withdrawal window.
 
 
 
@@ -936,7 +977,7 @@ Toxicity can cause two outcomes:
 
 ### 6.8 Antibiotic infection prevention
 
-Patients who are already receiving an effective antibiotic are partially protected against acquiring new infections — the drug in their system kills susceptible bacteria before they can establish. This mirrors the real-world concept of antibiotic prophylaxis (e.g., surgical prophylaxis with cefazolin prevents wound infections).
+Patients who are already receiving an effective antibiotic are partially protected against acquiring new infections — the drug in their system kills susceptible bacteria before they can establish. This mirrors the real-world concept of antibiotic prophylaxis (e.g., surgical prophylaxis with cefazolin prevents wound infections) [29].
 
 The model applies a 70% reduction in new infection risk for susceptible organisms when the patient is already on an active antibiotic (`antibiotic_infection_prevention_efficacy` = 0.7). This does *not* protect against resistant organisms — a crucial point, because it means patients on antibiotics are selectively more likely to acquire resistant infections relative to susceptible ones, creating further selection pressure for resistance.
 ---
@@ -1055,7 +1096,7 @@ New resistance arises in the model only when a patient is **actively receiving a
 
 **The "danger zone" — why sub-therapeutic dosing drives resistance:**
 
-The probability of resistance emerging is not simply proportional to drug concentration. Instead, it follows a bell-shaped curve that peaks when drug levels are at **roughly half the therapeutic concentration**:
+The probability of resistance emerging is not simply proportional to drug concentration. Instead, it follows a bell-shaped curve that peaks when drug levels are at **roughly half the therapeutic concentration** [30]:
 
 - **Very low drug levels:** No selective pressure — susceptible and resistant bacteria coexist equally. Resistance has no advantage.
 - **Sub-therapeutic levels (the danger zone):** The drug kills susceptible bacteria, removing competition, but is too weak to eliminate the resistant mutant. The mutant thrives in the ecological vacuum. *This is the most dangerous window for resistance emergence.*
@@ -1099,7 +1140,7 @@ Most mechanism emergence rates are set to `0.0` for biologically impossible comb
 
 ### 7.4 Resistance reversion and fitness costs
 
-Resistance is not free. Maintaining resistance mechanisms costs the bacterium energy and resources — like carrying a heavy suitcase through an airport. In the absence of antibiotics, resistant bacteria grow more slowly than their susceptible competitors and are gradually outcompeted. This is why resistance can decline after antibiotic use is reduced — a key insight for stewardship policy.
+Resistance is not free. Maintaining resistance mechanisms costs the bacterium energy and resources — like carrying a heavy suitcase through an airport [31]. In the absence of antibiotics, resistant bacteria grow more slowly than their susceptible competitors and are gradually outcompeted. This is why resistance can decline after antibiotic use is reduced — a key insight for stewardship policy.
 
 The model assigns each mechanism a daily **reversion rate** — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely.
 
@@ -1375,7 +1416,7 @@ Each day, for every individual carrying resistant bacteria in their microbiome, 
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
 | Base transfer rate | microbiome_resistance_transfer_probability_per_day | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure |
-| Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
+| Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% [33] — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
 | Hospitalization boost | hgt_hospital_multiplier | 3.0 (×3.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
 | Co-infection baseline | hgt_coinfection_multiplier | 1.25 (×1.25) | Active multi-pathogen infections slightly increase the probability of genetic collision. |
 | Microbiome-only penalty | hgt_microbiome_only_penalty | 0.65 (×0.65) | Asymptomatic carriage interactions are less frequent than active infection environments. |
@@ -1384,7 +1425,7 @@ Each day, for every individual carrying resistant bacteria in their microbiome, 
 
 ## 10. Mortality
 
-The model tracks mortality from both background (non-infection) causes and from active bacterial infections. This matters for AMR projections because resistant infections carry higher mortality — if empiric therapy fails, the patient stays infected longer, and the risk of death accumulates.
+The model tracks mortality from three sources: background (non-infection) causes, **sepsis** (organ dysfunction from uncontrolled infection), and **non-sepsis infection death** (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms [7].
 
 
 ### 10.1 Background mortality
@@ -1399,22 +1440,77 @@ Everyone faces a baseline mortality risk that increases with age:
 These parameters operate on a log-odds scale, so they compound multiplicatively over time.
 
 
-### 10.2 Infection mortality
+### 10.2 Sepsis mortality
 
-When a person has an active symptomatic infection (above the `symptomatic_infection_level_threshold`), the model evaluates a daily mortality check. The risk depends on three things:
+Sepsis is the primary death pathway for classic invasive bacterial pathogens. When a person's infection progresses to sepsis (see Section 4.3), the model applies an aggressively escalated daily death risk using a logistic model. The probability of dying from sepsis each day depends on the patient's age, immune status, bacterial burden, and access to hospital care. Without effective antibiotics, sepsis is rapidly fatal — and resistant organisms that are untreatable with empiric therapy are exactly the scenario where this matters most [8].
 
-**1. How dangerous the bacterium is** (base mortality intercept, on a log-odds scale):
+**Per-bacterium sepsis baseline log-odds** control how likely each species is to cause sepsis. These range from very low for organisms that rarely invade the bloodstream to high for classically invasive pathogens:
 
-| Category | Example | Intercept | Clinical context |
-|----------|---------|-----------|-----------------|
-| Mild | *C. trachomatis* | -15.0 | Almost never fatal — values this negative make daily death probability near zero |
-| Moderate | *E. coli* | -9.0 | Fatal mainly in elderly, immunosuppressed, or when resistance delays treatment |
-| Severe | *S. pneumoniae* | -6.0 | Untreated pneumococcal pneumonia historically killed ~30% |
-| Critical | *N. meningitidis* (-1.2), *M. tuberculosis* (-0.8) | — | Can kill rapidly without effective therapy |
+| Bacterium | Sepsis baseline | Clinical rationale |
+|-----------|----------------|-------------------|
+| *S. aureus* | −7.3 | Aggressive bloodstream pathogen; 20–30% mortality in bacteraemia [9] |
+| *P. aeruginosa* | −6.5 | High mortality in ICU infections; often in immunocompromised hosts [10] |
+| *S. agalactiae* | −7.0 | Neonatal and pregnancy-associated sepsis [11] |
+| *S. pyogenes* | −7.0 | Invasive GAS disease including necrotising fasciitis and toxic shock [12] |
+| *E. faecium* | −7.0 | Hospital-acquired bloodstream infections, especially VRE |
+| *K. pneumoniae* | −7.5 | Gram-negative sepsis; carbapenem-resistant strains carry >40% mortality [13] |
+| *E. faecalis* | −7.5 | Endocarditis and line-related bacteraemia |
+| *E. coli* | −9.5 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe [14] |
+| *S. Paratyphi A* | −9.2 | Enteric fever with occasional septic complications |
+| *iNTS* | −9.0 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa [15] |
+| *Y. enterocolitica* | −10.0 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
+| *C. trachomatis* | −19.0 | STI — essentially never causes sepsis |
+| *N. gonorrhoeae* | −21.0 | Disseminated gonococcal infection is exceedingly rare |
+| *H. pylori* | −250.0 | Gastric pathogen — deaths from cancer, not sepsis |
+| Fallback default | −14.0 | Used for any organism without an explicit override |
 
-**2. Which body site is infected** (syndrome multiplier):
 
-These multipliers reflect how anatomically dangerous each infection site is:
+### 10.3 Non-sepsis infection death
+
+Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: *V. cholerae* through fatal dehydration [16], *B. pertussis* through infantile respiratory failure [17], *H. pylori* through gastric adenocarcinoma [18], *T. pallidum* through tertiary and congenital syphilis [19], and *C. difficile* through toxic megacolon [20]. These deaths would not be captured by the sepsis pathway alone.
+
+The model evaluates a **daily non-sepsis infection death probability** for every active infection that is *not* already progressing through the sepsis pathway. The probability is computed via a logistic model:
+
+$$P(\text{non-sepsis death}) = \frac{1}{1 + \exp(-\text{log-odds})}$$
+
+where the total log-odds combines:
+
+| Component | Default | What it captures |
+|-----------|---------|-----------------|
+| Base (`infection_non_sepsis_base_log_odds`) | −9.0 | Global intercept — very low daily risk |
+| Per-bacterium adjustment | 0.0 (default) | How lethal this organism is via non-sepsis mechanisms |
+| Per-syndrome adjustment | 0.0 (default) | How dangerous this body site is |
+| Bacterial level × coefficient | level × 0.0 | Higher burden → higher risk |
+| Age adjustment | varies | Infants and elderly at higher risk |
+| Hospital adjustment | 0.0 | Modified risk in hospital |
+| Immunosuppression | 0.0 | Additional risk for immunocompromised |
+
+The per-bacterium adjustments are the primary calibration lever. **Negative values** reduce non-sepsis death (used for organisms whose deaths are over-represented at the base rate), while **positive values** increase it (used for organisms whose real-world deaths come from non-sepsis mechanisms that would otherwise be invisible to the model):
+
+| Bacterium | Adjustment | Rationale |
+|-----------|-----------|-----------|
+| *C. trachomatis* | −5.0 | STI with near-zero real-world mortality; base rate produced 128× over-death |
+| *M. genitalium* | −4.5 | STI with essentially no deaths; base rate produced 66× over-death |
+| *N. gonorrhoeae* | −2.5 | Gonorrhoea is rarely fatal; base rate produced 11.6× over-death |
+| *M. pneumoniae* | −0.7 | Low-mortality respiratory pathogen |
+| *C. jejuni* | −0.5 | Self-limiting gastroenteritis in most cases |
+| *S. epidermidis* | −6.0 | Very low direct mortality; primarily a device-associated pathogen |
+| *S. maltophilia* | −4.0 | Some mortality via pneumonia progression, but limited |
+| *B. pertussis* | +4.0 | Deaths from respiratory failure in infants, not sepsis [17] |
+| *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths [19] |
+| *V. cholerae* | +2.5 | Death from dehydration, not bacteraemia [16] |
+| *C. difficile* | +2.0 | Colitis and toxic megacolon deaths [20] |
+| *S. pyogenes* | +1.5 | Rheumatic heart disease and post-streptococcal complications [21] |
+| *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
+| *H. pylori* | +1.0 | Gastric cancer deaths; essentially zero sepsis risk [18] |
+| *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally [22] |
+
+This dual-pathway design ensures that the model can reproduce both the typical sepsis mortality pattern (where broad-spectrum antibiotics and ICU care determine survival) and the non-sepsis mortality pattern (where the primary driver may be dehydration, organ-specific damage, or chronic sequelae).
+
+
+### 10.4 Infection mortality — syndrome multipliers
+
+Both death pathways are modulated by the anatomical site of infection. The syndrome multipliers reflect how dangerous each body site is:
 
 | Syndrome | Multiplier | Rationale |
 |----------|-----------|-----------|
@@ -1423,11 +1519,9 @@ These multipliers reflect how anatomically dangerous each infection site is:
 | UTI | 0.5 | Usually self-limiting but can ascend to urosepsis |
 | Bone/Joint | 0.8 | Serious but slow-progressing; mortality from surgical complications |
 | Intra-abdominal | 1.5 | Peritonitis carries high mortality even with surgery |
-| Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally |
-| CNS | 3.0 | Meningitis/brain abscess — poor penetration of many antibiotics |
+| Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally [23] |
+| CNS | 3.0 | Meningitis/brain abscess — poor penetration of many antibiotics [5] |
 | Bloodstream | 4.0 | Bacteraemia/sepsis — the most immediately life-threatening |
-
-**3. Sepsis override**: If the infection progresses to sepsis (organ dysfunction from uncontrolled infection), normal mortality limits are overridden and the model applies an aggressively escalated daily death risk. This reflects the clinical reality that sepsis without effective antibiotics is rapidly fatal — and resistant organisms that are untreatable with empiric therapy are exactly the scenario where this matters most.
 
 
 
@@ -1791,6 +1885,7 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 
 | Parameter | Baseline Value |
 |----------|---------|
+| `drug_selection_temperature` | 0.55 |
 | `empiric_therapy_broad_spectrum_bonus` | 0.85 |
 | `empiric_therapy_ineffective_drug_penalty` | 0.001 |
 | `targeted_therapy_narrow_spectrum_bonus` | 5.0 |
@@ -1876,6 +1971,22 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 | `sepsis_log_odds_age_elderly` | −0.7 |
 | `sepsis_log_odds_immunosuppressed` | −1.0 |
 | `sepsis_minimum_duration_days` | 1.0 |
+
+
+
+#### Non-sepsis infection death
+
+| Parameter | Baseline Value |
+|----------|---------|
+| `infection_non_sepsis_base_log_odds` | −9.0 |
+| `infection_non_sepsis_log_odds_per_level` | 0.0 |
+| `infection_non_sepsis_minimum_bacteria_level` | 0.5 |
+| `infection_non_sepsis_log_odds_age_infant` | 0.0 |
+| `infection_non_sepsis_log_odds_age_child` | 0.0 |
+| `infection_non_sepsis_log_odds_age_adult` | 0.0 |
+| `infection_non_sepsis_log_odds_age_elderly` | 0.0 |
+| `infection_non_sepsis_log_odds_immunosuppressed` | 0.0 |
+| `infection_non_sepsis_log_odds_in_hospital` | 0.0 |
 
 
 
@@ -2259,3 +2370,73 @@ When enabled, individual infection journeys are logged to the `infection_journey
 ---
 
 *This document describes the model as implemented in the Rust codebase. All variable names correspond to parameter keys used in `src/config.rs`.*
+
+---
+
+## References
+
+[1] Stevens DL, Bisno AL, Chambers HF, et al. Practice guidelines for the diagnosis and management of skin and soft tissue infections: 2014 update by the Infectious Diseases Society of America. *Clin Infect Dis.* 2014;59(2):e10–e52. doi:10.1093/cid/ciu296
+
+[2] Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. *Am J Respir Crit Care Med.* 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST
+
+[3] Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. *Intensive Care Med.* 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6
+
+[4] Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. *Clin Infect Dis.* 2010;50(2):133–164. doi:10.1086/649554
+
+[5] Tunkel AR, Hartman BJ, Kaplan SL, et al. Practice guidelines for the management of bacterial meningitis. *Clin Infect Dis.* 2004;39(9):1267–1284. doi:10.1086/425368
+
+[6] Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
+
+[7] Rudd KE, Johnson SC, Agesa KM, et al. Global, regional, and national sepsis incidence and mortality, 1990–2017: analysis for the Global Burden of Disease Study. *Lancet.* 2020;395(10219):200–211. doi:10.1016/S0140-6736(19)32989-7
+
+[8] Murray CJL, Ikuta KS, Sharara F, et al. Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. *Lancet.* 2022;399(10325):629–655. doi:10.1016/S0140-6736(21)02724-0
+
+[9] Tong SYC, Davis JS, Eichenberger E, Holland TL, Fowler VG Jr. *Staphylococcus aureus* infections: epidemiology, pathophysiology, clinical manifestations, and management. *Clin Microbiol Rev.* 2015;28(3):603–661. doi:10.1128/CMR.00134-14
+
+[10] Bassetti M, Vena A, Croxatto A, Righi E, Guery B. How to manage *Pseudomonas aeruginosa* infections. *Drugs Context.* 2018;7:212527. doi:10.7573/dic.212527
+
+[11] Seale AC, Blencowe H, Zaidi A, et al. Neonatal severe bacterial infection impairment estimates in South Asia, sub-Saharan Africa, and Latin America for 2010. *Pediatr Res.* 2013;74(S1):73–85. doi:10.1038/pr.2013.207
+
+[12] Carapetis JR, Steer AC, Mulholland EK, Weber M. The global burden of group A streptococcal diseases. *Lancet Infect Dis.* 2005;5(11):685–694. doi:10.1016/S1473-3099(05)70267-X
+
+[13] Xu L, Sun X, Ma X. Systematic review and meta-analysis of mortality of patients infected with carbapenem-resistant *Klebsiella pneumoniae*. *Ann Clin Microbiol Antimicrob.* 2017;16(1):18. doi:10.1186/s12941-017-0191-3
+
+[14] Poolman JT, Wacker M. Extraintestinal pathogenic *Escherichia coli*, a common human pathogen: challenges for vaccine development and progress in the field. *J Infect Dis.* 2016;213(1):6–13. doi:10.1093/infdis/jiv429
+
+[15] Stanaway JD, Parisi A, Sarber K, et al. The global burden of non-typhoidal salmonella invasive disease: a systematic analysis for the Global Burden of Disease Study 2017. *Lancet Infect Dis.* 2019;19(12):1312–1324. doi:10.1016/S1473-3099(19)30418-9
+
+[16] Ali M, Nelson AR, Lopez AL, Sack DA. Updated global burden of cholera in endemic countries. *PLoS Negl Trop Dis.* 2015;9(6):e0003832. doi:10.1371/journal.pntd.0003832
+
+[17] Yeung KHT, Duclos P, Nelson EAS, Hutubessy RCW. An update of the global burden of pertussis in children younger than 5 years: a modelling study. *Lancet Infect Dis.* 2017;17(9):974–980. doi:10.1016/S1473-3099(17)30390-0
+
+[18] Plummer M, Franceschi S, Vignat J, Forman D, de Martel C. Global burden of gastric cancer attributable to *Helicobacter pylori*. *Int J Cancer.* 2015;136(2):487–490. doi:10.1002/ijc.28999
+
+[19] Korenromp EL, Rowley J, Alonso M, et al. Global burden of maternal and congenital syphilis and associated adverse birth outcomes — Estimates for 2016 and progress since 2012. *PLoS One.* 2019;14(2):e0211720. doi:10.1371/journal.pone.0211720
+
+[20] Guh AY, Mu Y, Winston LG, et al. Trends in U.S. burden of *Clostridioides difficile* infection and outcomes. *N Engl J Med.* 2020;382(14):1320–1330. doi:10.1056/NEJMoa1910215
+
+[21] Watkins DA, Johnson CO, Colquhoun SM, et al. Global, regional, and national burden of rheumatic heart disease, 1990–2015. *N Engl J Med.* 2017;377(8):713–722. doi:10.1056/NEJMoa1603693
+
+[22] Troeger C, Blacker BF, Khalil IA, et al. Estimates of the global, regional, and national morbidity, mortality, and aetiologies of diarrhoea in 195 countries: a systematic analysis for the Global Burden of Disease Study 2016. *Lancet Infect Dis.* 2018;18(11):1211–1228. doi:10.1016/S1473-3099(18)30362-1
+
+[23] GBD 2019 Lower Respiratory Infections Collaborators. Age-sex differences in the global burden of lower respiratory infections and risk factors, 1990–2019: results from the Global Burden of Disease Study 2019. *Lancet Infect Dis.* 2022;22(11):1626–1647. doi:10.1016/S1473-3099(22)00510-2
+
+[24] Arcilla MS, van Hattem JM, Haverkate MR, et al. Import and spread of extended-spectrum β-lactamase-producing Enterobacteriaceae by international travellers (COMBAT study): a prospective, multicentre cohort study. *Lancet Infect Dis.* 2017;17(1):78–85. doi:10.1016/S1473-3099(16)30319-X
+
+[25] van de Beek D, Brouwer MC, Thwaites GE, Tunkel AR. Advances in treatment of bacterial meningitis. *Lancet.* 2012;380(9854):1693–1702. doi:10.1016/S0140-6736(12)61186-6
+
+[26] Bauer AW, Kirby WMM, Sherris JC, Turck M. Antibiotic susceptibility testing by a standardized single disk method. *Am J Clin Pathol.* 1966;45(4):493–496. doi:10.1093/ajcp/45.4_ts.493
+
+[27] Slimings C, Riley TV. Antibiotics and healthcare facility-associated *Clostridioides difficile* infection: updated systematic review and meta-analysis. *J Antimicrob Chemother.* 2021;76(7):1676–1688. doi:10.1093/jac/dkab091
+
+[28] Li J, Nation RL, Turnidge JD, et al. Colistin: the re-emerging antibiotic for multidrug-resistant Gram-negative bacterial infections. *Lancet Infect Dis.* 2006;6(9):589–601. doi:10.1016/S1473-3099(06)70580-1
+
+[29] Bratzler DW, Dellinger EP, Olsen KM, et al. Clinical practice guidelines for antimicrobial prophylaxis in surgery. *Am J Health-Syst Pharm.* 2013;70(3):195–283. doi:10.2146/ajhp120568
+
+[30] Drlica K, Zhao X. Mutant selection window hypothesis updated. *Clin Infect Dis.* 2007;44(5):681–688. doi:10.1086/511025
+
+[31] Andersson DI, Hughes D. Antibiotic resistance and its cost: is it possible to reverse resistance? *Nat Rev Microbiol.* 2010;8(4):260–271. doi:10.1038/nrmicro2319
+
+[32] Magill SS, O'Leary E, Janelle SJ, et al. Changes in prevalence of health care–associated infections in U.S. hospitals. *N Engl J Med.* 2018;379(18):1732–1744. doi:10.1056/NEJMoa1801550
+
+[33] Beaber JW, Hochhut B, Waldor MK. SOS response promotes horizontal dissemination of antibiotic resistance genes. *Nature.* 2004;427(6969):72–74. doi:10.1038/nature02241

@@ -459,9 +459,8 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // MprF membrane charge modification: daptomycin resistance
         MutationMprF => matches!(drug, "daptomycin"),
 
-        // RpoB mutation: fidaxomicin resistance (C. difficile)
-        // Rifampicin resistance modeled via MDR TB bacteria parameters, not this mechanism
-        MutationRpoB => matches!(drug, "fidaxomicin"),
+        // RpoB mutation: fidaxomicin resistance (C. difficile) + rifampicin resistance (all bacteria)
+        MutationRpoB => matches!(drug, "fidaxomicin" | "rifampicin"),
 
         // FusB/FusC protection proteins: fusidic acid resistance
         ProtectionFusB => matches!(drug, "fusidic_a"),
@@ -477,10 +476,10 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug, "gentamicin" | "tobramycin" | "amikacin" | "streptomycin" | "neomycin"
         ),
 
-        // blaZ staphylococcal penicillinase: narrow-spectrum penicillins only
-        // (does NOT confer resistance to protected penicillins or cephalosporins)
+        // blaZ staphylococcal penicillinase / TEM-1 gram-negative penicillinase: penicillins only
+        // (does NOT confer resistance to BL/BLI combinations or cephalosporins)
         EnzymeBlaZ => matches!(
-            drug, "penicillin_g" | "ampicillin" | "amoxicillin"
+            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
         ),
 
         // OXA-23/40/58: A. baumannii carbapenemases — carbapenems; variable cephalosporin activity

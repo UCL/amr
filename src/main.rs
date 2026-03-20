@@ -54,7 +54,7 @@ mod simulation;
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-//
+// footnote in calibration summary about any microbiome resistance vs majority
 //
 //
 //
