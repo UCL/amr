@@ -2777,15 +2777,15 @@ pub fn apply_rules(
                         score *= 0.15; // Apply strong but not overwhelming penalty to off-guideline choices
                     }
 
-                    // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (MUCH STRONGER)
+                    // POTENCY-BASED POSITIVE REINFORCEMENT: Reward high-potency drugs (REDUCED)
                     if max_potency_against_infections >= 0.5 {
-                        score *= 15.0; // Very high potency - MASSIVE boost
+                        score *= 4.0; // Very high potency - boosted (was 15.0)
                     } else if max_potency_against_infections >= 0.3 {
-                        score *= 10.0; // High potency - major boost
+                        score *= 2.5; // High potency - boosted (was 10.0)
                     } else if max_potency_against_infections >= 0.15 {
-                        score *= 6.0; // Moderate potency - significant boost
+                        score *= 1.5; // Moderate potency - boosted (was 6.0)
                     } else if max_potency_against_infections >= minimal_potency_threshold {
-                        score *= 2.0; // Minimal acceptable potency
+                        score *= 1.1; // Minimal acceptable potency (was 2.0)
                     }
 
                     let mut max_bacteria_specific_multiplier: f64 = 1.0;
@@ -2934,9 +2934,11 @@ pub fn apply_rules(
                         | "quinu_dalfo"
                     // Lipopeptides
                         | "daptomycin"
-                    // Advanced cephalosporins
+                    // Advanced cephalosporins and novel BL/BLI
                         | "ceftolozane_tazobactam"
                         | "cefiderocol"
+                        | "ceftazidime_avibactam"
+                        | "aztreonam_avibactam"
                     // C. difficile-specific
                         | "fidaxomicin"
                     // Advanced tetracyclines
@@ -3074,7 +3076,7 @@ pub fn apply_rules(
                         if drug_spectrum >= 3.5 {
                             score *= empiric_broad_bonus;
                         } else if drug_spectrum <= 2.0 {
-                            score *= 2.5; // ADDED BONUS: Actively promote narrow-spectrum empirical agents (was 1.0 neutral)
+                            score *= 1.2; // MINOR BONUS: Actively promote narrow-spectrum empirical agents (was 2.5)
                         }
                     } else {
                         // Drug has no syndrome-informed activity signal - heavily penalize

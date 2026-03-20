@@ -743,7 +743,13 @@ pub struct TimeStepSummary {
     pub new_sepsis_cases_by_bacteria: Vec<usize>, // per-bacteria counts of people who developed sepsis this timestep
     pub infections_prevented_by_drug_by_bacteria: Vec<usize>, // per-bacteria counts of infections prevented by existing therapy this timestep
     pub infections_by_bacteria: Vec<usize>,                   // indexed by bacteria
+    pub infections_by_bacteria_under_5: Vec<usize>,
+    pub infections_by_bacteria_over_65: Vec<usize>,
     pub deaths_by_bacteria: Vec<usize>,                       // indexed by bacteria
+    pub deaths_by_bacteria_under_5: Vec<usize>,
+    pub deaths_by_bacteria_over_65: Vec<usize>,
+    pub deaths_by_bacteria_hospital_acquired: Vec<usize>,
+    pub deaths_by_bacteria_community_acquired: Vec<usize>,
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>,         // [bacteria][drug] counts
     /// per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
     pub activity_r_sum_by_bacteria: Vec<f64>,
@@ -754,6 +760,8 @@ pub struct TimeStepSummary {
     pub newly_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = new active infections this timestep by bacteria and home region
     pub newly_infected_carrier_by_bacteria: Vec<usize>, // per-bacteria new infections among current carriers this timestep
     pub newly_infected_non_carrier_by_bacteria: Vec<usize>, // per-bacteria new infections among non-carriers this timestep
+    pub newly_infected_by_bacteria_under_5: Vec<usize>,
+    pub newly_infected_by_bacteria_over_65: Vec<usize>,
     pub deaths_infected_by_bacteria_region: Vec<usize>, // [bacteria * region] = deaths this timestep of people currently infected with bacteria by home region
     pub newly_infected_past_year: usize, // Rolling 1-year (365 days) newly infected count
     pub currently_infected_and_on_drug_count: usize, // intersection of currently infected (excl. H. pylori) AND on any drug
@@ -778,6 +786,8 @@ pub struct TimeStepSummary {
     pub infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of infected individuals without carriage
     pub resistant_infected_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among carriers
     pub resistant_infected_non_carrier_count_by_bacteria: Vec<usize>, // per-bacteria counts of resistant infections among non-carriers
+    pub resistant_infected_hospital_count_by_bacteria: Vec<usize>,
+    pub resistant_infected_community_count_by_bacteria: Vec<usize>,
     pub infected_with_test_identified_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_identified_infection = true
     pub infected_with_test_for_resistance_by_bacteria: Vec<usize>, // per-bacteria counts of infected people with test_for_resistance = true
 
@@ -1231,8 +1241,14 @@ impl Simulation {
                 microbiome_r_positive_by_bacteria_drug: Vec<usize>,
                 cleared_any_r_microbiome_categories: Vec<usize>,
                 infections_by_bacteria: Vec<usize>,
+                infections_by_bacteria_under_5: Vec<usize>,
+                infections_by_bacteria_over_65: Vec<usize>,
                 infections_prevented_by_drug_by_bacteria: Vec<usize>,
                 deaths_by_bacteria: Vec<usize>,
+                deaths_by_bacteria_under_5: Vec<usize>,
+                deaths_by_bacteria_over_65: Vec<usize>,
+                deaths_by_bacteria_hospital_acquired: Vec<usize>,
+                deaths_by_bacteria_community_acquired: Vec<usize>,
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
                 /// Per-mechanism EWMA numerators: flat [r * nb * nm + b * nm + m], community
@@ -1265,6 +1281,8 @@ impl Simulation {
                 newly_infected_by_bacteria_region: Vec<usize>,
                 newly_infected_carrier_by_bacteria: Vec<usize>,
                 newly_infected_non_carrier_by_bacteria: Vec<usize>,
+                newly_infected_by_bacteria_under_5: Vec<usize>,
+                newly_infected_by_bacteria_over_65: Vec<usize>,
                 newly_infected_hospital_by_bacteria_region: Vec<usize>,
                 newly_infected_any_r_hospital_by_bacteria: Vec<usize>,
                 newly_infected_any_r_community_by_bacteria: Vec<usize>,
@@ -1287,6 +1305,8 @@ impl Simulation {
                 infected_non_carrier_count_by_bacteria: Vec<usize>,
                 resistant_infected_carrier_count_by_bacteria: Vec<usize>,
                 resistant_infected_non_carrier_count_by_bacteria: Vec<usize>,
+                resistant_infected_hospital_count_by_bacteria: Vec<usize>,
+                resistant_infected_community_count_by_bacteria: Vec<usize>,
                 drug_failure_events_by_bacteria_region: Vec<usize>,
                 drug_treatment_day5_events_by_bacteria_region: Vec<usize>,
                 infected_with_test_identified_by_bacteria: Vec<usize>,
@@ -1376,8 +1396,14 @@ impl Simulation {
                         ],
                         infected_and_on_any_drug_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria: vec![0; num_bacteria],
+                        infections_by_bacteria_under_5: vec![0; num_bacteria],
+                        infections_by_bacteria_over_65: vec![0; num_bacteria],
                         infections_prevented_by_drug_by_bacteria: vec![0; num_bacteria],
                         deaths_by_bacteria: vec![0; num_bacteria],
+                        deaths_by_bacteria_under_5: vec![0; num_bacteria],
+                        deaths_by_bacteria_over_65: vec![0; num_bacteria],
+                        deaths_by_bacteria_hospital_acquired: vec![0; num_bacteria],
+                        deaths_by_bacteria_community_acquired: vec![0; num_bacteria],
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
                         mech_infected_comm: vec![0u32; num_regions * num_bacteria * num_mechanisms],
@@ -1406,6 +1432,8 @@ impl Simulation {
                         newly_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
                         newly_infected_carrier_by_bacteria: vec![0; num_bacteria],
                         newly_infected_non_carrier_by_bacteria: vec![0; num_bacteria],
+                        newly_infected_by_bacteria_under_5: vec![0; num_bacteria],
+                        newly_infected_by_bacteria_over_65: vec![0; num_bacteria],
                         newly_infected_hospital_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
                         newly_infected_any_r_hospital_by_bacteria: vec![0; num_bacteria],
                         newly_infected_any_r_community_by_bacteria: vec![0; num_bacteria],
@@ -1435,6 +1463,8 @@ impl Simulation {
                         infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
                         resistant_infected_carrier_count_by_bacteria: vec![0; num_bacteria],
                         resistant_infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        resistant_infected_hospital_count_by_bacteria: vec![0; num_bacteria],
+                        resistant_infected_community_count_by_bacteria: vec![0; num_bacteria],
                         drug_failure_events_by_bacteria_region: vec![
                             0;
                             num_bacteria * REGION_COUNT
@@ -1570,6 +1600,8 @@ impl Simulation {
                     {
                         *a += b;
                     }
+                    for (a, b) in self.resistant_infected_hospital_count_by_bacteria.iter_mut().zip(other.resistant_infected_hospital_count_by_bacteria) { *a += b; }
+                    for (a, b) in self.resistant_infected_community_count_by_bacteria.iter_mut().zip(other.resistant_infected_community_count_by_bacteria) { *a += b; }
                     for (a, b) in self
                         .infected_and_on_any_drug_by_bacteria
                         .iter_mut()
@@ -1581,6 +1613,20 @@ impl Simulation {
                         .infections_by_bacteria
                         .iter_mut()
                         .zip(other.infections_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .infections_by_bacteria_under_5
+                        .iter_mut()
+                        .zip(other.infections_by_bacteria_under_5)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .infections_by_bacteria_over_65
+                        .iter_mut()
+                        .zip(other.infections_by_bacteria_over_65)
                     {
                         *a += b;
                     }
@@ -1598,6 +1644,22 @@ impl Simulation {
                     {
                         *a += b;
                     }
+                    for (a, b) in self
+                        .deaths_by_bacteria_under_5
+                        .iter_mut()
+                        .zip(other.deaths_by_bacteria_under_5)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .deaths_by_bacteria_over_65
+                        .iter_mut()
+                        .zip(other.deaths_by_bacteria_over_65)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self.deaths_by_bacteria_hospital_acquired.iter_mut().zip(other.deaths_by_bacteria_hospital_acquired) { *a += b; }
+                    for (a, b) in self.deaths_by_bacteria_community_acquired.iter_mut().zip(other.deaths_by_bacteria_community_acquired) { *a += b; }
                     for (a, b) in self
                         .resistance_by_bacteria_drug
                         .iter_mut()
@@ -1672,6 +1734,20 @@ impl Simulation {
                         .newly_infected_non_carrier_by_bacteria
                         .iter_mut()
                         .zip(other.newly_infected_non_carrier_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .newly_infected_by_bacteria_under_5
+                        .iter_mut()
+                        .zip(other.newly_infected_by_bacteria_under_5)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .newly_infected_by_bacteria_over_65
+                        .iter_mut()
+                        .zip(other.newly_infected_by_bacteria_over_65)
                     {
                         *a += b;
                     }
@@ -2293,6 +2369,20 @@ impl Simulation {
                                 for b_idx in 0..num_bacteria {
                                     if individual.level[b_idx] > INFECTION_EPS {
                                         lt.deaths_by_bacteria[b_idx] += 1;
+                                        if !lt.deaths_by_bacteria_under_5.is_empty() {
+                                            if individual.age < (5.0 * 365.25) as i32 {
+                                                lt.deaths_by_bacteria_under_5[b_idx] += 1;
+                                            } else if individual.age >= (65.0 * 365.25) as i32 {
+                                                lt.deaths_by_bacteria_over_65[b_idx] += 1;
+                                            }
+                                        }
+                                        if !lt.deaths_by_bacteria_hospital_acquired.is_empty() {
+                                            if individual.infection_hospital_acquired[b_idx] {
+                                                lt.deaths_by_bacteria_hospital_acquired[b_idx] += 1;
+                                            } else {
+                                                lt.deaths_by_bacteria_community_acquired[b_idx] += 1;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -2516,6 +2606,13 @@ impl Simulation {
                                         individual_has_any_non_h_pylori_infection = true;
                                     }
                                     lt.infections_by_bacteria[b_idx] += 1;
+                                    if !lt.infections_by_bacteria_under_5.is_empty() {
+                                        if individual.age < (5.0 * 365.25) as i32 {
+                                            lt.infections_by_bacteria_under_5[b_idx] += 1;
+                                        } else if individual.age >= (65.0 * 365.25) as i32 {
+                                            lt.infections_by_bacteria_over_65[b_idx] += 1;
+                                        }
+                                    }
                                 }
 
                                 // Count infections prevented by existing therapy (even if not currently infected)
@@ -2578,6 +2675,13 @@ impl Simulation {
                                             lt.newly_infected_carrier_by_bacteria[b_idx] += 1;
                                         } else {
                                             lt.newly_infected_non_carrier_by_bacteria[b_idx] += 1;
+                                        }
+                                        if !lt.newly_infected_by_bacteria_under_5.is_empty() {
+                                            if individual.age < (5.0 * 365.25) as i32 {
+                                                lt.newly_infected_by_bacteria_under_5[b_idx] += 1;
+                                            } else if individual.age >= (65.0 * 365.25) as i32 {
+                                                lt.newly_infected_by_bacteria_over_65[b_idx] += 1;
+                                            }
                                         }
                                         // Hospital acquisition tracking
                                         if individual.infection_hospital_acquired[b_idx] {
@@ -2648,6 +2752,17 @@ impl Simulation {
                                         lt.infected_non_carrier_count_by_bacteria[b_idx] += 1;
                                         if infection_any_r_positive {
                                             lt.resistant_infected_non_carrier_count_by_bacteria[b_idx] += 1;
+                                        }
+                                    }
+                                    if !lt.resistant_infected_hospital_count_by_bacteria.is_empty() {
+                                        if individual.infection_hospital_acquired[b_idx] {
+                                            if infection_any_r_positive {
+                                                lt.resistant_infected_hospital_count_by_bacteria[b_idx] += 1;
+                                            }
+                                        } else {
+                                            if infection_any_r_positive {
+                                                lt.resistant_infected_community_count_by_bacteria[b_idx] += 1;
+                                            }
                                         }
                                     }
                                     // Only include individuals who are on any drug for this bacteria
@@ -2779,8 +2894,14 @@ impl Simulation {
                 microbiome_r_positive_by_bacteria_drug,
                 cleared_any_r_microbiome_categories,
                 infections_by_bacteria: infections_by_bacteria_vec,
+                infections_by_bacteria_under_5,
+                infections_by_bacteria_over_65,
                 infections_prevented_by_drug_by_bacteria,
                 deaths_by_bacteria,
+                deaths_by_bacteria_under_5,
+                deaths_by_bacteria_over_65,
+                deaths_by_bacteria_hospital_acquired,
+                deaths_by_bacteria_community_acquired,
                 resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                 currently_on_drug_by_drug,
                 mech_infected_comm,
@@ -2809,6 +2930,8 @@ impl Simulation {
                 newly_infected_by_bacteria_region,
                 newly_infected_carrier_by_bacteria,
                 newly_infected_non_carrier_by_bacteria,
+                newly_infected_by_bacteria_under_5,
+                newly_infected_by_bacteria_over_65,
                 newly_infected_hospital_by_bacteria_region: newly_infected_hospital_flat,
                 newly_infected_any_r_hospital_by_bacteria,
                 newly_infected_any_r_community_by_bacteria,
@@ -2831,6 +2954,8 @@ impl Simulation {
                 infected_non_carrier_count_by_bacteria,
                 resistant_infected_carrier_count_by_bacteria,
                 resistant_infected_non_carrier_count_by_bacteria,
+                resistant_infected_hospital_count_by_bacteria,
+                resistant_infected_community_count_by_bacteria,
                 drug_failure_events_by_bacteria_region,
                 drug_treatment_day5_events_by_bacteria_region,
                 infected_with_test_identified_by_bacteria,
@@ -2948,6 +3073,8 @@ impl Simulation {
                 infected_non_carrier_count_by_bacteria,
                 resistant_infected_carrier_count_by_bacteria,
                 resistant_infected_non_carrier_count_by_bacteria,
+                resistant_infected_hospital_count_by_bacteria,
+                resistant_infected_community_count_by_bacteria,
                 drug_failure_events_by_bacteria_region,
                 drug_treatment_day5_events_by_bacteria_region,
                 infected_with_test_identified_by_bacteria,
@@ -2967,6 +3094,8 @@ impl Simulation {
                 newly_infected_by_bacteria_region,
                 newly_infected_carrier_by_bacteria,
                 newly_infected_non_carrier_by_bacteria,
+                newly_infected_by_bacteria_under_5,
+                newly_infected_by_bacteria_over_65,
                 deaths_infected_by_bacteria_region,
                 total_currently_infected,
                 total_with_resistance,
@@ -2975,7 +3104,13 @@ impl Simulation {
                 currently_taking_drug_count,
                 taking_two_drugs_count,
                 infections_by_bacteria: infections_by_bacteria_vec,
+                infections_by_bacteria_under_5,
+                infections_by_bacteria_over_65,
                 deaths_by_bacteria,
+                deaths_by_bacteria_under_5,
+                deaths_by_bacteria_over_65,
+                deaths_by_bacteria_hospital_acquired,
+                deaths_by_bacteria_community_acquired,
                 resistance_by_bacteria_drug,
                 total_deaths,
                 deaths_background,
@@ -3689,6 +3824,26 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_deaths");
         }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_deaths_under_5");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_deaths_over_65");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_deaths_hospital_acquired");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_deaths_community_acquired");
+        }
         // Add per-bacteria sepsis prevalence columns
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -3804,6 +3959,16 @@ impl Simulation {
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_resistant_infected_non_carrier_count");
         }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_resistant_infected_hospital_count");
+        }
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_resistant_infected_community_count");
+        }
         // Add per-bacteria per-region drug failure events columns
         for bacteria in BACTERIA_LIST.iter() {
             for region in &[
@@ -3876,6 +4041,17 @@ impl Simulation {
             header.push(',');
             header.push_str(&slug);
             header.push_str("_newly_infected_non_carrier");
+        }
+
+        // Add per-bacteria newly infected counts split by age group
+        for bacteria in BACTERIA_LIST.iter() {
+            let slug = bacteria.replace(" ", "_");
+            header.push(',');
+            header.push_str(&slug);
+            header.push_str("_newly_infected_under_5");
+            header.push(',');
+            header.push_str(&slug);
+            header.push_str("_newly_infected_over_65");
         }
 
         // Add per-bacteria, per-region deaths (currently infected) columns
@@ -4360,6 +4536,22 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
+            for value in &summary.deaths_by_bacteria_under_5 {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.deaths_by_bacteria_over_65 {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.deaths_by_bacteria_hospital_acquired {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.deaths_by_bacteria_community_acquired {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
             for value in &summary.number_with_sepsis_by_bacteria {
                 row.push(',');
                 row.push_str(&value.to_string());
@@ -4440,6 +4632,14 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
+            for value in &summary.resistant_infected_hospital_count_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.resistant_infected_community_count_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
             // Add regional drug failure events data
             for value in &summary.drug_failure_events_by_bacteria_region {
                 row.push(',');
@@ -4467,6 +4667,12 @@ impl Simulation {
                 row.push_str(&summary.newly_infected_carrier_by_bacteria[b_idx].to_string());
                 row.push(',');
                 row.push_str(&summary.newly_infected_non_carrier_by_bacteria[b_idx].to_string());
+            }
+            for b_idx in 0..BACTERIA_LIST.len() {
+                row.push(',');
+                row.push_str(&summary.newly_infected_by_bacteria_under_5[b_idx].to_string());
+                row.push(',');
+                row.push_str(&summary.newly_infected_by_bacteria_over_65[b_idx].to_string());
             }
             for value in &summary.deaths_infected_by_bacteria_region {
                 row.push(',');

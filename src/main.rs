@@ -41,7 +41,7 @@ mod simulation;
 // need targets for (i) % infections started in hospital by bacteria (ii) % of hospital infections with resistance by bacteria
 // add to calibration summary: death rate from infection by bacteria
 //
-// death within 30 days by bacteria, age and region ? - make a formal part of calibration 
+// death within 30 days by bacteria, syndrome, age and region ? - make a formal part of calibration 
 // score or just present as an fyi ?
 //
 // -- calibration approach:  
@@ -119,12 +119,6 @@ mod simulation;
 // - drug can be started from infection
 // - test_r known at infection and drug can be started
 // - no further existence of resistance (already in)
-// - 
-//
-//
-//
-//
-//
 //
 // decide on time zero for mda azithromycin project
 //
@@ -140,9 +134,6 @@ mod simulation;
 //
 // for mda project can base in africa with an "other" region all groued together
 //
-// to(maybe)do: perhaps introduce an effect whereby drug treatment leads to an increase in risk of microbiome_r > 0 due to
-//              allowing more bacteria growth due to killing other bacteria in microbiome, and so can be caused by any drug
-//              - but not sure yet if this is needed / justified
 //
 //
 //

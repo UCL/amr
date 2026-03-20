@@ -149,6 +149,15 @@ CALIBRATION_PATTERNS = [
     r'.*_newly_infected_any_r_community$',
     r'.*_newly_infected_carrier$',
     r'.*_newly_infected_non_carrier$',
+    r'.*_newly_infected_under_5$',
+    r'.*_newly_infected_over_65$',
+    r'.*_deaths_under_5$',
+    r'.*_deaths_over_65$',
+    r'.*_deaths_hospital_acquired$',
+    r'.*_deaths_community_acquired$',
+    r'.*_resistant_infected_hospital_count$',
+    r'.*_resistant_infected_community_count$',
+    r'.*_presence_microbiome_resistant$',
 ]
 
 

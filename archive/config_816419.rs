@@ -873,15 +873,6 @@ impl GlobalScalars {
                 "community_resistance_dilution_factor",
                 0.50,  // 0.50 ***
             ),
-
-            // =====================================================================
-            // COUNTERFACTUAL HGT CONTROL
-            // To run a "No Horizontal Gene Transfer" counterfactual scenario, set
-            // the `hgt_hospital_multiplier` parameter to 0.0 (or set it here below).
-            // Since this parameter multiplies every HGT calculation, 0.0 effectively
-            // disables all HGT events across the simulation without needing to touch
-            // the HgtMatrix pair-probabilities or modify the core Rust simulation loop.
-            // =====================================================================
             hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),  // 3.0  ***
             hgt_antibiotic_pressure_multiplier: get_or_default(
                 map,
@@ -5325,14 +5316,6 @@ lazy_static! {
         // === [B] Horizontal gene transfer (HGT) priors ===
         // Baseline daily probabilities for each donor/recipient pair; tweak here for broad shifts,
         // or override specific pairs in input templates.
-        // 
-        // =====================================================================
-        // COUNTERFACTUAL HGT CONTROL:
-        // To run a "No Horizontal Gene Transfer" counterfactual scenario, simply modify the
-        // `default_prob` value below to be 0.0 for all pairs, or in your Python launcher script
-        // programmatically generate and pass all `hgt_prob_{donor}_to_{recipient}: 0.0` pairs.
-        // Doing this will bypass all downstream HGT operations.
-        // =====================================================================
         // --- HGT Probabilities for All Donor-Recipient Bacteria Pairs ---
         for (donor_idx, &donor) in BACTERIA_LIST.iter().enumerate() {
             for (recipient_idx, &recipient) in BACTERIA_LIST.iter().enumerate() {
