@@ -54,27 +54,24 @@ const DAYS_PER_YEAR: f64 = 365.0;
 /// Controls how much output the simulation writes to `summary_log`.
 ///
 /// * `None`    — full run: policy branches enabled, all rows, all stats (production/scenario use).
-/// * `Partial` — skip policy branches and expensive per-timestep stats; write all 1930–2026 rows.
+/// * `Partial` — skip policy branches and expensive per-timestep stats; write all 1930–2025 rows.
 ///               Time-series plots remain functional.
-/// * `Full`    — as `Partial`, but only emit rows inside calibration windows:
-///               history snapshot years (1950, 1975, 2000) and the 2021–2026 analysis window.
+/// * `Full`    — as `Partial`, but only emit rows needed for the 2025 calibration summary:
+///               the 2022–2025 resistance, headline, and drug-share windows.
 ///               ~95% reduction in CSV size; time-series plots not supported in this mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CalibrationMode {
     None,
-    /// Skip policy branches and expensive stats; write all 1930–2026 rows (time-series plots work).
+    /// Skip policy branches and expensive stats; write all 1930–2025 rows (time-series plots work).
     #[allow(dead_code)]
     Partial,
     Full,
 }
 
-/// History snapshot years used by `_calculate_drug_class_history_table` in calibration_summary.py.
-/// Must match the `"years"` list in `data/calibration_targets.json`.
-const CALIBRATION_SNAPSHOT_YEARS: &[f64] = &[1950.0, 1975.0, 2000.0];
-
-/// First year of the resistance/headline analysis window (inclusive).
-/// Matches `max_years = 5` with `target_year = 2025` in `_select_resistance_windows`.
-const CALIBRATION_FULL_ANALYSIS_WINDOW_START: f64 = 2021.0;
+/// First year of the calibration summary window (inclusive).
+/// This keeps the full 2022–2025 calibration window used by the summary.
+const CALIBRATION_SUMMARY_WINDOW_START: f64 = 2022.0;
+const CALIBRATION_SUMMARY_WINDOW_END: f64 = 2026.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PolicyAdjustments {
@@ -3445,16 +3442,15 @@ impl Simulation {
             //     }
             // }
 
-            // In CalibrationMode::Full, only emit rows inside the windows actually consumed by
-            // calibration_summary.py: history snapshot years (1950, 1975, 2000) and the full
-            // 2021–2026 analysis window. All other rows are dropped to cut CSV size ~95%.
+            // In CalibrationMode::Full, only emit rows inside the window actually consumed by
+            // calibration_summary.py for the 2025 summary: 2022–2025 inclusive.
+            // All other rows are dropped to cut CSV size ~95%.
             // In Partial or None every row is kept so time-series plots remain functional.
             let keep_row = match self.calibration_mode {
                 CalibrationMode::Full => {
                     let simulation_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
-                    CALIBRATION_SNAPSHOT_YEARS.iter().any(|&snap| {
-                        simulation_year >= snap && simulation_year < snap + 1.0
-                    }) || simulation_year >= CALIBRATION_FULL_ANALYSIS_WINDOW_START
+                    simulation_year >= CALIBRATION_SUMMARY_WINDOW_START
+                        && simulation_year < CALIBRATION_SUMMARY_WINDOW_END
                 }
                 CalibrationMode::Partial | CalibrationMode::None => true,
             };

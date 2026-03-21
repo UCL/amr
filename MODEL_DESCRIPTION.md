@@ -61,7 +61,7 @@ This is an **individual-based model** (sometimes called an agent-based model). R
 
 For example, the model might calculate the daily probability of starting antibiotics as: *baseline log-odds (−6.5) + symptomatic infection (+6.5) + sepsis (+6.0) + immunodeficiency (+2.08) = ...*. The sum is then converted to a probability between 0 and 1. A more negative sum means "very unlikely today"; a more positive sum means "almost certain today."
 
-**Calibration.** The model's parameters (the numbers that control how fast infections spread, how often drugs are prescribed, how quickly resistance emerges, etc.) are adjusted — *calibrated* — so that the model's outputs match real-world data. For example, the model is calibrated against observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data. Sections 2–10 describe what the model does; Appendix B lists all the parameter values.
+**Calibration.** The model's parameters (the numbers that control how fast infections spread, how often drugs are prescribed, how quickly resistance emerges, etc.) are adjusted — *calibrated* — so that the model's outputs match real-world data. For example, the model is calibrated against observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data. Some parameters therefore behave as **effective model parameters** rather than direct one-to-one measurements from surveillance datasets: they are chosen to reproduce the joint behaviour of complex clinical systems that are only partially observed. This is especially true for access modifiers, composite vulnerability states, and behaviourally driven prescribing terms. Sections 2–10 describe what the model does; Appendix B lists all the parameter values.
 
 
 ### 1.3 Scope and purpose
@@ -150,20 +150,24 @@ Neonates (0–28 days) have dramatically different infection risks and case-fata
 
 ### 2.3 Immunodeficiency
 
-In real life, patients with weakened immune systems — whether from HIV, chemotherapy, organ transplantation, or simply old age — are at much higher risk of infection, harder to treat, and more likely to die. The model captures this through two types of immunosuppression.
+In real life, patients with weakened immune systems — whether from HIV, chemotherapy, organ transplantation, or simply old age — are at much higher risk of infection, harder to treat, and more likely to die [34,35]. The model captures this through two types of immunosuppression.
+
+At simulation start, a configurable fraction of the population is seeded into this broader higher-risk host state (`immunosuppression_startup_seed_fraction`, baseline 5%). This startup seeding is a calibration device to avoid an unrealistically long burn-in before immunocompromised-host effects become visible in the simulated population. Published US NHIS analyses place self-reported immunosuppression among adults in the low-single-digit to mid-single-digit range over the last decade (2.7% in 2013 and 6.6% in 2021), so a 5% startup seed sits within the right order of magnitude for a broadened composite vulnerability construct while still remaining a model initial-condition choice rather than a direct epidemiologic estimate [39].
 
 **Temporary immunosuppression** represents acute episodes such as a short course of steroids, a viral illness that transiently suppresses immunity, or post-surgical immunosuppression. People enter this state at a rate of `0.00005` per day and recover at `0.01` per day (average duration ~100 days).
 
 **Chronic immunosuppression** represents long-term conditions like HIV/AIDS, solid organ transplant, or autoimmune disease requiring ongoing immunosuppressive therapy. It develops at `0.00006` per day and recovers much more slowly at `0.0012` per day.
 
-At the start of the simulation (and for new births), some individuals begin with pre-existing chronic immunodeficiency. The probability increases with age to reflect the accumulating burden of disease over a lifetime:
+When a new immunodeficiency episode occurs in the model, the following age-band probabilities determine whether that episode is typed as **chronic** rather than **temporary**. They are therefore best read as a structural mapping from age to chronic-vs-temporary assignment, not as literal age-specific prevalence estimates of diagnosed immunodeficiency in the underlying population:
 
-| Age group | Probability | Examples |
+| Age group | Probability of chronic typing | Interpretation |
 |-----------|------------|---------|
-| 0–1 year | 30% | Congenital immunodeficiencies (e.g., SCID, DiGeorge) |
-| 1–18 years | 20% | Childhood leukaemia, congenital conditions |
-| 18–65 years | 40% | HIV, transplant recipients, autoimmune disease on biologics |
-| 65+ years | 60% | Immunosenescence, multiple comorbidities, haematological malignancies |
+| 0–1 year | 30% | Allows some early-life episodes to map to persistent congenital or neonatal high-risk states |
+| 1–18 years | 20% | Keeps most childhood episodes temporary while permitting a smaller chronic subgroup |
+| 18–65 years | 40% | Shifts more episodes into persistent high-risk states compatible with HIV, transplantation, or long-term immunosuppression |
+| 65+ years | 60% | Makes late-life episodes more likely to persist as a composite frailty/immunosenescence-type vulnerability state |
+
+These probabilities should be read as part of a **composite infection-vulnerability state**, not as literal prevalence estimates of formal immunodeficiency diagnoses. In other words, the model deliberately aggregates classic immunodeficiency, transplant medicine, chemotherapy-related neutropenia, advanced HIV, frailty, and other clinically important causes of impaired host defence into one tractable state variable [34,35]. In the current implementation, the seeded starting population uses the configurable startup fraction described above, and the chronic-versus-temporary split follows the same age-stratified mapping shown here. The same age-stratified probabilities also govern the typing of newly arising immunodeficiency episodes during the simulation.
 
 **How immunodeficiency affects the clinical journey:**
 
@@ -194,7 +198,7 @@ Hospital admission matters for AMR because hospitals are where the most resistan
 | Symptomatic infection (severity > 3.0) | +2.5 | Moderate-to-severe infections prompt admission (~12× multiplier) |
 | Regional healthcare access | varies (see below) | Reflects real-world differences in hospital capacity |
 
-**Length of stay:** Once admitted, patients are discharged at a rate of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. Patients with active sepsis cannot be discharged — they remain in hospital until sepsis resolves or they die.
+**Length of stay:** Once admitted, patients are discharged at a rate of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. Patients with active sepsis cannot be discharged — they remain in hospital until sepsis resolves or they die. This should be interpreted as an **effective all-cause discharge hazard** in the model, not as a claim that every real-world admission has the same geometric length-of-stay distribution.
 
 **Regional healthcare access:**
 
@@ -210,6 +214,7 @@ Not everyone in the world has equal access to hospitals. The model uses regional
 | Africa | −0.5 | Most limited hospital capacity |
 
 Negative values mean patients are *less* likely to be admitted — not because they are less sick, but because hospital beds are less available. This matters for AMR because patients who cannot access hospital care may not receive appropriate antibiotics or diagnostics.
+Negative values mean patients are *less* likely to be admitted — not because they are less sick, but because hospital beds are less available. This matters for AMR because patients who cannot access hospital care may not receive appropriate antibiotics or diagnostics, whereas international sepsis-care programmes have associated better structured in-hospital and ICU bundle delivery with lower hospital mortality [43,46].
 
 **Nosocomial (hospital-acquired) risks:**
 
@@ -231,7 +236,7 @@ Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) 
 
 International travel is a well-documented driver of AMR spread. Travellers who visit regions with high resistance prevalence can acquire resistant bacteria and bring them home — this is how, for example, ESBL-producing *E. coli* from South and South-East Asia has spread to European populations [24].
 
-The model simulates this by giving each person a small daily probability of travelling to another region (`0.00005` per day, roughly one trip every 55 years per person). Travel frequency varies by region of origin, reflecting real-world patterns:
+The model simulates this by giving each person a small daily probability of travelling to another region (`0.00005` per day, roughly one trip every 55 years per person). This is intentionally a low **effective cross-region mixing rate**, because the model only needs enough travel to reproduce long-run AMR importation and reseeding; it is not intended to represent literal passenger-trip counts. Travel frequency varies by region of origin, reflecting real-world patterns:
 
 | Region | Travel multiplier | Rationale |
 |--------|------------------|-----------|
@@ -403,7 +408,7 @@ This mechanism matters for AMR because there is a window between acquiring an in
 
 ### 4.3 Sepsis
 
-**Sepsis** is a life-threatening organ dysfunction caused by a dysregulated host response to infection. In clinical practice, it is a medical emergency with high mortality. In the model, sepsis is a distinct state that dramatically increases both the urgency of treatment and the risk of death.
+**Sepsis** is a life-threatening organ dysfunction caused by a dysregulated host response to infection. In clinical practice, it is treated as a medical emergency with high mortality [40,43]. In the model, sepsis is a distinct state that dramatically increases both the urgency of treatment and the risk of death.
 
 Each day, the model calculates the probability of a person's infection progressing to sepsis using a logistic model that combines:
 
@@ -431,7 +436,7 @@ Each day, the model calculates the probability of a person's infection progressi
 Not all infections need antibiotics. The body's immune system can clear many infections on its own — this is why mild gastroenteritis usually resolves without treatment. The model captures this with a daily probability of natural clearance:
 
 - **Baseline**: 1% per day chance of the immune system clearing the infection without treatment (`default_microbiome_clearance_probability_per_day` = 0.01)
-- **Duration penalty**: The longer an infection has been established, the harder it is to clear. Old infections become up to 7× harder to eliminate (`carriage_duration_log_odds_coefficient` = −0.01 per day, capping at −2.0 log-odds). This reflects the real phenomenon of bacteria forming biofilms and adapting to the host environment over time.
+- **Duration penalty**: The longer an infection has been established, the harder it is to clear. Old infections become up to 7× harder to eliminate (`carriage_duration_log_odds_coefficient` = −0.01 per day, capping at −2.0 log-odds). This reflects the real phenomenon of bacteria forming biofilms and adapting to the host environment over time [47].
 - **Antibiotic-assisted clearance**: When the patient is on an effective antibiotic (i.e., one that the bacteria are susceptible to), the clearance probability jumps to 80% per day (`microbiome_clearance_probability_on_drug_treatment` = 0.80) — reflecting the dramatic difference between treated and untreated infection outcomes.
 
 ---
@@ -483,7 +488,7 @@ Not every infected patient gets tested. In practice, a community GP managing a s
 | **Hospitalised (culture)** | `bacterial_testing_hospital_multiplier` | ×8.0 | Hospital patients have far greater access to microbiology labs |
 | **Hospitalised (AST)** | `resistance_testing_hospital_multiplier` | ×5.0 | Hospitals perform AST more routinely |
 
-**Regional differences:** Laboratory capacity varies dramatically around the world. Many hospitals in sub-Saharan Africa lack the microbiological infrastructure that is routine in European hospitals. The model captures this with regional testing multipliers:
+**Regional differences:** Laboratory capacity varies dramatically around the world. Many hospitals in sub-Saharan Africa lack the microbiological infrastructure that is routine in European hospitals [41]. The model captures this with regional testing multipliers:
 
 | Region | Testing multiplier | Context |
 |--------|-------------------|---------|
@@ -513,7 +518,7 @@ Each day, the model decides whether to start a new antibiotic course for each pe
 
 | Factor | Log-odds | Approximate effect | Clinical rationale |
 |--------|----------|-------------------|-------------------|
-| Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Occasionally antibiotics are prescribed without clear indication — this captures "just in case" prescribing |
+| Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Occasionally antibiotics are prescribed without clear indication — this captures "just in case" prescribing and background inappropriate antibiotic use seen in ambulatory care [36] |
 | Symptomatic infection | +6.0 | Jumps to ~62% | Once a patient has obvious symptoms (fever, pain, etc.), prescribing becomes likely |
 | Sepsis | +6.0 | Near-certain | Sepsis is a medical emergency requiring immediate antibiotics |
 | Immunodeficiency | +2.08 | ~8× more likely | Clinicians have a much lower threshold for prescribing in immunocompromised patients |
@@ -534,7 +539,7 @@ Not everyone who needs antibiotics can get them. The model captures large global
 | South America | −0.8 | ~55% reduction | Limited access in some settings |
 | Africa | −1.4 | ~75% reduction | Major access barriers in many countries |
 
-These access barriers have a paradoxical effect on AMR: in settings where antibiotics are hard to obtain, people die of treatable infections, but the selection pressure for resistance is also lower. The model captures both sides of this equation.
+These access barriers have a paradoxical effect on AMR: in settings where antibiotics are hard to obtain, people die of treatable infections, but the selection pressure for resistance is also lower. The model captures both sides of this equation. The regional prescribing modifiers should therefore be read as **effective access-and-behaviour terms** combining healthcare access, affordability, dispensing practice, and care-seeking, rather than as pure pharmacy-supply measurements.
 
 
 ### 6.2 Drug selection — choosing which antibiotic to use
@@ -543,9 +548,9 @@ Once the model decides to start an antibiotic, it must choose *which* antibiotic
 
 **Two modes of prescribing:**
 
-1. **Empiric therapy** — the doctor has no lab results yet and must choose a drug based on clinical judgement. "The patient has a UTI; guidelines say to use nitrofurantoin or trimethoprim." The model uses syndrome-specific scoring templates (see below) to replicate this guideline-based prescribing.
+1. **Empiric therapy** — the doctor has no lab results yet and must choose a drug based on clinical judgement. "The patient has a UTI; guidelines say to use nitrofurantoin or trimethoprim." The model uses syndrome-specific scoring templates (see below) to replicate this guideline-based prescribing. If there is no meaningful syndrome-specific signal, the candidate drug is treated as ineffective and is heavily penalised rather than being allowed to compete on generic properties alone.
 
-2. **Targeted therapy** — lab results have identified the bacterium and its susceptibility profile. The doctor can now choose a drug known to work. The model strongly rewards narrow-spectrum choices at this stage (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.1 penalty), reflecting the principle of antibiotic de-escalation.
+2. **Targeted therapy** — lab results have identified the bacterium and its susceptibility profile. The doctor can now choose a drug known to work. The model strongly rewards narrow-spectrum choices at this stage (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.1 penalty), reflecting the principle of antibiotic de-escalation that sits at the core of antimicrobial stewardship guidance and is supported by hospital stewardship evidence from Europe and Asia [42,44,45].
 
 **How drug scoring works:**
 
@@ -557,6 +562,10 @@ For each candidate drug, the model calculates a score based on several factors. 
 | Spectrum width | Slight bonus (×0.85) for broad-spectrum | Strong penalty (×0.1) for broad-spectrum | Empiric: cast a wide net. Targeted: use the narrowest effective drug |
 | Known ineffectiveness | Near-zero score (×0.001) | Near-zero score (×0.001) | Never select a drug that is known to not work |
 | Narrow-spectrum bonus | — | ×5.0 | Reward de-escalation to targeted therapy |
+
+**Restricted niche agents:** Some drugs are hard-blocked outside their clinically plausible niche. In particular, **retapamulin** and **fusidic acid** are now restricted to **skin/soft-tissue prescribing contexts** and are excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy they are only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (currently *Staphylococcus aureus* or *Streptococcus pyogenes*). This is intended to reflect their main clinical role as topical or narrowly targeted anti-staphylococcal/anti-impetigo agents rather than general systemic therapy [1,37].
+
+The same site-restriction logic is applied to **nitrofurantoin** and **furazolidone**, which are limited to uncomplicated lower-UTI contexts and excluded from sepsis, bloodstream infection, and non-urinary syndromes because they are not reliable systemic treatment options [38].
 
 **Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:
 
@@ -608,7 +617,7 @@ The tables below show which drugs score highest for empiric prescribing in each 
 | meropenem_vaborbactam | 3.0 |
 | ceftazidime_avibactam | 3.0 |
 
-**Syndrome 2 — Skin/Soft Tissue** *(anti-staphylococcal and streptococcal coverage; penicillins and cephalosporins first-line)* [1]
+**Syndrome 2 — Skin/Soft Tissue** *(anti-staphylococcal and streptococcal coverage; penicillins and cephalosporins first-line; topical niche agents remain tightly restricted)* [1]
 
 | Drug | Score |
 |------|-------|
@@ -1038,7 +1047,9 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | MprF | `mprf` | Membrane charge modification | `daptomycin` | Gram-Positives |
   | RpoB | `rpob` | RNA polymerase mutation | `fidaxomicin` | All |
   | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Gram-Positives |
-  | Unknown 1–3 | `as_yet_unknown_{1..3}` | Placeholder mechanisms | Evaluates `true` dynamically for all applied overrides | All (Calibration Placeholders) |
+  | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam` | All |
+  | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
+   | Unknown | `as_yet_unknown` | Placeholder mechanism (dormant) | Evaluates `true` dynamically for all applied overrides | All (Calibration Placeholder) |
 
 
 
@@ -1200,7 +1211,7 @@ The full reversion rates by mechanism category:
 | **MexXY-OprM** | `0.0005` | Endogenous efflux system upregulation (common in *Pseudomonas aeruginosa*). |
 | **Global / Generic Efflux** | `0.0005` | Broad, non-specific transport energy costs. |
 
-*Note: The system reserves three placeholder variables (`as_yet_unknown_1-3`, baseline rate `0.001`) designated for future, non-prescribed clinical trials or empirical calibration against newly emergent paradigms.*
+*Note: The system reserves one remaining placeholder variable (`as_yet_unknown`, baseline rate `0.001`) designated for future empirical calibration. `mutation_pbp_mosaic` has been activated as **PBP mosaic mutations** (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and `efflux_mtr_cde` as **mtrCDE-type broad efflux** (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.*
 
 ### 7.5 Resistance floors
 
@@ -1360,9 +1371,9 @@ The table below shows all cross-resistance groups for the major organisms (selec
 
 ## 8. Microbiome and Carriage
 
-Most bacteria in and on the human body are harmless commensals — they live on skin, in the gut, and in the respiratory tract without causing disease. This is **carriage** (or colonisation), and it is the normal state. Only a small fraction of carried bacteria ever cause active infection.
+Most bacteria in and on the human body are harmless commensals — they live on skin, in the gut, and in the respiratory tract without causing disease. This is **carriage** (or colonisation), and it is the normal state. Only a small fraction of carried bacteria ever cause active infection, but for several clinically important resistant organisms colonisation is the stage from which later infection emerges [48].
 
-However, carriage is critically important for AMR because the microbiome is where resistance is **stored and exchanged**. A patient who was treated with ciprofloxacin last month may still carry ciprofloxacin-resistant *E. coli* in their gut microbiome. If they develop a UTI from that same resistant strain, the empiric therapy may fail.
+However, carriage is critically important for AMR because the microbiome is where resistance is **stored and exchanged** [49,50]. A patient who was treated with ciprofloxacin last month may still carry ciprofloxacin-resistant *E. coli* in their gut microbiome. If they develop a UTI from that same resistant strain, the empiric therapy may fail.
 
 
 ### 8.1 Carriage compartments
@@ -1850,6 +1861,8 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 
 #### Antibiotic treatment initiation
 
+These terms are best interpreted as **effective prescribing propensities** within the simulation, calibrated to reproduce aggregate treatment rates rather than estimated from a single prescribing dataset.
+
 | Parameter | Baseline (Log-odds ratio) |
 |----------|---------|
 | `antibiotic_initiation_base_log_odds` | −6.5 |
@@ -2007,6 +2020,8 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 
 #### Hospitalisation
 
+These values define the model's admission and discharge process. In particular, `hospitalization_recovery_rate_per_day` is an effective discharge hazard used to match plausible turnover, not a literal summary of all real-world hospital length-of-stay distributions.
+
 | Parameter | Baseline (Log-odds ratio) |
 |----------|---------|
 | `hospitalization_base_log_odds` | −10.4 |
@@ -2022,8 +2037,11 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 
 #### Immunodeficiency
 
+These parameters mix mechanistic state-transition rates with a deliberately broad vulnerability construct. The age-specific `chronic_immunodeficiency_probability_*` terms are **not literal prevalence estimates of diagnosed immunodeficiency**; they initialise the model's composite higher-risk host state described in Section 2.3.
+
 | Parameter | Baseline Value |
 |----------|---------|
+| `immunosuppression_startup_seed_fraction` | 0.05 |
 | `temporary_immunosuppression_onset_rate_per_day` | 0.00005 |
 | `temporary_immunosuppression_recovery_rate_per_day` | 0.01 |
 | `chronic_immunosuppression_onset_rate_per_day` | 0.00006 |
@@ -2099,6 +2117,8 @@ These are the ~120 top-level parameters stored in the `GlobalScalars` struct:
 
 
 #### Travel
+
+`travel_probability_per_day` is an effective inter-regional mixing parameter. It is intentionally lower-dimensional than real passenger mobility data and is used to reproduce long-run resistant-strain importation pressure rather than literal trip counts.
 
 | Parameter | Baseline Value |
 |----------|---------|
@@ -2440,3 +2460,37 @@ When enabled, individual infection journeys are logged to the `infection_journey
 [32] Magill SS, O'Leary E, Janelle SJ, et al. Changes in prevalence of health care–associated infections in U.S. hospitals. *N Engl J Med.* 2018;379(18):1732–1744. doi:10.1056/NEJMoa1801550
 
 [33] Beaber JW, Hochhut B, Waldor MK. SOS response promotes horizontal dissemination of antibiotic resistance genes. *Nature.* 2004;427(6969):72–74. doi:10.1038/nature02241
+
+[34] Fishman JA. Infection in solid-organ transplant recipients. *N Engl J Med.* 2007;357(25):2601–2614. doi:10.1056/NEJMra064928
+
+[35] Taplitz RA, Kennedy EB, Bow EJ, et al. Antimicrobial prophylaxis for adult patients with cancer-related immunosuppression: ASCO and IDSA clinical practice guideline update. *J Clin Oncol.* 2018;36(30):3043–3054. doi:10.1200/JCO.18.00374
+
+[36] Fleming-Dutra KE, Hersh AL, Shapiro DJ, et al. Prevalence of inappropriate antibiotic prescriptions among US ambulatory care visits, 2010–2011. *JAMA.* 2016;315(17):1864–1873. doi:10.1001/jama.2016.4151
+
+[37] Koning S, van der Sande R, Verhagen AP, et al. Interventions for impetigo. *Cochrane Database Syst Rev.* 2012;(1):CD003261. doi:10.1002/14651858.CD003261.pub3
+
+[38] Gupta K, Hooton TM, Naber KG, et al. International clinical practice guidelines for the treatment of acute uncomplicated cystitis and pyelonephritis in women: a 2010 update by the Infectious Diseases Society of America and the European Society for Microbiology and Infectious Diseases. *Clin Infect Dis.* 2011;52(5):e103–e120. doi:10.1093/cid/ciq257
+
+[39] Martinson ML, Lapham J. Prevalence of immunosuppression among US adults. *JAMA.* 2024;331(10):880–882. doi:10.1001/jama.2023.28019
+
+[40] Singer M, Deutschman CS, Seymour CW, et al. The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3). *JAMA.* 2016;315(8):801–810. doi:10.1001/jama.2016.0287
+
+[41] Jacobs J, Hardy L, Semret M, et al. Diagnostic bacteriology in district hospitals in sub-Saharan Africa: at the forefront of the containment of antimicrobial resistance. *Front Med (Lausanne).* 2019;6:205. doi:10.3389/fmed.2019.00205
+
+[42] Barlam TF, Cosgrove SE, Abbo LM, et al. Implementing an antibiotic stewardship program: guidelines by the Infectious Diseases Society of America and the Society for Healthcare Epidemiology of America. *Clin Infect Dis.* 2016;62(10):e51–e77. doi:10.1093/cid/ciw118
+
+[43] Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. *Intensive Care Med.* 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y
+
+[44] Schuts EC, Hulscher MEJL, Mouton JW, et al. Current evidence on hospital antimicrobial stewardship objectives: a systematic review and meta-analysis. *Lancet Infect Dis.* 2016;16(7):847–856. doi:10.1016/S1473-3099(16)00065-7
+
+[45] Lee CF, Cowling BJ, Feng S, et al. Impact of antibiotic stewardship programmes in Asia: a systematic review and meta-analysis. *J Antimicrob Chemother.* 2018;73(4):844–851. doi:10.1093/jac/dkx492
+
+[46] Levy MM, Dellinger RP, Townsend SR, et al. The Surviving Sepsis Campaign: results of an international guideline-based performance improvement program targeting severe sepsis. *Intensive Care Med.* 2010;36(2):222–231. doi:10.1007/s00134-009-1738-3
+
+[47] Trampuz A, Zimmerli W. Prosthetic joint infections: update in diagnosis and treatment. *Swiss Med Wkly.* 2005;135(17-18):243–251. doi:10.4414/smw.2005.10934
+
+[48] Werner G, Coque TM, Hammerum AM, et al. Emergence and spread of vancomycin resistance among enterococci in Europe. *Euro Surveill.* 2008;13(47):19046.
+
+[49] van Schaik W. The human gut resistome. *Philos Trans R Soc Lond B Biol Sci.* 2015;370(1670):20140087. doi:10.1098/rstb.2014.0087
+
+[50] McInnes RS, McCallum GE, Lamberte LE, van Schaik W. Horizontal transfer of antibiotic resistance genes in the human gut microbiome. *Curr Opin Microbiol.* 2020;53:35–43. doi:10.1016/j.mib.2020.02.002

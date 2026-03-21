@@ -500,11 +500,26 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug, "tetracycline" | "doxycycline"
         ),
 
-        // As-yet-unknown placeholders: apply to ALL drugs by default
-        // Drug specificity can be overridden via config keys:
-        //   mechanism_as_yet_unknown_1_applies_to_{drug} = 0.0 (to disable for specific drugs)
-        // we can also change code here to make AsYetUnknown1 apply to specific drugs
-        AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => true,
+        // PBP mosaic mutations: reduced β-lactam affinity — penicillins, cephalosporins, aztreonam
+        // NOT carbapenems (PBP mosaic doesn't affect carbapenem binding pocket)
+        MutationPbpMosaic => matches!(
+            drug,
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
+            | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+            | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
+            | "ceftolozane_tazobactam" | "ceftazidime_avibactam"
+            | "aztreonam"
+        ),
+        // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
+        EffluxMtrCde => matches!(
+            drug,
+            "erythromycin" | "azithromycin" | "clarithromycin"
+            | "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+            | "tetracycline" | "doxycycline" | "minocycline"
+            | "chloramphenicol"
+        ),
+            // Placeholder: still dormant (applies to all drugs)
+        AsYetUnknown => true,
     }
 }
 
@@ -2121,6 +2136,11 @@ pub fn apply_rules(
                     continue;
                 }
 
+                let empiric_selection = (!has_any_identified_infection)
+                    && (symptomatic_infection_present
+                        || misdiagnosed_symptom_start
+                        || prophylaxis_candidate);
+
                 // BLOCK: Age-based contraindications
                 // Tetracyclines avoid < 8 years due to tooth discoloration/bone growth issues
                 if individual.age < 2920 && matches!(drug_name, "tetracycline" | "doxycycline" | "minocycline") {
@@ -2128,9 +2148,8 @@ pub fn apply_rules(
                 }
 
                 // BLOCK: Nitrofurantoin syndrome restrictions
-                // Nitrofurantoin only for uncomplicated lower UTI (syndrome 1)
-                // Contraindicated in sepsis, pyelonephritis, non-UTI infections
-                if matches!(drug_name, "nitrofurantoin" | "furazolidone") {
+                // Nitrofurans and fosfomycin should stay restricted to uncomplicated lower UTI use.
+                if matches!(drug_name, "nitrofurantoin" | "furazolidone" | "fosfomycin") {
                     // Block if sepsis present
                     if individual.sepsis.iter().any(|&s| s) {
                         continue;
@@ -2147,12 +2166,41 @@ pub fn apply_rules(
                     }
                 }
 
+                // BLOCK: Topical/niche anti-staphylococcal agents outside skin-focused use
+                // Retapamulin and fusidic acid should not appear in prophylaxis, undifferentiated
+                // no-syndrome prescribing, or non-skin systemic infections.
+                if matches!(drug_name, "retapamulin" | "fusidic_a") {
+                    let has_skin_only_syndrome = !active_syndrome_ids.is_empty()
+                        && active_syndrome_ids.iter().all(|&sid| sid == 2);
+                    let has_sepsis = individual.sepsis.iter().any(|&s| s);
+
+                    if has_sepsis {
+                        continue;
+                    }
+
+                    if empiric_selection {
+                        if !has_skin_only_syndrome {
+                            continue;
+                        }
+                    } else if targeted_selection {
+                        let allowed_skin_pathogen = !identified_bacteria.is_empty()
+                            && identified_bacteria.iter().all(|&b_idx| {
+                                matches!(
+                                    BACTERIA_LIST[b_idx],
+                                    "staphylococcus_aureus" | "streptococcus_pyogenes"
+                                )
+                            });
+
+                        if !has_skin_only_syndrome || !allowed_skin_pathogen {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+
                 // Score drug based on spectrum, activity, and clinical scenario
                 let mut score = 1.0;
-                let empiric_selection = (!has_any_identified_infection)
-                    && (symptomatic_infection_present
-                        || misdiagnosed_symptom_start
-                        || prophylaxis_candidate);
 
                 let mut empiric_signal_present = false;
                 let mut empiric_multiplier = 1.0;
@@ -2395,8 +2443,8 @@ pub fn apply_rules(
                             ) => score *= 0.2,
 
                             // E. coli - MASSIVELY strengthen first-line agents
-                            ("escherichia_coli", "ciprofloxacin") => score *= 12.0,
-                            ("escherichia_coli", "nitrofurantoin") => score *= 6.0, // Increased from 4.0 for UTI-specific cases
+                            ("escherichia_coli", "ciprofloxacin") => score *= 7.0,
+                            ("escherichia_coli", "nitrofurantoin") => score *= 3.5,
                             ("escherichia_coli", "trim_sulf") => score *= 10.0,
                             ("escherichia_coli", "ceftriaxone") => score *= 9.0,
                             ("escherichia_coli", "amoxicillin_clavulanate") => score *= 150.0, // MASSIVELY STRENGTHENED (was 16.0)
@@ -2436,7 +2484,7 @@ pub fn apply_rules(
                                     score *= 4.0;
                                 }
                             }
-                            ("klebsiella_pneumoniae", "ciprofloxacin") => score *= 7.0,
+                            ("klebsiella_pneumoniae", "ciprofloxacin") => score *= 4.5,
                             ("klebsiella_pneumoniae", "piperacillin_tazobactam") => score *= 150.0, // MASSIVELY STRENGTHENED (was 15.0)
                             ("klebsiella_pneumoniae", "amoxicillin_clavulanate") => score *= 120.0, // MASSIVELY STRENGTHENED (was 11.0)
 
@@ -2563,38 +2611,6 @@ pub fn apply_rules(
                             score *= 0.00000001; 
                         }
 
-                        // Restriction on Aminoglycosides (Gentamicin, Tobramycin, Amikacin)
-                        // Often over-simulated due to low resistance rates. 
-                        // In reality, used cautiously due to nephrotoxicity/ototoxicity.
-                        if matches!(drug_name, "gentamicin" | "tobramycin" | "amikacin") {
-                            // Apply penalty to all aminoglycosides
-                            score *= 0.02; // STRENGTHENED FURTHER: 50× restriction vs original (was 0.05, originally 0.25)
-                            
-                            // Restore some score for Pseudomonas which is a classic indication for Tobramycin
-                            if matches!(bacteria_name, "pseudomonas_aeruginosa") && matches!(drug_name, "tobramycin") {
-                                score *= 2.0; 
-                            }
-                        }
-
-                        // Restriction on Rifampicin
-                        // Primarily a TB drug; should be reserved for M. tuberculosis infections.
-                        // Occasionally used for MRSA, Legionella, or prophylaxis, but overused in simulation.
-                        if matches!(drug_name, "rifampicin") {
-                            let is_tb = matches!(bacteria_name, 
-                                "mdr_mycobacterium_tuberculosis" | "mycobacterium_tuberculosis"
-                            );
-                            if !is_tb {
-                                score *= 0.01; // 100× restriction for non-TB infections
-                            }
-                        }
-
-                        // Restriction on Chloramphenicol  
-                        // Older broad-spectrum drug with bone marrow toxicity (aplastic anemia risk).
-                        // Rarely used in modern practice except for specific indications (rickettsia, some CNS infections).
-                        if matches!(drug_name, "chloramphenicol") {
-                            score *= 0.02; // 50× restriction due to toxicity concerns
-                        }
-
                         // --- Stewardship: Avoid recently toxicity-stopped drugs ---
                         // If this drug was recently discontinued due to toxicity,
                         // strongly penalise but don't absolutely block (may be last resort).
@@ -2717,6 +2733,8 @@ pub fn apply_rules(
                             "escherichia_coli" => vec![
                                 "ciprofloxacin",
                                 "nitrofurantoin",
+                                "amoxicillin_clavulanate",
+                                "ampicillin_sulbactam",
                                 "trim_sulf",
                                 "ceftriaxone",
                                 "ampicillin",
@@ -2727,6 +2745,7 @@ pub fn apply_rules(
                                 "ceftazidime",
                                 "cefepime",
                                 "piperacillin_tazobactam",
+                                "amoxicillin_clavulanate",
                                 "ciprofloxacin",
                             ],
                             "enterococcus_faecalis" => {
@@ -3010,7 +3029,7 @@ pub fn apply_rules(
                     let empiric_ineffective_penalty =
                         store.globals.empiric_therapy_ineffective_penalty;
 
-                    let has_any_activity = empiric_signal_present || active_syndrome_ids.is_empty();
+                    let has_any_activity = empiric_signal_present;
 
                     if reserve_candidate {
                         // Stage therapy: require documented recent failure before escalating to reserve agents
@@ -3089,6 +3108,76 @@ pub fn apply_rules(
                     let reserve_penalty = base_reserve_penalty.powf(reserve_drug_penalty_multiplier);
                     if reserve_penalty >= 0.0 {
                         score *= reserve_penalty;
+                    }
+                }
+
+                // Shared stewardship penalties should apply to both empirical and targeted choices.
+                let has_sepsis = individual.sepsis.iter().any(|&s| s);
+
+                if matches!(drug_name, "gentamicin" | "tobramycin" | "amikacin") {
+                    score *= 0.02;
+
+                    let pseudomonas_targeted_tobramycin = targeted_selection
+                        && matches!(drug_name, "tobramycin")
+                        && identified_bacteria.iter().any(|&b_idx| {
+                            BACTERIA_LIST[b_idx] == "pseudomonas_aeruginosa"
+                        });
+
+                    if pseudomonas_targeted_tobramycin {
+                        score *= 2.0;
+                    } else if empiric_selection
+                        && !has_sepsis
+                        && !active_syndrome_ids.iter().any(|&sid| matches!(sid, 4 | 5 | 6 | 10))
+                    {
+                        score *= 0.25;
+                    }
+                }
+
+                if matches!(drug_name, "rifampicin") {
+                    let has_identified_tb = identified_bacteria.iter().any(|&b_idx| {
+                        matches!(
+                            BACTERIA_LIST[b_idx],
+                            "mdr_mycobacterium_tuberculosis" | "mycobacterium_tuberculosis"
+                        )
+                    });
+                    if !has_identified_tb {
+                        score *= 0.01;
+                    }
+                }
+
+                if matches!(drug_name, "chloramphenicol") {
+                    score *= 0.02;
+                }
+
+                if matches!(drug_name, "metronidazole") && empiric_selection {
+                    let anaerobe_focused_syndrome = active_syndrome_ids
+                        .iter()
+                        .any(|&sid| matches!(sid, 5));
+                    let identified_anaerobe = identified_bacteria.iter().any(|&b_idx| {
+                        matches!(
+                            BACTERIA_LIST[b_idx],
+                            "bacteroides_fragilis" | "clostridioides_difficile"
+                        )
+                    });
+
+                    if !anaerobe_focused_syndrome && !identified_anaerobe {
+                        score *= 0.15;
+                    }
+                }
+
+                if matches!(drug_name, "vancomycin" | "teicoplanin" | "dalbavancin")
+                    && empiric_selection
+                {
+                    let gram_positive_heavy_syndrome = active_syndrome_ids
+                        .iter()
+                        .any(|&sid| matches!(sid, 2 | 4 | 6 | 9 | 10));
+
+                    if !gram_positive_heavy_syndrome {
+                        score *= 0.05;
+                    }
+
+                    if !has_sepsis && !individual.hospital_status.is_hospitalized() {
+                        score *= 0.2;
                     }
                 }
                 // Apply drug availability multiplier (drug is already in available_drugs

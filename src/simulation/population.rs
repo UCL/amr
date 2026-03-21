@@ -109,9 +109,9 @@ pub enum ResistanceMechanism {
     EnzymeOxaAcinetobacter,  // OXA-23/40/58 carbapenemases (A. baumannii, plasmid/Tn2006)
     Mutation23sRrna,         // 23S rRNA point mutation: clarithromycin/macrolide resistance (chromosomal)
     EffluxTetAbc,            // TetA/B/C efflux pumps: Gram-negative tetracycline efflux (Tn10 / plasmids)
-    AsYetUnknown1,           // Calibration placeholder 1: drug specificity set via config overrides
-    AsYetUnknown2,           // Calibration placeholder 2: drug specificity set via config overrides
-    AsYetUnknown3,           // Calibration placeholder 3: drug specificity set via config overrides
+    MutationPbpMosaic,           // PBP mosaic mutations: reduced β-lactam affinity (penicillins, cephalosporins, aztreonam)
+    EffluxMtrCde,           // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
+    AsYetUnknown,           // Calibration placeholder: drug specificity set via config overrides
 }
 
 impl ResistanceMechanism {
@@ -155,16 +155,16 @@ impl ResistanceMechanism {
             ResistanceMechanism::EnzymeOxaAcinetobacter,
             ResistanceMechanism::Mutation23sRrna,
             ResistanceMechanism::EffluxTetAbc,
-            ResistanceMechanism::AsYetUnknown1,
-            ResistanceMechanism::AsYetUnknown2,
-            ResistanceMechanism::AsYetUnknown3,
+            ResistanceMechanism::MutationPbpMosaic,
+            ResistanceMechanism::EffluxMtrCde,
+            ResistanceMechanism::AsYetUnknown,
         ]
     }
 
-    /// Returns true for AsYetUnknown1/2/3 placeholder mechanisms.
-    /// These are dormant until explicitly activated with real emergence rates.
+    /// Returns true for placeholder mechanisms that are still dormant.
+    /// MutationPbpMosaic (PBP mosaic) and EffluxMtrCde (mtrCDE efflux) are now active.
     pub fn is_as_yet_unknown(&self) -> bool {
-        matches!(self, ResistanceMechanism::AsYetUnknown1 | ResistanceMechanism::AsYetUnknown2 | ResistanceMechanism::AsYetUnknown3)
+        matches!(self, ResistanceMechanism::AsYetUnknown)
     }
 
     /// Returns the mechanism name as a string for configuration lookups
@@ -207,9 +207,9 @@ impl ResistanceMechanism {
             ResistanceMechanism::EnzymeOxaAcinetobacter => "enzyme_oxa_acinetobacter",
             ResistanceMechanism::Mutation23sRrna => "mutation_23s_rrna",
             ResistanceMechanism::EffluxTetAbc => "efflux_tet_abc",
-            ResistanceMechanism::AsYetUnknown1 => "as_yet_unknown_1",
-            ResistanceMechanism::AsYetUnknown2 => "as_yet_unknown_2",
-            ResistanceMechanism::AsYetUnknown3 => "as_yet_unknown_3",
+            ResistanceMechanism::MutationPbpMosaic => "mutation_pbp_mosaic",
+            ResistanceMechanism::EffluxMtrCde => "efflux_mtr_cde",
+            ResistanceMechanism::AsYetUnknown => "as_yet_unknown",
         }
     }
 }
@@ -734,8 +734,15 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Fastidious,
         ]),
 
-        // As-yet-unknown placeholders: all apply to ALL bacteria groups (drug specificity via config)
-        AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => mask_for_groups(BacteriaGroup::all()),
+        // PBP mosaic mutations: all groups (PBP targets are universal)
+        MutationPbpMosaic => mask_for_groups(BacteriaGroup::all()),
+        // mtrCDE-type broad efflux: Fastidious (Neisseria, Haemophilus) + EntericPathogen (Campylobacter CmeABC)
+        EffluxMtrCde => mask_for_groups(&[
+            BacteriaGroup::Fastidious,
+            BacteriaGroup::EntericPathogen,
+        ]),
+        // Placeholder 3: still dormant
+        AsYetUnknown => mask_for_groups(BacteriaGroup::all()),
     }
 }
 
@@ -762,7 +769,9 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         ProtectionFusB => true,                // fusB/fusC on SCC elements
         ProtectionTetM => true,                // tetM on Tn916 conjugative transposons
         MutationFolatePathway => true,         // sul1/2/3, dfrA on integrons / plasmids
-        AsYetUnknown1 | AsYetUnknown2 | AsYetUnknown3 => true, // conservative default
+        MutationPbpMosaic => false, // PBP mosaic: chromosomal point mutations, not transferable
+        EffluxMtrCde => false, // mtrCDE efflux: chromosomal regulatory mutations, not transferable
+        AsYetUnknown => true,  // conservative default for remaining placeholder
         EnzymeAacAph => true,              // AAC/APH/ANT on integrons / plasmids
         EnzymeBlaZ => true,                // blaZ on plasmids in Staphylococci
         EnzymeOxaAcinetobacter => true,    // OXA-23/40/58 on plasmids / Tn2006
@@ -1821,6 +1830,7 @@ pub struct Population {
 impl Population {
     pub fn new(size: usize, rng: &mut impl Rng) -> Self {
         let mut individuals = Vec::with_capacity(size);
+        let immunodeficiency_params = &parameter_store().immunodeficiency;
 
         for i in 0..size {
             // Use new simplified demographic distribution
@@ -1839,10 +1849,12 @@ impl Population {
             if rng.gen_bool(0.00005) {
                 individual.hospital_status = HospitalStatus::InHospital;
             }
-            // Set severely immunosuppressed
-            if rng.gen_bool(0.05) {
-                // Randomly assign chronic or temporary (simplified for initial setup)
-                if rng.gen_bool(0.5) {
+            // Seed a small baseline immunosuppressed subgroup at startup.
+            // The overall seeded fraction is fixed here, but chronic vs temporary typing
+            // follows the same age-stratified mapping used during runtime transitions.
+            if rng.gen_bool(immunodeficiency_params.startup_seed_fraction()) {
+                let chronic_probability = immunodeficiency_params.chronic_probability(individual.age);
+                if rng.gen_bool(chronic_probability) {
                     individual.immunodeficiency_type = Some(ImmunodeficiencyType::Chronic);
                 } else {
                     individual.immunodeficiency_type = Some(ImmunodeficiencyType::Temporary);

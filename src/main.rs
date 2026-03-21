@@ -44,6 +44,13 @@ mod simulation;
 // death within 30 days by bacteria, syndrome, age and region ? - make a formal part of calibration 
 // score or just present as an fyi ?
 //
+// infections with test_r done by x days (by region ?)
+// or proportion of drug treatment days which is empiric (by region and hospital status ?)
+//
+// review choice for antibiotics in people not infected
+//
+//
+//
 // -- calibration approach:  
 // maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
 // policy comparison several times on each 
@@ -152,13 +159,17 @@ fn main() {
 
     // Create and run the simulation
     let population_size = 100_000;
-    // CalibrationMode::Full  — sparse CSV (snapshot years + 2021-2026 only); fastest calibration runs.
-    // CalibrationMode::Partial — all 1930-2026 rows kept; time-series plots still work.
+    // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
+    // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
     let calibration_mode = CalibrationMode::Full;
-    // time_steps: in any calibration mode we only need up to end-2026 (35_400 ≈ 2026.99).
+    // Calibration runs only need rows through the end of 2025.
+    // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
     // Full run (policy branches to 2035) needs 38_325.
-    let time_steps = if calibration_mode == CalibrationMode::None { 38_325 } else { 35_040 };
+    let time_steps = match calibration_mode {
+        CalibrationMode::None => 38_325,
+        CalibrationMode::Partial | CalibrationMode::Full => 35_040,
+    };
     let log_individuals = false; // Set to false to disable detailed individual logging
     let log_infection_journeys = false  ; // Set to true to enable infection journey logging
     let infection_journey_sample_rate = 1.00; // Log 1% of infections for analysis (0.0-1.0)

@@ -293,9 +293,10 @@ def _gather_calibration_context(
         resistance_window_label,
         resistance_expanded_df,
         resistance_expanded_label,
-    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=5)
+    ) = _select_resistance_windows(df, df["calendar_year"], targets.target_year, max_years=4)
 
     headline_df = _build_headline_table(df, year_df, targets, scale_factor, window_years)
+    testing_summary_df = _calculate_testing_summary_table(year_df, targets.target_year)
     microbiome_df = _calculate_microbiome_resistance_table(year_df, targets.microbiome_target)
     drug_class_df = _calculate_drug_class_table(year_df, targets.drug_class_targets, scale_factor)
     drug_class_history_df = _calculate_drug_class_history_table(
@@ -336,6 +337,7 @@ def _gather_calibration_context(
         "resistance_expanded_df": resistance_expanded_df,
         "resistance_expanded_label": resistance_expanded_label,
         "headline_df": headline_df,
+        "testing_summary_df": testing_summary_df,
         "microbiome_df": microbiome_df,
         "drug_class_df": drug_class_df,
         "drug_class_history_df": drug_class_history_df,
@@ -465,6 +467,60 @@ def _safe_mean(series: pd.Series) -> Optional[float]:
         return None
     value = series.mean(skipna=True)
     return float(value) if not pd.isna(value) else None
+
+
+def _calculate_testing_summary_table(
+    year_df: pd.DataFrame,
+    target_year: int,
+) -> pd.DataFrame:
+    mean_column = f"{target_year} window mean (%)"
+    columns = ["Metric", mean_column, "Window", "Notes"]
+    if year_df.empty or "total_currently_infected" not in year_df.columns:
+        return pd.DataFrame(columns=columns)
+
+    total_infected = pd.to_numeric(year_df["total_currently_infected"], errors="coerce")
+    valid_mask = total_infected > 0
+    if not valid_mask.any():
+        return pd.DataFrame(columns=columns)
+
+    def _mean_testing_percent(suffix: str) -> Optional[float]:
+        matching_cols = [
+            col
+            for col in year_df.columns
+            if col.endswith(suffix) and not col.startswith("helicobacter_pylori_")
+        ]
+        if not matching_cols:
+            return None
+
+        numerator = year_df[matching_cols].apply(pd.to_numeric, errors="coerce").sum(axis=1)
+        proportion = numerator[valid_mask] / total_infected[valid_mask]
+        return _safe_mean(proportion * 100.0)
+
+    records = []
+
+    bacterial_identification_mean = _mean_testing_percent("_infected_with_test_identified")
+    if bacterial_identification_mean is not None:
+        records.append(
+            {
+                "Metric": "Bacterial identification done",
+                mean_column: bacterial_identification_mean,
+                "Window": str(target_year),
+                "Notes": "Excludes H. pylori; descriptive metric only",
+            }
+        )
+
+    resistance_testing_mean = _mean_testing_percent("_infected_with_test_for_resistance")
+    if resistance_testing_mean is not None:
+        records.append(
+            {
+                "Metric": "Resistance testing done",
+                mean_column: resistance_testing_mean,
+                "Window": str(target_year),
+                "Notes": "Excludes H. pylori; descriptive metric only",
+            }
+        )
+
+    return pd.DataFrame(records, columns=columns)
 
 
 def _slugify_value(name: str) -> str:
@@ -2403,6 +2459,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     year_df = year_df_obj
 
     headline_df = context.get("headline_df")
+    testing_summary_df = context.get("testing_summary_df")
     microbiome_df = context.get("microbiome_df")
     drug_class_df = context.get("drug_class_df")
     drug_class_history_df = context.get("drug_class_history_df")
@@ -2411,6 +2468,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
     if not isinstance(headline_df, pd.DataFrame):
         headline_df = pd.DataFrame()
+    if not isinstance(testing_summary_df, pd.DataFrame):
+        testing_summary_df = pd.DataFrame()
     if not isinstance(microbiome_df, pd.DataFrame):
         microbiome_df = pd.DataFrame()
     if not isinstance(drug_class_df, pd.DataFrame):
@@ -2478,7 +2537,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             headline_display = headline_df.copy()
             sepsis_mask = headline_display["Metric"].str.contains("sepsis", case=False, na=False)
             headline_display.loc[sepsis_mask, "Metric"] = (
-                headline_display.loc[sepsis_mask, "Metric"] + " (1)"
+                headline_display.loc[sepsis_mask, "Metric"] + " (4)"
             )
             abx_mask = headline_display["Metric"].str.contains("antibiotics", case=False, na=False)
             headline_display.loc[abx_mask, "Metric"] = (
@@ -2486,17 +2545,33 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             )
             deaths_mask = headline_display["Metric"].str.contains("Infection deaths", case=False, na=False)
             headline_display.loc[deaths_mask, "Metric"] = (
-                headline_display.loc[deaths_mask, "Metric"] + " (4)"
+                headline_display.loc[deaths_mask, "Metric"] + " (1)"
             )
             incidence_mask = headline_display["Metric"].str.contains("Incidence of bacterial", case=False, na=False)
             headline_display.loc[incidence_mask, "Metric"] = (
-                headline_display.loc[incidence_mask, "Metric"] + " (5)"
+                headline_display.loc[incidence_mask, "Metric"] + " (3)"
             )
             handle.write("Headline Metrics\n")
             handle.write(headline_display.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n\n")
         else:
             handle.write("Headline Metrics\n(no metrics configured)\n\n")
+
+        if not testing_summary_df.empty:
+            handle.write(f"Testing Summary ({targets.target_year} Calibration Window)\n")
+            handle.write(
+                testing_summary_df.to_string(
+                    index=False,
+                    float_format=lambda x: f"{x:,.2f}",
+                    na_rep="---",
+                )
+            )
+            handle.write("\n\n")
+        else:
+            handle.write(
+                f"Testing Summary ({targets.target_year} Calibration Window)\n"
+                "(no testing metrics available)\n\n"
+            )
 
         reserve_share = reserve_drug_stats.get("reserve_drug_share_percent")
         reserve_users = reserve_drug_stats.get("reserve_drug_users_mean")
@@ -2569,7 +2644,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 "Mortality Hospital Acquired (%)",
             ]
 
-            handle.write("Bacteria Burden Benchmarks — Infections & Carriage (percent of world population) (6)(7)\n")
+            handle.write("Bacteria Burden Benchmarks — Infections & Carriage (percent of world population) (5)(6)\n")
             handle.write(
                 flagged_df[infection_cols].to_string(
                     index=False,
@@ -2579,7 +2654,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             )
             handle.write("\n* infection rate >2× or <0.5× target\n\n")
 
-            handle.write("Bacteria Burden Benchmarks — Mortality (8)\n")
+            handle.write("Bacteria Burden Benchmarks — Mortality (7)\n")
             handle.write(
                 flagged_df[mortality_cols].to_string(
                     index=False,
@@ -2666,7 +2741,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     "\u0394 2025",
                     drug_history_display["Share 2025 (%)"] - drug_history_display["Target 2025 (%)"],
                 )
-            handle.write("Drug Class Share History (simulation % vs. target %) (3)\n")
+            handle.write("Drug Class Share History (simulation % vs. target %) (8)\n")
             handle.write(
                 drug_history_display.to_string(
                     index=False,
@@ -2749,7 +2824,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("(no eligible drug combinations)\n\n")
 
         if not microbiome_df.empty:
-            handle.write("Microbiome Resistance Benchmarks (10)\n")
+            handle.write("Microbiome Resistance Benchmarks (9)\n")
             handle.write(microbiome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n\n")
         else:
@@ -2835,7 +2910,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     zero_decimals=column in zero_decimal_columns,
                 )
 
-            handle.write("Resistance Benchmarks (percent resistant) (9)\n")
+            handle.write("Resistance Benchmarks (percent resistant) (10)\n")
             handle.write(
                 _render_table_with_alignment(
                     resistance_display_df,
@@ -2849,15 +2924,17 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         # Footnotes
         handle.write("\n---\nFootnotes\n\n")
         handle.write(
-            "(1) Sepsis target: 35 million incident cases per year (bacterial sepsis only).\n"
-            "    Rudd et al. (2020) estimated 48.9 million total sepsis cases globally\n"
-            "    (Lancet 395:200-211, GBD 2017 analysis, 95% UI: 38.9-58.7 million), but this\n"
-            "    figure includes viral, parasitic, and fungal sepsis. Fleischmann et al. (2016)\n"
-            "    estimated 31.5 million cases using hospital-based data extrapolated globally\n"
-            "    (Am J Respir Crit Care Med 193:259-272). Since this model simulates only\n"
-            "    bacterial infections, the target is set at 35 million, representing an\n"
-            "    estimated 60-75% bacterial fraction of the Rudd all-cause total, consistent\n"
-            "    with the Fleischmann estimate and WHO Global Report on Sepsis (2020).\n"
+            "(1) Infection deaths target: 9.5 million bacterial infection deaths per year.\n"
+            "    GBD 2019 estimated 13.7 million total infection-related deaths globally, including\n"
+            "    viral, parasitic, and fungal causes (Ikuta et al. 2022, Lancet 399:629-655). The\n"
+            "    bacterial-only subset was approximately 7.7 million in the conservative GBD\n"
+            "    accounting. Murray et al. (2022, Lancet 399:629-655, GRAM study) estimated\n"
+            "    4.95 million deaths associated with bacterial AMR specifically. The 9.5 million\n"
+            "    target represents an inclusive count of bacterial infection deaths incorporating\n"
+            "    bacterial fractions of mixed-aetiology categories (bacterial pneumonia within\n"
+            "    lower respiratory infections, TB deaths ~1.3M/year, and bacterial contributions\n"
+            "    to diarrhoeal disease), consistent with Lozano et al. (2012, Lancet 380:2095-2128)\n"
+            "    and subsequent GBD cycles estimating 8-10 million bacterial deaths.\n"
         )
         handle.write(
             "\n(2) Antibiotic use target: 130 million people on antibiotics on an average day.\n"
@@ -2874,7 +2951,67 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    estimate, acknowledging that real human consumption is likely below sales volume.\n"
         )
         handle.write(
-            "\n(3) Drug class share targets derived from multiple surveillance sources. ECDC\n"
+            "\n(3) Bacterial infection incidence target: 15% of the world population per year.\n"
+            "    GBD 2019 estimated approximately 11 billion incident episodes of infectious\n"
+            "    disease globally per year across all causes (Vos et al. 2020, Lancet 396:1204-1222).\n"
+            "    The bacterial fraction is roughly 40-50% of total infectious episodes, implying\n"
+            "    ~1.0-1.2 billion bacterial infection episodes per year, or 12-15% of the 8.2\n"
+            "    billion world population. Estimates vary: Laxminarayan et al. (2016, Lancet Infect\n"
+            "    Dis 16:e51-e71) cited bacterial infection incidence consistent with 10-15% global\n"
+            "    prevalence. Excler et al. (2023, Vaccine) and various national surveillance studies\n"
+            "    (ECDC, CDC) report community-acquired bacterial infection rates of 10-20% per\n"
+            "    year in HIC populations, with higher rates in LMIC settings. The 15% target\n"
+            "    represents a mid-range estimate for global annual bacterial infection incidence.\n"
+        )
+        handle.write(
+            "\n(4) Sepsis target: 35 million incident cases per year (bacterial sepsis only).\n"
+            "    Rudd et al. (2020) estimated 48.9 million total sepsis cases globally\n"
+            "    (Lancet 395:200-211, GBD 2017 analysis, 95% UI: 38.9-58.7 million), but this\n"
+            "    figure includes viral, parasitic, and fungal sepsis. Fleischmann et al. (2016)\n"
+            "    estimated 31.5 million cases using hospital-based data extrapolated globally\n"
+            "    (Am J Respir Crit Care Med 193:259-272). Since this model simulates only\n"
+            "    bacterial infections, the target is set at 35 million, representing an\n"
+            "    estimated 60-75% bacterial fraction of the Rudd all-cause total, consistent\n"
+            "    with the Fleischmann estimate and WHO Global Report on Sepsis (2020).\n"
+        )
+        handle.write(
+            "\n(5) Per-bacteria infection incidence targets sourced primarily from: Antimicrobial\n"
+            "    Resistance Collaborators (2022, Lancet 399:629-655, GRAM study) for major\n"
+            "    pathogens (E. coli, S. aureus, S. pneumoniae, K. pneumoniae, P. aeruginosa,\n"
+            "    A. baumannii, E. faecium, E. faecalis); WHO 2024 STI estimates for N.\n"
+            "    gonorrhoeae (~82M/yr), C. trachomatis (~129M/yr), T. pallidum (~8M/yr);\n"
+            "    WHO FERG (Havelaar et al. 2015, PLoS Med 12:e1001923) for foodborne\n"
+            "    pathogens (Shigella ~188M, Campylobacter ~96M, non-typhoidal Salmonella);\n"
+            "    WHO Global TB Report 2024 for MDR-TB (~400-500K/yr). Smaller healthcare-\n"
+            "    associated pathogens (Citrobacter, Serratia, Stenotrophomonas, Morganella,\n"
+            "    Providencia, B. cepacia) use placeholder estimates extrapolated from regional\n"
+            "    nosocomial surveillance data with greater uncertainty.\n"
+        )
+        handle.write(
+            "\n(6) Per-bacteria carriage targets sourced from: Human Microbiome Project (HMP,\n"
+            "    NIH 2012) for core gut commensals (E. coli ~95%, B. fragilis ~85%,\n"
+            "    E. faecalis ~80%, S. epidermidis ~95%); Wertheim et al. (2005, Lancet Infect\n"
+            "    Dis 5:751-762) for S. aureus nasal carriage (~20-30%); Bogaert et al. (2004,\n"
+            "    Lancet Infect Dis 4:144-154) for S. pneumoniae nasopharyngeal carriage\n"
+            "    (~35% population-weighted average); CDC GBS screening guidelines for S.\n"
+            "    agalactiae (~25% vaginal/rectal colonization). K. pneumoniae gut carriage\n"
+            "    (20%) from Gorrie et al. (2017, PNAS 114:7655-7660) and regional point-\n"
+            "    prevalence surveys. H. pylori and L. pneumophila set to zero carriage by\n"
+            "    model design (infection-only pathway, no microbiome colonization).\n"
+        )
+        handle.write(
+            "\n(7) Per-bacteria death targets sourced primarily from: Antimicrobial Resistance\n"
+            "    Collaborators (2022, Lancet 399:629-655, GRAM study) for major pathogens\n"
+            "    including S. aureus (1.1M associated deaths), E. coli (0.83M), K. pneumoniae\n"
+            "    (0.71M), S. pneumoniae (0.65M), A. baumannii (0.38M), and P. aeruginosa\n"
+            "    (0.33M); IARC/GBD for H. pylori gastric cancer deaths (0.8M); WHO Global\n"
+            "    TB Report 2024 for MDR-TB (0.19M); WHO estimates for typhoid (0.14M),\n"
+            "    cholera (0.1M), and pertussis (0.16M); GBD 2019 for diarrhoeal deaths\n"
+            "    (Shigella 0.2M). Smaller healthcare-associated organisms use placeholder\n"
+            "    estimates extrapolated from case-fatality rates applied to incidence data.\n"
+        )
+        handle.write(
+            "\n(8) Drug class share targets derived from multiple surveillance sources. ECDC\n"
             "    ESAC-Net (European Surveillance of Antimicrobial Consumption, annual reports,\n"
             "    esac-net.europa.eu) provides class-level DDD/1000/day breakdowns for 30 EU/EEA\n"
             "    countries. Klein et al. (2018, PNAS 115:E3463-E3470) provided global class-level\n"
@@ -2888,92 +3025,30 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    from class introduction dates and early adoption curves.\n"
         )
         handle.write(
-            "\n(4) Infection deaths target: 9.5 million bacterial infection deaths per year.\n"
-            "    GBD 2019 estimated 13.7 million total infection-related deaths globally, including\n"
-            "    viral, parasitic, and fungal causes (Ikuta et al. 2022, Lancet 399:629-655). The\n"
-            "    bacterial-only subset was approximately 7.7 million in the conservative GBD\n"
-            "    accounting. Murray et al. (2022, Lancet 399:629-655, GRAM study) estimated\n"
-            "    4.95 million deaths associated with bacterial AMR specifically. The 9.5 million\n"
-            "    target represents an inclusive count of bacterial infection deaths incorporating\n"
-            "    bacterial fractions of mixed-aetiology categories (bacterial pneumonia within\n"
-            "    lower respiratory infections, TB deaths ~1.3M/year, and bacterial contributions\n"
-            "    to diarrhoeal disease), consistent with Lozano et al. (2012, Lancet 380:2095-2128)\n"
-            "    and subsequent GBD cycles estimating 8-10 million bacterial deaths.\n"
+            "\n(9) Microbiome resistance range target: 15-30% of the global population\n"
+            "    carrying a predominantly resistant microbiome. Forslund et al. (2013,\n"
+            "    Nature Commun 4:2151) found antibiotic resistance genes in virtually all\n"
+            "    human gut metagenomes across 12 countries, and Hu et al. (2013, PNAS\n"
+            "    110:1000-1005) confirmed widespread resistance gene carriage in healthy\n"
+            "    individuals. If \"resistant\" is defined as carrying any resistant organism,\n"
+            "    the true proportion approaches 80-100%. If defined as having a majority of\n"
+            "    commensal organisms carrying clinically relevant resistance, 15-30% is\n"
+            "    plausible but uncertain. The simulation metric and target definition should\n"
+            "    be aligned to ensure like-for-like comparison.\n"
         )
         handle.write(
-            "\n(5) Bacterial infection incidence target: 15% of the world population per year.\n"
-            "    GBD 2019 estimated approximately 11 billion incident episodes of infectious\n"
-            "    disease globally per year across all causes (Vos et al. 2020, Lancet 396:1204-1222).\n"
-            "    The bacterial fraction is roughly 40-50% of total infectious episodes, implying\n"
-            "    ~1.0-1.2 billion bacterial infection episodes per year, or 12-15% of the 8.2\n"
-            "    billion world population. Estimates vary: Laxminarayan et al. (2016, Lancet Infect\n"
-            "    Dis 16:e51-e71) cited bacterial infection incidence consistent with 10-15% global\n"
-            "    prevalence. Excler et al. (2023, Vaccine) and various national surveillance studies\n"
-            "    (ECDC, CDC) report community-acquired bacterial infection rates of 10-20% per\n"
-            "    year in HIC populations, with higher rates in LMIC settings. The 15% target\n"
-            "    represents a mid-range estimate for global annual bacterial infection incidence.\n"
-        )
-        handle.write(
-            "\n(6) Per-bacteria infection incidence targets sourced primarily from: Antimicrobial\n"
-            "    Resistance Collaborators (2022, Lancet 399:629-655, GRAM study) for major\n"
-            "    pathogens (E. coli, S. aureus, S. pneumoniae, K. pneumoniae, P. aeruginosa,\n"
-            "    A. baumannii, E. faecium, E. faecalis); WHO 2024 STI estimates for N.\n"
-            "    gonorrhoeae (~82M/yr), C. trachomatis (~129M/yr), T. pallidum (~8M/yr);\n"
-            "    WHO FERG (Havelaar et al. 2015, PLoS Med 12:e1001923) for foodborne\n"
-            "    pathogens (Shigella ~188M, Campylobacter ~96M, non-typhoidal Salmonella);\n"
-            "    WHO Global TB Report 2024 for MDR-TB (~400-500K/yr). Smaller healthcare-\n"
-            "    associated pathogens (Citrobacter, Serratia, Stenotrophomonas, Morganella,\n"
-            "    Providencia, B. cepacia) use placeholder estimates extrapolated from regional\n"
-            "    nosocomial surveillance data with greater uncertainty.\n"
-        )
-        handle.write(
-            "\n(7) Per-bacteria carriage targets sourced from: Human Microbiome Project (HMP,\n"
-            "    NIH 2012) for core gut commensals (E. coli ~95%, B. fragilis ~85%,\n"
-            "    E. faecalis ~80%, S. epidermidis ~95%); Wertheim et al. (2005, Lancet Infect\n"
-            "    Dis 5:751-762) for S. aureus nasal carriage (~20-30%); Bogaert et al. (2004,\n"
-            "    Lancet Infect Dis 4:144-154) for S. pneumoniae nasopharyngeal carriage\n"
-            "    (~35% population-weighted average); CDC GBS screening guidelines for S.\n"
-            "    agalactiae (~25% vaginal/rectal colonization). K. pneumoniae gut carriage\n"
-            "    (20%) from Gorrie et al. (2017, PNAS 114:7655-7660) and regional point-\n"
-            "    prevalence surveys. H. pylori and L. pneumophila set to zero carriage by\n"
-            "    model design (infection-only pathway, no microbiome colonization).\n"
-        )
-        handle.write(
-            "\n(8) Per-bacteria death targets sourced primarily from: Antimicrobial Resistance\n"
-            "    Collaborators (2022, Lancet 399:629-655, GRAM study) for major pathogens\n"
-            "    including S. aureus (1.1M associated deaths), E. coli (0.83M), K. pneumoniae\n"
-            "    (0.71M), S. pneumoniae (0.65M), A. baumannii (0.38M), and P. aeruginosa\n"
-            "    (0.33M); IARC/GBD for H. pylori gastric cancer deaths (0.8M); WHO Global\n"
-            "    TB Report 2024 for MDR-TB (0.19M); WHO estimates for typhoid (0.14M),\n"
-            "    cholera (0.1M), and pertussis (0.16M); GBD 2019 for diarrhoeal deaths\n"
-            "    (Shigella 0.2M). Smaller healthcare-associated organisms use placeholder\n"
-            "    estimates extrapolated from case-fatality rates applied to incidence data.\n"
-        )
-        handle.write(
-            "\n(9) Per-bacteria/drug resistance prevalence targets sourced from WHO GLASS\n"
-            "    (Global Antimicrobial Resistance and Use Surveillance System, 2022 report)\n"
-            "    and Antimicrobial Resistance Collaborators (2022, Lancet 399:629-655, GRAM\n"
-            "    study) global median resistance proportions. Drug-specific highlights:\n"
-            "    carbapenem-resistant A. baumannii (CRAB) >50% (WHO Critical Priority);\n"
-            "    ESBL-producing E. coli 15-25% 3GC resistance; CRKP 10-15%; MRSA 25-40%\n"
-            "    (GLASS/CDC 2019); fluoroquinolone-resistant Campylobacter >50% (agricultural\n"
-            "    use); ceftriaxone/azithromycin-resistant N. gonorrhoeae emerging (WHO 2024).\n"
-            "    MDR-TB estimates from WHO Global TB Report 2024. Values represent global\n"
-            "    medians and mask substantial regional variation (e.g. MRSA <5% in\n"
-            "    Scandinavia vs >50% in parts of Asia). Entries marked '.' indicate\n"
-            "    intrinsically resistant or inapplicable bacteria/drug combinations.\n"
-        )
-        handle.write(
-            "\n(10) Microbiome resistance range target: 15-30% of the global population\n"
-            "     carrying a predominantly resistant microbiome. Forslund et al. (2013,\n"
-            "     Nature Commun 4:2151) found antibiotic resistance genes in virtually all\n"
-            "     human gut metagenomes across 12 countries, and Hu et al. (2013, PNAS\n"
-            "     110:1000-1005) confirmed widespread resistance gene carriage in healthy\n"
-            "     individuals. If \"resistant\" is defined as carrying any resistant organism,\n"
-            "     the true proportion approaches 80-100%. If defined as having a majority of\n"
-            "     commensal organisms carrying clinically relevant resistance, 15-30% is\n"
-            "     plausible but uncertain. The simulation metric and target definition should\n"
-            "     be aligned to ensure like-for-like comparison.\n"
+            "\n(10) Per-bacteria/drug resistance prevalence targets sourced from WHO GLASS\n"
+            "     (Global Antimicrobial Resistance and Use Surveillance System, 2022 report)\n"
+            "     and Antimicrobial Resistance Collaborators (2022, Lancet 399:629-655, GRAM\n"
+            "     study) global median resistance proportions. Drug-specific highlights:\n"
+            "     carbapenem-resistant A. baumannii (CRAB) >50% (WHO Critical Priority);\n"
+            "     ESBL-producing E. coli 15-25% 3GC resistance; CRKP 10-15%; MRSA 25-40%\n"
+            "     (GLASS/CDC 2019); fluoroquinolone-resistant Campylobacter >50% (agricultural\n"
+            "     use); ceftriaxone/azithromycin-resistant N. gonorrhoeae emerging (WHO 2024).\n"
+            "     MDR-TB estimates from WHO Global TB Report 2024. Values represent global\n"
+            "     medians and mask substantial regional variation (e.g. MRSA <5% in\n"
+            "     Scandinavia vs >50% in parts of Asia). Entries marked '.' indicate\n"
+            "     intrinsically resistant or inapplicable bacteria/drug combinations.\n"
         )
 
     return output_path

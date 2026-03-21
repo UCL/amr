@@ -12,6 +12,8 @@ def convert_txt_to_html(input_file: str):
     # Create a directory to hold the split table files
     output_dir = input_path.parent / f"{input_path.stem}_tables"
     output_dir.mkdir(exist_ok=True, parents=True)
+    for existing_html in output_dir.glob("table_*.html"):
+        existing_html.unlink()
         
     with open(input_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -38,6 +40,8 @@ def convert_txt_to_html(input_file: str):
             "        .summary-block { background: #f8f9fa; padding: 15px; border-left: 4px solid #3498db; margin-bottom: 20px; border-radius: 0 4px 4px 0; }",
             "        pre { background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; font-family: Consolas, monospace; }",
             "        .note { font-style: italic; color: #666; font-size: 0.9em; margin-bottom: 10px; }",
+            "        ol.footnotes { padding-left: 24px; }",
+            "        ol.footnotes li { margin-bottom: 14px; }",
             "    </style>",
             "</head>",
             "<body>",
@@ -51,8 +55,12 @@ def convert_txt_to_html(input_file: str):
     current_content = []
     headers_matches = []
     header_spans = []
+    in_footnotes = False
+    footnote_items = []
+    current_footnote_number = None
+    current_footnote_lines = []
 
-    def save_table_file(content_arr, t_num):
+    def save_section_file(content_arr, t_num):
         # We find the table title (H2 or H1) if possible to make the filename clear
         title_tag = None
         for block in reversed(content_arr):
@@ -70,8 +78,45 @@ def convert_txt_to_html(input_file: str):
             fout.write('\n'.join(full_html))
         print(f"Saved: {filename}")
 
+    def flush_current_footnote():
+        nonlocal current_footnote_number, current_footnote_lines
+        if current_footnote_number is None or not current_footnote_lines:
+            current_footnote_number = None
+            current_footnote_lines = []
+            return
+        footnote_items.append((current_footnote_number, " ".join(current_footnote_lines).strip()))
+        current_footnote_number = None
+        current_footnote_lines = []
+
+    def save_footnotes_file(t_num):
+        if not footnote_items:
+            return
+        content_arr = ["    <h2>Footnotes</h2>", "    <ol class='footnotes'>"]
+        for number, text in footnote_items:
+            content_arr.append(f"        <li value='{number}'>{text}</li>")
+        content_arr.append("    </ol>")
+        save_section_file(content_arr, t_num)
+
     while i < len(lines):
         line = lines[i].rstrip('\n')
+        stripped_line = line.strip()
+
+        if in_footnotes:
+            footnote_match = re.match(r'^\((\d+)\)\s+(.*)$', stripped_line)
+            if footnote_match:
+                flush_current_footnote()
+                current_footnote_number = int(footnote_match.group(1))
+                current_footnote_lines = [footnote_match.group(2).strip()]
+                i += 1
+                continue
+
+            if stripped_line == "":
+                i += 1
+                continue
+
+            current_footnote_lines.append(stripped_line)
+            i += 1
+            continue
         
         # Skip completely empty lines if we aren't in a table
         if not line.strip():
@@ -79,8 +124,22 @@ def convert_txt_to_html(input_file: str):
                 current_content.append("    </tbody>\n</table>")
                 in_table = False
                 table_count += 1
-                save_table_file(current_content, table_count)
+                save_section_file(current_content, table_count)
                 current_content = []  # Reset for the next table
+            i += 1
+            continue
+
+        if stripped_line == "Footnotes":
+            if in_table:
+                current_content.append("    </tbody>\n</table>")
+                in_table = False
+                table_count += 1
+                save_section_file(current_content, table_count)
+                current_content = []
+            in_footnotes = True
+            footnote_items = []
+            current_footnote_number = None
+            current_footnote_lines = []
             i += 1
             continue
 
@@ -143,7 +202,7 @@ def convert_txt_to_html(input_file: str):
                 current_content.append("    </tbody>\n</table>")
                 in_table = False
                 table_count += 1
-                save_table_file(current_content, table_count)
+                save_section_file(current_content, table_count)
                 current_content = []
                 
             i += 1
@@ -153,7 +212,7 @@ def convert_txt_to_html(input_file: str):
             current_content.append("    </tbody>\n</table>")
             in_table = False
             table_count += 1
-            save_table_file(current_content, table_count)
+            save_section_file(current_content, table_count)
             current_content = []
 
         # Regular text handling outside tables
@@ -183,7 +242,13 @@ def convert_txt_to_html(input_file: str):
     if in_table:
         current_content.append("    </tbody>\n</table>")
         table_count += 1
-        save_table_file(current_content, table_count)
+        save_section_file(current_content, table_count)
+
+    if in_footnotes:
+        flush_current_footnote()
+        if footnote_items:
+            table_count += 1
+            save_footnotes_file(table_count)
 
     print(f"\nCompleted! Generated {table_count} table files in folder: {output_dir.absolute()}")
 
