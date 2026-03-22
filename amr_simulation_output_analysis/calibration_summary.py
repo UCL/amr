@@ -17,6 +17,66 @@ from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
 
+DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
+    "enabled": True,
+    "cap": 4.0,
+    "report_top_contributors": 8,
+    "weights": {
+        "headline": 0.20,
+        "drug_usage": 0.25,
+        "resistance": 0.35,
+        "microbiome": 0.15,
+        "burden": 0.05,
+    },
+    "thresholds": {
+        "strong": 1.0,
+        "usable": 1.5,
+    },
+    "gates": {
+        "people_on_antibiotics_millions": {"relative_tolerance": 0.25},
+        "infection_deaths_millions": {"relative_tolerance": 0.25},
+        "resistance_weighted_abs_delta_pp": {"max": 15.0},
+        "worst_infection_resistance_distance": {"max": 4.0},
+    },
+    "headline": {
+        "relative_tolerance": 0.15,
+        "absolute_percent_tolerance": 3.0,
+        "minimum_absolute_scale": 0.1,
+        "metric_overrides": {
+            "infection_deaths_millions": {"relative_tolerance": 0.20, "minimum_absolute_scale": 0.25},
+            "people_on_antibiotics_millions": {"relative_tolerance": 0.15, "minimum_absolute_scale": 2.0},
+            "annual_infection_incidence_percent": {"absolute_tolerance": 3.0},
+            "sepsis_incident_cases_millions": {"relative_tolerance": 0.20, "minimum_absolute_scale": 1.0},
+        },
+    },
+    "drug_usage": {
+        "absolute_tolerance_pp": 3.0,
+    },
+    "resistance": {
+        "component_weights": {"infection": 3.0, "average": 1.0, "microbiome": 1.0},
+        "tolerances_pp": {"infection": 7.5, "average": 10.0, "microbiome": 10.0},
+    },
+    "microbiome": {
+        "absolute_tolerance_pp": 5.0,
+    },
+    "burden": {
+        "relative_tolerance": 0.50,
+        "minimum_absolute_scales": {
+            "infection": 0.05,
+            "carriage": 0.05,
+            "deaths": 0.01,
+        },
+    },
+}
+
+CALIBRATION_SCORE_BLOCK_LABELS: Dict[str, str] = {
+    "headline": "Headline",
+    "drug_usage": "Drug usage",
+    "resistance": "Infection and microbiome resistance",
+    "microbiome": "Any resistant microbiome prevalence",
+    "burden": "Bacteria burden consistency",
+}
+
 RESISTANCE_SIM_COL = "Infection resistance simulation (%)"
 RESISTANCE_TARGET_COL = "Infection resistance target (%)"
 RESISTANCE_DELTA_COL = "Infection resistance delta (pp)"
@@ -161,6 +221,7 @@ class CalibrationTargets:
     drug_class_targets: Optional[Dict[str, object]] = None
     total_antibiotic_target: Optional[float] = None
     world_population: Optional[float] = None
+    calibration_score_config: Optional[Dict[str, object]] = None
 
     @classmethod
     def load(cls, root: Path) -> "CalibrationTargets":
@@ -224,6 +285,11 @@ class CalibrationTargets:
                     total_antibiotic_target = float(target_value)
                 break
 
+        score_config = _merge_nested_config(
+            DEFAULT_CALIBRATION_SCORE_CONFIG,
+            payload.get("calibration_score") if isinstance(payload.get("calibration_score"), dict) else None,
+        )
+
         return cls(
             target_year=payload.get("target_year", 2025),
             headline_metrics=payload.get("headline_metrics", []),
@@ -245,7 +311,119 @@ class CalibrationTargets:
             drug_class_targets=drug_class_config,
             total_antibiotic_target=total_antibiotic_target,
             world_population=world_population,
+            calibration_score_config=score_config,
         )
+
+
+def _merge_nested_config(
+    defaults: Dict[str, object],
+    overrides: Optional[Dict[str, object]],
+) -> Dict[str, object]:
+    merged: Dict[str, object] = {}
+    override_dict = overrides if isinstance(overrides, dict) else {}
+    for key, value in defaults.items():
+        override_value = override_dict.get(key)
+        if isinstance(value, dict):
+            merged[key] = _merge_nested_config(
+                value,
+                override_value if isinstance(override_value, dict) else None,
+            )
+            continue
+        merged[key] = override_value if override_value is not None else value
+
+    for key, value in override_dict.items():
+        if key not in merged:
+            merged[key] = value
+    return merged
+
+
+def _coerce_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+        return numeric if np.isfinite(numeric) else None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric if np.isfinite(numeric) else None
+
+
+def _capped_distance(
+    delta: Optional[float],
+    scale: Optional[float],
+    cap: float,
+) -> Optional[float]:
+    if delta is None or scale is None or scale <= 0 or not np.isfinite(scale):
+        return None
+    if not np.isfinite(delta):
+        return None
+    return float(min(abs(delta) / scale, cap))
+
+
+def _relative_scale(
+    target: Optional[float],
+    relative_tolerance: float,
+    minimum_absolute_scale: float,
+) -> Optional[float]:
+    if relative_tolerance <= 0:
+        return None
+    if target is None or not np.isfinite(target):
+        return float(minimum_absolute_scale) if minimum_absolute_scale > 0 else None
+    return max(abs(target) * relative_tolerance, minimum_absolute_scale)
+
+
+def _range_distance(
+    simulation: Optional[float],
+    min_value: Optional[float],
+    max_value: Optional[float],
+    tolerance: float,
+    cap: float,
+) -> Optional[float]:
+    if simulation is None or not np.isfinite(simulation) or tolerance <= 0:
+        return None
+    if min_value is not None and simulation < min_value:
+        return _capped_distance(min_value - simulation, tolerance, cap)
+    if max_value is not None and simulation > max_value:
+        return _capped_distance(simulation - max_value, tolerance, cap)
+    return 0.0
+
+
+def _weighted_mean(values: List[Tuple[Optional[float], float]]) -> Optional[float]:
+    weighted_sum = 0.0
+    total_weight = 0.0
+    for value, weight in values:
+        if value is None or weight <= 0 or not np.isfinite(weight):
+            continue
+        weighted_sum += value * weight
+        total_weight += weight
+    if total_weight <= 0:
+        return None
+    return weighted_sum / total_weight
+
+
+def _score_label(score: Optional[float], thresholds: Dict[str, object]) -> str:
+    if score is None:
+        return "n/a"
+    strong_threshold = _coerce_float(thresholds.get("strong"))
+    usable_threshold = _coerce_float(thresholds.get("usable"))
+    if strong_threshold is not None and score < strong_threshold:
+        return "strong"
+    if usable_threshold is not None and score <= usable_threshold:
+        return "usable"
+    return "weak"
+
+
+def _contributor_group_key(block: object, target: object) -> str:
+    block_text = str(block or "").strip()
+    target_text = str(target or "").strip()
+    if block_text == CALIBRATION_SCORE_BLOCK_LABELS["resistance"]:
+        bacteria_name = target_text.split(" / ", 1)[0].strip()
+        if bacteria_name:
+            return f"resistance:{bacteria_name.lower()}"
+        return "resistance:unknown"
+    return f"{block_text.lower()}::{target_text.lower()}"
 
 
 def _gather_calibration_context(
@@ -2362,6 +2540,391 @@ def _build_mean_abs_gap_tables(
     )
 
 
+def _calculate_calibration_score(
+    targets: CalibrationTargets,
+    headline_df: pd.DataFrame,
+    drug_class_history_df: pd.DataFrame,
+    resistance_df: pd.DataFrame,
+    microbiome_df: pd.DataFrame,
+    bacteria_burden_df: pd.DataFrame,
+    resistance_fit_metrics: Dict[str, Optional[float]],
+) -> Dict[str, object]:
+    config = targets.calibration_score_config or DEFAULT_CALIBRATION_SCORE_CONFIG
+    if not bool(config.get("enabled", True)):
+        return {
+            "enabled": False,
+            "overall_score": None,
+            "overall_label": "disabled",
+            "passed_gates": True,
+            "gate_rows": pd.DataFrame(columns=["Gate", "Passed", "Detail"]),
+            "block_rows": pd.DataFrame(columns=["Block", "Score", "Weight", "Weighted contribution", "Targets"]),
+            "top_contributors": pd.DataFrame(columns=["Block", "Target", "Distance", "Detail"]),
+        }
+
+    cap = _coerce_float(config.get("cap")) or 4.0
+    weights_cfg = config.get("weights") if isinstance(config.get("weights"), dict) else {}
+    thresholds_cfg = config.get("thresholds") if isinstance(config.get("thresholds"), dict) else {}
+    gate_cfg = config.get("gates") if isinstance(config.get("gates"), dict) else {}
+
+    block_score_rows: List[Dict[str, object]] = []
+    gate_rows: List[Dict[str, object]] = []
+    contributors: List[Dict[str, object]] = []
+    block_weight_values: List[Tuple[Optional[float], float]] = []
+
+    def add_block(block_key: str, score: Optional[float], target_count: int) -> None:
+        weight = _coerce_float(weights_cfg.get(block_key)) or 0.0
+        weighted_contribution = score * weight if score is not None else None
+        block_score_rows.append({
+            "Block": CALIBRATION_SCORE_BLOCK_LABELS.get(block_key, block_key.replace("_", " ").title()),
+            "Score": score,
+            "Weight": weight,
+            "Weighted contribution": weighted_contribution,
+            "Targets": target_count,
+        })
+        block_weight_values.append((score, weight))
+
+    headline_config = config.get("headline") if isinstance(config.get("headline"), dict) else {}
+    headline_metric_overrides = (
+        headline_config.get("metric_overrides")
+        if isinstance(headline_config.get("metric_overrides"), dict)
+        else {}
+    )
+    headline_values: List[Tuple[Optional[float], float]] = []
+    headline_target_count = 0
+    headline_row_lookup: Dict[str, pd.Series] = {}
+    if not headline_df.empty and "Metric" in headline_df.columns:
+        for _, row in headline_df.iterrows():
+            headline_row_lookup[str(row.get("Metric"))] = row
+
+    for metric in targets.headline_metrics:
+        if not isinstance(metric, dict):
+            continue
+        key = str(metric.get("key") or "").strip()
+        label = str(metric.get("label") or key).strip()
+        if not key or label not in headline_row_lookup:
+            continue
+        row = headline_row_lookup[label]
+        simulation = _coerce_float(row.get("Simulation"))
+        target = _coerce_float(row.get("Target"))
+        if simulation is None or target is None:
+            continue
+
+        override = headline_metric_overrides.get(key) if isinstance(headline_metric_overrides.get(key), dict) else {}
+        relative_tolerance = _coerce_float(override.get("relative_tolerance"))
+        minimum_scale = _coerce_float(override.get("minimum_absolute_scale"))
+        absolute_tolerance = _coerce_float(override.get("absolute_tolerance"))
+        metric_weight = _coerce_float(override.get("weight")) or 1.0
+
+        if absolute_tolerance is not None:
+            distance = _capped_distance(simulation - target, absolute_tolerance, cap)
+            detail = f"|Δ|={abs(simulation - target):.2f}, scale={absolute_tolerance:.2f}"
+        else:
+            scale = _relative_scale(
+                target,
+                relative_tolerance if relative_tolerance is not None else (_coerce_float(headline_config.get("relative_tolerance")) or 0.15),
+                minimum_scale if minimum_scale is not None else (_coerce_float(headline_config.get("minimum_absolute_scale")) or 0.1),
+            )
+            distance = _capped_distance(simulation - target, scale, cap)
+            detail = f"|Δ|={abs(simulation - target):.2f}, scale={scale:.2f}" if scale is not None else ""
+
+        if distance is None:
+            continue
+
+        headline_values.append((distance, metric_weight))
+        headline_target_count += 1
+        contributors.append({
+            "Block": CALIBRATION_SCORE_BLOCK_LABELS["headline"],
+            "Target": label,
+            "Distance": distance,
+            "Detail": detail,
+        })
+
+        metric_gate = gate_cfg.get(key) if isinstance(gate_cfg.get(key), dict) else None
+        if metric_gate is not None and target != 0:
+            gate_tolerance = _coerce_float(metric_gate.get("relative_tolerance"))
+            if gate_tolerance is not None:
+                relative_error = abs(simulation - target) / abs(target)
+                passed = relative_error <= gate_tolerance
+                gate_rows.append({
+                    "Gate": label,
+                    "Passed": "yes" if passed else "no",
+                    "Detail": f"relative error={relative_error * 100.0:.1f}% (limit {gate_tolerance * 100.0:.1f}%)",
+                })
+
+    add_block("headline", _weighted_mean(headline_values), headline_target_count)
+
+    drug_usage_config = config.get("drug_usage") if isinstance(config.get("drug_usage"), dict) else {}
+    drug_usage_values: List[Tuple[Optional[float], float]] = []
+    drug_usage_target_count = 0
+    share_col = f"Share {targets.target_year} (%)"
+    target_col = f"Target {targets.target_year} (%)"
+    drug_tolerance = _coerce_float(drug_usage_config.get("absolute_tolerance_pp")) or 3.0
+    if not drug_class_history_df.empty and share_col in drug_class_history_df.columns and target_col in drug_class_history_df.columns:
+        for _, row in drug_class_history_df.iterrows():
+            simulation = _coerce_float(row.get(share_col))
+            target = _coerce_float(row.get(target_col))
+            label = str(row.get("Class") or "").strip()
+            if simulation is None or target is None or not label:
+                continue
+            distance = _capped_distance(simulation - target, drug_tolerance, cap)
+            if distance is None:
+                continue
+            drug_usage_values.append((distance, 1.0))
+            drug_usage_target_count += 1
+            contributors.append({
+                "Block": CALIBRATION_SCORE_BLOCK_LABELS["drug_usage"],
+                "Target": label,
+                "Distance": distance,
+                "Detail": f"|Δ|={abs(simulation - target):.2f} pp, scale={drug_tolerance:.2f} pp",
+            })
+
+    add_block("drug_usage", _weighted_mean(drug_usage_values), drug_usage_target_count)
+
+    resistance_config = config.get("resistance") if isinstance(config.get("resistance"), dict) else {}
+    resistance_weights = (
+        resistance_config.get("component_weights")
+        if isinstance(resistance_config.get("component_weights"), dict)
+        else {}
+    )
+    resistance_tolerances = (
+        resistance_config.get("tolerances_pp")
+        if isinstance(resistance_config.get("tolerances_pp"), dict)
+        else {}
+    )
+    resistance_values: List[Tuple[Optional[float], float]] = []
+    resistance_target_count = 0
+    worst_infection_distance: Optional[float] = None
+    eligible = _filter_resistance_rows_for_fit(resistance_df)
+    component_columns = [
+        ("infection", "Infection resistance", RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL),
+        ("average", "Average resistant", "Average resistant simulation", "Average resistant target"),
+        ("microbiome", "Microbiome resistance", "Microbiome simulation", "Microbiome target"),
+    ]
+    for component_key, component_label, sim_col, target_col_name in component_columns:
+        if eligible.empty or sim_col not in eligible.columns or target_col_name not in eligible.columns:
+            continue
+        tolerance = _coerce_float(resistance_tolerances.get(component_key)) or 10.0
+        component_weight = _coerce_float(resistance_weights.get(component_key)) or 1.0
+        subset = eligible[["Bacteria", "Drug", sim_col, target_col_name]].copy()
+        subset[sim_col] = pd.to_numeric(subset[sim_col], errors="coerce")
+        subset[target_col_name] = pd.to_numeric(subset[target_col_name], errors="coerce")
+        subset = subset.dropna(subset=[sim_col, target_col_name])
+        for _, row in subset.iterrows():
+            simulation = _coerce_float(row.get(sim_col))
+            target = _coerce_float(row.get(target_col_name))
+            if simulation is None or target is None:
+                continue
+            distance = _capped_distance(simulation - target, tolerance, cap)
+            if distance is None:
+                continue
+            resistance_values.append((distance, component_weight))
+            resistance_target_count += 1
+            if component_key == "infection":
+                if worst_infection_distance is None or distance > worst_infection_distance:
+                    worst_infection_distance = distance
+            contributors.append({
+                "Block": CALIBRATION_SCORE_BLOCK_LABELS["resistance"],
+                "Target": f"{row.get('Bacteria')} / {row.get('Drug')} ({component_label})",
+                "Distance": distance,
+                "Detail": f"|Δ|={abs(simulation - target):.2f} pp, scale={tolerance:.2f} pp",
+            })
+
+    weighted_resistance_abs_delta = _coerce_float(resistance_fit_metrics.get("weighted_overall_abs_delta"))
+    resistance_gate = gate_cfg.get("resistance_weighted_abs_delta_pp") if isinstance(gate_cfg.get("resistance_weighted_abs_delta_pp"), dict) else None
+    if resistance_gate is not None:
+        maximum = _coerce_float(resistance_gate.get("max"))
+        if weighted_resistance_abs_delta is not None and maximum is not None:
+            gate_rows.append({
+                "Gate": "Weighted resistance mean |Δ|",
+                "Passed": "yes" if weighted_resistance_abs_delta <= maximum else "no",
+                "Detail": f"{weighted_resistance_abs_delta:.2f} pp (limit {maximum:.2f} pp)",
+            })
+
+    worst_pair_gate = gate_cfg.get("worst_infection_resistance_distance") if isinstance(gate_cfg.get("worst_infection_resistance_distance"), dict) else None
+    if worst_pair_gate is not None:
+        maximum = _coerce_float(worst_pair_gate.get("max"))
+        if worst_infection_distance is not None and maximum is not None:
+            gate_rows.append({
+                "Gate": "Worst infection-resistance normalized distance",
+                "Passed": "yes" if worst_infection_distance <= maximum else "no",
+                "Detail": f"{worst_infection_distance:.2f} (limit {maximum:.2f})",
+            })
+
+    add_block("resistance", _weighted_mean(resistance_values), resistance_target_count)
+
+    microbiome_config = config.get("microbiome") if isinstance(config.get("microbiome"), dict) else {}
+    microbiome_values: List[Tuple[Optional[float], float]] = []
+    microbiome_target_count = 0
+    if not microbiome_df.empty:
+        row = microbiome_df.iloc[0]
+        simulation = _coerce_float(row.get("Simulation"))
+        target_min = _coerce_float(row.get("Target (min)"))
+        target_max = _coerce_float(row.get("Target (max)"))
+        tolerance = _coerce_float(microbiome_config.get("absolute_tolerance_pp")) or 5.0
+        distance = _range_distance(simulation, target_min, target_max, tolerance, cap)
+        if distance is not None:
+            microbiome_values.append((distance, 1.0))
+            microbiome_target_count = 1
+            range_text = _format_range(target_min, target_max) or "n/a"
+            contributors.append({
+                "Block": CALIBRATION_SCORE_BLOCK_LABELS["microbiome"],
+                "Target": str(row.get("Metric") or "Microbiome resistance"),
+                "Distance": distance,
+                "Detail": f"simulation={simulation:.2f}, target range={range_text}, scale={tolerance:.2f} pp",
+            })
+
+    add_block("microbiome", _weighted_mean(microbiome_values), microbiome_target_count)
+
+    burden_config = config.get("burden") if isinstance(config.get("burden"), dict) else {}
+    burden_values: List[Tuple[Optional[float], float]] = []
+    burden_target_count = 0
+    burden_relative_tolerance = _coerce_float(burden_config.get("relative_tolerance")) or 0.50
+    burden_min_scales = (
+        burden_config.get("minimum_absolute_scales")
+        if isinstance(burden_config.get("minimum_absolute_scales"), dict)
+        else {}
+    )
+    burden_metrics = [
+        ("By-bacteria infection incidence", "Infection target (%)", "Infection simulation (%)", burden_min_scales.get("infection", 0.05)),
+        ("By-bacteria carriage", "Carriage target (%)", "Carriage simulation (%)", burden_min_scales.get("carriage", 0.05)),
+        ("By-bacteria deaths", "Deaths target (millions)", "Deaths simulation (millions)", burden_min_scales.get("deaths", 0.01)),
+    ]
+    for label, target_column_name, simulation_column_name, minimum_scale in burden_metrics:
+        if bacteria_burden_df.empty:
+            continue
+        target_series = pd.to_numeric(bacteria_burden_df.get(target_column_name), errors="coerce")
+        simulation_series = pd.to_numeric(bacteria_burden_df.get(simulation_column_name), errors="coerce")
+        valid_mask = target_series.notna() & simulation_series.notna()
+        if not valid_mask.any():
+            continue
+        target_values = target_series[valid_mask]
+        simulation_values = simulation_series[valid_mask]
+        scales = np.maximum(np.abs(target_values) * burden_relative_tolerance, float(minimum_scale))
+        distances = np.minimum(np.abs(simulation_values - target_values) / scales, cap)
+        if len(distances) == 0:
+            continue
+        block_distance = float(np.mean(distances))
+        burden_values.append((block_distance, 1.0))
+        burden_target_count += int(len(distances))
+        contributors.append({
+            "Block": CALIBRATION_SCORE_BLOCK_LABELS["burden"],
+            "Target": label,
+            "Distance": block_distance,
+            "Detail": f"mean normalized distance across {len(distances)} bacteria",
+        })
+
+    add_block("burden", _weighted_mean(burden_values), burden_target_count)
+
+    overall_score = _weighted_mean(block_weight_values)
+    overall_label = _score_label(overall_score, thresholds_cfg)
+
+    gate_df = pd.DataFrame(gate_rows, columns=["Gate", "Passed", "Detail"])
+    passed_gates = True
+    if not gate_df.empty:
+        passed_gates = bool((gate_df["Passed"] == "yes").all())
+
+    block_df = pd.DataFrame(
+        block_score_rows,
+        columns=["Block", "Score", "Weight", "Weighted contribution", "Targets"],
+    )
+
+    contributors_df = pd.DataFrame(
+        contributors,
+        columns=["Block", "Target", "Distance", "Detail"],
+    )
+    contributors_note = ""
+    if not contributors_df.empty:
+        contributors_df = contributors_df.sort_values(by=["Distance", "Block", "Target"], ascending=[False, True, True])
+        top_n = int(config.get("report_top_contributors", 8))
+        selected_rows: List[Dict[str, object]] = []
+        seen_groups: Set[str] = set()
+        for row in contributors_df.to_dict("records"):
+            group_key = _contributor_group_key(row.get("Block"), row.get("Target"))
+            if group_key in seen_groups:
+                continue
+            seen_groups.add(group_key)
+            selected_rows.append(row)
+            if len(selected_rows) >= max(1, top_n):
+                break
+        contributors_df = pd.DataFrame(selected_rows, columns=["Block", "Target", "Distance", "Detail"])
+        contributors_note = (
+            "Resistance rows are limited to one per bacterium so a single organism does not "
+            "dominate the list."
+        )
+
+    return {
+        "enabled": True,
+        "overall_score": overall_score,
+        "overall_label": overall_label,
+        "passed_gates": passed_gates,
+        "gate_rows": gate_df,
+        "block_rows": block_df,
+        "top_contributors": contributors_df,
+        "top_contributors_note": contributors_note,
+    }
+
+
+def _write_calibration_score_summary(
+    handle,
+    score_result: Dict[str, object],
+) -> None:
+    handle.write("Calibration Score\n")
+    if not bool(score_result.get("enabled", True)):
+        handle.write("(calibration score disabled)\n\n")
+        return
+
+    overall_score = _coerce_float(score_result.get("overall_score"))
+    overall_label = str(score_result.get("overall_label") or "n/a")
+    passed_gates = bool(score_result.get("passed_gates", False))
+    gate_df = score_result.get("gate_rows")
+    block_df = score_result.get("block_rows")
+    contributors_df = score_result.get("top_contributors")
+    contributors_note = str(score_result.get("top_contributors_note") or "")
+
+    handle.write(f"- Overall score: {overall_score:,.3f}\n" if overall_score is not None else "- Overall score: n/a\n")
+    handle.write(f"- Classification: {overall_label}\n")
+    handle.write(f"- Hard gates passed: {'yes' if passed_gates else 'no'}\n")
+
+    if isinstance(gate_df, pd.DataFrame) and not gate_df.empty:
+        failed = gate_df.loc[gate_df["Passed"] != "yes"]
+        if failed.empty:
+            handle.write("- Failed gates: none\n")
+        else:
+            handle.write("- Failed gates:\n")
+            for _, row in failed.iterrows():
+                handle.write(f"  - {row.get('Gate')}: {row.get('Detail')}\n")
+    else:
+        handle.write("- Failed gates: none configured\n")
+
+    if isinstance(block_df, pd.DataFrame) and not block_df.empty:
+        display_df = block_df.copy()
+        display_df["Targets"] = display_df["Targets"].astype("Int64")
+        handle.write("\nBlock Scores\n")
+        handle.write(
+            display_df.to_string(
+                index=False,
+                float_format=lambda x: f"{x:,.3f}",
+                na_rep="---",
+            )
+        )
+        handle.write("\n")
+
+    if isinstance(contributors_df, pd.DataFrame) and not contributors_df.empty:
+        handle.write("\nLargest Contributors\n")
+        if contributors_note:
+            handle.write(f"{contributors_note}\n")
+        handle.write(
+            contributors_df.to_string(
+                index=False,
+                float_format=lambda x: f"{x:,.3f}",
+                na_rep="---",
+            )
+        )
+        handle.write("\n")
+
+    handle.write("\n")
+
+
 
 def _calculate_syndrome_incidence_table(
     year_df: pd.DataFrame,
@@ -2500,6 +3063,15 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     resistance_fit_metrics, resistance_component_df = _calculate_resistance_fit_metrics(resistance_df)
     reserve_drug_stats = context.get("reserve_drug_stats", {})
     bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
+    calibration_score = _calculate_calibration_score(
+        targets,
+        headline_df,
+        drug_class_history_df,
+        resistance_df,
+        microbiome_df,
+        bacteria_burden_df,
+        resistance_fit_metrics,
+    )
 
     simulation_csv_path = context.get("simulation_csv_path")
     run_identifier = getattr(config, "simulation_run_id", None) or extract_simulation_run_id(simulation_csv_path)
@@ -2712,6 +3284,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "millions",
             "%",
         )
+
+        _write_calibration_score_summary(handle, calibration_score)
 
         # Drug Class Usage Benchmarks table removed - replaced by more comprehensive Drug Class Share History
         # if not combined_drug_df.empty:
