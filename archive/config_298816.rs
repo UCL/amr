@@ -44,11 +44,8 @@ use crate::simulation::population::{
     BACTERIA_GROUPS, BACTERIA_LIST, DRUG_SHORT_NAMES,
 };
 use lazy_static::lazy_static;
-use rand::Rng;
 use std::borrow::Cow;
 use std::collections::HashMap; // Import both lists and helper enums
-use std::ptr;
-use std::sync::atomic::{AtomicPtr, Ordering};
 
 // ---------------- 1) Core indices & constants ----------------
 
@@ -170,186 +167,6 @@ impl ParameterStore {
             bacteria_mechanism_emergence,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RunParameterSamplingConfig {
-    pub enabled: bool,
-}
-
-impl RunParameterSamplingConfig {
-    pub const fn disabled() -> Self {
-        Self { enabled: false }
-    }
-
-    pub const fn enabled() -> Self {
-        Self { enabled: true }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SampledParameterRecord {
-    pub record_kind: &'static str,
-    pub sampled_quantity: &'static str,
-    pub applies_to: &'static str,
-    pub baseline_value: f64,
-    pub sampled_value: f64,
-    pub transform: &'static str,
-    pub draw_value: f64,
-}
-
-#[derive(Debug)]
-struct ActiveParameterContext {
-    map: HashMap<String, f64>,
-    store: ParameterStore,
-}
-
-pub const RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY: &str =
-    "run_pathway_infection_de_novo_multiplier";
-pub const RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY: &str =
-    "run_pathway_microbiome_de_novo_multiplier";
-pub const RUN_PATHWAY_HGT_MULTIPLIER_KEY: &str = "run_pathway_hgt_multiplier";
-
-struct RunLevelSamplingSpec {
-    parameter_key: &'static str,
-    applies_to: &'static str,
-    min_multiplier: f64,
-    max_multiplier: f64,
-}
-
-const RUN_LEVEL_SAMPLING_SPECS: [RunLevelSamplingSpec; 3] = [
-    RunLevelSamplingSpec {
-        parameter_key: RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
-        applies_to: "infection_de_novo_pathway",
-        min_multiplier: 0.01,
-        max_multiplier: 100.0,
-    },
-    RunLevelSamplingSpec {
-        parameter_key: RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
-        applies_to: "microbiome_de_novo_pathway",
-        min_multiplier: 0.01,
-        max_multiplier: 100.0,
-    },
-    RunLevelSamplingSpec {
-        parameter_key: RUN_PATHWAY_HGT_MULTIPLIER_KEY,
-        applies_to: "hgt_pathway",
-        min_multiplier: 0.01,
-        max_multiplier: 100.0,
-    },
-];
-
-#[derive(Clone, Copy)]
-enum SamplingStrategy {
-    MultiplicativeLogUniform {
-        min_multiplier: f64,
-        max_multiplier: f64,
-    },
-}
-
-fn sample_value<R: Rng + ?Sized>(
-    baseline_value: f64,
-    strategy: SamplingStrategy,
-    rng: &mut R,
-) -> Option<(f64, &'static str, f64)> {
-    if baseline_value.abs() <= f64::EPSILON {
-        return None;
-    }
-
-    match strategy {
-        SamplingStrategy::MultiplicativeLogUniform {
-            min_multiplier,
-            max_multiplier,
-        } => {
-            let min_log = min_multiplier.ln();
-            let max_log = max_multiplier.ln();
-            let multiplier = rng.gen_range(min_log..=max_log).exp();
-            Some((
-                baseline_value * multiplier,
-                "log_uniform_multiplier",
-                multiplier,
-            ))
-        }
-    }
-}
-
-fn sample_parameter_records<R: Rng + ?Sized>(
-    parameter_map: &mut HashMap<String, f64>,
-    rng: &mut R,
-) -> Vec<SampledParameterRecord> {
-    let mut sampled_records = Vec::with_capacity(RUN_LEVEL_SAMPLING_SPECS.len());
-
-    for spec in RUN_LEVEL_SAMPLING_SPECS.iter() {
-        let baseline_value = 1.0;
-        let (sampled_value, transform, draw_value) = sample_value(
-            baseline_value,
-            SamplingStrategy::MultiplicativeLogUniform {
-                min_multiplier: spec.min_multiplier,
-                max_multiplier: spec.max_multiplier,
-            },
-            rng,
-        )
-        .expect("run-level pathway sampling unexpectedly skipped");
-
-        parameter_map.insert(spec.parameter_key.to_string(), sampled_value);
-        sampled_records.push(SampledParameterRecord {
-            record_kind: "latent_pathway_multiplier",
-            sampled_quantity: spec.parameter_key,
-            applies_to: spec.applies_to,
-            baseline_value,
-            sampled_value,
-            transform,
-            draw_value,
-        });
-    }
-
-    sampled_records
-}
-
-fn get_active_parameter_context() -> Option<&'static ActiveParameterContext> {
-    let context_ptr = ACTIVE_PARAMETER_CONTEXT.load(Ordering::Acquire);
-    if context_ptr.is_null() {
-        None
-    } else {
-        // Safe because the context is leaked for the lifetime of the process.
-        unsafe { context_ptr.as_ref() }
-    }
-}
-
-fn parameter_map() -> &'static HashMap<String, f64> {
-    if let Some(context) = get_active_parameter_context() {
-        &context.map
-    } else {
-        &PARAMETERS
-    }
-}
-
-fn set_active_parameter_context(parameter_map: HashMap<String, f64>) {
-    let store = ParameterStore::from_parameter_map(&parameter_map);
-    // Leak the run context so existing read-heavy code can keep borrowing static references.
-    let leaked_context = Box::leak(Box::new(ActiveParameterContext {
-        map: parameter_map,
-        store,
-    }));
-    ACTIVE_PARAMETER_CONTEXT.store(leaked_context as *mut ActiveParameterContext, Ordering::Release);
-}
-
-pub fn clear_active_run_parameters() {
-    ACTIVE_PARAMETER_CONTEXT.store(ptr::null_mut(), Ordering::Release);
-}
-
-pub fn activate_run_parameter_sampling<R: Rng + ?Sized>(
-    rng: &mut R,
-    sampling_config: RunParameterSamplingConfig,
-) -> Vec<SampledParameterRecord> {
-    if !sampling_config.enabled {
-        clear_active_run_parameters();
-        return Vec::new();
-    }
-
-    let mut sampled_parameter_map = PARAMETERS.clone();
-    let sampled_records = sample_parameter_records(&mut sampled_parameter_map, rng);
-    set_active_parameter_context(sampled_parameter_map);
-    sampled_records
 }
 
 // ---------------- 3) Global scalar defaults & helpers ----------------
@@ -11400,26 +11217,17 @@ lazy_static! {
     pub static ref PARAMETER_STORE: ParameterStore = ParameterStore::from_parameter_map(&PARAMETERS);
 }
 
-lazy_static! {
-    static ref ACTIVE_PARAMETER_CONTEXT: AtomicPtr<ActiveParameterContext> =
-        AtomicPtr::new(ptr::null_mut());
-}
-
 // ---------------- 12) Helper lookups (drug intro, availability, etc.) ----------------
 /// Helper accessor for the indexed parameter store.
 #[allow(dead_code)]
 pub fn parameter_store() -> &'static ParameterStore {
-    if let Some(context) = get_active_parameter_context() {
-        &context.store
-    } else {
-        &PARAMETER_STORE
-    }
+    &PARAMETER_STORE
 }
 
 /// Retrieves a global simulation parameter.
 /// Returns `Some(value)` if found, `None` otherwise.
 pub fn get_global_param(key: &str) -> Option<f64> {
-    parameter_map().get(key).copied()
+    PARAMETERS.get(key).copied()
 }
 
 /// Retrieves a bacteria-specific simulation parameter.
@@ -11429,7 +11237,7 @@ pub fn get_global_param(key: &str) -> Option<f64> {
 pub fn get_bacteria_param(bacteria_name: &str, param_suffix: &str) -> Option<f64> {
     let canonical = canonicalize_bacteria_slug(bacteria_name);
     let specific_key = format!("{}_{}", canonical.as_ref(), param_suffix);
-    parameter_map().get(&specific_key).copied()
+    PARAMETERS.get(&specific_key).copied()
 }
 
 /// Retrieves multiple bacteria-specific parameters in one pass and applies a callback.
@@ -11456,7 +11264,7 @@ where
 
     let mut values = Vec::with_capacity(param_suffixes.len());
     for key in &specific_keys {
-        if let Some(value) = parameter_map().get(key) {
+        if let Some(value) = PARAMETERS.get(key) {
             values.push(*value);
         } else {
             return false;
@@ -11476,7 +11284,7 @@ where
 #[allow(dead_code)]
 pub fn get_drug_param(drug_name: &str, param_suffix: &str) -> Option<f64> {
     let specific_key = format!("drug_{}_{}", drug_name, param_suffix);
-    parameter_map().get(&specific_key).copied()
+    PARAMETERS.get(&specific_key).copied()
 }
 
 /// Checks if a drug is available in a given region.
@@ -11492,7 +11300,7 @@ pub fn get_drug_availability(drug_name: &str, region: &str, region_living: Optio
     };
 
     let availability_key = format!("{}_drug_{}_availability", effective_region, drug_name);
-    parameter_map().get(&availability_key).copied().unwrap_or(1.0) // Default to available if not specified
+    PARAMETERS.get(&availability_key).copied().unwrap_or(1.0) // Default to available if not specified
 }
 
 /// Time-aware drug availability that accounts for historical discontinuation periods.

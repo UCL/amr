@@ -24,8 +24,8 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     "weights": {
         "headline": 0.20,
         "drug_usage": 0.25,
-        "resistance": 0.35,
-        "microbiome": 0.15,
+        "resistance": 0.40,
+        "microbiome": 0.10,
         "burden": 0.05,
     },
     "thresholds": {
@@ -53,7 +53,7 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
         "absolute_tolerance_pp": 3.0,
     },
     "resistance": {
-        "component_weights": {"infection": 3.0, "average": 1.0, "microbiome": 1.0},
+        "component_weights": {"infection": 4.0, "average": 1.0, "microbiome": 0.5},
         "tolerances_pp": {"infection": 7.5, "average": 10.0, "microbiome": 10.0},
     },
     "microbiome": {

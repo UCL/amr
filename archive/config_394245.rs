@@ -47,8 +47,7 @@ use lazy_static::lazy_static;
 use rand::Rng;
 use std::borrow::Cow;
 use std::collections::HashMap; // Import both lists and helper enums
-use std::ptr;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Mutex;
 
 // ---------------- 1) Core indices & constants ----------------
 
@@ -306,13 +305,9 @@ fn sample_parameter_records<R: Rng + ?Sized>(
 }
 
 fn get_active_parameter_context() -> Option<&'static ActiveParameterContext> {
-    let context_ptr = ACTIVE_PARAMETER_CONTEXT.load(Ordering::Acquire);
-    if context_ptr.is_null() {
-        None
-    } else {
-        // Safe because the context is leaked for the lifetime of the process.
-        unsafe { context_ptr.as_ref() }
-    }
+    *ACTIVE_PARAMETER_CONTEXT
+        .lock()
+        .expect("active parameter context mutex poisoned")
 }
 
 fn parameter_map() -> &'static HashMap<String, f64> {
@@ -330,11 +325,17 @@ fn set_active_parameter_context(parameter_map: HashMap<String, f64>) {
         map: parameter_map,
         store,
     }));
-    ACTIVE_PARAMETER_CONTEXT.store(leaked_context as *mut ActiveParameterContext, Ordering::Release);
+    let mut active_context = ACTIVE_PARAMETER_CONTEXT
+        .lock()
+        .expect("active parameter context mutex poisoned");
+    *active_context = Some(leaked_context);
 }
 
 pub fn clear_active_run_parameters() {
-    ACTIVE_PARAMETER_CONTEXT.store(ptr::null_mut(), Ordering::Release);
+    let mut active_context = ACTIVE_PARAMETER_CONTEXT
+        .lock()
+        .expect("active parameter context mutex poisoned");
+    *active_context = None;
 }
 
 pub fn activate_run_parameter_sampling<R: Rng + ?Sized>(
@@ -11401,8 +11402,8 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref ACTIVE_PARAMETER_CONTEXT: AtomicPtr<ActiveParameterContext> =
-        AtomicPtr::new(ptr::null_mut());
+    static ref ACTIVE_PARAMETER_CONTEXT: Mutex<Option<&'static ActiveParameterContext>> =
+        Mutex::new(None);
 }
 
 // ---------------- 12) Helper lookups (drug intro, availability, etc.) ----------------

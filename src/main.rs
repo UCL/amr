@@ -175,6 +175,7 @@ fn main() {
     let infection_journey_sample_rate = 1.00; // Log 1% of infections for analysis (0.0-1.0)
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
+    let enable_run_parameter_sampling = false ; // Opt-in 3-pathway run-start sampling: infection de novo, microbiome de novo, and HGT
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
 
     // Examples of bacteria filter values (use lowercase with underscores):
@@ -186,8 +187,19 @@ fn main() {
     // None - logs all bacteria types
 
     let seed_override = use_fixed_seed.then_some(fixed_seed_value);
-    let mut simulation =
-        Simulation::new(population_size, time_steps, log_individuals, seed_override, calibration_mode);
+    let run_parameter_sampling = if enable_run_parameter_sampling {
+        config::RunParameterSamplingConfig::enabled()
+    } else {
+        config::RunParameterSamplingConfig::disabled()
+    };
+    let mut simulation = Simulation::new(
+        population_size,
+        time_steps,
+        log_individuals,
+        seed_override,
+        calibration_mode,
+        run_parameter_sampling,
+    );
     let use_disk_branch_checkpointing = false; // Set to keep the branch checkpoint in memory
     let disk_checkpoint_directory: Option<PathBuf> = None; // Override with Some(path) to specify a custom folder
 

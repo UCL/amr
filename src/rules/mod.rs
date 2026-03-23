@@ -83,7 +83,9 @@
 use crate::config::{
     calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store,
+    parameter_store, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
     self, CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual,
@@ -1304,6 +1306,11 @@ pub fn apply_rules(
         .minimal_potency_threshold_for_drug_selection
         .unwrap_or(store.globals.minimal_potency_threshold_for_drug_selection);
     let counterfactual_resistance_multiplier = policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
+    let infection_de_novo_multiplier =
+        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
+    let microbiome_de_novo_multiplier =
+        get_global_param(RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
+    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0);
     // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
     // of setting it to zero in a counterfactual scenario with no resistance
 
@@ -4282,7 +4289,9 @@ pub fn apply_rules(
                                 store.globals.any_r_emergence_level_on_first_emergence;
 
                             let total_emergence_prob =
-                                emergence_rate_baseline * counterfactual_resistance_multiplier; // * (drug_level / 10.0).clamp(0.0, 1.0);
+                                emergence_rate_baseline
+                                    * microbiome_de_novo_multiplier
+                                    * counterfactual_resistance_multiplier; // * (drug_level / 10.0).clamp(0.0, 1.0);
 
                             if rng.gen_bool(total_emergence_prob.clamp(0.0, 1.0)) {
                                 resistance_data.microbiome_r =
@@ -4321,6 +4330,7 @@ pub fn apply_rules(
                                 .rate(b_idx, mechanism_idx);
                             let mechanism_emergence_rate =
                                 mechanism_rate
+                                    * microbiome_de_novo_multiplier
                                     * counterfactual_resistance_multiplier; // Apply species and policy multipliers to mechanism emergence in microbiome
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
@@ -4787,6 +4797,7 @@ pub fn apply_rules(
 
                             let mechanism_emergence_rate =
                                 mechanism_rate
+                                    * infection_de_novo_multiplier
                                     * counterfactual_resistance_multiplier
                                     * (1.0 + bacteria_level_factor)
                                     * max_emergence_drug_factor
@@ -5506,7 +5517,10 @@ pub fn apply_rules(
                         shared_compartment,
                     );
 
-                    let base_effective_prob = base_prob * context_multiplier * counterfactual_resistance_multiplier;
+                    let base_effective_prob = base_prob
+                        * context_multiplier
+                        * hgt_multiplier
+                        * counterfactual_resistance_multiplier;
 
                     let recipient_group_mask = population::bacteria_group_mask(recipient_idx);
 
