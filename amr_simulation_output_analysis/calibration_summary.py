@@ -53,11 +53,11 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
         "absolute_tolerance_pp": 3.0,
     },
     "resistance": {
-        "component_weights": {"infection": 4.0, "average": 1.0, "microbiome": 0.5},
-        "tolerances_pp": {"infection": 7.5, "average": 10.0, "microbiome": 10.0},
+        "component_weights": {"infection": 4.0, "average": 1.0},
+        "tolerances_pp": {"infection": 7.5, "average": 10.0},
     },
     "microbiome": {
-        "absolute_tolerance_pp": 5.0,
+        "tolerances_pp": {"microbiome": 10.0},
     },
     "burden": {
         "relative_tolerance": 0.50,
@@ -72,8 +72,8 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
 CALIBRATION_SCORE_BLOCK_LABELS: Dict[str, str] = {
     "headline": "Headline",
     "drug_usage": "Drug usage",
-    "resistance": "Infection and microbiome resistance",
-    "microbiome": "Any resistant microbiome prevalence",
+    "resistance": "Infection resistance",
+    "microbiome": "Microbiome resistance prevalence",
     "burden": "Bacteria burden consistency",
 }
 
@@ -1038,11 +1038,14 @@ def _calculate_resistance_table(
     expanded_label: Optional[str] = None,
     low_sample_threshold: float = 50.0,
 ) -> pd.DataFrame:
+    from .mechanism_mapping import get_relevant_mechanisms
+    
     columns = [
         "Bacteria",
         "Drug",
         RESISTANCE_SIM_COL,
         RESISTANCE_TARGET_COL,
+        "Relevant mechanisms",
         RESISTANCE_DELTA_COL,
         "Average resistant simulation",
         "Average resistant target",
@@ -1132,6 +1135,12 @@ def _calculate_resistance_table(
             else np.nan
         )
 
+        relevant_mechs = get_relevant_mechanisms(b_slug, d_slug)
+        relevant_mechs_str = ", ".join(relevant_mechs) if relevant_mechs else "none"
+
+        if prevalence_reason == "negligible potency":
+            relevant_mechs_str = "---"
+
         if b_slug not in bacteria_set or d_slug not in drug_set:
             note_parts.append("not modelled in simulation")
             records.append({
@@ -1140,6 +1149,7 @@ def _calculate_resistance_table(
                 RESISTANCE_SIM_COL: np.nan,
                 RESISTANCE_TARGET_COL: prevalence_target,
                 RESISTANCE_DELTA_COL: np.nan,
+                "Relevant mechanisms": relevant_mechs_str,
                 "Average resistant simulation": np.nan,
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
@@ -1174,6 +1184,7 @@ def _calculate_resistance_table(
                 RESISTANCE_SIM_COL: np.nan,
                 RESISTANCE_TARGET_COL: prevalence_target,
                 RESISTANCE_DELTA_COL: np.nan,
+                "Relevant mechanisms": relevant_mechs_str,
                 "Average resistant simulation": np.nan,
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
@@ -1342,6 +1353,7 @@ def _calculate_resistance_table(
             "Drug": drug_name,
             RESISTANCE_SIM_COL: prevalence_simulation,
             RESISTANCE_TARGET_COL: prevalence_target,
+            "Relevant mechanisms": relevant_mechs_str,
             RESISTANCE_DELTA_COL: prevalence_delta,
             "Average resistant simulation": average_simulation,
             "Average resistant target": average_target,
@@ -2698,7 +2710,6 @@ def _calculate_calibration_score(
     component_columns = [
         ("infection", "Infection resistance", RESISTANCE_SIM_COL, RESISTANCE_TARGET_COL),
         ("average", "Average resistant", "Average resistant simulation", "Average resistant target"),
-        ("microbiome", "Microbiome resistance", "Microbiome simulation", "Microbiome target"),
     ]
     for component_key, component_label, sim_col, target_col_name in component_columns:
         if eligible.empty or sim_col not in eligible.columns or target_col_name not in eligible.columns:
@@ -2753,24 +2764,38 @@ def _calculate_calibration_score(
     add_block("resistance", _weighted_mean(resistance_values), resistance_target_count)
 
     microbiome_config = config.get("microbiome") if isinstance(config.get("microbiome"), dict) else {}
+    microbiome_tolerances = (
+        microbiome_config.get("tolerances_pp")
+        if isinstance(microbiome_config.get("tolerances_pp"), dict)
+        else {}
+    )
     microbiome_values: List[Tuple[Optional[float], float]] = []
     microbiome_target_count = 0
-    if not microbiome_df.empty:
-        row = microbiome_df.iloc[0]
-        simulation = _coerce_float(row.get("Simulation"))
-        target_min = _coerce_float(row.get("Target (min)"))
-        target_max = _coerce_float(row.get("Target (max)"))
-        tolerance = _coerce_float(microbiome_config.get("absolute_tolerance_pp")) or 5.0
-        distance = _range_distance(simulation, target_min, target_max, tolerance, cap)
-        if distance is not None:
+    
+    sim_col = "Microbiome simulation"
+    target_col_name = "Microbiome target"
+    tolerance = _coerce_float(microbiome_tolerances.get("microbiome")) or 10.0
+    
+    if not eligible.empty and sim_col in eligible.columns and target_col_name in eligible.columns:
+        subset = eligible[["Bacteria", "Drug", sim_col, target_col_name]].copy()
+        subset[sim_col] = pd.to_numeric(subset[sim_col], errors="coerce")
+        subset[target_col_name] = pd.to_numeric(subset[target_col_name], errors="coerce")
+        subset = subset.dropna(subset=[sim_col, target_col_name])
+        for _, row in subset.iterrows():
+            simulation = _coerce_float(row.get(sim_col))
+            target = _coerce_float(row.get(target_col_name))
+            if simulation is None or target is None:
+                continue
+            distance = _capped_distance(simulation - target, tolerance, cap)
+            if distance is None:
+                continue
             microbiome_values.append((distance, 1.0))
-            microbiome_target_count = 1
-            range_text = _format_range(target_min, target_max) or "n/a"
+            microbiome_target_count += 1
             contributors.append({
                 "Block": CALIBRATION_SCORE_BLOCK_LABELS["microbiome"],
-                "Target": str(row.get("Metric") or "Microbiome resistance"),
+                "Target": f"{row.get('Bacteria')} / {row.get('Drug')} (Microbiome resistance)",
                 "Distance": distance,
-                "Detail": f"simulation={simulation:.2f}, target range={range_text}, scale={tolerance:.2f} pp",
+                "Detail": f"|Δ|={abs(simulation - target):.2f} pp, scale={tolerance:.2f} pp",
             })
 
     add_block("microbiome", _weighted_mean(microbiome_values), microbiome_target_count)
@@ -3474,7 +3499,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             signed_columns: Set[str] = set()
 
             for column in resistance_display_df.columns:
-                if column in {"Bacteria", "Drug", "Drug class", "Note"}:
+                if column in {"Bacteria", "Drug", "Drug class", "Note", "Relevant mechanisms"}:
                     continue
                 resistance_display_df[column] = resistance_display_df.apply(
                     _format_numeric_value,
@@ -3488,7 +3513,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write(
                 _render_table_with_alignment(
                     resistance_display_df,
-                    left_columns={"Bacteria", "Drug class", "Drug", "Note"},
+                    left_columns={"Bacteria", "Drug class", "Drug", "Note", "Relevant mechanisms"},
                 )
             )
             handle.write("\n")

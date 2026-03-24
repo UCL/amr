@@ -307,14 +307,14 @@ This reflects the clinical reality that hospitals concentrate drug-resistant org
 People can carry bacteria in their gut, skin, or respiratory tract without being ill — this is called **asymptomatic carriage** (see Section 8 for details). Occasionally, these carried bacteria can cause an active infection in the same person. This is called **endogenous infection** and is extremely important for AMR because:
 
 - The carried bacteria may already be resistant (having been selected by previous antibiotic courses)
-- The person's resistance profile passes directly from carriage to infection
+- The person's resistance profile passes directly from carriage to infection via **mechanism-bit copying** — each resistance mechanism present in the microbiome compartment (`mechanism_microbiome`) is independently considered for transfer to the infection compartment (`mechanism_any`)
 
 This pathway is governed by two parameters:
 
 | Parameter | Value | What it means |
 |-----------|-------|---------------|
-| `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the new infection inherits the exact resistance profile of the carried strain |
-| `infection_from_microbiome_dampening` | 0.70 | A dampening factor that prevents carriage from converting to clinical infection too frequently — not every colonised patient develops disease |
+| `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the carrier-derived infection pathway fires at all — when it does, individual mechanisms are copied from the microbiome to the infection compartment |
+| `infection_from_microbiome_dampening` | 0.70 | Per-mechanism transfer probability: each mechanism in the microbiome has a 70% chance of being copied to the infection site, reflecting that not all colonising lineages successfully transition to the infection site |
 
 
 ### 3.4 Resistance at acquisition
@@ -889,7 +889,7 @@ These penetration values directly affect treatment outcomes in the model: a drug
 
 Not all antibiotics work against all bacteria. Penicillin G is highly effective against *Streptococcus pneumoniae* (potency 0.90) but has zero activity against *Pseudomonas aeruginosa* (intrinsically resistant). The model encodes this in a **potency matrix** — a 42×52 table (42 bacteria × 52 drug groups) where each cell represents the intrinsic activity of that drug against that bacterium when no acquired resistance is present.
 
-Values range from 0.0 (no activity — the drug simply does not work against this organism) to 1.0 (maximum activity). These potency values are based on published MIC (minimum inhibitory concentration) data and clinical breakpoints.
+Values range from 0.0 (no activity — the drug simply does not work against this organism) to 1.0 (maximum activity). These potency values are based on published MIC (minimum inhibitory concentration) data and clinical breakpoints. If an organism is intrinsically resistant to a drug (defined as having a baseline potency $\le 0.1$), the model strictly prevents any *acquired* resistance mechanisms from being erroneously assigned to or tracked for that organism-drug pair (e.g., *Mycoplasma*, which lacks a cell wall, cannot acquire PBP mutations against penicillins).
 
 Key examples:
 - Meropenem vs *E. coli*: 0.95 (very high potency — a carbapenem is one of the most effective drugs against Gram-negatives)
@@ -1153,7 +1153,9 @@ Most mechanism emergence rates are set to `0.0` for biologically impossible comb
 
 Resistance is not free. Maintaining resistance mechanisms costs the bacterium energy and resources — like carrying a heavy suitcase through an airport [31]. In the absence of antibiotics, resistant bacteria grow more slowly than their susceptible competitors and are gradually outcompeted. This is why resistance can decline after antibiotic use is reduced — a key insight for stewardship policy.
 
-The model assigns each mechanism a daily **reversion rate** — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely.
+The model assigns each mechanism a daily **reversion rate** — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely. All per-mechanism reversion rates are scaled by a global calibration multiplier (`mechanism_reversion_rate_global_multiplier`, default 1.0) so that the overall speed of resistance decay can be tuned without changing individual mechanism rates.
+
+Reversion operates in **both** compartments: the active infection (`mechanism_any`, `mechanism_majority`) and the microbiome carriage (`mechanism_microbiome`). In each compartment, a mechanism can only revert on a given day if no antibiotic with selective pressure for that mechanism is currently present — i.e., the mechanism only decays when the fitness cost is uncompensated. When a mechanism reverts, the scalar resistance metrics (`any_r` or `microbiome_r`) are re-derived from the updated mechanism flags.
 
 Key patterns:
 - **Most stable:** Single point mutations (e.g., *gyrA* fluoroquinolone resistance, reversion 0.0001/day) — the mutation barely affects the bacterium's fitness, so it persists for years even without ciprofloxacin pressure
@@ -1390,17 +1392,19 @@ Each bacterium in the model has a designated ecological niche — where it natur
 
 ### 8.2 Resistance in the microbiome
 
-The microbiome serves as a hidden reservoir of resistance. Each individual carries a resistance tracking matrix for every organism, even when no clinical infection is present.
+The microbiome serves as a hidden reservoir of resistance. Each individual carries a per-mechanism boolean resistance array (`mechanism_microbiome`) for every organism, mirroring the structure of the infection compartment (`mechanism_any`). The scalar `microbiome_r` metric is **derived** from these mechanism flags via the same multiplicative susceptibility formula used for infection resistance (Section 7.2). This unified mechanism-centric architecture ensures that resistance in carriage and infection compartments is always coherent — there is no separate "float-based" tracking for the microbiome.
 
 Key dynamics:
 
 | Process | Parameter | Value | What it means |
 |---------|-----------|-------|---------------|
-| Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | -0.01/day (caps at -2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
-| Auto-infection dampening | `infection_from_microbiome_dampening` | 0.70 | When a carrier develops an infection from their own gut flora, the starting bacterial load is reduced to 70% (not all commensal bacteria transition to pathogens) |
-| Silent mutation rate | `microbiome_resistance_emergence_rate_per_day_baseline` | 1.0e-20 (effectively zero) | Resistance does NOT evolve spontaneously in asymptomatic carriage — antibiotic exposure is required |
-
-The last point is an important design decision: the model says that AMR is driven by antibiotic-treated infections, not by silent mutation in commensal flora.
+| Resistance seeding on acquisition | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | When a person acquires a new carriage episode, there is a 50% probability that the colonising strain inherits the circulating resistance profile (sampled from the mechanism profile cache, just as for infection acquisition — see Section 3.4). If the draw fails, the strain arrives susceptible. |
+| Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
+| Mechanism-level reversion | `mechanism_reversion_rate_global_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates and global multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present. |
+| De-novo emergence under treatment | `microbiome_de_novo_multiplier` | 1.0 | When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the same emergence formula used for infections (Section 7.3), scaled by this multiplier. Emergence writes to both `mechanism_microbiome` and `mechanism_any`. |
+| Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a carrier develops an endogenous infection, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3) |
+| Infection → microbiome transfer | (automatic) | — | When an infected individual also carries the same bacterium, resistance mechanisms present in the infection but absent in the microbiome are copied to `mechanism_microbiome`, reflecting spillover from the active infection back into the commensal reservoir |
+| HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event fires and the recipient carries the donor's bacterium in the microbiome, the transferred mechanism is written to `mechanism_microbiome` as well as `mechanism_any` |
 
 
 ## 9. Horizontal Gene Transfer (HGT)
@@ -1424,8 +1428,11 @@ Not all bacteria can exchange genes equally. The model uses a compatibility matr
 
 Each day, for every individual carrying resistant bacteria in their microbiome, the model evaluates potential gene transfer events. The model evaluates HGT dynamically per distinct resistance mechanism, allowing independent plasmids (e.g., KPC and *mcr-1*) to transmit independently rather than as a single all-or-nothing block. Furthermore, bacteria do not restrict plasmid donation to only the dominant strain; minority resistance populations can donate, but face a transfer penalty.
 
+When an HGT event fires, the transferred mechanism is written to the recipient's `mechanism_any` (infection compartment). If the recipient also carries the donor's target bacterium in the microbiome, the mechanism is simultaneously written to `mechanism_microbiome`, ensuring the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by a global calibration multiplier (`hgt_multiplier`, default 1.0).
+
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
+| Global HGT scaling | hgt_multiplier | 1.0 | Calibration knob — scales all HGT rates up or down uniformly |
 | Base transfer rate | microbiome_resistance_transfer_probability_per_day | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure |
 | Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% [33] — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
 | Hospitalization boost | hgt_hospital_multiplier | 3.0 (×3.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
@@ -2064,7 +2071,7 @@ These parameters mix mechanistic state-transition rates with a deliberately broa
 
 #### Microbiome and carriage
 
-| Parameter | Baseline (Log-odds ratio) |
+| Parameter | Baseline Value |
 |----------|---------|
 | `default_microbiome_clearance_probability_per_day` | 0.01 |
 | `microbiome_clearance_probability_on_drug_treatment` | 0.8 |
@@ -2078,7 +2085,18 @@ These parameters mix mechanistic state-transition rates with a deliberately broa
 | `carrier_resistance_inheritance_probability` | 0.50 |
 | `community_resistance_dilution_factor` | 0.50 |
 | `mechanism_cache_ewma_decay` | 0.9 |
-| `microbiome_majority_promotion_rate_per_day` | 0.02 |
+
+
+#### Calibration multipliers
+
+These global scaling parameters control the major axes of resistance dynamics. All default to values that reproduce the baseline calibration; they can be varied independently to explore alternative calibrations or counterfactual scenarios.
+
+| Parameter | Default | What it scales |
+|----------|---------|---------------|
+| `mechanism_reversion_rate_global_multiplier` | 1.0 | All per-mechanism reversion rates (Section 7.4) |
+| `infection_de_novo_multiplier` | 1.0 | De-novo resistance emergence in active infections (Section 7.3) |
+| `microbiome_de_novo_multiplier` | 1.0 | De-novo resistance emergence in microbiome carriage (Section 8.2) |
+| `hgt_multiplier` | 1.0 | All horizontal gene transfer rates (Section 9.2) |
 
 
 

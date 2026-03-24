@@ -83,9 +83,12 @@
 use crate::config::{
     calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
-    parameter_store, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+    RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
     self, CarriageCompartment, HospitalStatus, ImmunodeficiencyType, Individual,
@@ -225,9 +228,9 @@ use rand::distributions::WeightedIndex;
 /// mechanism acquisition. When false, `any_r` is reset to the mechanism-derived level
 /// — used after mechanism reversion.
 ///
-/// When `propagate_microbiome_r` is true, `microbiome_r` is also raised for applicable
-/// drugs — used in the microbiome context where the resistant clone in gut flora is
-/// resistant to all drugs the mechanism covers.
+/// When `propagate_microbiome_r` is true, `microbiome_r` is also recomputed from
+/// `mechanism_microbiome` — the authoritative boolean store for microbiome resistance.
+/// `any_r` is always derived from `mechanism_any`.
 fn propagate_mechanism_resistance(
     individual: &mut Individual,
     b_idx: usize,
@@ -240,13 +243,19 @@ fn propagate_mechanism_resistance(
 
     for drug_index in 0..DRUG_SHORT_NAMES.len() {
         // Compute cumulative mechanism resistance via multiplicative stacking
-        let mut current_susceptibility = 1.0_f64;
+        // Two accumulators: one for mechanism_any → any_r, one for mechanism_microbiome → microbiome_r
+        let mut infection_susceptibility = 1.0_f64;
+        let mut microbiome_susceptibility = 1.0_f64;
 
         for (mechanism_idx, _) in ResistanceMechanism::all().iter().enumerate() {
-            if !individual.mechanism_any[b_idx][mechanism_idx] {
+            if !param_cache.mechanism_applicable(mechanism_idx, b_idx, drug_index) {
                 continue;
             }
-            if !param_cache.mechanism_applicable(mechanism_idx, b_idx, drug_index) {
+
+            let has_any = individual.mechanism_any[b_idx][mechanism_idx];
+            let has_microbiome = propagate_microbiome_r && individual.mechanism_microbiome[b_idx][mechanism_idx];
+
+            if !has_any && !has_microbiome {
                 continue;
             }
 
@@ -254,11 +263,15 @@ fn propagate_mechanism_resistance(
                 .resistance_mechanism
                 .enhancement_multiplier(mechanism_idx, DRUG_CLASS_LOOKUP[drug_index]);
 
-            current_susceptibility *= 1.0 - mechanism_enhancement;
+            if has_any {
+                infection_susceptibility *= 1.0 - mechanism_enhancement;
+            }
+            if has_microbiome {
+                microbiome_susceptibility *= 1.0 - mechanism_enhancement;
+            }
         }
 
-        let cumulative_mechanism_resistance = 1.0 - current_susceptibility;
-        let new_any_r = (cumulative_mechanism_resistance * max_resistance_level)
+        let new_any_r = ((1.0 - infection_susceptibility) * max_resistance_level)
             .min(max_resistance_level)
             .max(0.0);
 
@@ -274,9 +287,18 @@ fn propagate_mechanism_resistance(
             resistance_data.any_r = new_any_r;
         }
 
-        // Propagate to microbiome_r if requested (microbiome context)
-        if propagate_microbiome_r && new_any_r > resistance_data.microbiome_r {
-            resistance_data.microbiome_r = new_any_r;
+        // Derive microbiome_r from mechanism_microbiome state
+        if propagate_microbiome_r {
+            let new_microbiome_r = ((1.0 - microbiome_susceptibility) * max_resistance_level)
+                .min(max_resistance_level)
+                .max(0.0);
+            if raise_only {
+                if new_microbiome_r > resistance_data.microbiome_r {
+                    resistance_data.microbiome_r = new_microbiome_r;
+                }
+            } else {
+                resistance_data.microbiome_r = new_microbiome_r;
+            }
         }
     }
 }
@@ -419,20 +441,26 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ),
 
         // OmpK35/36 loss (Klebsiella): reduces permeability to all hydrophilic antibiotics entering through porins
-        PorinLossOmpk35_36 => matches!(
-            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
-            | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
-            | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
-            | "aztreonam" | "aztreonam_avibactam"
-              | "meropenem" | "imipenem_c" | "ertapenem"
-            | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
-            | "gentamicin" | "tobramycin" | "amikacin"                          // Weak AG permeability reduction
-        ),
+        PorinLossOmpk35_36 => {
+            if bacteria != "klebsiella_pneumoniae" { return false; }
+            matches!(
+                drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
+                | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+                | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftolozane_tazobactam" | "ceftaroline" | "cefiderocol"
+                | "aztreonam" | "aztreonam_avibactam"
+                | "meropenem" | "imipenem_c" | "ertapenem"
+                | "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"  // Weak FQ permeability reduction
+                | "gentamicin" | "tobramycin" | "amikacin"                          // Weak AG permeability reduction
+            )
+        },
 
         // OprD loss (Pseudomonas): dedicated carbapenem channel, not a general porin
-        PorinLossOprd => matches!(
-            drug, "meropenem" | "imipenem_c" | "ertapenem"
-        ),
+        PorinLossOprd => {
+            if bacteria != "pseudomonas_aeruginosa" { return false; }
+            matches!(
+                drug, "meropenem" | "imipenem_c" | "ertapenem"
+            )
+        },
 
         // Generic porin loss: moderate broad-spectrum permeability reduction for hydrophilic drugs
         GlobalPorinLoss => matches!(
@@ -1149,30 +1177,32 @@ impl ParameterKeyCache {
         }
 
         for mechanism in ResistanceMechanism::all().iter() {
-            for (_b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
-                for &drug_name in DRUG_SHORT_NAMES.iter() {
+            for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+                for (d_idx, &drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
                     let default_applies = mechanism_applies_to_drug(
                         *mechanism,
                         bacteria_name,
                         drug_name,
                     );
-                    
-                    // Check for override in global params
-                    // Key format: "mechanism_{mechanism}_applies_to_{drug}"
-                    // Example: "mechanism_other_mechanism_1_applies_to_meropenem"
-                    
-                    // First check specific bacteria override: "mechanism_{mechanism}_applies_to_{drug}_in_{bacteria_slug}"
+
                     let bacteria_slug = bacteria_name.to_lowercase().replace(" ", "_");
                     let specific_override_key = format!("mechanism_{}_applies_to_{}_in_{}", mechanism.as_str(), drug_name, bacteria_slug);
                     let general_override_key = format!("mechanism_{}_applies_to_{}", mechanism.as_str(), drug_name);
                     
-                    let applies = if let Some(val) = get_global_param(&specific_override_key) {
+                    let mut applies = if let Some(val) = get_global_param(&specific_override_key) {
                         val > 0.5
                     } else if let Some(val) = get_global_param(&general_override_key) {
                         val > 0.5
                     } else {
                         default_applies
                     };
+
+                    // Prevent acquired mechanisms from applying if the bacteria is intrinsically 
+                    // resistant (negligible potency: <= 0.1) unless completely overridden manually.
+                    let potency = store.drug_bacteria.potency(b_idx, d_idx);
+                    if potency <= 0.1 {
+                        applies = false;
+                    }
 
                     mechanism_applicability.push(applies);
                 }
@@ -1307,10 +1337,21 @@ pub fn apply_rules(
         .unwrap_or(store.globals.minimal_potency_threshold_for_drug_selection);
     let counterfactual_resistance_multiplier = policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
     let infection_de_novo_multiplier =
-        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
+        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0)
+        * store.globals.infection_de_novo_multiplier;
     let microbiome_de_novo_multiplier =
-        get_global_param(RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
-    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0);
+        get_global_param(RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0)
+        * store.globals.microbiome_de_novo_multiplier;
+    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0)
+        * store.globals.hgt_multiplier;
+    let reversion_rate_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY).unwrap_or(1.0);
+    let carrier_inheritance_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY).unwrap_or(1.0);
+    let community_dilution_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY).unwrap_or(1.0);
+    let microbiome_acquisition_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
     // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
     // of setting it to zero in a counterfactual scenario with no resistance
 
@@ -1364,7 +1405,6 @@ pub fn apply_rules(
     let resistance_test_result_delay_days = param_cache.resistance_test_result_delay_days;
 
     // --- Pre-compute per-individual constants that were previously looked up inside the per-bacteria loop ---
-    let cached_microbiome_majority_threshold = param_cache.microbiome_majority_threshold;
     let cached_majority_r_evolution_rate = param_cache.majority_r_evolution_rate;
     let cached_max_resistance_level = param_cache.max_resistance_level;
     let cached_test_delay_days = param_cache.test_delay_days;
@@ -4052,9 +4092,11 @@ pub fn apply_rules(
                         individual.microbiome_acquired_today[b_idx] = true;
                         individual.microbiome_acquired_on_drug_today[b_idx] = acquisition_on_drug;
 
-                        // --- assign microbiome_r on new microbiome acquisition (same logic as infection resistance assignment) ---
-                        let max_resistance_level = store.globals.max_resistance_level;
-
+                        // --- assign microbiome mechanisms on new microbiome acquisition ---
+                        // Mirror the infection-side mechanism sampling pattern:
+                        // sample a mechanism profile (or single mechanism) from the cache,
+                        // write to mechanism_microbiome AND mechanism_any, then derive
+                        // microbiome_r via propagate_mechanism_resistance.
                         let is_hospital_acquired = individual.hospital_status.is_hospitalized();
 
                         let region_idx = match individual.region_cur_in {
@@ -4063,62 +4105,55 @@ pub fn apply_rules(
                         };
                         let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
-                        for drug_name_static in DRUG_SHORT_NAMES.iter() {
-                            let d_idx = *drug_indices.get(drug_name_static).unwrap();
-                            let resistance_data = &mut individual.resistances[b_idx][d_idx];
+                        let sampling_hospital_status = if is_hospital_acquired {
+                            true
+                        } else {
+                            hospital_status_bool
+                        };
 
-                            // --- region/hospital-specific sampling for microbiome (same logic as infections) ---
-                            let sampling_hospital_status = if is_hospital_acquired {
-                                true // Hospital-acquired microbiome samples from hospitalized population
-                            } else {
-                                hospital_status_bool // Community-acquired microbiome samples based on current status
-                            };
+                        // Apply microbiome_resistance_multiplier_on_acquisition as a gate:
+                        // only a fraction of acquisitions inherit the circulating resistance profile
+                        let microbiome_r_multiplier = store.globals.microbiome_resistance_multiplier_on_acquisition
+                            * microbiome_acquisition_sampling_multiplier;
 
-                            if let Some(acquired_resistance_level) = {
-                                // Use mechanism_cache EWMA prevalence to assign microbiome_r at acquisition.
-                                // Compute mechanism-derived resistance level for this drug slot.
-                                let prev = mechanism_cache.prevalence(
-                                    region_idx,
-                                    sampling_hospital_status,
-                                    b_idx,
-                                    d_idx,
-                                    param_cache,
-                                );
-                                // Only seed microbiome_r if the cache shows meaningful prevalence
-                                if prev > 1e-6 && rng.gen_bool(prev.clamp(0.0, 1.0)) {
-                                    // Level proportional to prevalence, capped to max_resistance_level
-                                    let base_level = prev * max_resistance_level;
-                                    Some(base_level)
-                                } else {
-                                    None
+                        if rng.gen::<f64>() < (microbiome_r_multiplier * counterfactual_resistance_multiplier) {
+                            use crate::simulation::population::ResistanceMechanism;
+
+                            // Try profile sampling first, fall back to marginal single-mechanism
+                            if let Some(profile) = mechanism_cache.sample_profile(region_idx, b_idx, rng) {
+                                for m_idx in 0..64 {
+                                    if (profile & (1 << m_idx)) != 0 {
+                                        if m_idx < ResistanceMechanism::all().len()
+                                            && ResistanceMechanism::all()[m_idx].is_as_yet_unknown()
+                                        {
+                                            continue;
+                                        }
+                                        individual.mechanism_microbiome[b_idx][m_idx] = true;
+                                        individual.mechanism_any[b_idx][m_idx] = true;
+                                    }
                                 }
-                            } {
-                                // Apply resistance floor for rare bacteria (same as infection acquisition)
-                                // This ensures microbiome colonization also carries appropriate resistance
-                                // levels, which feeds back into the majority_r_cache for future acquisitions
-                                let floor_level = calculate_resistance_floor(
-                                    bacteria,
-                                    drug_name_static,
-                                    time_step as i32,
-                                );
-                                let level_with_floor = acquired_resistance_level.max(floor_level);
-                                let clamped_level =
-                                    (level_with_floor * counterfactual_resistance_multiplier).min(max_resistance_level).max(0.0);
-                                resistance_data.microbiome_r = clamped_level;
                             } else {
-                                resistance_data.microbiome_r = 0.0;
-                            }
-
-                            if resistance_data.microbiome_r > 0.0 {
-                                resistance_data.microbiome_r = (resistance_data.microbiome_r
-                                    * store
-                                        .globals
-                                        .microbiome_resistance_multiplier_on_acquisition)
-                                    .min(max_resistance_level)
-                                    .max(0.0);
+                                let sampled_mechanism_idx = mechanism_cache.sample_mechanism(
+                                    region_idx, sampling_hospital_status, b_idx, rng,
+                                );
+                                if let Some(idx) = sampled_mechanism_idx {
+                                    if !ResistanceMechanism::all()[idx].is_as_yet_unknown() {
+                                        individual.mechanism_microbiome[b_idx][idx] = true;
+                                        individual.mechanism_any[b_idx][idx] = true;
+                                    }
+                                }
                             }
                         }
-                        // --- end microbiome_r assignment ---
+
+                        // Derive microbiome_r (and raise any_r) from the mechanism state
+                        propagate_mechanism_resistance(
+                            individual,
+                            b_idx,
+                            param_cache,
+                            true,  // raise_only: don't lower existing resistance
+                            true,  // propagate_microbiome_r: this is microbiome context
+                        );
+                        // --- end microbiome mechanism assignment ---
                     }
                 }
             } else {
@@ -4129,6 +4164,9 @@ pub fn apply_rules(
                 individual.microbiome_cleared_today[b_idx] = false;
                 for resistance_data in individual.resistances[b_idx].iter_mut() {
                     resistance_data.microbiome_r = 0.0;
+                }
+                for m_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
+                    *m_flag = false;
                 }
             }
 
@@ -4214,93 +4252,60 @@ pub fn apply_rules(
                     individual.presence_microbiome[b_idx] = false;
                     individual.date_microbiome_acquired[b_idx] = 0; // Reset acquisition date for potential re-acquisition
                     individual.microbiome_cleared_today[b_idx] = true;
+                    for m_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
+                        *m_flag = false;
+                    }
                 }
 
                 // --- de novo resistance emergence in microbiome when on drug ---
                 if individual.presence_microbiome[b_idx] {
-                    let majority_threshold = cached_microbiome_majority_threshold;
-                    let decay_multiplier = |half_life: f64| -> f64 {
-                        if half_life <= 0.0 {
-                            0.0
-                        } else {
-                            0.5f64.powf(1.0 / half_life)
-                        }
-                    };
-                    let majority_decay_multiplier =
-                        decay_multiplier(store.globals.microbiome_majority_decay_half_life_days);
-                    let minority_decay_multiplier =
-                        decay_multiplier(store.globals.microbiome_minority_decay_half_life_days);
-                    let selection_pressure = strongest_microbiome_activity.clamp(0.0_f64, 5.0_f64);
-                    let decay_applies = selection_pressure < 0.1;
-                    let promotion_intensity =
-                        (selection_pressure / (selection_pressure + 1.0)).clamp(0.0, 1.0);
-
-                    for resistance_data in individual.resistances[b_idx].iter_mut() {
-                        if resistance_data.microbiome_r <= 0.0 {
-                            continue;
-                        }
-
-                        if decay_applies {
-                            if resistance_data.microbiome_r >= majority_threshold {
-                                if majority_decay_multiplier <= 0.0 {
-                                    resistance_data.microbiome_r = 0.0;
-                                } else {
-                                    resistance_data.microbiome_r *= majority_decay_multiplier;
-                                }
-                            } else {
-                                if minority_decay_multiplier <= 0.0 {
-                                    resistance_data.microbiome_r = 0.0;
-                                } else {
-                                    resistance_data.microbiome_r *= minority_decay_multiplier;
-                                }
-                            }
-
-                            if resistance_data.microbiome_r < 1e-6 {
-                                resistance_data.microbiome_r = 0.0;
-                            }
-                        } else if resistance_data.microbiome_r > 0.0
-                            && resistance_data.microbiome_r < majority_threshold
-                        {
-                            let promotion_rate = (promotion_intensity
-                                * store.globals.microbiome_majority_promotion_rate_per_day)
-                                .clamp(0.0, 1.0);
-                            if promotion_rate > 0.0 && rng.gen_bool(promotion_rate) {
-                                resistance_data.microbiome_r =
-                                    resistance_data.microbiome_r.max(majority_threshold);
-                            }
-                        }
-
-                        resistance_data.microbiome_r = resistance_data
-                            .microbiome_r
-                            .min(max_resistance_level)
-                            .max(0.0);
-                    }
-
-                    for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
-                        let resistance_data = &mut individual.resistances[b_idx][d_idx];
-                        let drug_level = individual.cur_level_drug[d_idx];
-                        // Only consider emergence if drug is present and microbiome_r is low
-                        if drug_level > 0.0001 && resistance_data.microbiome_r < 0.0001 {
-                            // Use a specific parameter for microbiome resistance emergence if present, else fallback to general
-                            let emergence_rate_baseline = store
-                                .globals
-                                .microbiome_resistance_emergence_rate_per_day_baseline;
-                            let microbiome_r_emergence_level =
-                                store.globals.any_r_emergence_level_on_first_emergence;
-
-                            let total_emergence_prob =
-                                emergence_rate_baseline
-                                    * microbiome_de_novo_multiplier
-                                    * counterfactual_resistance_multiplier; // * (drug_level / 10.0).clamp(0.0, 1.0);
-
-                            if rng.gen_bool(total_emergence_prob.clamp(0.0, 1.0)) {
-                                resistance_data.microbiome_r =
-                                    microbiome_r_emergence_level.min(max_resistance_level);
-                            }
-                        }
-                    }
-
                     use crate::simulation::population::ResistanceMechanism;
+
+                    // --- Microbiome mechanism reversion (replaces float half-life decay) ---
+                    // When no selecting drug pressure is present, microbiome mechanisms revert
+                    // using the same per-mechanism reversion rates as infection-side reversion.
+                    {
+                        let bacteria_name = BACTERIA_LIST[b_idx];
+                        let selection_pressure = strongest_microbiome_activity.clamp(0.0_f64, 5.0_f64);
+                        let no_selection = selection_pressure < 0.1;
+
+                        if no_selection {
+                            let mut any_microbiome_reverted = false;
+                            for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                                if !individual.mechanism_microbiome[b_idx][mechanism_idx] {
+                                    continue;
+                                }
+                                // Check if any active drug selects for this mechanism
+                                let selecting_drug_present = DRUG_SHORT_NAMES.iter().enumerate().any(
+                                    |(d_idx, &drug_name)| {
+                                        individual.cur_level_drug[d_idx] > 0.0
+                                            && mechanism_applies_to_drug(*mechanism, bacteria_name, drug_name)
+                                    },
+                                );
+                                if !selecting_drug_present {
+                                    let mechanism_reversion_rate =
+                                        store.resistance_mechanism.reversion_rate(mechanism_idx)
+                                        * store.globals.mechanism_reversion_rate_global_multiplier
+                                        * reversion_rate_sampling_multiplier;
+                                    if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
+                                        individual.mechanism_microbiome[b_idx][mechanism_idx] = false;
+                                        any_microbiome_reverted = true;
+                                    }
+                                }
+                            }
+                            if any_microbiome_reverted {
+                                // Re-derive microbiome_r from updated mechanism_microbiome
+                                propagate_mechanism_resistance(
+                                    individual,
+                                    b_idx,
+                                    param_cache,
+                                    false, // raise_only=false: reversion resets to mechanism-derived level
+                                    true,  // propagate_microbiome_r: this is microbiome context
+                                );
+                            }
+                        }
+                    }
+                    // --- end microbiome mechanism reversion ---
 
                     // --- mechanism emergence in microbiome under drug pressure ---
                     for (d_idx, &_drug_name) in DRUG_SHORT_NAMES.iter().enumerate() {
@@ -4317,7 +4322,10 @@ pub fn apply_rules(
                                 continue;
                             }
 
-                            if individual.mechanism_any[b_idx][mechanism_idx] {
+                            // Skip if already present in both compartments
+                            if individual.mechanism_microbiome[b_idx][mechanism_idx]
+                                && individual.mechanism_any[b_idx][mechanism_idx]
+                            {
                                 continue;
                             }
 
@@ -4331,9 +4339,10 @@ pub fn apply_rules(
                             let mechanism_emergence_rate =
                                 mechanism_rate
                                     * microbiome_de_novo_multiplier
-                                    * counterfactual_resistance_multiplier; // Apply species and policy multipliers to mechanism emergence in microbiome
+                                    * counterfactual_resistance_multiplier;
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
+                                individual.mechanism_microbiome[b_idx][mechanism_idx] = true;
                                 individual.mechanism_any[b_idx][mechanism_idx] = true;
                             }
                         }
@@ -4355,27 +4364,55 @@ pub fn apply_rules(
             }
 
             // ...resistance transfer (each way) between infection site and microbiome ...
-            for &drug in DRUG_SHORT_NAMES.iter() {
-                let d_idx = *drug_indices.get(drug).unwrap();
-                if !individual.presence_microbiome[b_idx] {
-                    individual.resistances[b_idx][d_idx].microbiome_r = 0.0;
-                } else {
-                    let infection_present = individual.level[b_idx] > 0.0;
-                    if infection_present {
-                        let current_any_r = individual.resistances[b_idx][d_idx].any_r;
-                        let current_microbiome_r =
-                            individual.resistances[b_idx][d_idx].microbiome_r;
-                        let possible_transfer_r_microbiome = (current_any_r > 0.0
-                            && current_microbiome_r == 0.0)
-                            || (current_microbiome_r > 0.0 && current_any_r == 0.0);
-                        if possible_transfer_r_microbiome && rng.gen_bool(transfer_prob) {
-                            if current_any_r > 0.0 && current_microbiome_r == 0.0 {
-                                individual.resistances[b_idx][d_idx].microbiome_r = current_any_r;
-                            } else if current_microbiome_r > 0.0 && current_any_r == 0.0 {
-                                individual.resistances[b_idx][d_idx].any_r = current_microbiome_r;
+            // Mechanism-driven: copy mechanism bits between compartments, then re-derive floats.
+            if individual.presence_microbiome[b_idx] && individual.level[b_idx] > 0.0 {
+                let has_infection_only_mechanisms = individual.mechanism_any[b_idx].iter().enumerate().any(
+                    |(m, &active)| active && !individual.mechanism_microbiome[b_idx][m],
+                );
+                let has_microbiome_only_mechanisms = individual.mechanism_microbiome[b_idx].iter().enumerate().any(
+                    |(m, &active)| active && !individual.mechanism_any[b_idx][m],
+                );
+
+                if (has_infection_only_mechanisms || has_microbiome_only_mechanisms)
+                    && rng.gen_bool(transfer_prob)
+                {
+                    let mut any_transferred = false;
+                    // Transfer infection→microbiome: copy mechanism_any bits to mechanism_microbiome
+                    if has_infection_only_mechanisms {
+                        for m_idx in 0..individual.mechanism_any[b_idx].len() {
+                            if individual.mechanism_any[b_idx][m_idx]
+                                && !individual.mechanism_microbiome[b_idx][m_idx]
+                            {
+                                individual.mechanism_microbiome[b_idx][m_idx] = true;
+                                any_transferred = true;
                             }
                         }
                     }
+                    // Transfer microbiome→infection: copy mechanism_microbiome bits to mechanism_any
+                    if has_microbiome_only_mechanisms {
+                        for m_idx in 0..individual.mechanism_microbiome[b_idx].len() {
+                            if individual.mechanism_microbiome[b_idx][m_idx]
+                                && !individual.mechanism_any[b_idx][m_idx]
+                            {
+                                individual.mechanism_any[b_idx][m_idx] = true;
+                                any_transferred = true;
+                            }
+                        }
+                    }
+                    if any_transferred {
+                        propagate_mechanism_resistance(
+                            individual,
+                            b_idx,
+                            param_cache,
+                            true,  // raise_only: don't lower existing resistance
+                            true,  // propagate_microbiome_r: update both compartments
+                        );
+                    }
+                }
+            } else if !individual.presence_microbiome[b_idx] {
+                // No microbiome presence — ensure microbiome_r is zero
+                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                    individual.resistances[b_idx][d_idx].microbiome_r = 0.0;
                 }
             }
 
@@ -4460,7 +4497,8 @@ pub fn apply_rules(
                     // resistance from a broader pool that includes susceptible strains
                     // from the general environment and animal sources.
                     let community_dilution = if !is_hospital_acquired {
-                        store.globals.community_resistance_dilution_factor
+                        (store.globals.community_resistance_dilution_factor
+                            * community_dilution_sampling_multiplier).min(1.0)
                     } else {
                         1.0
                     };
@@ -4630,37 +4668,47 @@ pub fn apply_rules(
                     }
 
                     // --- Carrier resistance inheritance (THE KEY MECHANISM FOR RESISTANCE AMPLIFICATION) ---
-                    // Microbiome_r is kept as the derived resistance level for microbiome carriage.
-                    // When a carrier develops an infection, any_r is raised to reflect microbiome resistance.
-                    // mechanism_microbiome is the new boolean source of truth for microbiome carriage.
+                    // Mechanism-driven: copy mechanism_microbiome bits to mechanism_any with
+                    // per-mechanism probability = infection_from_microbiome_dampening.
+                    // This replaces the previous float-copy approach. The dampening parameter
+                    // now represents the fraction of microbiome mechanisms that colonize the
+                    // infection site, which is mechanism-native and composes cleanly.
                     if individual.presence_microbiome[b_idx] {
                         let inheritance_prob =
-                            store.globals.carrier_resistance_inheritance_probability;
+                            (store.globals.carrier_resistance_inheritance_probability
+                            * carrier_inheritance_sampling_multiplier).min(1.0);
                         if rng.gen_bool(inheritance_prob) {
-                            let max_resistance_level = store.globals.max_resistance_level;
-                            // Inherit microbiome resistance for all drugs
-                            for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                let microbiome_resistance =
-                                    individual.resistances[b_idx][d_idx].microbiome_r;
-                                if microbiome_resistance > 0.0 {
-                                    let infection_resistance_data =
-                                        &mut individual.resistances[b_idx][d_idx];
-                                    // Inherit the higher of existing infection resistance or dampened microbiome resistance
-                                    // (ensures we don't lose resistance already assigned from other sources)
-                                    let dampened_microbiome_resistance = (microbiome_resistance
-                                        * store.globals.infection_from_microbiome_dampening)
-                                        .min(max_resistance_level)
-                                        .max(0.0);
-                                    let inherited_level = dampened_microbiome_resistance
-                                        .max(infection_resistance_data.any_r);
-                                    infection_resistance_data.any_r = inherited_level;
-                                    // Note: majority_r is no longer directly set here.
-                                    // any_r is the single source of truth; mechanism booleans drive it.
-
-                                    // Track that this resistance came from microbiome carriage
-                                    individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                    crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR,
+                            let dampening = store.globals.infection_from_microbiome_dampening;
+                            let mut any_mechanism_inherited = false;
+                            for m_idx in 0..individual.mechanism_microbiome[b_idx].len() {
+                                if individual.mechanism_microbiome[b_idx][m_idx]
+                                    && !individual.mechanism_any[b_idx][m_idx]
+                                {
+                                    // Per-mechanism transfer probability = dampening parameter
+                                    if rng.gen_bool(dampening.clamp(0.0, 1.0)) {
+                                        individual.mechanism_any[b_idx][m_idx] = true;
+                                        any_mechanism_inherited = true;
+                                    }
+                                }
+                            }
+                            if any_mechanism_inherited {
+                                // Re-derive any_r from the updated mechanism_any state
+                                propagate_mechanism_resistance(
+                                    individual,
+                                    b_idx,
+                                    param_cache,
+                                    true,  // raise_only: don't lower existing resistance
+                                    false, // propagate_microbiome_r: this is infection context
                                 );
+                                // Track provenance for drugs that now have resistance
+                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                    if individual.resistances[b_idx][d_idx].any_r > 0.0
+                                        && individual.how_resistance_acquired[b_idx][d_idx].is_none()
+                                    {
+                                        individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                            crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR,
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -5132,11 +5180,15 @@ pub fn apply_rules(
 
                         if !selecting_drug_present {
                             let mechanism_reversion_rate =
-                                store.resistance_mechanism.reversion_rate(mechanism_idx);
+                                store.resistance_mechanism.reversion_rate(mechanism_idx)
+                                * store.globals.mechanism_reversion_rate_global_multiplier
+                                * reversion_rate_sampling_multiplier;
 
                             if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
                                 individual.mechanism_any[b_idx][mechanism_idx] = false;
                                 individual.mechanism_majority[b_idx][mechanism_idx] = false;
+                                // Also revert in microbiome compartment if present
+                                individual.mechanism_microbiome[b_idx][mechanism_idx] = false;
                                 if mechanisms_reverted_len < 64 {
                                             mechanisms_reverted_buf[mechanisms_reverted_len] = mechanism_idx;
                                             mechanisms_reverted_len += 1;
@@ -5149,22 +5201,24 @@ pub fn apply_rules(
                 // If any mechanisms were lost, recalculate resistance levels for all drugs
                 let mechanisms_reverted = &mechanisms_reverted_buf[..mechanisms_reverted_len];
                                     if !mechanisms_reverted.is_empty() {
+                    let has_microbiome = individual.presence_microbiome[b_idx];
                     propagate_mechanism_resistance(
                         individual,
                         b_idx,
                         param_cache,
                         false, // raise_only=false: reversion resets to mechanism-derived level
-                        false, // propagate_microbiome_r: reversion context is active infection
+                        has_microbiome, // propagate_microbiome_r: also re-derive if microbiome present
                     );
                 }
 
-                // If no mechanisms remain but resistance persists, apply bacteria-specific reversion
-                // (mechanismless reversion still uses on_any_drug — conservative: any drug could
-                // maintain selection pressure on uncharacterised resistance)
+                // Mechanismless reversion guardrail: if no mechanisms remain in any compartment
+                // but resistance floats persist, wipe everything. This should be rare after the
+                // mechanism closure refactor — log if it fires during validation.
                 let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
                 if !on_any_drug {
                     let has_active_mechanism =
-                        individual.mechanism_any[b_idx].iter().any(|&active| active);
+                        individual.mechanism_any[b_idx].iter().any(|&active| active)
+                        || individual.mechanism_microbiome[b_idx].iter().any(|&active| active);
                     if !has_active_mechanism
                         && individual.resistances[b_idx]
                             .iter()
@@ -5179,6 +5233,9 @@ pub fn apply_rules(
                                 *mechanism_flag = false;
                             }
                             for mechanism_flag in individual.mechanism_majority[b_idx].iter_mut() {
+                                *mechanism_flag = false;
+                            }
+                            for mechanism_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
                                 *mechanism_flag = false;
                             }
                             for drug_index in 0..DRUG_SHORT_NAMES.len() {
@@ -5344,6 +5401,9 @@ pub fn apply_rules(
                         if rng.gen_bool(cached_microbiome_clearance_on_drug_treatment) {
                             individual.presence_microbiome[b_idx] = false;
                             individual.microbiome_cleared_today[b_idx] = true;
+                            for m_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
+                                *m_flag = false;
+                            }
                         }
                     }
                 }
@@ -5580,6 +5640,10 @@ pub fn apply_rules(
 
                         // Transfer the mechanism — recipient gains any-strain presence
                         individual.mechanism_any[recipient_idx][mech_idx] = true;
+                        // Also write to mechanism_microbiome if recipient carries this bacterium in gut
+                        if individual.presence_microbiome[recipient_idx] {
+                            individual.mechanism_microbiome[recipient_idx][mech_idx] = true;
+                        }
                         any_mechanism_transferred = true;
                     }
 
