@@ -1504,38 +1504,33 @@ impl SyndromeParameters {
         // Drug indices (from DRUG_SHORT_NAMES):
         // 0=sulfanilamide, 1=penicillin_g, 2=ampicillin, 3=amoxicillin, 4=piperacillin, 5=ticarcillin
         // 6=cephalexin, 7=cefazolin, 8=cefuroxime, 9=ceftriaxone, 10=ceftazidime, 11=cefepime
-        // 12=ceftaroline, 13=ceftolozane_tazobactam, 14=cefiderocol, 15=meropenem, 16=imipenem_c
-        // 17=ertapenem, 18=aztreonam, 19=erythromycin, 20=azithromycin, 21=clarithromycin
-        // 22=clindamycin, 23=gentamicin, 24=tobramycin, 25=amikacin
-        // 26=ciprofloxacin, 27=levofloxacin, 28=moxifloxacin, 29=ofloxacin
-        // 30=tetracycline, 31=doxycycline, 32=minocycline, 33=tigecycline
-        // 34=vancomycin, 35=teicoplanin, 36=dalbavancin, 37=linezolid, 38=tedizolid
-        // 39=daptomycin, 40=quinu_dalfo, 41=trim_sulf, 42=chloramphenicol, 43=nitrofurantoin
-        // 44=fosfomycin, 45=retapamulin, 46=fusidic_a, 47=metronidazole, 48=fidaxomicin
-        // 49=furazolidone, 50=rifampicin, 51=amoxicillin_clavulanate, 52=piperacillin_tazobactam
-        // 53=ampicillin_sulbactam, 54=ticarcillin_clavulanate, 55=ceftazidime_avibactam
-        // 56=meropenem_vaborbactam, 57=colistin, 58=flucloxacillin, 59=aztreonam_avibactam
-        // 60=cefixime
+        // 12=ceftaroline, 13=meropenem, 14=imipenem_c, 15=ertapenem, 16=aztreonam
+        // 17=erythromycin, 18=azithromycin, 19=clarithromycin, 20=clindamycin
+        // 21=gentamicin, 22=tobramycin, 23=amikacin (aminoglycosides)
+        // 24=ciprofloxacin, 25=levofloxacin, 26=moxifloxacin, 27=ofloxacin (fluoroquinolones)
+        // 28=tetracycline, 29=doxycycline, 30=minocycline
+        // 31=vancomycin, 32=teicoplanin, 33=dalbavancin
+        // 34=linezolid, 35=tedizolid
+        // 36=quinu_dalfo, 37=trim_sulf, 38=chloramphenicol, 39=nitrofurantoin
+        // 40=retapamulin, 41=fusidic_a, 42=metronidazole, 43=furazolidone, 44=rifampicin
+        // 45=amoxicillin_clavulanate, 46=piperacillin_tazobactam, 47=ampicillin_sulbactam
+        // 48=ticarcillin_clavulanate, 49=ceftazidime_avibactam, 50=meropenem_vaborbactam
+        // 51=colistin
         
         // Syndrome indices: 1=UTI, 2=Skin, 3=Resp, 4=BSI, 5=Intra-abd, 6=CNS, 7=GI, 8=Genital, 9=Bone, 10=Other
         
         // Define drug class groupings for easier assignment
-        let penicillins = [1, 2, 3, 4, 5, 58]; // penicillin_g through flucloxacillin
+        let penicillins = [1, 2, 3, 4, 5]; // penicillin_g through ticarcillin
         let oral_cephalosporins = [6]; // cephalexin
         let iv_cephalosporins = [7, 8, 9, 10, 11, 12, 13, 14]; // cefazolin through cefiderocol
         let carbapenems = [15, 16, 17]; // meropenem, imipenem, ertapenem
         let aztreonam_idx = 18;
-        let ceftriaxone_idx = 9;
-        let meropenem_idx = 15;
         let macrolides = [19, 20, 21]; // erythromycin, azithromycin, clarithromycin
         let clindamycin_idx = 22;
         let aminoglycosides = [23, 24, 25]; // gentamicin, tobramycin, amikacin
         let fluoroquinolones = [26, 27, 28, 29]; // cipro, levo, moxi, ofloxacin
-        let moxifloxacin_idx = 28;
         let tetracyclines = [30, 31, 32, 33]; // tetracycline, doxycycline, minocycline, tigecycline
-        let minocycline_idx = 32;
         let glycopeptides = [34, 35, 36]; // vancomycin, teicoplanin, dalbavancin
-        let vancomycin_idx = 34;
         let oxazolidinones = [37, 38]; // linezolid, tedizolid
         let daptomycin_idx = 39;
         let trim_sulf_idx = 41;
@@ -1544,30 +1539,25 @@ impl SyndromeParameters {
         let fosfomycin_idx = 44;
         let metronidazole_idx = 47;
         let fidaxomicin_idx = 48;
-        let furazolidone_idx = 49;
         let rifampicin_idx = 50;
         let blbli_combinations = [51, 52, 53, 54, 55, 56]; // β-lactam/β-lactamase inhibitor combos
         let colistin_idx = 57;
-        let aztreonam_avibactam_idx = 59;
-        let cefixime_idx = 60;
         
         // --- CNS (syndrome 6) - Blood-brain barrier severely limits most drugs ---
         for &d in &penicillins { drug_penetration[6][d] = 0.15; } // Poor unless meningeal inflammation
         for &d in &oral_cephalosporins { drug_penetration[6][d] = 0.05; } // Very poor
         for &d in &iv_cephalosporins { drug_penetration[6][d] = 0.20; } // Ceftriaxone better ~30%
-        drug_penetration[6][ceftriaxone_idx] = 0.35; // Ceftriaxone - best CSF penetration among cephalosporins
+        drug_penetration[6][9] = 0.35; // Ceftriaxone - best CSF penetration among cephalosporins
         for &d in &carbapenems { drug_penetration[6][d] = 0.25; } // Meropenem preferred for CNS
-        drug_penetration[6][meropenem_idx] = 0.35; // Meropenem - good CNS penetration
+        drug_penetration[6][15] = 0.35; // Meropenem - good CNS penetration
         drug_penetration[6][aztreonam_idx] = 0.10; // Poor
-        drug_penetration[6][aztreonam_avibactam_idx] = 0.10; // Similar tissue distribution to aztreonam
-        drug_penetration[6][cefixime_idx] = 0.10; // Oral 3G cephalosporin - poor CNS penetration
         for &d in &macrolides { drug_penetration[6][d] = 0.15; } // Poor
         drug_penetration[6][clindamycin_idx] = 0.15; // Poor
         for &d in &aminoglycosides { drug_penetration[6][d] = 0.05; } // Very poor - aminoglycosides don't cross BBB
         for &d in &fluoroquinolones { drug_penetration[6][d] = 0.50; } // Good - lipophilic
-        drug_penetration[6][moxifloxacin_idx] = 0.60; // Moxifloxacin - excellent CNS penetration
+        drug_penetration[6][28] = 0.60; // Moxifloxacin - excellent CNS penetration
         for &d in &tetracyclines { drug_penetration[6][d] = 0.25; } // Moderate
-        drug_penetration[6][minocycline_idx] = 0.40; // Minocycline - good lipophilicity
+        drug_penetration[6][32] = 0.40; // Minocycline - good lipophilicity
         for &d in &glycopeptides { drug_penetration[6][d] = 0.15; } // Poor unless inflamed meninges
         for &d in &oxazolidinones { drug_penetration[6][d] = 0.70; } // Linezolid excellent CNS
         drug_penetration[6][trim_sulf_idx] = 0.50; // Good - used for CNS toxoplasmosis
@@ -1587,8 +1577,6 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[9][d] = 0.45; }
         for &d in &carbapenems { drug_penetration[9][d] = 0.50; }
         drug_penetration[9][aztreonam_idx] = 0.35;
-        drug_penetration[9][aztreonam_avibactam_idx] = 0.35;
-        drug_penetration[9][cefixime_idx] = 0.40;
         for &d in &macrolides { drug_penetration[9][d] = 0.40; }
         drug_penetration[9][clindamycin_idx] = 0.60; // Clindamycin good bone penetration
         for &d in &aminoglycosides { drug_penetration[9][d] = 0.25; } // Poor bone penetration
@@ -1613,8 +1601,6 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[5][d] = 0.65; }
         for &d in &carbapenems { drug_penetration[5][d] = 0.75; }
         drug_penetration[5][aztreonam_idx] = 0.55;
-        drug_penetration[5][aztreonam_avibactam_idx] = 0.55;
-        drug_penetration[5][cefixime_idx] = 0.55;
         for &d in &macrolides { drug_penetration[5][d] = 0.50; }
         drug_penetration[5][clindamycin_idx] = 0.65;
         for &d in &aminoglycosides { drug_penetration[5][d] = 0.30; } // Inactivated at acidic pH
@@ -1639,8 +1625,6 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[1][d] = 0.85; }
         for &d in &carbapenems { drug_penetration[1][d] = 0.85; }
         drug_penetration[1][aztreonam_idx] = 0.80;
-        drug_penetration[1][aztreonam_avibactam_idx] = 0.80;
-        drug_penetration[1][cefixime_idx] = 0.90;
         for &d in &macrolides { drug_penetration[1][d] = 0.40; } // Poor urinary excretion
         drug_penetration[1][clindamycin_idx] = 0.30; // Poor for UTI
         for &d in &aminoglycosides { drug_penetration[1][d] = 0.75; } // Renally excreted
@@ -1665,8 +1649,6 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[2][d] = 0.85; }
         for &d in &carbapenems { drug_penetration[2][d] = 0.85; }
         drug_penetration[2][aztreonam_idx] = 0.75;
-        drug_penetration[2][aztreonam_avibactam_idx] = 0.75;
-        drug_penetration[2][cefixime_idx] = 0.75;
         for &d in &macrolides { drug_penetration[2][d] = 0.80; }
         drug_penetration[2][clindamycin_idx] = 0.85; // Excellent skin penetration
         for &d in &aminoglycosides { drug_penetration[2][d] = 0.60; }
@@ -1691,8 +1673,6 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[3][d] = 0.70; }
         for &d in &carbapenems { drug_penetration[3][d] = 0.75; }
         drug_penetration[3][aztreonam_idx] = 0.60;
-        drug_penetration[3][aztreonam_avibactam_idx] = 0.60;
-        drug_penetration[3][cefixime_idx] = 0.60;
         for &d in &macrolides { drug_penetration[3][d] = 0.95; } // Excellent lung tissue concentration
         drug_penetration[3][clindamycin_idx] = 0.75;
         for &d in &aminoglycosides { drug_penetration[3][d] = 0.40; } // Poor ELF penetration
@@ -1720,21 +1700,19 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[7][d] = 0.60; }
         for &d in &carbapenems { drug_penetration[7][d] = 0.65; }
         drug_penetration[7][aztreonam_idx] = 0.50;
-        drug_penetration[7][aztreonam_avibactam_idx] = 0.50;
-        drug_penetration[7][cefixime_idx] = 0.55;
         for &d in &macrolides { drug_penetration[7][d] = 0.70; } // Good GI tissue penetration
         drug_penetration[7][clindamycin_idx] = 0.65;
         for &d in &aminoglycosides { drug_penetration[7][d] = 0.40; }
         for &d in &fluoroquinolones { drug_penetration[7][d] = 0.85; } // Excellent
         for &d in &tetracyclines { drug_penetration[7][d] = 0.60; }
         for &d in &glycopeptides { drug_penetration[7][d] = 0.35; } // Poor oral absorption but good for C.diff
-        drug_penetration[7][vancomycin_idx] = 0.90; // Oral vancomycin excellent for C.diff (luminal)
+        drug_penetration[7][34] = 0.90; // Oral vancomycin excellent for C.diff (luminal)
         for &d in &oxazolidinones { drug_penetration[7][d] = 0.75; }
         drug_penetration[7][trim_sulf_idx] = 0.70;
         drug_penetration[7][chloramphenicol_idx] = 0.65;
         drug_penetration[7][nitrofurantoin_idx] = 0.25;
         drug_penetration[7][metronidazole_idx] = 0.95; // Excellent - C.diff, amebiasis
-        drug_penetration[7][furazolidone_idx] = 0.90; // Furazolidone - GI specific
+        drug_penetration[7][49] = 0.90; // Furazolidone - GI specific
         drug_penetration[7][rifampicin_idx] = 0.60;
         for &d in &blbli_combinations { drug_penetration[7][d] = 0.55; }
         drug_penetration[7][colistin_idx] = 0.40;
@@ -1748,8 +1726,6 @@ impl SyndromeParameters {
         for &d in &iv_cephalosporins { drug_penetration[8][d] = 0.55; }
         for &d in &carbapenems { drug_penetration[8][d] = 0.60; }
         drug_penetration[8][aztreonam_idx] = 0.45;
-        drug_penetration[8][aztreonam_avibactam_idx] = 0.45;
-        drug_penetration[8][cefixime_idx] = 0.50;
         for &d in &macrolides { drug_penetration[8][d] = 0.75; } // Good tissue penetration
         drug_penetration[8][clindamycin_idx] = 0.60;
         for &d in &aminoglycosides { drug_penetration[8][d] = 0.35; } // Poor prostate
@@ -3033,9 +3009,7 @@ fn build_drug_lookup() -> HashMap<String, &'static str> {
 }
 
 // Header count: 52
-// This embedded table only covers the legacy 52-drug matrix. Late-added drugs are
-// assigned through the rule-based potency overrides below.
-const POTENCY_EMBEDDED_HEADER: [&str; 52] = [
+const POTENCY_EMBEDDED_HEADER: [&str; 55] = [
     "sulfanilamide",
     "penicillin_g",
     "ampicillin",
@@ -3088,6 +3062,9 @@ const POTENCY_EMBEDDED_HEADER: [&str; 52] = [
     "ceftazidime_avibactam",
     "meropenem_vaborbactam",
     "colistin",
+    "flucloxacillin",
+    "aztreonam_avibactam",
+    "cefixime",
     ];
 
 const POTENCY_EMBEDDED_DATA: &[(&str, [Option<f64>; 52])] = &[
@@ -6625,59 +6602,6 @@ lazy_static! {
             }
         }
 
-        if DRUG_SHORT_NAMES.contains(&"flucloxacillin") {
-            for &bacteria in BACTERIA_LIST.iter() {
-                let potency = match bacteria {
-                    "staphylococcus_aureus" => 0.95,
-                    "staphylococcus_epidermidis" => 0.85,
-                    bacteria if bacteria.contains("streptococcus") => 0.80,
-                    "enterococcus_faecalis" | "enterococcus_faecium" => 0.05,
-                    "listeria_monocytogenes" => 0.05,
-                    _ => 0.01,
-                };
-                map.insert(
-                    format!(
-                        "drug_flucloxacillin_for_bacteria_{}_potency_when_no_r",
-                        bacteria
-                    ),
-                    potency,
-                );
-            }
-        }
-
-        if DRUG_SHORT_NAMES.contains(&"aztreonam_avibactam") {
-            for &bacteria in BACTERIA_LIST.iter() {
-                let potency = match bacteria {
-                    "escherichia_coli" | "klebsiella_pneumoniae" | "enterobacter_spp."
-                    | "citrobacter_spp." | "serratia_spp." | "proteus_spp."
-                    | "morganella_spp." | "enterobacter_cloacae" | "p_stuartii" => 1.00,
-                    "pseudomonas_aeruginosa" => 0.90,
-                    "stenotrophomonas_maltophilia" => 0.75,
-                    "burkholderia_cepacia_complex" => 0.60,
-                    "acinetobacter_baumannii" => 0.10,
-                    "haemophilus_influenzae" | "moraxella_catarrhalis"
-                    | "neisseria_gonorrhoeae" | "neisseria_meningitidis"
-                    | "bordetella_pertussis" => 0.80,
-                    "legionella_pneumophila" | "chlamydia_trachomatis"
-                    | "mycoplasma_genitalium" | "mycoplasma_pneumoniae"
-                    | "clostridioides_difficile" | "bacteroides_fragilis"
-                    | "listeria_monocytogenes" | "helicobacter_pylori"
-                    | "staphylococcus_aureus" | "staphylococcus_epidermidis"
-                    | "streptococcus_pneumoniae" | "streptococcus_pyogenes"
-                    | "streptococcus_agalactiae" | "enterococcus_faecalis"
-                    | "enterococcus_faecium" => 0.01,
-                    _ => 0.90,
-                };
-                map.insert(
-                    format!(
-                        "drug_aztreonam_avibactam_for_bacteria_{}_potency_when_no_r",
-                        bacteria
-                    ),
-                    potency,
-                );
-            }
-        }
-
         // === [I] Novel Resistance Mechanism Overrides (Examples) ===
         // Use these to define emerging "Other" mechanisms specifically for certain bacteria.
         // This allows defining highly specific resistance threats (e.g., novel pumps or plasmids)
@@ -7776,43 +7700,43 @@ lazy_static! {
         // ======================================================================
         // E. coli — Gram-negative, Enterobacterales
         // Band 6 (x0.6)
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_001  );
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_001  );
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_001);
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_001 ); 
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_001 ); 
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_005  );
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_002  );
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_000_5);
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_005 ); 
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_005 ); 
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_01   ); 
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_01   ); 
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_01    ); 
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01            );
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_001   );
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_cat_emergence_rate".to_string(), 0.05            );
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_01   );
         map.insert("bacteria_escherichia_coli_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3            ); 
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_003  );
-        map.insert("bacteria_escherichia_coli_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3            );
-        map.insert("bacteria_escherichia_coli_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_03  );
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001            ); 
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_01  );
+        map.insert("bacteria_escherichia_coli_mechanism_protection_qnr_emergence_rate".to_string(), 0.01            );
+        map.insert("bacteria_escherichia_coli_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_1  );
         map.insert("bacteria_escherichia_coli_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_001);
+        map.insert("bacteria_escherichia_coli_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_01);
         map.insert("bacteria_escherichia_coli_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_000_001 );
-        map.insert("bacteria_escherichia_coli_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_3 ); 
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_3   ); 
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_03); 
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_000_03      );
+        map.insert("bacteria_escherichia_coli_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_000_005 );
+        map.insert("bacteria_escherichia_coli_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_2 ); 
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01   ); 
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_02); 
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_000_05      );
         map.insert("bacteria_escherichia_coli_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_003     ); 
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_001_5     ); 
         map.insert("bacteria_escherichia_coli_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_005  );
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_1         );
+        map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_02  );
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_3         );
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_01    );
+        map.insert("bacteria_escherichia_coli_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_05    );
         map.insert("bacteria_escherichia_coli_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
@@ -7820,87 +7744,87 @@ lazy_static! {
 
         // K. pneumoniae — Gram-negative, Enterobacterales
         // Band 7 (x10)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01    );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_01     );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_01    );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_001    );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_001    );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_01    );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_01      );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_01      );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.02    );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_07  );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_2    );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_2     );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_2    );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01    );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01    );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_1    );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_15      );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_08      );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.008    );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_2  );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3   );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_15 );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3   );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001   );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_4 );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.001   );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_02);
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_3   );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_03);
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_1);
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_5 );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_05);
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.004);
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003);
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001_5 );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.1  );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_5 );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001_5 );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_6 );
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001   );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_2 );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.003   );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_3  );
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_1  );
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // Citrobacter spp. — Gram-negative, Enterobacterales
         // Band 8 (x187.5)
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001    );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001    );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001     );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001   );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001    );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_1  ) ;
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_3  );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_1  );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.01   );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01  );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_4  );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_4  );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_2   );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_4 );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_4  );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_08 ) ;
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_12 );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_08 );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.006  );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.008 );
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01   );
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1  );
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005  );
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.004_5  );
         map.insert("bacteria_citrobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.003  );
         map.insert("bacteria_citrobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002  );
-        map.insert("bacteria_citrobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.002    );
-        map.insert("bacteria_citrobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001      );
+        map.insert("bacteria_citrobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.001_5  );
+        map.insert("bacteria_citrobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001_2    );
         map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_citrobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1);
-        map.insert("bacteria_citrobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01   );
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01   );
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01   );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_1   );
+        map.insert("bacteria_citrobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.005  );
+        map.insert("bacteria_citrobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.008  );
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.004  );
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.006  );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_03  );
         map.insert("bacteria_citrobacter_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01  );
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.008 );
         map.insert("bacteria_citrobacter_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.001  );
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01 );
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.008);
         map.insert("bacteria_citrobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_citrobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.001   );
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_5); // modest beta-lactam lift without rebuilding broad efflux resistance
+        map.insert("bacteria_citrobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_5 );
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_4); // modest beta-lactam lift without rebuilding broad efflux resistance
         map.insert("bacteria_citrobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -7949,87 +7873,87 @@ lazy_static! {
 
         // E. cloacae — Gram-negative, Enterobacterales
         // Band 8 (x150)
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_1  );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_1 );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_1 );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_1  );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_1  );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_1     );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_03  );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_03  );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_3   );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.003    );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001_5  );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001_5 );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001 );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001_5  );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001_5  );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2    );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_15  );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_12  );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.002   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.02    );
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_3   );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3   );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_3 );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.003);
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_8   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002 );
         map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.0    );
         map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
-        map.insert("bacteria_enterobacter_cloacae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.04   );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_5 );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.003  );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.001    );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_25);
+        map.insert("bacteria_enterobacter_cloacae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.015   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001_5 );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.002  );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.002_5  );
         map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.02   );
         map.insert("bacteria_enterobacter_cloacae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_3);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.005   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001_5);
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.015   );
         map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_1   );
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1); // modest beta-lactam lift without overdriving other classes
+        map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_5   );
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_6); // modest beta-lactam lift without overdriving other classes
         map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // Morganella spp. — Gram-negative, Enterobacterales
         // Band 8 (x300)
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_2);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_2);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_09);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_09);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_09);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_3);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_2);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.012  );
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.018  );
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_08);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_08);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_03);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_03);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_03);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_08);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_12);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_08);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.004  );
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.006  );
         map.insert("bacteria_morganella_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01);
-        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.009  );
-        map.insert("bacteria_morganella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.009  );
+        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.003_5);
+        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.003  );
+        map.insert("bacteria_morganella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.003  );
         map.insert("bacteria_morganella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001 );
         map.insert("bacteria_morganella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.002 );
         map.insert("bacteria_morganella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002 );
         map.insert("bacteria_morganella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
-        map.insert("bacteria_morganella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.02   );
-        map.insert("bacteria_morganella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.002);
-        map.insert("bacteria_morganella_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.02   );
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003  );
+        map.insert("bacteria_morganella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_006);
+        map.insert("bacteria_morganella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.006  );
+        map.insert("bacteria_morganella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_8);
+        map.insert("bacteria_morganella_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.006  );
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.002_5);
         map.insert("bacteria_morganella_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.02  );
+        map.insert("bacteria_morganella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.008  );
         map.insert("bacteria_morganella_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_5);
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01  );
+        map.insert("bacteria_morganella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.001_8);
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.004  );
         map.insert("bacteria_morganella_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_3  );
-        map.insert("bacteria_morganella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1); // tier 0
+        map.insert("bacteria_morganella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.001  );
+        map.insert("bacteria_morganella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -8078,43 +8002,43 @@ lazy_static! {
 
         // Serratia spp. — Gram-negative, Enterobacterales
         // Band 8 (x250)
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001   );
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001   );
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_7    );
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_5   );
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_5   );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.003   );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.003   );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.002    );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001_5   );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001_5   );
         map.insert("bacteria_serratia_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2    );
         map.insert("bacteria_serratia_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_3    );
         map.insert("bacteria_serratia_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_2  );
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_3  );
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.015   );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1  );
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.005   );
         map.insert("bacteria_serratia_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.004   );
-            map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.004   );
-            map.insert("bacteria_serratia_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.001_5   );
-            map.insert("bacteria_serratia_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001_5  );
+        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001_5   );
+        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001_5   );
+        map.insert("bacteria_serratia_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.000_5   );
+        map.insert("bacteria_serratia_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_5  );
         map.insert("bacteria_serratia_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
-            map.insert("bacteria_serratia_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001_5 );
+        map.insert("bacteria_serratia_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5 );
         map.insert("bacteria_serratia_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_05);
-            map.insert("bacteria_serratia_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.015    );
-            map.insert("bacteria_serratia_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.002  );
-            map.insert("bacteria_serratia_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.003   );
+        map.insert("bacteria_serratia_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.005    );
+        map.insert("bacteria_serratia_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_8  );
+        map.insert("bacteria_serratia_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001   );
         map.insert("bacteria_serratia_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_5   );
         map.insert("bacteria_serratia_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.015);
+        map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.005);
         map.insert("bacteria_serratia_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_serratia_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.001_5);
-            map.insert("bacteria_serratia_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.015);
+        map.insert("bacteria_serratia_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_5);
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.005);
         map.insert("bacteria_serratia_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_serratia_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_15);
+        map.insert("bacteria_serratia_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_05);
         map.insert("bacteria_serratia_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
@@ -8250,88 +8174,88 @@ lazy_static! {
 
         // iNTS — Gram-negative, Enterobacterales
         // Band 8 (x37.5)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_1   );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_1   );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_1   );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_1  );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_1  );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_03  );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_1   );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_03  );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.005  );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.005   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001_5   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001_5   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_08  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_12  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_08  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.018  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.02   );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.003   );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001    );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.001    );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.003  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.008   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005    );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.003    );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.008  );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5    );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002    );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03    );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.005  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_05);
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.006    );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.015  );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001    );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.001     );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03    );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.012    );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.003  );
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.005   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.01  );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.015   );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.002   );
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.006   );
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_004); // low broad-efflux proxy
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // Shigella spp. — Gram-negative, Enterobacterales
         // Band 6 (x0.625)
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_1);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_1);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_1);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_1);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_1);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_01);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_01);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_01);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_3);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_03);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001_5);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001_5);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_05);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_1);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_05);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.001);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_2);
         map.insert("bacteria_shigella_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_3);
+            map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001);
         map.insert("bacteria_shigella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001);
-            map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001);
-            map.insert("bacteria_shigella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.000_3);
-            map.insert("bacteria_shigella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_5);
+            map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.004);
+            map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.003);
+            map.insert("bacteria_shigella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.001_5);
+            map.insert("bacteria_shigella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001_5);
             map.insert("bacteria_shigella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_shigella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3);
+            map.insert("bacteria_shigella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001);
         map.insert("bacteria_shigella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_shigella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
-            map.insert("bacteria_shigella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.004); // Colistin ~20%
-            map.insert("bacteria_shigella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_5);
+            map.insert("bacteria_shigella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_03);
+            map.insert("bacteria_shigella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.001_5); // Colistin ~20%
+            map.insert("bacteria_shigella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001_5);
         map.insert("bacteria_shigella_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0);
         map.insert("bacteria_shigella_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0);
         map.insert("bacteria_shigella_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003);
+            map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001);
         map.insert("bacteria_shigella_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_shigella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_5);
-            map.insert("bacteria_shigella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_3);
+            map.insert("bacteria_shigella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.001_5);
+            map.insert("bacteria_shigella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_8);
         map.insert("bacteria_shigella_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
             map.insert("bacteria_shigella_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001);
-            map.insert("bacteria_shigella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_5);
-            map.insert("bacteria_shigella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1);
-            map.insert("bacteria_shigella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_5); // low broad-efflux proxy
+            map.insert("bacteria_shigella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.001_5);
+            map.insert("bacteria_shigella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_05);
+            map.insert("bacteria_shigella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.001_5); // low broad-efflux proxy
         map.insert("bacteria_shigella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // Y. enterocolitica — Gram-negative, Enterobacterales
@@ -8425,44 +8349,44 @@ lazy_static! {
 
         // A. baumannii — Gram-negative, NonFermenter
         // Band 8 (x100)
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.005);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.005);
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01 );
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01 );
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_cat_emergence_rate".to_string(), 0.008);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.005);
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03 );
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03 );
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_qnr_emergence_rate".to_string(), 0.03 );
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.015);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.015);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_qnr_emergence_rate".to_string(), 0.005);
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.003);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.008);
         map.insert("bacteria_acinetobacter_baumannii_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.003); // Colistin 0%->12%
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_global_porin_loss_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.001); // Colistin 0%->12%
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01);
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.001   );
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_5   );
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01); // Rifampicin 0%->55%
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.005); // Rifampicin 0%->55%
         map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.003);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.03); // AMEs frequent in MDR AB
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.008);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.005); // AMEs frequent in MDR AB
         map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.003); // OXA-23/40/58 primary carbapenem R in AB
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.005); // OXA-23/40/58 primary carbapenem R in AB
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.003);
-            map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.003);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.005);
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.005);
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -8608,22 +8532,22 @@ lazy_static! {
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1    );
+            map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_cat_emergence_rate".to_string(), 0.003    );
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_01); // low macrolide/lincosamide resistance
-            map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_01 ); // supports clindamycin and chloramphenicol tail
-            map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01     );
-            map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005    );
+            map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001_5); // low macrolide/lincosamide resistance
+            map.insert("bacteria_campylobacter_jejuni_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001    ); // supports clindamycin and chloramphenicol tail
+            map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03     );
+            map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.015    );
         map.insert("bacteria_campylobacter_jejuni_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
-            map.insert("bacteria_campylobacter_jejuni_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_01    );
+            map.insert("bacteria_campylobacter_jejuni_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.004    );
         map.insert("bacteria_campylobacter_jejuni_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_campylobacter_jejuni_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_001);
+            map.insert("bacteria_campylobacter_jejuni_mechanism_global_porin_loss_emergence_rate".to_string(), 0.001_5);
         map.insert("bacteria_campylobacter_jejuni_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.1 );
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
@@ -8631,11 +8555,11 @@ lazy_static! {
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.1     );
         map.insert("bacteria_campylobacter_jejuni_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_campylobacter_jejuni_mechanism_protection_tet_m_emergence_rate".to_string(), 0.003    );
+            map.insert("bacteria_campylobacter_jejuni_mechanism_protection_tet_m_emergence_rate".to_string(), 0.008    );
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01 );
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_campylobacter_jejuni_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_001); // major macrolide R mechanism
+            map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.002    ); // major macrolide R mechanism
         map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_01);
         map.insert("bacteria_campylobacter_jejuni_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // PBP mosaic: not a significant mechanism in Campylobacter
         map.insert("bacteria_campylobacter_jejuni_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_01); // CmeABC efflux: major efflux pump, functionally analogous to mtrCDE
@@ -8651,36 +8575,36 @@ lazy_static! {
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_cat_emergence_rate".to_string(), 0.04);
+        map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_cat_emergence_rate".to_string(), 0.015);
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.1  );
-            map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.1  );
-            map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1 );
-            map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1 );
+        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.003);
+        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.002);
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02);
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03);
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1  );
+        map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.006);
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_global_porin_loss_emergence_rate".to_string(), 0.1  );
+        map.insert("bacteria_helicobacter_pylori_mechanism_global_porin_loss_emergence_rate".to_string(), 0.001);
         map.insert("bacteria_helicobacter_pylori_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.1     );
-            map.insert("bacteria_helicobacter_pylori_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.1 );
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_01);
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.06);
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.1);
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_01);
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_protection_tet_m_emergence_rate".to_string(), 0.1 );
+        map.insert("bacteria_helicobacter_pylori_mechanism_protection_tet_m_emergence_rate".to_string(), 0.01);
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.1 ); // PBP1A proxy via blaZ; targets amox/amp only
+        map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.06); // PBP1A proxy via blaZ; targets amox/amp only
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.1 ); // primary clarithromycin R mechanism
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.05); // primary clarithromycin R mechanism
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.1 ); // low PBP1A-type amoxicillin resistance proxy
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.03); // low PBP1A-type amoxicillin resistance proxy
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -8694,37 +8618,37 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // GC does not produce KPC
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // GC does not produce MBLs
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // GC does not produce OXA-48
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1     );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.003       );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_7     );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.008       );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_03);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_03        );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.003   );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.003    );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_5   );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_1);
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_1        );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01   );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.011    );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_qnr_emergence_rate".to_string(), 0.001_5   );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0        );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_2        );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_6        );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1);
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_2);
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_05        );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.002);
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.006_5);
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_5     );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_003     );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.02      );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.006      );
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001        );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.003);
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_3); // TEM-1 penicillinase; all penicillins
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.004_5      );
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.009);
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.001_2); // TEM-1 penicillinase; all penicillins
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_03); // GC macrolide target-site resistance
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_12); // GC macrolide target-site resistance
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_05 );
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1); // PBP mosaic: penA mosaic alleles, major contributor to pen/ceph R
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_1 ); // mtrCDE efflux: common, broad GC resistance driver
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_2); // PBP mosaic: penA mosaic alleles, major contributor to pen/ceph R
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_35); // mtrCDE efflux: common, broad GC resistance driver
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0 );
 
         // N. meningitidis — Gram-negative, Fastidious
@@ -8815,45 +8739,45 @@ lazy_static! {
 
         // H. influenzae — Gram-negative, Fastidious
         // Band 7 (x18.8)
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_001   );
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_001 );
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_001   );
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_001   );
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_001   );
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_001);
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_001);
-    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_27  );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_6  );
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_005   );
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_2  );
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_005   );
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_05    );
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_05   );
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_05);
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_03);
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_02);
+    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_8   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_2  );
     map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_007  );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_07 );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_27  );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_07   );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_07  );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_02   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_2  );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_8   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_2    );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_2   );
     map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0   );
     map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0 ); // tier 0
-    map.insert("bacteria_haemophilus_influenzae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_07);
+    map.insert("bacteria_haemophilus_influenzae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_2 );
     map.insert("bacteria_haemophilus_influenzae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
     map.insert("bacteria_haemophilus_influenzae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-    map.insert("bacteria_haemophilus_influenzae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_1  );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_001  );
     map.insert("bacteria_haemophilus_influenzae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_3  );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.002   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001    );
     map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_003   );
     map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.009   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003   );
     map.insert("bacteria_haemophilus_influenzae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_haemophilus_influenzae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_07   );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001_5  );
-    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.001   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_2    );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_5   );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.003   );
     map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_03 );
+    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_1   );
     map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tet signal is already high
-    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1);
-    map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_033);
+    map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_5);
+    map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_1);
     map.insert("bacteria_haemophilus_influenzae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // L. pneumophila — Gram-negative, Fastidious
@@ -8912,32 +8836,32 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_3); // chlor target 30%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_3     );
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_1); // driving penicillins ~35-60%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_003); // targets ~10% for vanco/teico
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01); // chlor target 30%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_5     );
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.02); // driving penicillins ~35-60%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_01); // targets ~10% for vanco/teico
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_000_1   );
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001); // macrolides ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.05); // macrolides ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_001); // Linezolid 1%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001); // FQ target ~40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001); // FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02); // FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.02); // FQ target ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_qnr_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3); // bumps FQs, Tet
+        map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01); // bumps FQs, Tet
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_3); // broad base
+        map.insert("bacteria_staphylococcus_aureus_mechanism_global_porin_loss_emergence_rate".to_string(), 0.005); // broad base
         map.insert("bacteria_staphylococcus_aureus_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_3); // trim/sulf target 35%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_3     );
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003); // trim/sulf target 35%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001     );
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.001     );
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.000_1      ); 
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_1      ); // Rifampicin ~40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_protection_fus_b_emergence_rate".to_string(), 0.001      ); // Fusidic acid ~20%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001); // tet target 20-30%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001); // AG 40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.001); // blaZ 
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.1      ); 
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.015      ); // Rifampicin ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_protection_fus_b_emergence_rate".to_string(), 0.005      ); // Fusidic acid ~20%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_protection_tet_m_emergence_rate".to_string(), 0.005); // tet target 20-30%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01); // AG 40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.05); // blaZ 
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
@@ -8993,36 +8917,36 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_001     );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_02      );
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_000_01);
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_01);
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_015     );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_08      );
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_004    );
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_002    );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_03     );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_015    );
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_003    );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_02     );
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_001);
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_15);
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_015     );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_08      );
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_02);
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_005);
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_025 );
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_2  );
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_001);
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_02);
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_000_05);
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_3); // PBP mosaic remains the primary pen-R lever, but was strongly overcalled
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.003); // PBP mosaic: PBP2x/2b/1a alterations are primary pen-R mechanism
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // mtrCDE: not relevant (GramPositive group excluded)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -9168,36 +9092,36 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_cat_emergence_rate".to_string(),  0.000_5 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_003 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_cat_emergence_rate".to_string(),  0.002 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_005 );
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(),  0.0 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   0.002  );
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.001    );
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   0.000_3  );
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.000_3 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.001 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.001 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   0.01  );
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.004  );
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   0.002  );
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.002 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.006 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.006 );
         map.insert("bacteria_enterococcus_faecium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002 );
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.005);
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_000_001 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.005);
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_rpo_b_emergence_rate".to_string(),   0.005);
-        map.insert("bacteria_enterococcus_faecium_mechanism_protection_fus_b_emergence_rate".to_string(),  0.005);
-        map.insert("bacteria_enterococcus_faecium_mechanism_protection_tet_m_emergence_rate".to_string(),  0.000_3 );
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.003);
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.006 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_000_004 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.01 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_rpo_b_emergence_rate".to_string(),   0.01 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_protection_fus_b_emergence_rate".to_string(),  0.01 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_protection_tet_m_emergence_rate".to_string(),  0.000_4 );
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01 );
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_3); // tier 0
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.002); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.03); // PBP mosaic: PBP5 mutations → intrinsic ampicillin R
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.05); // PBP mosaic: PBP5 mutations → intrinsic ampicillin R
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // mtrCDE: not relevant (GramPositive group excluded)
         map.insert("bacteria_enterococcus_faecium_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // deactivated
 
@@ -9292,38 +9216,38 @@ lazy_static! {
 
         // B. fragilis — Anaerobe
         // Band 8 (x37.5)
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.004  );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.004   );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.003     );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_4   );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_4   );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001_5  );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001_5   );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001     );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001_2   );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001_2   );
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_05   );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_2 );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_09  );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_02   );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.09      );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_08 );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_03  );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_05   );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.03      );
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.04   );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_3     );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001     );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.015     );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_7     );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_3    );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.015   );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001     );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.003     );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005     );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_protection_qnr_emergence_rate".to_string(), 0.002     );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001    );
         map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
-            map.insert("bacteria_bacteroides_fragilis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3   );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001   );
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_03);
         map.insert("bacteria_bacteroides_fragilis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.005     );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.009    );
-            map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_9  );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003    );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_3  );
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.005      );
         map.insert("bacteria_bacteroides_fragilis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-            map.insert("bacteria_bacteroides_fragilis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.02 );
+        map.insert("bacteria_bacteroides_fragilis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.008 );
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001);
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
@@ -9394,10 +9318,10 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_3); // lower clindamycin/macrolides without collapsing them completely
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_04); // lower clindamycin/macrolides without collapsing them completely
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // dropped to 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1); // raise cipro/ofloxacin directly without using broad efflux
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1); // primary FQ lever for levo/moxi in this panel
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.008); // raise cipro/ofloxacin directly without using broad efflux
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.012); // primary FQ lever for levo/moxi in this panel
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
@@ -9412,11 +9336,11 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.0); // dropped to 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_tet_m_emergence_rate".to_string(), 0.003  ); // tetracyclines are still high, so keep TetM lower than the prior pass
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_3); // tetracyclines are still high, so keep TetM lower than the prior pass
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.003   ); // keep macrolides elevated, but closer to the target band
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_35); // keep macrolides elevated, but closer to the target band
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -10252,8 +10176,6 @@ lazy_static! {
                     ("ertapenem", 4.0),
                     ("meropenem_vaborbactam", 3.0),
                     ("ceftazidime_avibactam", 3.0),
-                    ("aztreonam_avibactam", 3.0),
-                    ("cefixime", 7.0),
                     ("colistin", 0.2),
                     ("vancomycin", 0.1),
                     ("linezolid", 0.1),
@@ -10269,7 +10191,6 @@ lazy_static! {
                     ("amoxicillin_clavulanate", 14.0),
                     ("cephalexin", 13.0),
                     ("cefazolin", 12.0),
-                    ("flucloxacillin", 15.0),
                     ("clindamycin", 12.0),
                     ("trim_sulf", 9.0),
                     ("doxycycline", 9.0),
@@ -10300,8 +10221,6 @@ lazy_static! {
                     ("piperacillin_tazobactam", 8.0),
                     ("levofloxacin", 8.0),
                     ("moxifloxacin", 8.0),
-                    ("cefixime", 6.5),
-                    ("aztreonam_avibactam", 6.0),
                     ("cefepime", 7.5),
                     ("cephalexin", 7.0),
                     ("doxycycline", 6.5),
@@ -10322,7 +10241,6 @@ lazy_static! {
                     ("imipenem_c", 13.0),
                     ("meropenem_vaborbactam", 13.0),
                     ("ceftazidime_avibactam", 12.5),
-                    ("aztreonam_avibactam", 12.0),
                     ("cefepime", 12.0),
                     ("ceftazidime", 11.0),
                     ("ceftriaxone", 10.0),
@@ -10331,7 +10249,6 @@ lazy_static! {
                     ("ampicillin", 10.0),
                     ("amoxicillin", 9.5),
                     ("penicillin_g", 6.5),
-                    ("flucloxacillin", 7.5),
                     ("vancomycin", 11.0),
                     ("linezolid", 10.0),
                     ("tedizolid", 9.0),
@@ -10363,7 +10280,6 @@ lazy_static! {
                     ("cefepime", 9.0),
                     ("ceftriaxone", 9.0),
                     ("ceftazidime_avibactam", 10.0),
-                    ("aztreonam_avibactam", 9.5),
                     ("meropenem_vaborbactam", 10.0),
                     ("ciprofloxacin", 7.0),
                     ("levofloxacin", 6.5),
@@ -10384,7 +10300,6 @@ lazy_static! {
                     ("ampicillin", 13.0),
                     ("vancomycin", 13.0),
                     ("linezolid", 10.0),
-                    ("cefixime", 1.0),
                     ("meropenem", 11.0),
                     ("imipenem_c", 10.0),
                     ("chloramphenicol", 2.0),
@@ -10406,7 +10321,6 @@ lazy_static! {
                     ("trim_sulf", 8.5),
                     ("doxycycline", 8.5),
                     ("minocycline", 6.5),
-                    ("cefixime", 4.5),
                     ("penicillin_g", 5.0),
                     ("cephalexin", 5.0),
                     ("cefuroxime", 5.0),
@@ -10422,7 +10336,6 @@ lazy_static! {
                     ("penicillin_g", 14.0),
                     ("azithromycin", 13.0),
                     ("ceftriaxone", 13.0),
-                    ("cefixime", 10.5),
                     ("doxycycline", 12.0),
                     ("amoxicillin_clavulanate", 12.0),
                     ("amoxicillin", 11.0),
@@ -10447,7 +10360,6 @@ lazy_static! {
                     ("cefazolin", 13.0),
                     ("cephalexin", 11.0),
                     ("ceftriaxone", 11.0),
-                    ("flucloxacillin", 14.0),
                     ("vancomycin", 12.0),
                     ("linezolid", 11.0),
                     ("tedizolid", 10.0),
@@ -10470,7 +10382,6 @@ lazy_static! {
                     ("ceftriaxone", 8.0),
                     ("meropenem", 8.0),
                     ("imipenem_c", 8.0),
-                    ("aztreonam_avibactam", 7.5),
                     ("vancomycin", 8.0),
                     ("linezolid", 7.0),
                     ("ciprofloxacin", 7.0),
@@ -10597,7 +10508,6 @@ lazy_static! {
         // Drug Spectrum Classifications (1.0=narrow, 5.0=very broad)
         map.insert("drug_colistin_spectrum_breadth".to_string(), 4.0); // Broad spectrum (mainly Gram-negative)
         map.insert("drug_penicillin_g_spectrum_breadth".to_string(), 2.0); // Narrow spectrum
-        map.insert("drug_flucloxacillin_spectrum_breadth".to_string(), 1.6); // Very narrow anti-staphylococcal penicillin
         map.insert("drug_amoxicillin_spectrum_breadth".to_string(), 3.0); // Medium spectrum
         map.insert("drug_azithromycin_spectrum_breadth".to_string(), 4.0); // Broad spectrum
         map.insert("drug_ciprofloxacin_spectrum_breadth".to_string(), 4.5); // Very broad spectrum

@@ -82,6 +82,7 @@
 
 use crate::config::{
     calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
+    get_resistance_floor_target,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
     parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
     RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
@@ -345,9 +346,10 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
             | "ceftolozane_tazobactam"  // KPC hydrolyzes ceftolozane
-            | "aztreonam" 
-              | "meropenem" | "imipenem_c" | "ertapenem"
-            // S: ceftazidime_avibactam, meropenem_vaborbactam (avibactam/vaborbactam inhibit KPC)
+                        | "ceftazidime_avibactam" | "meropenem_vaborbactam" | "aztreonam_avibactam"
+                        | "aztreonam"
+                        | "meropenem" | "imipenem_c" | "ertapenem"
+                        // BLIs partially restore activity, but configured residual KPC impact still applies.
         ),
 
         EnzymeNdmVim => matches!(
@@ -358,6 +360,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "ceftolozane_tazobactam"  // MBLs hydrolyze ceftolozane
             // cefiderocol NOT included: siderophore cephalosporin designed to resist MBL hydrolysis
             | "ceftazidime_avibactam" | "meropenem_vaborbactam"  // MBLs not inhibited by avibactam/vaborbactam
+            | "aztreonam_avibactam" // Residual partner-drug / combination-level impairment is configured explicitly
             | "meropenem" | "imipenem_c" | "ertapenem"
         ),
 
@@ -366,6 +369,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "piperacillin_tazobactam" | "ampicillin_sulbactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
+            | "ceftazidime_avibactam" | "aztreonam_avibactam"
             // OXA-48 has weak but real cephalosporinase activity; low config enhancement values reflect this
             | "meropenem" | "imipenem_c" | "ertapenem"
             | "meropenem_vaborbactam" // Vaborbactam does NOT inhibit OXA-48
@@ -537,7 +541,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
             | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
             | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline"
-            | "ceftolozane_tazobactam" | "ceftazidime_avibactam"
+            | "ceftolozane_tazobactam" | "ceftazidime_avibactam" | "aztreonam_avibactam"
             | "aztreonam"
         ),
         // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
@@ -1188,6 +1192,9 @@ impl ParameterKeyCache {
                     let bacteria_slug = bacteria_name.to_lowercase().replace(" ", "_");
                     let specific_override_key = format!("mechanism_{}_applies_to_{}_in_{}", mechanism.as_str(), drug_name, bacteria_slug);
                     let general_override_key = format!("mechanism_{}_applies_to_{}", mechanism.as_str(), drug_name);
+                    let has_specific_override = get_global_param(&specific_override_key).is_some();
+                    let has_general_override = get_global_param(&general_override_key).is_some();
+                    let has_explicit_override = has_specific_override || has_general_override;
                     
                     let mut applies = if let Some(val) = get_global_param(&specific_override_key) {
                         val > 0.5
@@ -1197,10 +1204,12 @@ impl ParameterKeyCache {
                         default_applies
                     };
 
-                    // Prevent acquired mechanisms from applying if the bacteria is intrinsically 
-                    // resistant (negligible potency: <= 0.1) unless completely overridden manually.
+                    // Prevent acquired mechanisms from applying if the bacteria is intrinsically
+                    // resistant (negligible potency: <= 0.1), but preserve explicit overrides and
+                    // any bacterium-drug pairs that intentionally carry a configured resistance floor.
                     let potency = store.drug_bacteria.potency(b_idx, d_idx);
-                    if potency <= 0.1 {
+                    let has_floor_target = get_resistance_floor_target(bacteria_name, drug_name) > 0.0;
+                    if potency <= 0.1 && !has_explicit_override && !has_floor_target {
                         applies = false;
                     }
 
@@ -2340,6 +2349,9 @@ pub fn apply_rules(
                                 } else {
                                     score *= 2.5; // Retain modest preference where susceptible
                                 }
+                            }
+                            ("staphylococcus_aureus", "flucloxacillin") => {
+                                score *= 4.0;
                             }
                             (
                                 "staphylococcus_aureus",

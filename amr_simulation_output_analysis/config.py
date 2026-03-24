@@ -252,7 +252,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_107598.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_492712.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity 
