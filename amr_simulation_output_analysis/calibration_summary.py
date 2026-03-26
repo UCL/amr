@@ -1038,14 +1038,12 @@ def _calculate_resistance_table(
     expanded_label: Optional[str] = None,
     low_sample_threshold: float = 50.0,
 ) -> pd.DataFrame:
-    from .mechanism_mapping import get_relevant_mechanisms
-    
+
     columns = [
         "Bacteria",
         "Drug",
         RESISTANCE_SIM_COL,
         RESISTANCE_TARGET_COL,
-        "Relevant mechanisms",
         RESISTANCE_DELTA_COL,
         "Average resistant simulation",
         "Average resistant target",
@@ -1135,12 +1133,6 @@ def _calculate_resistance_table(
             else np.nan
         )
 
-        relevant_mechs = get_relevant_mechanisms(b_slug, d_slug)
-        relevant_mechs_str = ", ".join(relevant_mechs) if relevant_mechs else "none"
-
-        if prevalence_reason == "negligible potency":
-            relevant_mechs_str = "---"
-
         if b_slug not in bacteria_set or d_slug not in drug_set:
             note_parts.append("not modelled in simulation")
             records.append({
@@ -1149,7 +1141,6 @@ def _calculate_resistance_table(
                 RESISTANCE_SIM_COL: np.nan,
                 RESISTANCE_TARGET_COL: prevalence_target,
                 RESISTANCE_DELTA_COL: np.nan,
-                "Relevant mechanisms": relevant_mechs_str,
                 "Average resistant simulation": np.nan,
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
@@ -1184,7 +1175,6 @@ def _calculate_resistance_table(
                 RESISTANCE_SIM_COL: np.nan,
                 RESISTANCE_TARGET_COL: prevalence_target,
                 RESISTANCE_DELTA_COL: np.nan,
-                "Relevant mechanisms": relevant_mechs_str,
                 "Average resistant simulation": np.nan,
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
@@ -1353,7 +1343,6 @@ def _calculate_resistance_table(
             "Drug": drug_name,
             RESISTANCE_SIM_COL: prevalence_simulation,
             RESISTANCE_TARGET_COL: prevalence_target,
-            "Relevant mechanisms": relevant_mechs_str,
             RESISTANCE_DELTA_COL: prevalence_delta,
             "Average resistant simulation": average_simulation,
             "Average resistant target": average_target,
@@ -3432,6 +3421,13 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         if not resistance_df.empty:
             resistance_display_df = resistance_df.copy()
             resistance_display_df["Note"] = resistance_display_df["Note"].fillna("")
+            source_columns = [
+                "Infection resistance simulation source: Community (%)",
+                "Infection resistance simulation source: HGT (%)",
+                "Infection resistance simulation source: Microbiome (%)",
+                "Infection resistance simulation source: De Novo (%)",
+                "Microbiome HGT Events (Asymptomatic)",
+            ]
             resistance_display_df.drop(
                 columns=[
                     RESISTANCE_DELTA_COL,
@@ -3499,7 +3495,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             signed_columns: Set[str] = set()
 
             for column in resistance_display_df.columns:
-                if column in {"Bacteria", "Drug", "Drug class", "Note", "Relevant mechanisms"}:
+                if column in {"Bacteria", "Drug", "Drug class", "Note"}:
                     continue
                 resistance_display_df[column] = resistance_display_df.apply(
                     _format_numeric_value,
@@ -3509,11 +3505,33 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     zero_decimals=column in zero_decimal_columns,
                 )
 
+            resistance_display_df.rename(
+                columns={
+                    RESISTANCE_SIM_COL: "Inf sim (%)",
+                    RESISTANCE_TARGET_COL: "Inf target (%)",
+                    "Average resistant simulation": "Avg sim (%)",
+                    "Average resistant target": "Avg target (%)",
+                    "Microbiome simulation": "Micro sim (%)",
+                    "Microbiome target": "Micro target (%)",
+                    "Infection resistance simulation source: Community (%)": "Comm (%)",
+                    "Infection resistance simulation source: HGT (%)": "HGT (%)",
+                    "Infection resistance simulation source: Microbiome (%)": "Micro (%)",
+                    "Infection resistance simulation source: De Novo (%)": "De novo (%)",
+                    "Microbiome HGT Events (Asymptomatic)": "Asympt HGT",
+                    "Infected person-days": "Inf days",
+                    "Resistant person-days": "Res days",
+                    "Microbiome carrier-days": "Carrier days",
+                    "Drug class": "Class",
+                    "Note": "Flags",
+                },
+                inplace=True,
+            )
+
             handle.write("Resistance Benchmarks (percent resistant) (10)\n")
             handle.write(
                 _render_table_with_alignment(
                     resistance_display_df,
-                    left_columns={"Bacteria", "Drug class", "Drug", "Note", "Relevant mechanisms"},
+                    left_columns={"Bacteria", "Class", "Drug", "Flags"},
                 )
             )
             handle.write("\n")
@@ -3648,6 +3666,18 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "     medians and mask substantial regional variation (e.g. MRSA <5% in\n"
             "     Scandinavia vs >50% in parts of Asia). Entries marked '.' indicate\n"
             "     intrinsically resistant or inapplicable bacteria/drug combinations.\n"
+        )
+        handle.write(
+            "\n(11) Some pair-specific resistance targets may not be exactly reproducible under\n"
+            "     the current model structure, especially where data suggest differences between\n"
+            "     closely related drugs that share the same modeled mechanism pathways. These\n"
+            "     residual mismatches are accepted unless sustained evidence supports adding a\n"
+            "     corresponding mechanistic distinction to the model.\n"
+        )
+        handle.write(
+            "\n(12) Mechanism applicability is no longer duplicated in this summary table. The\n"
+            "     authoritative bacteria/drug/mechanism logic is defined in src/rules/mod.rs\n"
+            "     via mechanism_applies_to_drug(...).\n"
         )
 
     return output_path
