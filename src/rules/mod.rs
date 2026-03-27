@@ -2203,8 +2203,9 @@ pub fn apply_rules(
                     continue;
                 }
 
-                // BLOCK: Nitrofurantoin syndrome restrictions
-                // Nitrofurans and fosfomycin should stay restricted to uncomplicated lower UTI use.
+                // BLOCK: Syndrome restrictions for compartment-limited agents.
+                // Nitrofurantoin and fosfomycin should stay restricted to uncomplicated lower UTI use,
+                // while furazolidone is better modeled as a GI-local agent rather than a urinary drug.
                 if matches!(drug_name, "nitrofurantoin" | "furazolidone" | "fosfomycin") {
                     // Block if sepsis present
                     if individual.sepsis.iter().any(|&s| s) {
@@ -2214,11 +2215,22 @@ pub fn apply_rules(
                     if active_syndrome_ids.contains(&4) {
                         continue;
                     }
-                    // Block if non-UTI syndrome present (syndrome 1 = UTI)
-                    let is_uti_only = active_syndrome_ids.is_empty() || 
-                                      active_syndrome_ids.iter().all(|&sid| sid == 1);
-                    if !is_uti_only {
-                        continue;
+                    if matches!(drug_name, "nitrofurantoin" | "fosfomycin") {
+                        // Require an actual UTI syndrome; do not allow undifferentiated/no-syndrome prescribing.
+                        let is_uti_only = !active_syndrome_ids.is_empty()
+                            && active_syndrome_ids.iter().all(|&sid| sid == 1);
+                        if !is_uti_only {
+                            continue;
+                        }
+                    }
+
+                    if matches!(drug_name, "furazolidone") {
+                        // Treat furazolidone as GI-local rather than a urinary agent.
+                        let is_gi_only = !active_syndrome_ids.is_empty()
+                            && active_syndrome_ids.iter().all(|&sid| sid == 7);
+                        if !is_gi_only {
+                            continue;
+                        }
                     }
                 }
 
