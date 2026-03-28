@@ -1512,7 +1512,7 @@ pub struct Individual {
     /// Majority-strain mechanisms: mechanism_majority[bacteria][mechanism] -> bool.
     /// Invariant: mechanism_majority[b][m] => mechanism_any[b][m].
     /// Set at acquisition (established strain) or when de-novo mechanism becomes dominant.
-    /// Used as the source for HGT donor transfer eligibility.
+    /// Used as the source for surveillance/acquisition seeding and HGT donor weighting.
     pub mechanism_majority: Vec<Vec<bool>>,
     
     /// Microbiome/carriage mechanisms: mechanism_microbiome[bacteria][mechanism] -> bool.

@@ -2263,21 +2263,24 @@ impl Simulation {
 
                                             if let Some(r_idx) = effective_region_idx_for_any_r {
                                                 let ewma_flat = r_idx * num_bacteria * num_mechanisms + b_idx * num_mechanisms + mech_idx;
-                                                if is_hosp {
-                                                    lt.mech_infected_hosp[ewma_flat] = lt.mech_infected_hosp[ewma_flat].saturating_add(1);
-                                                } else {
-                                                    lt.mech_infected_comm[ewma_flat] = lt.mech_infected_comm[ewma_flat].saturating_add(1);
+                                                if individual.mechanism_majority[b_idx][mech_idx] {
+                                                    if is_hosp {
+                                                        lt.mech_infected_hosp[ewma_flat] = lt.mech_infected_hosp[ewma_flat].saturating_add(1);
+                                                    } else {
+                                                        lt.mech_infected_comm[ewma_flat] = lt.mech_infected_comm[ewma_flat].saturating_add(1);
+                                                    }
                                                 }
                                             }
                                         }
                                     }
 
-                                    // Record full mechanism profile and total infected for EWMA denominators
+                                    // Record majority-strain mechanism profiles for acquisition sampling,
+                                    // and total infected for EWMA denominators.
                                     if let Some(r_idx) = effective_region_idx_for_any_r {
                                         lt.mechanism_profiles.record(
                                             r_idx,
                                             b_idx,
-                                            &individual.mechanism_any[b_idx],
+                                            &individual.mechanism_majority[b_idx],
                                             &mut lt.rng,
                                         );
                                         let denom_flat = r_idx * num_bacteria + b_idx;

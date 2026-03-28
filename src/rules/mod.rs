@@ -1325,7 +1325,7 @@ impl ParameterKeyCache {
 }
 
 /// applies model rules to an individual for one time step.
-pub fn apply_rules(
+pub(crate) fn apply_rules(
     individual: &mut Individual,
     time_step: usize,
     rng: &mut impl Rng,
@@ -5182,18 +5182,16 @@ pub fn apply_rules(
             individual.clearance_hazard[b_idx] = immune_hazard;
 
             // --- Mechanism-specific fitness cost reversion logic ---
-            // Reversion is checked per-mechanism: a mechanism can only revert if the
-            // individual is NOT on any drug that the mechanism confers resistance to.
-            // This replaces the previous blanket on_any_drug gate which incorrectly
-            // blocked all reversion whenever any antibiotic was present.
+            // Infection-side fitness-cost loss demotes a mechanism out of the majority strain
+            // but does not erase minority persistence from mechanism_any. This preserves the
+            // current infected individual's any_r while removing the mechanism from the
+            // majority-derived surveillance/acquisition path.
             {
                 use crate::simulation::population::ResistanceMechanism;
                 let bacteria_name = BACTERIA_LIST[b_idx];
-                let mut mechanisms_reverted_buf = [0usize; 64];
-                                    let mut mechanisms_reverted_len = 0;
 
                 for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                    if individual.mechanism_any[b_idx][mechanism_idx] {
+                    if individual.mechanism_majority[b_idx][mechanism_idx] {
                         // Check if any active drug is one this mechanism confers resistance to
                         let selecting_drug_present = DRUG_SHORT_NAMES.iter().enumerate().any(
                             |(d_idx, &drug_name)| {
@@ -5209,30 +5207,10 @@ pub fn apply_rules(
                                 * reversion_rate_sampling_multiplier;
 
                             if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
-                                individual.mechanism_any[b_idx][mechanism_idx] = false;
                                 individual.mechanism_majority[b_idx][mechanism_idx] = false;
-                                // Also revert in microbiome compartment if present
-                                individual.mechanism_microbiome[b_idx][mechanism_idx] = false;
-                                if mechanisms_reverted_len < 64 {
-                                            mechanisms_reverted_buf[mechanisms_reverted_len] = mechanism_idx;
-                                            mechanisms_reverted_len += 1;
-                                        }
                             }
                         }
                     }
-                }
-
-                // If any mechanisms were lost, recalculate resistance levels for all drugs
-                let mechanisms_reverted = &mechanisms_reverted_buf[..mechanisms_reverted_len];
-                                    if !mechanisms_reverted.is_empty() {
-                    let has_microbiome = individual.presence_microbiome[b_idx];
-                    propagate_mechanism_resistance(
-                        individual,
-                        b_idx,
-                        param_cache,
-                        false, // raise_only=false: reversion resets to mechanism-derived level
-                        has_microbiome, // propagate_microbiome_r: also re-derive if microbiome present
-                    );
                 }
 
                 // Mechanismless reversion guardrail: if no mechanisms remain in any compartment

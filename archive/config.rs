@@ -7821,14 +7821,14 @@ lazy_static! {
 
         // K. pneumoniae — Gram-negative, Enterobacterales
         // Band 7 (x10)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_003    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_003     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_003    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_003     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_003     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_003      ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_003         ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_003         ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_002    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_002     ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_002    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_002     ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_002     ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_002      ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_002         ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_002         ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.003   ); // classes: chl
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01   ); // classes: ag
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
@@ -7842,7 +7842,7 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_2 ); // classes: fq, tet, chl
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_2       ); // classes: fq, mls, tet, chl
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_003 ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_005 ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_003 ); // classes: none (currently zeroed)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.005 ); // classes: poly
@@ -8724,7 +8724,7 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_03 ); // classes: mls; GC macrolide target-site resistance
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_01       ); // classes: tet
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_03 ); // classes: pen, bli, ceph, mono; PBP mosaic: penA mosaic alleles, major contributor to pen/ceph R
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_05 ); // classes: pen, bli, ceph, mono; PBP mosaic: penA mosaic alleles, major contributor to pen/ceph R
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_005 ); // classes: pen, mls, tet, chl; mtrCDE efflux: common, broad GC resistance driver
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0 ); // classes: broad placeholder
 
@@ -8916,7 +8916,7 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_1  ); // classes: chl; chlor target 30%
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_3         ); // classes: ag
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_002_5); // classes: pen, bli, ceph, carb; driving penicillins ~35-60%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_001_5); // classes: pen, bli, ceph, carb; driving penicillins ~35-60%
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_000_01  ); // classes: glyc; targets ~10% for vanco/teico
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_000_3     ); // classes: glyc
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_001  ); // classes: mls; macrolides ~40%
@@ -8939,7 +8939,7 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_fus_b_emergence_rate".to_string(), 0.000_01     ); // classes: other (fusidic acid); Fusidic acid ~20%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_003 ); // classes: tet; tet target 20-30%
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001  ); // classes: ag; AG 40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_002_5); // classes: pen; blaZ
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_001_5); // classes: pen; blaZ
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mls; disabled here; 23S-mediated resistance is possible
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0

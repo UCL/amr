@@ -11,10 +11,6 @@
 //
 //
 
-mod config;
-mod rules;
-mod simulation;
-
 // "Please use standard file edits so I can review the diff. Do not use terminal 
 // commands or scripts to modify files."
 //
@@ -26,6 +22,11 @@ mod simulation;
 //
 //
 // -- additional outputs / thoughts on calibration  ---------------------------------------------------------------------------------
+//
+// maybe publish online results from 1 run with fixed seed and also results using the same fixed seed but changing
+// one parameter value only ?  Can refer to this in supplementary material.
+//
+// case fatality by infection if untreated
 //
 // look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
@@ -145,10 +146,11 @@ mod simulation;
 //
 //
 
-use crate::config::get_global_param;
-use crate::simulation::population::BACTERIA_LIST;
-use crate::simulation::simulation::Simulation;
-use crate::simulation::simulation::CalibrationMode;
+use amr_project::config;
+use amr_project::config::get_global_param;
+use amr_project::simulation::population::BACTERIA_LIST;
+use amr_project::simulation::simulation::CalibrationMode;
+use amr_project::simulation::simulation::Simulation;
 use std::path::PathBuf;
 
 fn main() {
