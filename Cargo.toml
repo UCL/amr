@@ -2,6 +2,7 @@
 name = "amr_project"
 version = "0.1.0"
 edition = "2021"
+default-run = "executable_amr"
 
 # Explicitly define the binary target
 [[bin]]

@@ -2,7 +2,7 @@
 ///
 /// Prints structured, thematically organized parameter tables derived from the
 /// live Rust configuration, replacing the previous monolithic key-value dump
-/// with resolved, reader-friendly tables.
+/// with resolved, reader-friendly Markdown tables.
 use amr_project::config::{
     get_drug_class, get_drug_introduction_time_step, PARAMETERS, PARAMETER_STORE,
 };
@@ -51,22 +51,52 @@ fn format_value(v: f64) -> String {
         return "0".to_string();
     }
     let abs = v.abs();
-    if abs >= 0.01 && abs < 1_000_000.0 {
-        // Fixed-point, trimming trailing zeros
+    if abs >= 0.001 && abs < 1_000_000.0 {
         let s = format!("{:.10}", v);
-        let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
-        s
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
     } else {
-        // Scientific notation for very small or very large
-        format!("{:.6e}", v)
-            .trim_end_matches('0')
-            .trim_end_matches('.')
-            .to_string()
+        // Scientific notation: trim trailing zeros in the coefficient only
+        let s = format!("{:.6e}", v);
+        if let Some(e_pos) = s.find('e') {
+            let (coeff, exp) = s.split_at(e_pos);
+            let coeff = coeff.trim_end_matches('0').trim_end_matches('.');
+            format!("{}{}", coeff, exp)
+        } else {
+            s
+        }
     }
 }
 
+/// Print a Markdown table from a header row and data rows.
+fn md_table(headers: &[&str], rows: &[Vec<String>]) {
+    // Header
+    print!("|");
+    for h in headers {
+        print!(" {} |", h);
+    }
+    println!();
+    // Separator — right-align numeric columns (all except the first)
+    print!("|");
+    for (i, _) in headers.iter().enumerate() {
+        if i == 0 {
+            print!(" --- |");
+        } else {
+            print!(" ---: |");
+        }
+    }
+    println!();
+    // Data rows
+    for row in rows {
+        print!("|");
+        for cell in row {
+            print!(" {} |", cell);
+        }
+        println!();
+    }
+    println!();
+}
+
 fn main() {
-    // Force initialization of the parameter store
     let store = &*PARAMETER_STORE;
     let _params = &*PARAMETERS;
 
@@ -108,7 +138,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
               default value.");
     println!();
 
-    // Treatment initiation
     print_scalar_group("Treatment Initiation (logistic model)", &[
         ("antibiotic_initiation_base_log_odds", g.antibiotic_initiation_base_log_odds),
         ("antibiotic_initiation_log_odds_symptomatic_infection", g.antibiotic_initiation_log_odds_symptomatic_infection),
@@ -119,7 +148,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("antibiotic_initiation_log_odds_no_indication", g.antibiotic_initiation_log_odds_no_indication),
     ]);
 
-    // Drug activity & cessation
     print_scalar_group("Drug Activity and Cessation", &[
         ("drug_activity_to_bacteria_level_multiplier", g.drug_activity_to_bacteria_level_multiplier),
         ("drug_activity_slow_clearance_probability", g.drug_activity_slow_clearance_probability),
@@ -130,14 +158,12 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("antibiotic_infection_prevention_efficacy", g.antibiotic_infection_prevention_efficacy),
     ]);
 
-    // Drug selection
     print_scalar_group("Drug Selection", &[
         ("minimal_potency_threshold_for_drug_selection", g.minimal_potency_threshold_for_drug_selection),
         ("drug_selection_temperature", g.drug_selection_temperature),
         ("reserve_drug_score_penalty", g.reserve_drug_score_penalty),
     ]);
 
-    // Treatment failure & restart
     print_scalar_group("Treatment Failure and Restart", &[
         ("treatment_failure_assessment_day", g.treatment_failure_assessment_day as f64),
         ("treatment_failure_threshold", g.treatment_failure_threshold),
@@ -147,7 +173,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("restart_window_probability", g.restart_window_probability),
     ]);
 
-    // Hospitalization
     print_scalar_group("Hospitalization", &[
         ("hospitalization_base_log_odds", g.hospitalization_base_log_odds),
         ("hospitalization_log_odds_per_age_year", g.hospitalization_log_odds_per_age_year),
@@ -159,7 +184,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("hospital_prevent_discharge_with_sepsis", g.hospital_prevent_discharge_with_sepsis),
     ]);
 
-    // Resistance emergence
     print_scalar_group("Resistance Emergence and Decay", &[
         ("max_resistance_level", g.max_resistance_level),
         ("resistance_emergence_bacteria_level_multiplier", g.resistance_emergence_bacteria_level_multiplier),
@@ -173,7 +197,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("majority_r_memory_retention_per_day", g.majority_r_memory_retention_per_day),
     ]);
 
-    // Microbiome
     print_scalar_group("Microbiome Dynamics", &[
         ("microbiome_resistance_transfer_probability_per_day", g.microbiome_resistance_transfer_probability_per_day),
         ("antibiotic_disruption_decay_half_life_days", g.antibiotic_disruption_decay_half_life_days),
@@ -189,14 +212,12 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("microbiome_majority_promotion_rate_per_day", g.microbiome_majority_promotion_rate_per_day),
     ]);
 
-    // De novo & HGT multipliers
     print_scalar_group("De Novo and HGT Multipliers", &[
         ("infection_de_novo_multiplier", g.infection_de_novo_multiplier),
         ("microbiome_de_novo_multiplier", g.microbiome_de_novo_multiplier),
         ("hgt_multiplier", g.hgt_multiplier),
     ]);
 
-    // HGT modifiers
     print_scalar_group("Horizontal Gene Transfer Modifiers", &[
         ("hgt_hospital_multiplier", g.hgt_hospital_multiplier),
         ("hgt_antibiotic_pressure_multiplier", g.hgt_antibiotic_pressure_multiplier),
@@ -206,12 +227,10 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("hgt_minority_donor_multiplier", g.hgt_minority_donor_multiplier),
     ]);
 
-    // Travel
     print_scalar_group("Travel", &[
         ("travel_probability_per_day", g.travel_probability_per_day),
     ]);
 
-    // Bacterial growth age multipliers
     print_scalar_group("Bacteria Growth Age Multipliers", &[
         ("bacteria_growth_age_multiplier_infant", g.bacteria_growth_age_multiplier_infant),
         ("bacteria_growth_age_multiplier_child", g.bacteria_growth_age_multiplier_child),
@@ -220,7 +239,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("bacteria_growth_immunodeficiency_multiplier", g.bacteria_growth_immunodeficiency_multiplier),
     ]);
 
-    // Sepsis onset
     print_scalar_group("Sepsis Onset", &[
         ("sepsis_minimum_duration_days", g.sepsis_minimum_duration_days as f64),
         ("log_odds_sepsis_onset_immunosuppressed", g.log_odds_sepsis_onset_immunosuppressed),
@@ -234,7 +252,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("log_odds_sepsis_onset_region_africa", g.log_odds_sepsis_onset_region_africa),
     ]);
 
-    // Sepsis recovery
     print_scalar_group("Sepsis Recovery", &[
         ("sepsis_base_log_odds_of_recovery_per_day", g.sepsis_base_log_odds_of_recovery_per_day),
         ("sepsis_log_odds_bacteria_level", g.sepsis_log_odds_bacteria_level),
@@ -246,7 +263,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("sepsis_log_odds_immunosuppressed", g.sepsis_log_odds_immunosuppressed),
     ]);
 
-    // Sepsis death
     print_scalar_group("Sepsis Death", &[
         ("sepsis_death_base_log_odds", g.sepsis_death_base_log_odds),
         ("sepsis_death_log_odds_age_infant", g.sepsis_death_log_odds_age_infant),
@@ -261,7 +277,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("sepsis_death_log_odds_not_under_care", g.sepsis_death_log_odds_not_under_care),
     ]);
 
-    // Non-sepsis infection mortality
     print_scalar_group("Non-Sepsis Infection Mortality", &[
         ("infection_non_sepsis_base_log_odds", g.infection_non_sepsis_base_log_odds),
         ("infection_non_sepsis_log_odds_per_level", g.infection_non_sepsis_log_odds_per_level),
@@ -274,7 +289,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("infection_non_sepsis_minimum_bacteria_level", g.infection_non_sepsis_minimum_bacteria_level),
     ]);
 
-    // Background mortality
     print_scalar_group("Background Mortality", &[
         ("background_mortality_baseline_log_odds", g.background_mortality_baseline_log_odds),
         ("mortality_baseline_1930_multiplier", g.mortality_baseline_1930_multiplier),
@@ -286,7 +300,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("log_odds_mortality_hospitalized", g.log_odds_mortality_hospitalized),
     ]);
 
-    // Toxicity
     print_scalar_group("Drug Toxicity", &[
         ("default_toxicity_reservoir_half_life_days", g.default_toxicity_reservoir_half_life_days),
         ("toxicity_age_multiplier_infant", g.toxicity_age_multiplier_infant),
@@ -299,7 +312,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("toxicity_discontinuation_avoidance_days", g.toxicity_discontinuation_avoidance_days as f64),
     ]);
 
-    // Regional resistance scoring
     print_scalar_group("Regional Resistance Scoring", &[
         ("regional_resistance_threshold_very_high", g.regional_resistance_threshold_very_high),
         ("regional_resistance_threshold_high", g.regional_resistance_threshold_high),
@@ -309,7 +321,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("regional_resistance_penalty_moderate", g.regional_resistance_penalty_moderate),
     ]);
 
-    // Targeted/empiric therapy scoring
     print_scalar_group("Therapy Scoring", &[
         ("targeted_therapy_narrow_spectrum_bonus", g.targeted_therapy_narrow_spectrum_bonus),
         ("targeted_therapy_broad_spectrum_penalty", g.targeted_therapy_broad_spectrum_penalty),
@@ -319,7 +330,6 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("empiric_therapy_ineffective_penalty", g.empiric_therapy_ineffective_penalty),
     ]);
 
-    // MDR-TB
     print_scalar_group("MDR-TB Era Multipliers", &[
         ("mdr_tb_pre_antibiotic_era_multiplier", g.mdr_tb_pre_antibiotic_era_multiplier),
         ("mdr_tb_early_antibiotic_era_multiplier", g.mdr_tb_early_antibiotic_era_multiplier),
@@ -330,13 +340,11 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
 fn print_scalar_group(title: &str, items: &[(&str, f64)]) {
     println!("#### {}", title);
     println!();
-    println!("```csv");
-    println!("parameter,value");
-    for &(name, value) in items {
-        println!("{},{}", name, format_value(value));
-    }
-    println!("```");
-    println!();
+    let rows: Vec<Vec<String>> = items
+        .iter()
+        .map(|&(name, value)| vec![name.to_string(), format_value(value)])
+        .collect();
+    md_table(&["Parameter", "Value"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -351,20 +359,20 @@ fn print_drug_properties(store: &amr_project::config::ParameterStore) {
               from 1 January 1930.", DRUG_SHORT_NAMES.len());
     println!();
 
-    println!("```csv");
-    println!("drug,drug_class,introduction_time_step,initial_level,half_life_days,\
-              double_dose_multiplier,spectrum_breadth,\
-              toxicity_death_hazard_per_unit_level,toxicity_reservoir_half_life_days,\
-              microbiome_disruption_log_odds");
+    let headers = &[
+        "Drug", "Class", "Intro (days)", "Init level",
+        "t½ (days)", "2× dose mult", "Spectrum",
+        "Tox hazard", "Tox t½ (days)", "Microbiome disrupt",
+    ];
+    let mut rows = Vec::new();
     for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
         let drug_class = get_drug_class(drug).unwrap_or("unknown");
         let intro = get_drug_introduction_time_step(drug)
             .map(|v| v.to_string())
             .unwrap_or_else(|| "n/a".to_string());
-        println!(
-            "{},{},{},{},{},{},{},{},{},{}",
-            drug,
-            drug_class,
+        rows.push(vec![
+            drug.to_string(),
+            drug_class.to_string(),
             intro,
             format_value(store.drug.initial_level(d_idx)),
             format_value(store.drug.half_life_days(d_idx)),
@@ -373,10 +381,9 @@ fn print_drug_properties(store: &amr_project::config::ParameterStore) {
             format_value(store.drug.toxicity_death_hazard_per_unit_level(d_idx)),
             format_value(store.drug.toxicity_reservoir_half_life_days(d_idx)),
             format_value(store.drug.microbiome_disruption_log_odds(d_idx)),
-        );
+        ]);
     }
-    println!("```");
-    println!();
+    md_table(headers, &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -391,20 +398,16 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
               onset, and clinical outcomes for each of the {} bacterial species.", BACTERIA_LIST.len());
     println!();
 
-    println!("```csv");
-    println!(
-        "bacteria,acquisition_log_odds_baseline,initial_infection_level,\
-         base_bacteria_level_change,max_level,\
-         microbiome_clearance_prob_per_day,microbiome_vs_infection_log_odds,\
-         drug_cessation_probability,\
-         symptom_onset_threshold_level,symptom_onset_delay_days,\
-         sepsis_baseline_log_odds,\
-         mechanismless_resistance_reversion_rate"
-    );
+    let headers = &[
+        "Bacteria", "Acq log-odds", "Init level", "Δ level/day",
+        "Max level", "Microb clr/day", "Microb vs inf",
+        "Drug cess prob", "Sx threshold", "Sx delay (d)",
+        "Sepsis log-odds", "Mech-less rev rate",
+    ];
+    let mut rows = Vec::new();
     for (idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
-        println!(
-            "{},{},{},{},{},{},{},{},{},{},{},{}",
-            bacteria,
+        rows.push(vec![
+            bacteria.to_string(),
             format_value(b.acquisition_log_odds_baseline[idx]),
             format_value(b.initial_infection_level[idx]),
             format_value(b.base_bacteria_level_change[idx]),
@@ -416,10 +419,9 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
             format_value(b.symptom_onset_delay_days[idx]),
             format_value(b.sepsis_baseline_log_odds[idx]),
             format_value(b.mechanismless_resistance_reversion_rate[idx]),
-        );
+        ]);
     }
-    println!("```");
-    println!();
+    md_table(headers, &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -436,26 +438,23 @@ fn print_drug_bacteria_matrix(store: &amr_project::config::ParameterStore) {
              BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len());
     println!();
 
-    println!("```csv");
-    println!("bacteria,drug,potency_when_no_r,initiation_multiplier");
+    let headers = &["Bacteria", "Drug", "Potency (no R)", "Init multiplier"];
+    let mut rows = Vec::new();
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             let potency = store.drug_bacteria.potency(b_idx, d_idx);
             let init_mult = store.drug_bacteria.initiation_multiplier(b_idx, d_idx);
-            // Only include rows where at least one value is non-default
             if potency.abs() > 1e-12 || (init_mult - 1.0).abs() > 1e-12 {
-                println!(
-                    "{},{},{},{}",
-                    bacteria,
-                    drug,
+                rows.push(vec![
+                    bacteria.to_string(),
+                    drug.to_string(),
                     format_value(potency),
                     format_value(init_mult),
-                );
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(headers, &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -472,19 +471,20 @@ fn print_regional_parameters(store: &amr_project::config::ParameterStore) {
     // Region scalars
     println!("#### Region Scalars");
     println!();
-    println!("```csv");
-    println!("region,travel_multiplier,cessation_multiplier,mortality_log_odds,\
-              sepsis_log_odds,sepsis_mortality_multiplier,testing_multiplier,\
-              antibiotic_initiation_log_odds,hospitalization_log_odds");
+    let headers = &[
+        "Region", "Travel mult", "Cessation mult", "Mortality log-odds",
+        "Sepsis log-odds", "Sepsis mort mult", "Testing mult",
+        "Abx init log-odds", "Hosp log-odds",
+    ];
+    let mut rows = Vec::new();
     for (idx, &region) in REGION_VARIANTS.iter().enumerate() {
         let name = if idx < REGION_NAMES.len() {
             REGION_NAMES[idx]
         } else {
             "home"
         };
-        println!(
-            "{},{},{},{},{},{},{},{},{}",
-            name,
+        rows.push(vec![
+            name.to_string(),
             format_value(store.region.travel_multiplier(region)),
             format_value(store.region.cessation_multiplier(region)),
             format_value(store.region.mortality_log_odds(region)),
@@ -493,35 +493,41 @@ fn print_regional_parameters(store: &amr_project::config::ParameterStore) {
             format_value(store.region.testing_multiplier(region)),
             format_value(store.region.antibiotic_initiation_log_odds(region)),
             format_value(store.region.hospitalization_log_odds(region)),
-        );
+        ]);
     }
-    println!("```");
-    println!();
+    md_table(headers, &rows);
 
     // Region-bacteria acquisition
     println!("#### Region–Bacteria Acquisition Log-Odds");
     println!();
-    println!("```csv");
-    println!("region,bacteria,acquisition_log_odds");
+    let headers = &["Region", "Bacteria", "Acquisition log-odds"];
+    let mut rows = Vec::new();
     for &region in REGION_VARIANTS.iter() {
-        let name = match region {
-            Region::NorthAmerica => "north_america",
-            Region::SouthAmerica => "south_america",
-            Region::Africa => "africa",
-            Region::Asia => "asia",
-            Region::Europe => "europe",
-            Region::Oceania => "oceania",
-            Region::Home => "home",
-        };
+        let name = region_name(region);
         for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
             let val = store.region_bacteria.acquisition_log_odds(region, b_idx);
             if val.abs() > 1e-12 {
-                println!("{},{},{}", name, bacteria, format_value(val));
+                rows.push(vec![
+                    name.to_string(),
+                    bacteria.to_string(),
+                    format_value(val),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(headers, &rows);
+}
+
+fn region_name(region: Region) -> &'static str {
+    match region {
+        Region::NorthAmerica => "north_america",
+        Region::SouthAmerica => "south_america",
+        Region::Africa => "africa",
+        Region::Asia => "asia",
+        Region::Europe => "europe",
+        Region::Oceania => "oceania",
+        Region::Home => "home",
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -542,54 +548,51 @@ fn print_age_dependent_parameters(store: &amr_project::config::ParameterStore) {
     // Default age log-odds
     println!("#### Default Age Log-Odds");
     println!();
-    println!("```csv");
-    println!("age_category,default_log_odds");
+    let mut rows = Vec::new();
     for (idx, &cat) in AGE_CATEGORY_SEQUENCE.iter().enumerate() {
-        println!("{},{}", cat.label(), format_value(store.age_categories.default_log_odds(idx)));
+        rows.push(vec![
+            cat.label().to_string(),
+            format_value(store.age_categories.default_log_odds(idx)),
+        ]);
     }
-    println!("```");
-    println!();
+    md_table(&["Age category", "Default log-odds"], &rows);
 
     // Per-bacteria age log-odds
     println!("#### Bacteria–Age Log-Odds");
     println!();
-    println!("```csv");
-    println!("bacteria,age_category,log_odds");
+    let mut rows = Vec::new();
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         for (a_idx, &cat) in AGE_CATEGORY_SEQUENCE.iter().enumerate() {
             let val = store.age_categories.bacteria_age_log_odds(b_idx, a_idx);
             if val.abs() > 1e-12 {
-                println!("{},{},{}", bacteria, cat.label(), format_value(val));
+                rows.push(vec![
+                    bacteria.to_string(),
+                    cat.label().to_string(),
+                    format_value(val),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Bacteria", "Age category", "Log-odds"], &rows);
 
     // Region-age log-odds
     println!("#### Region–Age Log-Odds");
     println!();
-    println!("```csv");
-    println!("region,age_category,log_odds");
+    let mut rows = Vec::new();
     for &region in REGION_VARIANTS.iter() {
-        let name = match region {
-            Region::NorthAmerica => "north_america",
-            Region::SouthAmerica => "south_america",
-            Region::Africa => "africa",
-            Region::Asia => "asia",
-            Region::Europe => "europe",
-            Region::Oceania => "oceania",
-            Region::Home => "home",
-        };
+        let name = region_name(region);
         for (a_idx, &cat) in AGE_CATEGORY_SEQUENCE.iter().enumerate() {
             let val = store.age_categories.region_age_log_odds(region, a_idx);
             if val.abs() > 1e-12 {
-                println!("{},{},{}", name, cat.label(), format_value(val));
+                rows.push(vec![
+                    name.to_string(),
+                    cat.label().to_string(),
+                    format_value(val),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Region", "Age category", "Log-odds"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -605,49 +608,41 @@ fn print_syndrome_parameters(store: &amr_project::config::ParameterStore) {
               8 = genital/STI, 9 = bone/joint, 10 = other.");
     println!();
 
-    // Empiric drug scores (syndrome × drug)
+    // Empiric drug scores
     println!("#### Syndrome Empiric Drug Scores");
     println!();
-    println!("```csv");
-    println!("syndrome,drug,empiric_score");
+    let mut rows = Vec::new();
     for syndrome_id in 1..=10 {
         for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             let score = store.syndrome.empiric_drug_score(syndrome_id, d_idx);
             if (score - 0.01).abs() > 1e-6 {
-                // Only non-default scores
-                println!(
-                    "{},{},{}",
-                    SYNDROME_NAMES[syndrome_id],
-                    drug,
-                    format_value(score)
-                );
+                rows.push(vec![
+                    SYNDROME_NAMES[syndrome_id].to_string(),
+                    drug.to_string(),
+                    format_value(score),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Syndrome", "Drug", "Empiric score"], &rows);
 
-    // Drug penetration (syndrome × drug)
+    // Drug penetration
     println!("#### Syndrome Drug Penetration");
     println!();
-    println!("```csv");
-    println!("syndrome,drug,penetration_factor");
+    let mut rows = Vec::new();
     for syndrome_id in 1..=10 {
         for (d_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
             let pen = store.syndrome.drug_penetration(syndrome_id, d_idx);
             if (pen - 1.0).abs() > 1e-6 {
-                // Only non-default penetration
-                println!(
-                    "{},{},{}",
-                    SYNDROME_NAMES[syndrome_id],
-                    drug,
-                    format_value(pen)
-                );
+                rows.push(vec![
+                    SYNDROME_NAMES[syndrome_id].to_string(),
+                    drug.to_string(),
+                    format_value(pen),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Syndrome", "Drug", "Penetration factor"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -662,26 +657,23 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
               age effects, immunodeficiency, bacteria level, and treatment duration.");
     println!();
 
-    println!("```csv");
-    println!("parameter,value");
-    println!("base_clearance_log_odds,{}", format_value(store.clearance.base_log_odds()));
-    println!("immunodeficient_log_odds_adjustment,{}", format_value(store.clearance.immunodeficient_log_odds_adjustment()));
-    println!("```");
-    println!();
+    let rows = vec![
+        vec!["base_clearance_log_odds".to_string(), format_value(store.clearance.base_log_odds())],
+        vec!["immunodeficient_log_odds_adjustment".to_string(), format_value(store.clearance.immunodeficient_log_odds_adjustment())],
+    ];
+    md_table(&["Parameter", "Value"], &rows);
 
     // Per-bacteria
     println!("#### Per-Bacteria Clearance Adjustments");
     println!();
-    println!("```csv");
-    println!("bacteria,log_odds_adjustment");
+    let mut rows = Vec::new();
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         let adj = store.clearance.bacteria_log_odds_adjustment(b_idx);
         if adj.abs() > 1e-12 {
-            println!("{},{}", bacteria, format_value(adj));
+            rows.push(vec![bacteria.to_string(), format_value(adj)]);
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Bacteria", "Log-odds adjustment"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -695,45 +687,49 @@ fn print_immunodeficiency_sex_vaccination(store: &amr_project::config::Parameter
     // Immunodeficiency
     println!("#### Immunodeficiency");
     println!();
-    println!("```csv");
-    println!("parameter,value");
-    println!("startup_seed_fraction,{}", format_value(store.immunodeficiency.startup_seed_fraction()));
-    println!("temporary_onset_rate_per_day,{}", format_value(store.immunodeficiency.temporary_onset_rate()));
-    println!("temporary_recovery_rate_per_day,{}", format_value(store.immunodeficiency.temporary_recovery_rate()));
-    println!("chronic_onset_rate_per_day,{}", format_value(store.immunodeficiency.chronic_onset_rate()));
-    println!("chronic_recovery_rate_per_day,{}", format_value(store.immunodeficiency.chronic_recovery_rate()));
+    let mut rows = vec![
+        vec!["startup_seed_fraction".to_string(), format_value(store.immunodeficiency.startup_seed_fraction())],
+        vec!["temporary_onset_rate_per_day".to_string(), format_value(store.immunodeficiency.temporary_onset_rate())],
+        vec!["temporary_recovery_rate_per_day".to_string(), format_value(store.immunodeficiency.temporary_recovery_rate())],
+        vec!["chronic_onset_rate_per_day".to_string(), format_value(store.immunodeficiency.chronic_onset_rate())],
+        vec!["chronic_recovery_rate_per_day".to_string(), format_value(store.immunodeficiency.chronic_recovery_rate())],
+    ];
     for &(label, age_days) in &[("age_0_1", 180), ("age_1_18", 3650), ("age_18_65", 14600), ("age_65_plus", 25550)] {
-        println!("chronic_probability_{},{}", label, format_value(store.immunodeficiency.chronic_probability(age_days)));
+        rows.push(vec![
+            format!("chronic_probability_{}", label),
+            format_value(store.immunodeficiency.chronic_probability(age_days)),
+        ]);
     }
-    println!("```");
-    println!();
+    md_table(&["Parameter", "Value"], &rows);
 
     // Sex
     println!("#### Sex");
     println!();
-    println!("```csv");
-    println!("sex,mortality_log_odds");
-    println!("male,{}", format_value(store.sex.mortality_log_odds("male")));
-    println!("female,{}", format_value(store.sex.mortality_log_odds("female")));
-    println!("```");
-    println!();
+    let rows = vec![
+        vec!["male".to_string(), format_value(store.sex.mortality_log_odds("male"))],
+        vec!["female".to_string(), format_value(store.sex.mortality_log_odds("female"))],
+    ];
+    md_table(&["Sex", "Mortality log-odds"], &rows);
 
     // Vaccination
     println!("#### Vaccination");
     println!();
-    println!("```csv");
-    println!("vaccine,age_category,daily_probability,availability_year");
+    let mut rows = Vec::new();
     for (v_idx, &vaccine) in VACCINES.iter().enumerate() {
         let avail = store.vaccination.availability_year(v_idx);
         for (a_idx, &cat) in AGE_CATEGORY_SEQUENCE.iter().enumerate() {
             let prob = store.vaccination.daily_probability(v_idx, a_idx);
             if prob.abs() > 1e-15 {
-                println!("{},{},{},{}", vaccine, cat.label(), format_value(prob), format_value(avail));
+                rows.push(vec![
+                    vaccine.to_string(),
+                    cat.label().to_string(),
+                    format_value(prob),
+                    format_value(avail),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Vaccine", "Age category", "Daily probability", "Availability year"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -754,40 +750,35 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
     // Reversion rates
     println!("#### Mechanism Reversion Rates");
     println!();
-    println!("```csv");
-    println!("mechanism,reversion_rate_per_day");
+    let mut rows = Vec::new();
     for (m_idx, mechanism) in mechanisms.iter().enumerate() {
         let rate = store.resistance_mechanism.reversion_rate(m_idx);
-        println!("{},{}", mechanism.as_str(), format_value(rate));
+        rows.push(vec![mechanism.as_str().to_string(), format_value(rate)]);
     }
-    println!("```");
-    println!();
+    md_table(&["Mechanism", "Reversion rate/day"], &rows);
 
-    // Enhancement multipliers (mechanism × drug class)
+    // Enhancement multipliers
     println!("#### Mechanism Enhancement Multipliers by Drug Class");
     println!();
     println!("How much resistance each mechanism confers against each drug class. \
               Only non-zero entries shown.");
     println!();
-    println!("```csv");
-    println!("mechanism,drug_class,enhancement_multiplier");
+    let mut rows = Vec::new();
     for (m_idx, mechanism) in mechanisms.iter().enumerate() {
         for drug_class in drug_classes {
             let enh = store
                 .resistance_mechanism
                 .enhancement_multiplier(m_idx, drug_class.index());
             if enh.abs() > 1e-12 {
-                println!(
-                    "{},{},{}",
-                    mechanism.as_str(),
-                    drug_class.as_str(),
-                    format_value(enh)
-                );
+                rows.push(vec![
+                    mechanism.as_str().to_string(),
+                    drug_class.as_str().to_string(),
+                    format_value(enh),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Mechanism", "Drug class", "Enhancement multiplier"], &rows);
 
     // Bacteria-mechanism emergence rates
     println!("#### Bacteria–Mechanism Emergence Rates");
@@ -795,23 +786,20 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
     println!("De novo emergence rate per day for each bacteria–mechanism pair. \
               Only non-zero entries shown.");
     println!();
-    println!("```csv");
-    println!("bacteria,mechanism,emergence_rate_per_day");
+    let mut rows = Vec::new();
     for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
         for (m_idx, mechanism) in mechanisms.iter().enumerate() {
             let rate = store.bacteria_mechanism_emergence.rate(b_idx, m_idx);
             if rate.abs() > 1e-20 {
-                println!(
-                    "{},{},{}",
-                    bacteria,
-                    mechanism.as_str(),
-                    format_value(rate)
-                );
+                rows.push(vec![
+                    bacteria.to_string(),
+                    mechanism.as_str().to_string(),
+                    format_value(rate),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Bacteria", "Mechanism", "Emergence rate/day"], &rows);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -825,8 +813,7 @@ fn print_hgt_matrix(store: &amr_project::config::ParameterStore) {
               between co-colonising bacterial species. Only non-zero entries shown.");
     println!();
 
-    println!("```csv");
-    println!("donor_bacteria,recipient_bacteria,probability_per_day");
+    let mut rows = Vec::new();
     for (donor_idx, &donor) in BACTERIA_LIST.iter().enumerate() {
         for (recip_idx, &recipient) in BACTERIA_LIST.iter().enumerate() {
             if donor_idx == recip_idx {
@@ -834,10 +821,13 @@ fn print_hgt_matrix(store: &amr_project::config::ParameterStore) {
             }
             let prob = store.hgt.probability(donor_idx, recip_idx);
             if prob.abs() > 1e-20 {
-                println!("{},{},{}", donor, recipient, format_value(prob));
+                rows.push(vec![
+                    donor.to_string(),
+                    recipient.to_string(),
+                    format_value(prob),
+                ]);
             }
         }
     }
-    println!("```");
-    println!();
+    md_table(&["Donor", "Recipient", "Probability/day"], &rows);
 }
