@@ -8,6 +8,10 @@ edition = "2021"
 name = "executable_amr" # You can choose a name for your executable
 path = "src/main.rs"
 
+[[bin]]
+name = "dump_parameter_appendix"
+path = "src/bin/dump_parameter_appendix.rs"
+
 [features]
 default = []
 # Enable "plots" when the plotting helpers are needed; it keeps heavy GUI deps out of
