@@ -64,7 +64,8 @@
 //
 // footnote in calibration summary about any microbiome resistance vs majority
 //
-//
+// do we need a drug "first available" date by region (to replace the exitsing way
+// of dealing with drug availability by region) ?
 //
 //
 //

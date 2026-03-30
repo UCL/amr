@@ -85,10 +85,12 @@ use crate::config::{
     get_resistance_floor_target,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
     parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
-    RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
+    RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
+    RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY,
     RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
 };
 use crate::simulation::population::{
@@ -835,11 +837,13 @@ fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
     let slow_probability = globals
         .drug_activity_slow_clearance_probability
         .clamp(0.0, 1.0);
+    let drug_activity_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY).unwrap_or(1.0);
 
     if slow_probability > 0.0 && rng.gen_bool(slow_probability) {
-        globals.drug_activity_slow_clearance_multiplier
+        globals.drug_activity_slow_clearance_multiplier * drug_activity_sampling_multiplier
     } else {
-        globals.drug_activity_to_bacteria_level_multiplier
+        globals.drug_activity_to_bacteria_level_multiplier * drug_activity_sampling_multiplier
     }
 }
 
@@ -861,7 +865,8 @@ fn mark_new_treatment_course(
 fn clear_treatment_tracking(individual: &mut Individual, bacteria_idx: usize) {
     let base_multiplier = parameter_store()
         .globals
-        .drug_activity_to_bacteria_level_multiplier;
+        .drug_activity_to_bacteria_level_multiplier
+        * get_global_param(RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY).unwrap_or(1.0);
     individual.bacteria_level_at_drug_start[bacteria_idx] = None;
     individual.days_on_current_treatment[bacteria_idx] = -1;
     individual.treatment_failure_assessed[bacteria_idx] = false;
@@ -1361,6 +1366,8 @@ pub(crate) fn apply_rules(
         get_global_param(RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY).unwrap_or(1.0);
     let microbiome_acquisition_sampling_multiplier =
         get_global_param(RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY).unwrap_or(1.0);
+    let microbiome_disruption_sampling_multiplier =
+        get_global_param(RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY).unwrap_or(1.0);
     // note this parameter above is set to 1.0 by default - it was introduced so that we could look at the effects
     // of setting it to zero in a counterfactual scenario with no resistance
 
@@ -3496,7 +3503,8 @@ pub(crate) fn apply_rules(
     individual.microbiome_disruption_level *= disruption_decay_factor;
     for (d_idx, &drug_level) in individual.cur_level_drug.iter().enumerate() {
         if drug_level > 0.1 {
-            individual.microbiome_disruption_level += store.drug.microbiome_disruption_log_odds(d_idx);
+            individual.microbiome_disruption_level += store.drug.microbiome_disruption_log_odds(d_idx)
+                * microbiome_disruption_sampling_multiplier;
         }
     }
 
