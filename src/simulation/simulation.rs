@@ -250,10 +250,11 @@ const MAX_MECHANISM_PROFILES: usize = 200;
 /// `MAX_MECHANISM_PROFILES` entries via reservoir sampling.
 #[derive(Clone)]
 pub struct MechanismProfileCache {
-    /// profiles[region_idx][bacteria_idx] -> Vec of mechanism bitmasks (u64)
-    profiles: Vec<Vec<Vec<u64>>>,
+    /// profiles[region_idx][hosp(0=community,1=hospital)][bacteria_idx] -> Vec of mechanism bitmasks (u64)
+    profiles: Vec<Vec<Vec<Vec<u64>>>>,
     /// Total profiles seen per slot (for reservoir sampling even when >cap)
-    total_seen: Vec<Vec<u64>>,
+    /// total_seen[region_idx][hosp(0/1)][bacteria_idx]
+    total_seen: Vec<Vec<Vec<u64>>>,
     num_regions: usize,
     num_bacteria: usize,
     _num_mechanisms: usize,
@@ -263,8 +264,8 @@ impl MechanismProfileCache {
     pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
         assert!(num_mechanisms <= 64, "Mechanism count exceeds 64, cannot use u64 bitmask");
         Self {
-            profiles: vec![vec![Vec::with_capacity(MAX_MECHANISM_PROFILES); num_bacteria]; num_regions],
-            total_seen: vec![vec![0u64; num_bacteria]; num_regions],
+            profiles: vec![vec![vec![Vec::with_capacity(MAX_MECHANISM_PROFILES); num_bacteria]; 2]; num_regions],
+            total_seen: vec![vec![vec![0u64; num_bacteria]; 2]; num_regions],
             num_regions,
             num_bacteria,
             _num_mechanisms: num_mechanisms,
@@ -272,11 +273,13 @@ impl MechanismProfileCache {
     }
 
     /// Record a mechanism profile from an infected individual.
+    /// `hospital` separates the hospital vs community circulating strain pools.
     /// Uses reservoir sampling to maintain a representative subset capped at MAX_MECHANISM_PROFILES.
     pub fn record<R: Rng + ?Sized>(
         &mut self,
         region_idx: usize,
         bacteria_idx: usize,
+        hospital: bool,
         profile: &[bool],
         rng: &mut R,
     ) {
@@ -292,10 +295,11 @@ impl MechanismProfileCache {
             }
         }
         
+        let h = hospital as usize;
         // Record ALL profiles (including all-false / susceptible) so that
         // sampling preserves the true population prevalence of resistance.
-        let slot = &mut self.profiles[region_idx][bacteria_idx];
-        let seen = &mut self.total_seen[region_idx][bacteria_idx];
+        let slot = &mut self.profiles[region_idx][h][bacteria_idx];
+        let seen = &mut self.total_seen[region_idx][h][bacteria_idx];
         *seen += 1;
         if slot.len() < MAX_MECHANISM_PROFILES {
             slot.push(mask);
@@ -308,46 +312,58 @@ impl MechanismProfileCache {
         }
     }
 
-    /// Sample a complete mechanism profile uniformly at random.
-    /// Returns `None` if no profiles are stored for this region×bacteria.
+    /// Sample a complete mechanism profile uniformly at random from the hospital or community pool.
+    /// Falls back to the combined pool when the requested stratum is empty (e.g. early warm-up).
+    /// Returns `None` if no profiles are stored at all for this region×bacteria.
     pub fn sample<R: Rng + ?Sized>(
         &self,
         region_idx: usize,
         bacteria_idx: usize,
+        hospital: bool,
         rng: &mut R,
     ) -> Option<u64> {
         if region_idx >= self.num_regions || bacteria_idx >= self.num_bacteria {
             return None;
         }
-        let slot = &self.profiles[region_idx][bacteria_idx];
-        if slot.is_empty() {
+        let h = hospital as usize;
+        let slot = &self.profiles[region_idx][h][bacteria_idx];
+        if !slot.is_empty() {
+            let idx = rng.gen_range(0..slot.len());
+            return Some(slot[idx]);
+        }
+        // Fallback: try the other stratum so early warm-up still works
+        let other_h = 1 - h;
+        let other_slot = &self.profiles[region_idx][other_h][bacteria_idx];
+        if other_slot.is_empty() {
             return None;
         }
-        let idx = rng.gen_range(0..slot.len());
-        Some(slot[idx])
+        let idx = rng.gen_range(0..other_slot.len());
+        Some(other_slot[idx])
     }
 
     /// Merge profiles from another cache (used for per-thread aggregation).
     /// Performs reservoir sampling when combined profiles exceed the cap.
     pub fn merge<R: Rng + ?Sized>(&mut self, other: Self, rng: &mut R) {
         for r in 0..self.num_regions {
-            for b in 0..self.num_bacteria {
-                let combined_seen = self.total_seen[r][b] + other.total_seen[r][b];
-                let other_profiles = &other.profiles[r][b];
-                let slot = &mut self.profiles[r][b];
+            for h in 0..2 {
+                for b in 0..self.num_bacteria {
+                    let combined_seen = self.total_seen[r][h][b] + other.total_seen[r][h][b];
+                    let other_profiles = &other.profiles[r][h][b];
+                    let slot = &mut self.profiles[r][h][b];
 
-                for &mask in other_profiles {
-                    if slot.len() < MAX_MECHANISM_PROFILES {
-                        slot.push(mask);
-                    } else {
-                        // Reservoir sampling with the combined count
-                        let j = rng.gen_range(0..combined_seen) as usize;
-                        if j < MAX_MECHANISM_PROFILES {
-                            slot[j] = mask;
+                    for &mask in other_profiles {
+                        if slot.len() < MAX_MECHANISM_PROFILES {
+                            slot.push(mask);
+                        } else {
+                            // Reservoir sampling with the combined count
+                            let j = rng.gen_range(0..combined_seen) as usize;
+                            if j < MAX_MECHANISM_PROFILES {
+                                slot[j] = mask;
+                            }
                         }
                     }
+                    self.total_seen[r][h][b] = combined_seen;
                 }
-                self.total_seen[r][b] = combined_seen;
             }
         }
     }
@@ -446,14 +462,17 @@ impl MechanismCache {
         None
     }
 
-    /// Sample a complete mechanism profile bitmask from the profile reservoir.
+    /// Sample a complete mechanism profile bitmask from the hospital or community profile reservoir.
+    /// `hospital` selects whether to draw from the hospital-circulating strain pool (true)
+    /// or the community pool (false), falling back to the combined pool if the stratum is empty.
     pub fn sample_profile<R: Rng + ?Sized>(
         &self,
         region_idx: usize,
         bacteria_idx: usize,
+        hospital: bool,
         rng: &mut R,
     ) -> Option<u64> {
-        self.profiles.sample(region_idx, bacteria_idx, rng)
+        self.profiles.sample(region_idx, bacteria_idx, hospital, rng)
     }
 
     /// Estimate resistance prevalence for a (region, hospital, bacteria, drug) slot by
@@ -2169,6 +2188,7 @@ impl Simulation {
             let microbiome_majority_threshold = get_global_param("microbiome_majority_threshold")
                 .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let policy = self.current_policy_adjustments;
+            let calibration_mode = self.calibration_mode;
             let need_full_summary = true;
             let totals = self.population.individuals.par_iter_mut()
             .fold(
@@ -2280,6 +2300,7 @@ impl Simulation {
                                         lt.mechanism_profiles.record(
                                             r_idx,
                                             b_idx,
+                                            is_hosp,
                                             &individual.mechanism_majority[b_idx],
                                             &mut lt.rng,
                                         );
@@ -2800,7 +2821,38 @@ impl Simulation {
                                                 lt.newly_infected_with_resistance_count += 1;
                                                 was_newly_infected_with_resistance = true;
                                             }
-                                            // Count newly acquired resistance by acquisition type per bacteria-drug combination
+                                            // Count resistance by acquisition channel per bacteria-drug combination.
+                                            //
+                                            // TODO: These four channels (+ Asympt HGT) are currently broken and
+                                            // produce 100/0/0/0 for every row. Three issues must be fixed before
+                                            // they become useful:
+                                            //
+                                            // 1. FIRST-WRITER-WINS BIAS — Community sampling (rules/mod.rs ~L4611)
+                                            //    sets how_resistance_acquired for ALL drugs with any mechanism,
+                                            //    unconditionally. The Micro and HGT channels only write where
+                                            //    .is_none(), so they never get credit when community prevalence
+                                            //    is non-zero. Fix: only set AtInfectionCommunity for drugs that
+                                            //    did NOT subsequently gain resistance from microbiome/HGT, or
+                                            //    allow later channels to overwrite.
+                                            //
+                                            // 2. DE NOVO NEVER TAGGED — The de novo mechanism emergence block
+                                            //    (rules/mod.rs ~L4860-4890) sets mechanism_any but never writes
+                                            //    how_resistance_acquired = DeNovoInfection. The archived code
+                                            //    (archive/src/rules/mod.rs L3617) did set it; lost in the
+                                            //    mechanism-centric refactor.
+                                            //
+                                            // 3. COUNTING SEMANTICS — The provenance tag persists for the
+                                            //    infection lifetime, but this counter fires every timestep,
+                                            //    so it accumulates resistant-person-days-by-source rather than
+                                            //    acquisition events. This is potentially fine but the column
+                                            //    header says "newly acquired" which is misleading.
+                                            //
+                                            // Until fixed, skip this aggregation during calibration to save
+                                            // CPU and avoid 5 × B × D = 12,810 zero-valued CSV columns per
+                                            // row. Per-individual how_resistance_acquired tags are still set
+                                            // in rules/mod.rs; we just skip counting them across all
+                                            // individuals every timestep.
+                                            if calibration_mode == CalibrationMode::None {
                                             if let Some(acq_type) = individual.how_resistance_acquired[b_idx][d_idx] {
                                                 use crate::simulation::population::ResistanceAcquisitionType;
                                                 let index = b_idx * num_drugs + d_idx;
@@ -2814,6 +2866,7 @@ impl Simulation {
                                                     }
                                                 }
                                             }
+                                            } // end calibration_mode gate for resistance channel counting
                                         }
                                     }
                                     } // end need_full_summary for post-rules full B×D iteration

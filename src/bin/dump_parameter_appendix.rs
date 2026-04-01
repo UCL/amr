@@ -137,6 +137,20 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
               Grouped thematically; each row gives the parameter name and its \
               default value.");
     println!();
+    println!("See: \
+              [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), \
+              [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), \
+              [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), \
+              [§6.7 Drug toxicity](#67-drug-toxicity), \
+              [§2.4 Hospitalisation](#24-hospitalisation), \
+              [§2.5 Travel](#25-travel), \
+              [§4.3 Sepsis](#43-sepsis), \
+              [§7.3 Resistance emergence](#73-resistance-emergence), \
+              [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs), \
+              [§8 Microbiome and Carriage](#8-microbiome-and-carriage), \
+              [§9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), \
+              [§10 Mortality](#10-mortality).");
+    println!();
 
     print_scalar_group("Treatment Initiation (logistic model)", &[
         ("antibiotic_initiation_base_log_odds", g.antibiotic_initiation_base_log_odds),
@@ -358,6 +372,13 @@ fn print_drug_properties(store: &amr_project::config::ParameterStore) {
               antimicrobial agents. The introduction time step is measured in days \
               from 1 January 1930.", DRUG_SHORT_NAMES.len());
     println!();
+    println!("See: \
+              [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), \
+              [§6.5 Drug potency matrix](#65-drug-potency-matrix), \
+              [§6.6 Drug availability](#66-drug-availability-by-region-and-era), \
+              [§6.7 Drug toxicity](#67-drug-toxicity), \
+              [§6.8 Antibiotic infection prevention](#68-antibiotic-infection-prevention).");
+    println!();
 
     let headers = &[
         "Drug", "Class", "Intro (days)", "Init level",
@@ -396,6 +417,13 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
     println!();
     println!("Per-bacteria parameters governing acquisition, growth, symptom \
               onset, and clinical outcomes for each of the {} bacterial species.", BACTERIA_LIST.len());
+    println!();
+    println!("See: \
+              [§3.1 Community acquisition](#31-community-acquisition), \
+              [§4.2 Infection dynamics](#42-infection-dynamics), \
+              [§4.3 Sepsis](#43-sepsis), \
+              [§4.4 Natural clearance](#44-natural-clearance), \
+              [§8.1 Carriage compartments](#81-carriage-compartments).");
     println!();
 
     let headers = &[
@@ -437,6 +465,10 @@ fn print_drug_bacteria_matrix(store: &amr_project::config::ParameterStore) {
              BACTERIA_LIST.len(), DRUG_SHORT_NAMES.len(),
              BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len());
     println!();
+    println!("See: \
+              [§6.5 Drug potency matrix](#65-drug-potency-matrix), \
+              [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).");
+    println!();
 
     let headers = &["Bacteria", "Drug", "Potency (no R)", "Init multiplier"];
     let mut rows = Vec::new();
@@ -466,6 +498,10 @@ fn print_regional_parameters(store: &amr_project::config::ParameterStore) {
     println!();
     println!("Region-level scalars (applicable to all bacteria) and the per-region \
               per-bacteria acquisition log-odds adjustments.");
+    println!();
+    println!("See: \
+              [§2.5 Travel](#25-travel), \
+              [§3.1 Community acquisition](#31-community-acquisition).");
     println!();
 
     // Region scalars
@@ -544,6 +580,10 @@ fn print_age_dependent_parameters(store: &amr_project::config::ParameterStore) {
                  .collect::<Vec<_>>()
                  .join(", "));
     println!();
+    println!("See: \
+              [§2.2 Ageing and age categories](#22-ageing-and-age-categories), \
+              [§3.1 Community acquisition](#31-community-acquisition).");
+    println!();
 
     // Default age log-odds
     println!("#### Default Age Log-Odds");
@@ -607,6 +647,11 @@ fn print_syndrome_parameters(store: &amr_project::config::ParameterStore) {
               5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, \
               8 = genital/STI, 9 = bone/joint, 10 = other.");
     println!();
+    println!("See: \
+              [§4.1 Syndrome assignment](#41-syndrome-assignment), \
+              [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), \
+              [§6.4 Drug penetration by syndrome](#64-drug-penetration-by-syndrome).");
+    println!();
 
     // Empiric drug scores
     println!("#### Syndrome Empiric Drug Scores");
@@ -656,6 +701,8 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
               logistic function of base log-odds, per-bacteria adjustments, \
               age effects, immunodeficiency, bacteria level, and treatment duration.");
     println!();
+    println!("See: [§4.4 Natural clearance](#44-natural-clearance).");
+    println!();
 
     let rows = vec![
         vec!["base_clearance_log_odds".to_string(), format_value(store.clearance.base_log_odds())],
@@ -682,6 +729,10 @@ fn print_clearance_parameters(store: &amr_project::config::ParameterStore) {
 
 fn print_immunodeficiency_sex_vaccination(store: &amr_project::config::ParameterStore) {
     println!("### B.9 Immunodeficiency, Sex, and Vaccination Parameters");
+    println!();
+    println!("See: \
+              [§2.3 Immunodeficiency](#23-immunodeficiency), \
+              [§10 Mortality](#10-mortality).");
     println!();
 
     // Immunodeficiency
@@ -742,6 +793,12 @@ fn print_resistance_mechanisms(store: &amr_project::config::ParameterStore) {
     println!("Parameters for the {} resistance mechanisms modelled. Each mechanism \
               has a per-day reversion rate, per-drug-class enhancement multipliers, \
               and per-bacteria emergence rates.", ResistanceMechanism::all().len());
+    println!();
+    println!("See: \
+              [§7.1 Resistance mechanisms](#71-resistance-mechanisms), \
+              [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), \
+              [§7.3 Resistance emergence](#73-resistance-emergence), \
+              [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).");
     println!();
 
     let mechanisms = ResistanceMechanism::all();
@@ -811,6 +868,10 @@ fn print_hgt_matrix(store: &amr_project::config::ParameterStore) {
     println!();
     println!("Per-day probability of horizontal gene transfer of resistance \
               between co-colonising bacterial species. Only non-zero entries shown.");
+    println!();
+    println!("See: \
+              [§9.1 Transfer compatibility](#91-transfer-compatibility), \
+              [§9.2 The HGT process](#92-the-hgt-process).");
     println!();
 
     let mut rows = Vec::new();

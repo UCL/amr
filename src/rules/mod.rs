@@ -4129,20 +4129,10 @@ pub(crate) fn apply_rules(
                         // sample a mechanism profile (or single mechanism) from the cache,
                         // write to mechanism_microbiome AND mechanism_any, then derive
                         // microbiome_r via propagate_mechanism_resistance.
-                        let is_hospital_acquired = individual.hospital_status.is_hospitalized();
-
                         let region_idx = match individual.region_cur_in {
                             Region::Home => individual.region_living as usize,
                             r => r as usize,
                         };
-                        let hospital_status_bool = individual.hospital_status.is_hospitalized();
-
-                        let sampling_hospital_status = if is_hospital_acquired {
-                            true
-                        } else {
-                            hospital_status_bool
-                        };
-
                         // Apply microbiome_resistance_multiplier_on_acquisition as a gate:
                         // only a fraction of acquisitions inherit the circulating resistance profile
                         let microbiome_r_multiplier = store.globals.microbiome_resistance_multiplier_on_acquisition
@@ -4151,8 +4141,12 @@ pub(crate) fn apply_rules(
                         if rng.gen::<f64>() < (microbiome_r_multiplier * counterfactual_resistance_multiplier) {
                             use crate::simulation::population::ResistanceMechanism;
 
-                            // Try profile sampling first, fall back to marginal single-mechanism
-                            if let Some(profile) = mechanism_cache.sample_profile(region_idx, b_idx, rng) {
+                            // Try profile sampling first, fall back to marginal single-mechanism.
+                            // Carriage acquisition uses the same hospital/community pool as the individual's
+                            // current setting — a hospitalised patient acquiring gut or nasal colonisation
+                            // is exposed to the hospital-circulating strain pool.
+                            let carriage_hospital = individual.hospital_status.is_hospitalized();
+                            if let Some(profile) = mechanism_cache.sample_profile(region_idx, b_idx, carriage_hospital, rng) {
                                 for m_idx in 0..64 {
                                     if (profile & (1 << m_idx)) != 0 {
                                         if m_idx < ResistanceMechanism::all().len()
@@ -4166,7 +4160,7 @@ pub(crate) fn apply_rules(
                                 }
                             } else {
                                 let sampled_mechanism_idx = mechanism_cache.sample_mechanism(
-                                    region_idx, sampling_hospital_status, b_idx, rng,
+                                    region_idx, carriage_hospital, b_idx, rng,
                                 );
                                 if let Some(idx) = sampled_mechanism_idx {
                                     if !ResistanceMechanism::all()[idx].is_as_yet_unknown() {
@@ -4554,7 +4548,7 @@ pub(crate) fn apply_rules(
                     // when the profile cache is empty.
                     let profile_sampled = if from_human_reservoir {
                         if let Some(profile) =
-                            mechanism_cache.sample_profile(region_idx, b_idx, rng)
+                            mechanism_cache.sample_profile(region_idx, b_idx, is_hospital_acquired, rng)
                         {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 for m_idx in 0..64 {

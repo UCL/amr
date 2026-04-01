@@ -24,8 +24,7 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     "weights": {
         "headline": 0.20,
         "drug_usage": 0.25,
-        "resistance": 0.40,
-        "microbiome": 0.10,
+        "resistance": 0.50,
         "burden": 0.05,
     },
     "thresholds": {
@@ -56,9 +55,6 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
         "component_weights": {"infection": 4.0, "average": 1.0},
         "tolerances_pp": {"infection": 7.5, "average": 10.0},
     },
-    "microbiome": {
-        "tolerances_pp": {"microbiome": 10.0},
-    },
     "burden": {
         "relative_tolerance": 0.50,
         "minimum_absolute_scales": {
@@ -73,7 +69,6 @@ CALIBRATION_SCORE_BLOCK_LABELS: Dict[str, str] = {
     "headline": "Headline",
     "drug_usage": "Drug usage",
     "resistance": "Infection resistance",
-    "microbiome": "Microbiome resistance prevalence",
     "burden": "Bacteria burden consistency",
 }
 
@@ -1049,8 +1044,6 @@ def _calculate_resistance_table(
         "Average resistant target",
         "Average resistant delta",
         "Microbiome simulation",
-        "Microbiome target",
-        "Microbiome delta",
         "Infection resistance simulation source: Community (%)",
         "Infection resistance simulation source: HGT (%)",
         "Infection resistance simulation source: Microbiome (%)",
@@ -1126,12 +1119,10 @@ def _calculate_resistance_table(
             else np.nan
         )
 
+        # Microbiome resistance targets are not used for calibration because no
+        # ground truth exists for the "any resistance in microbiome" metric the
+        # simulation reports.  Microbiome sim values are shown for information only.
         microbiome_target_raw = microbiome_lookup.get((b_slug, d_slug))
-        microbiome_target = (
-            float(microbiome_target_raw * 100.0)
-            if microbiome_target_raw is not None and not pd.isna(microbiome_target_raw)
-            else np.nan
-        )
 
         if b_slug not in bacteria_set or d_slug not in drug_set:
             note_parts.append("not modelled in simulation")
@@ -1145,8 +1136,6 @@ def _calculate_resistance_table(
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
                 "Microbiome simulation": np.nan,
-                "Microbiome target": microbiome_target,
-                "Microbiome delta": np.nan,
                 "Infection resistance simulation source: Community (%)": np.nan,
                 "Infection resistance simulation source: HGT (%)": np.nan,
                 "Infection resistance simulation source: Microbiome (%)": np.nan,
@@ -1179,8 +1168,6 @@ def _calculate_resistance_table(
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
                 "Microbiome simulation": np.nan,
-                "Microbiome target": microbiome_target,
-                "Microbiome delta": np.nan,
                 "Infection resistance simulation source: Community (%)": np.nan,
                 "Infection resistance simulation source: HGT (%)": np.nan,
                 "Infection resistance simulation source: Microbiome (%)": np.nan,
@@ -1264,8 +1251,6 @@ def _calculate_resistance_table(
             ) = compute_with_fallback(
                 lambda frame: _compute_microbiome_stats(frame, presence_col, microbiome_positive_col)
             )
-        elif not pd.isna(microbiome_target):
-            note_parts.append("microbiome metric not modelled")
 
         prevalence_note = False
         if np.isnan(prevalence_simulation) or total_infected == 0.0:
@@ -1289,9 +1274,7 @@ def _calculate_resistance_table(
         elif not np.isnan(average_simulation) and 0.0 < total_resistant < low_sample_threshold:
             note_parts.append(f"low resistant sample (n={int(total_resistant)})")
 
-        if not pd.isna(microbiome_target) and (np.isnan(microbiome_simulation) or total_carriers == 0.0):
-            note_parts.append("no microbiome carriers for metric")
-        elif not np.isnan(microbiome_simulation) and 0.0 < total_carriers < low_sample_threshold:
+        if not np.isnan(microbiome_simulation) and 0.0 < total_carriers < low_sample_threshold:
             note_parts.append(f"low microbiome sample (n={int(total_carriers)})")
 
         prevalence_delta = _format_delta(prevalence_simulation, prevalence_target)
@@ -1301,10 +1284,6 @@ def _calculate_resistance_table(
         average_delta = _format_delta(average_simulation, average_target)
         if np.isnan(average_simulation):
             average_delta = np.nan
-
-        microbiome_delta = _format_delta(microbiome_simulation, microbiome_target)
-        if np.isnan(microbiome_simulation):
-            microbiome_delta = np.nan
 
         def _rounded_person_days(value: float) -> float:
             if not np.isfinite(value) or value <= 0.0:
@@ -1348,8 +1327,6 @@ def _calculate_resistance_table(
             "Average resistant target": average_target,
             "Average resistant delta": average_delta,
             "Microbiome simulation": microbiome_simulation,
-            "Microbiome target": microbiome_target,
-            "Microbiome delta": microbiome_delta,
             "Infection resistance simulation source: Community (%)": src_community,
             "Infection resistance simulation source: HGT (%)": src_hgt,
             "Infection resistance simulation source: Microbiome (%)": src_microbiome,
@@ -1825,7 +1802,7 @@ def _calculate_microbiome_resistance_table(
     year_df: pd.DataFrame,
     microbiome_cfg: Optional[Dict[str, object]],
 ) -> pd.DataFrame:
-    empty_columns = ["Metric", "Simulation", "Target (min)", "Target (max)", "Delta vs mid", "Unit", "Target range"]
+    empty_columns = ["Metric", "Simulation", "Unit"]
     if not microbiome_cfg or year_df.empty:
         return pd.DataFrame(columns=empty_columns)
 
@@ -1862,23 +1839,10 @@ def _calculate_microbiome_resistance_table(
     any_resistant = 1.0 - prob_none
     sim_percent = float(np.nanmean(any_resistant) * 100.0)
 
-    target_min = microbiome_cfg.get("target_min")
-    target_max = microbiome_cfg.get("target_max")
-    target_mid = microbiome_cfg.get("target_mid")
-    if target_mid is None and target_min is not None and target_max is not None:
-        target_mid = (target_min + target_max) / 2.0
-
-    delta = _format_delta(sim_percent, target_mid if isinstance(target_mid, (int, float)) else None)
-    range_str = _format_range(target_min, target_max)
-
     row = {
         "Metric": microbiome_cfg.get("label", "Population with resistant microbiome (%)"),
         "Simulation": sim_percent,
-        "Target (min)": target_min,
-        "Target (max)": target_max,
-        "Delta vs mid": delta,
         "Unit": microbiome_cfg.get("unit", "percent"),
-        "Target range": range_str,
     }
 
     return pd.DataFrame([row])
@@ -2231,10 +2195,12 @@ def _build_drug_class_lookup(
 
 
 def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame:
-    """Filter resistance rows for fit metrics, excluding rifampicin and MDR-TB.
+    """Filter resistance rows for fit metrics, excluding rifampicin, MDR-TB, and Listeria.
     
     MDR-TB has guaranteed ~90% rifampicin resistance which would skew overall 
-    resistance metrics. It is excluded from the calibration summary metrics.
+    resistance metrics.  Listeria monocytogenes generates too few infections for
+    stable resistance percentages at typical simulation population sizes.
+    Both are excluded from the calibration summary metrics.
     """
     if resistance_df.empty or "Note" not in resistance_df:
         return pd.DataFrame()
@@ -2247,9 +2213,13 @@ def _filter_resistance_rows_for_fit(resistance_df: pd.DataFrame) -> pd.DataFrame
         filtered = filtered[~drug_series.str.contains("rifampicin", na=False)]
 
     # Exclude MDR-TB bacteria (has guaranteed rifampicin resistance)
+    # Exclude Listeria monocytogenes (too few infections for reliable resistance stats)
     if "Bacteria" in filtered:
         bacteria_series = filtered["Bacteria"].astype(str).str.lower()
-        filtered = filtered[~bacteria_series.str.contains("tuberculosis", na=False)]
+        filtered = filtered[
+            ~bacteria_series.str.contains("tuberculosis", na=False)
+            & ~bacteria_series.str.contains("listeria", na=False)
+        ]
 
     note_series = filtered["Note"].astype(str)
     for phrase in ("negligible potency", "no infections", "not modelled"):
@@ -2283,12 +2253,6 @@ def _compute_resistance_component_stats(
             "Resistant level (among positives)",
             "Average resistant simulation",
             "Average resistant target",
-        ),
-        (
-            "microbiome",
-            "Microbiome resistance (combo-level)",
-            "Microbiome simulation",
-            "Microbiome target",
         ),
     ]
 
@@ -2369,7 +2333,6 @@ def _calculate_resistance_fit_metrics(
     metrics: Dict[str, Optional[float]] = {
         "infection_abs_delta": None,
         "average_resistant_abs_delta": None,
-        "microbiome_abs_delta": None,
         "weighted_overall_abs_delta": None,
     }
 
@@ -2392,23 +2355,18 @@ def _calculate_resistance_fit_metrics(
 
     metrics["infection_abs_delta"] = component_lookup.get("infection", {}).get("abs_delta")
     metrics["average_resistant_abs_delta"] = component_lookup.get("average", {}).get("abs_delta")
-    metrics["microbiome_abs_delta"] = component_lookup.get("microbiome", {}).get("abs_delta")
 
     weighted_sum = 0.0
     total_weight = 0.0
 
     infection_abs = metrics["infection_abs_delta"]
     average_abs = metrics["average_resistant_abs_delta"]
-    microbiome_abs = metrics["microbiome_abs_delta"]
 
     if infection_abs is not None:
         weighted_sum += 3.0 * infection_abs
         total_weight += 3.0
     if average_abs is not None:
         weighted_sum += average_abs
-        total_weight += 1.0
-    if microbiome_abs is not None:
-        weighted_sum += microbiome_abs
         total_weight += 1.0
 
     if total_weight > 0.0:
@@ -2481,10 +2439,12 @@ def _build_mean_abs_gap_tables(
 
     # Exclude rifampicin for MDR-TB: rifampicin resistance is assumed for all
     # MDR-TB cases and should not count toward calibration error.
+    # Exclude Listeria: too few infections for stable resistance percentages.
     _bact_lower = working.get("Bacteria", pd.Series(dtype=str)).astype(str).str.lower()
     _drug_lower = working.get("Drug", pd.Series(dtype=str)).astype(str).str.lower()
     _tb_rif_mask = _bact_lower.str.contains("tuberculosis", na=False) & _drug_lower.str.contains("rifampicin", na=False)
-    working = working.loc[~_tb_rif_mask]
+    _listeria_mask = _bact_lower.str.contains("listeria", na=False)
+    working = working.loc[~_tb_rif_mask & ~_listeria_mask]
 
     if working.empty:
         return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
@@ -2751,43 +2711,6 @@ def _calculate_calibration_score(
             })
 
     add_block("resistance", _weighted_mean(resistance_values), resistance_target_count)
-
-    microbiome_config = config.get("microbiome") if isinstance(config.get("microbiome"), dict) else {}
-    microbiome_tolerances = (
-        microbiome_config.get("tolerances_pp")
-        if isinstance(microbiome_config.get("tolerances_pp"), dict)
-        else {}
-    )
-    microbiome_values: List[Tuple[Optional[float], float]] = []
-    microbiome_target_count = 0
-    
-    sim_col = "Microbiome simulation"
-    target_col_name = "Microbiome target"
-    tolerance = _coerce_float(microbiome_tolerances.get("microbiome")) or 10.0
-    
-    if not eligible.empty and sim_col in eligible.columns and target_col_name in eligible.columns:
-        subset = eligible[["Bacteria", "Drug", sim_col, target_col_name]].copy()
-        subset[sim_col] = pd.to_numeric(subset[sim_col], errors="coerce")
-        subset[target_col_name] = pd.to_numeric(subset[target_col_name], errors="coerce")
-        subset = subset.dropna(subset=[sim_col, target_col_name])
-        for _, row in subset.iterrows():
-            simulation = _coerce_float(row.get(sim_col))
-            target = _coerce_float(row.get(target_col_name))
-            if simulation is None or target is None:
-                continue
-            distance = _capped_distance(simulation - target, tolerance, cap)
-            if distance is None:
-                continue
-            microbiome_values.append((distance, 1.0))
-            microbiome_target_count += 1
-            contributors.append({
-                "Block": CALIBRATION_SCORE_BLOCK_LABELS["microbiome"],
-                "Target": f"{row.get('Bacteria')} / {row.get('Drug')} (Microbiome resistance)",
-                "Distance": distance,
-                "Detail": f"|Δ|={abs(simulation - target):.2f} pp, scale={tolerance:.2f} pp",
-            })
-
-    add_block("microbiome", _weighted_mean(microbiome_values), microbiome_target_count)
 
     burden_config = config.get("burden") if isinstance(config.get("burden"), dict) else {}
     burden_values: List[Tuple[Optional[float], float]] = []
@@ -3357,7 +3280,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         handle.write(
             "Note: MDR-TB and rifampicin combinations are excluded from these fit metrics because "
             "all TB cases are modelled as rifampicin-resistant by definition, which would skew "
-            "overall resistance metrics.\n"
+            "overall resistance metrics. Listeria monocytogenes is also excluded because its very "
+            "low infection incidence yields unstable resistance percentages at simulation scale.\n"
         )
         handle.write(
             "These fit metrics average over bacteria/drug combinations, whereas the microbiome "
@@ -3387,7 +3311,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("(insufficient overlapping bacteria/drug combinations)\n")
 
         handle.write(
-            "- Weighted overall delta (3× infection + 1× resistant-level + 1× microbiome): "
+            "- Weighted overall delta (3× infection + 1× resistant-level): "
             f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_abs_delta'])}\n\n"
         )
 
@@ -3412,11 +3336,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write("(no eligible drug combinations)\n\n")
 
         if not microbiome_df.empty:
-            handle.write("Microbiome Resistance Benchmarks (9)\n")
+            handle.write("Microbiome Resistance — Simulation Output (9)\n")
             handle.write(microbiome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n\n")
         else:
-            handle.write("Microbiome Resistance Benchmarks\n(no microbiome metrics configured or available)\n\n")
+            handle.write("Microbiome Resistance — Simulation Output\n(no microbiome metrics configured or available)\n\n")
 
         if not resistance_df.empty:
             resistance_display_df = resistance_df.copy()
@@ -3432,7 +3356,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 columns=[
                     RESISTANCE_DELTA_COL,
                     "Average resistant delta",
-                    "Microbiome delta",
                 ],
                 errors="ignore",
                 inplace=True,
@@ -3512,7 +3435,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     "Average resistant simulation": "Avg sim (%)",
                     "Average resistant target": "Avg target (%)",
                     "Microbiome simulation": "Micro sim (%)",
-                    "Microbiome target": "Micro target (%)",
                     "Infection resistance simulation source: Community (%)": "Comm (%)",
                     "Infection resistance simulation source: HGT (%)": "HGT (%)",
                     "Infection resistance simulation source: Microbiome (%)": "Micro (%)",
@@ -3642,16 +3564,16 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    from class introduction dates and early adoption curves.\n"
         )
         handle.write(
-            "\n(9) Microbiome resistance range target: 15-30% of the global population\n"
-            "    carrying a predominantly resistant microbiome. Forslund et al. (2013,\n"
-            "    Nature Commun 4:2151) found antibiotic resistance genes in virtually all\n"
-            "    human gut metagenomes across 12 countries, and Hu et al. (2013, PNAS\n"
-            "    110:1000-1005) confirmed widespread resistance gene carriage in healthy\n"
-            "    individuals. If \"resistant\" is defined as carrying any resistant organism,\n"
-            "    the true proportion approaches 80-100%. If defined as having a majority of\n"
-            "    commensal organisms carrying clinically relevant resistance, 15-30% is\n"
-            "    plausible but uncertain. The simulation metric and target definition should\n"
-            "    be aligned to ensure like-for-like comparison.\n"
+            "\n(9) Microbiome resistance simulation output (not calibrated). The simulation\n"
+            "    tracks whether each individual carries ANY resistant mechanism in their\n"
+            "    microbiome for each bacteria/drug combination. No reliable external targets\n"
+            "    exist for this \"any resistance\" definition: surveillance data measures\n"
+            "    resistance of cultured clinical isolates (dominant strain), while the\n"
+            "    simulation counts any mechanism present. Forslund et al. (2013, Nature\n"
+            "    Commun 4:2151) found resistance genes in virtually all human gut\n"
+            "    metagenomes, suggesting the true \"any resistance\" proportion is 80-100%.\n"
+            "    These values are presented for information only and are excluded from the\n"
+            "    calibration score.\n"
         )
         handle.write(
             "\n(10) Per-bacteria/drug resistance prevalence targets sourced from WHO GLASS\n"

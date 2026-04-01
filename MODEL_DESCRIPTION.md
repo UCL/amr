@@ -18,6 +18,17 @@
 12. [Limitations](#12-limitations)
 - [Appendix A — Bacteria, Drugs, Mechanisms and Enums](#appendix-a-bacteria-drugs-mechanisms-and-enums)
 - [Appendix B — Parameter Reference](#appendix-b-parameter-reference)
+    - [B.1 Global Scalar Parameters](#b1-global-scalar-parameters)
+    - [B.2 Drug Properties](#b2-drug-properties)
+    - [B.3 Bacteria Properties](#b3-bacteria-properties)
+    - [B.4 Drug–Bacteria Potency Matrix](#b4-drugbacteria-potency-matrix)
+    - [B.5 Regional Parameters](#b5-regional-parameters)
+    - [B.6 Age-Dependent Parameters](#b6-age-dependent-parameters)
+    - [B.7 Syndrome Parameters](#b7-syndrome-parameters)
+    - [B.8 Clearance Parameters](#b8-clearance-parameters)
+    - [B.9 Immunodeficiency, Sex, and Vaccination Parameters](#b9-immunodeficiency-sex-and-vaccination-parameters)
+    - [B.10 Resistance Mechanisms](#b10-resistance-mechanisms)
+    - [B.11 Horizontal Gene Transfer Matrix](#b11-horizontal-gene-transfer-matrix)
 - [Appendix C — Output Specification](#appendix-c-output-specification)
 
 ---
@@ -2087,6 +2098,8 @@ This appendix is auto-generated from the live Rust configuration. Parameters are
 
 Scalar parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.
 
+See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.7 Drug toxicity](#67-drug-toxicity), [§2.4 Hospitalisation](#24-hospitalisation), [§2.5 Travel](#25-travel), [§4.3 Sepsis](#43-sepsis), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs), [§8 Microbiome and Carriage](#8-microbiome-and-carriage), [§9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), [§10 Mortality](#10-mortality).
+
 #### Treatment Initiation (logistic model)
 
 | Parameter | Value |
@@ -2329,6 +2342,8 @@ Scalar parameters that govern cross-cutting model behaviour. Grouped thematicall
 
 Pharmacokinetic and clinical properties for each of the 61 modelled antimicrobial agents. The introduction time step is measured in days from 1 January 1930.
 
+See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.6 Drug availability](#66-drug-availability-by-region-and-era), [§6.7 Drug toxicity](#67-drug-toxicity), [§6.8 Antibiotic infection prevention](#68-antibiotic-infection-prevention).
+
 | Drug | Class | Intro (days) | Init level | t½ (days) | 2× dose mult | Spectrum | Tox hazard | Tox t½ (days) | Microbiome disrupt |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | sulfanilamide | folate_antagonists | 2555 | 10 | 0.45 | 2 | 3 | 0 | 1.5 | 0.3 |
@@ -2397,6 +2412,8 @@ Pharmacokinetic and clinical properties for each of the 61 modelled antimicrobia
 
 Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species.
 
+See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection dynamics](#42-infection-dynamics), [§4.3 Sepsis](#43-sepsis), [§4.4 Natural clearance](#44-natural-clearance), [§8.1 Carriage compartments](#81-carriage-compartments).
+
 | Bacteria | Acq log-odds | Init level | Δ level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | acinetobacter_baumannii | -17.5 | 0.01 | 0.55 | 5 | 0.1 | 7 | 0.0075 | 0.5 | 1 | -7.7 | 4e-4 |
@@ -2445,6 +2462,8 @@ Per-bacteria parameters governing acquisition, growth, symptom onset, and clinic
 ### B.4 Drug–Bacteria Potency Matrix
 
 Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 61 drugs = 2562 entries.
+
+See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).
 
 | Bacteria | Drug | Potency (no R) | Init multiplier |
 | --- | ---: | ---: | ---: |
@@ -4915,6 +4934,8 @@ Baseline potency (MIC-derived effectiveness when no resistance is present) and i
 
 Region-level scalars (applicable to all bacteria) and the per-region per-bacteria acquisition log-odds adjustments.
 
+See: [§2.5 Travel](#25-travel), [§3.1 Community acquisition](#31-community-acquisition).
+
 #### Region Scalars
 
 | Region | Travel mult | Cessation mult | Mortality log-odds | Sepsis log-odds | Sepsis mort mult | Testing mult | Abx init log-odds | Hosp log-odds |
@@ -5078,6 +5099,8 @@ Region-level scalars (applicable to all bacteria) and the per-region per-bacteri
 ### B.6 Age-Dependent Parameters
 
 Log-odds adjustments by age category for bacteria acquisition and regional effects. Age categories: infant, preschool, school, young_adult, middle_age, elderly.
+
+See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Community acquisition](#31-community-acquisition).
 
 #### Default Age Log-Odds
 
@@ -5347,6 +5370,8 @@ Log-odds adjustments by age category for bacteria acquisition and regional effec
 ### B.7 Syndrome Parameters
 
 Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.
+
+See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.4 Drug penetration by syndrome](#64-drug-penetration-by-syndrome).
 
 #### Syndrome Empiric Drug Scores
 
@@ -5995,6 +6020,8 @@ Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/
 
 Infection clearance model parameters. The clearance hazard is a logistic function of base log-odds, per-bacteria adjustments, age effects, immunodeficiency, bacteria level, and treatment duration.
 
+See: [§4.4 Natural clearance](#44-natural-clearance).
+
 | Parameter | Value |
 | --- | ---: |
 | base_clearance_log_odds | -4.2 |
@@ -6006,6 +6033,8 @@ Infection clearance model parameters. The clearance hazard is a logistic functio
 | --- | ---: |
 
 ### B.9 Immunodeficiency, Sex, and Vaccination Parameters
+
+See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortality).
 
 #### Immunodeficiency
 
@@ -6036,6 +6065,8 @@ Infection clearance model parameters. The clearance hazard is a logistic functio
 ### B.10 Resistance Mechanisms
 
 Parameters for the 40 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
+
+See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
 #### Mechanism Reversion Rates
 
@@ -7569,7 +7600,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | acinetobacter_baumannii | mutation_gyra_primary | 0.1 |
 | acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.1 |
 | acinetobacter_baumannii | protection_qnr | 0.1 |
-| acinetobacter_baumannii | enzyme_16s_rrmt | 0.5 |
+| acinetobacter_baumannii | enzyme_16s_rrmt | 0.8 |
 | acinetobacter_baumannii | enzyme_cat | 0.01 |
 | acinetobacter_baumannii | modification_mcr_1 | 0.01 |
 | acinetobacter_baumannii | global_efflux_pump | 0.03 |
@@ -7577,37 +7608,37 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | acinetobacter_baumannii | mutation_folate_pathway | 0.03 |
 | acinetobacter_baumannii | enzyme_fos_a | 0.003 |
 | acinetobacter_baumannii | mutation_rpo_b | 0.01 |
-| acinetobacter_baumannii | protection_tet_m | 0.03 |
-| acinetobacter_baumannii | enzyme_aac_aph | 0.5 |
+| acinetobacter_baumannii | protection_tet_m | 0.06 |
+| acinetobacter_baumannii | enzyme_aac_aph | 0.8 |
 | acinetobacter_baumannii | enzyme_oxa_acinetobacter | 0.01 |
-| acinetobacter_baumannii | efflux_tet_abc | 0.001 |
+| acinetobacter_baumannii | efflux_tet_abc | 0.003 |
 | acinetobacter_baumannii | mutation_pbp_mosaic | 0.01 |
-| citrobacter_spp. | enzyme_esbl_ctx_m | 0.003 |
-| citrobacter_spp. | enzyme_esbl_tem | 0.003 |
-| citrobacter_spp. | enzyme_esbl_shv | 0.003 |
-| citrobacter_spp. | enzyme_kpc | 7e-4 |
-| citrobacter_spp. | enzyme_ndm_vim | 7e-4 |
-| citrobacter_spp. | enzyme_oxa_48 | 7e-4 |
-| citrobacter_spp. | enzyme_ampc_cmy | 0.003 |
-| citrobacter_spp. | enzyme_ampc_dha | 0.003 |
-| citrobacter_spp. | mutation_gyra_primary | 0.012 |
-| citrobacter_spp. | mutation_gyra_parc_secondary | 7e-5 |
-| citrobacter_spp. | protection_qnr | 0.01 |
-| citrobacter_spp. | enzyme_16s_rrmt | 0.05 |
-| citrobacter_spp. | enzyme_cat | 0.012 |
-| citrobacter_spp. | efflux_acrab_tolc | 0.0035 |
-| citrobacter_spp. | efflux_mexxy_oprm | 0.004 |
-| citrobacter_spp. | modification_mcr_1 | 0.009 |
-| citrobacter_spp. | global_efflux_pump | 7e-4 |
-| citrobacter_spp. | global_porin_loss | 9e-5 |
-| citrobacter_spp. | mutation_folate_pathway | 0.0025 |
-| citrobacter_spp. | mutation_nitroreductase | 0.0035 |
-| citrobacter_spp. | enzyme_fos_a | 0.0012 |
-| citrobacter_spp. | mutation_rpo_b | 0.012 |
-| citrobacter_spp. | protection_tet_m | 0.0012 |
-| citrobacter_spp. | enzyme_aac_aph | 0.07 |
-| citrobacter_spp. | efflux_tet_abc | 0.0012 |
-| citrobacter_spp. | mutation_pbp_mosaic | 0.001 |
+| citrobacter_spp. | enzyme_esbl_ctx_m | 0.01 |
+| citrobacter_spp. | enzyme_esbl_tem | 0.01 |
+| citrobacter_spp. | enzyme_esbl_shv | 0.01 |
+| citrobacter_spp. | enzyme_kpc | 0.002 |
+| citrobacter_spp. | enzyme_ndm_vim | 0.002 |
+| citrobacter_spp. | enzyme_oxa_48 | 0.002 |
+| citrobacter_spp. | enzyme_ampc_cmy | 0.01 |
+| citrobacter_spp. | enzyme_ampc_dha | 0.01 |
+| citrobacter_spp. | mutation_gyra_primary | 0.04 |
+| citrobacter_spp. | mutation_gyra_parc_secondary | 2e-4 |
+| citrobacter_spp. | protection_qnr | 0.03 |
+| citrobacter_spp. | enzyme_16s_rrmt | 0.15 |
+| citrobacter_spp. | enzyme_cat | 0.03 |
+| citrobacter_spp. | efflux_acrab_tolc | 0.01 |
+| citrobacter_spp. | efflux_mexxy_oprm | 0.01 |
+| citrobacter_spp. | modification_mcr_1 | 0.03 |
+| citrobacter_spp. | global_efflux_pump | 0.002 |
+| citrobacter_spp. | global_porin_loss | 3e-4 |
+| citrobacter_spp. | mutation_folate_pathway | 0.008 |
+| citrobacter_spp. | mutation_nitroreductase | 0.01 |
+| citrobacter_spp. | enzyme_fos_a | 0.004 |
+| citrobacter_spp. | mutation_rpo_b | 0.04 |
+| citrobacter_spp. | protection_tet_m | 0.004 |
+| citrobacter_spp. | enzyme_aac_aph | 0.2 |
+| citrobacter_spp. | efflux_tet_abc | 0.004 |
+| citrobacter_spp. | mutation_pbp_mosaic | 0.003 |
 | enterobacter_spp. | enzyme_esbl_ctx_m | 0.0015 |
 | enterobacter_spp. | enzyme_esbl_tem | 0.0015 |
 | enterobacter_spp. | enzyme_esbl_shv | 0.0015 |
@@ -7633,77 +7664,77 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | enterobacter_spp. | enzyme_aac_aph | 0.3 |
 | enterobacter_spp. | efflux_tet_abc | 0.006 |
 | enterobacter_spp. | mutation_pbp_mosaic | 0.006 |
-| enterococcus_faecalis | target_site_pbp2a_meca | 1.5e-6 |
-| enterococcus_faecalis | target_site_van_a | 0.0015 |
-| enterococcus_faecalis | target_site_van_b | 0.0015 |
-| enterococcus_faecalis | mutation_gyra_primary | 1.5e-4 |
-| enterococcus_faecalis | mutation_gyra_parc_secondary | 3e-5 |
-| enterococcus_faecalis | target_site_erm_b | 1.5e-4 |
-| enterococcus_faecalis | target_site_cfr | 3e-4 |
-| enterococcus_faecalis | enzyme_cat | 2e-5 |
-| enterococcus_faecalis | global_efflux_pump | 3e-5 |
-| enterococcus_faecalis | global_porin_loss | 8e-6 |
-| enterococcus_faecalis | mutation_folate_pathway | 0.0015 |
-| enterococcus_faecalis | mutation_nitroreductase | 0.0015 |
-| enterococcus_faecalis | mutation_mpr_f | 4.5e-4 |
-| enterococcus_faecalis | mutation_rpo_b | 4.5e-4 |
-| enterococcus_faecalis | protection_fus_b | 4.5e-5 |
-| enterococcus_faecalis | protection_tet_m | 1.5e-4 |
-| enterococcus_faecalis | enzyme_aac_aph | 1.5e-6 |
-| enterococcus_faecalis | mutation_23s_rrna | 3e-5 |
-| enterococcus_faecalis | mutation_pbp_mosaic | 1.5e-6 |
-| enterococcus_faecium | target_site_van_a | 0.01 |
-| enterococcus_faecium | target_site_van_b | 0.01 |
+| enterococcus_faecalis | target_site_pbp2a_meca | 4.5e-6 |
+| enterococcus_faecalis | target_site_van_a | 0.0045 |
+| enterococcus_faecalis | target_site_van_b | 0.0045 |
+| enterococcus_faecalis | mutation_gyra_primary | 4.5e-4 |
+| enterococcus_faecalis | mutation_gyra_parc_secondary | 1e-4 |
+| enterococcus_faecalis | target_site_erm_b | 4.5e-4 |
+| enterococcus_faecalis | target_site_cfr | 0.001 |
+| enterococcus_faecalis | enzyme_cat | 6e-5 |
+| enterococcus_faecalis | global_efflux_pump | 1e-4 |
+| enterococcus_faecalis | global_porin_loss | 3e-5 |
+| enterococcus_faecalis | mutation_folate_pathway | 0.0045 |
+| enterococcus_faecalis | mutation_nitroreductase | 0.0045 |
+| enterococcus_faecalis | mutation_mpr_f | 0.0015 |
+| enterococcus_faecalis | mutation_rpo_b | 0.0015 |
+| enterococcus_faecalis | protection_fus_b | 1.5e-4 |
+| enterococcus_faecalis | protection_tet_m | 4.5e-4 |
+| enterococcus_faecalis | enzyme_aac_aph | 4.5e-6 |
+| enterococcus_faecalis | mutation_23s_rrna | 1e-4 |
+| enterococcus_faecalis | mutation_pbp_mosaic | 4.5e-6 |
+| enterococcus_faecium | target_site_van_a | 0.013 |
+| enterococcus_faecium | target_site_van_b | 0.013 |
 | enterococcus_faecium | mutation_gyra_primary | 8e-4 |
-| enterococcus_faecium | mutation_gyra_parc_secondary | 0.0015 |
-| enterococcus_faecium | enzyme_16s_rrmt | 0.003 |
-| enterococcus_faecium | target_site_erm_b | 0.009 |
-| enterococcus_faecium | target_site_cfr | 0.009 |
-| enterococcus_faecium | enzyme_cat | 0.001 |
-| enterococcus_faecium | global_efflux_pump | 0.004 |
-| enterococcus_faecium | mutation_folate_pathway | 0.006 |
+| enterococcus_faecium | mutation_gyra_parc_secondary | 0.002 |
+| enterococcus_faecium | enzyme_16s_rrmt | 0.004 |
+| enterococcus_faecium | target_site_erm_b | 0.013 |
+| enterococcus_faecium | target_site_cfr | 0.013 |
+| enterococcus_faecium | enzyme_cat | 0.0015 |
+| enterococcus_faecium | global_efflux_pump | 0.006 |
+| enterococcus_faecium | mutation_folate_pathway | 0.008 |
 | enterococcus_faecium | mutation_nitroreductase | 0.9 |
 | enterococcus_faecium | enzyme_fos_a | 0.9 |
-| enterococcus_faecium | mutation_mpr_f | 0.015 |
-| enterococcus_faecium | mutation_rpo_b | 0.15 |
-| enterococcus_faecium | protection_fus_b | 0.012 |
-| enterococcus_faecium | protection_tet_m | 0.004 |
-| enterococcus_faecium | enzyme_aac_aph | 0.015 |
-| enterococcus_faecium | mutation_23s_rrna | 0.0015 |
-| enterococcus_faecium | mutation_pbp_mosaic | 0.015 |
-| enterococcus_faecium | efflux_mtr_cde | 0.0015 |
-| escherichia_coli | enzyme_esbl_ctx_m | 1e-11 |
-| escherichia_coli | enzyme_esbl_tem | 1e-11 |
-| escherichia_coli | enzyme_esbl_shv | 1e-11 |
-| escherichia_coli | enzyme_kpc | 1e-11 |
-| escherichia_coli | enzyme_ndm_vim | 1e-11 |
-| escherichia_coli | enzyme_oxa_48 | 1e-11 |
-| escherichia_coli | enzyme_ampc_cmy | 1e-11 |
-| escherichia_coli | enzyme_ampc_dha | 1e-11 |
-| escherichia_coli | mutation_gyra_primary | 4.5e-7 |
-| escherichia_coli | mutation_gyra_parc_secondary | 4.5e-14 |
-| escherichia_coli | protection_qnr | 4.5e-7 |
-| escherichia_coli | enzyme_16s_rrmt | 4.5e-12 |
-| escherichia_coli | enzyme_cat | 4.5e-9 |
-| escherichia_coli | efflux_acrab_tolc | 4.5e-10 |
-| escherichia_coli | modification_mcr_1 | 4.5e-10 |
-| escherichia_coli | global_efflux_pump | 4.5e-10 |
-| escherichia_coli | global_porin_loss | 4.5e-13 |
-| escherichia_coli | mutation_folate_pathway | 4.5e-9 |
-| escherichia_coli | mutation_nitroreductase | 4.5e-12 |
-| escherichia_coli | enzyme_fos_a | 4.5e-11 |
-| escherichia_coli | mutation_rpo_b | 4.5e-10 |
-| escherichia_coli | protection_tet_m | 4.5e-11 |
-| escherichia_coli | enzyme_aac_aph | 4.5e-8 |
-| escherichia_coli | efflux_tet_abc | 4.5e-11 |
-| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-5 |
-| klebsiella_pneumoniae | enzyme_esbl_tem | 1e-5 |
-| klebsiella_pneumoniae | enzyme_esbl_shv | 1e-5 |
-| klebsiella_pneumoniae | enzyme_kpc | 1e-5 |
-| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-5 |
-| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-5 |
-| klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-5 |
-| klebsiella_pneumoniae | enzyme_ampc_dha | 1e-5 |
+| enterococcus_faecium | mutation_mpr_f | 0.025 |
+| enterococcus_faecium | mutation_rpo_b | 0.25 |
+| enterococcus_faecium | protection_fus_b | 0.018 |
+| enterococcus_faecium | protection_tet_m | 0.006 |
+| enterococcus_faecium | enzyme_aac_aph | 0.03 |
+| enterococcus_faecium | mutation_23s_rrna | 0.002 |
+| enterococcus_faecium | mutation_pbp_mosaic | 0.02 |
+| enterococcus_faecium | efflux_mtr_cde | 0.002 |
+| escherichia_coli | enzyme_esbl_ctx_m | 3e-11 |
+| escherichia_coli | enzyme_esbl_tem | 3e-11 |
+| escherichia_coli | enzyme_esbl_shv | 3e-11 |
+| escherichia_coli | enzyme_kpc | 3e-11 |
+| escherichia_coli | enzyme_ndm_vim | 3e-11 |
+| escherichia_coli | enzyme_oxa_48 | 3e-11 |
+| escherichia_coli | enzyme_ampc_cmy | 3e-11 |
+| escherichia_coli | enzyme_ampc_dha | 3e-11 |
+| escherichia_coli | mutation_gyra_primary | 1e-6 |
+| escherichia_coli | mutation_gyra_parc_secondary | 1e-13 |
+| escherichia_coli | protection_qnr | 1e-6 |
+| escherichia_coli | enzyme_16s_rrmt | 1e-11 |
+| escherichia_coli | enzyme_cat | 1e-8 |
+| escherichia_coli | efflux_acrab_tolc | 1e-9 |
+| escherichia_coli | modification_mcr_1 | 1e-9 |
+| escherichia_coli | global_efflux_pump | 1e-9 |
+| escherichia_coli | global_porin_loss | 1e-12 |
+| escherichia_coli | mutation_folate_pathway | 1e-8 |
+| escherichia_coli | mutation_nitroreductase | 1e-11 |
+| escherichia_coli | enzyme_fos_a | 1e-10 |
+| escherichia_coli | mutation_rpo_b | 1e-9 |
+| escherichia_coli | protection_tet_m | 1e-10 |
+| escherichia_coli | enzyme_aac_aph | 1e-7 |
+| escherichia_coli | efflux_tet_abc | 1e-10 |
+| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-4 |
+| klebsiella_pneumoniae | enzyme_esbl_tem | 1e-4 |
+| klebsiella_pneumoniae | enzyme_esbl_shv | 1e-4 |
+| klebsiella_pneumoniae | enzyme_kpc | 1e-4 |
+| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-4 |
+| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-4 |
+| klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-4 |
+| klebsiella_pneumoniae | enzyme_ampc_dha | 1e-4 |
 | klebsiella_pneumoniae | mutation_gyra_primary | 0.0015 |
 | klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.0015 |
 | klebsiella_pneumoniae | protection_qnr | 0.0015 |
@@ -7712,27 +7743,27 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | klebsiella_pneumoniae | efflux_acrab_tolc | 0.001 |
 | klebsiella_pneumoniae | porin_loss_ompk35_36 | 1e-5 |
 | klebsiella_pneumoniae | modification_mcr_1 | 0.015 |
-| klebsiella_pneumoniae | global_efflux_pump | 6e-4 |
+| klebsiella_pneumoniae | global_efflux_pump | 5e-4 |
 | klebsiella_pneumoniae | global_porin_loss | 1e-8 |
 | klebsiella_pneumoniae | mutation_folate_pathway | 0.0045 |
 | klebsiella_pneumoniae | mutation_nitroreductase | 0.006 |
 | klebsiella_pneumoniae | enzyme_fos_a | 0.006 |
 | klebsiella_pneumoniae | mutation_rpo_b | 6e-4 |
-| klebsiella_pneumoniae | protection_tet_m | 1.5e-4 |
+| klebsiella_pneumoniae | protection_tet_m | 1e-4 |
 | klebsiella_pneumoniae | enzyme_aac_aph | 0.075 |
-| klebsiella_pneumoniae | efflux_tet_abc | 1.5e-4 |
+| klebsiella_pneumoniae | efflux_tet_abc | 1e-4 |
 | morganella_spp. | enzyme_esbl_ctx_m | 0.002 |
 | morganella_spp. | enzyme_esbl_tem | 0.002 |
 | morganella_spp. | enzyme_esbl_shv | 0.002 |
-| morganella_spp. | enzyme_kpc | 0.0012 |
-| morganella_spp. | enzyme_ndm_vim | 0.0012 |
-| morganella_spp. | enzyme_oxa_48 | 0.0012 |
-| morganella_spp. | enzyme_ampc_cmy | 0.0012 |
-| morganella_spp. | enzyme_ampc_dha | 0.0012 |
-| morganella_spp. | mutation_gyra_primary | 0.01 |
-| morganella_spp. | mutation_gyra_parc_secondary | 0.01 |
-| morganella_spp. | protection_qnr | 0.01 |
-| morganella_spp. | enzyme_16s_rrmt | 0.7 |
+| morganella_spp. | enzyme_kpc | 0.001 |
+| morganella_spp. | enzyme_ndm_vim | 0.001 |
+| morganella_spp. | enzyme_oxa_48 | 0.001 |
+| morganella_spp. | enzyme_ampc_cmy | 0.001 |
+| morganella_spp. | enzyme_ampc_dha | 0.001 |
+| morganella_spp. | mutation_gyra_primary | 0.015 |
+| morganella_spp. | mutation_gyra_parc_secondary | 0.015 |
+| morganella_spp. | protection_qnr | 0.015 |
+| morganella_spp. | enzyme_16s_rrmt | 0.8 |
 | morganella_spp. | enzyme_cat | 0.25 |
 | morganella_spp. | efflux_acrab_tolc | 0.002 |
 | morganella_spp. | efflux_mexxy_oprm | 0.003 |
@@ -7747,30 +7778,30 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | morganella_spp. | enzyme_aac_aph | 0.075 |
 | morganella_spp. | efflux_tet_abc | 0.0075 |
 | morganella_spp. | mutation_pbp_mosaic | 1e-6 |
-| proteus_spp. | enzyme_esbl_ctx_m | 2.5e-4 |
-| proteus_spp. | enzyme_esbl_tem | 2.5e-4 |
-| proteus_spp. | enzyme_esbl_shv | 2.5e-5 |
-| proteus_spp. | enzyme_kpc | 7e-6 |
-| proteus_spp. | enzyme_ndm_vim | 7e-6 |
-| proteus_spp. | enzyme_oxa_48 | 7e-6 |
-| proteus_spp. | enzyme_ampc_cmy | 2.5e-5 |
-| proteus_spp. | enzyme_ampc_dha | 2.5e-5 |
-| proteus_spp. | mutation_gyra_primary | 0.001 |
-| proteus_spp. | mutation_gyra_parc_secondary | 4e-4 |
-| proteus_spp. | protection_qnr | 2e-4 |
-| proteus_spp. | enzyme_16s_rrmt | 5e-5 |
-| proteus_spp. | enzyme_cat | 4e-5 |
-| proteus_spp. | efflux_acrab_tolc | 0.0015 |
-| proteus_spp. | modification_mcr_1 | 3e-5 |
-| proteus_spp. | global_efflux_pump | 0.0015 |
-| proteus_spp. | global_porin_loss | 7e-6 |
-| proteus_spp. | mutation_folate_pathway | 3e-4 |
-| proteus_spp. | mutation_nitroreductase | 7e-7 |
-| proteus_spp. | enzyme_fos_a | 7e-5 |
-| proteus_spp. | mutation_rpo_b | 7e-6 |
-| proteus_spp. | protection_tet_m | 1e-4 |
-| proteus_spp. | enzyme_aac_aph | 3e-8 |
-| proteus_spp. | efflux_tet_abc | 2.5e-8 |
+| proteus_spp. | enzyme_esbl_ctx_m | 7.5e-4 |
+| proteus_spp. | enzyme_esbl_tem | 5.5e-4 |
+| proteus_spp. | enzyme_esbl_shv | 5.5e-5 |
+| proteus_spp. | enzyme_kpc | 2e-5 |
+| proteus_spp. | enzyme_ndm_vim | 2e-5 |
+| proteus_spp. | enzyme_oxa_48 | 2e-5 |
+| proteus_spp. | enzyme_ampc_cmy | 5.5e-5 |
+| proteus_spp. | enzyme_ampc_dha | 5.5e-5 |
+| proteus_spp. | mutation_gyra_primary | 0.003 |
+| proteus_spp. | mutation_gyra_parc_secondary | 0.0012 |
+| proteus_spp. | protection_qnr | 6e-4 |
+| proteus_spp. | enzyme_16s_rrmt | 1.5e-4 |
+| proteus_spp. | enzyme_cat | 1.2e-4 |
+| proteus_spp. | efflux_acrab_tolc | 0.0045 |
+| proteus_spp. | modification_mcr_1 | 1e-4 |
+| proteus_spp. | global_efflux_pump | 0.0045 |
+| proteus_spp. | global_porin_loss | 2e-5 |
+| proteus_spp. | mutation_folate_pathway | 0.001 |
+| proteus_spp. | mutation_nitroreductase | 2e-6 |
+| proteus_spp. | enzyme_fos_a | 2e-4 |
+| proteus_spp. | mutation_rpo_b | 2e-5 |
+| proteus_spp. | protection_tet_m | 3e-4 |
+| proteus_spp. | enzyme_aac_aph | 1e-7 |
+| proteus_spp. | efflux_tet_abc | 8e-8 |
 | serratia_spp. | enzyme_esbl_ctx_m | 0.003 |
 | serratia_spp. | enzyme_esbl_tem | 0.003 |
 | serratia_spp. | enzyme_esbl_shv | 0.003 |
@@ -7951,97 +7982,97 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 1.6e-5 |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 5e-4 |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 4e-4 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 0.04 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.015 |
-| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.004 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.015 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 0.06 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.045 |
+| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.006 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.045 |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 0.006 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.014 |
+| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.04 |
 | salmonella_enterica_serovar_paratyphi_a | efflux_mexxy_oprm | 8e-4 |
 | salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 0.002 |
-| salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.0035 |
+| salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.0045 |
 | salmonella_enterica_serovar_paratyphi_a | global_porin_loss | 3e-5 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.01 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 5e-5 |
 | salmonella_enterica_serovar_paratyphi_a | enzyme_fos_a | 5e-5 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 0.003 |
-| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.0055 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.015 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.0055 |
+| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.007 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.045 |
+| salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.007 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 4.5e-4 |
 | salmonella_enterica_serovar_paratyphi_a | efflux_mtr_cde | 1.6e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 1.5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 1.5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 1.5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 1.5e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 1.5e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 1.5e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 1.5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 1.5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 3e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 3e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 3e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 3e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 3e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 3e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 3e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 3e-4 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.01 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.01 |
 | invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 0.007 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 0.2 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 0.015 |
 | invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 0.01 |
+| invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 0.03 |
 | invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | global_porin_loss | 3e-6 |
+| invasive_non-typhoidal_salmonella_spp. | global_porin_loss | 1e-5 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 0.003 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_fos_a | 4e-4 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.001 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.03 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.015 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 1.2e-6 |
-| shigella_spp. | enzyme_esbl_ctx_m | 1e-4 |
-| shigella_spp. | enzyme_esbl_tem | 1e-4 |
-| shigella_spp. | enzyme_esbl_shv | 1e-4 |
-| shigella_spp. | enzyme_kpc | 1e-4 |
-| shigella_spp. | enzyme_ndm_vim | 1e-4 |
-| shigella_spp. | enzyme_oxa_48 | 1e-4 |
-| shigella_spp. | enzyme_ampc_cmy | 1e-4 |
-| shigella_spp. | enzyme_ampc_dha | 1e-4 |
-| shigella_spp. | mutation_gyra_primary | 2e-5 |
-| shigella_spp. | mutation_gyra_parc_secondary | 2e-5 |
-| shigella_spp. | protection_qnr | 2e-5 |
-| shigella_spp. | enzyme_16s_rrmt | 0.02 |
-| shigella_spp. | target_site_erm_b | 0.3 |
-| shigella_spp. | enzyme_cat | 2e-5 |
-| shigella_spp. | efflux_acrab_tolc | 2e-5 |
-| shigella_spp. | modification_mcr_1 | 1e-5 |
-| shigella_spp. | global_efflux_pump | 0.3 |
-| shigella_spp. | global_porin_loss | 1e-6 |
-| shigella_spp. | mutation_folate_pathway | 1e-4 |
-| shigella_spp. | mutation_rpo_b | 0.004 |
-| shigella_spp. | protection_tet_m | 0.002 |
-| shigella_spp. | enzyme_aac_aph | 0.2 |
-| shigella_spp. | mutation_23s_rrna | 0.4 |
-| shigella_spp. | efflux_tet_abc | 4e-4 |
-| shigella_spp. | mutation_pbp_mosaic | 2e-5 |
-| shigella_spp. | efflux_mtr_cde | 3e-5 |
-| neisseria_gonorrhoeae | mutation_gyra_primary | 0.2 |
-| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 0.2 |
-| neisseria_gonorrhoeae | protection_qnr | 0.2 |
-| neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.3 |
-| neisseria_gonorrhoeae | target_site_erm_b | 1e-4 |
-| neisseria_gonorrhoeae | target_site_cfr | 6e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_fos_a | 0.001 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 0.02 |
+| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.002 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.1 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.045 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 3e-6 |
+| shigella_spp. | enzyme_esbl_ctx_m | 2e-4 |
+| shigella_spp. | enzyme_esbl_tem | 2e-4 |
+| shigella_spp. | enzyme_esbl_shv | 2e-4 |
+| shigella_spp. | enzyme_kpc | 2e-4 |
+| shigella_spp. | enzyme_ndm_vim | 2e-4 |
+| shigella_spp. | enzyme_oxa_48 | 2e-4 |
+| shigella_spp. | enzyme_ampc_cmy | 2e-4 |
+| shigella_spp. | enzyme_ampc_dha | 2e-4 |
+| shigella_spp. | mutation_gyra_primary | 4e-5 |
+| shigella_spp. | mutation_gyra_parc_secondary | 4e-5 |
+| shigella_spp. | protection_qnr | 4e-5 |
+| shigella_spp. | enzyme_16s_rrmt | 0.04 |
+| shigella_spp. | target_site_erm_b | 0.6 |
+| shigella_spp. | enzyme_cat | 4e-5 |
+| shigella_spp. | efflux_acrab_tolc | 4e-5 |
+| shigella_spp. | modification_mcr_1 | 2e-5 |
+| shigella_spp. | global_efflux_pump | 0.6 |
+| shigella_spp. | global_porin_loss | 2e-6 |
+| shigella_spp. | mutation_folate_pathway | 2e-4 |
+| shigella_spp. | mutation_rpo_b | 0.008 |
+| shigella_spp. | protection_tet_m | 0.004 |
+| shigella_spp. | enzyme_aac_aph | 0.4 |
+| shigella_spp. | mutation_23s_rrna | 0.6 |
+| shigella_spp. | efflux_tet_abc | 8e-4 |
+| shigella_spp. | mutation_pbp_mosaic | 5e-5 |
+| shigella_spp. | efflux_mtr_cde | 5e-5 |
+| neisseria_gonorrhoeae | mutation_gyra_primary | 0.3 |
+| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 0.3 |
+| neisseria_gonorrhoeae | protection_qnr | 0.3 |
+| neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.6 |
+| neisseria_gonorrhoeae | target_site_erm_b | 2e-4 |
+| neisseria_gonorrhoeae | target_site_cfr | 1e-4 |
 | neisseria_gonorrhoeae | enzyme_cat | 7e-5 |
 | neisseria_gonorrhoeae | modification_mcr_1 | 1e-4 |
-| neisseria_gonorrhoeae | global_efflux_pump | 0.03 |
+| neisseria_gonorrhoeae | global_efflux_pump | 0.04 |
 | neisseria_gonorrhoeae | global_porin_loss | 1e-6 |
 | neisseria_gonorrhoeae | mutation_folate_pathway | 0.01 |
 | neisseria_gonorrhoeae | mutation_nitroreductase | 0.01 |
 | neisseria_gonorrhoeae | enzyme_fos_a | 1e-5 |
 | neisseria_gonorrhoeae | mutation_rpo_b | 0.1 |
-| neisseria_gonorrhoeae | protection_tet_m | 0.005 |
-| neisseria_gonorrhoeae | enzyme_aac_aph | 0.5 |
-| neisseria_gonorrhoeae | enzyme_bla_z | 6e-5 |
-| neisseria_gonorrhoeae | mutation_23s_rrna | 3e-4 |
+| neisseria_gonorrhoeae | protection_tet_m | 0.01 |
+| neisseria_gonorrhoeae | enzyme_aac_aph | 0.6 |
+| neisseria_gonorrhoeae | enzyme_bla_z | 7e-5 |
+| neisseria_gonorrhoeae | mutation_23s_rrna | 4e-4 |
 | neisseria_gonorrhoeae | efflux_tet_abc | 8e-5 |
-| neisseria_gonorrhoeae | mutation_pbp_mosaic | 6e-4 |
-| neisseria_gonorrhoeae | efflux_mtr_cde | 6e-5 |
+| neisseria_gonorrhoeae | mutation_pbp_mosaic | 7e-4 |
+| neisseria_gonorrhoeae | efflux_mtr_cde | 7e-5 |
 | streptococcus_pyogenes | mutation_gyra_primary | 3.8e-7 |
 | streptococcus_pyogenes | mutation_gyra_parc_secondary | 7.5e-8 |
 | streptococcus_pyogenes | target_site_erm_b | 7.5e-6 |
@@ -8070,55 +8101,55 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | streptococcus_agalactiae | protection_tet_m | 0.001 |
 | streptococcus_agalactiae | mutation_23s_rrna | 5e-11 |
 | streptococcus_agalactiae | mutation_pbp_mosaic | 3e-5 |
-| haemophilus_influenzae | enzyme_esbl_ctx_m | 1.5e-8 |
-| haemophilus_influenzae | enzyme_esbl_tem | 1.5e-8 |
-| haemophilus_influenzae | enzyme_esbl_shv | 1.5e-8 |
-| haemophilus_influenzae | enzyme_kpc | 1.5e-8 |
-| haemophilus_influenzae | enzyme_ndm_vim | 1.5e-8 |
-| haemophilus_influenzae | enzyme_oxa_48 | 1.5e-8 |
-| haemophilus_influenzae | enzyme_ampc_cmy | 1.5e-8 |
-| haemophilus_influenzae | enzyme_ampc_dha | 1.5e-8 |
-| haemophilus_influenzae | mutation_gyra_primary | 4.5e-5 |
-| haemophilus_influenzae | mutation_gyra_parc_secondary | 1.5e-5 |
-| haemophilus_influenzae | protection_qnr | 1.5e-5 |
-| haemophilus_influenzae | enzyme_16s_rrmt | 3e-4 |
-| haemophilus_influenzae | target_site_erm_b | 4.5e-5 |
-| haemophilus_influenzae | target_site_cfr | 4.5e-5 |
-| haemophilus_influenzae | enzyme_cat | 4.5e-5 |
-| haemophilus_influenzae | modification_mcr_1 | 1.5e-7 |
-| haemophilus_influenzae | global_efflux_pump | 4.5e-4 |
-| haemophilus_influenzae | global_porin_loss | 1.5e-8 |
-| haemophilus_influenzae | mutation_folate_pathway | 4.5e-5 |
-| haemophilus_influenzae | mutation_nitroreductase | 1.5e-6 |
-| haemophilus_influenzae | mutation_rpo_b | 0.0015 |
-| haemophilus_influenzae | protection_tet_m | 4.5e-5 |
-| haemophilus_influenzae | enzyme_aac_aph | 4.5e-4 |
-| haemophilus_influenzae | enzyme_bla_z | 1.5e-8 |
-| haemophilus_influenzae | mutation_23s_rrna | 4.5e-6 |
-| haemophilus_influenzae | mutation_pbp_mosaic | 1.5e-8 |
-| haemophilus_influenzae | efflux_mtr_cde | 1.5e-8 |
-| chlamydia_trachomatis | mutation_gyra_primary | 9.4e-8 |
-| chlamydia_trachomatis | mutation_gyra_parc_secondary | 4.7e-8 |
-| chlamydia_trachomatis | target_site_erm_b | 4.7e-8 |
-| chlamydia_trachomatis | target_site_cfr | 9.4e-10 |
-| chlamydia_trachomatis | enzyme_cat | 9.4e-10 |
-| chlamydia_trachomatis | global_efflux_pump | 9.4e-9 |
-| chlamydia_trachomatis | mutation_folate_pathway | 9.4e-10 |
-| chlamydia_trachomatis | mutation_nitroreductase | 9.4e-10 |
-| chlamydia_trachomatis | mutation_rpo_b | 9.4e-9 |
-| chlamydia_trachomatis | protection_tet_m | 9.4e-8 |
-| chlamydia_trachomatis | mutation_23s_rrna | 5e-11 |
-| mycoplasma_genitalium | mutation_gyra_primary | 0.003 |
-| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.003 |
-| mycoplasma_genitalium | target_site_erm_b | 2e-4 |
-| mycoplasma_genitalium | target_site_cfr | 2e-4 |
-| mycoplasma_genitalium | enzyme_cat | 1e-4 |
-| mycoplasma_genitalium | global_efflux_pump | 2e-6 |
-| mycoplasma_genitalium | mutation_folate_pathway | 1e-4 |
-| mycoplasma_genitalium | mutation_nitroreductase | 1e-4 |
-| mycoplasma_genitalium | mutation_rpo_b | 0.001 |
-| mycoplasma_genitalium | protection_tet_m | 0.0015 |
-| mycoplasma_genitalium | mutation_23s_rrna | 7e-4 |
+| haemophilus_influenzae | enzyme_esbl_ctx_m | 5e-8 |
+| haemophilus_influenzae | enzyme_esbl_tem | 5e-8 |
+| haemophilus_influenzae | enzyme_esbl_shv | 5e-8 |
+| haemophilus_influenzae | enzyme_kpc | 5e-8 |
+| haemophilus_influenzae | enzyme_ndm_vim | 5e-8 |
+| haemophilus_influenzae | enzyme_oxa_48 | 5e-8 |
+| haemophilus_influenzae | enzyme_ampc_cmy | 5e-8 |
+| haemophilus_influenzae | enzyme_ampc_dha | 5e-8 |
+| haemophilus_influenzae | mutation_gyra_primary | 1e-4 |
+| haemophilus_influenzae | mutation_gyra_parc_secondary | 3e-5 |
+| haemophilus_influenzae | protection_qnr | 3e-5 |
+| haemophilus_influenzae | enzyme_16s_rrmt | 5e-4 |
+| haemophilus_influenzae | target_site_erm_b | 1e-4 |
+| haemophilus_influenzae | target_site_cfr | 1e-4 |
+| haemophilus_influenzae | enzyme_cat | 7e-5 |
+| haemophilus_influenzae | modification_mcr_1 | 3e-7 |
+| haemophilus_influenzae | global_efflux_pump | 0.001 |
+| haemophilus_influenzae | global_porin_loss | 3e-8 |
+| haemophilus_influenzae | mutation_folate_pathway | 1e-4 |
+| haemophilus_influenzae | mutation_nitroreductase | 3e-6 |
+| haemophilus_influenzae | mutation_rpo_b | 0.003 |
+| haemophilus_influenzae | protection_tet_m | 1e-4 |
+| haemophilus_influenzae | enzyme_aac_aph | 0.001 |
+| haemophilus_influenzae | enzyme_bla_z | 3e-8 |
+| haemophilus_influenzae | mutation_23s_rrna | 1e-5 |
+| haemophilus_influenzae | mutation_pbp_mosaic | 3e-8 |
+| haemophilus_influenzae | efflux_mtr_cde | 3e-8 |
+| chlamydia_trachomatis | mutation_gyra_primary | 2e-7 |
+| chlamydia_trachomatis | mutation_gyra_parc_secondary | 2e-7 |
+| chlamydia_trachomatis | target_site_erm_b | 1e-7 |
+| chlamydia_trachomatis | target_site_cfr | 2e-9 |
+| chlamydia_trachomatis | enzyme_cat | 1.3e-9 |
+| chlamydia_trachomatis | global_efflux_pump | 2e-8 |
+| chlamydia_trachomatis | mutation_folate_pathway | 2e-9 |
+| chlamydia_trachomatis | mutation_nitroreductase | 2e-9 |
+| chlamydia_trachomatis | mutation_rpo_b | 2e-8 |
+| chlamydia_trachomatis | protection_tet_m | 2e-7 |
+| chlamydia_trachomatis | mutation_23s_rrna | 1e-10 |
+| mycoplasma_genitalium | mutation_gyra_primary | 0.0045 |
+| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.0045 |
+| mycoplasma_genitalium | target_site_erm_b | 3e-4 |
+| mycoplasma_genitalium | target_site_cfr | 3e-4 |
+| mycoplasma_genitalium | enzyme_cat | 1.5e-4 |
+| mycoplasma_genitalium | global_efflux_pump | 3e-6 |
+| mycoplasma_genitalium | mutation_folate_pathway | 1.5e-4 |
+| mycoplasma_genitalium | mutation_nitroreductase | 1.5e-4 |
+| mycoplasma_genitalium | mutation_rpo_b | 0.0015 |
+| mycoplasma_genitalium | protection_tet_m | 0.002 |
+| mycoplasma_genitalium | mutation_23s_rrna | 0.001 |
 | vibrio_cholerae | enzyme_esbl_ctx_m | 3e-6 |
 | vibrio_cholerae | enzyme_esbl_tem | 3e-6 |
 | vibrio_cholerae | enzyme_esbl_shv | 1e-6 |
@@ -8182,16 +8213,16 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | listeria_monocytogenes | mutation_rpo_b | 3.8e-5 |
 | listeria_monocytogenes | protection_fus_b | 3.8e-5 |
 | listeria_monocytogenes | protection_tet_m | 0.0019 |
-| clostridioides_difficile | mutation_gyra_primary | 3e-5 |
-| clostridioides_difficile | mutation_gyra_parc_secondary | 6e-6 |
-| clostridioides_difficile | enzyme_16s_rrmt | 6e-8 |
-| clostridioides_difficile | target_site_erm_b | 3e-5 |
-| clostridioides_difficile | target_site_cfr | 6e-7 |
+| clostridioides_difficile | mutation_gyra_primary | 6e-5 |
+| clostridioides_difficile | mutation_gyra_parc_secondary | 1e-5 |
+| clostridioides_difficile | enzyme_16s_rrmt | 1e-7 |
+| clostridioides_difficile | target_site_erm_b | 6e-5 |
+| clostridioides_difficile | target_site_cfr | 1e-6 |
 | clostridioides_difficile | enzyme_cat | 6e-6 |
-| clostridioides_difficile | global_efflux_pump | 6e-6 |
-| clostridioides_difficile | mutation_folate_pathway | 3e-6 |
-| clostridioides_difficile | mutation_nitroreductase | 6e-5 |
-| clostridioides_difficile | mutation_rpo_b | 3e-5 |
+| clostridioides_difficile | global_efflux_pump | 1e-5 |
+| clostridioides_difficile | mutation_folate_pathway | 6e-6 |
+| clostridioides_difficile | mutation_nitroreductase | 1.2e-4 |
+| clostridioides_difficile | mutation_rpo_b | 6e-5 |
 | clostridioides_difficile | protection_tet_m | 6e-5 |
 | bacteroides_fragilis | enzyme_esbl_ctx_m | 0.1 |
 | bacteroides_fragilis | enzyme_esbl_tem | 0.1 |
@@ -8281,28 +8312,28 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | yersinia_enterocolitica | enzyme_aac_aph | 5e-11 |
 | yersinia_enterocolitica | efflux_tet_abc | 5e-11 |
 | yersinia_enterocolitica | efflux_mtr_cde | 1e-10 |
-| moraxella_catarrhalis | enzyme_esbl_ctx_m | 1e-7 |
-| moraxella_catarrhalis | enzyme_esbl_tem | 3e-6 |
-| moraxella_catarrhalis | enzyme_esbl_shv | 1e-8 |
-| moraxella_catarrhalis | enzyme_ampc_cmy | 3e-7 |
-| moraxella_catarrhalis | enzyme_ampc_dha | 1e-7 |
-| moraxella_catarrhalis | mutation_gyra_primary | 1e-6 |
-| moraxella_catarrhalis | mutation_gyra_parc_secondary | 3e-7 |
-| moraxella_catarrhalis | protection_qnr | 1e-7 |
-| moraxella_catarrhalis | enzyme_16s_rrmt | 1e-8 |
-| moraxella_catarrhalis | target_site_erm_b | 3e-6 |
-| moraxella_catarrhalis | target_site_cfr | 3e-8 |
-| moraxella_catarrhalis | enzyme_cat | 3e-7 |
-| moraxella_catarrhalis | efflux_acrab_tolc | 3e-7 |
-| moraxella_catarrhalis | modification_mcr_1 | 1e-8 |
-| moraxella_catarrhalis | global_efflux_pump | 3e-6 |
-| moraxella_catarrhalis | global_porin_loss | 1e-7 |
-| moraxella_catarrhalis | mutation_folate_pathway | 5e-6 |
-| moraxella_catarrhalis | mutation_nitroreductase | 1e-7 |
-| moraxella_catarrhalis | mutation_rpo_b | 1e-7 |
-| moraxella_catarrhalis | protection_tet_m | 5e-6 |
-| moraxella_catarrhalis | mutation_pbp_mosaic | 3e-6 |
-| moraxella_catarrhalis | efflux_mtr_cde | 3e-7 |
+| moraxella_catarrhalis | enzyme_esbl_ctx_m | 2e-7 |
+| moraxella_catarrhalis | enzyme_esbl_tem | 5e-6 |
+| moraxella_catarrhalis | enzyme_esbl_shv | 2e-8 |
+| moraxella_catarrhalis | enzyme_ampc_cmy | 5e-7 |
+| moraxella_catarrhalis | enzyme_ampc_dha | 2e-7 |
+| moraxella_catarrhalis | mutation_gyra_primary | 2e-6 |
+| moraxella_catarrhalis | mutation_gyra_parc_secondary | 5e-7 |
+| moraxella_catarrhalis | protection_qnr | 2e-7 |
+| moraxella_catarrhalis | enzyme_16s_rrmt | 2e-8 |
+| moraxella_catarrhalis | target_site_erm_b | 5e-6 |
+| moraxella_catarrhalis | target_site_cfr | 5e-8 |
+| moraxella_catarrhalis | enzyme_cat | 5e-7 |
+| moraxella_catarrhalis | efflux_acrab_tolc | 5e-7 |
+| moraxella_catarrhalis | modification_mcr_1 | 2e-8 |
+| moraxella_catarrhalis | global_efflux_pump | 5e-6 |
+| moraxella_catarrhalis | global_porin_loss | 2e-7 |
+| moraxella_catarrhalis | mutation_folate_pathway | 1e-5 |
+| moraxella_catarrhalis | mutation_nitroreductase | 2e-7 |
+| moraxella_catarrhalis | mutation_rpo_b | 2e-7 |
+| moraxella_catarrhalis | protection_tet_m | 1e-5 |
+| moraxella_catarrhalis | mutation_pbp_mosaic | 5e-6 |
+| moraxella_catarrhalis | efflux_mtr_cde | 5e-7 |
 | treponema_pallidum | mutation_gyra_primary | 1.5e-6 |
 | treponema_pallidum | mutation_gyra_parc_secondary | 7.5e-7 |
 | treponema_pallidum | enzyme_cat | 1.5e-7 |
@@ -8399,6 +8430,8 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 ### B.11 Horizontal Gene Transfer Matrix
 
 Per-day probability of horizontal gene transfer of resistance between co-colonising bacterial species. Only non-zero entries shown.
+
+See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT process](#92-the-hgt-process).
 
 | Donor | Recipient | Probability/day |
 | --- | ---: | ---: |

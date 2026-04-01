@@ -24,7 +24,20 @@
 <li><a href="#11-policy-evaluation">Policy Evaluation</a></li>
 <li><a href="#12-limitations">Limitations</a></li>
 <li><a href="#appendix-a-bacteria-drugs-mechanisms-and-enums">Appendix A — Bacteria, Drugs, Mechanisms and Enums</a></li>
-<li><a href="#appendix-b-parameter-reference">Appendix B — Parameter Reference</a></li>
+<li><a href="#appendix-b-parameter-reference">Appendix B — Parameter Reference</a><ul>
+<li><a href="#b1-global-scalar-parameters">B.1 Global Scalar Parameters</a></li>
+<li><a href="#b2-drug-properties">B.2 Drug Properties</a></li>
+<li><a href="#b3-bacteria-properties">B.3 Bacteria Properties</a></li>
+<li><a href="#b4-drugbacteria-potency-matrix">B.4 Drug–Bacteria Potency Matrix</a></li>
+<li><a href="#b5-regional-parameters">B.5 Regional Parameters</a></li>
+<li><a href="#b6-age-dependent-parameters">B.6 Age-Dependent Parameters</a></li>
+<li><a href="#b7-syndrome-parameters">B.7 Syndrome Parameters</a></li>
+<li><a href="#b8-clearance-parameters">B.8 Clearance Parameters</a></li>
+<li><a href="#b9-immunodeficiency-sex-and-vaccination-parameters">B.9 Immunodeficiency, Sex, and Vaccination Parameters</a></li>
+<li><a href="#b10-resistance-mechanisms">B.10 Resistance Mechanisms</a></li>
+<li><a href="#b11-horizontal-gene-transfer-matrix">B.11 Horizontal Gene Transfer Matrix</a></li>
+</ul>
+</li>
 <li><a href="#appendix-c-output-specification">Appendix C — Output Specification</a></li>
 </ol>
 <hr />
@@ -5693,6 +5706,7 @@
 <p>This appendix is auto-generated from the live Rust configuration. Parameters are organized thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level sampling multipliers are applied.</p>
 <h3 id="b1-global-scalar-parameters">B.1 Global Scalar Parameters</h3>
 <p>Scalar parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.</p>
+<p>See: <a href="#61-treatment-initiation-deciding-to-start-antibiotics">§6.1 Treatment initiation</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#63-drug-pharmacokinetics">§6.3 Drug pharmacokinetics</a>, <a href="#67-drug-toxicity">§6.7 Drug toxicity</a>, <a href="#24-hospitalisation">§2.4 Hospitalisation</a>, <a href="#25-travel">§2.5 Travel</a>, <a href="#43-sepsis">§4.3 Sepsis</a>, <a href="#73-resistance-emergence">§7.3 Resistance emergence</a>, <a href="#74-resistance-reversion-and-fitness-costs">§7.4 Resistance reversion</a>, <a href="#8-microbiome-and-carriage">§8 Microbiome and Carriage</a>, <a href="#9-horizontal-gene-transfer-hgt">§9 Horizontal Gene Transfer</a>, <a href="#10-mortality">§10 Mortality</a>.</p>
 <h4 id="treatment-initiation-logistic-model">Treatment Initiation (logistic model)</h4>
 <table>
 <thead>
@@ -6467,6 +6481,7 @@
 </table>
 <h3 id="b2-drug-properties">B.2 Drug Properties</h3>
 <p>Pharmacokinetic and clinical properties for each of the 61 modelled antimicrobial agents. The introduction time step is measured in days from 1 January 1930.</p>
+<p>See: <a href="#63-drug-pharmacokinetics">§6.3 Drug pharmacokinetics</a>, <a href="#65-drug-potency-matrix">§6.5 Drug potency matrix</a>, <a href="#66-drug-availability-by-region-and-era">§6.6 Drug availability</a>, <a href="#67-drug-toxicity">§6.7 Drug toxicity</a>, <a href="#68-antibiotic-infection-prevention">§6.8 Antibiotic infection prevention</a>.</p>
 <table>
 <thead>
 <tr>
@@ -7219,6 +7234,7 @@
 </table>
 <h3 id="b3-bacteria-properties">B.3 Bacteria Properties</h3>
 <p>Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species.</p>
+<p>See: <a href="#31-community-acquisition">§3.1 Community acquisition</a>, <a href="#42-infection-dynamics">§4.2 Infection dynamics</a>, <a href="#43-sepsis">§4.3 Sepsis</a>, <a href="#44-natural-clearance">§4.4 Natural clearance</a>, <a href="#81-carriage-compartments">§8.1 Carriage compartments</a>.</p>
 <table>
 <thead>
 <tr>
@@ -7829,6 +7845,7 @@
 </table>
 <h3 id="b4-drugbacteria-potency-matrix">B.4 Drug–Bacteria Potency Matrix</h3>
 <p>Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 61 drugs = 2562 entries.</p>
+<p>See: <a href="#65-drug-potency-matrix">§6.5 Drug potency matrix</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>.</p>
 <table>
 <thead>
 <tr>
@@ -22615,6 +22632,7 @@
 </table>
 <h3 id="b5-regional-parameters">B.5 Regional Parameters</h3>
 <p>Region-level scalars (applicable to all bacteria) and the per-region per-bacteria acquisition log-odds adjustments.</p>
+<p>See: <a href="#25-travel">§2.5 Travel</a>, <a href="#31-community-acquisition">§3.1 Community acquisition</a>.</p>
 <h4 id="region-scalars">Region Scalars</h4>
 <table>
 <thead>
@@ -23439,6 +23457,7 @@
 </table>
 <h3 id="b6-age-dependent-parameters">B.6 Age-Dependent Parameters</h3>
 <p>Log-odds adjustments by age category for bacteria acquisition and regional effects. Age categories: infant, preschool, school, young_adult, middle_age, elderly.</p>
+<p>See: <a href="#22-ageing-and-age-categories">§2.2 Ageing and age categories</a>, <a href="#31-community-acquisition">§3.1 Community acquisition</a>.</p>
 <h4 id="default-age-log-odds">Default Age Log-Odds</h4>
 <table>
 <thead>
@@ -24720,6 +24739,7 @@
 </table>
 <h3 id="b7-syndrome-parameters">B.7 Syndrome Parameters</h3>
 <p>Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.</p>
+<p>See: <a href="#41-syndrome-assignment">§4.1 Syndrome assignment</a>, <a href="#62-drug-selection-choosing-which-antibiotic-to-use">§6.2 Drug selection</a>, <a href="#64-drug-penetration-by-syndrome">§6.4 Drug penetration by syndrome</a>.</p>
 <h4 id="syndrome-empiric-drug-scores">Syndrome Empiric Drug Scores</h4>
 <table>
 <thead>
@@ -27911,6 +27931,7 @@
 </table>
 <h3 id="b8-clearance-parameters">B.8 Clearance Parameters</h3>
 <p>Infection clearance model parameters. The clearance hazard is a logistic function of base log-odds, per-bacteria adjustments, age effects, immunodeficiency, bacteria level, and treatment duration.</p>
+<p>See: <a href="#44-natural-clearance">§4.4 Natural clearance</a>.</p>
 <table>
 <thead>
 <tr>
@@ -27945,6 +27966,7 @@
 </tbody>
 </table>
 <h3 id="b9-immunodeficiency-sex-and-vaccination-parameters">B.9 Immunodeficiency, Sex, and Vaccination Parameters</h3>
+<p>See: <a href="#23-immunodeficiency">§2.3 Immunodeficiency</a>, <a href="#10-mortality">§10 Mortality</a>.</p>
 <h4 id="immunodeficiency">Immunodeficiency</h4>
 <table>
 <thead>
@@ -28032,6 +28054,7 @@
 </table>
 <h3 id="b10-resistance-mechanisms">B.10 Resistance Mechanisms</h3>
 <p>Parameters for the 40 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.</p>
+<p>See: <a href="#71-resistance-mechanisms">§7.1 Resistance mechanisms</a>, <a href="#72-mechanismdrug-class-enhancement-multipliers">§7.2 Mechanism–drug-class enhancement</a>, <a href="#73-resistance-emergence">§7.3 Resistance emergence</a>, <a href="#74-resistance-reversion-and-fitness-costs">§7.4 Resistance reversion</a>.</p>
 <h4 id="mechanism-reversion-rates">Mechanism Reversion Rates</h4>
 <table>
 <thead>
@@ -35600,7 +35623,7 @@
 <tr>
 <td>acinetobacter_baumannii</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.8</td>
 </tr>
 <tr>
 <td>acinetobacter_baumannii</td>
@@ -35640,12 +35663,12 @@
 <tr>
 <td>acinetobacter_baumannii</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.06</td>
 </tr>
 <tr>
 <td>acinetobacter_baumannii</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.8</td>
 </tr>
 <tr>
 <td>acinetobacter_baumannii</td>
@@ -35655,7 +35678,7 @@
 <tr>
 <td>acinetobacter_baumannii</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.003</td>
 </tr>
 <tr>
 <td>acinetobacter_baumannii</td>
@@ -35665,132 +35688,132 @@
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">0.003</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">0.003</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">0.003</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">7e-4</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">7e-4</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">7e-4</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">0.003</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">0.003</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.012</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">7e-5</td>
-</tr>
-<tr>
-<td>citrobacter_spp.</td>
-<td style="text-align: right;">protection_qnr</td>
 <td style="text-align: right;">0.01</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_esbl_tem</td>
+<td style="text-align: right;">0.01</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_esbl_shv</td>
+<td style="text-align: right;">0.01</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_kpc</td>
+<td style="text-align: right;">0.002</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_ndm_vim</td>
+<td style="text-align: right;">0.002</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_oxa_48</td>
+<td style="text-align: right;">0.002</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_ampc_cmy</td>
+<td style="text-align: right;">0.01</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">enzyme_ampc_dha</td>
+<td style="text-align: right;">0.01</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">mutation_gyra_primary</td>
+<td style="text-align: right;">0.04</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">mutation_gyra_parc_secondary</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
+<td style="text-align: right;">protection_qnr</td>
+<td style="text-align: right;">0.03</td>
+</tr>
+<tr>
+<td>citrobacter_spp.</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">0.05</td>
+<td style="text-align: right;">0.15</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">0.012</td>
+<td style="text-align: right;">0.03</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">efflux_acrab_tolc</td>
-<td style="text-align: right;">0.0035</td>
+<td style="text-align: right;">0.01</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">efflux_mexxy_oprm</td>
-<td style="text-align: right;">0.004</td>
+<td style="text-align: right;">0.01</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">0.009</td>
+<td style="text-align: right;">0.03</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">7e-4</td>
+<td style="text-align: right;">0.002</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">9e-5</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">0.0025</td>
+<td style="text-align: right;">0.008</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">0.0035</td>
+<td style="text-align: right;">0.01</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">enzyme_fos_a</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.004</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.012</td>
+<td style="text-align: right;">0.04</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.004</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">0.2</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.004</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.003</td>
 </tr>
 <tr>
 <td>enterobacter_spp.</td>
@@ -35920,107 +35943,107 @@
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">target_site_pbp2a_meca</td>
-<td style="text-align: right;">1.5e-6</td>
+<td style="text-align: right;">4.5e-6</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">target_site_van_a</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.0045</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">target_site_van_b</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.0045</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">4.5e-4</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">3e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">4.5e-4</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">3e-4</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">2e-5</td>
+<td style="text-align: right;">6e-5</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">3e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
 <td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">8e-6</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">0.0015</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">0.0015</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">mutation_mpr_f</td>
-<td style="text-align: right;">4.5e-4</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">4.5e-4</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">protection_fus_b</td>
-<td style="text-align: right;">4.5e-5</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">1.5e-4</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">1.5e-6</td>
-</tr>
-<tr>
-<td>enterococcus_faecalis</td>
-<td style="text-align: right;">mutation_23s_rrna</td>
 <td style="text-align: right;">3e-5</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
+<td style="text-align: right;">mutation_folate_pathway</td>
+<td style="text-align: right;">0.0045</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">mutation_nitroreductase</td>
+<td style="text-align: right;">0.0045</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">mutation_mpr_f</td>
+<td style="text-align: right;">0.0015</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">mutation_rpo_b</td>
+<td style="text-align: right;">0.0015</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">protection_fus_b</td>
+<td style="text-align: right;">1.5e-4</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">protection_tet_m</td>
+<td style="text-align: right;">4.5e-4</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">enzyme_aac_aph</td>
+<td style="text-align: right;">4.5e-6</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
+<td style="text-align: right;">mutation_23s_rrna</td>
+<td style="text-align: right;">1e-4</td>
+</tr>
+<tr>
+<td>enterococcus_faecalis</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">1.5e-6</td>
+<td style="text-align: right;">4.5e-6</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">target_site_van_a</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.013</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">target_site_van_b</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.013</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
@@ -36030,37 +36053,37 @@
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.002</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">0.003</td>
-</tr>
-<tr>
-<td>enterococcus_faecium</td>
-<td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">0.009</td>
-</tr>
-<tr>
-<td>enterococcus_faecium</td>
-<td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">0.009</td>
-</tr>
-<tr>
-<td>enterococcus_faecium</td>
-<td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">0.001</td>
-</tr>
-<tr>
-<td>enterococcus_faecium</td>
-<td style="text-align: right;">global_efflux_pump</td>
 <td style="text-align: right;">0.004</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
-<td style="text-align: right;">mutation_folate_pathway</td>
+<td style="text-align: right;">target_site_erm_b</td>
+<td style="text-align: right;">0.013</td>
+</tr>
+<tr>
+<td>enterococcus_faecium</td>
+<td style="text-align: right;">target_site_cfr</td>
+<td style="text-align: right;">0.013</td>
+</tr>
+<tr>
+<td>enterococcus_faecium</td>
+<td style="text-align: right;">enzyme_cat</td>
+<td style="text-align: right;">0.0015</td>
+</tr>
+<tr>
+<td>enterococcus_faecium</td>
+<td style="text-align: right;">global_efflux_pump</td>
 <td style="text-align: right;">0.006</td>
+</tr>
+<tr>
+<td>enterococcus_faecium</td>
+<td style="text-align: right;">mutation_folate_pathway</td>
+<td style="text-align: right;">0.008</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
@@ -36075,202 +36098,202 @@
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_mpr_f</td>
-<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.025</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">0.25</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">protection_fus_b</td>
-<td style="text-align: right;">0.012</td>
+<td style="text-align: right;">0.018</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">0.004</td>
+<td style="text-align: right;">0.006</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.03</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.002</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.02</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
 <td style="text-align: right;">efflux_mtr_cde</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.002</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">1e-11</td>
+<td style="text-align: right;">3e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">4.5e-7</td>
+<td style="text-align: right;">1e-6</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">4.5e-14</td>
+<td style="text-align: right;">1e-13</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">4.5e-7</td>
+<td style="text-align: right;">1e-6</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">4.5e-12</td>
+<td style="text-align: right;">1e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">4.5e-9</td>
+<td style="text-align: right;">1e-8</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">efflux_acrab_tolc</td>
-<td style="text-align: right;">4.5e-10</td>
+<td style="text-align: right;">1e-9</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">4.5e-10</td>
+<td style="text-align: right;">1e-9</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">4.5e-10</td>
+<td style="text-align: right;">1e-9</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">4.5e-13</td>
+<td style="text-align: right;">1e-12</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">4.5e-9</td>
+<td style="text-align: right;">1e-8</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">4.5e-12</td>
+<td style="text-align: right;">1e-11</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_fos_a</td>
-<td style="text-align: right;">4.5e-11</td>
+<td style="text-align: right;">1e-10</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">4.5e-10</td>
+<td style="text-align: right;">1e-9</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">4.5e-11</td>
+<td style="text-align: right;">1e-10</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">4.5e-8</td>
+<td style="text-align: right;">1e-7</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">4.5e-11</td>
+<td style="text-align: right;">1e-10</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">1e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
@@ -36315,7 +36338,7 @@
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">6e-4</td>
+<td style="text-align: right;">5e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
@@ -36345,7 +36368,7 @@
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
@@ -36355,7 +36378,7 @@
 <tr>
 <td>klebsiella_pneumoniae</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
@@ -36375,47 +36398,47 @@
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">0.0012</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.015</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.015</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.015</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">0.7</td>
+<td style="text-align: right;">0.8</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
@@ -36490,122 +36513,122 @@
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">2.5e-4</td>
+<td style="text-align: right;">7.5e-4</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">2.5e-4</td>
+<td style="text-align: right;">5.5e-4</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">2.5e-5</td>
+<td style="text-align: right;">5.5e-5</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">7e-6</td>
+<td style="text-align: right;">2e-5</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">7e-6</td>
+<td style="text-align: right;">2e-5</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">7e-6</td>
+<td style="text-align: right;">2e-5</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">2.5e-5</td>
+<td style="text-align: right;">5.5e-5</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">2.5e-5</td>
+<td style="text-align: right;">5.5e-5</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.001</td>
+<td style="text-align: right;">0.003</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.0012</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">2e-4</td>
+<td style="text-align: right;">6e-4</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">5e-5</td>
+<td style="text-align: right;">1.5e-4</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">4e-5</td>
+<td style="text-align: right;">1.2e-4</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">efflux_acrab_tolc</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.0045</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">3e-5</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.0015</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">7e-6</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">3e-4</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">7e-7</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">enzyme_fos_a</td>
-<td style="text-align: right;">7e-5</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">7e-6</td>
-</tr>
-<tr>
-<td>proteus_spp.</td>
-<td style="text-align: right;">protection_tet_m</td>
 <td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
+<td style="text-align: right;">global_efflux_pump</td>
+<td style="text-align: right;">0.0045</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
+<td style="text-align: right;">global_porin_loss</td>
+<td style="text-align: right;">2e-5</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
+<td style="text-align: right;">mutation_folate_pathway</td>
+<td style="text-align: right;">0.001</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
+<td style="text-align: right;">mutation_nitroreductase</td>
+<td style="text-align: right;">2e-6</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
+<td style="text-align: right;">enzyme_fos_a</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
+<td style="text-align: right;">mutation_rpo_b</td>
+<td style="text-align: right;">2e-5</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
+<td style="text-align: right;">protection_tet_m</td>
+<td style="text-align: right;">3e-4</td>
+</tr>
+<tr>
+<td>proteus_spp.</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">3e-8</td>
+<td style="text-align: right;">1e-7</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">2.5e-8</td>
+<td style="text-align: right;">8e-8</td>
 </tr>
 <tr>
 <td>serratia_spp.</td>
@@ -37510,22 +37533,22 @@
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.04</td>
+<td style="text-align: right;">0.06</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.045</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">0.004</td>
+<td style="text-align: right;">0.006</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.045</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
@@ -37535,7 +37558,7 @@
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">efflux_acrab_tolc</td>
-<td style="text-align: right;">0.014</td>
+<td style="text-align: right;">0.04</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
@@ -37550,7 +37573,7 @@
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.0035</td>
+<td style="text-align: right;">0.0045</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
@@ -37580,17 +37603,17 @@
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">0.0055</td>
+<td style="text-align: right;">0.007</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">0.045</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">0.0055</td>
+<td style="text-align: right;">0.007</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
@@ -37605,42 +37628,42 @@
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">1.5e-5</td>
+<td style="text-align: right;">3e-5</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">1.5e-5</td>
+<td style="text-align: right;">3e-5</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">1.5e-5</td>
+<td style="text-align: right;">3e-5</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">1.5e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
@@ -37660,12 +37683,12 @@
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.2</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">0.007</td>
+<td style="text-align: right;">0.015</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
@@ -37675,7 +37698,7 @@
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">0.03</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
@@ -37685,7 +37708,7 @@
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">1e-5</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
@@ -37700,192 +37723,192 @@
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_fos_a</td>
-<td style="text-align: right;">4e-4</td>
-</tr>
-<tr>
-<td>invasive_non-typhoidal_salmonella_spp.</td>
-<td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.01</td>
-</tr>
-<tr>
-<td>invasive_non-typhoidal_salmonella_spp.</td>
-<td style="text-align: right;">protection_tet_m</td>
 <td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
-<td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.03</td>
-</tr>
-<tr>
-<td>invasive_non-typhoidal_salmonella_spp.</td>
-<td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">0.015</td>
-</tr>
-<tr>
-<td>invasive_non-typhoidal_salmonella_spp.</td>
-<td style="text-align: right;">efflux_mtr_cde</td>
-<td style="text-align: right;">1.2e-6</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">2e-5</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">2e-5</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">2e-5</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_16s_rrmt</td>
+<td style="text-align: right;">mutation_rpo_b</td>
 <td style="text-align: right;">0.02</td>
 </tr>
 <tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">0.3</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">2e-5</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">efflux_acrab_tolc</td>
-<td style="text-align: right;">2e-5</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">1e-5</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.3</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">1e-6</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">1e-4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.004</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
+<td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">protection_tet_m</td>
 <td style="text-align: right;">0.002</td>
 </tr>
 <tr>
-<td>shigella_spp.</td>
+<td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">0.1</td>
 </tr>
 <tr>
-<td>shigella_spp.</td>
-<td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">0.4</td>
-</tr>
-<tr>
-<td>shigella_spp.</td>
+<td>invasive_non-typhoidal_salmonella_spp.</td>
 <td style="text-align: right;">efflux_tet_abc</td>
-<td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.045</td>
+</tr>
+<tr>
+<td>invasive_non-typhoidal_salmonella_spp.</td>
+<td style="text-align: right;">efflux_mtr_cde</td>
+<td style="text-align: right;">3e-6</td>
 </tr>
 <tr>
 <td>shigella_spp.</td>
-<td style="text-align: right;">mutation_pbp_mosaic</td>
+<td style="text-align: right;">enzyme_esbl_ctx_m</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_esbl_tem</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_esbl_shv</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_kpc</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_ndm_vim</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_oxa_48</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_ampc_cmy</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_ampc_dha</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">mutation_gyra_primary</td>
+<td style="text-align: right;">4e-5</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">mutation_gyra_parc_secondary</td>
+<td style="text-align: right;">4e-5</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">protection_qnr</td>
+<td style="text-align: right;">4e-5</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_16s_rrmt</td>
+<td style="text-align: right;">0.04</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">target_site_erm_b</td>
+<td style="text-align: right;">0.6</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_cat</td>
+<td style="text-align: right;">4e-5</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">efflux_acrab_tolc</td>
+<td style="text-align: right;">4e-5</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">modification_mcr_1</td>
 <td style="text-align: right;">2e-5</td>
 </tr>
 <tr>
 <td>shigella_spp.</td>
+<td style="text-align: right;">global_efflux_pump</td>
+<td style="text-align: right;">0.6</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">global_porin_loss</td>
+<td style="text-align: right;">2e-6</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">mutation_folate_pathway</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">mutation_rpo_b</td>
+<td style="text-align: right;">0.008</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">protection_tet_m</td>
+<td style="text-align: right;">0.004</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">enzyme_aac_aph</td>
+<td style="text-align: right;">0.4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">mutation_23s_rrna</td>
+<td style="text-align: right;">0.6</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">efflux_tet_abc</td>
+<td style="text-align: right;">8e-4</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
+<td style="text-align: right;">mutation_pbp_mosaic</td>
+<td style="text-align: right;">5e-5</td>
+</tr>
+<tr>
+<td>shigella_spp.</td>
 <td style="text-align: right;">efflux_mtr_cde</td>
-<td style="text-align: right;">3e-5</td>
+<td style="text-align: right;">5e-5</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.2</td>
-</tr>
-<tr>
-<td>neisseria_gonorrhoeae</td>
-<td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.2</td>
-</tr>
-<tr>
-<td>neisseria_gonorrhoeae</td>
-<td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">0.2</td>
-</tr>
-<tr>
-<td>neisseria_gonorrhoeae</td>
-<td style="text-align: right;">enzyme_16s_rrmt</td>
 <td style="text-align: right;">0.3</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
+<td style="text-align: right;">mutation_gyra_parc_secondary</td>
+<td style="text-align: right;">0.3</td>
+</tr>
+<tr>
+<td>neisseria_gonorrhoeae</td>
+<td style="text-align: right;">protection_qnr</td>
+<td style="text-align: right;">0.3</td>
+</tr>
+<tr>
+<td>neisseria_gonorrhoeae</td>
+<td style="text-align: right;">enzyme_16s_rrmt</td>
+<td style="text-align: right;">0.6</td>
+</tr>
+<tr>
+<td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">2e-4</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">6e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
@@ -37900,7 +37923,7 @@
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.04</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
@@ -37930,22 +37953,22 @@
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">0.01</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.6</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">enzyme_bla_z</td>
-<td style="text-align: right;">6e-5</td>
+<td style="text-align: right;">7e-5</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">3e-4</td>
+<td style="text-align: right;">4e-4</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
@@ -37955,12 +37978,12 @@
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">6e-4</td>
+<td style="text-align: right;">7e-4</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
 <td style="text-align: right;">efflux_mtr_cde</td>
-<td style="text-align: right;">6e-5</td>
+<td style="text-align: right;">7e-5</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
@@ -38105,247 +38128,247 @@
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_kpc</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_ndm_vim</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_oxa_48</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">4.5e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">1.5e-5</td>
+<td style="text-align: right;">3e-5</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">1.5e-5</td>
+<td style="text-align: right;">3e-5</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">3e-4</td>
+<td style="text-align: right;">5e-4</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">4.5e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">4.5e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">4.5e-5</td>
+<td style="text-align: right;">7e-5</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">1.5e-7</td>
+<td style="text-align: right;">3e-7</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">4.5e-4</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">3e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">4.5e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">1.5e-6</td>
+<td style="text-align: right;">3e-6</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.003</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">4.5e-5</td>
+<td style="text-align: right;">1e-4</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_aac_aph</td>
-<td style="text-align: right;">4.5e-4</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">enzyme_bla_z</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">3e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">4.5e-6</td>
+<td style="text-align: right;">1e-5</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">3e-8</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
 <td style="text-align: right;">efflux_mtr_cde</td>
-<td style="text-align: right;">1.5e-8</td>
+<td style="text-align: right;">3e-8</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">9.4e-8</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">4.7e-8</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">4.7e-8</td>
+<td style="text-align: right;">1e-7</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">9.4e-10</td>
+<td style="text-align: right;">2e-9</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">9.4e-10</td>
+<td style="text-align: right;">1.3e-9</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">9.4e-9</td>
+<td style="text-align: right;">2e-8</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">9.4e-10</td>
+<td style="text-align: right;">2e-9</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">9.4e-10</td>
+<td style="text-align: right;">2e-9</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">9.4e-9</td>
+<td style="text-align: right;">2e-8</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">9.4e-8</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">5e-11</td>
+<td style="text-align: right;">1e-10</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0045</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">0.003</td>
+<td style="text-align: right;">0.0045</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">2e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">2e-4</td>
+<td style="text-align: right;">3e-4</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">1.5e-4</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">2e-6</td>
+<td style="text-align: right;">3e-6</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">1.5e-4</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">1e-4</td>
+<td style="text-align: right;">1.5e-4</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">0.001</td>
-</tr>
-<tr>
-<td>mycoplasma_genitalium</td>
-<td style="text-align: right;">protection_tet_m</td>
 <td style="text-align: right;">0.0015</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
+<td style="text-align: right;">protection_tet_m</td>
+<td style="text-align: right;">0.002</td>
+</tr>
+<tr>
+<td>mycoplasma_genitalium</td>
 <td style="text-align: right;">mutation_23s_rrna</td>
-<td style="text-align: right;">7e-4</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>vibrio_cholerae</td>
@@ -38665,27 +38688,27 @@
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">3e-5</td>
+<td style="text-align: right;">6e-5</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">6e-6</td>
+<td style="text-align: right;">1e-5</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">6e-8</td>
+<td style="text-align: right;">1e-7</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">3e-5</td>
+<td style="text-align: right;">6e-5</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">6e-7</td>
+<td style="text-align: right;">1e-6</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
@@ -38695,22 +38718,22 @@
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">6e-6</td>
+<td style="text-align: right;">1e-5</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">6e-6</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">6e-5</td>
+<td style="text-align: right;">1.2e-4</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">3e-5</td>
+<td style="text-align: right;">6e-5</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
@@ -39160,112 +39183,112 @@
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_esbl_ctx_m</td>
-<td style="text-align: right;">1e-7</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_esbl_tem</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">5e-6</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_esbl_shv</td>
-<td style="text-align: right;">1e-8</td>
+<td style="text-align: right;">2e-8</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_ampc_cmy</td>
-<td style="text-align: right;">3e-7</td>
+<td style="text-align: right;">5e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_ampc_dha</td>
-<td style="text-align: right;">1e-7</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">mutation_gyra_primary</td>
-<td style="text-align: right;">1e-6</td>
+<td style="text-align: right;">2e-6</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">mutation_gyra_parc_secondary</td>
-<td style="text-align: right;">3e-7</td>
+<td style="text-align: right;">5e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">protection_qnr</td>
-<td style="text-align: right;">1e-7</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_16s_rrmt</td>
-<td style="text-align: right;">1e-8</td>
+<td style="text-align: right;">2e-8</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">target_site_erm_b</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">5e-6</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">target_site_cfr</td>
-<td style="text-align: right;">3e-8</td>
+<td style="text-align: right;">5e-8</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">enzyme_cat</td>
-<td style="text-align: right;">3e-7</td>
+<td style="text-align: right;">5e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">efflux_acrab_tolc</td>
-<td style="text-align: right;">3e-7</td>
+<td style="text-align: right;">5e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">modification_mcr_1</td>
-<td style="text-align: right;">1e-8</td>
+<td style="text-align: right;">2e-8</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">global_efflux_pump</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">5e-6</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">global_porin_loss</td>
-<td style="text-align: right;">1e-7</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">mutation_folate_pathway</td>
-<td style="text-align: right;">5e-6</td>
+<td style="text-align: right;">1e-5</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">mutation_nitroreductase</td>
-<td style="text-align: right;">1e-7</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">mutation_rpo_b</td>
-<td style="text-align: right;">1e-7</td>
+<td style="text-align: right;">2e-7</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">protection_tet_m</td>
-<td style="text-align: right;">5e-6</td>
+<td style="text-align: right;">1e-5</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">mutation_pbp_mosaic</td>
-<td style="text-align: right;">3e-6</td>
+<td style="text-align: right;">5e-6</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
 <td style="text-align: right;">efflux_mtr_cde</td>
-<td style="text-align: right;">3e-7</td>
+<td style="text-align: right;">5e-7</td>
 </tr>
 <tr>
 <td>treponema_pallidum</td>
@@ -39731,6 +39754,7 @@
 </table>
 <h3 id="b11-horizontal-gene-transfer-matrix">B.11 Horizontal Gene Transfer Matrix</h3>
 <p>Per-day probability of horizontal gene transfer of resistance between co-colonising bacterial species. Only non-zero entries shown.</p>
+<p>See: <a href="#91-transfer-compatibility">§9.1 Transfer compatibility</a>, <a href="#92-the-hgt-process">§9.2 The HGT process</a>.</p>
 <table>
 <thead>
 <tr>

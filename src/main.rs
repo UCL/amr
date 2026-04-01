@@ -62,10 +62,6 @@
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-// footnote in calibration summary about any microbiome resistance vs majority
-//
-// do we need a drug "first available" date by region (to replace the exitsing way
-// of dealing with drug availability by region) ?
 //
 //
 //
@@ -161,7 +157,7 @@ fn main() {
     validate_bacteria_configuration();
 
     // Create and run the simulation
-    let population_size = 100_000;
+    let population_size = 1_000_000;
     // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
     // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
