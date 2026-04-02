@@ -14,7 +14,7 @@
 8. [Microbiome and Carriage](#8-microbiome-and-carriage)
 9. [Horizontal Gene Transfer](#9-horizontal-gene-transfer)
 10. [Mortality](#10-mortality)
-11. [Policy Evaluation](#11-policy-evaluation)
+11. [Counterfactual Design and AMR-Attributable Burden](#11-counterfactual-design-and-amr-attributable-burden)
 12. [Limitations](#12-limitations)
 - [Appendix A — Bacteria, Drugs, Mechanisms and Enums](#appendix-a-bacteria-drugs-mechanisms-and-enums)
 - [Appendix B — Parameter Reference](#appendix-b-parameter-reference)
@@ -101,7 +101,7 @@ The document is organised to follow the progression of an individual through the
 | **8. Microbiome & Carriage** | Asymptomatic bacterial colonisation |
 | **9. Horizontal Gene Transfer** | Bacteria sharing resistance genes (plasmid transfer between species) |
 | **10. Mortality** | Case fatality rates, sepsis mortality |
-| **11. Policy Evaluation** | Comparing stewardship interventions and counterfactual scenarios |
+| **11. Counterfactual Design and AMR-Attributable Burden** | How the resistance-free counterfactual is constructed and used to estimate AMR-attributable deaths |
 | **12. Limitations** | What the model does not capture / caveats for interpretation |
 | **Appendices** | Reference tables of all bacteria, drugs, parameters, and outputs |
 
@@ -371,25 +371,45 @@ This pathway is governed by two parameters:
 
 When a new infection is acquired from the community, the model needs to decide: is this bacterium resistant to any drugs, and if so, which ones?
 
-Rather than sampling each drug-resistance pair independently (which would produce unrealistic resistance patterns), the model uses a three-step process that reflects how resistance co-occurs in bacterial populations:
+Rather than sampling each drug-resistance pair independently (which would produce unrealistic resistance patterns), the model uses a six-step pipeline that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:
 
-1. **Mechanism-level prevalence (EWMA tracking)**: After every simulated day, the model updates an **exponential moving average** (EWMA) of the fraction of infected individuals carrying each of the 40 resistance mechanisms, tracked separately for every combination of region × care setting (community / hospital) × bacteria × mechanism. The EWMA smoothing factor (`mechanism_cache_ewma_decay` = 0.9) means today's prevalence estimate is 90% the previous estimate and 10% the newly observed fraction — giving the cache a memory that damps day-to-day noise while still following genuine trends. Mathematically:
+**Step 1 — Mechanism-level prevalence (EWMA tracking)**
 
-   $$\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}$$
+After every simulated day, the model updates an **exponential moving average** (EWMA) of the fraction of infected individuals carrying each of the 40 resistance mechanisms, tracked separately for every combination of region × care setting (community / hospital) × bacteria × mechanism. The EWMA smoothing factor (`mechanism_cache_ewma_decay` = 0.9) means today's prevalence estimate is 90% the previous estimate and 10% the newly observed fraction — giving the cache a memory that damps day-to-day noise while still following genuine trends. Mathematically:
 
-   where $\alpha = 0.9$. Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.
+$$\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}$$
 
-2. **Community dilution**: Clinical samples tend to over-represent resistant strains. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (`community_resistance_dilution_factor` = 0.50). A draw from random determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type.
+where $\alpha = 0.9$. Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.
 
-3. **Correlated mechanism profiles — profile-cache sampling**: Rather than independently sampling each mechanism from its marginal EWMA prevalence (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model maintains a **profile reservoir** (`MechanismProfileCache`) of up to 200 complete resistance genotypes sampled — via reservoir sampling — from currently infected individuals. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). When a new infection is acquired from the human reservoir, the model samples a **complete genotype profile** from this reservoir and assigns all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids.
+**Step 2 — Community dilution**
 
-   If the profile cache is empty (early in the simulation, before enough infections have accumulated), the model falls back to sampling a single mechanism from the marginal EWMA cache.
+Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (`community_resistance_dilution_factor` = 0.50). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).
 
-   The `any_r` resistance level reported for each bacterium–drug combination is then **derived** from the mechanisms present in the individual, using the multiplicative susceptibility formula:
+**Step 3 — Correlated mechanism profiles — profile-cache sampling**
 
-   $$\text{any\_r} = 1 - \prod_{m : \text{mechanism}_m \text{ present}} (1 - e_m)$$
+Rather than independently sampling each mechanism from its marginal EWMA prevalence (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model maintains a **profile reservoir** (`MechanismProfileCache`) of up to 200 complete resistance genotypes sampled — via reservoir sampling — from currently infected individuals. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). When a new infection is acquired from the human reservoir, the model samples a **complete genotype profile** from this reservoir and assigns all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
 
-   where $e_m$ is the enhancement multiplier for mechanism $m$ against the drug in question (see Section 7.2).
+If the profile cache is empty (early in the simulation, before enough infections have accumulated), the model falls back to sampling a single mechanism from the marginal EWMA cache.
+
+**Counterfactual gating.** Profile sampling — and the marginal fallback — are gated by the `counterfactual_resistance_multiplier`. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below `counterfactual_resistance_multiplier` (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.
+
+**Step 4 — Resistance floor enforcement**
+
+After profile sampling, for each drug in the model the code evaluates `calculate_resistance_floor(bacteria, drug, current_day)`. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's `ramp_years` window (see Section 7.5). For organisms with an active floor (currently *H. pylori* and *S. maltophilia*), if a Bernoulli draw with probability `floor_level ÷ max_resistance_level` succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in `mechanism_any` and `mechanism_majority`. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few hundred infections per year in a 100,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.
+
+**Step 5 — Scalar `any_r` derivation via mechanism propagation**
+
+After the mechanism bits have been set (by profile sampling, floor enforcement, or both), the model calls `propagate_mechanism_resistance()` to translate the boolean mechanism flags into the continuous `any_r` scalar reported in outputs. For every drug, this function computes the **multiplicative susceptibility** across all active mechanisms:
+
+$$\text{any\_r} = 1 - \prod_{m : \text{mechanism\_any}_m = \text{true}} (1 - e_m)$$
+
+where $e_m$ is the enhancement multiplier for mechanism $m$ against that drug (see Section 7.2). This is called in "full-reset" mode (`raise_only = false`) at this point, so the derived value replaces whatever was there before. The same function is called in "raise-only" mode (`raise_only = true`) whenever a later step adds additional mechanisms (e.g., MDR-TB rifampicin seeding below), ensuring that `any_r` can only increase, not decrease, as further mechanisms are layered on.
+
+**Step 6 — MDR-TB guaranteed rifampicin resistance**
+
+*M. tuberculosis* is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (WHO, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the model hard-sets every resistance mechanism applicable to rifampicin for that bacterium — specifically the `rpoB` RNA-polymerase mutation — in both `mechanism_any` and `mechanism_majority`, regardless of what the profile-cache step assigned. `propagate_mechanism_resistance()` is then called again in raise-only mode so that the rifampicin `any_r` is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with `ResistanceAcquisitionType::AtInfectionTB` rather than `AtInfectionCommunity`, which allows the model to track this pathway separately in output statistics. The probability of this guarantee is controlled by `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` (default 0.90); at values below 1.0 a small fraction of simulated MDR-TB cases can be acquired without the mechanism, modelling the small percentage of MDR-TB diagnoses that occur before rifampicin susceptibility testing has been completed.
+
+Note: after these six steps, the carrier resistance inheritance step (Section 3.3) may apply additional mechanisms from `mechanism_microbiome` if the individual is also a carrier of the organism. That step is a separate pathway rather than part of the acquisition pipeline described here.
 
 ---
 
@@ -528,9 +548,9 @@ Once testing is available and ordered, the model simulates a realistic laborator
 
 | Step | Parameter | Value | Interpretation |
 |------|-----------|-------|-------------|
-| **Lab turnaround time** | `test_delay_days` | 3 days | Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time |
+| **Lab turnaround time** | `test_delay_days` | 3 days | Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time. A 24–72 h window from sample receipt to actionable result is consistent with routine blood and urine culture workflows across contemporary clinical microbiology laboratories (Wain J et al., 2006; Pitt TL & Batchelor BI, 2019) |
 | **AST completion rate** | `prob_test_r_done` | 95% | If a culture grows a bacterium, there is a 95% chance AST is performed (occasionally omitted for low-priority isolates or technical reasons) |
-| **Reporting error rate** | `test_r_error_probability` | 2% | AST results are wrong 2% of the time — the lab reports a resistant organism as susceptible or vice versa. This reflects real-world issues with breakpoint interpretation, contaminated samples, and technical failures |
+| **Reporting error rate** | `test_r_error_probability` | 2% | AST results are wrong 2% of the time — the lab reports a resistant organism as susceptible or vice versa. This reflects real-world issues with breakpoint interpretation, contaminated samples, and technical failures. Error rates in disc-diffusion and gradient-strip AST methods are typically in the 1–5% range depending on organism and drug class (ISO 20776-2; EUCAST, 2023) |
 
 
 
@@ -586,7 +606,7 @@ Each day, the model decides whether to start a new antibiotic course for each pe
 
 | Factor | Log-odds | Approximate effect | Clinical rationale |
 |--------|----------|-------------------|-------------------|
-| Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2011) |
+| Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016) |
 | Symptomatic infection | +6.0 | Jumps to ~62% | Once a patient has obvious symptoms (fever, pain, etc.), prescribing becomes likely |
 | Sepsis | +6.0 | Near-certain | Sepsis is a medical emergency requiring immediate antibiotics |
 | Immunodeficiency | +2.08 | ~8× more likely | Clinicians have a much lower threshold for prescribing in immunocompromised patients |
@@ -935,7 +955,7 @@ Half-lives vary enormously — from penicillin G (cleared within an hour, needin
 | penicillin_g | 0.042 (~1 hour) | Very short — needs IV infusion or frequent dosing | Brunton LL et al., 2018 |
 | ampicillin | 0.063 (~1.5 hours) | Short-acting penicillin | Brunton LL et al., 2018 |
 | meropenem | 0.042 (~1 hour) | Short — given as IV infusion TDS | Brunton LL et al., 2018 |
-| cefiderocol | 0.10 (~2.4 hours) | Short-acting novel siderophore cephalosporin | Sato T et al., 2021 |
+| cefiderocol | 0.10 (~2.4 hours) | Short-acting novel siderophore cephalosporin | Wunderink RG et al., 2021 |
 | ciprofloxacin | 0.17 (~4 hours) | Moderate — allows twice-daily oral dosing | Brunton LL et al., 2018 |
 | linezolid | 0.21 (~5 hours) | Moderate | Brunton LL et al., 2018 |
 | vancomycin | 0.25 (~6 hours) | Requires therapeutic drug monitoring | Rybak MJ et al., 2020 |
@@ -1207,7 +1227,7 @@ These enhancement multipliers should be interpreted as qualitative within-model 
 | 16S rRMT | 0.95 | High-level aminoglycoside resistance |
 | ESBL TEM | 0.60 | Moderate-high |
 | OXA-48 | 0.60 | Moderate-high — but with variable carbapenem MICs |
-| ErmB | 0.90 | MLS_B resistance (macrolides, lincosamides) |
+| ErmB | 0.90 | MLS-B resistance (macrolides, lincosamides) |
 | RpoB | 0.95 | Rifampicin resistance |
 | ESBL SHV | 0.60 | Moderate-high |
 | Cfr | 0.95 | Cross-resistance to oxazolidinones and phenicols |
@@ -1318,10 +1338,10 @@ The full reversion rates by mechanism category:
 ### Enzymatic Inactivation
 | Mechanism | Reversion Rate (per day) | Clinical Notes |
 | :--- | :--- | :--- |
-| **KPC** (*bla*~KPC~) | `0.001` | Plasmid-mediated carbapenemase; moderate maintenance cost. |
-| **NDM / VIM** | `0.0015` | Metallo-$eta$-lactamases, frequently on large, high-burden mobile genetic elements. |
+| **KPC** (*bla*KPC) | `0.001` | Plasmid-mediated carbapenemase; moderate maintenance cost. |
+| **NDM / VIM** | `0.0015` | Metallo-β-lactamases, frequently on large, high-burden mobile genetic elements. |
 | **OXA-48** | `0.0005` | Class D carbapenemase; comparatively lower fitness burden. |
-| **ESBL CTX-M / TEM / SHV** | `0.0006` | Standard extended-spectrum $eta$-lactamases. |
+| **ESBL CTX-M / TEM / SHV** | `0.0006` | Standard extended-spectrum β-lactamases. |
 | **AmpC DHA** | `0.0006` | Plasmid-mediated AmpC; typical cost profile. |
 | **AmpC CMY** | `0.0001` | Often native gene upregulation; minimal fitness loss to maintain. |
 | **FosA** | `0.0005` | Plasmid-mediated fosfomycin resistance; moderate cost. |
@@ -1334,7 +1354,7 @@ The full reversion rates by mechanism category:
 | Mechanism | Reversion Rate (per day) | Clinical Notes |
 | :--- | :--- | :--- |
 | **PBP2a / *mecA*** | `0.0009` | High energetic cost associated with maintaining the staphylococcal cassette chromosome *mec* (SCC*mec*). |
-| ***erm(B)*** | `0.002` | High reversion rate; target methylation for macrolide-lincosamide-streptogramin B (MLS~B~) resistance. |
+| ***erm(B)*** | `0.002` | High reversion rate; target methylation for macrolide-lincosamide-streptogramin B (MLS-B) resistance. |
 | **VanA / VanB** | `0.002` | Highly complex target reprograming (D-Ala-D-Ala to D-Ala-D-Lac); significant energetic drain in the absence of glycopeptide exposure. |
 | **CFR** | `0.0005` | RNA methyltransferase (oxazolidinone/phenicol cross-resistance). |
 
@@ -1391,7 +1411,34 @@ In a simulation of 100,000 individuals, rare pathogens like *S. maltophilia* pro
 
 Configured resistance floors:
 
-- ***S. maltophilia***: **Enabled** — preserves known intrinsic resistance to carbapenems and cephalosporins
+- ***S. maltophilia***: **Enabled** (ramp: 5 years) — preserves the near-universal intrinsic non-susceptibility of this organism driven by its chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and constitutively expressed SmeABC/SmeDEF efflux systems (Brooke JS, 2012; Crossman LC et al., 2008):
+
+  | Drug class | Floor | Biological basis |
+  |------------|-------|------------------|
+  | Carbapenems | 0.98 | L1 metallo-β-lactamase hydrolyses all carbapenems; near-complete intrinsic resistance |
+  | Penicillins | 0.95 | Both L1 and L2 β-lactamases active; unprotected penicillins essentially inactive |
+  | Cephalosporins 1–2G | 0.95 | L1/L2 readily hydrolyse first- and second-generation cephalosporins |
+  | Cephalosporins 3–4G | 0.75 | Partial hydrolysis — activity variable with L2 substrate spectrum |
+  | Macrolides | 0.95 | SmeABC-mediated efflux confers high-level macrolide non-susceptibility |
+  | Aminoglycosides | 0.80 | Efflux and aminoglycoside-modifying enzymes; high rates reported globally |
+  | Fluoroquinolones | 0.45 | Moderate intrinsic efflux; Smqnr plasmid gene adds acquired component |
+  | Tetracyclines | 0.40 | Variable — doxycycline and minocycline retain limited activity |
+  | Polymyxins | 0.70 | Moderate colistin resistance via LPS modification |
+  | Folate antagonists | 0.15 | TMP-SMX is the preferred first-line therapy; resistance exists but lower |
+
+  These floors reflect the well-documented finding that *S. maltophilia* is intrinsically resistant to most drug classes and that non-susceptibility rates of >90% to carbapenems and β-lactams are consistently reported in global surveillance (Wang H et al., 2014; SENTRY programme data).
+- ***H. pylori***: **Enabled** (ramp: 10 years) — prevents population noise from erasing the well-documented high background prevalence of primary resistance in this organism (Savoldi A et al., 2018):
+
+  | Drug class | Floor |
+  |------------|-------|
+  | Macrolides | 0.50 |
+  | Nitroimidazoles | 0.50 |
+  | Penicillins | 0.35 |
+  | Fluoroquinolones | 0.30 |
+  | Tetracyclines | 0.15 |
+
+  The macrolide and nitroimidazole floors are anchored to global pooled resistance estimates: clarithromycin resistance averages ~30–50% in many regions, and metronidazole resistance exceeds 50% in parts of Africa and Asia (Savoldi A et al., 2018; Hooi JKY et al., 2017).
+
 - ***E. faecium***: **Disabled**
 
 These floors are structural guardrails, not claims about immutable global prevalence minima. They are used only where the model would otherwise erase well-established intrinsic or near-intrinsic non-susceptibility because of finite population noise.
@@ -1570,7 +1617,7 @@ Key dynamics:
 
 | Process | Parameter | Value | Effect |
 |---------|-----------|-------|---------------|
-| Resistance seeding on acquisition | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | When a person acquires a new carriage episode, there is a 50% probability that the colonising strain inherits the circulating resistance profile (sampled from the mechanism profile cache, just as for infection acquisition — see Section 3.4). If the draw fails, the strain arrives susceptible. |
+| Resistance seeding on acquisition | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | When a person acquires a new carriage episode, there is a 50% probability that the colonising strain inherits the circulating resistance profile (sampled from the mechanism profile cache, just as for infection acquisition — see Section 3.4). If the draw fails, the strain arrives susceptible. The 0.50 value reflects the **colonisation bottleneck**: when a resistant strain from the community pool colonises a new host, only a fraction of transmission events successfully establish a resistant lineage, because susceptible strains in the incoming inoculum can outcompete resistant ones when antibiotic pressure is absent, and because small founding populations are subject to stochastic loss. Carriage acquisition studies consistently show that post-travel or post-admission ESBL carriage rates reach only 20–50% of the prevalence suggested by source-population data, supporting a sub-unity transfer probability (Arcilla MS et al., 2017; Buelow E et al., 2017). The parameter is therefore best interpreted as a colonisation-efficiency discount applied to the profile-cache sampling step. |
 | Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
 | Mechanism-level reversion | `mechanism_reversion_rate_global_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates and global multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present. |
 | De-novo emergence under treatment | `microbiome_de_novo_multiplier` | 1.0 | When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the same emergence formula used for infections (Section 7.3), scaled by this multiplier. Emergence writes to both `mechanism_microbiome` and `mechanism_any`. |
@@ -1597,7 +1644,7 @@ The pool mapping is:
 - **EntericGramNegative pool**: Enterobacterales, non-fermenters, and enteric pathogens
 - **RespiratoryGramNegative pool**: fastidious respiratory/genitourinary organisms
 - **Anaerobe pool**: anaerobes
-- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`
+- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a waxy, lipid-rich cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence rates (Section 7.3) handle de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
 
 The baseline compatibility ladder is then:
 
@@ -1622,7 +1669,7 @@ When an HGT event fires, the transferred mechanism is written to the recipient's
 | Step | Parameter | Value | Clinical parallel |
 |------|-----------|-------|-------------------|
 | Global HGT scaling | hgt_multiplier | 1.0 | Calibration knob — scales all HGT rates up or down uniformly |
-| Base transfer rate | microbiome_resistance_transfer_probability_per_day | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure |
+| Base transfer rate | microbiome_resistance_transfer_probability_per_day | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure (San Millán A & MacLean RC, 2017) |
 | Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% (Beaber JW et al., 2004) — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
 | Hospitalization boost | hgt_hospital_multiplier | 3.0 (×3.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
 | Co-infection baseline | hgt_coinfection_multiplier | 1.25 (×1.25) | Active multi-pathogen infections slightly increase the probability of genetic collision. |
@@ -1656,7 +1703,7 @@ They should be read as effective demographic mortality-shape terms rather than d
 
 ### 10.2 Sepsis mortality
 
-Sepsis is the primary death pathway for classic invasive bacterial pathogens. When an individual's infection progresses to sepsis (see Section 4.3), the model applies an escalated daily death risk using a logistic model. The probability of dying from sepsis each day depends on age, immune status, bacterial burden, and access to hospital care. Without effective antibiotics, sepsis is rapidly fatal, and resistant organisms that are untreatable with empiric therapy represent the principal scenario of concern (Murray CJL et al., 2019).
+Sepsis is the primary death pathway for classic invasive bacterial pathogens. When an individual's infection progresses to sepsis (see Section 4.3), the model applies an escalated daily death risk using a logistic model. The probability of dying from sepsis each day depends on age, immune status, bacterial burden, and access to hospital care. Without effective antibiotics, sepsis is rapidly fatal, and resistant organisms that are untreatable with empiric therapy represent the principal scenario of concern (Murray CJL et al., 2022).
 
 Since sepsis mortality varies enormously by organism — from near-zero for non-invasive STI pathogens to >30% for *S. aureus* bacteraemia (Tong SYC et al., 2015) — the model assigns per-bacterium sepsis baseline log-odds:
 
@@ -1680,12 +1727,12 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 
 
 
-These per-bacterium sepsis baselines are qualitative severity orderings anchored to widely observed differences between invasive and non-invasive pathogens, not claims of portable case-fatality estimates across all settings. Real-world sepsis mortality depends heavily on time-to-treatment, ICU access, comorbidity structure, and health-system capacity, so the model uses these terms mainly to maintain defensible ranking and then lets care access, treatment effectiveness, and syndrome site shape realised mortality in each branch (Rudd KE et al., 2017; Murray CJL et al., 2019).
+These per-bacterium sepsis baselines are qualitative severity orderings anchored to widely observed differences between invasive and non-invasive pathogens, not claims of portable case-fatality estimates across all settings. Real-world sepsis mortality depends heavily on time-to-treatment, ICU access, comorbidity structure, and health-system capacity, so the model uses these terms mainly to maintain defensible ranking and then lets care access, treatment effectiveness, and syndrome site shape realised mortality in each branch (Rudd KE et al., 2017; Murray CJL et al., 2022).
 
 
 ### 10.3 Non-sepsis infection death
 
-Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: *V. cholerae* through fatal dehydration (Ali M et al., 2015), *B. pertussis* through infantile respiratory failure (Yeung KHT et al., 2017), *H. pylori* through gastric adenocarcinoma (Plummer M et al., 2015), *T. pallidum* through tertiary and congenital syphilis (Korenromp EL et al., 2012), and *C. difficile* through toxic megacolon (Guh AY et al., 2020). These deaths would not be captured by the sepsis pathway alone.
+Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: *V. cholerae* through fatal dehydration (Ali M et al., 2015), *B. pertussis* through infantile respiratory failure (Yeung KHT et al., 2017), *H. pylori* through gastric adenocarcinoma (Plummer M et al., 2015), *T. pallidum* through tertiary and congenital syphilis (Korenromp EL et al., 2019), and *C. difficile* through toxic megacolon (Guh AY et al., 2020). These deaths would not be captured by the sepsis pathway alone.
 
 The model evaluates a **daily non-sepsis infection death probability** for every active infection that is *not* already progressing through the sepsis pathway. The probability is computed via a logistic model:
 
@@ -1717,13 +1764,13 @@ The per-bacterium adjustments are the primary calibration lever. **Negative valu
 | *S. epidermidis* | −6.0 | Very low direct mortality; primarily a device-associated pathogen |
 | *S. maltophilia* | −4.0 | Some mortality via pneumonia progression, but limited |
 | *B. pertussis* | +4.0 | Deaths from respiratory failure in infants, not sepsis (Yeung KHT et al., 2017) |
-| *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths (Korenromp EL et al., 2012) |
+| *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths (Korenromp EL et al., 2019) |
 | *V. cholerae* | +2.5 | Death from dehydration, not bacteraemia (Ali M et al., 2015) |
 | *C. difficile* | +2.0 | Colitis and toxic megacolon deaths (Guh AY et al., 2020) |
-| *S. pyogenes* | +1.5 | Rheumatic heart disease and post-streptococcal complications (Watkins DA et al., 2015) |
+| *S. pyogenes* | +1.5 | Rheumatic heart disease and post-streptococcal complications (Watkins DA et al., 2017) |
 | *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
 | *H. pylori* | +1.0 | Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015) |
-| *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2016) |
+| *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2018) |
 
 
 
@@ -1743,7 +1790,7 @@ Both death pathways are modulated by the anatomical site of infection. The syndr
 | UTI | 0.5 | Usually self-limiting but can ascend to urosepsis |
 | Bone/Joint | 0.8 | Serious but slow-progressing; mortality from surgical complications |
 | Intra-abdominal | 1.5 | Peritonitis carries high mortality even with surgery |
-| Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally (GBD  Lower Respiratory Infections Collaborators, 2019) |
+| Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally (GBD 2019 Lower Respiratory Infections Collaborators, 2022) |
 | CNS | 3.0 | Meningitis/brain abscess — poor penetration of many antibiotics (Tunkel AR et al., 2004) |
 | Bloodstream | 4.0 | Bacteraemia/sepsis — the most immediately life-threatening |
 
@@ -1753,63 +1800,34 @@ These syndrome multipliers are deliberately qualitative. They encode the broad g
 
 
 
-## 11. Policy Evaluation
+## 11. Counterfactual Design and AMR-Attributable Burden
 
-The primary purpose of this model is not only to simulate AMR dynamics, but to compare the consequences of alternative policy choices within a common mechanistic framework. To do this, the simulation runs a single shared history and then **branches** into parallel futures, each with different antibiotic prescribing rules.
+The primary analytical goal of the initial model application is to estimate the number of deaths attributable to antimicrobial resistance. This is achieved by running a **counterfactual experiment**: a resistance-free version of the world is simulated in parallel with the observed (baseline) trajectory over the same period, and the difference in mortality between the two branches provides an estimate of the burden caused by resistance itself.
 
-That policy-comparison objective also explains much of the abstraction elsewhere in the model. We have aimed to retain enough microbiological and clinical structure for the branch comparisons to remain mechanistically interpretable, while accepting that a global model intended to remain calibratable and computationally practical cannot also reproduce every feature that would matter in a disease-specific, organism-specific, or hospital-specific simulation.
+This framing also explains much of the abstraction elsewhere in the model. We have aimed to retain enough microbiological and clinical structure for the counterfactual comparison to remain mechanistically interpretable, while accepting that a global model intended to span nine decades and remain computationally practical cannot also reproduce every feature that would matter in a disease-specific, organism-specific, or hospital-specific simulation.
 
 
-### 11.1 How branching works
+### 11.1 How the counterfactual works
 
-At a configurable year (default: **2027**), the simulation saves a complete snapshot of the entire population — every person's age, infections, microbiome resistance, treatment history, everything. It then runs three independent scenarios forward from that identical starting point:
+At the start of **2022** — the opening of the calibration window — the simulation saves a complete snapshot of the entire population (every person's age, infections, microbiome resistance, treatment history, and region) and then runs two independent branches forward through the end of **2025**:
 
 | Branch | What it represents |
 |--------|--------------------|
-| **Baseline** | Business as usual — no policy changes are introduced. |
-| **Stewardship** | Antibiotic stewardship interventions are introduced: narrower prescribing, more diagnostic testing, stronger disincentives for reserve drugs. |
-| **Counterfactual** | A hypothetical world where resistance is eliminated at the branch point. This lets you measure the total burden attributable to AMR by comparing outcomes against this "no resistance" scenario. |
+| **Baseline** | The observed trajectory — resistance evolves as it has done, driven by antibiotic consumption, transmission, and selection pressure calibrated against historical surveillance data. |
+| **Counterfactual** | A hypothetical world in which all resistance is removed at the branch point. Resistance is wiped from all active infections and microbiome carriage (`clear_all_resistance_on_branch_start = true`), and `counterfactual_resistance_multiplier` is set to 0.0 so that no newly acquired infection can carry any resistance mechanism for the remainder of the simulation. |
+
+Because both branches start from an identical population state at 2022, differences in outcomes (deaths, treatment failures) between them are **causally attributable** — within the model — to resistance alone. The counterfactual is not a forecast; it is an internal experiment used to isolate the mortality contribution of resistance from all other causes of infectious-disease mortality.
+
+The counterfactual is executed once per accepted parameter set. Because the analysis retains all parameter configurations that produce a calibration-acceptable fit to historical data, the result is a **range of AMR-attributable burden estimates**, each internally consistent with the observed epidemiological record. This ensemble approach propagates parametric and structural uncertainty into the final estimates without requiring separate sensitivity analyses.
+
+> **Note on implementation:** the codebase currently uses a branch year of 2027 as placeholder; this will be updated to 2022 once the calibration window is finalised.
 
 
+### 11.2 Potential future model uses
 
-Because all three branches start from an identical population state, any differences in outcomes (deaths, treatment failures, resistance prevalence) are **causally attributable**, within the model, to the policy differences alone.
+Although the initial application focuses exclusively on burden estimation, the model architecture is designed to support **policy comparison** in subsequent work. The same branching mechanism that enables the counterfactual can be used to evaluate the consequences of alternative prescribing policies, diagnostic strategies, or access interventions by running additional branches from the same population snapshot with modified parameter sets.
 
-That causal attribution is internal to the model structure: the branches are counterfactual experiments conducted on a shared simulated population, not claims that the listed intervention multipliers are directly transportable effect sizes for any specific real-world programme.
-
-
-### 11.2 Policy parameters
-
-Each branch can adjust the following parameters. A dash (—) means the parameter is left at its default value:
-
-| Parameter | Baseline | Stewardship | Counterfactual | Effect |
-|-----------|----------|-------------|----------------|-------------|
-| `drug_selection_temperature` | — | x0.65 | — | Makes prescribing more deterministic (less random variation in drug choice) — stewardship guidelines reduce idiosyncratic prescribing |
-| `bacterial_testing_rate_multiplier` | — | x1.5 | — | 50% more bacterial cultures ordered — better pathogen identification |
-| `resistance_testing_rate_multiplier` | — | x1.5 | — | 50% more susceptibility testing — clinicians know which drugs will work |
-| `reserve_drug_penalty_multiplier` | — | x2.0 | — | Doubles the prescribing barrier for last-resort antibiotics — discourages casual use of carbapenems, colistin, etc. |
-| `drug_initiation_rate_multiplier` | — | x0.85 | — | 15% fewer antibiotic courses started — reflects "watchful waiting" and avoiding unnecessary prescriptions |
-| `drug_cessation_rate_multiplier` | — | x1.2 | — | Courses are 20% shorter on average — reflecting evidence that shorter courses are often equally effective |
-| `counterfactual_resistance_multiplier` | — | — | 0.0 | Multiplies all resistance levels by zero — instantly creates a resistance-free world |
-| `clear_all_resistance_on_branch_start` | false | false | true | Wipes all microbiome and infection resistance at the branch point |
-
-
-
-These policy parameters should therefore be read as scenario levers rather than empirically fixed intervention coefficients. They are intended to represent the direction and approximate magnitude of stewardship packages, diagnostic expansion, and resistance-removal counterfactuals so that branch comparisons address questions of mechanism, trade-off, and plausible order of effect, rather than serve as literal forecasts for any single programme design.
-
-
-### 11.3 Key simulation constants
-
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `SIMULATION_START_YEAR` | 1930.0 | Calendar year at day 0 — early enough to capture the pre-antibiotic era |
-| `POLICY_BRANCH_YEAR` | 2027.0 | Year when the three policy branches diverge |
-| `INFECTION_EPS` | 0.001 | Minimum meaningful infection level (below this, the infection is treated as cleared) |
-| `MICROBIOME_MAJORITY_THRESHOLD` | 0.5 | If >50% of a species in the microbiome carries a resistance mechanism, it is classified as "majority resistant" |
-| `MAX_MECHANISM_PROFILES` | 200 | Reservoir sample size per bacteria for mechanism profile caching (performance optimisation) |
-
-
-
-These constants are internal modelling choices selected for numerical stability, interpretability, and runtime feasibility. They should not be read as externally validated biological thresholds unless explicitly stated elsewhere.
+Potential future applications include comparing antibiotic stewardship packages (e.g., narrower empiric prescribing, expanded susceptibility testing, shorter course durations), evaluating the trade-off between restricting reserve drugs and preserving last-resort efficacy, and quantifying the projected impact of improved point-of-care diagnostics on resistance trajectories and mortality over multi-decade horizons.
 
 ---
 
@@ -1821,7 +1839,7 @@ The central design judgement has been to retain the features most likely to matt
 
 Several of the appendices that follow list exact configuration values and enum definitions. Those tables are included for transparency and reproducibility, but they should still be read in the context established above: many entries are implementation defaults, calibration targets, or structural coding choices rather than direct empirical measurements. Where this document presents an exact value, that should not automatically be interpreted as implying an equivalent degree of empirical certainty.
 
-1. **Abstract drug levels**: Antibiotic concentrations are modelled as dimensionless units rather than true pharmacokinetic concentrations (mg/L). This allows the model to capture the *relative* dynamics of drug accumulation and clearance, but it means model values cannot be compared directly with MIC breakpoints, therapeutic drug monitoring results, or compartment-specific pharmacokinetic measurements from clinical microbiology or pharmacology practice.
+1. **Abstract drug levels**: Antibiotic concentrations are modelled as dimensionless units rather than true pharmacokinetic concentrations (mg/L). This allows the model to capture the *relative* dynamics of drug accumulation and clearance, but it means model values cannot be compared directly with MIC breakpoints, therapeutic drug monitoring results, or compartment-specific pharmacokinetic measurements from clinical microbiology or pharmacology practice. In particular, the model does not implement pharmacokinetic/pharmacodynamic (PK/PD) target-attainment analysis — it does not compute AUC/MIC or T>MIC indices, nor does it model the Cmax and distribution volume differences between patient subgroups (e.g., critically ill patients with altered volumes of distribution, or renal impairment affecting aminoglycoside and vancomycin clearance). Full mechanistic PK/PD frameworks can generate organism-specific probability-of-target-attainment curves and inform optimal dosing regimens (Nielsen EI & Friberg LE, 2013), which is beyond the scope of this policy-comparison model. The practical consequence is that the model's drug-level dynamics can reproduce the broad direction of resistance selection associated with sub-therapeutic exposure, but cannot support dosing-optimisation analyses or precisely model regimens where PK/PD target attainment drives clinical outcome.
 
 2. **No explicit strain competition**: Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. The model therefore cannot represent scenarios in which clonal replacement, compensatory evolution, or near-cost-free resistance leads to durable dominance of resistant strains in the absence of ongoing antibiotic selection. That said, the model does capture several distinct mechanisms by which antibiotic use promotes resistance in the microbiome: (i) a *microbiome disruption reservoir* that accumulates while drugs are active and decays with a configurable half-life (`antibiotic_disruption_decay_half_life_days`), raising future colonisation risk; (ii) *de novo resistance emergence* in the microbiome, whose rate is amplified by current drug pressure via `microbiome_de_novo_multiplier`; (iii) *selective maintenance* of existing resistance — mechanisms only revert when no selecting drug is active, so ongoing treatment blocks loss of resistance; (iv) daily bidirectional *infection–microbiome resistance spillover* governed by `microbiome_resistance_transfer_probability_per_day`; and (v) *horizontal gene transfer amplified by antibiotic pressure* through `hgt_antibiotic_pressure_multiplier`. Together these five pathways mean that antibiotic exposure promotes and sustains microbiome resistance through multiple complementary routes, even though the model does not track explicit clonal competition between resistant and susceptible lineages.
 
@@ -1830,6 +1848,8 @@ Several of the appendices that follow list exact configuration values and enum d
 4. **Static vaccine model**: Vaccinated individuals have a fixed proportional reduction in infection risk. Vaccine effects do not depend on background prevalence (no herd immunity dynamics), and vaccine-driven serotype or lineage replacement is not captured. The vaccine layer should therefore be interpreted as a simplified background modifier on acquisition risk rather than a full transmission model of vaccine ecology.
 
 5. **Broad regional groupings**: The model uses continental-level regions (e.g., "Europe", "Africa") rather than country-level or hospital-level variation. Antibiotic consumption patterns, testing capacity, pathogen mix, and resistance rates can vary dramatically between countries and institutions within the same region. The regional layer should therefore be read as a coarse structuring device for global comparisons, not as a substitute for country-specific or centre-specific epidemiology.
+
+6. **No person-to-person transmission network**: Community infection rates are driven by organism-specific log-odds parameters calibrated to match observed incidence, not by direct contacts between simulated individuals. There is no explicit transmission network, no basic reproduction number (R₀), and no herd-immunity dynamic. Hospital acquisition is the one partial exception: nosocomial infection rates scale with the current hospital census, creating an implicit density-dependence within the inpatient population. The absence of a transmission model means the simulation cannot reproduce epidemic waves, outbreak amplification, or the impact of interventions — such as isolation, contact tracing, or infection-control procedures — that primarily work through blocking transmission chains. It also means community resistance prevalence is driven by selection, reversion, HGT, and calibrated acquisition rates rather than by strain spread from person to person. This is a deliberate trade-off: adding a full population-transmission layer for 42 organisms would require extensive additional parameterisation and would substantially increase runtime, while the primary policy questions addressed here (prescribing, stewardship, diagnostics, and access) are primarily mediated through selection pressure rather than transmission dynamics.
 
 ---
 
@@ -2046,7 +2066,7 @@ See [Section 7.1](#71-resistance-mechanisms) for the full table.
 |------|-------------|
 | `AtInfection` | Acquired at community infection |
 | `AtInfectionHosp` | Acquired at hospital infection |
-| `AtInfectionTB` | Acquired at carrier-to-infection (treated-by) conversion |
+| `AtInfectionTB` | Acquired at MDR-TB infection event; rifampicin resistance (`rpoB`) is pre-seeded deterministically because MDR-TB is by definition rifampicin-resistant |
 | `DuringInfection` | De novo emergence during treatment |
 | `HGT` | Horizontal gene transfer |
 
@@ -2359,7 +2379,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | ceftazidime | cephalosporins_3_4 | 20080 | 10 | 0.08 | 2 | 3 | 4e-10 | 1.5 | 0.3 |
 | cefepime | cephalosporins_3_4 | 24195 | 10 | 0.08 | 2 | 4 | 1e-9 | 1.5 | 0.3 |
 | ceftaroline | cephalosporins_3_4 | 29305 | 10 | 0.11 | 2 | 3 | 5e-10 | 1.5 | 0.3 |
-| ceftolozane_tazobactam | unknown | 30295 | 10 | 0.125 | 2 | 3 | 0 | 1.5 | 0.3 |
+| ceftolozane_tazobactam | cephalosporins_3_4 | 30295 | 10 | 0.125 | 2 | 3 | 0 | 1.5 | 0.3 |
 | cefiderocol | unknown | 33510 | 10 | 0.1 | 2 | 3 | 0 | 1.5 | 0.3 |
 | meropenem | carbapenems | 24195 | 10 | 0.04 | 2 | 5 | 6e-10 | 1.5 | 0.3 |
 | imipenem_c | carbapenems | 20080 | 10 | 0.04 | 2 | 3 | 1e-9 | 1.5 | 0.3 |
@@ -2381,8 +2401,8 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | minocycline | tetracyclines | 14965 | 10 | 0.67 | 2 | 3 | 1.5e-9 | 1.5 | 0.3 |
 | tigecycline | unknown | 28040 | 10 | 1.75 | 2 | 3 | 0 | 1.5 | 0.3 |
 | vancomycin | glycopeptides | 10215 | 10 | 0.25 | 2 | 2.5 | 6e-9 | 1.5 | 0.3 |
-| teicoplanin | glycopeptides | 21170 | 10 | 3.5 | 2 | 3 | 0 | 1.5 | 0.3 |
-| dalbavancin | glycopeptides | 30660 | 10 | 10 | 2 | 3 | 0 | 1.5 | 0.3 |
+| teicoplanin | lipoglycopeptides | 21170 | 10 | 3.5 | 2 | 3 | 0 | 1.5 | 0.3 |
+| dalbavancin | lipoglycopeptides | 30660 | 10 | 10 | 2 | 3 | 0 | 1.5 | 0.3 |
 | linezolid | oxazolidinones | 25550 | 10 | 0.21 | 2 | 2 | 8e-9 | 1.5 | 0.3 |
 | tedizolid | oxazolidinones | 30660 | 10 | 0.5 | 2 | 3 | 4e-9 | 1.5 | 0.3 |
 | daptomycin | unknown | 27375 | 10 | 0.33 | 2 | 3 | 0 | 1.5 | 0.3 |
@@ -2393,7 +2413,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | fosfomycin | unknown | 10590 | 10 | 0.15 | 2 | 3 | 0 | 1.5 | 0.3 |
 | retapamulin | unknown | 28405 | 10 | 0.25 | 2 | 3 | 0 | 1.5 | 0.3 |
 | fusidic_a | unknown | 11680 | 10 | 0.375 | 2 | 3 | 0 | 1.5 | 0.3 |
-| metronidazole | unknown | 10965 | 10 | 0.33 | 2 | 3 | 2e-9 | 1.5 | 0.3 |
+| metronidazole | nitroimidazoles | 10965 | 10 | 0.33 | 2 | 3 | 2e-9 | 1.5 | 0.3 |
 | fidaxomicin | unknown | 29565 | 10 | 0.5 | 2 | 3 | 0 | 1.5 | 0.3 |
 | furazolidone | unknown | 9125 | 10 | 0.25 | 2 | 3 | 0 | 1.5 | 0.3 |
 | rifampicin | unknown | 13140 | 10 | 0.25 | 2 | 3 | 4e-9 | 1.5 | 0.3 |
@@ -2404,7 +2424,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | ceftazidime_avibactam | cephalosporins_3_4 | 27740 | 10 | 0.08 | 2 | 3 | 0 | 1.5 | 0.3 |
 | meropenem_vaborbactam | carbapenems | 32045 | 10 | 0.04 | 2 | 3 | 0 | 1.5 | 0.3 |
 | colistin | polymyxins | 8020 | 10 | 0.08 | 2 | 4 | 2.5e-8 | 1.5 | 0.3 |
-| flucloxacillin | unknown | 14600 | 10 | 0.04 | 2 | 1.6 | 1e-8 | 1.5 | 0.3 |
+| flucloxacillin | penicillins | 14600 | 10 | 0.04 | 2 | 1.6 | 1e-8 | 1.5 | 0.3 |
 | aztreonam_avibactam | cephalosporins_3_4 | 34675 | 10 | 0.08 | 2 | 3 | 0 | 1.5 | 0.3 |
 | cefixime | cephalosporins_3_4 | 21535 | 10 | 0.125 | 2 | 2.8 | 5e-10 | 1.5 | 0.3 |
 
@@ -2423,14 +2443,14 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | enterococcus_faecium | -16.5 | 0.01 | 0.48 | 5 | 0.06 | 11 | 0.0075 | 0.5 | 1 | -7 | 4e-4 |
 | escherichia_coli | -11.5 | 0.01 | 0.5 | 5 | 0.005 | 5.7 | 0.025 | 0.5 | 1 | -9.5 | 4e-4 |
 | klebsiella_pneumoniae | -15.3 | 0.01 | 0.52 | 5 | 0.03 | 9 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 |
-| morganella_spp. | -15.2 | 0.01 | 0.48 | 5 | 0.1 | 8.7 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
+| morganella_spp. | -15.5 | 0.01 | 0.48 | 5 | 0.1 | 8.7 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
 | proteus_spp. | -15.7 | 0.01 | 0.5 | 5 | 0.08 | 6.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
 | serratia_spp. | -16.5 | 0.01 | 0.48 | 5 | 0.1 | 8.8 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| p_stuartii | -15.5 | 0.01 | 0.5 | 5 | 0.09 | 7.6 | 0.0045 | 0.75 | 1 | -14 | 4e-4 |
+| p_stuartii | -16.1 | 0.01 | 0.5 | 5 | 0.09 | 7.6 | 0.0045 | 0.75 | 1 | -14 | 4e-4 |
 | pseudomonas_aeruginosa | -15.5 | 0.01 | 0.55 | 5 | 0.12 | 7.5 | 0.0075 | 0.8 | 1 | -6.5 | 4e-4 |
-| stenotrophomonas_maltophilia | -16.2 | 0.01 | 0.45 | 5 | 0.06 | 6 | 0.0045 | 0.9 | 2.5 | -8 | 4e-4 |
+| stenotrophomonas_maltophilia | -18.5 | 0.01 | 0.45 | 5 | 0.06 | 6 | 0.0045 | 0.9 | 2.5 | -8 | 4e-4 |
 | staphylococcus_aureus | -12.6 | 0.01 | 0.6 | 5 | 0.05 | 8.5 | 0.015 | 0.5 | 1 | -7.3 | 4e-4 |
-| staphylococcus_epidermidis | -15.5 | 0.01 | 0.35 | 4 | 0.015 | 11.3 | 0.0045 | 1 | 3 | -8 | 4e-4 |
+| staphylococcus_epidermidis | -17.5 | 0.01 | 0.35 | 4 | 0.015 | 11.3 | 0.0045 | 1 | 3 | -8 | 4e-4 |
 | streptococcus_pneumoniae | -12.7 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -10.5 | 4e-4 |
 | salmonella_enterica_serovar_typhi | -17 | 0.01 | 0.45 | 5 | 0.003 | -4 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
 | salmonella_enterica_serovar_paratyphi_a | -16.5 | 0.01 | 0.45 | 5 | 0.15 | 1.1 | 0.0045 | 0.5 | 1 | -9 | 4e-4 |
@@ -2446,18 +2466,18 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | neisseria_meningitidis | -18.3 | 0.01 | 0.65 | 5 | 0.05 | 9.8 | 0.01 | 3 | 1 | -8.6 | 4e-4 |
 | listeria_monocytogenes | -19.6 | 0.01 | 0.25 | 5 | 0.1 | 9.2 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
 | clostridioides_difficile | -15.2 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -11 | 4e-4 |
-| bacteroides_fragilis | -15.6 | 0.01 | 0.42 | 5 | 0.004 | 11.5 | 0.0045 | 1.2 | 2 | -14 | 4e-4 |
+| bacteroides_fragilis | -15.3 | 0.01 | 0.42 | 5 | 0.004 | 11.5 | 0.0045 | 1.2 | 2 | -14 | 4e-4 |
 | campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -20 | 4e-4 |
 | enterobacter_cloacae | -15.5 | 0.01 | 0.5 | 5 | 0.04 | 11.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| yersinia_enterocolitica | -15.7 | 0.01 | 0.45 | 5 | 0.25 | 7 | 0.0045 | 0.5 | 1 | -9.5 | 4e-4 |
-| moraxella_catarrhalis | -15.3 | 0.01 | 0.55 | 5 | 0.05 | 12.3 | 0.0045 | 2 | 1 | -10.8 | 4e-4 |
-| treponema_pallidum | -13.7 | 0.01 | 0.18 | 5 | 0.35 | 8 | 0.0045 | 0.6 | 1 | -11 | 4e-4 |
+| yersinia_enterocolitica | -16 | 0.01 | 0.45 | 5 | 0.25 | 7 | 0.0045 | 0.5 | 1 | -9.5 | 4e-4 |
+| moraxella_catarrhalis | -15 | 0.01 | 0.55 | 5 | 0.05 | 12.3 | 0.0045 | 2 | 1 | -10.8 | 4e-4 |
+| treponema_pallidum | -13.2 | 0.01 | 0.18 | 5 | 0.35 | 8 | 0.0045 | 0.6 | 1 | -11 | 4e-4 |
 | bordetella_pertussis | -13.3 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -11 | 4e-4 |
 | helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -250 | 4e-4 |
 | mdr_mycobacterium_tuberculosis | -16 | 0.01 | 0.15 | 5 | 0.0015 | 1 | 6e-4 | 2 | 1 | -38 | 4e-4 |
 | mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 2 | 0.015 | 0.5 | 1 | -14 | 4e-4 |
-| legionella_pneumophila | -16 | 0.01 | 0.55 | 5 | 0.01 | 2 | 0.0085 | 0.5 | 1 | -14 | 4e-4 |
-| burkholderia_cepacia_complex | -17.5 | 0.01 | 0.45 | 5 | 0.01 | 2 | 0.0075 | 0.5 | 1 | -14 | 4e-4 |
+| legionella_pneumophila | -15.8 | 0.01 | 0.55 | 5 | 0.01 | 2 | 0.0085 | 0.5 | 1 | -14 | 4e-4 |
+| burkholderia_cepacia_complex | -19 | 0.01 | 0.45 | 5 | 0.01 | 2 | 0.0075 | 0.5 | 1 | -14 | 4e-4 |
 
 ### B.4 Drug–Bacteria Potency Matrix
 
@@ -3611,15 +3631,15 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | shigella_spp. | aztreonam_avibactam | 0.9 | 1 |
 | shigella_spp. | cefixime | 0.75 | 1 |
 | neisseria_gonorrhoeae | sulfanilamide | 0.1 | 1 |
-| neisseria_gonorrhoeae | penicillin_g | 0.9 | 1 |
+| neisseria_gonorrhoeae | penicillin_g | 0.9 | 4 |
 | neisseria_gonorrhoeae | ampicillin | 0.85 | 1 |
-| neisseria_gonorrhoeae | amoxicillin | 0.85 | 1 |
+| neisseria_gonorrhoeae | amoxicillin | 0.85 | 2.5 |
 | neisseria_gonorrhoeae | piperacillin | 0.8 | 1 |
 | neisseria_gonorrhoeae | ticarcillin | 0.8 | 1 |
 | neisseria_gonorrhoeae | cephalexin | 0.7 | 1 |
 | neisseria_gonorrhoeae | cefazolin | 0.75 | 1 |
 | neisseria_gonorrhoeae | cefuroxime | 0.85 | 1 |
-| neisseria_gonorrhoeae | ceftriaxone | 0.95 | 1 |
+| neisseria_gonorrhoeae | ceftriaxone | 0.95 | 12 |
 | neisseria_gonorrhoeae | ceftazidime | 0.9 | 1 |
 | neisseria_gonorrhoeae | cefepime | 0.9 | 1 |
 | neisseria_gonorrhoeae | ceftaroline | 0.8 | 1 |
@@ -3630,17 +3650,17 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | ertapenem | 0.9 | 0.005 |
 | neisseria_gonorrhoeae | aztreonam | 0.9 | 1 |
 | neisseria_gonorrhoeae | erythromycin | 0.7 | 1 |
-| neisseria_gonorrhoeae | azithromycin | 0.7 | 1 |
+| neisseria_gonorrhoeae | azithromycin | 0.7 | 5 |
 | neisseria_gonorrhoeae | clarithromycin | 0.7 | 1 |
-| neisseria_gonorrhoeae | gentamicin | 0.7 | 1 |
+| neisseria_gonorrhoeae | gentamicin | 0.7 | 2 |
 | neisseria_gonorrhoeae | tobramycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | amikacin | 0.7 | 1 |
-| neisseria_gonorrhoeae | ciprofloxacin | 0.9 | 1 |
+| neisseria_gonorrhoeae | ciprofloxacin | 0.9 | 5 |
 | neisseria_gonorrhoeae | levofloxacin | 0.85 | 1 |
 | neisseria_gonorrhoeae | moxifloxacin | 0.8 | 1 |
 | neisseria_gonorrhoeae | ofloxacin | 0.85 | 1 |
 | neisseria_gonorrhoeae | tetracycline | 0.8 | 1 |
-| neisseria_gonorrhoeae | doxycycline | 0.9 | 1 |
+| neisseria_gonorrhoeae | doxycycline | 0.9 | 4 |
 | neisseria_gonorrhoeae | minocycline | 0.85 | 1 |
 | neisseria_gonorrhoeae | tigecycline | 0.1 | 1 |
 | neisseria_gonorrhoeae | dalbavancin | 0 | 0.005 |
@@ -3664,7 +3684,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | colistin | 0.05 | 0.005 |
 | neisseria_gonorrhoeae | flucloxacillin | 0.01 | 1 |
 | neisseria_gonorrhoeae | aztreonam_avibactam | 0.8 | 1 |
-| neisseria_gonorrhoeae | cefixime | 0.55 | 1 |
+| neisseria_gonorrhoeae | cefixime | 0.55 | 6 |
 | streptococcus_pyogenes | sulfanilamide | 0.1 | 1 |
 | streptococcus_pyogenes | penicillin_g | 1 | 1 |
 | streptococcus_pyogenes | ampicillin | 0.95 | 1 |
@@ -7589,243 +7609,243 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 
 | Bacteria | Mechanism | Emergence rate/day |
 | --- | ---: | ---: |
-| acinetobacter_baumannii | enzyme_esbl_ctx_m | 0.01 |
-| acinetobacter_baumannii | enzyme_esbl_tem | 0.01 |
-| acinetobacter_baumannii | enzyme_esbl_shv | 0.01 |
-| acinetobacter_baumannii | enzyme_kpc | 0.01 |
-| acinetobacter_baumannii | enzyme_ndm_vim | 0.01 |
-| acinetobacter_baumannii | enzyme_oxa_48 | 0.01 |
-| acinetobacter_baumannii | enzyme_ampc_cmy | 0.01 |
-| acinetobacter_baumannii | enzyme_ampc_dha | 0.01 |
-| acinetobacter_baumannii | mutation_gyra_primary | 0.1 |
-| acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.1 |
-| acinetobacter_baumannii | protection_qnr | 0.1 |
-| acinetobacter_baumannii | enzyme_16s_rrmt | 0.8 |
+| acinetobacter_baumannii | enzyme_esbl_ctx_m | 0.006 |
+| acinetobacter_baumannii | enzyme_esbl_tem | 0.006 |
+| acinetobacter_baumannii | enzyme_esbl_shv | 0.006 |
+| acinetobacter_baumannii | enzyme_kpc | 0.006 |
+| acinetobacter_baumannii | enzyme_ndm_vim | 0.006 |
+| acinetobacter_baumannii | enzyme_oxa_48 | 0.006 |
+| acinetobacter_baumannii | enzyme_ampc_cmy | 0.006 |
+| acinetobacter_baumannii | enzyme_ampc_dha | 0.006 |
+| acinetobacter_baumannii | mutation_gyra_primary | 0.09 |
+| acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.09 |
+| acinetobacter_baumannii | protection_qnr | 0.09 |
+| acinetobacter_baumannii | enzyme_16s_rrmt | 10 |
 | acinetobacter_baumannii | enzyme_cat | 0.01 |
 | acinetobacter_baumannii | modification_mcr_1 | 0.01 |
-| acinetobacter_baumannii | global_efflux_pump | 0.03 |
+| acinetobacter_baumannii | global_efflux_pump | 0.025 |
 | acinetobacter_baumannii | global_porin_loss | 1e-4 |
-| acinetobacter_baumannii | mutation_folate_pathway | 0.03 |
-| acinetobacter_baumannii | enzyme_fos_a | 0.003 |
-| acinetobacter_baumannii | mutation_rpo_b | 0.01 |
-| acinetobacter_baumannii | protection_tet_m | 0.06 |
-| acinetobacter_baumannii | enzyme_aac_aph | 0.8 |
-| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 0.01 |
-| acinetobacter_baumannii | efflux_tet_abc | 0.003 |
-| acinetobacter_baumannii | mutation_pbp_mosaic | 0.01 |
-| citrobacter_spp. | enzyme_esbl_ctx_m | 0.01 |
-| citrobacter_spp. | enzyme_esbl_tem | 0.01 |
-| citrobacter_spp. | enzyme_esbl_shv | 0.01 |
-| citrobacter_spp. | enzyme_kpc | 0.002 |
-| citrobacter_spp. | enzyme_ndm_vim | 0.002 |
-| citrobacter_spp. | enzyme_oxa_48 | 0.002 |
-| citrobacter_spp. | enzyme_ampc_cmy | 0.01 |
-| citrobacter_spp. | enzyme_ampc_dha | 0.01 |
+| acinetobacter_baumannii | mutation_folate_pathway | 0.05 |
+| acinetobacter_baumannii | enzyme_fos_a | 0.0035 |
+| acinetobacter_baumannii | mutation_rpo_b | 0.045 |
+| acinetobacter_baumannii | protection_tet_m | 0.05 |
+| acinetobacter_baumannii | enzyme_aac_aph | 10 |
+| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 0.006 |
+| acinetobacter_baumannii | efflux_tet_abc | 0.0025 |
+| acinetobacter_baumannii | mutation_pbp_mosaic | 0.006 |
+| citrobacter_spp. | enzyme_esbl_ctx_m | 0.001 |
+| citrobacter_spp. | enzyme_esbl_tem | 0.001 |
+| citrobacter_spp. | enzyme_esbl_shv | 0.001 |
+| citrobacter_spp. | enzyme_kpc | 0.001 |
+| citrobacter_spp. | enzyme_ndm_vim | 0.001 |
+| citrobacter_spp. | enzyme_oxa_48 | 0.001 |
+| citrobacter_spp. | enzyme_ampc_cmy | 0.001 |
+| citrobacter_spp. | enzyme_ampc_dha | 0.001 |
 | citrobacter_spp. | mutation_gyra_primary | 0.04 |
-| citrobacter_spp. | mutation_gyra_parc_secondary | 2e-4 |
-| citrobacter_spp. | protection_qnr | 0.03 |
-| citrobacter_spp. | enzyme_16s_rrmt | 0.15 |
+| citrobacter_spp. | mutation_gyra_parc_secondary | 3e-4 |
+| citrobacter_spp. | protection_qnr | 0.04 |
+| citrobacter_spp. | enzyme_16s_rrmt | 0.5 |
 | citrobacter_spp. | enzyme_cat | 0.03 |
-| citrobacter_spp. | efflux_acrab_tolc | 0.01 |
-| citrobacter_spp. | efflux_mexxy_oprm | 0.01 |
-| citrobacter_spp. | modification_mcr_1 | 0.03 |
-| citrobacter_spp. | global_efflux_pump | 0.002 |
-| citrobacter_spp. | global_porin_loss | 3e-4 |
-| citrobacter_spp. | mutation_folate_pathway | 0.008 |
-| citrobacter_spp. | mutation_nitroreductase | 0.01 |
-| citrobacter_spp. | enzyme_fos_a | 0.004 |
-| citrobacter_spp. | mutation_rpo_b | 0.04 |
+| citrobacter_spp. | efflux_acrab_tolc | 0.015 |
+| citrobacter_spp. | efflux_mexxy_oprm | 0.0015 |
+| citrobacter_spp. | modification_mcr_1 | 0.05 |
+| citrobacter_spp. | global_efflux_pump | 0.003 |
+| citrobacter_spp. | global_porin_loss | 5e-4 |
+| citrobacter_spp. | mutation_folate_pathway | 0.003 |
+| citrobacter_spp. | mutation_nitroreductase | 0.015 |
+| citrobacter_spp. | enzyme_fos_a | 0.005 |
+| citrobacter_spp. | mutation_rpo_b | 0.02 |
 | citrobacter_spp. | protection_tet_m | 0.004 |
-| citrobacter_spp. | enzyme_aac_aph | 0.2 |
+| citrobacter_spp. | enzyme_aac_aph | 0.5 |
 | citrobacter_spp. | efflux_tet_abc | 0.004 |
-| citrobacter_spp. | mutation_pbp_mosaic | 0.003 |
-| enterobacter_spp. | enzyme_esbl_ctx_m | 0.0015 |
-| enterobacter_spp. | enzyme_esbl_tem | 0.0015 |
-| enterobacter_spp. | enzyme_esbl_shv | 0.0015 |
-| enterobacter_spp. | enzyme_kpc | 0.0015 |
-| enterobacter_spp. | enzyme_ndm_vim | 0.0015 |
-| enterobacter_spp. | enzyme_oxa_48 | 0.0015 |
-| enterobacter_spp. | enzyme_ampc_cmy | 0.0015 |
-| enterobacter_spp. | enzyme_ampc_dha | 0.0015 |
-| enterobacter_spp. | mutation_gyra_primary | 0.0015 |
-| enterobacter_spp. | mutation_gyra_parc_secondary | 0.0015 |
-| enterobacter_spp. | protection_qnr | 0.0015 |
+| citrobacter_spp. | mutation_pbp_mosaic | 0.0015 |
+| enterobacter_spp. | enzyme_esbl_ctx_m | 0.001 |
+| enterobacter_spp. | enzyme_esbl_tem | 0.001 |
+| enterobacter_spp. | enzyme_esbl_shv | 0.001 |
+| enterobacter_spp. | enzyme_kpc | 3e-4 |
+| enterobacter_spp. | enzyme_ndm_vim | 3e-4 |
+| enterobacter_spp. | enzyme_oxa_48 | 3e-4 |
+| enterobacter_spp. | enzyme_ampc_cmy | 0.001 |
+| enterobacter_spp. | enzyme_ampc_dha | 0.001 |
+| enterobacter_spp. | mutation_gyra_primary | 5e-4 |
+| enterobacter_spp. | mutation_gyra_parc_secondary | 5e-4 |
+| enterobacter_spp. | protection_qnr | 5e-4 |
 | enterobacter_spp. | enzyme_16s_rrmt | 0.3 |
-| enterobacter_spp. | enzyme_cat | 0.015 |
-| enterobacter_spp. | efflux_acrab_tolc | 0.0015 |
-| enterobacter_spp. | modification_mcr_1 | 0.1 |
-| enterobacter_spp. | global_efflux_pump | 0.0015 |
-| enterobacter_spp. | global_porin_loss | 0.001 |
-| enterobacter_spp. | mutation_folate_pathway | 0.015 |
-| enterobacter_spp. | mutation_nitroreductase | 0.01 |
-| enterobacter_spp. | enzyme_fos_a | 0.03 |
-| enterobacter_spp. | mutation_rpo_b | 0.1 |
-| enterobacter_spp. | protection_tet_m | 0.006 |
+| enterobacter_spp. | enzyme_cat | 0.004 |
+| enterobacter_spp. | efflux_acrab_tolc | 5e-4 |
+| enterobacter_spp. | modification_mcr_1 | 0.03 |
+| enterobacter_spp. | global_efflux_pump | 5e-4 |
+| enterobacter_spp. | global_porin_loss | 5e-4 |
+| enterobacter_spp. | mutation_folate_pathway | 0.001 |
+| enterobacter_spp. | mutation_nitroreductase | 0.005 |
+| enterobacter_spp. | enzyme_fos_a | 0.02 |
+| enterobacter_spp. | mutation_rpo_b | 0.03 |
+| enterobacter_spp. | protection_tet_m | 0.01 |
 | enterobacter_spp. | enzyme_aac_aph | 0.3 |
-| enterobacter_spp. | efflux_tet_abc | 0.006 |
-| enterobacter_spp. | mutation_pbp_mosaic | 0.006 |
-| enterococcus_faecalis | target_site_pbp2a_meca | 4.5e-6 |
-| enterococcus_faecalis | target_site_van_a | 0.0045 |
-| enterococcus_faecalis | target_site_van_b | 0.0045 |
-| enterococcus_faecalis | mutation_gyra_primary | 4.5e-4 |
-| enterococcus_faecalis | mutation_gyra_parc_secondary | 1e-4 |
-| enterococcus_faecalis | target_site_erm_b | 4.5e-4 |
-| enterococcus_faecalis | target_site_cfr | 0.001 |
-| enterococcus_faecalis | enzyme_cat | 6e-5 |
-| enterococcus_faecalis | global_efflux_pump | 1e-4 |
-| enterococcus_faecalis | global_porin_loss | 3e-5 |
-| enterococcus_faecalis | mutation_folate_pathway | 0.0045 |
-| enterococcus_faecalis | mutation_nitroreductase | 0.0045 |
-| enterococcus_faecalis | mutation_mpr_f | 0.0015 |
-| enterococcus_faecalis | mutation_rpo_b | 0.0015 |
-| enterococcus_faecalis | protection_fus_b | 1.5e-4 |
-| enterococcus_faecalis | protection_tet_m | 4.5e-4 |
-| enterococcus_faecalis | enzyme_aac_aph | 4.5e-6 |
-| enterococcus_faecalis | mutation_23s_rrna | 1e-4 |
-| enterococcus_faecalis | mutation_pbp_mosaic | 4.5e-6 |
-| enterococcus_faecium | target_site_van_a | 0.013 |
-| enterococcus_faecium | target_site_van_b | 0.013 |
-| enterococcus_faecium | mutation_gyra_primary | 8e-4 |
+| enterobacter_spp. | efflux_tet_abc | 0.01 |
+| enterobacter_spp. | mutation_pbp_mosaic | 0.001 |
+| enterococcus_faecalis | target_site_pbp2a_meca | 2e-5 |
+| enterococcus_faecalis | target_site_van_a | 0.02 |
+| enterococcus_faecalis | target_site_van_b | 0.02 |
+| enterococcus_faecalis | mutation_gyra_primary | 0.002 |
+| enterococcus_faecalis | mutation_gyra_parc_secondary | 3e-4 |
+| enterococcus_faecalis | target_site_erm_b | 0.002 |
+| enterococcus_faecalis | target_site_cfr | 0.003 |
+| enterococcus_faecalis | enzyme_cat | 2e-4 |
+| enterococcus_faecalis | global_efflux_pump | 3e-4 |
+| enterococcus_faecalis | global_porin_loss | 1e-4 |
+| enterococcus_faecalis | mutation_folate_pathway | 0.02 |
+| enterococcus_faecalis | mutation_nitroreductase | 0.02 |
+| enterococcus_faecalis | mutation_mpr_f | 0.005 |
+| enterococcus_faecalis | mutation_rpo_b | 0.005 |
+| enterococcus_faecalis | protection_fus_b | 5e-4 |
+| enterococcus_faecalis | protection_tet_m | 0.002 |
+| enterococcus_faecalis | enzyme_aac_aph | 2e-5 |
+| enterococcus_faecalis | mutation_23s_rrna | 3e-4 |
+| enterococcus_faecalis | mutation_pbp_mosaic | 1.5e-5 |
+| enterococcus_faecium | target_site_van_a | 0.008 |
+| enterococcus_faecium | target_site_van_b | 0.008 |
+| enterococcus_faecium | mutation_gyra_primary | 5e-4 |
 | enterococcus_faecium | mutation_gyra_parc_secondary | 0.002 |
-| enterococcus_faecium | enzyme_16s_rrmt | 0.004 |
-| enterococcus_faecium | target_site_erm_b | 0.013 |
-| enterococcus_faecium | target_site_cfr | 0.013 |
+| enterococcus_faecium | enzyme_16s_rrmt | 0.003 |
+| enterococcus_faecium | target_site_erm_b | 0.008 |
+| enterococcus_faecium | target_site_cfr | 0.008 |
 | enterococcus_faecium | enzyme_cat | 0.0015 |
-| enterococcus_faecium | global_efflux_pump | 0.006 |
-| enterococcus_faecium | mutation_folate_pathway | 0.008 |
-| enterococcus_faecium | mutation_nitroreductase | 0.9 |
-| enterococcus_faecium | enzyme_fos_a | 0.9 |
-| enterococcus_faecium | mutation_mpr_f | 0.025 |
-| enterococcus_faecium | mutation_rpo_b | 0.25 |
-| enterococcus_faecium | protection_fus_b | 0.018 |
-| enterococcus_faecium | protection_tet_m | 0.006 |
-| enterococcus_faecium | enzyme_aac_aph | 0.03 |
-| enterococcus_faecium | mutation_23s_rrna | 0.002 |
-| enterococcus_faecium | mutation_pbp_mosaic | 0.02 |
-| enterococcus_faecium | efflux_mtr_cde | 0.002 |
-| escherichia_coli | enzyme_esbl_ctx_m | 3e-11 |
-| escherichia_coli | enzyme_esbl_tem | 3e-11 |
-| escherichia_coli | enzyme_esbl_shv | 3e-11 |
-| escherichia_coli | enzyme_kpc | 3e-11 |
-| escherichia_coli | enzyme_ndm_vim | 3e-11 |
-| escherichia_coli | enzyme_oxa_48 | 3e-11 |
-| escherichia_coli | enzyme_ampc_cmy | 3e-11 |
-| escherichia_coli | enzyme_ampc_dha | 3e-11 |
-| escherichia_coli | mutation_gyra_primary | 1e-6 |
-| escherichia_coli | mutation_gyra_parc_secondary | 1e-13 |
-| escherichia_coli | protection_qnr | 1e-6 |
-| escherichia_coli | enzyme_16s_rrmt | 1e-11 |
-| escherichia_coli | enzyme_cat | 1e-8 |
-| escherichia_coli | efflux_acrab_tolc | 1e-9 |
-| escherichia_coli | modification_mcr_1 | 1e-9 |
-| escherichia_coli | global_efflux_pump | 1e-9 |
-| escherichia_coli | global_porin_loss | 1e-12 |
-| escherichia_coli | mutation_folate_pathway | 1e-8 |
-| escherichia_coli | mutation_nitroreductase | 1e-11 |
-| escherichia_coli | enzyme_fos_a | 1e-10 |
-| escherichia_coli | mutation_rpo_b | 1e-9 |
-| escherichia_coli | protection_tet_m | 1e-10 |
-| escherichia_coli | enzyme_aac_aph | 1e-7 |
-| escherichia_coli | efflux_tet_abc | 1e-10 |
-| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-4 |
-| klebsiella_pneumoniae | enzyme_esbl_tem | 1e-4 |
-| klebsiella_pneumoniae | enzyme_esbl_shv | 1e-4 |
-| klebsiella_pneumoniae | enzyme_kpc | 1e-4 |
-| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-4 |
-| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-4 |
-| klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-4 |
-| klebsiella_pneumoniae | enzyme_ampc_dha | 1e-4 |
-| klebsiella_pneumoniae | mutation_gyra_primary | 0.0015 |
-| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.0015 |
-| klebsiella_pneumoniae | protection_qnr | 0.0015 |
-| klebsiella_pneumoniae | enzyme_16s_rrmt | 0.025 |
-| klebsiella_pneumoniae | enzyme_cat | 0.01 |
+| enterococcus_faecium | global_efflux_pump | 0.005 |
+| enterococcus_faecium | mutation_folate_pathway | 0.004 |
+| enterococcus_faecium | mutation_nitroreductase | 0.3 |
+| enterococcus_faecium | enzyme_fos_a | 0.3 |
+| enterococcus_faecium | mutation_mpr_f | 0.012 |
+| enterococcus_faecium | mutation_rpo_b | 0.12 |
+| enterococcus_faecium | protection_fus_b | 0.012 |
+| enterococcus_faecium | protection_tet_m | 0.004 |
+| enterococcus_faecium | enzyme_aac_aph | 0.025 |
+| enterococcus_faecium | mutation_23s_rrna | 0.0012 |
+| enterococcus_faecium | mutation_pbp_mosaic | 0.012 |
+| enterococcus_faecium | efflux_mtr_cde | 0.0012 |
+| escherichia_coli | enzyme_esbl_ctx_m | 1e-6 |
+| escherichia_coli | enzyme_esbl_tem | 1e-6 |
+| escherichia_coli | enzyme_esbl_shv | 1e-6 |
+| escherichia_coli | enzyme_kpc | 1e-6 |
+| escherichia_coli | enzyme_ndm_vim | 1e-6 |
+| escherichia_coli | enzyme_oxa_48 | 1e-6 |
+| escherichia_coli | enzyme_ampc_cmy | 1e-6 |
+| escherichia_coli | enzyme_ampc_dha | 1e-6 |
+| escherichia_coli | mutation_gyra_primary | 0.003 |
+| escherichia_coli | mutation_gyra_parc_secondary | 3e-4 |
+| escherichia_coli | protection_qnr | 0.003 |
+| escherichia_coli | enzyme_16s_rrmt | 1e-6 |
+| escherichia_coli | enzyme_cat | 1e-6 |
+| escherichia_coli | efflux_acrab_tolc | 1e-4 |
+| escherichia_coli | modification_mcr_1 | 1e-5 |
+| escherichia_coli | global_efflux_pump | 1e-4 |
+| escherichia_coli | global_porin_loss | 1e-7 |
+| escherichia_coli | mutation_folate_pathway | 1e-4 |
+| escherichia_coli | mutation_nitroreductase | 1e-6 |
+| escherichia_coli | enzyme_fos_a | 1e-6 |
+| escherichia_coli | mutation_rpo_b | 1e-5 |
+| escherichia_coli | protection_tet_m | 1e-6 |
+| escherichia_coli | enzyme_aac_aph | 0.001 |
+| escherichia_coli | efflux_tet_abc | 1e-6 |
+| klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-5 |
+| klebsiella_pneumoniae | enzyme_esbl_tem | 1e-5 |
+| klebsiella_pneumoniae | enzyme_esbl_shv | 1e-5 |
+| klebsiella_pneumoniae | enzyme_kpc | 1e-5 |
+| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-5 |
+| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-5 |
+| klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-5 |
+| klebsiella_pneumoniae | enzyme_ampc_dha | 1e-5 |
+| klebsiella_pneumoniae | mutation_gyra_primary | 0.001 |
+| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.001 |
+| klebsiella_pneumoniae | protection_qnr | 0.001 |
+| klebsiella_pneumoniae | enzyme_16s_rrmt | 0.015 |
+| klebsiella_pneumoniae | enzyme_cat | 0.002 |
 | klebsiella_pneumoniae | efflux_acrab_tolc | 0.001 |
 | klebsiella_pneumoniae | porin_loss_ompk35_36 | 1e-5 |
-| klebsiella_pneumoniae | modification_mcr_1 | 0.015 |
-| klebsiella_pneumoniae | global_efflux_pump | 5e-4 |
-| klebsiella_pneumoniae | global_porin_loss | 1e-8 |
-| klebsiella_pneumoniae | mutation_folate_pathway | 0.0045 |
-| klebsiella_pneumoniae | mutation_nitroreductase | 0.006 |
-| klebsiella_pneumoniae | enzyme_fos_a | 0.006 |
-| klebsiella_pneumoniae | mutation_rpo_b | 6e-4 |
-| klebsiella_pneumoniae | protection_tet_m | 1e-4 |
-| klebsiella_pneumoniae | enzyme_aac_aph | 0.075 |
-| klebsiella_pneumoniae | efflux_tet_abc | 1e-4 |
-| morganella_spp. | enzyme_esbl_ctx_m | 0.002 |
-| morganella_spp. | enzyme_esbl_tem | 0.002 |
-| morganella_spp. | enzyme_esbl_shv | 0.002 |
-| morganella_spp. | enzyme_kpc | 0.001 |
-| morganella_spp. | enzyme_ndm_vim | 0.001 |
-| morganella_spp. | enzyme_oxa_48 | 0.001 |
-| morganella_spp. | enzyme_ampc_cmy | 0.001 |
-| morganella_spp. | enzyme_ampc_dha | 0.001 |
-| morganella_spp. | mutation_gyra_primary | 0.015 |
-| morganella_spp. | mutation_gyra_parc_secondary | 0.015 |
-| morganella_spp. | protection_qnr | 0.015 |
-| morganella_spp. | enzyme_16s_rrmt | 0.8 |
-| morganella_spp. | enzyme_cat | 0.25 |
-| morganella_spp. | efflux_acrab_tolc | 0.002 |
-| morganella_spp. | efflux_mexxy_oprm | 0.003 |
-| morganella_spp. | modification_mcr_1 | 0.075 |
+| klebsiella_pneumoniae | modification_mcr_1 | 0.01 |
+| klebsiella_pneumoniae | global_efflux_pump | 0.001 |
+| klebsiella_pneumoniae | global_porin_loss | 3e-9 |
+| klebsiella_pneumoniae | mutation_folate_pathway | 0.001 |
+| klebsiella_pneumoniae | mutation_nitroreductase | 0.002 |
+| klebsiella_pneumoniae | enzyme_fos_a | 0.003 |
+| klebsiella_pneumoniae | mutation_rpo_b | 2e-4 |
+| klebsiella_pneumoniae | protection_tet_m | 2e-4 |
+| klebsiella_pneumoniae | enzyme_aac_aph | 0.04 |
+| klebsiella_pneumoniae | efflux_tet_abc | 3e-4 |
+| morganella_spp. | enzyme_esbl_ctx_m | 2e-4 |
+| morganella_spp. | enzyme_esbl_tem | 2e-4 |
+| morganella_spp. | enzyme_esbl_shv | 2e-4 |
+| morganella_spp. | enzyme_kpc | 5e-5 |
+| morganella_spp. | enzyme_ndm_vim | 5e-5 |
+| morganella_spp. | enzyme_oxa_48 | 5e-5 |
+| morganella_spp. | enzyme_ampc_cmy | 1e-4 |
+| morganella_spp. | enzyme_ampc_dha | 1e-4 |
+| morganella_spp. | mutation_gyra_primary | 0.03 |
+| morganella_spp. | mutation_gyra_parc_secondary | 0.03 |
+| morganella_spp. | protection_qnr | 0.03 |
+| morganella_spp. | enzyme_16s_rrmt | 1 |
+| morganella_spp. | enzyme_cat | 0.1 |
+| morganella_spp. | efflux_acrab_tolc | 0.003 |
+| morganella_spp. | efflux_mexxy_oprm | 2e-4 |
+| morganella_spp. | modification_mcr_1 | 0.02 |
 | morganella_spp. | global_efflux_pump | 0.003 |
-| morganella_spp. | global_porin_loss | 2e-5 |
-| morganella_spp. | mutation_folate_pathway | 0.015 |
-| morganella_spp. | mutation_nitroreductase | 0.18 |
-| morganella_spp. | enzyme_fos_a | 0.018 |
-| morganella_spp. | mutation_rpo_b | 0.075 |
-| morganella_spp. | protection_tet_m | 0.0018 |
-| morganella_spp. | enzyme_aac_aph | 0.075 |
-| morganella_spp. | efflux_tet_abc | 0.0075 |
-| morganella_spp. | mutation_pbp_mosaic | 1e-6 |
-| proteus_spp. | enzyme_esbl_ctx_m | 7.5e-4 |
-| proteus_spp. | enzyme_esbl_tem | 5.5e-4 |
-| proteus_spp. | enzyme_esbl_shv | 5.5e-5 |
-| proteus_spp. | enzyme_kpc | 2e-5 |
-| proteus_spp. | enzyme_ndm_vim | 2e-5 |
-| proteus_spp. | enzyme_oxa_48 | 2e-5 |
-| proteus_spp. | enzyme_ampc_cmy | 5.5e-5 |
-| proteus_spp. | enzyme_ampc_dha | 5.5e-5 |
-| proteus_spp. | mutation_gyra_primary | 0.003 |
-| proteus_spp. | mutation_gyra_parc_secondary | 0.0012 |
-| proteus_spp. | protection_qnr | 6e-4 |
-| proteus_spp. | enzyme_16s_rrmt | 1.5e-4 |
-| proteus_spp. | enzyme_cat | 1.2e-4 |
-| proteus_spp. | efflux_acrab_tolc | 0.0045 |
-| proteus_spp. | modification_mcr_1 | 1e-4 |
-| proteus_spp. | global_efflux_pump | 0.0045 |
-| proteus_spp. | global_porin_loss | 2e-5 |
-| proteus_spp. | mutation_folate_pathway | 0.001 |
-| proteus_spp. | mutation_nitroreductase | 2e-6 |
-| proteus_spp. | enzyme_fos_a | 2e-4 |
-| proteus_spp. | mutation_rpo_b | 2e-5 |
-| proteus_spp. | protection_tet_m | 3e-4 |
-| proteus_spp. | enzyme_aac_aph | 1e-7 |
-| proteus_spp. | efflux_tet_abc | 8e-8 |
-| serratia_spp. | enzyme_esbl_ctx_m | 0.003 |
-| serratia_spp. | enzyme_esbl_tem | 0.003 |
-| serratia_spp. | enzyme_esbl_shv | 0.003 |
-| serratia_spp. | enzyme_kpc | 0.003 |
-| serratia_spp. | enzyme_ndm_vim | 3e-4 |
-| serratia_spp. | enzyme_oxa_48 | 3e-4 |
-| serratia_spp. | enzyme_ampc_cmy | 0.003 |
-| serratia_spp. | enzyme_ampc_dha | 0.003 |
-| serratia_spp. | mutation_gyra_primary | 0.006 |
-| serratia_spp. | mutation_gyra_parc_secondary | 0.006 |
-| serratia_spp. | protection_qnr | 0.006 |
-| serratia_spp. | enzyme_16s_rrmt | 0.2 |
-| serratia_spp. | enzyme_cat | 2e-4 |
-| serratia_spp. | efflux_acrab_tolc | 0.006 |
-| serratia_spp. | modification_mcr_1 | 0.025 |
-| serratia_spp. | global_efflux_pump | 0.0035 |
+| morganella_spp. | global_porin_loss | 1e-5 |
+| morganella_spp. | mutation_folate_pathway | 0.004 |
+| morganella_spp. | mutation_nitroreductase | 0.03 |
+| morganella_spp. | enzyme_fos_a | 0.003 |
+| morganella_spp. | mutation_rpo_b | 0.01 |
+| morganella_spp. | protection_tet_m | 0.003 |
+| morganella_spp. | enzyme_aac_aph | 1 |
+| morganella_spp. | efflux_tet_abc | 0.003 |
+| morganella_spp. | mutation_pbp_mosaic | 2e-5 |
+| proteus_spp. | enzyme_esbl_ctx_m | 2e-5 |
+| proteus_spp. | enzyme_esbl_tem | 2e-5 |
+| proteus_spp. | enzyme_esbl_shv | 2e-5 |
+| proteus_spp. | enzyme_kpc | 1.5e-5 |
+| proteus_spp. | enzyme_ndm_vim | 1.5e-5 |
+| proteus_spp. | enzyme_oxa_48 | 1.5e-5 |
+| proteus_spp. | enzyme_ampc_cmy | 2e-5 |
+| proteus_spp. | enzyme_ampc_dha | 2e-5 |
+| proteus_spp. | mutation_gyra_primary | 0.04 |
+| proteus_spp. | mutation_gyra_parc_secondary | 0.01 |
+| proteus_spp. | protection_qnr | 0.01 |
+| proteus_spp. | enzyme_16s_rrmt | 0.02 |
+| proteus_spp. | enzyme_cat | 3.5e-4 |
+| proteus_spp. | efflux_acrab_tolc | 0.005 |
+| proteus_spp. | modification_mcr_1 | 5e-4 |
+| proteus_spp. | global_efflux_pump | 0.05 |
+| proteus_spp. | global_porin_loss | 1.5e-4 |
+| proteus_spp. | mutation_folate_pathway | 0.002 |
+| proteus_spp. | mutation_nitroreductase | 1.5e-5 |
+| proteus_spp. | enzyme_fos_a | 0.0015 |
+| proteus_spp. | mutation_rpo_b | 1e-4 |
+| proteus_spp. | protection_tet_m | 0.0035 |
+| proteus_spp. | enzyme_aac_aph | 0.02 |
+| proteus_spp. | efflux_tet_abc | 1e-6 |
+| serratia_spp. | enzyme_esbl_ctx_m | 0.0018 |
+| serratia_spp. | enzyme_esbl_tem | 0.0018 |
+| serratia_spp. | enzyme_esbl_shv | 0.0018 |
+| serratia_spp. | enzyme_kpc | 4e-4 |
+| serratia_spp. | enzyme_ndm_vim | 4e-4 |
+| serratia_spp. | enzyme_oxa_48 | 4e-4 |
+| serratia_spp. | enzyme_ampc_cmy | 0.0018 |
+| serratia_spp. | enzyme_ampc_dha | 0.0018 |
+| serratia_spp. | mutation_gyra_primary | 0.02 |
+| serratia_spp. | mutation_gyra_parc_secondary | 0.01 |
+| serratia_spp. | protection_qnr | 0.01 |
+| serratia_spp. | enzyme_16s_rrmt | 0.9 |
+| serratia_spp. | enzyme_cat | 5e-5 |
+| serratia_spp. | efflux_acrab_tolc | 0.008 |
+| serratia_spp. | modification_mcr_1 | 0.03 |
+| serratia_spp. | global_efflux_pump | 0.0015 |
 | serratia_spp. | global_porin_loss | 3e-5 |
 | serratia_spp. | mutation_folate_pathway | 0.001 |
-| serratia_spp. | mutation_nitroreductase | 0.0015 |
-| serratia_spp. | enzyme_fos_a | 1.5e-4 |
-| serratia_spp. | mutation_rpo_b | 0.015 |
-| serratia_spp. | protection_tet_m | 0.003 |
-| serratia_spp. | enzyme_aac_aph | 0.2 |
-| serratia_spp. | efflux_tet_abc | 3e-4 |
+| serratia_spp. | mutation_nitroreductase | 0.002 |
+| serratia_spp. | enzyme_fos_a | 2e-4 |
+| serratia_spp. | mutation_rpo_b | 0.03 |
+| serratia_spp. | protection_tet_m | 0.0015 |
+| serratia_spp. | enzyme_aac_aph | 1 |
+| serratia_spp. | efflux_tet_abc | 2e-4 |
 | p_stuartii | enzyme_esbl_ctx_m | 1.9e-4 |
 | p_stuartii | enzyme_esbl_tem | 1.9e-4 |
 | p_stuartii | enzyme_esbl_shv | 3.7e-5 |
@@ -7850,33 +7870,33 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | p_stuartii | protection_tet_m | 3.8e-4 |
 | p_stuartii | enzyme_aac_aph | 5e-11 |
 | p_stuartii | efflux_tet_abc | 5e-11 |
-| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_tem | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_shv | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_kpc | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_ndm_vim | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_oxa_48 | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_cmy | 1e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_dha | 1e-5 |
-| pseudomonas_aeruginosa | mutation_gyra_primary | 1e-4 |
-| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 1e-4 |
-| pseudomonas_aeruginosa | protection_qnr | 1e-4 |
-| pseudomonas_aeruginosa | enzyme_16s_rrmt | 1e-4 |
-| pseudomonas_aeruginosa | target_site_erm_b | 3e-6 |
-| pseudomonas_aeruginosa | target_site_cfr | 3e-6 |
-| pseudomonas_aeruginosa | enzyme_cat | 3e-5 |
-| pseudomonas_aeruginosa | efflux_mexxy_oprm | 4e-5 |
-| pseudomonas_aeruginosa | porin_loss_oprd | 4e-5 |
-| pseudomonas_aeruginosa | modification_mcr_1 | 3e-4 |
-| pseudomonas_aeruginosa | global_efflux_pump | 4e-5 |
-| pseudomonas_aeruginosa | global_porin_loss | 3e-5 |
-| pseudomonas_aeruginosa | mutation_folate_pathway | 3e-4 |
-| pseudomonas_aeruginosa | mutation_nitroreductase | 3e-6 |
-| pseudomonas_aeruginosa | enzyme_fos_a | 0.001 |
-| pseudomonas_aeruginosa | mutation_rpo_b | 1e-4 |
-| pseudomonas_aeruginosa | protection_tet_m | 3e-4 |
-| pseudomonas_aeruginosa | enzyme_aac_aph | 1e-4 |
-| pseudomonas_aeruginosa | efflux_tet_abc | 3e-6 |
+| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_esbl_tem | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_esbl_shv | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_kpc | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_ndm_vim | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_oxa_48 | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_ampc_cmy | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_ampc_dha | 3e-5 |
+| pseudomonas_aeruginosa | mutation_gyra_primary | 0.001 |
+| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.001 |
+| pseudomonas_aeruginosa | protection_qnr | 0.001 |
+| pseudomonas_aeruginosa | enzyme_16s_rrmt | 4e-4 |
+| pseudomonas_aeruginosa | target_site_erm_b | 3e-5 |
+| pseudomonas_aeruginosa | target_site_cfr | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_cat | 4e-4 |
+| pseudomonas_aeruginosa | efflux_mexxy_oprm | 5e-4 |
+| pseudomonas_aeruginosa | porin_loss_oprd | 5e-4 |
+| pseudomonas_aeruginosa | modification_mcr_1 | 0.003 |
+| pseudomonas_aeruginosa | global_efflux_pump | 3e-4 |
+| pseudomonas_aeruginosa | global_porin_loss | 3e-4 |
+| pseudomonas_aeruginosa | mutation_folate_pathway | 0.003 |
+| pseudomonas_aeruginosa | mutation_nitroreductase | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_fos_a | 0.01 |
+| pseudomonas_aeruginosa | mutation_rpo_b | 0.001 |
+| pseudomonas_aeruginosa | protection_tet_m | 0.004 |
+| pseudomonas_aeruginosa | enzyme_aac_aph | 0.001 |
+| pseudomonas_aeruginosa | efflux_tet_abc | 2e-5 |
 | stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 2e-5 |
 | stenotrophomonas_maltophilia | enzyme_esbl_tem | 2e-5 |
 | stenotrophomonas_maltophilia | enzyme_esbl_shv | 2e-5 |
@@ -7895,31 +7915,31 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | stenotrophomonas_maltophilia | global_efflux_pump | 1e-7 |
 | stenotrophomonas_maltophilia | global_porin_loss | 1e-13 |
 | stenotrophomonas_maltophilia | mutation_folate_pathway | 0.005 |
-| stenotrophomonas_maltophilia | mutation_nitroreductase | 0.5 |
+| stenotrophomonas_maltophilia | mutation_nitroreductase | 10 |
 | stenotrophomonas_maltophilia | enzyme_fos_a | 0.03 |
 | stenotrophomonas_maltophilia | mutation_rpo_b | 2e-4 |
 | stenotrophomonas_maltophilia | protection_tet_m | 5e-7 |
 | stenotrophomonas_maltophilia | enzyme_aac_aph | 0.05 |
 | stenotrophomonas_maltophilia | efflux_tet_abc | 2e-9 |
-| staphylococcus_aureus | target_site_pbp2a_meca | 4e-6 |
-| staphylococcus_aureus | target_site_van_a | 4e-9 |
-| staphylococcus_aureus | target_site_van_b | 2e-11 |
-| staphylococcus_aureus | mutation_gyra_primary | 4e-6 |
-| staphylococcus_aureus | mutation_gyra_parc_secondary | 4e-6 |
-| staphylococcus_aureus | enzyme_16s_rrmt | 4e-6 |
+| staphylococcus_aureus | target_site_pbp2a_meca | 1e-7 |
+| staphylococcus_aureus | target_site_van_a | 1e-8 |
+| staphylococcus_aureus | target_site_van_b | 5e-11 |
+| staphylococcus_aureus | mutation_gyra_primary | 1.5e-5 |
+| staphylococcus_aureus | mutation_gyra_parc_secondary | 1.5e-5 |
+| staphylococcus_aureus | enzyme_16s_rrmt | 1e-5 |
 | staphylococcus_aureus | target_site_erm_b | 4e-6 |
 | staphylococcus_aureus | target_site_cfr | 4e-8 |
-| staphylococcus_aureus | enzyme_cat | 4e-9 |
+| staphylococcus_aureus | enzyme_cat | 1e-8 |
 | staphylococcus_aureus | global_efflux_pump | 4e-6 |
-| staphylococcus_aureus | mutation_folate_pathway | 4e-6 |
-| staphylococcus_aureus | mutation_nitroreductase | 4e-6 |
-| staphylococcus_aureus | enzyme_fos_a | 4e-6 |
-| staphylococcus_aureus | mutation_mpr_f | 4e-6 |
-| staphylococcus_aureus | mutation_rpo_b | 4e-6 |
-| staphylococcus_aureus | protection_fus_b | 4e-6 |
+| staphylococcus_aureus | mutation_folate_pathway | 1e-5 |
+| staphylococcus_aureus | mutation_nitroreductase | 1e-5 |
+| staphylococcus_aureus | enzyme_fos_a | 1e-5 |
+| staphylococcus_aureus | mutation_mpr_f | 1e-5 |
+| staphylococcus_aureus | mutation_rpo_b | 1e-5 |
+| staphylococcus_aureus | protection_fus_b | 1e-5 |
 | staphylococcus_aureus | protection_tet_m | 4e-6 |
-| staphylococcus_aureus | enzyme_aac_aph | 4e-6 |
-| staphylococcus_aureus | enzyme_bla_z | 4e-7 |
+| staphylococcus_aureus | enzyme_aac_aph | 1e-5 |
+| staphylococcus_aureus | enzyme_bla_z | 1e-8 |
 | staphylococcus_epidermidis | target_site_pbp2a_meca | 1e-6 |
 | staphylococcus_epidermidis | target_site_van_a | 1e-8 |
 | staphylococcus_epidermidis | target_site_van_b | 1e-8 |
@@ -7936,19 +7956,19 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | staphylococcus_epidermidis | protection_tet_m | 3e-5 |
 | staphylococcus_epidermidis | enzyme_aac_aph | 1e-9 |
 | staphylococcus_epidermidis | enzyme_bla_z | 1e-7 |
-| streptococcus_pneumoniae | target_site_pbp2a_meca | 1.5e-7 |
-| streptococcus_pneumoniae | mutation_gyra_primary | 7.5e-6 |
-| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 7.5e-6 |
-| streptococcus_pneumoniae | target_site_erm_b | 4.5e-7 |
-| streptococcus_pneumoniae | enzyme_cat | 3e-5 |
-| streptococcus_pneumoniae | global_efflux_pump | 7.5e-6 |
-| streptococcus_pneumoniae | global_porin_loss | 7.5e-9 |
-| streptococcus_pneumoniae | mutation_folate_pathway | 4.5e-4 |
-| streptococcus_pneumoniae | mutation_rpo_b | 4.5e-4 |
-| streptococcus_pneumoniae | protection_tet_m | 4.5e-4 |
-| streptococcus_pneumoniae | enzyme_bla_z | 1.5e-7 |
-| streptococcus_pneumoniae | mutation_23s_rrna | 1.5e-7 |
-| streptococcus_pneumoniae | mutation_pbp_mosaic | 1.5e-7 |
+| streptococcus_pneumoniae | target_site_pbp2a_meca | 3e-8 |
+| streptococcus_pneumoniae | mutation_gyra_primary | 3e-5 |
+| streptococcus_pneumoniae | mutation_gyra_parc_secondary | 3e-5 |
+| streptococcus_pneumoniae | target_site_erm_b | 1e-6 |
+| streptococcus_pneumoniae | enzyme_cat | 3e-4 |
+| streptococcus_pneumoniae | global_efflux_pump | 1e-5 |
+| streptococcus_pneumoniae | global_porin_loss | 3e-8 |
+| streptococcus_pneumoniae | mutation_folate_pathway | 0.003 |
+| streptococcus_pneumoniae | mutation_rpo_b | 0.001 |
+| streptococcus_pneumoniae | protection_tet_m | 0.001 |
+| streptococcus_pneumoniae | enzyme_bla_z | 3e-8 |
+| streptococcus_pneumoniae | mutation_23s_rrna | 5e-7 |
+| streptococcus_pneumoniae | mutation_pbp_mosaic | 3e-8 |
 | salmonella_enterica_serovar_typhi | enzyme_esbl_ctx_m | 0.005 |
 | salmonella_enterica_serovar_typhi | enzyme_esbl_tem | 0.15 |
 | salmonella_enterica_serovar_typhi | enzyme_esbl_shv | 0.0015 |
@@ -7957,14 +7977,14 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | salmonella_enterica_serovar_typhi | enzyme_oxa_48 | 3e-5 |
 | salmonella_enterica_serovar_typhi | enzyme_ampc_cmy | 5e-4 |
 | salmonella_enterica_serovar_typhi | enzyme_ampc_dha | 5e-4 |
-| salmonella_enterica_serovar_typhi | mutation_gyra_primary | 0.25 |
-| salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 0.025 |
-| salmonella_enterica_serovar_typhi | protection_qnr | 0.003 |
+| salmonella_enterica_serovar_typhi | mutation_gyra_primary | 0.8 |
+| salmonella_enterica_serovar_typhi | mutation_gyra_parc_secondary | 0.05 |
+| salmonella_enterica_serovar_typhi | protection_qnr | 0.03 |
 | salmonella_enterica_serovar_typhi | enzyme_16s_rrmt | 1e-4 |
 | salmonella_enterica_serovar_typhi | enzyme_cat | 0.015 |
-| salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 0.015 |
+| salmonella_enterica_serovar_typhi | efflux_acrab_tolc | 0.05 |
 | salmonella_enterica_serovar_typhi | modification_mcr_1 | 0.0015 |
-| salmonella_enterica_serovar_typhi | global_efflux_pump | 0.002 |
+| salmonella_enterica_serovar_typhi | global_efflux_pump | 0.005 |
 | salmonella_enterica_serovar_typhi | global_porin_loss | 0.001 |
 | salmonella_enterica_serovar_typhi | mutation_folate_pathway | 0.15 |
 | salmonella_enterica_serovar_typhi | mutation_nitroreductase | 0.0015 |
@@ -7974,105 +7994,105 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | salmonella_enterica_serovar_typhi | enzyme_aac_aph | 1e-4 |
 | salmonella_enterica_serovar_typhi | efflux_tet_abc | 2e-6 |
 | salmonella_enterica_serovar_typhi | efflux_mtr_cde | 0.01 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 8e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 0.0012 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 6e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 1.6e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 2.3e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 1.6e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 5e-4 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 4e-4 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 0.06 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.045 |
-| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.006 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.045 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 0.006 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.04 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_ctx_m | 0.002 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_tem | 0.002 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_esbl_shv | 0.002 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_kpc | 5e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ndm_vim | 7e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_oxa_48 | 5e-5 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_cmy | 0.0015 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_ampc_dha | 0.0015 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_primary | 0.05 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_gyra_parc_secondary | 0.04 |
+| salmonella_enterica_serovar_paratyphi_a | protection_qnr | 0.005 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_16s_rrmt | 0.15 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_cat | 0.02 |
+| salmonella_enterica_serovar_paratyphi_a | efflux_acrab_tolc | 0.03 |
 | salmonella_enterica_serovar_paratyphi_a | efflux_mexxy_oprm | 8e-4 |
-| salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 0.002 |
+| salmonella_enterica_serovar_paratyphi_a | modification_mcr_1 | 0.003 |
 | salmonella_enterica_serovar_paratyphi_a | global_efflux_pump | 0.0045 |
-| salmonella_enterica_serovar_paratyphi_a | global_porin_loss | 3e-5 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.01 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 5e-5 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_fos_a | 5e-5 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 0.003 |
-| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.007 |
-| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.045 |
+| salmonella_enterica_serovar_paratyphi_a | global_porin_loss | 1e-4 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_folate_pathway | 0.03 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_nitroreductase | 1.5e-4 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_fos_a | 1.5e-4 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_rpo_b | 0.01 |
+| salmonella_enterica_serovar_paratyphi_a | protection_tet_m | 0.02 |
+| salmonella_enterica_serovar_paratyphi_a | enzyme_aac_aph | 0.15 |
 | salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.007 |
-| salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 4.5e-4 |
-| salmonella_enterica_serovar_paratyphi_a | efflux_mtr_cde | 1.6e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 3e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 3e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 3e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 3e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 3e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 3e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 3e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 3e-4 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.01 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 0.2 |
+| salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 0.001 |
+| salmonella_enterica_serovar_paratyphi_a | efflux_mtr_cde | 5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 2.2e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 2.2e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 2.2e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 2.2e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 2.2e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 2.2e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 2.2e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 2.2e-4 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.1 |
+| invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.1 |
+| invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.1 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_16s_rrmt | 0.8 |
 | invasive_non-typhoidal_salmonella_spp. | enzyme_cat | 0.015 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.01 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_acrab_tolc | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | modification_mcr_1 | 0.03 |
-| invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.01 |
+| invasive_non-typhoidal_salmonella_spp. | global_efflux_pump | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | global_porin_loss | 1e-5 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_folate_pathway | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_nitroreductase | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | enzyme_fos_a | 0.001 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_rpo_b | 0.02 |
-| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.002 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.1 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.045 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 3e-6 |
-| shigella_spp. | enzyme_esbl_ctx_m | 2e-4 |
-| shigella_spp. | enzyme_esbl_tem | 2e-4 |
-| shigella_spp. | enzyme_esbl_shv | 2e-4 |
-| shigella_spp. | enzyme_kpc | 2e-4 |
-| shigella_spp. | enzyme_ndm_vim | 2e-4 |
-| shigella_spp. | enzyme_oxa_48 | 2e-4 |
-| shigella_spp. | enzyme_ampc_cmy | 2e-4 |
-| shigella_spp. | enzyme_ampc_dha | 2e-4 |
-| shigella_spp. | mutation_gyra_primary | 4e-5 |
-| shigella_spp. | mutation_gyra_parc_secondary | 4e-5 |
-| shigella_spp. | protection_qnr | 4e-5 |
-| shigella_spp. | enzyme_16s_rrmt | 0.04 |
-| shigella_spp. | target_site_erm_b | 0.6 |
-| shigella_spp. | enzyme_cat | 4e-5 |
-| shigella_spp. | efflux_acrab_tolc | 4e-5 |
-| shigella_spp. | modification_mcr_1 | 2e-5 |
-| shigella_spp. | global_efflux_pump | 0.6 |
-| shigella_spp. | global_porin_loss | 2e-6 |
-| shigella_spp. | mutation_folate_pathway | 2e-4 |
-| shigella_spp. | mutation_rpo_b | 0.008 |
-| shigella_spp. | protection_tet_m | 0.004 |
-| shigella_spp. | enzyme_aac_aph | 0.4 |
-| shigella_spp. | mutation_23s_rrna | 0.6 |
-| shigella_spp. | efflux_tet_abc | 8e-4 |
-| shigella_spp. | mutation_pbp_mosaic | 5e-5 |
-| shigella_spp. | efflux_mtr_cde | 5e-5 |
-| neisseria_gonorrhoeae | mutation_gyra_primary | 0.3 |
-| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 0.3 |
-| neisseria_gonorrhoeae | protection_qnr | 0.3 |
-| neisseria_gonorrhoeae | enzyme_16s_rrmt | 0.6 |
-| neisseria_gonorrhoeae | target_site_erm_b | 2e-4 |
-| neisseria_gonorrhoeae | target_site_cfr | 1e-4 |
-| neisseria_gonorrhoeae | enzyme_cat | 7e-5 |
-| neisseria_gonorrhoeae | modification_mcr_1 | 1e-4 |
-| neisseria_gonorrhoeae | global_efflux_pump | 0.04 |
-| neisseria_gonorrhoeae | global_porin_loss | 1e-6 |
-| neisseria_gonorrhoeae | mutation_folate_pathway | 0.01 |
-| neisseria_gonorrhoeae | mutation_nitroreductase | 0.01 |
-| neisseria_gonorrhoeae | enzyme_fos_a | 1e-5 |
-| neisseria_gonorrhoeae | mutation_rpo_b | 0.1 |
-| neisseria_gonorrhoeae | protection_tet_m | 0.01 |
-| neisseria_gonorrhoeae | enzyme_aac_aph | 0.6 |
-| neisseria_gonorrhoeae | enzyme_bla_z | 7e-5 |
-| neisseria_gonorrhoeae | mutation_23s_rrna | 4e-4 |
-| neisseria_gonorrhoeae | efflux_tet_abc | 8e-5 |
-| neisseria_gonorrhoeae | mutation_pbp_mosaic | 7e-4 |
-| neisseria_gonorrhoeae | efflux_mtr_cde | 7e-5 |
+| invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.004 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.8 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.08 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 2.5e-6 |
+| shigella_spp. | enzyme_esbl_ctx_m | 0.001 |
+| shigella_spp. | enzyme_esbl_tem | 0.001 |
+| shigella_spp. | enzyme_esbl_shv | 0.001 |
+| shigella_spp. | enzyme_kpc | 0.001 |
+| shigella_spp. | enzyme_ndm_vim | 0.001 |
+| shigella_spp. | enzyme_oxa_48 | 0.001 |
+| shigella_spp. | enzyme_ampc_cmy | 0.001 |
+| shigella_spp. | enzyme_ampc_dha | 0.001 |
+| shigella_spp. | mutation_gyra_primary | 5e-4 |
+| shigella_spp. | mutation_gyra_parc_secondary | 5e-4 |
+| shigella_spp. | protection_qnr | 5e-4 |
+| shigella_spp. | enzyme_16s_rrmt | 0.9 |
+| shigella_spp. | target_site_erm_b | 0.8 |
+| shigella_spp. | enzyme_cat | 2.5e-4 |
+| shigella_spp. | efflux_acrab_tolc | 5e-4 |
+| shigella_spp. | modification_mcr_1 | 3e-4 |
+| shigella_spp. | global_efflux_pump | 0.9 |
+| shigella_spp. | global_porin_loss | 3e-5 |
+| shigella_spp. | mutation_folate_pathway | 0.003 |
+| shigella_spp. | mutation_rpo_b | 0.04 |
+| shigella_spp. | protection_tet_m | 0.03 |
+| shigella_spp. | enzyme_aac_aph | 0.9 |
+| shigella_spp. | mutation_23s_rrna | 0.9 |
+| shigella_spp. | efflux_tet_abc | 0.03 |
+| shigella_spp. | mutation_pbp_mosaic | 0.001 |
+| shigella_spp. | efflux_mtr_cde | 0.001 |
+| neisseria_gonorrhoeae | mutation_gyra_primary | 1 |
+| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 1 |
+| neisseria_gonorrhoeae | protection_qnr | 1 |
+| neisseria_gonorrhoeae | enzyme_16s_rrmt | 1 |
+| neisseria_gonorrhoeae | target_site_erm_b | 0.01 |
+| neisseria_gonorrhoeae | target_site_cfr | 0.01 |
+| neisseria_gonorrhoeae | enzyme_cat | 0.001 |
+| neisseria_gonorrhoeae | modification_mcr_1 | 0.005 |
+| neisseria_gonorrhoeae | global_efflux_pump | 1 |
+| neisseria_gonorrhoeae | global_porin_loss | 0.001 |
+| neisseria_gonorrhoeae | mutation_folate_pathway | 0.1 |
+| neisseria_gonorrhoeae | mutation_nitroreductase | 0.1 |
+| neisseria_gonorrhoeae | enzyme_fos_a | 3e-4 |
+| neisseria_gonorrhoeae | mutation_rpo_b | 1 |
+| neisseria_gonorrhoeae | protection_tet_m | 1 |
+| neisseria_gonorrhoeae | enzyme_aac_aph | 1 |
+| neisseria_gonorrhoeae | enzyme_bla_z | 0.02 |
+| neisseria_gonorrhoeae | mutation_23s_rrna | 0.03 |
+| neisseria_gonorrhoeae | efflux_tet_abc | 0.003 |
+| neisseria_gonorrhoeae | mutation_pbp_mosaic | 0.02 |
+| neisseria_gonorrhoeae | efflux_mtr_cde | 0.02 |
 | streptococcus_pyogenes | mutation_gyra_primary | 3.8e-7 |
 | streptococcus_pyogenes | mutation_gyra_parc_secondary | 7.5e-8 |
 | streptococcus_pyogenes | target_site_erm_b | 7.5e-6 |
@@ -8090,7 +8110,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | streptococcus_agalactiae | target_site_van_b | 1e-8 |
 | streptococcus_agalactiae | mutation_gyra_primary | 1e-6 |
 | streptococcus_agalactiae | mutation_gyra_parc_secondary | 1e-6 |
-| streptococcus_agalactiae | target_site_erm_b | 1e-6 |
+| streptococcus_agalactiae | target_site_erm_b | 5e-5 |
 | streptococcus_agalactiae | target_site_cfr | 1e-8 |
 | streptococcus_agalactiae | enzyme_cat | 3e-7 |
 | streptococcus_agalactiae | global_efflux_pump | 1e-6 |
@@ -8100,34 +8120,34 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | streptococcus_agalactiae | protection_fus_b | 1e-7 |
 | streptococcus_agalactiae | protection_tet_m | 0.001 |
 | streptococcus_agalactiae | mutation_23s_rrna | 5e-11 |
-| streptococcus_agalactiae | mutation_pbp_mosaic | 3e-5 |
-| haemophilus_influenzae | enzyme_esbl_ctx_m | 5e-8 |
-| haemophilus_influenzae | enzyme_esbl_tem | 5e-8 |
-| haemophilus_influenzae | enzyme_esbl_shv | 5e-8 |
+| streptococcus_agalactiae | mutation_pbp_mosaic | 1e-6 |
+| haemophilus_influenzae | enzyme_esbl_ctx_m | 5e-7 |
+| haemophilus_influenzae | enzyme_esbl_tem | 5e-7 |
+| haemophilus_influenzae | enzyme_esbl_shv | 5e-7 |
 | haemophilus_influenzae | enzyme_kpc | 5e-8 |
 | haemophilus_influenzae | enzyme_ndm_vim | 5e-8 |
 | haemophilus_influenzae | enzyme_oxa_48 | 5e-8 |
-| haemophilus_influenzae | enzyme_ampc_cmy | 5e-8 |
-| haemophilus_influenzae | enzyme_ampc_dha | 5e-8 |
-| haemophilus_influenzae | mutation_gyra_primary | 1e-4 |
-| haemophilus_influenzae | mutation_gyra_parc_secondary | 3e-5 |
-| haemophilus_influenzae | protection_qnr | 3e-5 |
-| haemophilus_influenzae | enzyme_16s_rrmt | 5e-4 |
-| haemophilus_influenzae | target_site_erm_b | 1e-4 |
-| haemophilus_influenzae | target_site_cfr | 1e-4 |
-| haemophilus_influenzae | enzyme_cat | 7e-5 |
-| haemophilus_influenzae | modification_mcr_1 | 3e-7 |
-| haemophilus_influenzae | global_efflux_pump | 0.001 |
-| haemophilus_influenzae | global_porin_loss | 3e-8 |
-| haemophilus_influenzae | mutation_folate_pathway | 1e-4 |
-| haemophilus_influenzae | mutation_nitroreductase | 3e-6 |
-| haemophilus_influenzae | mutation_rpo_b | 0.003 |
-| haemophilus_influenzae | protection_tet_m | 1e-4 |
-| haemophilus_influenzae | enzyme_aac_aph | 0.001 |
-| haemophilus_influenzae | enzyme_bla_z | 3e-8 |
-| haemophilus_influenzae | mutation_23s_rrna | 1e-5 |
-| haemophilus_influenzae | mutation_pbp_mosaic | 3e-8 |
-| haemophilus_influenzae | efflux_mtr_cde | 3e-8 |
+| haemophilus_influenzae | enzyme_ampc_cmy | 5e-7 |
+| haemophilus_influenzae | enzyme_ampc_dha | 5e-7 |
+| haemophilus_influenzae | mutation_gyra_primary | 3e-4 |
+| haemophilus_influenzae | mutation_gyra_parc_secondary | 8e-5 |
+| haemophilus_influenzae | protection_qnr | 1e-4 |
+| haemophilus_influenzae | enzyme_16s_rrmt | 0.05 |
+| haemophilus_influenzae | target_site_erm_b | 3e-5 |
+| haemophilus_influenzae | target_site_cfr | 3e-5 |
+| haemophilus_influenzae | enzyme_cat | 1e-4 |
+| haemophilus_influenzae | modification_mcr_1 | 2e-6 |
+| haemophilus_influenzae | global_efflux_pump | 3e-4 |
+| haemophilus_influenzae | global_porin_loss | 3e-7 |
+| haemophilus_influenzae | mutation_folate_pathway | 8e-4 |
+| haemophilus_influenzae | mutation_nitroreductase | 2e-5 |
+| haemophilus_influenzae | mutation_rpo_b | 0.015 |
+| haemophilus_influenzae | protection_tet_m | 8e-4 |
+| haemophilus_influenzae | enzyme_aac_aph | 0.05 |
+| haemophilus_influenzae | enzyme_bla_z | 5e-7 |
+| haemophilus_influenzae | mutation_23s_rrna | 3e-6 |
+| haemophilus_influenzae | mutation_pbp_mosaic | 5e-7 |
+| haemophilus_influenzae | efflux_mtr_cde | 5e-7 |
 | chlamydia_trachomatis | mutation_gyra_primary | 2e-7 |
 | chlamydia_trachomatis | mutation_gyra_parc_secondary | 2e-7 |
 | chlamydia_trachomatis | target_site_erm_b | 1e-7 |
@@ -8139,17 +8159,17 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | chlamydia_trachomatis | mutation_rpo_b | 2e-8 |
 | chlamydia_trachomatis | protection_tet_m | 2e-7 |
 | chlamydia_trachomatis | mutation_23s_rrna | 1e-10 |
-| mycoplasma_genitalium | mutation_gyra_primary | 0.0045 |
-| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.0045 |
-| mycoplasma_genitalium | target_site_erm_b | 3e-4 |
-| mycoplasma_genitalium | target_site_cfr | 3e-4 |
-| mycoplasma_genitalium | enzyme_cat | 1.5e-4 |
-| mycoplasma_genitalium | global_efflux_pump | 3e-6 |
-| mycoplasma_genitalium | mutation_folate_pathway | 1.5e-4 |
-| mycoplasma_genitalium | mutation_nitroreductase | 1.5e-4 |
-| mycoplasma_genitalium | mutation_rpo_b | 0.0015 |
-| mycoplasma_genitalium | protection_tet_m | 0.002 |
-| mycoplasma_genitalium | mutation_23s_rrna | 0.001 |
+| mycoplasma_genitalium | mutation_gyra_primary | 0.3 |
+| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.3 |
+| mycoplasma_genitalium | target_site_erm_b | 0.025 |
+| mycoplasma_genitalium | target_site_cfr | 0.025 |
+| mycoplasma_genitalium | enzyme_cat | 0.01 |
+| mycoplasma_genitalium | global_efflux_pump | 0.01 |
+| mycoplasma_genitalium | mutation_folate_pathway | 0.003 |
+| mycoplasma_genitalium | mutation_nitroreductase | 0.003 |
+| mycoplasma_genitalium | mutation_rpo_b | 0.03 |
+| mycoplasma_genitalium | protection_tet_m | 0.06 |
+| mycoplasma_genitalium | mutation_23s_rrna | 0.03 |
 | vibrio_cholerae | enzyme_esbl_ctx_m | 3e-6 |
 | vibrio_cholerae | enzyme_esbl_tem | 3e-6 |
 | vibrio_cholerae | enzyme_esbl_shv | 1e-6 |
@@ -8176,11 +8196,11 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | vibrio_cholerae | mutation_23s_rrna | 1.5e-4 |
 | vibrio_cholerae | efflux_tet_abc | 5e-11 |
 | vibrio_cholerae | efflux_mtr_cde | 1e-9 |
-| neisseria_meningitidis | enzyme_esbl_ctx_m | 3e-8 |
-| neisseria_meningitidis | enzyme_esbl_tem | 3e-8 |
-| neisseria_meningitidis | enzyme_esbl_shv | 3e-8 |
-| neisseria_meningitidis | enzyme_ampc_cmy | 3e-8 |
-| neisseria_meningitidis | enzyme_ampc_dha | 3e-8 |
+| neisseria_meningitidis | enzyme_esbl_ctx_m | 1e-8 |
+| neisseria_meningitidis | enzyme_esbl_tem | 1e-8 |
+| neisseria_meningitidis | enzyme_esbl_shv | 1e-8 |
+| neisseria_meningitidis | enzyme_ampc_cmy | 1e-8 |
+| neisseria_meningitidis | enzyme_ampc_dha | 1e-8 |
 | neisseria_meningitidis | mutation_gyra_primary | 3e-5 |
 | neisseria_meningitidis | mutation_gyra_parc_secondary | 1e-5 |
 | neisseria_meningitidis | protection_qnr | 3e-7 |
@@ -8198,8 +8218,8 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | neisseria_meningitidis | protection_tet_m | 5e-6 |
 | neisseria_meningitidis | mutation_23s_rrna | 1e-7 |
 | neisseria_meningitidis | efflux_tet_abc | 5e-6 |
-| neisseria_meningitidis | mutation_pbp_mosaic | 1e-4 |
-| neisseria_meningitidis | efflux_mtr_cde | 1e-7 |
+| neisseria_meningitidis | mutation_pbp_mosaic | 1e-6 |
+| neisseria_meningitidis | efflux_mtr_cde | 1e-9 |
 | listeria_monocytogenes | target_site_van_a | 3.8e-6 |
 | listeria_monocytogenes | target_site_van_b | 3.8e-6 |
 | listeria_monocytogenes | mutation_gyra_primary | 1.9e-4 |
@@ -8224,96 +8244,96 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | clostridioides_difficile | mutation_nitroreductase | 1.2e-4 |
 | clostridioides_difficile | mutation_rpo_b | 6e-5 |
 | clostridioides_difficile | protection_tet_m | 6e-5 |
-| bacteroides_fragilis | enzyme_esbl_ctx_m | 0.1 |
-| bacteroides_fragilis | enzyme_esbl_tem | 0.1 |
-| bacteroides_fragilis | enzyme_esbl_shv | 0.1 |
-| bacteroides_fragilis | enzyme_kpc | 5e-5 |
-| bacteroides_fragilis | enzyme_ndm_vim | 3e-4 |
-| bacteroides_fragilis | enzyme_oxa_48 | 1.5e-4 |
-| bacteroides_fragilis | enzyme_ampc_cmy | 5e-4 |
-| bacteroides_fragilis | enzyme_ampc_dha | 5e-4 |
+| bacteroides_fragilis | enzyme_esbl_ctx_m | 0.003 |
+| bacteroides_fragilis | enzyme_esbl_tem | 0.003 |
+| bacteroides_fragilis | enzyme_esbl_shv | 0.003 |
+| bacteroides_fragilis | enzyme_kpc | 3e-5 |
+| bacteroides_fragilis | enzyme_ndm_vim | 3e-5 |
+| bacteroides_fragilis | enzyme_oxa_48 | 3e-5 |
+| bacteroides_fragilis | enzyme_ampc_cmy | 0.001 |
+| bacteroides_fragilis | enzyme_ampc_dha | 0.001 |
 | bacteroides_fragilis | mutation_gyra_primary | 5e-4 |
-| bacteroides_fragilis | mutation_gyra_parc_secondary | 0.015 |
-| bacteroides_fragilis | protection_qnr | 3e-4 |
-| bacteroides_fragilis | enzyme_16s_rrmt | 0.7 |
-| bacteroides_fragilis | target_site_erm_b | 0.04 |
-| bacteroides_fragilis | target_site_cfr | 3e-4 |
+| bacteroides_fragilis | mutation_gyra_parc_secondary | 0.01 |
+| bacteroides_fragilis | protection_qnr | 2e-4 |
+| bacteroides_fragilis | enzyme_16s_rrmt | 1 |
+| bacteroides_fragilis | target_site_erm_b | 0.02 |
+| bacteroides_fragilis | target_site_cfr | 2e-4 |
 | bacteroides_fragilis | enzyme_cat | 2e-5 |
-| bacteroides_fragilis | efflux_acrab_tolc | 2e-4 |
-| bacteroides_fragilis | modification_mcr_1 | 0.005 |
-| bacteroides_fragilis | global_efflux_pump | 2e-4 |
-| bacteroides_fragilis | global_porin_loss | 3e-5 |
-| bacteroides_fragilis | mutation_folate_pathway | 0.01 |
-| bacteroides_fragilis | mutation_nitroreductase | 0.001 |
-| bacteroides_fragilis | mutation_rpo_b | 0.005 |
-| bacteroides_fragilis | protection_tet_m | 0.015 |
-| bacteroides_fragilis | enzyme_aac_aph | 0.7 |
-| bacteroides_fragilis | mutation_pbp_mosaic | 3e-4 |
-| campylobacter_jejuni | mutation_gyra_primary | 0.0035 |
-| campylobacter_jejuni | mutation_gyra_parc_secondary | 0.005 |
-| campylobacter_jejuni | target_site_erm_b | 2e-6 |
-| campylobacter_jejuni | target_site_cfr | 2e-6 |
-| campylobacter_jejuni | enzyme_cat | 2e-4 |
-| campylobacter_jejuni | global_efflux_pump | 2e-6 |
-| campylobacter_jejuni | global_porin_loss | 4.5e-6 |
-| campylobacter_jejuni | mutation_folate_pathway | 0.2 |
-| campylobacter_jejuni | mutation_rpo_b | 0.2 |
-| campylobacter_jejuni | protection_tet_m | 1e-4 |
-| campylobacter_jejuni | enzyme_aac_aph | 0.02 |
-| campylobacter_jejuni | mutation_23s_rrna | 1.5e-7 |
-| campylobacter_jejuni | efflux_tet_abc | 5e-6 |
-| campylobacter_jejuni | efflux_mtr_cde | 2e-5 |
-| enterobacter_cloacae | enzyme_esbl_ctx_m | 1e-4 |
-| enterobacter_cloacae | enzyme_esbl_tem | 1e-4 |
-| enterobacter_cloacae | enzyme_esbl_shv | 1e-4 |
-| enterobacter_cloacae | enzyme_kpc | 1e-4 |
-| enterobacter_cloacae | enzyme_ndm_vim | 1e-4 |
-| enterobacter_cloacae | enzyme_oxa_48 | 1e-4 |
-| enterobacter_cloacae | enzyme_ampc_cmy | 1e-4 |
-| enterobacter_cloacae | enzyme_ampc_dha | 1e-4 |
-| enterobacter_cloacae | mutation_gyra_primary | 3e-4 |
-| enterobacter_cloacae | mutation_gyra_parc_secondary | 3e-4 |
-| enterobacter_cloacae | protection_qnr | 3e-4 |
-| enterobacter_cloacae | enzyme_16s_rrmt | 0.05 |
-| enterobacter_cloacae | enzyme_cat | 0.001 |
-| enterobacter_cloacae | efflux_acrab_tolc | 1e-4 |
-| enterobacter_cloacae | modification_mcr_1 | 0.005 |
-| enterobacter_cloacae | global_porin_loss | 1e-7 |
+| bacteroides_fragilis | efflux_acrab_tolc | 1e-4 |
+| bacteroides_fragilis | modification_mcr_1 | 0.002 |
+| bacteroides_fragilis | global_efflux_pump | 1e-4 |
+| bacteroides_fragilis | global_porin_loss | 1e-5 |
+| bacteroides_fragilis | mutation_folate_pathway | 0.005 |
+| bacteroides_fragilis | mutation_nitroreductase | 5e-4 |
+| bacteroides_fragilis | mutation_rpo_b | 0.002 |
+| bacteroides_fragilis | protection_tet_m | 0.01 |
+| bacteroides_fragilis | enzyme_aac_aph | 1 |
+| bacteroides_fragilis | mutation_pbp_mosaic | 0.001 |
+| campylobacter_jejuni | mutation_gyra_primary | 0.03 |
+| campylobacter_jejuni | mutation_gyra_parc_secondary | 0.03 |
+| campylobacter_jejuni | target_site_erm_b | 1e-5 |
+| campylobacter_jejuni | target_site_cfr | 1e-5 |
+| campylobacter_jejuni | enzyme_cat | 6e-4 |
+| campylobacter_jejuni | global_efflux_pump | 0.03 |
+| campylobacter_jejuni | global_porin_loss | 2e-5 |
+| campylobacter_jejuni | mutation_folate_pathway | 0.6 |
+| campylobacter_jejuni | mutation_rpo_b | 0.6 |
+| campylobacter_jejuni | protection_tet_m | 0.01 |
+| campylobacter_jejuni | enzyme_aac_aph | 0.1 |
+| campylobacter_jejuni | mutation_23s_rrna | 3e-4 |
+| campylobacter_jejuni | efflux_tet_abc | 0.001 |
+| campylobacter_jejuni | efflux_mtr_cde | 2e-4 |
+| enterobacter_cloacae | enzyme_esbl_ctx_m | 5e-6 |
+| enterobacter_cloacae | enzyme_esbl_tem | 5e-6 |
+| enterobacter_cloacae | enzyme_esbl_shv | 5e-6 |
+| enterobacter_cloacae | enzyme_kpc | 1e-5 |
+| enterobacter_cloacae | enzyme_ndm_vim | 1e-5 |
+| enterobacter_cloacae | enzyme_oxa_48 | 1e-5 |
+| enterobacter_cloacae | enzyme_ampc_cmy | 5e-6 |
+| enterobacter_cloacae | enzyme_ampc_dha | 5e-6 |
+| enterobacter_cloacae | mutation_gyra_primary | 2e-4 |
+| enterobacter_cloacae | mutation_gyra_parc_secondary | 2e-4 |
+| enterobacter_cloacae | protection_qnr | 2e-4 |
+| enterobacter_cloacae | enzyme_16s_rrmt | 0.03 |
+| enterobacter_cloacae | enzyme_cat | 2e-4 |
+| enterobacter_cloacae | efflux_acrab_tolc | 5e-5 |
+| enterobacter_cloacae | modification_mcr_1 | 0.01 |
+| enterobacter_cloacae | global_porin_loss | 1e-6 |
 | enterobacter_cloacae | mutation_folate_pathway | 5e-5 |
 | enterobacter_cloacae | mutation_nitroreductase | 0.001 |
 | enterobacter_cloacae | enzyme_fos_a | 0.001 |
 | enterobacter_cloacae | mutation_rpo_b | 0.01 |
-| enterobacter_cloacae | protection_tet_m | 0.001 |
-| enterobacter_cloacae | enzyme_aac_aph | 0.05 |
+| enterobacter_cloacae | protection_tet_m | 0.002 |
+| enterobacter_cloacae | enzyme_aac_aph | 0.1 |
 | enterobacter_cloacae | efflux_tet_abc | 1e-4 |
-| enterobacter_cloacae | mutation_pbp_mosaic | 1e-7 |
-| yersinia_enterocolitica | enzyme_esbl_ctx_m | 1e-10 |
-| yersinia_enterocolitica | enzyme_esbl_tem | 1e-10 |
-| yersinia_enterocolitica | enzyme_esbl_shv | 3e-11 |
-| yersinia_enterocolitica | enzyme_kpc | 1e-11 |
-| yersinia_enterocolitica | enzyme_ndm_vim | 1e-11 |
-| yersinia_enterocolitica | enzyme_oxa_48 | 1e-11 |
-| yersinia_enterocolitica | enzyme_ampc_cmy | 1e-10 |
-| yersinia_enterocolitica | enzyme_ampc_dha | 1e-10 |
-| yersinia_enterocolitica | mutation_gyra_primary | 1e-10 |
-| yersinia_enterocolitica | mutation_gyra_parc_secondary | 1e-10 |
-| yersinia_enterocolitica | protection_qnr | 1e-10 |
-| yersinia_enterocolitica | enzyme_16s_rrmt | 1e-11 |
-| yersinia_enterocolitica | enzyme_cat | 1e-10 |
-| yersinia_enterocolitica | efflux_acrab_tolc | 1e-10 |
-| yersinia_enterocolitica | modification_mcr_1 | 1e-10 |
-| yersinia_enterocolitica | global_efflux_pump | 1e-10 |
-| yersinia_enterocolitica | global_porin_loss | 3e-11 |
-| yersinia_enterocolitica | mutation_folate_pathway | 1e-10 |
-| yersinia_enterocolitica | mutation_nitroreductase | 3e-10 |
-| yersinia_enterocolitica | enzyme_fos_a | 1e-10 |
-| yersinia_enterocolitica | mutation_rpo_b | 1e-11 |
-| yersinia_enterocolitica | protection_tet_m | 1e-10 |
-| yersinia_enterocolitica | enzyme_aac_aph | 5e-11 |
-| yersinia_enterocolitica | efflux_tet_abc | 5e-11 |
-| yersinia_enterocolitica | efflux_mtr_cde | 1e-10 |
+| enterobacter_cloacae | mutation_pbp_mosaic | 5e-6 |
+| yersinia_enterocolitica | enzyme_esbl_ctx_m | 3e-10 |
+| yersinia_enterocolitica | enzyme_esbl_tem | 3e-10 |
+| yersinia_enterocolitica | enzyme_esbl_shv | 1e-10 |
+| yersinia_enterocolitica | enzyme_kpc | 3e-11 |
+| yersinia_enterocolitica | enzyme_ndm_vim | 3e-11 |
+| yersinia_enterocolitica | enzyme_oxa_48 | 3e-11 |
+| yersinia_enterocolitica | enzyme_ampc_cmy | 3e-10 |
+| yersinia_enterocolitica | enzyme_ampc_dha | 3e-10 |
+| yersinia_enterocolitica | mutation_gyra_primary | 3e-10 |
+| yersinia_enterocolitica | mutation_gyra_parc_secondary | 3e-10 |
+| yersinia_enterocolitica | protection_qnr | 3e-10 |
+| yersinia_enterocolitica | enzyme_16s_rrmt | 3e-11 |
+| yersinia_enterocolitica | enzyme_cat | 3e-10 |
+| yersinia_enterocolitica | efflux_acrab_tolc | 3e-10 |
+| yersinia_enterocolitica | modification_mcr_1 | 3e-10 |
+| yersinia_enterocolitica | global_efflux_pump | 3e-10 |
+| yersinia_enterocolitica | global_porin_loss | 1e-10 |
+| yersinia_enterocolitica | mutation_folate_pathway | 3e-10 |
+| yersinia_enterocolitica | mutation_nitroreductase | 1e-9 |
+| yersinia_enterocolitica | enzyme_fos_a | 3e-10 |
+| yersinia_enterocolitica | mutation_rpo_b | 3e-11 |
+| yersinia_enterocolitica | protection_tet_m | 3e-10 |
+| yersinia_enterocolitica | enzyme_aac_aph | 1.5e-10 |
+| yersinia_enterocolitica | efflux_tet_abc | 1.5e-10 |
+| yersinia_enterocolitica | efflux_mtr_cde | 3e-10 |
 | moraxella_catarrhalis | enzyme_esbl_ctx_m | 2e-7 |
-| moraxella_catarrhalis | enzyme_esbl_tem | 5e-6 |
+| moraxella_catarrhalis | enzyme_esbl_tem | 1e-6 |
 | moraxella_catarrhalis | enzyme_esbl_shv | 2e-8 |
 | moraxella_catarrhalis | enzyme_ampc_cmy | 5e-7 |
 | moraxella_catarrhalis | enzyme_ampc_dha | 2e-7 |
@@ -8359,19 +8379,19 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | bordetella_pertussis | mutation_rpo_b | 1e-12 |
 | bordetella_pertussis | protection_tet_m | 1e-11 |
 | bordetella_pertussis | efflux_mtr_cde | 2e-12 |
-| helicobacter_pylori | mutation_gyra_primary | 1e8 |
-| helicobacter_pylori | mutation_gyra_parc_secondary | 1e8 |
-| helicobacter_pylori | target_site_erm_b | 1e8 |
-| helicobacter_pylori | target_site_cfr | 1e8 |
-| helicobacter_pylori | global_efflux_pump | 1e8 |
-| helicobacter_pylori | global_porin_loss | 1e8 |
-| helicobacter_pylori | mutation_folate_pathway | 1e8 |
-| helicobacter_pylori | mutation_nitroreductase | 1e8 |
-| helicobacter_pylori | mutation_rpo_b | 1e8 |
-| helicobacter_pylori | protection_tet_m | 1e8 |
-| helicobacter_pylori | enzyme_bla_z | 1e8 |
-| helicobacter_pylori | mutation_23s_rrna | 1e8 |
-| helicobacter_pylori | mutation_pbp_mosaic | 1e8 |
+| helicobacter_pylori | mutation_gyra_primary | 1 |
+| helicobacter_pylori | mutation_gyra_parc_secondary | 1 |
+| helicobacter_pylori | target_site_erm_b | 1 |
+| helicobacter_pylori | target_site_cfr | 1 |
+| helicobacter_pylori | global_efflux_pump | 1 |
+| helicobacter_pylori | global_porin_loss | 1 |
+| helicobacter_pylori | mutation_folate_pathway | 1 |
+| helicobacter_pylori | mutation_nitroreductase | 1 |
+| helicobacter_pylori | mutation_rpo_b | 1 |
+| helicobacter_pylori | protection_tet_m | 1 |
+| helicobacter_pylori | enzyme_bla_z | 1 |
+| helicobacter_pylori | mutation_23s_rrna | 1 |
+| helicobacter_pylori | mutation_pbp_mosaic | 1 |
 | mycoplasma_pneumoniae | mutation_gyra_primary | 3e-7 |
 | mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-7 |
 | mycoplasma_pneumoniae | target_site_erm_b | 1.5e-5 |
@@ -9559,8 +9579,50 @@ When enabled, individual infection journeys are logged to the `infection_journey
 
 - Werner G, Coque TM, Hammerum AM, et al. Emergence and spread of vancomycin resistance among enterococci in Europe. *Euro Surveill.* 2008;13(47):19046.
 
+- Borger AL, Abarca AA, Dötsch A, et al. Mobile resistance genes in *Mycobacterium tuberculosis*: current evidence and future perspectives. *Lancet Infect Dis.* 2023;23(7):e268–e278. doi:10.1016/S1473-3099(22)00785-0
+
+- Brooke JS. *Stenotrophomonas maltophilia*: an emerging global opportunistic pathogen. *Clin Microbiol Rev.* 2012;25(1):2–41. doi:10.1128/CMR.00019-11
+
+- Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. *Microbiome.* 2017;5(1):154. doi:10.1186/s40168-017-0369-0
+
+- Carattoli A. Resistance plasmid families in Enterobacteriaceae. *Antimicrob Agents Chemother.* 2009;53(6):2227–2238. doi:10.1128/AAC.01707-08
+
+- Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of *Stenotrophomonas maltophilia* reveals an organism heavily shielded by drug resistance determinants. *Genome Biol.* 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74
+
+- Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of *Helicobacter pylori* infection: systematic review and meta-analysis. *Gastroenterology.* 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022
+
+- Partridge SR, Kwong SM, Firth N, Jensen SO. Mobile genetic elements associated with antimicrobial resistance. *Clin Microbiol Rev.* 2018;31(4):e00088-17. doi:10.1128/CMR.00088-17
+
+- World Health Organization. *WHO consolidated guidelines on drug-resistant tuberculosis treatment.* Geneva: WHO; 2020. ISBN 978-92-4-155056-7. Available at: https://www.who.int/publications/i/item/9789241550567
+
+- Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in *Helicobacter pylori*: a systematic review and meta-analysis in World Health Organization regions. *Gastroenterology.* 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022
+
 - Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
 
 - Xu L, Sun X, Ma X. Systematic review and meta-analysis of mortality of patients infected with carbapenem-resistant *Klebsiella pneumoniae*. *Ann Clin Microbiol Antimicrob.* 2017;16(1):18. doi:10.1186/s12941-017-0191-3
 
 - Yeung KHT, Duclos P, Nelson EAS, Hutubessy RCW. An update of the global burden of pertussis in children younger than 5 years: a modelling study. *Lancet Infect Dis.* 2017;17(9):974–980. doi:10.1016/S1473-3099(17)30390-0
+
+- Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. *Cochrane Database Syst Rev.* 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4
+
+- San Millán A, MacLean RC. Fitness costs of plasmids: a limit to plasmid transmission. *Microbiol Spectr.* 2017;5(5):MTBP-0016-2017. doi:10.1128/microbiolspec.MTBP-0016-2017
+
+- Brunton LL, Hilal-Dandan R, Knollmann BC, eds. *Goodman & Gilman's: The Pharmacological Basis of Therapeutics.* 13th ed. New York: McGraw-Hill; 2018.
+
+- Dunne MW, Puttagunta S, Giordano P, Krievins D, Zelasky M, Baldassarre J. A randomized clinical trial of single-dose versus weekly dalbavancin for treatment of acute bacterial skin and skin structure infection. *Clin Infect Dis.* 2016;62(5):545–551. doi:10.1093/cid/ciw005
+
+- Klein EY, Van Boeckel TP, Martinez EM, et al. Global increase and geographic convergence in antibiotic consumption between 2000 and 2015. *Proc Natl Acad Sci USA.* 2018;115(15):E3463–E3470. doi:10.1073/pnas.1717295115
+
+- Llewelyn MJ, Fitzpatrick JM, Darwin E, et al. The antibiotic course has had its day. *BMJ.* 2017;358:j3418. doi:10.1136/bmj.j3418
+
+- Rowley J, Vander Hoorn S, Korenromp EL, et al. Chlamydia, gonorrhoea, trichomoniasis and syphilis: global prevalence and incidence estimates, 2016. *Bull World Health Organ.* 2019;97(8):548–562P. doi:10.2471/BLT.18.228486
+
+- Rybak MJ, Le J, Lodise TP, et al. Therapeutic monitoring of vancomycin for serious methicillin-resistant *Staphylococcus aureus* infections: A revised consensus guideline and review by the American Society of Health-System Pharmacists, the Infectious Diseases Society of America, and the Society of Infectious Diseases Pharmacists. *Am J Health-Syst Pharm.* 2020;77(11):835–864. doi:10.1093/ajhp/zxaa036
+
+- Wunderink RG, Matsunaga Y, Ariyasu M, et al. Cefiderocol versus high-dose, extended-infusion meropenem for the treatment of Gram-negative nosocomial pneumonia (APEKS-NP): a randomised, double-blind, phase 3, non-inferiority trial. *Lancet Infect Dis.* 2021;21(2):213–225. doi:10.1016/S1473-3099(20)30731-3
+
+- Nielsen EI, Friberg LE. Pharmacokinetic-pharmacodynamic modeling of antibacterial drugs. *Pharmacol Rev.* 2013;65(3):1053–1090. doi:10.1124/pr.111.005769
+
+- Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. *Medical Microbiology.* 19th ed. Edinburgh: Churchill Livingstone; 2019.
+
+- Wain J, Kilmarx PH, eds. *Practical Laboratory Manual for National Tuberculosis Programmes.* Geneva: WHO; 2006.

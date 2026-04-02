@@ -709,6 +709,53 @@ BACTERIA_DISPLAY_NAME_OVERRIDES: Dict[str, str] = {
     "providencia_stuartii": "Providencia stuartii",
 }
 
+# Per-organism hospital-acquisition % targets (central literature estimates).
+# Keys match the canonicalized slug form (lower-case, spaces, no underscores).
+_HA_PCT_TARGETS: Dict[str, float] = {
+    "acinetobacter baumannii":                   65.0,  # ESKAPE; ICU/VAP ~60-80%
+    "bacteroides fragilis":                       30.0,  # post-surgical intra-abdominal ~20-40%
+    "bordetella pertussis":                        5.0,  # occasionally nosocomial in neonates
+    "burkholderia cepacia complex":               65.0,  # CF centres / CGD ~50-80%
+    "campylobacter jejuni":                        2.0,  # foodborne; very rare HA
+    "chlamydia trachomatis":                       1.0,  # STI; negligible HA
+    "citrobacter spp.":                           45.0,  # opportunistic; device-associated ~40-55%
+    "clostridioides difficile":                   50.0,  # classic HAI ~40-60%
+    "enterobacter cloacae":                       45.0,  # nosocomial ~40-55%
+    "enterobacter spp.":                          45.0,
+    "enterococcus faecalis":                      30.0,  # UTI/wound HA ~20-40%
+    "enterococcus faecium":                       50.0,  # VRE; BSI/UTI ~40-60%
+    "escherichia coli":                           15.0,  # CAUTI/BSI ~10-20%
+    "haemophilus influenzae":                     10.0,  # mainly community; HA neonates/elderly
+    "helicobacter pylori":                        10.0,  # endoscopy-related seeding possible
+    "invasive non-typhoidal salmonella spp.":     10.0,
+    "klebsiella pneumoniae":                      40.0,  # HAI ~30-50%
+    "legionella pneumophila":                     20.0,  # hospital water systems ~15-30%
+    "listeria monocytogenes":                     10.0,  # foodborne; HA in immunocompromised
+    "mdr mycobacterium tuberculosis":              8.0,
+    "moraxella catarrhalis":                      10.0,
+    "morganella spp.":                            40.0,  # UTI/wound HA ~30-50%
+    "mycoplasma genitalium":                       1.0,  # STI
+    "mycoplasma pneumoniae":                       8.0,  # community; HA in elderly/outbreaks
+    "neisseria gonorrhoeae":                       1.0,  # STI
+    "neisseria meningitidis":                     20.0,  # HA in infants/elderly ~15-25%
+    "proteus spp.":                               30.0,  # catheter-associated ~25-35%
+    "providencia stuartii":                       65.0,  # long-term-care catheter ~60-75%
+    "pseudomonas aeruginosa":                     45.0,  # VAP/wound HA ~35-55%
+    "salmonella enterica serovar paratyphi a":     3.0,
+    "salmonella enterica serovar typhi":           3.0,
+    "serratia spp.":                              50.0,  # ICU/NICU ~40-60%
+    "shigella spp.":                               2.0,  # foodborne/waterborne
+    "staphylococcus aureus":                      25.0,  # MRSA/SSTI HA ~20-30%
+    "staphylococcus epidermidis":                 75.0,  # device/implant ~70-85%
+    "stenotrophomonas maltophilia":               70.0,  # ventilated/immunocompromised ~60-80%
+    "streptococcus agalactiae":                   30.0,  # neonatal/obstetric HA ~20-35%
+    "streptococcus pneumoniae":                   10.0,  # mostly community; HA in elderly
+    "streptococcus pyogenes":                     10.0,
+    "treponema pallidum":                          1.0,  # STI
+    "vibrio cholerae":                             2.0,  # waterborne
+    "yersinia enterocolitica":                     3.0,
+}
+
 
 def _canonicalize_bacteria_slug(slug: str) -> str:
     normalized = slug.strip().lower()
@@ -1419,6 +1466,7 @@ def _calculate_bacteria_burden_table(
         "Infections <5yr (%)",
         "Infections 65+ (%)",
         "Hospital Acquired (%)",
+        "Hospital Acquired target (%)",
         "Carriage target (%)",
         "Carriage simulation (%)",
         "Microbiome Resistance Prevalence (%)",
@@ -1636,6 +1684,7 @@ def _calculate_bacteria_burden_table(
             "Infections <5yr (%)": inf_under_5_pct,
             "Infections 65+ (%)": inf_over_65_pct,
             "Hospital Acquired (%)": hospital_acquired_pct,
+            "Hospital Acquired target (%)": _HA_PCT_TARGETS.get(display_name.lower(), np.nan),
             "Carriage target (%)": carriage_target_pct,
             "Carriage simulation (%)": carriage_sim_pct,
             "Microbiome Resistance Prevalence (%)": microbiome_res_pct,
@@ -2437,14 +2486,13 @@ def _build_mean_abs_gap_tables(
     if working.empty:
         return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
 
-    # Exclude rifampicin for MDR-TB: rifampicin resistance is assumed for all
-    # MDR-TB cases and should not count toward calibration error.
+    # Exclude all MDR-TB rows: resistance metrics are not meaningful for TB in this
+    # context (guaranteed rifampicin resistance, FQ resistance not yet seeded).
     # Exclude Listeria: too few infections for stable resistance percentages.
     _bact_lower = working.get("Bacteria", pd.Series(dtype=str)).astype(str).str.lower()
-    _drug_lower = working.get("Drug", pd.Series(dtype=str)).astype(str).str.lower()
-    _tb_rif_mask = _bact_lower.str.contains("tuberculosis", na=False) & _drug_lower.str.contains("rifampicin", na=False)
+    _tb_mask = _bact_lower.str.contains("tuberculosis", na=False)
     _listeria_mask = _bact_lower.str.contains("listeria", na=False)
-    working = working.loc[~_tb_rif_mask & ~_listeria_mask]
+    working = working.loc[~_tb_mask & ~_listeria_mask]
 
     if working.empty:
         return pd.DataFrame(columns=bacteria_columns), pd.DataFrame(columns=drug_columns)
@@ -3140,6 +3188,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 "Infections <5yr (%)",
                 "Infections 65+ (%)",
                 "Hospital Acquired (%)",
+                "Hospital Acquired target (%)",
                 "Carriage target (%)",
                 "Carriage simulation (%)",
                 "Microbiome Resistance Prevalence (%)",

@@ -2189,7 +2189,17 @@ impl Simulation {
                 .unwrap_or(MICROBIOME_MAJORITY_THRESHOLD);
             let policy = self.current_policy_adjustments;
             let calibration_mode = self.calibration_mode;
-            let need_full_summary = true;
+            // In CalibrationMode::Full only the 2022-2025 window is kept (keep_row).
+            // Skip the expensive B×D inner loops (42×60 iters per individual) for the
+            // ~96% of pre-window steps whose rows will be discarded anyway.
+            let need_full_summary = match calibration_mode {
+                CalibrationMode::Full => {
+                    let sim_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
+                    sim_year >= CALIBRATION_SUMMARY_WINDOW_START
+                        && sim_year < CALIBRATION_SUMMARY_WINDOW_END
+                }
+                CalibrationMode::Partial | CalibrationMode::None => true,
+            };
             let totals = self.population.individuals.par_iter_mut()
             .fold(
                 || {
@@ -2275,7 +2285,11 @@ impl Simulation {
                                     } // end need_full_summary for pre-rules B×D
 
                                     let num_mechanisms = ResistanceMechanism::all().len();
-                                    let is_hosp = individual.hospital_status.is_hospitalized();
+                                    // Use acquisition route (hospital_acquired) rather than current
+                                    // location (is_hosp) so the hospital pool tracks the
+                                    // hospital transmission chain, not just who happens to be
+                                    // in hospital today (most of whom acquired resistance in the community).
+                                    let is_hosp_acquired = individual.infection_hospital_acquired[b_idx];
                                     for mech_idx in 0..num_mechanisms {
                                         if individual.mechanism_any[b_idx][mech_idx] {
                                             let flat_idx = b_idx * num_mechanisms + mech_idx;
@@ -2284,7 +2298,7 @@ impl Simulation {
                                             if let Some(r_idx) = effective_region_idx_for_any_r {
                                                 let ewma_flat = r_idx * num_bacteria * num_mechanisms + b_idx * num_mechanisms + mech_idx;
                                                 if individual.mechanism_majority[b_idx][mech_idx] {
-                                                    if is_hosp {
+                                                    if is_hosp_acquired {
                                                         lt.mech_infected_hosp[ewma_flat] = lt.mech_infected_hosp[ewma_flat].saturating_add(1);
                                                     } else {
                                                         lt.mech_infected_comm[ewma_flat] = lt.mech_infected_comm[ewma_flat].saturating_add(1);
@@ -2300,12 +2314,12 @@ impl Simulation {
                                         lt.mechanism_profiles.record(
                                             r_idx,
                                             b_idx,
-                                            is_hosp,
+                                            is_hosp_acquired,
                                             &individual.mechanism_majority[b_idx],
                                             &mut lt.rng,
                                         );
                                         let denom_flat = r_idx * num_bacteria + b_idx;
-                                        if is_hosp {
+                                        if is_hosp_acquired {
                                             lt.total_infected_hosp[denom_flat] = lt.total_infected_hosp[denom_flat].saturating_add(1);
                                         } else {
                                             lt.total_infected_comm[denom_flat] = lt.total_infected_comm[denom_flat].saturating_add(1);
