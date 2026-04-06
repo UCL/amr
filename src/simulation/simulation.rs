@@ -2259,9 +2259,6 @@ impl Simulation {
                                             if resistance_data.any_r < threshold {
                                                 lt.mic_lt2_counts[base + d_idx] += 1;
                                             }
-                                            if individual.cur_use_drug[d_idx] {
-                                                lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
-                                            }
                                             lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
                                             let potency = potency_matrix[base + d_idx];
                                             let mic = if potency <= 1e-9 {
@@ -2285,11 +2282,14 @@ impl Simulation {
                                     } // end need_full_summary for pre-rules B×D
 
                                     let num_mechanisms = ResistanceMechanism::all().len();
-                                    // Use acquisition route (hospital_acquired) rather than current
-                                    // location (is_hosp) so the hospital pool tracks the
-                                    // hospital transmission chain, not just who happens to be
-                                    // in hospital today (most of whom acquired resistance in the community).
-                                    let is_hosp_acquired = individual.infection_hospital_acquired[b_idx];
+                                    // Use current hospital location rather than acquisition route
+                                    // so that resistance that develops under hospital antibiotic
+                                    // pressure (including in community-acquired infections admitted
+                                    // to hospital) feeds the hospital strain pool.  Sampling still
+                                    // uses the acquisition-route flag — this only affects which pool
+                                    // we record the evolving strain into.
+                                    let _is_hosp_acquired = individual.infection_hospital_acquired[b_idx];
+                                    let record_as_hosp = individual.hospital_status.is_hospitalized();
                                     for mech_idx in 0..num_mechanisms {
                                         if individual.mechanism_any[b_idx][mech_idx] {
                                             let flat_idx = b_idx * num_mechanisms + mech_idx;
@@ -2298,7 +2298,7 @@ impl Simulation {
                                             if let Some(r_idx) = effective_region_idx_for_any_r {
                                                 let ewma_flat = r_idx * num_bacteria * num_mechanisms + b_idx * num_mechanisms + mech_idx;
                                                 if individual.mechanism_majority[b_idx][mech_idx] {
-                                                    if is_hosp_acquired {
+                                                    if record_as_hosp {
                                                         lt.mech_infected_hosp[ewma_flat] = lt.mech_infected_hosp[ewma_flat].saturating_add(1);
                                                     } else {
                                                         lt.mech_infected_comm[ewma_flat] = lt.mech_infected_comm[ewma_flat].saturating_add(1);
@@ -2314,12 +2314,12 @@ impl Simulation {
                                         lt.mechanism_profiles.record(
                                             r_idx,
                                             b_idx,
-                                            is_hosp_acquired,
+                                            record_as_hosp,
                                             &individual.mechanism_majority[b_idx],
                                             &mut lt.rng,
                                         );
                                         let denom_flat = r_idx * num_bacteria + b_idx;
-                                        if is_hosp_acquired {
+                                        if record_as_hosp {
                                             lt.total_infected_hosp[denom_flat] = lt.total_infected_hosp[denom_flat].saturating_add(1);
                                         } else {
                                             lt.total_infected_comm[denom_flat] = lt.total_infected_comm[denom_flat].saturating_add(1);
@@ -2904,6 +2904,14 @@ impl Simulation {
                                         } else {
                                             if infection_any_r_positive {
                                                 lt.resistant_infected_community_count_by_bacteria[b_idx] += 1;
+                                            }
+                                        }
+                                    }
+                                    if need_full_summary && on_any_drug_current {
+                                        let base = b_idx * num_drugs;
+                                        for d_idx in 0..num_drugs {
+                                            if individual.cur_use_drug[d_idx] {
+                                                lt.currently_on_drug_by_bacteria_drug[base + d_idx] += 1;
                                             }
                                         }
                                     }

@@ -2046,16 +2046,12 @@ pub(crate) fn apply_rules(
         // log_odds = base + sum of applicable effects (additive in log-odds space)
         // This naturally bounds P ∈ (0,1) without clamping
         
-        let infection_acquired_this_step = individual
-            .date_last_infected
-            .iter()
-            .any(|&d| d == time_step as i32);
-        
         // Build log-odds by adding applicable effects
         let mut log_odds = antibiotic_init_base_log_odds;
         
-        // Symptomatic infection present (not newly acquired this step)
-        if symptomatic_infection_present && !infection_acquired_this_step {
+            // Symptomatic infection present, including newly acquired infections.
+            // Blocking day-0 symptomatic starts suppresses clinically plausible early treatment.
+            if symptomatic_infection_present {
             log_odds += antibiotic_init_log_odds_symptomatic;
         }
 
@@ -2167,6 +2163,19 @@ pub(crate) fn apply_rules(
             let identified_bacteria = &identified_bacteria_buf[..identified_bacteria_len];
             for &drug_idx in available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
+                let prophylaxis_score = if prophylaxis_candidate {
+                    match drug_name {
+                        // Keep generic immunodeficiency prophylaxis tightly constrained to a small
+                        // outpatient-oriented set rather than the full empiric pool.
+                        "trim_sulf" => 6.0,
+                        "azithromycin" => 4.5,
+                        "ciprofloxacin" => 2.0,
+                        "levofloxacin" => 1.5,
+                        _ => 0.0,
+                    }
+                } else {
+                    0.0
+                };
                 // Restriction: only block this drug when resistance was detected for an active infection
                 let mut resistance_detected = false;
                 for b_idx in 0..BACTERIA_LIST.len() {
@@ -2204,9 +2213,19 @@ pub(crate) fn apply_rules(
                         || misdiagnosed_symptom_start
                         || prophylaxis_candidate);
 
+                if prophylaxis_candidate && prophylaxis_score <= 0.0 {
+                    continue;
+                }
+
                 // BLOCK: Age-based contraindications
                 // Tetracyclines avoid < 8 years due to tooth discoloration/bone growth issues
                 if individual.age < 2920 && matches!(drug_name, "tetracycline" | "doxycycline" | "minocycline") {
+                    continue;
+                }
+                if prophylaxis_candidate
+                    && individual.age < 6570
+                    && matches!(drug_name, "ciprofloxacin" | "levofloxacin")
+                {
                     continue;
                 }
 
@@ -2223,10 +2242,9 @@ pub(crate) fn apply_rules(
                         continue;
                     }
                     if matches!(drug_name, "nitrofurantoin" | "fosfomycin") {
-                        // Require an actual UTI syndrome; do not allow undifferentiated/no-syndrome prescribing.
-                        let is_uti_only = !active_syndrome_ids.is_empty()
-                            && active_syndrome_ids.iter().all(|&sid| sid == 1);
-                        if !is_uti_only {
+                        // Allow when UTI syndrome (1) is present (can be alongside other syndromes).
+                        let has_uti_syndrome = active_syndrome_ids.contains(&1);
+                        if !has_uti_syndrome {
                             continue;
                         }
                     }
@@ -2280,7 +2298,10 @@ pub(crate) fn apply_rules(
                 let mut empiric_signal_present = false;
                 let mut empiric_multiplier = 1.0;
                 if empiric_selection {
-                    if active_syndrome_ids.is_empty() {
+                    if prophylaxis_candidate {
+                        empiric_signal_present = true;
+                        empiric_multiplier *= prophylaxis_score;
+                    } else if active_syndrome_ids.is_empty() {
                         let syn_score = store.syndrome.empiric_drug_score(0, drug_idx);
                         if syn_score > 1.0 {
                             empiric_signal_present = true;
@@ -2523,7 +2544,7 @@ pub(crate) fn apply_rules(
                             // E. coli - MASSIVELY strengthen first-line agents
                             ("escherichia_coli", "ciprofloxacin") => score *= 7.0,
                             ("escherichia_coli", "nitrofurantoin") => score *= 3.5,
-                            ("escherichia_coli", "trim_sulf") => score *= 10.0,
+                            ("escherichia_coli", "trim_sulf") => score *= 3.0,
                             ("escherichia_coli", "ceftriaxone") => score *= 9.0,
                             ("escherichia_coli", "amoxicillin_clavulanate") => score *= 150.0, // MASSIVELY STRENGTHENED (was 16.0)
                             ("escherichia_coli", "ampicillin_sulbactam") => score *= 140.0, // MASSIVELY STRENGTHENED (was 10.0)
@@ -2727,7 +2748,15 @@ pub(crate) fn apply_rules(
                                 "pseudomonas_aeruginosa"
                                     | "acinetobacter_baumannii"
                                     | "stenotrophomonas_maltophilia"
-                            );
+                            ) || (time_step >= 10950
+                                && matches!(
+                                    bacteria_name,
+                                    "klebsiella_pneumoniae"
+                                        | "enterobacter_spp."
+                                        | "enterobacter_cloacae"
+                                        | "serratia_spp."
+                                        | "escherichia_coli"
+                                ));
                             if !carbapenem_indicated {
                                 score *= 0.12; // Enforce stewardship penalty even after species boosts
                             }
@@ -2811,12 +2840,15 @@ pub(crate) fn apply_rules(
                             "escherichia_coli" => vec![
                                 "ciprofloxacin",
                                 "nitrofurantoin",
+                                "fosfomycin",
                                 "amoxicillin_clavulanate",
                                 "ampicillin_sulbactam",
                                 "trim_sulf",
                                 "ceftriaxone",
                                 "ampicillin",
                                 "cefuroxime",
+                                "gentamicin",
+                                "amikacin",
                             ],
                             "klebsiella_pneumoniae" => vec![
                                 "ceftriaxone",
@@ -2825,6 +2857,11 @@ pub(crate) fn apply_rules(
                                 "piperacillin_tazobactam",
                                 "amoxicillin_clavulanate",
                                 "ciprofloxacin",
+                                "gentamicin",
+                                "amikacin",
+                                "meropenem",
+                                "imipenem_c",
+                                "ertapenem",
                             ],
                             "enterococcus_faecalis" => {
                                 vec!["ampicillin", "vancomycin", "linezolid", "tedizolid"]
@@ -2850,7 +2887,6 @@ pub(crate) fn apply_rules(
                                 "ertapenem",
                                 "ciprofloxacin",
                                 "levofloxacin",
-                                "trim_sulf",
                             ],
                             "proteus_spp." => vec![
                                 "ampicillin",
@@ -3102,81 +3138,92 @@ pub(crate) fn apply_rules(
                         score *= ineffective_drug_penalty;
                     }
                 } else if empiric_selection {
-                    // Empirical therapy: rely on syndrome-level scoring rather than omniscient potency
-                    let empiric_broad_bonus = store.globals.empiric_therapy_broad_spectrum_bonus;
-                    let empiric_ineffective_penalty =
-                        store.globals.empiric_therapy_ineffective_penalty;
-
-                    let has_any_activity = empiric_signal_present;
-
-                    if reserve_candidate {
-                        // Stage therapy: require documented recent failure before escalating to reserve agents
-                        let mut failure_documented = false;
-                        let failure_memory_days = store.globals.drug_failure_memory_days;
-                        for b_idx in 0..BACTERIA_LIST.len() {
-                            if individual.level[b_idx] <= INFECTION_EPS {
-                                continue;
-                            }
-                            let failure_day = individual.date_last_drug_failure[b_idx];
-                            if failure_day < 0 {
-                                continue;
-                            }
-                            let days_since_failure = (time_step as i32) - failure_day;
-                            if days_since_failure >= 0 && days_since_failure <= failure_memory_days
-                            {
-                                failure_documented = true;
-                                break;
-                            }
+                    if prophylaxis_candidate {
+                        if reserve_candidate {
+                            continue;
                         }
+                        if drug_spectrum >= 4.0 {
+                            score *= 0.1;
+                        } else if drug_spectrum <= 3.5 {
+                            score *= 1.25;
+                        }
+                    } else {
+                        // Empirical therapy: rely on syndrome-level scoring rather than omniscient potency
+                        let empiric_broad_bonus = store.globals.empiric_therapy_broad_spectrum_bonus;
+                        let empiric_ineffective_penalty =
+                            store.globals.empiric_therapy_ineffective_penalty;
 
-                        if !failure_documented {
-                            score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
-                        } else {
-                            let mut high_resistance_observed = false;
-                            if !mechanism_cache.is_empty() {
-                                let region_idx = match individual.region_cur_in {
-                                    Region::Home => individual.region_living as usize,
-                                    r => r as usize,
-                                };
-                                let hospital_status = individual.hospital_status.is_hospitalized();
-                                let high_threshold =
-                                    store.globals.regional_resistance_threshold_high;
+                        let has_any_activity = empiric_signal_present;
 
-                                for b_idx in 0..BACTERIA_LIST.len() {
-                                    let prevalence = mechanism_cache.prevalence(
-                                        region_idx,
-                                        hospital_status,
-                                        b_idx,
-                                        drug_idx,
-                                        param_cache,
-                                    );
-
-                                    if prevalence >= high_threshold {
-                                        high_resistance_observed = true;
-                                        break;
-                                    }
+                        if reserve_candidate {
+                            // Stage therapy: require documented recent failure before escalating to reserve agents
+                            let mut failure_documented = false;
+                            let failure_memory_days = store.globals.drug_failure_memory_days;
+                            for b_idx in 0..BACTERIA_LIST.len() {
+                                if individual.level[b_idx] <= INFECTION_EPS {
+                                    continue;
+                                }
+                                let failure_day = individual.date_last_drug_failure[b_idx];
+                                if failure_day < 0 {
+                                    continue;
+                                }
+                                let days_since_failure = (time_step as i32) - failure_day;
+                                if days_since_failure >= 0 && days_since_failure <= failure_memory_days
+                                {
+                                    failure_documented = true;
+                                    break;
                                 }
                             }
 
-                            if !high_resistance_observed {
-                                score = 0.0; // Without high resistance pressure, reserve agents stay off empirical regimens
+                            if !failure_documented {
+                                score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
+                            } else {
+                                let mut high_resistance_observed = false;
+                                if !mechanism_cache.is_empty() {
+                                    let region_idx = match individual.region_cur_in {
+                                        Region::Home => individual.region_living as usize,
+                                        r => r as usize,
+                                    };
+                                    let hospital_status = individual.hospital_status.is_hospitalized();
+                                    let high_threshold =
+                                        store.globals.regional_resistance_threshold_high;
+
+                                    for b_idx in 0..BACTERIA_LIST.len() {
+                                        let prevalence = mechanism_cache.prevalence(
+                                            region_idx,
+                                            hospital_status,
+                                            b_idx,
+                                            drug_idx,
+                                            param_cache,
+                                        );
+
+                                        if prevalence >= high_threshold {
+                                            high_resistance_observed = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if !high_resistance_observed {
+                                    score = 0.0; // Without high resistance pressure, reserve agents stay off empirical regimens
+                                }
+                            }
+
+                            if score == 0.0 {
+                                continue;
                             }
                         }
 
-                        if score == 0.0 {
-                            continue;
+                        if has_any_activity {
+                            if drug_spectrum >= 3.5 {
+                                score *= empiric_broad_bonus;
+                            } else if drug_spectrum <= 2.0 {
+                                score *= 1.2; // MINOR BONUS: Actively promote narrow-spectrum empirical agents (was 2.5)
+                            }
+                        } else {
+                            // Drug has no syndrome-informed activity signal - heavily penalize
+                            score *= empiric_ineffective_penalty;
                         }
-                    }
-
-                    if has_any_activity {
-                        if drug_spectrum >= 3.5 {
-                            score *= empiric_broad_bonus;
-                        } else if drug_spectrum <= 2.0 {
-                            score *= 1.2; // MINOR BONUS: Actively promote narrow-spectrum empirical agents (was 2.5)
-                        }
-                    } else {
-                        // Drug has no syndrome-informed activity signal - heavily penalize
-                        score *= empiric_ineffective_penalty;
                     }
                 }
 
@@ -3193,7 +3240,12 @@ pub(crate) fn apply_rules(
                 let has_sepsis = individual.sepsis.iter().any(|&s| s);
 
                 if matches!(drug_name, "gentamicin" | "tobramycin" | "amikacin") {
-                    score *= 0.02;
+                    // Aminoglycosides: restrict to serious infection contexts rather than blanket penalty
+                    let is_severe_context = has_sepsis
+                        || active_syndrome_ids.iter().any(|&sid| matches!(sid, 4 | 5 | 6 | 10));
+                    if !is_severe_context {
+                        score *= 0.04; // Penalize strongly in non-severe contexts
+                    }
 
                     let pseudomonas_targeted_tobramycin = targeted_selection
                         && matches!(drug_name, "tobramycin")
@@ -3203,11 +3255,6 @@ pub(crate) fn apply_rules(
 
                     if pseudomonas_targeted_tobramycin {
                         score *= 2.0;
-                    } else if empiric_selection
-                        && !has_sepsis
-                        && !active_syndrome_ids.iter().any(|&sid| matches!(sid, 4 | 5 | 6 | 10))
-                    {
-                        score *= 0.25;
                     }
                 }
 
@@ -3825,6 +3872,19 @@ pub(crate) fn apply_rules(
                 log_odds += store.globals.sepsis_death_log_odds_not_under_care;
             }
 
+            // Per-organism CFR adjustment (e.g. meningococcal purpura fulminans, S. aureus endocarditis).
+            // Take the maximum override among all septic bacteria (worst-case organism drives outcome).
+            let organism_cfr_delta = individual
+                .sepsis
+                .iter()
+                .enumerate()
+                .filter(|(_, &is_septic)| is_septic)
+                .map(|(b_idx, _)| store.bacteria.sepsis_death_log_odds_override(b_idx))
+                .fold(f64::NEG_INFINITY, f64::max);
+            if organism_cfr_delta.is_finite() {
+                log_odds += organism_cfr_delta;
+            }
+
             // Convert log-odds to probability using logistic function
             // P = 1 / (1 + exp(-log_odds))
             sepsis_death_risk = 1.0 / (1.0 + (-log_odds).fast_exp());
@@ -4134,9 +4194,17 @@ pub(crate) fn apply_rules(
                             r => r as usize,
                         };
                         // Apply microbiome_resistance_multiplier_on_acquisition as a gate:
-                        // only a fraction of acquisitions inherit the circulating resistance profile
+                        // only a fraction of acquisitions inherit the circulating resistance profile.
+                        // Hospitalized individuals get an extra per-bacterium boost because they are
+                        // exposed to ward-endemic MDR strains (ESKAPE pathogens, VRE, etc.).
+                        let hospital_r_boost = if individual.hospital_status.is_hospitalized() {
+                            store.bacteria.hospital_microbiome_r_multiplier[b_idx]
+                        } else {
+                            1.0
+                        };
                         let microbiome_r_multiplier = store.globals.microbiome_resistance_multiplier_on_acquisition
-                            * microbiome_acquisition_sampling_multiplier;
+                            * microbiome_acquisition_sampling_multiplier
+                            * hospital_r_boost;
 
                         if rng.gen::<f64>() < (microbiome_r_multiplier * counterfactual_resistance_multiplier) {
                             use crate::simulation::population::ResistanceMechanism;

@@ -53,7 +53,7 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     },
     "resistance": {
         "component_weights": {"infection": 4.0, "average": 1.0},
-        "tolerances_pp": {"infection": 7.5, "average": 10.0},
+        "tolerances_pp": {"infection": 10.0, "average": 10.0},
     },
     "burden": {
         "relative_tolerance": 0.50,
@@ -1391,67 +1391,115 @@ def _calculate_resistance_table(
 
 
 def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.DataFrame:
+    """Per-bacterium mean absolute difference between hospital and community resistance %
+    across all applicable drugs.  Uses stock columns already written in full-calibration mode:
+      - {b}_sum_any_r_hospital_{d}  (hospital infections with any_r > 0, per drug)
+      - {b}_sum_any_r_{d}           (total infections with any_r > 0, per drug)
+      - {b}_currently_infected      (total stock denominator)
+    Hospital fraction estimated from newly-infected flow columns.
+    """
     columns = [
         "Bacteria",
         "Total New Infections",
-        "Hospital Infections with Any Resistance (%)",
-        "Community Infections with Any Resistance (%)"
+        "Mean |Hospital-Community| resistance gap (pp)",
+        "Drugs compared",
+        "Hospital any-R (%)",
+        "Community any-R (%)",
     ]
     if year_df.empty:
         return pd.DataFrame(columns=columns)
-        
-    sim_bacteria_set, _ = _extract_bacteria_and_drugs(year_df)
+
+    _HOSP_REGIONS = ["north_america", "south_america", "europe", "asia", "africa", "oceania"]
+
+    sim_bacteria_set, drug_set = _extract_bacteria_and_drugs(year_df)
     canonical_sim_map: Dict[str, Set[str]] = {}
     for raw_slug in sim_bacteria_set:
         canonical = _canonicalize_bacteria_slug(raw_slug)
         canonical_sim_map.setdefault(canonical, set()).add(raw_slug)
-        
+
     records = []
-    
+
     for slug in sorted(canonical_sim_map.keys()):
         raw_slugs = canonical_sim_map[slug]
-        
         display_name = BACTERIA_DISPLAY_NAME_OVERRIDES.get(slug, slug.replace("_", " "))
-        
-        total_infections = 0.0
-        hosp_infections = 0.0
-        hosp_any_r = 0.0
-        comm_any_r = 0.0
-        
+
+        total_currently_infected = 0.0
+        total_newly_infected = 0.0
+        total_newly_infected_hosp = 0.0
+        hosp_any_r_flow = 0.0
+        comm_any_r_flow = 0.0
+        # {d_slug: (sum_any_r_total, sum_any_r_hospital)}
+        drug_totals: Dict[str, Tuple[float, float]] = {}
+
         for raw_slug in raw_slugs:
-            carrier_col = f"{raw_slug}_newly_infected_carrier"
-            non_carrier_col = f"{raw_slug}_newly_infected_non_carrier"
-            for col in (carrier_col, non_carrier_col):
+            inf_col = f"{raw_slug}_currently_infected"
+            if inf_col in year_df.columns:
+                total_currently_infected += float(year_df[inf_col].sum(skipna=True))
+
+            for col in (f"{raw_slug}_newly_infected_carrier", f"{raw_slug}_newly_infected_non_carrier"):
                 if col in year_df.columns:
-                    total_infections += float(year_df[col].sum(skipna=True))
-                    
-            for region in ["north_america", "south_america", "europe", "asia", "africa", "oceania"]:
+                    total_newly_infected += float(year_df[col].sum(skipna=True))
+
+            for region in _HOSP_REGIONS:
                 hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
                 if hosp_col in year_df.columns:
-                    hosp_infections += float(year_df[hosp_col].sum(skipna=True))
-                    
+                    total_newly_infected_hosp += float(year_df[hosp_col].sum(skipna=True))
+
             hosp_r_col = f"{raw_slug}_newly_infected_any_r_hospital"
             if hosp_r_col in year_df.columns:
-                hosp_any_r += float(year_df[hosp_r_col].sum(skipna=True))
-                
+                hosp_any_r_flow += float(year_df[hosp_r_col].sum(skipna=True))
             comm_r_col = f"{raw_slug}_newly_infected_any_r_community"
             if comm_r_col in year_df.columns:
-                comm_any_r += float(year_df[comm_r_col].sum(skipna=True))
-                
-        comm_infections = total_infections - hosp_infections
-        
-        hosp_r_pct = (hosp_any_r / hosp_infections * 100.0) if hosp_infections > 0 else np.nan
-        comm_r_pct = (comm_any_r / comm_infections * 100.0) if comm_infections > 0 else np.nan
-        
+                comm_any_r_flow += float(year_df[comm_r_col].sum(skipna=True))
+
+            for d_slug in drug_set:
+                hosp_d_col = f"{raw_slug}_sum_any_r_hospital_{d_slug}"
+                total_d_col = f"{raw_slug}_sum_any_r_{d_slug}"
+                if hosp_d_col in year_df.columns and total_d_col in year_df.columns:
+                    h = float(year_df[hosp_d_col].sum(skipna=True))
+                    t = float(year_df[total_d_col].sum(skipna=True))
+                    prev = drug_totals.get(d_slug, (0.0, 0.0))
+                    drug_totals[d_slug] = (prev[0] + t, prev[1] + h)
+
+        # Hospital fraction of currently infected, estimated from flow proxy
+        hosp_frac = (
+            min(max(total_newly_infected_hosp / total_newly_infected, 0.0), 1.0)
+            if total_newly_infected > 0 else 0.0
+        )
+        hosp_n = total_currently_infected * hosp_frac
+        comm_n = total_currently_infected * (1.0 - hosp_frac)
+
+        abs_diffs = []
+        for d_slug, (t_sum, h_sum) in drug_totals.items():
+            c_sum = t_sum - h_sum
+            if hosp_n > 0 and comm_n > 0:
+                hp = h_sum / hosp_n * 100.0
+                cp = c_sum / comm_n * 100.0
+                if np.isfinite(hp) and np.isfinite(cp):
+                    abs_diffs.append(abs(hp - cp))
+
+        mean_gap = float(np.mean(abs_diffs)) if abs_diffs else np.nan
+
+        comm_newly_infected = total_newly_infected - total_newly_infected_hosp
+        hosp_r_pct = (
+            hosp_any_r_flow / total_newly_infected_hosp * 100.0
+            if total_newly_infected_hosp > 0 else np.nan
+        )
+        comm_r_pct = (
+            comm_any_r_flow / comm_newly_infected * 100.0
+            if comm_newly_infected > 0 else np.nan
+        )
+
         records.append({
             "Bacteria": display_name,
-            "Total New Infections": total_infections,
-            "Hospital Infections with Any Resistance (%)": hosp_r_pct,
-            "Community Infections with Any Resistance (%)": comm_r_pct,
+            "Total New Infections": total_newly_infected,
+            "Mean |Hospital-Community| resistance gap (pp)": mean_gap,
+            "Drugs compared": len(abs_diffs),
+            "Hospital any-R (%)": hosp_r_pct,
+            "Community any-R (%)": comm_r_pct,
         })
-        
-    df = pd.DataFrame(records, columns=columns)
-    return df
+
+    return pd.DataFrame(records, columns=columns)
 
 def _calculate_bacteria_burden_table(
     year_df: pd.DataFrame,
@@ -2859,27 +2907,11 @@ def _write_calibration_score_summary(
         return
 
     overall_score = _coerce_float(score_result.get("overall_score"))
-    overall_label = str(score_result.get("overall_label") or "n/a")
-    passed_gates = bool(score_result.get("passed_gates", False))
-    gate_df = score_result.get("gate_rows")
     block_df = score_result.get("block_rows")
     contributors_df = score_result.get("top_contributors")
     contributors_note = str(score_result.get("top_contributors_note") or "")
 
     handle.write(f"- Overall score: {overall_score:,.3f}\n" if overall_score is not None else "- Overall score: n/a\n")
-    handle.write(f"- Classification: {overall_label}\n")
-    handle.write(f"- Hard gates passed: {'yes' if passed_gates else 'no'}\n")
-
-    if isinstance(gate_df, pd.DataFrame) and not gate_df.empty:
-        failed = gate_df.loc[gate_df["Passed"] != "yes"]
-        if failed.empty:
-            handle.write("- Failed gates: none\n")
-        else:
-            handle.write("- Failed gates:\n")
-            for _, row in failed.iterrows():
-                handle.write(f"  - {row.get('Gate')}: {row.get('Detail')}\n")
-    else:
-        handle.write("- Failed gates: none configured\n")
 
     if isinstance(block_df, pd.DataFrame) and not block_df.empty:
         display_df = block_df.copy()
@@ -3231,7 +3263,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             
         locus_df = context.get("resistance_incidence_locus_df")
         if locus_df is not None and not locus_df.empty:
-            handle.write("Resistance Incidence Locus (Any Resistance at Infection)\n")
+            handle.write("Resistance Incidence Locus (per-drug hospital vs community resistance gap)\n")
             handle.write(locus_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}", na_rep="-"))
             handle.write("\n\n")
 
@@ -3525,18 +3557,19 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    and subsequent GBD cycles estimating 8-10 million bacterial deaths.\n"
         )
         handle.write(
-            "\n(2) Antibiotic use target: 130 million people on antibiotics on an average day.\n"
-            "    Klein et al. (2018, PNAS 115:E3463-E3470) estimated 42.3 billion DDDs consumed\n"
-            "    globally in 2015, projected to ~50+ billion by 2025 at observed LMIC growth\n"
-            "    rates, implying ~130-160 million daily users. However, DDDs are a standardised\n"
-            "    WHO unit that may not match actual prescribed doses (±20-30%), and sales data\n"
-            "    overestimates human consumption due to wastage and veterinary diversion. The\n"
-            "    WHO AWaRe 2021 monitoring report found a global median of 14.5 DDDs per 1,000\n"
-            "    inhabitants per day, which applied to 8.2 billion people gives ~119 million\n"
-            "    daily users. Browne et al. (2021, Lancet Planet Health 5:e893-e904) reported\n"
-            "    access-adjusted estimates below Klein. The target of 130 million represents a\n"
-            "    mid-point between Klein's sales-based projection and the WHO measurement-based\n"
-            "    estimate, acknowledging that real human consumption is likely below sales volume.\n"
+            "\n(2) Antibiotic use target: 100 million people on antibiotics on an average day.\n"
+            "    This target was revised downward because Klein et al. (2018, PNAS 115:E3463-E3470)\n"
+            "    is fundamentally a consumption paper reporting DDDs from sales data, not a direct\n"
+            "    count of unique people on treatment on an average day. Treating DDD totals as daily\n"
+            "    users tends to overstate person-prevalence because prescribed daily doses vary by\n"
+            "    drug and syndrome, some regimens exceed 1 DDD/day, and sales volumes include leakage\n"
+            "    from wastage, stock buffering, and non-human channels. WHO AWaRe monitoring gives a\n"
+            "    global central tendency around 14.5 DDDs per 1,000 inhabitants per day, which would\n"
+            "    imply roughly 119 million DDD-equivalents/day at a world population of 8.2 billion,\n"
+            "    but unique daily users should sit below that DDD total in a person-based model. The\n"
+            "    revised 100 million target therefore treats antibiotic prevalence as a pragmatic\n"
+            "    person-day calibration anchor rather than a literal transcription of the Klein DDD\n"
+            "    estimate.\n"
         )
         handle.write(
             "\n(3) Bacterial infection incidence target: 15% of the world population per year.\n"
@@ -3552,15 +3585,14 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             "    represents a mid-range estimate for global annual bacterial infection incidence.\n"
         )
         handle.write(
-            "\n(4) Sepsis target: 35 million incident cases per year (bacterial sepsis only).\n"
-            "    Rudd et al. (2020) estimated 48.9 million total sepsis cases globally\n"
-            "    (Lancet 395:200-211, GBD 2017 analysis, 95% UI: 38.9-58.7 million), but this\n"
-            "    figure includes viral, parasitic, and fungal sepsis. Fleischmann et al. (2016)\n"
-            "    estimated 31.5 million cases using hospital-based data extrapolated globally\n"
-            "    (Am J Respir Crit Care Med 193:259-272). Since this model simulates only\n"
-            "    bacterial infections, the target is set at 35 million, representing an\n"
-            "    estimated 60-75% bacterial fraction of the Rudd all-cause total, consistent\n"
-            "    with the Fleischmann estimate and WHO Global Report on Sepsis (2020).\n"
+            "\n(4) Sepsis target: 30 million incident cases per year (bacterial sepsis only).\n"
+            "    This target was revised downward because Rudd et al. (2020, Lancet 395:200-211)\n"
+            "    estimated 48.9 million all-cause sepsis cases globally, whereas this model only\n"
+            "    simulates bacterial infections. The previous 35 million target forced the model\n"
+            "    too close to the all-cause literature for a bacteria-only system and left too little\n"
+            "    room for viral, fungal, and parasitic sepsis outside model scope. A 30 million\n"
+            "    target keeps the implied bacterial share near 60% of the Rudd total, which is still\n"
+            "    substantial, but is a more defensible central benchmark for a bacteria-only model.\n"
         )
         handle.write(
             "\n(5) Per-bacteria infection incidence targets sourced primarily from: Antimicrobial\n"

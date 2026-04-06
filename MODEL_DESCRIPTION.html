@@ -959,7 +959,7 @@ a:hover { text-decoration: underline; }
 </table>
 <p>Not all bacteria or body sites carry equal sepsis risk. The model captures this through:</p>
 <ul>
-<li><strong>Per-bacterium baseline</strong>: Ranges from very low (<em>E. coli</em> UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (<em>N. meningitidis</em>: −1.2, reflecting its aggressive clinical course)</li>
+<li><strong>Per-bacterium baseline</strong>: Ranges from very low (<em>E. coli</em> UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (<em>N. meningitidis</em>: −7.9, reflecting its aggressive clinical course)</li>
 <li><strong>Per-syndrome modifier</strong>: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so</li>
 </ul>
 <p><strong>Regional factors</strong> also affect sepsis risk, reflecting differences in healthcare access and sanitation:
@@ -4483,32 +4483,68 @@ a:hover { text-decoration: underline; }
 <h2 id="10-mortality">10. Mortality</h2>
 <p>The model tracks mortality from three sources: background (non-infection) causes, <strong>sepsis</strong> (organ dysfunction from uncontrolled infection), and <strong>non-sepsis infection death</strong> (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).</p>
 <h3 id="101-background-mortality">10.1 Background mortality</h3>
-<p>Everyone faces a baseline mortality risk that increases with age:</p>
+<p>Every individual faces a baseline daily death risk shaped by age, sex, region, immune status, and the simulated calendar year. The probability is computed via a logistic model whose total log-odds sum the following components:</p>
 <table>
 <thead>
 <tr>
 <th>Factor</th>
 <th>Parameter</th>
-<th>Value</th>
+<th>Default value</th>
 <th>Effect</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Aging penalty</td>
+<td>Baseline intercept</td>
+<td><code>background_mortality_baseline_log_odds</code></td>
+<td>(required)</td>
+<td>Global anchor for the daily risk</td>
+</tr>
+<tr>
+<td>Historical improvement</td>
+<td><code>mortality_baseline_1930_multiplier</code> / <code>mortality_baseline_2035_multiplier</code> / <code>mortality_improvement_half_life_years</code></td>
+<td>×3 / ×1 / 35 yrs</td>
+<td>Exponential decay from a 3× higher 1930 rate to the modern reference rate; half-life 35 years</td>
+</tr>
+<tr>
+<td>Linear age effect</td>
 <td><code>log_odds_mortality_per_year_of_age</code></td>
 <td>0.04</td>
-<td>Each year of age adds ~4% relative increase in daily death risk (exp(0.04) = 1.04)</td>
+<td>Each year of age adds a constant increment to log-odds (≈ ×1.04/year)</td>
 </tr>
 <tr>
 <td>Elderly frailty acceleration</td>
 <td><code>log_odds_mortality_per_year_of_age_squared</code></td>
 <td>0.05</td>
-<td>A quadratic term that makes mortality rise faster above ~70 — capturing how an 85-year-old is much frailer than a 65-year-old</td>
+<td>Quadratic term applied <strong>only above age 80</strong> — captures the sharply steeper mortality curve in the very elderly</td>
+</tr>
+<tr>
+<td>Region</td>
+<td><code>log_odds_mortality_region_{name}</code></td>
+<td>Africa +0.69; Europe −0.11; N. America −0.36; Asia +0.18; Oceania 0</td>
+<td>Reflects differences in healthcare access and underlying non-communicable disease burden</td>
+</tr>
+<tr>
+<td>Sex</td>
+<td><code>log_odds_mortality_sex_male</code> / <code>_female</code></td>
+<td>+0.095 / −0.11</td>
+<td>Male ≈ ×1.1, female ≈ ×0.9 all-cause mortality differential</td>
+</tr>
+<tr>
+<td>Immunosuppression</td>
+<td><code>log_odds_mortality_immunosuppressed</code></td>
+<td>+0.92</td>
+<td>≈ ×2.5 higher risk when <code>immunodeficiency_type</code> is set</td>
+</tr>
+<tr>
+<td>Hospital status</td>
+<td><code>log_odds_mortality_hospitalized</code></td>
+<td>+0.26</td>
+<td>≈ ×1.3 higher risk while in hospital (captures frailty selection and nosocomial hazards)</td>
 </tr>
 </tbody>
 </table>
-<p>These parameters operate on a log-odds scale, so they compound multiplicatively over time.</p>
+<p>All parameters operate on a log-odds scale and sum additively before the logistic transform, so their effects multiply on the probability scale.</p>
 <p>They should be read as effective demographic mortality-shape terms rather than direct life-table fits for any single country or year. Their role is to preserve the globally familiar pattern of sharply rising all-cause mortality with age and frailty while allowing the simulation's infection-specific pathways to add the AMR-relevant excess risk on top.</p>
 <h3 id="102-sepsis-mortality">10.2 Sepsis mortality</h3>
 <p>Sepsis is the primary death pathway for classic invasive bacterial pathogens. When an individual's infection progresses to sepsis (see Section 4.3), the model applies an escalated daily death risk using a logistic model. The probability of dying from sepsis each day depends on age, immune status, bacterial burden, and access to hospital care. Without effective antibiotics, sepsis is rapidly fatal, and resistant organisms that are untreatable with empiric therapy represent the principal scenario of concern (Murray CJL et al., 2022).</p>
@@ -4541,6 +4577,11 @@ a:hover { text-decoration: underline; }
 <td><em>S. pyogenes</em></td>
 <td>−7.0</td>
 <td>Invasive GAS disease including necrotising fasciitis and toxic shock (Carapetis JR et al., 2005)</td>
+</tr>
+<tr>
+<td><em>N. meningitidis</em></td>
+<td>−7.9</td>
+<td>Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC; sepsis baseline loosened to −7.9 to reflect frequently invasive presentations (Stephens DS et al., 2007)</td>
 </tr>
 <tr>
 <td><em>E. faecium</em></td>
@@ -4600,6 +4641,40 @@ a:hover { text-decoration: underline; }
 </tbody>
 </table>
 <p>These per-bacterium sepsis baselines are qualitative severity orderings anchored to widely observed differences between invasive and non-invasive pathogens, not claims of portable case-fatality estimates across all settings. Real-world sepsis mortality depends heavily on time-to-treatment, ICU access, comorbidity structure, and health-system capacity, so the model uses these terms mainly to maintain defensible ranking and then lets care access, treatment effectiveness, and syndrome site shape realised mortality in each branch (Rudd KE et al., 2017; Murray CJL et al., 2022).</p>
+<h3 id="1021-per-organism-sepsis-case-fatality-adjustment">10.2.1 Per-organism sepsis case-fatality adjustment</h3>
+<p>In addition to the per-bacterium sepsis entry baseline (Section 10.2), the model supports an <strong>additive per-organism log-odds adjustment to the daily death probability given sepsis</strong> (parameter name: <code>{organism}_sepsis_death_log_odds_override</code>). This term is added on top of all other factors in the sepsis death calculation — age, region, bacterial burden, treatment effectiveness, and immunosuppression. Where multiple bacteria are simultaneously septic, the largest override across all septic organisms takes effect.</p>
+<p>Three organisms currently receive non-zero adjustments:</p>
+<table>
+<thead>
+<tr>
+<th>Bacterium</th>
+<th>CFR adjustment</th>
+<th>Relative CFR</th>
+<th>Clinical rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>N. meningitidis</em></td>
+<td>+0.69</td>
+<td>≈×2</td>
+<td>Purpura fulminans and DIC; meningococcal sepsis has among the highest 24-hour CFR of any bacterial pathogen (Stephens DS et al., 2007)</td>
+</tr>
+<tr>
+<td><em>S. aureus</em></td>
+<td>+0.41</td>
+<td>≈×1.5</td>
+<td>Infective endocarditis and MRSA bacteraemia; 30-day mortality 20–30% even with appropriate therapy (Tong SYC et al., 2015)</td>
+</tr>
+<tr>
+<td><em>A. baumannii</em></td>
+<td>+0.69</td>
+<td>≈×2</td>
+<td>XDR ventilator-associated pneumonia and bloodstream infection; attributable mortality &gt;30% in carbapenem-resistant strains (Bassetti M et al., 2018)</td>
+</tr>
+</tbody>
+</table>
+<p>All other organisms default to 0.0 (no adjustment).</p>
 <h3 id="103-non-sepsis-infection-death">10.3 Non-sepsis infection death</h3>
 <p>Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: <em>V. cholerae</em> through fatal dehydration (Ali M et al., 2015), <em>B. pertussis</em> through infantile respiratory failure (Yeung KHT et al., 2017), <em>H. pylori</em> through gastric adenocarcinoma (Plummer M et al., 2015), <em>T. pallidum</em> through tertiary and congenital syphilis (Korenromp EL et al., 2019), and <em>C. difficile</em> through toxic megacolon (Guh AY et al., 2020). These deaths would not be captured by the sepsis pathway alone.</p>
 <p>The model evaluates a <strong>daily non-sepsis infection death probability</strong> for every active infection that is <em>not</em> already progressing through the sepsis pathway. The probability is computed via a logistic model:</p>
@@ -4718,8 +4793,8 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td><em>S. pyogenes</em></td>
-<td>+1.5</td>
-<td>Rheumatic heart disease and post-streptococcal complications (Watkins DA et al., 2017)</td>
+<td>+3.0</td>
+<td>STSS and superantigen (SPE-A/C/SMEZ)-mediated rapid death independent of bacterial burden, plus rheumatic heart disease and post-streptococcal complications (Carapetis JR et al., 2005; Watkins DA et al., 2017)</td>
 </tr>
 <tr>
 <td><em>B. fragilis</em></td>
@@ -7657,7 +7732,7 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">1</td>
-<td style="text-align: right;">-8.6</td>
+<td style="text-align: right;">-7.9</td>
 <td style="text-align: right;">4e-4</td>
 </tr>
 <tr>

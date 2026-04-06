@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import glob
 import io
+import json
 import re
 import sys
 from pathlib import Path
@@ -458,9 +459,37 @@ def make_t1(out_dir: Path) -> None:
 # Table T2 — Headline Calibration Metrics + Block Scores
 # ---------------------------------------------------------------------------
 
+def _load_current_headline_targets() -> dict[str, float]:
+    path = Path("data") / "calibration_targets.json"
+    if not path.exists():
+        return {}
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    key_to_metric = {
+        "infection_deaths_millions": "Annual infection deaths (millions per year)",
+        "people_on_antibiotics_millions": "People on antibiotics on an average day (millions)",
+        "annual_infection_incidence_percent": "Incidence of bacterial infection per year (%)",
+        "sepsis_incident_cases_millions": "Incident cases of sepsis per year (millions)",
+    }
+
+    targets: dict[str, float] = {}
+    for metric in payload.get("headline_metrics", []):
+        if not isinstance(metric, dict):
+            continue
+        key = metric.get("key")
+        target = metric.get("target")
+        if key in key_to_metric and isinstance(target, (int, float)):
+            targets[key_to_metric[key]] = float(target)
+    return targets
+
 def make_t2(agg: dict, out_dir: Path) -> None:
     hm = agg.get("headline_metrics", pd.DataFrame()).copy()
     n  = agg.get("n_runs", 1)
+    configured_targets = _load_current_headline_targets()
 
     if not hm.empty:
         import re
@@ -491,6 +520,11 @@ def make_t2(agg: dict, out_dir: Path) -> None:
             return '—'
 
         hm["Metric"] = hm["Metric"].apply(_rename_metric)
+        if configured_targets:
+            hm["Target"] = hm.apply(
+                lambda row: configured_targets.get(str(row.get("Metric", "")), row.get("Target")),
+                axis=1,
+            )
 
         # Drop Delta and Unit columns; rename Target; add References column
         hm = hm.drop(columns=[c for c in hm.columns if c.lower().startswith("delta")], errors="ignore")
@@ -514,11 +548,18 @@ def make_t2(agg: dict, out_dir: Path) -> None:
         "Murray CJ et al. (2022). Global burden of bacterial antimicrobial resistance "
         "in 2019: a systematic analysis. <em>Lancet</em> 399:629–655.",
         "Klein EY et al. (2018). Global increase and geographic convergence in antibiotic "
-        "consumption between 2000 and 2015. <em>PNAS</em> 115:E3463–E3470.",
+        "consumption between 2000 and 2015. <em>PNAS</em> 115:E3463–E3470. The antibiotic "
+        "headline target is set to 100 million daily users, not 130 million, because Klein "
+        "reports DDD-based consumption rather than unique people on treatment. The revised "
+        "target is a person-prevalence proxy that sits below the DDD-equivalent total after "
+        "allowing for dose intensity, stock-sales mismatch, and wastage.",
         "Vos T et al. (2020). Global burden of 369 diseases and injuries in 204 countries "
         "and territories, 1990–2019. <em>Lancet</em> 396:1204–1222.",
         "Rudd KE et al. (2020). Global, regional, and national sepsis incidence and mortality, "
-        "1990–2017. <em>Lancet</em> 395:200–211.",
+        "1990–2017. <em>Lancet</em> 395:200–211. The sepsis headline target is set to 30 "
+        "million, not 35 million, because Rudd reports all-cause sepsis whereas the model is "
+        "bacteria-only; the revised target preserves a large bacterial burden without forcing "
+        "the simulation up to an all-cause benchmark.",
     ]
 
     body  = _html_head("Table 2 — Comparison of simulation outputs with observed data")

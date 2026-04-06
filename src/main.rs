@@ -50,6 +50,13 @@
 //
 // review choice for antibiotics in people not infected
 //
+// check on incidence over time and how affected by vaccination - check on 
+// how vaccination is implemented 
+//
+// present a global antibiotic activity for each bacteria over time
+// - sum across drugs existing at the time of 
+//   mean potency x (1 - any_r) amongst those infected with the bacteria
+//
 //
 //
 // -- calibration approach:  
@@ -62,7 +69,7 @@
 //
 // -- model structure developments to consider ------------------------------------------------------------
 //
-//
+// check background mortality is ok (incl calendar year effect) 
 //
 //
 //

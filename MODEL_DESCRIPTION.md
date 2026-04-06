@@ -495,7 +495,7 @@ Each day, the model calculates the probability of a person's infection progressi
 
 Not all bacteria or body sites carry equal sepsis risk. The model captures this through:
 
-- **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −1.2, reflecting its aggressive clinical course)
+- **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −7.9, reflecting its aggressive clinical course)
 - **Per-syndrome modifier**: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so
 
 **Regional factors** also affect sepsis risk, reflecting differences in healthcare access and sanitation:
@@ -1687,16 +1687,20 @@ The model tracks mortality from three sources: background (non-infection) causes
 
 ### 10.1 Background mortality
 
-Everyone faces a baseline mortality risk that increases with age:
+Every individual faces a baseline daily death risk shaped by age, sex, region, immune status, and the simulated calendar year. The probability is computed via a logistic model whose total log-odds sum the following components:
 
-| Factor | Parameter | Value | Effect |
-|--------|-----------|-------|---------------|
-| Aging penalty | `log_odds_mortality_per_year_of_age` | 0.04 | Each year of age adds ~4% relative increase in daily death risk (exp(0.04) = 1.04) |
-| Elderly frailty acceleration | `log_odds_mortality_per_year_of_age_squared` | 0.05 | A quadratic term that makes mortality rise faster above ~70 — capturing how an 85-year-old is much frailer than a 65-year-old |
+| Factor | Parameter | Default value | Effect |
+|--------|-----------|--------------|-------|
+| Baseline intercept | `background_mortality_baseline_log_odds` | (required) | Global anchor for the daily risk |
+| Historical improvement | `mortality_baseline_1930_multiplier` / `mortality_baseline_2035_multiplier` / `mortality_improvement_half_life_years` | ×3 / ×1 / 35 yrs | Exponential decay from a 3× higher 1930 rate to the modern reference rate; half-life 35 years |
+| Linear age effect | `log_odds_mortality_per_year_of_age` | 0.04 | Each year of age adds a constant increment to log-odds (≈ ×1.04/year) |
+| Elderly frailty acceleration | `log_odds_mortality_per_year_of_age_squared` | 0.05 | Quadratic term applied **only above age 80** — captures the sharply steeper mortality curve in the very elderly |
+| Region | `log_odds_mortality_region_{name}` | Africa +0.69; Europe −0.11; N. America −0.36; Asia +0.18; Oceania 0 | Reflects differences in healthcare access and underlying non-communicable disease burden |
+| Sex | `log_odds_mortality_sex_male` / `_female` | +0.095 / −0.11 | Male ≈ ×1.1, female ≈ ×0.9 all-cause mortality differential |
+| Immunosuppression | `log_odds_mortality_immunosuppressed` | +0.92 | ≈ ×2.5 higher risk when `immunodeficiency_type` is set |
+| Hospital status | `log_odds_mortality_hospitalized` | +0.26 | ≈ ×1.3 higher risk while in hospital (captures frailty selection and nosocomial hazards) |
 
-
-
-These parameters operate on a log-odds scale, so they compound multiplicatively over time.
+All parameters operate on a log-odds scale and sum additively before the logistic transform, so their effects multiply on the probability scale.
 
 They should be read as effective demographic mortality-shape terms rather than direct life-table fits for any single country or year. Their role is to preserve the globally familiar pattern of sharply rising all-cause mortality with age and frailty while allowing the simulation's infection-specific pathways to add the AMR-relevant excess risk on top.
 
@@ -1713,6 +1717,7 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 | *P. aeruginosa* | −6.5 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
 | *S. agalactiae* | −7.0 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2010) |
 | *S. pyogenes* | −7.0 | Invasive GAS disease including necrotising fasciitis and toxic shock (Carapetis JR et al., 2005) |
+| *N. meningitidis* | −7.9 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC; sepsis baseline loosened to −7.9 to reflect frequently invasive presentations (Stephens DS et al., 2007) |
 | *E. faecium* | −7.0 | Hospital-acquired bloodstream infections, especially VRE |
 | *K. pneumoniae* | −7.5 | Gram-negative sepsis; carbapenem-resistant strains carry >40% mortality (Xu L et al., 2017) |
 | *E. faecalis* | −7.5 | Endocarditis and line-related bacteraemia |
@@ -1728,6 +1733,21 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 
 
 These per-bacterium sepsis baselines are qualitative severity orderings anchored to widely observed differences between invasive and non-invasive pathogens, not claims of portable case-fatality estimates across all settings. Real-world sepsis mortality depends heavily on time-to-treatment, ICU access, comorbidity structure, and health-system capacity, so the model uses these terms mainly to maintain defensible ranking and then lets care access, treatment effectiveness, and syndrome site shape realised mortality in each branch (Rudd KE et al., 2017; Murray CJL et al., 2022).
+
+
+### 10.2.1 Per-organism sepsis case-fatality adjustment
+
+In addition to the per-bacterium sepsis entry baseline (Section 10.2), the model supports an **additive per-organism log-odds adjustment to the daily death probability given sepsis** (parameter name: `{organism}_sepsis_death_log_odds_override`). This term is added on top of all other factors in the sepsis death calculation — age, region, bacterial burden, treatment effectiveness, and immunosuppression. Where multiple bacteria are simultaneously septic, the largest override across all septic organisms takes effect.
+
+Three organisms currently receive non-zero adjustments:
+
+| Bacterium | CFR adjustment | Relative CFR | Clinical rationale |
+|-----------|---------------|--------------|-------------------|
+| *N. meningitidis* | +0.69 | ≈×2 | Purpura fulminans and DIC; meningococcal sepsis has among the highest 24-hour CFR of any bacterial pathogen (Stephens DS et al., 2007) |
+| *S. aureus* | +0.41 | ≈×1.5 | Infective endocarditis and MRSA bacteraemia; 30-day mortality 20–30% even with appropriate therapy (Tong SYC et al., 2015) |
+| *A. baumannii* | +0.69 | ≈×2 | XDR ventilator-associated pneumonia and bloodstream infection; attributable mortality >30% in carbapenem-resistant strains (Bassetti M et al., 2018) |
+
+All other organisms default to 0.0 (no adjustment).
 
 
 ### 10.3 Non-sepsis infection death
@@ -1767,7 +1787,7 @@ The per-bacterium adjustments are the primary calibration lever. **Negative valu
 | *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths (Korenromp EL et al., 2019) |
 | *V. cholerae* | +2.5 | Death from dehydration, not bacteraemia (Ali M et al., 2015) |
 | *C. difficile* | +2.0 | Colitis and toxic megacolon deaths (Guh AY et al., 2020) |
-| *S. pyogenes* | +1.5 | Rheumatic heart disease and post-streptococcal complications (Watkins DA et al., 2017) |
+| *S. pyogenes* | +3.0 | STSS and superantigen (SPE-A/C/SMEZ)-mediated rapid death independent of bacterial burden, plus rheumatic heart disease and post-streptococcal complications (Carapetis JR et al., 2005; Watkins DA et al., 2017) |
 | *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
 | *H. pylori* | +1.0 | Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015) |
 | *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2018) |
@@ -2463,7 +2483,7 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | chlamydia_trachomatis | -13 | 0.01 | 0.25 | 5 | 0.2 | 4.5 | 0.007 | 0.8 | 1 | -19 | 4e-4 |
 | mycoplasma_genitalium | -12.5 | 0.01 | 0.28 | 5 | 0.18 | 3.5 | 0.0045 | 0.9 | 5 | -14 | 4e-4 |
 | vibrio_cholerae | -18 | 0.01 | 0.7 | 5 | 0.15 | 2.5 | 0.025 | 0.5 | 1 | -9 | 4e-4 |
-| neisseria_meningitidis | -18.3 | 0.01 | 0.65 | 5 | 0.05 | 9.8 | 0.01 | 3 | 1 | -8.6 | 4e-4 |
+| neisseria_meningitidis | -18.3 | 0.01 | 0.65 | 5 | 0.05 | 9.8 | 0.01 | 3 | 1 | -7.9 | 4e-4 |
 | listeria_monocytogenes | -19.6 | 0.01 | 0.25 | 5 | 0.1 | 9.2 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
 | clostridioides_difficile | -15.2 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -11 | 4e-4 |
 | bacteroides_fragilis | -15.3 | 0.01 | 0.42 | 5 | 0.004 | 11.5 | 0.0045 | 1.2 | 2 | -14 | 4e-4 |
