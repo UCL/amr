@@ -269,7 +269,7 @@ Being in hospital dramatically changes a patient's infection risk profile. Hospi
 
 
 
-Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) and higher sepsis onset risk (+0.5 log-odds, ~1.6×), but they also have a higher probability of *recovering* from sepsis (+0.8 log-odds) because of access to intensive care.
+Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) and higher sepsis onset risk (+0.5 log-odds, ~1.6×), but they also have a higher probability of *recovering* from sepsis (+0.8 log-odds) because of access to intensive care. The background-mortality term here should be read as a residual inpatient case-mix / frailty adjustment, not as a hospital-acquired-infection term; HCAI pressure is modelled separately through the hospital-acquisition modifiers above.
 
 
 ### 2.5 Travel
@@ -320,6 +320,28 @@ Each day, every person who does not already have an active infection has a chanc
 | `{region}_bacteria_{name}_acquisition_log_odds` | Regional differences for this bacterium |
 | `bacteria_{name}_log_odds_{age_category}` | Age-specific risk for this bacterium |
 | `{bacteria}_{region}_log_odds_{age_category}` | Interaction between bacterium, region, and age |
+
+#### Vaccination
+
+Vaccination is implemented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person carries a boolean `vaccination_status` flag for every bacterium. Vaccination is assigned once, at cohort entry: on the first simulated day that a newborn individual becomes alive in the model, the code checks the historically available vaccines and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress at that calendar year. Once the flag is set to `true`, it remains on for the rest of the simulation; there is currently no waning, revaccination, booster logic, or catch-up campaign.
+
+The vaccine layer currently supports four bacterial vaccines:
+
+| Vaccine | Target bacterium | Availability year |
+| --- | --- | ---: |
+| Pneumococcal | *Streptococcus pneumoniae* | 1977 |
+| Meningococcal | *Neisseria meningitidis* | 1981 |
+| Hib | *Haemophilus influenzae* | 1985 |
+| Pertussis | *Bordetella pertussis* | 1948 |
+
+Vaccination affects acquisition in exactly two places:
+
+- **Infection acquisition**: if an individual is vaccinated against bacterium *b*, the model adds `log_odds_vaccinated` for that bacterium to the infection-acquisition log-odds.
+- **Microbiome / carriage acquisition**: the same log-odds adjustment is applied when modelling asymptomatic carriage acquisition.
+
+The default fallback is `log_odds_vaccinated = -2.0`, corresponding to an odds multiplier of approximately $e^{-2} \approx 0.135$, so vaccination reduces acquisition odds by about 86.5% for bacteria that use the default. Vaccination does **not** directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.
+
+Under the current default parameter map, vaccination is active rather than dormant: each vaccine has a non-zero target birth-cohort coverage and a rollout duration. These defaults are intended as a mechanistic starting point rather than a finalized calibration and should be re-tuned against the headline and organism-specific incidence targets once vaccine-sensitive pathogens are brought into the calibration loop.
 
 
 
@@ -1691,18 +1713,22 @@ Every individual faces a baseline daily death risk shaped by age, sex, region, i
 
 | Factor | Parameter | Default value | Effect |
 |--------|-----------|--------------|-------|
-| Baseline intercept | `background_mortality_baseline_log_odds` | (required) | Global anchor for the daily risk |
-| Historical improvement | `mortality_baseline_1930_multiplier` / `mortality_baseline_2035_multiplier` / `mortality_improvement_half_life_years` | ×3 / ×1 / 35 yrs | Exponential decay from a 3× higher 1930 rate to the modern reference rate; half-life 35 years |
-| Linear age effect | `log_odds_mortality_per_year_of_age` | 0.04 | Each year of age adds a constant increment to log-odds (≈ ×1.04/year) |
-| Elderly frailty acceleration | `log_odds_mortality_per_year_of_age_squared` | 0.05 | Quadratic term applied **only above age 80** — captures the sharply steeper mortality curve in the very elderly |
-| Region | `log_odds_mortality_region_{name}` | Africa +0.69; Europe −0.11; N. America −0.36; Asia +0.18; Oceania 0 | Reflects differences in healthcare access and underlying non-communicable disease burden |
-| Sex | `log_odds_mortality_sex_male` / `_female` | +0.095 / −0.11 | Male ≈ ×1.1, female ≈ ×0.9 all-cause mortality differential |
-| Immunosuppression | `log_odds_mortality_immunosuppressed` | +0.92 | ≈ ×2.5 higher risk when `immunodeficiency_type` is set |
-| Hospital status | `log_odds_mortality_hospitalized` | +0.26 | ≈ ×1.3 higher risk while in hospital (captures frailty selection and nosocomial hazards) |
+| Baseline intercept | `background_mortality_baseline_log_odds` | -14.3 | Global anchor for the daily risk |
+| Historical improvement | `mortality_baseline_1930_multiplier` / `mortality_baseline_2035_multiplier` / `mortality_improvement_half_life_years` | ×3 / ×1 / 35 yrs | Normalized exponential decline from a 3× higher 1930 rate to the configured 2035 reference rate exactly; half-life controls how front-loaded that improvement is |
+| Linear age effect | `log_odds_mortality_per_year_of_age` | 0.055 | Each year of age adds a constant increment to log-odds (≈ ×1.06/year on the odds scale) |
+| Elderly frailty acceleration | `log_odds_mortality_per_year_of_age_squared` | 0.008 | Quadratic term applied **only above age 80** — steepens mortality in the very elderly without making age-90 mortality implausibly extreme |
+| Region | `log_odds_mortality_region_{name}` | N. America 0; S. America +0.26; Africa +0.69; Asia +0.18; Europe −0.11; Oceania 0 | Reflects broad differences in background mortality environment, healthcare access, and non-communicable disease burden |
+| Sex | `log_odds_mortality_sex_male` / `_female` | +0.095 / −0.105 | Male ≈ ×1.1, female ≈ ×0.9 all-cause mortality differential |
+| Immunosuppression | `log_odds_mortality_immunosuppressed` | +0.916 | ≈ ×2.5 higher risk when `immunodeficiency_type` is set |
+| Hospital status | `log_odds_mortality_hospitalized` | +0.262 | ≈ ×1.3 higher risk while in hospital (captures inpatient case-mix and residual non-infectious acuity rather than HCAI, which is modelled separately) |
 
 All parameters operate on a log-odds scale and sum additively before the logistic transform, so their effects multiply on the probability scale.
 
 They should be read as effective demographic mortality-shape terms rather than direct life-table fits for any single country or year. Their role is to preserve the globally familiar pattern of sharply rising all-cause mortality with age and frailty while allowing the simulation's infection-specific pathways to add the AMR-relevant excess risk on top.
+
+In the current implementation, the sex term is a lifelong multiplicative shift rather than an age-specific late-life modifier. That is a simplification: real male-female mortality gaps vary by age, cause, and setting, but a constant term is a defensible low-dimensional approximation if the model's goal is to preserve broad all-cause mortality ranking rather than reproduce detailed life-table structure.
+
+Background mortality is treated as a competing risk alongside infection-specific death pathways rather than being added on top of them. Each day, the model checks for death in the following order: sepsis, drug toxicity, non-sepsis infection death, then background mortality. This means acute infectious deaths displace some deaths that would otherwise have been labelled as background mortality, ensuring each person receives at most one cause of death per time step.
 
 
 ### 10.2 Sepsis mortality
@@ -1865,7 +1891,7 @@ Several of the appendices that follow list exact configuration values and enum d
 
 3. **No within-host spatial structure**: Infections are treated as homogeneous within a body compartment. Biofilm formation, abscess walling-off, source control, and planktonic-versus-sessile distinctions are not modelled. The model therefore cannot reproduce the full treatment implications of deep-seated infection architecture, even though such structure is often decisive in real clinical microbiology and infectious diseases practice.
 
-4. **Static vaccine model**: Vaccinated individuals have a fixed proportional reduction in infection risk. Vaccine effects do not depend on background prevalence (no herd immunity dynamics), and vaccine-driven serotype or lineage replacement is not captured. The vaccine layer should therefore be interpreted as a simplified background modifier on acquisition risk rather than a full transmission model of vaccine ecology.
+4. **Static vaccine model**: Vaccinated individuals have a fixed proportional reduction in infection risk. Vaccine effects do not depend on background prevalence (no herd immunity dynamics), and vaccine-driven serotype or lineage replacement is not captured. The vaccine layer should therefore be interpreted as a simplified background modifier on acquisition risk rather than a full transmission model of vaccine ecology. The current implementation improves on the earlier dormant design by assigning vaccination to birth cohorts, but it still does not model herd effects, serotype replacement, waning, boosters, or catch-up campaigns.
 
 5. **Broad regional groupings**: The model uses continental-level regions (e.g., "Europe", "Africa") rather than country-level or hospital-level variation. Antibiotic consumption patterns, testing capacity, pathogen mix, and resistance rates can vary dramatically between countries and institutions within the same region. The regional layer should therefore be read as a coarse structuring device for global comparisons, not as a substitute for country-specific or centre-specific epidemiology.
 
@@ -2325,12 +2351,12 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 
 | Parameter | Value |
 | --- | ---: |
-| background_mortality_baseline_log_odds | -14 |
+| background_mortality_baseline_log_odds | -14.3 |
 | mortality_baseline_1930_multiplier | 3 |
 | mortality_baseline_2035_multiplier | 1 |
 | mortality_improvement_half_life_years | 35 |
-| log_odds_mortality_per_year_of_age | 0.04 |
-| log_odds_mortality_per_year_of_age_squared | 0.05 |
+| log_odds_mortality_per_year_of_age | 0.055 |
+| log_odds_mortality_per_year_of_age_squared | 0.008 |
 | log_odds_mortality_immunosuppressed | 0.916 |
 | log_odds_mortality_hospitalized | 0.262 |
 
@@ -6099,8 +6125,22 @@ See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortal
 
 #### Vaccination
 
-| Vaccine | Age category | Daily probability | Availability year |
+Vaccination parameters are split into three parts:
+
+- a vaccine-specific historical availability year,
+- a target birth-cohort coverage reached over a configurable rollout period,
+- and a bacterium-specific acquisition-effect term `log_odds_vaccinated` (default `-2.0`).
+
+`vaccination_status` is stored per bacterium rather than per vaccine brand, and once acquired it is permanent within the current model. The active runtime mapping is pneumococcal → *S. pneumoniae*, meningococcal → *N. meningitidis*, Hib → *H. influenzae*, and pertussis → *B. pertussis*. Vaccination is assigned once at birth / first day alive, not as a repeated daily age-band hazard.
+
+Under the default parameter map below, vaccination is active. Coverage ramps linearly from 0 at the availability year to the target birth-cohort coverage over `rollout_years`.
+
+| Vaccine | Availability year | Target birth-cohort coverage | Rollout years |
 | --- | ---: | ---: | ---: |
+| pneumococcal | 1977 | 0.75 | 20 |
+| meningococcal | 1981 | 0.55 | 20 |
+| hib | 1985 | 0.85 | 15 |
+| pertussis | 1948 | 0.82 | 20 |
 
 ### B.10 Resistance Mechanisms
 

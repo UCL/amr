@@ -1819,41 +1819,24 @@ pub(crate) fn apply_rules(
     }
     // --- end sepsis updates ---
 
-    // Update vaccination status dynamically based on age-appropriate schedules
-    // Only bacterial vaccines with historical availability checking
-    // Vaccines: pneumococcal (1977+), meningococcal (1981+), hib (1985+)
-    // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
-    let age_years = individual.age as f64 / 365.0;
-    let age_idx = crate::config::VaccinationParameters::age_group_index(age_years);
+    // Update vaccination status using birth-cohort rollout rather than a daily all-age hazard.
+    // New cohorts are vaccinated on their first simulated day alive according to the vaccine's
+    // rollout progress at that calendar year.
+    let simulation_year = 1930.0 + (time_step as f64 / 365.0);
 
-    // Calculate simulation year (assuming time_step 0 = year 1950, one step per day)
-    let simulation_year = 1950.0 + (time_step as f64 / 365.0);
+    if individual.age == 0 {
+        for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
+            if individual.vaccination_status[b_idx] {
+                continue;
+            }
 
-    const BACTERIAL_VACCINES: [&str; 3] = ["pneumococcal", "meningococcal", "hib"];
-    for (b_idx, bacteria) in BACTERIA_LIST.iter().enumerate() {
-        // For each bacterial vaccine, check if this bacteria is targeted by the vaccine
-        for &vaccine in &BACTERIAL_VACCINES {
-            if let Some(vaccine_idx) = crate::config::VaccinationParameters::vaccine_index(vaccine)
+            if let Some(vaccine_idx) =
+                crate::config::VaccinationParameters::vaccine_index_for_bacteria(bacteria)
             {
-                let availability_year = store.vaccination.availability_year(vaccine_idx);
-                if simulation_year < availability_year {
-                    continue; // Vaccine not yet available
-                }
-
-                // Correct bacteria name matching (fixing underscore vs space issues)
-                let targets_bacteria = match (vaccine, *bacteria) {
-                    ("pneumococcal", "streptococcus_pneumoniae") => true,
-                    ("meningococcal", "neisseria_meningitidis") => true,
-                    ("hib", "haemophilus_influenzae") => true,
-                    ("pertussis", "bordetella_pertussis") => true, // DTaP/Tdap vaccines
-                    _ => false,
-                };
-
-                if targets_bacteria && !individual.vaccination_status[b_idx] {
-                    let daily_prob = store.vaccination.daily_probability(vaccine_idx, age_idx);
-                    if rng.gen::<f64>() < daily_prob {
-                        individual.vaccination_status[b_idx] = true;
-                    }
+                let birth_coverage =
+                    store.vaccination.birth_coverage_probability(vaccine_idx, simulation_year);
+                if birth_coverage > 0.0 && rng.gen::<f64>() < birth_coverage {
+                    individual.vaccination_status[b_idx] = true;
                 }
             }
         }
@@ -2167,7 +2150,10 @@ pub(crate) fn apply_rules(
                     match drug_name {
                         // Keep generic immunodeficiency prophylaxis tightly constrained to a small
                         // outpatient-oriented set rather than the full empiric pool.
-                        "trim_sulf" => 6.0,
+                        // trim_sulf reduced from 6.0 → 0.8 to bring sulfonamide class share
+                        // toward 4% target (was ~21% due to prophylaxis domination).
+                        // TMP-SMX is valid for PCP prophylaxis but shouldn't dominate the pool.
+                        "trim_sulf" => 0.8,
                         "azithromycin" => 4.5,
                         "ciprofloxacin" => 2.0,
                         "levofloxacin" => 1.5,
@@ -3695,10 +3681,23 @@ pub(crate) fn apply_rules(
         let end_multiplier = store.globals.mortality_baseline_2035_multiplier;
         let half_life_years = store.globals.mortality_improvement_half_life_years;
 
-        // Exponential decay from start_multiplier to end_multiplier
-        let decay_rate = (2.0_f64).fast_ln() / half_life_years; // ln(2) / half_life
-        let time_multiplier = end_multiplier
-            + (start_multiplier - end_multiplier) * (-decay_rate * years_since_1930).fast_exp();
+        // Use a normalized exponential decay so the curve starts at the 1930 multiplier
+        // and reaches the configured 2035 multiplier exactly at 2035.
+        let end_years_since_1930 = 2035.0 - 1930.0;
+        let time_multiplier = if half_life_years > 0.0 {
+            let clamped_years = years_since_1930.clamp(0.0, end_years_since_1930);
+            let decay_rate = (2.0_f64).fast_ln() / half_life_years; // ln(2) / half_life
+            let end_decay = (-decay_rate * end_years_since_1930).fast_exp();
+            let current_decay = (-decay_rate * clamped_years).fast_exp();
+            let normalized_decay = if (1.0 - end_decay).abs() > f64::EPSILON {
+                (current_decay - end_decay) / (1.0 - end_decay)
+            } else {
+                0.0
+            };
+            end_multiplier + (start_multiplier - end_multiplier) * normalized_decay
+        } else {
+            end_multiplier
+        };
         let time_log_odds_adjustment = time_multiplier.fast_ln();
         total_log_odds += time_log_odds_adjustment;
 
@@ -4197,14 +4196,26 @@ pub(crate) fn apply_rules(
                         // only a fraction of acquisitions inherit the circulating resistance profile.
                         // Hospitalized individuals get an extra per-bacterium boost because they are
                         // exposed to ward-endemic MDR strains (ESKAPE pathogens, VRE, etc.).
-                        let hospital_r_boost = if individual.hospital_status.is_hospitalized() {
+                        //
+                        // Community dilution: when not hospitalised, apply the same per-bacteria
+                        // community dilution factor used for infection acquisition.  This ensures
+                        // that community-acquired carriage is also drawn from the broader (mostly
+                        // susceptible) environmental pool, consistent with infection-side dilution.
+                        let is_hospitalized = individual.hospital_status.is_hospitalized();
+                        let community_microbiome_dilution = if !is_hospitalized {
+                            store.bacteria.community_resistance_dilution_factor[b_idx]
+                        } else {
+                            1.0
+                        };
+                        let hospital_r_boost = if is_hospitalized {
                             store.bacteria.hospital_microbiome_r_multiplier[b_idx]
                         } else {
                             1.0
                         };
                         let microbiome_r_multiplier = store.globals.microbiome_resistance_multiplier_on_acquisition
                             * microbiome_acquisition_sampling_multiplier
-                            * hospital_r_boost;
+                            * hospital_r_boost
+                            * community_microbiome_dilution;
 
                         if rng.gen::<f64>() < (microbiome_r_multiplier * counterfactual_resistance_multiplier) {
                             use crate::simulation::population::ResistanceMechanism;
@@ -4213,7 +4224,7 @@ pub(crate) fn apply_rules(
                             // Carriage acquisition uses the same hospital/community pool as the individual's
                             // current setting — a hospitalised patient acquiring gut or nasal colonisation
                             // is exposed to the hospital-circulating strain pool.
-                            let carriage_hospital = individual.hospital_status.is_hospitalized();
+                            let carriage_hospital = is_hospitalized;
                             if let Some(profile) = mechanism_cache.sample_profile(region_idx, b_idx, carriage_hospital, rng) {
                                 for m_idx in 0..64 {
                                     if (profile & (1 << m_idx)) != 0 {
@@ -4416,10 +4427,8 @@ pub(crate) fn apply_rules(
                                 continue;
                             }
 
-                            // Skip if already present in both compartments
-                            if individual.mechanism_microbiome[b_idx][mechanism_idx]
-                                && individual.mechanism_any[b_idx][mechanism_idx]
-                            {
+                            // Skip if already present in microbiome
+                            if individual.mechanism_microbiome[b_idx][mechanism_idx] {
                                 continue;
                             }
 
@@ -4437,7 +4446,6 @@ pub(crate) fn apply_rules(
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
                                 individual.mechanism_microbiome[b_idx][mechanism_idx] = true;
-                                individual.mechanism_any[b_idx][mechanism_idx] = true;
                             }
                         }
                     }
@@ -4590,8 +4598,10 @@ pub(crate) fn apply_rules(
                     // Community resistance dilution: community-acquired infections draw
                     // resistance from a broader pool that includes susceptible strains
                     // from the general environment and animal sources.
+                    // Per-bacteria dilution factor reflects how much of the community reservoir
+                    // is susceptible environmental/animal strains vs. human-circulating strains.
                     let community_dilution = if !is_hospital_acquired {
-                        (store.globals.community_resistance_dilution_factor
+                        (store.bacteria.community_resistance_dilution_factor[b_idx]
                             * community_dilution_sampling_multiplier).min(1.0)
                     } else {
                         1.0

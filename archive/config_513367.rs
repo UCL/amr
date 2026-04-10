@@ -1,4 +1,4 @@
-﻿// Centralized configuration and parameter management for the AMR simulation.
+// Centralized configuration and parameter management for the AMR simulation.
 //
 // Contains:
 //   - Initialization of global, bacteria-specific, and drug-specific parameters
@@ -2118,13 +2118,6 @@ pub struct BacteriaParameters {
     /// overwhelmingly susceptible; higher for endogenous flora (E. coli, S. aureus) whose
     /// community reservoir closely reflects recent human-to-human transmission.
     pub community_resistance_dilution_factor: Vec<f64>,
-    /// Per-bacteria hospital resistance concentration factor.
-    /// Multiplier applied to observed hospital resistance prevalence during EWMA update.
-    /// Captures population-ecology effects that an individual-based model cannot represent:
-    /// cross-transmission via surfaces/HCW hands, device/biofilm reservoirs, and reduced
-    /// infectious dose thresholds in immunocompromised co-located patients.
-    /// Default 1.0 (no amplification).  Set > 1.0 for nosocomial organisms.
-    pub hospital_resistance_concentration_factor: Vec<f64>,
 }
 
 impl BacteriaParameters {
@@ -2152,7 +2145,6 @@ impl BacteriaParameters {
         let mut sepsis_death_log_odds_override = Vec::with_capacity(num_bacteria);
         let mut hospital_microbiome_r_multiplier = Vec::with_capacity(num_bacteria);
         let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
-        let mut hospital_resistance_concentration_factor = Vec::with_capacity(num_bacteria);
 
         for &bacteria in BACTERIA_LIST.iter() {
             let prefix = bacteria;
@@ -2273,11 +2265,6 @@ impl BacteriaParameters {
                 &format!("{}_community_resistance_dilution_factor", prefix),
                 get_or_default(map, "community_resistance_dilution_factor", 0.30),
             ));
-            hospital_resistance_concentration_factor.push(get_or_default(
-                map,
-                &format!("{}_hospital_resistance_concentration_factor", prefix),
-                get_or_default(map, "hospital_resistance_concentration_factor", 1.0),
-            ));
         }
 
         BacteriaParameters {
@@ -2304,7 +2291,6 @@ impl BacteriaParameters {
             sepsis_death_log_odds_override,
             hospital_microbiome_r_multiplier,
             community_resistance_dilution_factor,
-            hospital_resistance_concentration_factor,
         }
     }
 
@@ -7817,48 +7803,48 @@ lazy_static! {
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
 
-        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.3);
+        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.3);
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -17.3);
+        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.0);
         map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.85);
-        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -20.5);
+        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -17.5);
         map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("mycoplasma_genitalium_acquisition_log_odds_baseline".to_string(), -12.5);
         map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.0); // Periodic epidemics
         map.insert("legionella_pneumophila_acquisition_log_odds_baseline".to_string(), -15.8); // Sporadic environmental
-        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -21.0); // Lowered: CF/CGD centre transmission, not community-acquired
-        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -18.0);
-        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -16.3);
-        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.7);
-        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -18.0);
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -18.3); // Lowered: CF/CGD centre transmission, not community-acquired
+        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2);
+        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -15.8);
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -16.5);
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.5);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.4);
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -16.1);
-        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -20.0);
-        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.3);
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -15.3);
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.6);
+        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -15.0);
-        map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -16.0);
-        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -17.4);
-        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -15.3);
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.7);
+        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -16.3); 
         map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.5);
-        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -17.5);
+        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -15.7);
+        map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.5);
-        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -12.8);
-        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -18.4); // Lowered: invasive disease is nearly always device/hospital-associated
-        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -21.0); // Lowered: obligate nosocomial, community cases extremely rare
-        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
-        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -16.7);
+        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.6); // Lowered: invasive disease is nearly always device/hospital-associated
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); // Lowered: obligate nosocomial, community cases extremely rare
+        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.6);
+        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.6);
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -14.8);
         map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -13.2);
-        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -16.3);
+        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.0);
+        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -16.0); // Slight boost in cases to get resistance signal
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -7890,106 +7876,63 @@ lazy_static! {
         // 1. Environmental / waterborne organisms (dilution 0.01–0.05):
         //    Community reservoir dominated by environmental susceptible strains; human-to-human
         //    transmission contributes only a thin slice of community acquisitions.
-        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.03);
+        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.03
+        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.03
+        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.03
+        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.03
+        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.03
+        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.03
         //
         // 2. Foodborne / animal-reservoir organisms (dilution 0.05–0.10):
         //    Majority of community acquisitions come from animal / food chain where resistance
         //    reflects agricultural antibiotic use, not human clinical resistance ecology.
-        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("shigella_spp._community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.07
+        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.10
+        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.10
+        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.07
+        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.07
+        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.07
+        map.insert("shigella_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
         //
         // 3. Healthcare-associated organisms that also colonise community (dilution 0.10–0.25):
         //    Significant community carriage but community reservoir considerably less resistant
         //    than the hospital pool.  Includes Enterobacterales with environmental reservoirs.
-        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.20);
-        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.20);
-        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.25);
-        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.10
+        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
+        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.20
+        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.20
+        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.25
+        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.15
         //
         // 4. Endogenous flora / high-carriage human commensals (dilution 0.30–0.50):
         //    Majority of community infections arise from the person's own flora or close
         //    human-to-human contact; community resistance reflects recent human ecology.
-        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.35);
-        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.35);
-        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.40);
+        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.35
+        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.35
+        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.30
+        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.30
+        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.30
+        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.40
+        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.40
+        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.40
+        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.40
         //
         // 5. Obligate human pathogens / STIs (dilution 0.50–1.0):
         //    Exclusively human-to-human transmission; community resistance pool IS human ecology.
-        map.insert("neisseria_gonorrhoeae_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("neisseria_meningitidis_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("chlamydia_trachomatis_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("mycoplasma_genitalium_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("mycoplasma_pneumoniae_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("treponema_pallidum_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("bordetella_pertussis_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("mdr_mycobacterium_tuberculosis_community_resistance_dilution_factor".to_string(), 0.80);
-
-
-        // Per-bacterium hospital resistance concentration factor.
-        // Multiplier on observed hospital EWMA resistance prevalence, capturing population-ecology
-        // effects absent from the individual-based model: cross-transmission via surfaces and
-        // healthcare-worker hands, device/biofilm reservoirs, and reduced infectious-dose
-        // thresholds among co-located immunocompromised patients.
-        //
-        // Four tiers based on the biological mechanism (not the target H:C ratio — other
-        // mechanisms such as dilution factors and asymmetric EWMA retention already contribute
-        // to the hospital-community resistance gap).
-        //
-        // Tier 1 — Nosocomial opportunists (1.5):
-        //   Extreme surface survival (weeks), biofilm/device niche, intrinsic resistance.
-        map.insert("acinetobacter_baumannii_hospital_resistance_concentration_factor".to_string(), 1.5);
-        map.insert("pseudomonas_aeruginosa_hospital_resistance_concentration_factor".to_string(), 1.5);
-        map.insert("stenotrophomonas_maltophilia_hospital_resistance_concentration_factor".to_string(), 1.5);
-        map.insert("burkholderia_cepacia_complex_hospital_resistance_concentration_factor".to_string(), 1.5);
-        //
-        // Tier 2 — Hospital-enriched Gram-negatives (1.3):
-        //   Resistant clonal outbreaks (KPC, ESBL), moderate surface survival, device-associated.
-        map.insert("klebsiella_pneumoniae_hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("enterobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("enterobacter_cloacae_hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("citrobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("serratia_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("morganella_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("proteus_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("p_stuartii_hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("invasive_non-typhoidal_salmonella_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("staphylococcus_epidermidis_hospital_resistance_concentration_factor".to_string(), 1.3);
-        //
-        // Tier 3 — Hospital-enriched Gram-positives (1.2):
-        //   MRSA/VRE lineages, hand-transmitted, moderate device association.
-        map.insert("staphylococcus_aureus_hospital_resistance_concentration_factor".to_string(), 1.2);
-        map.insert("enterococcus_faecium_hospital_resistance_concentration_factor".to_string(), 1.2);
-        map.insert("enterococcus_faecalis_hospital_resistance_concentration_factor".to_string(), 1.2);
-        map.insert("clostridioides_difficile_hospital_resistance_concentration_factor".to_string(), 1.2);
-        //
-        // Tier 4 — Community-dominant (1.0, default):
-        //   Primarily community/endogenous/foodborne/STI; hospital adds minimal ecological
-        //   amplification beyond what treatment pressure already captures.
-        //   All unlisted bacteria default to 1.0 via get_or_default.
+        map.insert("neisseria_gonorrhoeae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.80
+        map.insert("neisseria_meningitidis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.60
+        map.insert("chlamydia_trachomatis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.80
+        map.insert("mycoplasma_genitalium_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.80
+        map.insert("mycoplasma_pneumoniae_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.60
+        map.insert("treponema_pallidum_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.80
+        map.insert("bordetella_pertussis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.60
+        map.insert("mdr_mycobacterium_tuberculosis_community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.80
 
 
         // Bacteria-specific hospital acquisition log-odds (healthcare-associated infection risk)
@@ -8002,44 +7945,39 @@ lazy_static! {
         // Values are log-odds multipliers: exp(3.0) = 20x higher risk, exp(2.0) = 7x higher, etc.
 
         // High HAI risk bacteria (major hospital pathogens)
-        // Values calibrated to give realistic daily hospital infection probability.
-        // P_hosp/day = logistic(baseline + hospital_LO). Target: ~5-10% HAI per admission (~5-7d stay).
-        // Critical nosocomial — target ~0.1-0.2% daily hospital acquisition
-        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 11.0); // baseline -17.5 → combined -6.5 → P≈0.15%/day (was 5.9)
-        map.insert("staphylococcus_epidermidis_log_odds_hospital_acquired".to_string(), 10.0); // baseline -16.6 → combined -6.6 → P≈0.14%/day (was 7.0)
-        map.insert("stenotrophomonas_maltophilia_log_odds_hospital_acquired".to_string(), 11.0); // baseline -18.0 → combined -7.0 → P≈0.09%/day (was 5.8)
-        map.insert("burkholderia_cepacia_complex_log_odds_hospital_acquired".to_string(), 10.5); // baseline -18.3 → combined -7.8 → P≈0.04%/day (was 5.8)
-        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 8.5); // baseline -15.2 → combined -6.7 → P≈0.12%/day (was 5.9)
-        map.insert("p_stuartii_log_odds_hospital_acquired".to_string(), 9.5); // baseline -16.3 → combined -6.8 → P≈0.11%/day (was 5.7)
+        // Log-odds values increased to close gap between simulated and target HA%.
+        // Delta = ln((target/(1-target)) / (sim/(1-sim))), added to previous value.
+        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 5.9); // target ~65% HA (was 4.0, sim 22.6%)
+        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 4.9); // target ~45% HA (was 3.5, sim 17.0%)
+        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 4.9); // target ~50% HA (was 3.3, sim 10.3%)
+        map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 4.3); // target ~25% HA (was 2.8, sim 6.6%)
+        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 5.9); // target ~50% HA (was 3.3, sim 7.1%)
+        map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 5.1); // target ~40% HA (was 3.0, sim 7.5%)
+        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 5.1); // target ~45% HA (was 3.2, sim 9.4%)
+        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 5.1); // target ~45% HA (was 3.2, sim 7.7%)
+        map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 5.5); // target ~50% HA (was 3.3, sim 14.8%)
+        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 5.2); // target ~45% HA (was 3.1, sim 10.2%)
+        map.insert("p_stuartii_log_odds_hospital_acquired".to_string(), 5.7); // target ~65% HA (was 3.8, sim 21.8%)
+        map.insert("bacteroides_fragilis_log_odds_hospital_acquired".to_string(), 4.6); // target ~30% HA (was 2.3, sim 4.4%)
+        map.insert("staphylococcus_epidermidis_log_odds_hospital_acquired".to_string(), 7.0); // target ~75% HA (was 4.2, sim 15.2%)
+        map.insert("stenotrophomonas_maltophilia_log_odds_hospital_acquired".to_string(), 5.8); // target ~70% HA (was 4.2, sim 33.3%)
+        map.insert("burkholderia_cepacia_complex_log_odds_hospital_acquired".to_string(), 5.8); // target ~65% HA (was 3.9, sim 8.0%)
 
-        // Significant nosocomial — target ~0.05-0.1% daily hospital acquisition
-        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 8.5); // baseline -15.5 → combined -7.0 → P≈0.09%/day (was 4.9)
-        map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 8.0); // baseline -15.3 → combined -7.3 → P≈0.07%/day (was 5.1)
-        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 8.5); // baseline -16.0 → combined -7.5 → P≈0.06%/day (was 5.1)
-        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 8.5); // baseline -15.8 → combined -7.3 → P≈0.07%/day (was 5.1)
-        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 9.5); // baseline -16.5 → combined -7.0 → P≈0.09%/day (was 4.9)
-        map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 9.0); // baseline -16.5 → combined -7.5 → P≈0.06%/day (was 5.5)
-        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 8.5); // baseline -16.0 → combined -7.5 → P≈0.06%/day (was 5.2)
-        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 8.0); // baseline -15.7 → combined -7.7 → P≈0.05%/day (was 5.0)
-        map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 8.0); // baseline -15.7 → combined -7.7 → P≈0.05%/day (was 4.3)
-        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 9.0); // baseline -16.5 → combined -7.5 → P≈0.06%/day (was 4.5)
-
-        // Moderate nosocomial — target ~0.02-0.05% daily hospital acquisition
-        map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 5.0); // baseline -12.6 → combined -7.6 → P≈0.05%/day (was 4.3)
-        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 4.2); // baseline -11.5 → combined -7.3 → P≈0.07%/day (unchanged)
-        map.insert("bacteroides_fragilis_log_odds_hospital_acquired".to_string(), 7.0); // baseline -15.3 → combined -8.3 → P≈0.02%/day (was 4.6)
-
-        // Low nosocomial — target ~0.005-0.02% daily hospital acquisition
-        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 3.5); // baseline -12.6 → combined -9.1 → P≈0.01%/day (unchanged)
-        map.insert("streptococcus_pyogenes_log_odds_hospital_acquired".to_string(), 5.5); // baseline -14.8 → combined -9.3 → P≈0.009%/day (was 3.5)
-        map.insert("streptococcus_agalactiae_log_odds_hospital_acquired".to_string(), 7.0); // baseline -16.0 → combined -9.0 → P≈0.012%/day (was 5.3)
-        map.insert("haemophilus_influenzae_log_odds_hospital_acquired".to_string(), 7.5); // baseline -17.3 → combined -9.8 → P≈0.006%/day (was 3.3)
-        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 5.5); // baseline -15.0 → combined -9.5 → P≈0.007%/day (was 3.7)
-        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 5.0); // baseline -18.3 → combined -13.3 → P≈0.0002%/day (was 3.2)
+        // Moderate HAI risk bacteria (increased to close sim-target gap)
+        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 4.2); // target ~15% HA (was 1.1, sim 0.76%)
+        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 4.5); // target ~30% HA (was 2.1, sim 3.1%)
+        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 3.5); // target ~10% HA (was 0.5, sim 0.5%)
+        map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 4.3); // target ~30% HA (was 1.4, sim 1.8%)
+        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 5.0); // target ~40% HA (was 3.0, sim 5.9%)
         map.insert("listeria_monocytogenes_base_bacteria_level_change".to_string(), 0.25); // Prolonged incubation (up to weeks)
-        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), -0.4); // Foodborne pathway dominates (unchanged)
-        map.insert("yersinia_enterocolitica_log_odds_hospital_acquired".to_string(), 2.5); // Foodborne, minimal nosocomial (unchanged)
-        map.insert("mycoplasma_genitalium_log_odds_hospital_acquired".to_string(), -1.5); // STI, hospital cases rare (unchanged)
+        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), -0.4); // Foodborne pathway dominates
+        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 3.2); // target ~20% HA (was 0.3, sim 1.6%)
+        map.insert("streptococcus_pyogenes_log_odds_hospital_acquired".to_string(), 3.5); // target ~10% HA (was 1.1, sim 0.9%)
+        map.insert("streptococcus_agalactiae_log_odds_hospital_acquired".to_string(), 5.3); // target ~30% HA (was 1.2, sim 0.6%)
+        map.insert("haemophilus_influenzae_log_odds_hospital_acquired".to_string(), 3.3); // target ~10% HA (was 0.9, sim 1.0%)
+        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 3.7); // target ~10% HA (was 0.3, sim 0.4%)
+        map.insert("yersinia_enterocolitica_log_odds_hospital_acquired".to_string(), 2.5); // target ~3% HA (was 0.5, sim 0.0%)
+        map.insert("mycoplasma_genitalium_log_odds_hospital_acquired".to_string(), -1.5); // Strongly community-acquired STI; hospital cases rare
 
         // Low/No HAI risk bacteria (mostly community pathogens)
         map.insert("chlamydia_trachomatis_log_odds_hospital_acquired".to_string(), -1.0); // 0.37x (lower risk in hospital)
@@ -11158,8 +11096,8 @@ lazy_static! {
     // This naturally bounds P ∈ (0,1) without clamping
     map.insert("hospitalization_base_log_odds".to_string(), -10.4); // baseline: log(0.00003/0.99997) ≈ -10.4
     map.insert("hospitalization_log_odds_per_age_year".to_string(), 0.02); // ~2% increase in log-odds per year
-    map.insert("hospitalization_log_odds_sepsis".to_string(), 13.0); // ~90-95% daily admission for sepsis (base -10.4 + 13.0 = +2.6 → P≈93%)
-    map.insert("hospitalization_log_odds_symptomatic_infection".to_string(), 9.5); // ~30% daily admission for severe symptomatic infection (base -10.4 + 9.5 = -0.9 → P≈29%)
+    map.insert("hospitalization_log_odds_sepsis".to_string(), 4.4); // log(80) ≈ 4.4, sepsis strongly increases admission
+    map.insert("hospitalization_log_odds_symptomatic_infection".to_string(), 2.5); // ~12x multiplier: severe symptomatic infection (level > threshold) drives pre-antibiotic hospitalization
     map.insert("hospitalization_symptomatic_infection_level_threshold".to_string(), 3.0); // Bacteria level must exceed this AND have symptoms to trigger hospitalization effect
     
     // Regional hospitalization log-odds adjustments - HICs admit sepsis patients more readily
@@ -11589,9 +11527,9 @@ lazy_static! {
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
         // ══▶▶ CALIBRATION AXIS 4: microbiome→infection bridge — CHANGE HERE ◀◀══
-        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.0);  // DEBUG: was 0.50 — set to 0 to verify zero community R at acquisition
         // ══▶▶ CALIBRATION AXIS 5: fraction from human reservoir — CHANGE HERE ◀◀══
-        map.insert("community_resistance_dilution_factor".to_string(), 0.30);
+        map.insert("community_resistance_dilution_factor".to_string(), 0.0); // DEBUG: was 0.30 — set to 0 to verify zero community R at acquisition
         map.insert("hospital_profile_cache_retention".to_string(), 0.995); // Hospital ecology persists ~139-day half-life (endemic MRSA/VRE/CRE on wards)
 
         // ══▶▶ CALIBRATION AXIS 1: resistance persistence / reversion speed — CHANGE HERE ◀◀══

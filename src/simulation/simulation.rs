@@ -341,6 +341,43 @@ impl MechanismProfileCache {
         Some(other_slot[idx])
     }
 
+    /// Blend old (retained) profiles with freshly-collected profiles.
+    ///
+    /// For each `[region][hosp][bacteria]` slot:
+    /// 1. Keep `floor(retention * old_len)` old profiles (truncated from the end;
+    ///    since reservoir sampling randomises order, truncation ≈ random discard).
+    /// 2. Append new profiles until the slot reaches `MAX_MECHANISM_PROFILES`.
+    ///
+    /// Uses separate retention rates for hospital (h=1) and community (h=0) pools.
+    /// Hospital ecology persists for months (surfaces, devices, HCW colonisation)
+    /// while community resistance turns over with acute infections.
+    pub fn blend_with_new(&mut self, new_profiles: Self, community_retention: f64, hospital_retention: f64) {
+        for r in 0..self.num_regions {
+            for h in 0..2 {
+                let retention = if h == 1 { hospital_retention } else { community_retention };
+                for b in 0..self.num_bacteria {
+                    let old_slot = &mut self.profiles[r][h][b];
+                    let new_slot = &new_profiles.profiles[r][h][b];
+
+                    // Keep a retention-fraction of old profiles
+                    let keep = (old_slot.len() as f64 * retention).floor() as usize;
+                    old_slot.truncate(keep);
+
+                    // Fill remaining capacity with new profiles
+                    for &mask in new_slot {
+                        if old_slot.len() >= MAX_MECHANISM_PROFILES {
+                            break;
+                        }
+                        old_slot.push(mask);
+                    }
+
+                    // Reset total_seen to match actual slot length (reservoir invariant)
+                    self.total_seen[r][h][b] = old_slot.len() as u64;
+                }
+            }
+        }
+    }
+
     /// Merge profiles from another cache (used for per-thread aggregation).
     /// Performs reservoir sampling when combined profiles exceed the cap.
     pub fn merge<R: Rng + ?Sized>(&mut self, other: Self, rng: &mut R) {
@@ -403,11 +440,13 @@ impl MechanismCache {
     pub fn update_ewma(
         &mut self,
         decay: f64,
+        hospital_profile_retention: f64,
         mech_infected_comm: &[u32],  // flat [r * nb * nm + b * nm + m]
         mech_infected_hosp: &[u32],  // flat [r * nb * nm + b * nm + m]
         total_infected_comm: &[u32], // flat [r * nb + b]
         total_infected_hosp: &[u32], // flat [r * nb + b]
         merged_profiles: MechanismProfileCache,
+        hospital_concentration_factors: &[f64], // per-bacteria multiplier on hospital obs
     ) {
         let nb = self.num_bacteria;
         let nm = self.num_mechanisms;
@@ -415,6 +454,11 @@ impl MechanismCache {
             for b in 0..nb {
                 let tot_c = total_infected_comm[r * nb + b] as f64;
                 let tot_h = total_infected_hosp[r * nb + b] as f64;
+                let conc_factor = if b < hospital_concentration_factors.len() {
+                    hospital_concentration_factors[b]
+                } else {
+                    1.0
+                };
                 for m in 0..nm {
                     let obs_c = if tot_c > 0.0 {
                         mech_infected_comm[r * nb * nm + b * nm + m] as f64 / tot_c
@@ -422,7 +466,9 @@ impl MechanismCache {
                         0.0
                     };
                     let obs_h = if tot_h > 0.0 {
-                        mech_infected_hosp[r * nb * nm + b * nm + m] as f64 / tot_h
+                        (mech_infected_hosp[r * nb * nm + b * nm + m] as f64 / tot_h
+                            * conc_factor)
+                            .min(1.0)
                     } else {
                         0.0
                     };
@@ -433,7 +479,11 @@ impl MechanismCache {
                 }
             }
         }
-        self.profiles = merged_profiles;
+        // Blend old profiles with new ones using asymmetric retention:
+        // - Community pool uses EWMA decay (~6.6-day half-life)
+        // - Hospital pool uses longer retention (~139-day half-life) to model
+        //   persistent endemic resistant strains on wards.
+        self.profiles.blend_with_new(merged_profiles, decay, hospital_profile_retention);
     }
 
     /// Sample a mechanism index weighted by EWMA prevalence.
@@ -2282,13 +2332,11 @@ impl Simulation {
                                     } // end need_full_summary for pre-rules B×D
 
                                     let num_mechanisms = ResistanceMechanism::all().len();
-                                    // Use current hospital location rather than acquisition route
-                                    // so that resistance that develops under hospital antibiotic
-                                    // pressure (including in community-acquired infections admitted
-                                    // to hospital) feeds the hospital strain pool.  Sampling still
-                                    // uses the acquisition-route flag — this only affects which pool
-                                    // we record the evolving strain into.
-                                    let _is_hosp_acquired = individual.infection_hospital_acquired[b_idx];
+                                    // Record into hospital vs community pool based on current
+                                    // location (not acquisition route).  This means community-
+                                    // acquired infections that are admitted to hospital feed the
+                                    // hospital resistance pool, reflecting what is actually
+                                    // circulating on the ward.
                                     let record_as_hosp = individual.hospital_status.is_hospitalized();
                                     for mech_idx in 0..num_mechanisms {
                                         if individual.mechanism_any[b_idx][mech_idx] {
@@ -3161,13 +3209,17 @@ impl Simulation {
             // Update mechanism cache with EWMA and new profiles
             {
                 let decay = config::parameter_store().globals.mechanism_cache_ewma_decay;
+                let hospital_retention = config::parameter_store().globals.hospital_profile_cache_retention;
+                let concentration_factors = &config::parameter_store().bacteria.hospital_resistance_concentration_factor;
                 self.mechanism_cache.update_ewma(
                     decay,
+                    hospital_retention,
                     &mech_infected_comm,
                     &mech_infected_hosp,
                     &total_infected_comm,
                     &total_infected_hosp,
                     mechanism_profiles,
+                    concentration_factors,
                 );
             }
 

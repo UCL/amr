@@ -24,8 +24,9 @@ DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     "weights": {
         "headline": 0.20,
         "drug_usage": 0.25,
-        "resistance": 0.50,
+        "resistance": 0.45,
         "burden": 0.05,
+        "resistance_locus": 0.05,
     },
     "thresholds": {
         "strong": 1.0,
@@ -70,6 +71,7 @@ CALIBRATION_SCORE_BLOCK_LABELS: Dict[str, str] = {
     "drug_usage": "Drug usage",
     "resistance": "Infection resistance",
     "burden": "Bacteria burden consistency",
+    "resistance_locus": "Resistance locus",
 }
 
 RESISTANCE_SIM_COL = "Infection resistance simulation (%)"
@@ -756,6 +758,67 @@ _HA_PCT_TARGETS: Dict[str, float] = {
     "yersinia enterocolitica":                     3.0,
 }
 
+# ── Literature-based target: hospital any-R% ÷ community any-R% ──────────────
+# Values represent the expected ratio of "% newly infected with any resistance"
+# in hospital-acquired vs community-acquired infections.  Assembled from:
+#   • EARS-Net / GLASS surveillance (hospital vs outpatient isolate data)
+#   • Laxminarayan et al. Lancet 2013 (community vs tertiary resistance)
+#   • WHO priority pathogen reports 2017/2024
+#   • CDC AR Threats Reports 2019/2022
+# A ratio of 2.0 means hospital acquisitions are expected to be 2× as likely to
+# carry any resistance compared with community acquisitions of the same bug.
+_HOSP_COMM_R_RATIO_TARGETS: Dict[str, float] = {
+    # ── ESKAPE / critical priority ──
+    "acinetobacter baumannii":                    3.5,   # ICU MDR/XDR >> community
+    "enterococcus faecium":                       3.5,   # VRE concentrated in hospitals
+    "staphylococcus aureus":                      2.2,   # HA-MRSA >> CA, but CA-MRSA rising
+    "klebsiella pneumoniae":                      2.8,   # CRE/ESBL heavily nosocomial
+    "pseudomonas aeruginosa":                     3.0,   # MDR/XDR VAP strains
+    "enterobacter cloacae":                       2.8,   # derepressed AmpC, ESBL in hospitals
+    "enterobacter spp.":                          2.5,
+    # ── Other healthcare-associated Gram-negatives ──
+    "citrobacter spp.":                           2.5,   # AmpC producers; device-associated
+    "serratia spp.":                              2.5,   # ICU/NICU clusters
+    "morganella spp.":                            2.0,   # catheter UTI
+    "proteus spp.":                               2.0,   # catheter UTI
+    "providencia stuartii":                       2.5,   # long-term-care MDR
+    "stenotrophomonas maltophilia":               2.5,   # intrinsic MDR; ICU ventilated patients
+    "burkholderia cepacia complex":               2.0,   # CF centre clusters
+    # ── Healthcare-associated Gram-positives ──
+    "staphylococcus epidermidis":                 3.5,   # device/implant; high methicillin-R in hospitals
+    "enterococcus faecalis":                      2.0,   # less VRE than faecium but HA gap exists
+    "clostridioides difficile":                   2.0,   # hospital ribotypes (027/078) more resistant
+    # ── Endogenous commensals (moderate gap) ──
+    "escherichia coli":                           1.8,   # ESBL community rising; HA still higher
+    "bacteroides fragilis":                       1.8,   # post-surgical; moderate gap
+    "streptococcus agalactiae":                   1.5,   # neonatal/obstetric HA
+    "streptococcus pneumoniae":                   1.3,   # DRSP mainly community-driven
+    "haemophilus influenzae":                     1.3,   # mostly community; slight HA elderly bias
+    "moraxella catarrhalis":                      1.3,
+    "streptococcus pyogenes":                     1.2,   # community; minimal HA
+    # ── Foodborne / animal reservoir (small gap) ──
+    "campylobacter jejuni":                       1.2,   # agricultural ABx drive resistance
+    "salmonella enterica serovar typhi":          1.2,
+    "salmonella enterica serovar paratyphi a":    1.2,
+    "invasive non-typhoidal salmonella spp.":     1.5,   # HA in immunocompromised Africa
+    "shigella spp.":                              1.2,   # community/travel
+    "yersinia enterocolitica":                    1.2,
+    "listeria monocytogenes":                     1.2,
+    "vibrio cholerae":                            1.1,   # waterborne; minimal HA dimension
+    # ── Environmental / waterborne (negligible/moderate) ──
+    "legionella pneumophila":                     1.2,   # environmental; intrinsic R to many
+    # ── Obligate human / STIs (no meaningful gap) ──
+    "neisseria gonorrhoeae":                      1.0,   # STI; no hospital ecology
+    "neisseria meningitidis":                     1.2,   # mostly community; rare outbreaks HA
+    "chlamydia trachomatis":                      1.0,   # STI
+    "mycoplasma genitalium":                      1.0,   # STI
+    "mycoplasma pneumoniae":                      1.1,   # community respiratory
+    "treponema pallidum":                         1.0,   # STI
+    "bordetella pertussis":                       1.0,   # community; negligible HA
+    "mdr mycobacterium tuberculosis":             1.5,   # nosocomial MDR transmission in low-resource
+    "helicobacter pylori":                        1.2,   # community; endoscopy re-infection minor
+}
+
 
 def _canonicalize_bacteria_slug(slug: str) -> str:
     normalized = slug.strip().lower()
@@ -1405,6 +1468,8 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
         "Drugs compared",
         "Hospital any-R (%)",
         "Community any-R (%)",
+        "Sim H:C ratio",
+        "Target H:C ratio",
     ]
     if year_df.empty:
         return pd.DataFrame(columns=columns)
@@ -1490,6 +1555,13 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
             if comm_newly_infected > 0 else np.nan
         )
 
+        sim_ratio = (
+            hosp_r_pct / comm_r_pct
+            if (np.isfinite(hosp_r_pct) and np.isfinite(comm_r_pct) and comm_r_pct > 0)
+            else np.nan
+        )
+        target_ratio = _HOSP_COMM_R_RATIO_TARGETS.get(slug.replace("_", " "), np.nan)
+
         records.append({
             "Bacteria": display_name,
             "Total New Infections": total_newly_infected,
@@ -1497,6 +1569,8 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
             "Drugs compared": len(abs_diffs),
             "Hospital any-R (%)": hosp_r_pct,
             "Community any-R (%)": comm_r_pct,
+            "Sim H:C ratio": sim_ratio,
+            "Target H:C ratio": target_ratio,
         })
 
     return pd.DataFrame(records, columns=columns)
@@ -1806,6 +1880,42 @@ def _calculate_metric_fit_summary(
                 summary["count_log"] = int(log_abs.count())
 
     return summary
+
+
+def _write_resistance_locus_fit_summary(handle, locus_df: pd.DataFrame) -> None:
+    """Write a compact fit summary for the hospital:community resistance ratio."""
+    sim_col = "Sim H:C ratio"
+    target_col = "Target H:C ratio"
+    infections_col = "Total New Infections"
+    bacteria_col = "Bacteria"
+
+    valid_rows = []
+    for _, row in locus_df.iterrows():
+        sr = row.get(sim_col)
+        tr = row.get(target_col)
+        ni = row.get(infections_col, 0.0)
+        if (
+            sr is not None and tr is not None
+            and np.isfinite(sr) and np.isfinite(tr)
+            and sr > 0 and tr > 0 and ni > 0
+        ):
+            valid_rows.append((row.get(bacteria_col, ""), sr, tr, float(ni)))
+
+    if not valid_rows:
+        handle.write("\nResistance Locus Fit Summary\n- No bacteria with valid H:C ratios to compare.\n")
+        return
+
+    log_dists = [abs(np.log(sr / tr)) for _, sr, tr, _ in valid_rows]
+    weights = [ni for _, _, _, ni in valid_rows]
+    total_w = sum(weights)
+    weighted_mean_log = sum(d * w for d, w in zip(log_dists, weights)) / total_w if total_w > 0 else 0.0
+    unweighted_mean_log = float(np.mean(log_dists))
+
+    handle.write(f"\nResistance Locus Fit Summary (H:C ratio)\n")
+    handle.write(f"- Bacteria with valid sim & target H:C ratios: {len(valid_rows)}\n")
+    handle.write(f"- Mean |ln(sim/target)|, infection-weighted: {weighted_mean_log:.4f}\n")
+    handle.write(f"- Mean |ln(sim/target)|, unweighted: {unweighted_mean_log:.4f}\n")
+    handle.write(f"  (0.0 = perfect, 0.69 = off by 2×, 1.10 = off by 3×)\n")
 
 
 def _write_metric_fit_summary(
@@ -2605,6 +2715,7 @@ def _calculate_calibration_score(
     microbiome_df: pd.DataFrame,
     bacteria_burden_df: pd.DataFrame,
     resistance_fit_metrics: Dict[str, Optional[float]],
+    resistance_locus_df: Optional[pd.DataFrame] = None,
 ) -> Dict[str, object]:
     config = targets.calibration_score_config or DEFAULT_CALIBRATION_SCORE_CONFIG
     if not bool(config.get("enabled", True)):
@@ -2848,6 +2959,35 @@ def _calculate_calibration_score(
 
     add_block("burden", _weighted_mean(burden_values), burden_target_count)
 
+    # ── Resistance locus block: |log(sim_ratio / target_ratio)| per bacterium ──
+    locus_values: List[Tuple[Optional[float], float]] = []
+    locus_target_count = 0
+    locus_cap = cap  # same cap as other blocks (default 4.0)
+    if resistance_locus_df is not None and not resistance_locus_df.empty:
+        for _, row in resistance_locus_df.iterrows():
+            sim_ratio = row.get("Sim H:C ratio")
+            target_ratio = row.get("Target H:C ratio")
+            n_infections = row.get("Total New Infections", 0.0)
+            bacteria_name = row.get("Bacteria", "")
+            if (
+                sim_ratio is None or target_ratio is None
+                or not np.isfinite(sim_ratio) or not np.isfinite(target_ratio)
+                or sim_ratio <= 0 or target_ratio <= 0
+                or n_infections <= 0
+            ):
+                continue
+            log_distance = min(abs(np.log(sim_ratio / target_ratio)), locus_cap)
+            # Weight by infection volume so rare bugs with noisy ratios don't dominate
+            locus_values.append((log_distance, float(n_infections)))
+            locus_target_count += 1
+            contributors.append({
+                "Block": CALIBRATION_SCORE_BLOCK_LABELS["resistance_locus"],
+                "Target": f"{bacteria_name} (H:C ratio)",
+                "Distance": log_distance,
+                "Detail": f"sim={sim_ratio:.2f} target={target_ratio:.2f} |ln|={log_distance:.3f}",
+            })
+    add_block("resistance_locus", _weighted_mean(locus_values), locus_target_count)
+
     overall_score = _weighted_mean(block_weight_values)
     overall_label = _score_label(overall_score, thresholds_cfg)
 
@@ -3080,6 +3220,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
     resistance_fit_metrics, resistance_component_df = _calculate_resistance_fit_metrics(resistance_df)
     reserve_drug_stats = context.get("reserve_drug_stats", {})
     bacteria_gap_df, drug_gap_df = _build_mean_abs_gap_tables(resistance_df)
+    resistance_locus_df = context.get("resistance_incidence_locus_df")
     calibration_score = _calculate_calibration_score(
         targets,
         headline_df,
@@ -3088,6 +3229,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         microbiome_df,
         bacteria_burden_df,
         resistance_fit_metrics,
+        resistance_locus_df=resistance_locus_df if isinstance(resistance_locus_df, pd.DataFrame) else None,
     )
 
     simulation_csv_path = context.get("simulation_csv_path")
@@ -3263,9 +3405,36 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             
         locus_df = context.get("resistance_incidence_locus_df")
         if locus_df is not None and not locus_df.empty:
-            handle.write("Resistance Incidence Locus (per-drug hospital vs community resistance gap)\n")
-            handle.write(locus_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}", na_rep="-"))
-            handle.write("\n\n")
+            hosp_col = "Hospital any-R (%)"
+            comm_col = "Community any-R (%)"
+            sim_col = "Sim H:C ratio"
+            tgt_col = "Target H:C ratio"
+            inf_col = "Total New Infections"
+            valid_mask = locus_df[hosp_col].notna() & locus_df[comm_col].notna()
+            valid_locus = locus_df.loc[valid_mask]
+            if not valid_locus.empty:
+                mean_hosp_r = valid_locus[hosp_col].mean()
+                mean_comm_r = valid_locus[comm_col].mean()
+                # Compute infection-weighted mean |ln(sim/target)| inline
+                hc_valid = []
+                for _, row in locus_df.iterrows():
+                    sr, tr, ni = row.get(sim_col), row.get(tgt_col), row.get(inf_col, 0.0)
+                    if (sr is not None and tr is not None
+                            and np.isfinite(sr) and np.isfinite(tr)
+                            and sr > 0 and tr > 0 and ni > 0):
+                        hc_valid.append((abs(np.log(sr / tr)), float(ni)))
+                weighted_log = (
+                    sum(d * w for d, w in hc_valid) / sum(w for _, w in hc_valid)
+                    if hc_valid else np.nan
+                )
+                handle.write("Resistance Locus Summary (hospital vs community)\n")
+                handle.write(f"- Mean hospital any-R: {mean_hosp_r:.2f}%\n")
+                handle.write(f"- Mean community any-R: {mean_comm_r:.2f}%\n")
+                if np.isfinite(weighted_log):
+                    handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {weighted_log:.2f}\n")
+            # Resistance Locus Fit Summary
+            _write_resistance_locus_fit_summary(handle, locus_df)
+            handle.write("\n")
 
         if not syndrome_df.empty:
             handle.write("Syndrome Incidence Breakdown\n")

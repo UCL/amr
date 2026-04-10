@@ -1,4 +1,4 @@
-﻿// Centralized configuration and parameter management for the AMR simulation.
+// Centralized configuration and parameter management for the AMR simulation.
 //
 // Contains:
 //   - Initialization of global, bacteria-specific, and drug-specific parameters
@@ -541,7 +541,6 @@ pub struct GlobalScalars {
     pub antibiotic_clearance_log_odds_per_unit_activity: f64,
     pub carrier_resistance_inheritance_probability: f64,
     pub community_resistance_dilution_factor: f64,
-    pub hospital_profile_cache_retention: f64,
     pub hgt_hospital_multiplier: f64,
     pub hgt_antibiotic_pressure_multiplier: f64,
     pub hgt_coinfection_multiplier: f64,
@@ -1110,14 +1109,6 @@ impl GlobalScalars {
                 "community_resistance_dilution_factor",
                 0.50,  // 0.50 ***  (overridden to 0.50 in PARAMETERS block ~line 10791)
             ),
-            // ── Hospital profile cache retention: fraction of old profiles kept per step ──
-            // Hospital ecology persists for months (surfaces, devices, HCW colonisation);
-            // 0.995 ≈ 139-day half-life vs community 0.9 ≈ 6.6-day half-life.
-            hospital_profile_cache_retention: get_or_default(
-                map,
-                "hospital_profile_cache_retention",
-                0.995,
-            ),
 
             // =====================================================================
             // COUNTERFACTUAL HGT CONTROL
@@ -1359,40 +1350,39 @@ impl SexParameters {
 // ---------------- 5) Vaccination & age category tables ----------------
 #[derive(Debug)]
 pub struct VaccinationParameters {
-    birth_coverage_targets: Vec<f64>,
+    daily_probabilities: Vec<f64>,
     availability_years: Vec<f64>,
-    rollout_years: Vec<f64>,
 }
 
 impl VaccinationParameters {
-    const VACCINES: &'static [&'static str] = &[
-        "pneumococcal",
-        "meningococcal",
-        "hib",
-        "pertussis",
-    ];
+    const VACCINES: &'static [&'static str] = &["pneumococcal", "meningococcal", "hib"];
+
+    fn index(vaccine_idx: usize, age_idx: usize) -> usize {
+        vaccine_idx * AGE_BUCKETS.len() + age_idx
+    }
 
     pub fn from_map(map: &HashMap<String, f64>) -> Self {
-        let mut birth_coverage_targets = vec![0.0; Self::VACCINES.len()];
+        let mut daily_probabilities = vec![0.0; Self::VACCINES.len() * AGE_BUCKETS.len()];
         let mut availability_years = vec![2100.0; Self::VACCINES.len()];
-        let mut rollout_years = vec![0.0; Self::VACCINES.len()];
 
         for (vaccine_idx, &vaccine) in Self::VACCINES.iter().enumerate() {
             let availability_key = format!("vaccine_{}_availability_year", vaccine);
             availability_years[vaccine_idx] = get_or_default(map, &availability_key, 2100.0);
 
-            let birth_coverage_key = format!("vaccine_{}_birth_coverage_target", vaccine);
-            birth_coverage_targets[vaccine_idx] =
-                get_or_default(map, &birth_coverage_key, 0.0).clamp(0.0, 1.0);
-
-            let rollout_years_key = format!("vaccine_{}_rollout_years", vaccine);
-            rollout_years[vaccine_idx] = get_or_default(map, &rollout_years_key, 0.0).max(0.0);
+            for (age_idx, &age_group) in AGE_BUCKETS.iter().enumerate() {
+                let key = format!(
+                    "vaccine_{}_daily_prob_age_{}",
+                    vaccine,
+                    age_group.bucket_slug()
+                );
+                daily_probabilities[Self::index(vaccine_idx, age_idx)] =
+                    get_or_default(map, &key, 0.0);
+            }
         }
 
         VaccinationParameters {
-            birth_coverage_targets,
+            daily_probabilities,
             availability_years,
-            rollout_years,
         }
     }
 
@@ -1402,20 +1392,30 @@ impl VaccinationParameters {
             "pneumococcal" => Some(0),
             "meningococcal" => Some(1),
             "hib" => Some(2),
-            "pertussis" => Some(3),
             _ => None,
         }
     }
 
     #[inline]
-    pub fn vaccine_index_for_bacteria(bacteria: &str) -> Option<usize> {
-        match bacteria {
-            "streptococcus_pneumoniae" => Self::vaccine_index("pneumococcal"),
-            "neisseria_meningitidis" => Self::vaccine_index("meningococcal"),
-            "haemophilus_influenzae" => Self::vaccine_index("hib"),
-            "bordetella_pertussis" => Self::vaccine_index("pertussis"),
-            _ => None,
+    pub fn age_group_index(age_years: f64) -> usize {
+        if age_years < 1.0 {
+            0
+        } else if age_years < 5.0 {
+            1
+        } else if age_years < 18.0 {
+            2
+        } else if age_years < 50.0 {
+            3
+        } else if age_years < 70.0 {
+            4
+        } else {
+            5
         }
+    }
+
+    #[inline]
+    pub fn daily_probability(&self, vaccine_idx: usize, age_idx: usize) -> f64 {
+        self.daily_probabilities[Self::index(vaccine_idx, age_idx)]
     }
 
     #[inline]
@@ -1424,42 +1424,6 @@ impl VaccinationParameters {
             .get(vaccine_idx)
             .copied()
             .unwrap_or(2100.0)
-    }
-
-    #[inline]
-    pub fn birth_coverage_target(&self, vaccine_idx: usize) -> f64 {
-        self.birth_coverage_targets
-            .get(vaccine_idx)
-            .copied()
-            .unwrap_or(0.0)
-    }
-
-    #[inline]
-    pub fn rollout_years(&self, vaccine_idx: usize) -> f64 {
-        self.rollout_years
-            .get(vaccine_idx)
-            .copied()
-            .unwrap_or(0.0)
-    }
-
-    #[inline]
-    pub fn rollout_progress(&self, vaccine_idx: usize, simulation_year: f64) -> f64 {
-        let availability_year = self.availability_year(vaccine_idx);
-        if simulation_year < availability_year {
-            return 0.0;
-        }
-
-        let rollout_years = self.rollout_years(vaccine_idx);
-        if rollout_years <= 0.0 {
-            return 1.0;
-        }
-
-        ((simulation_year - availability_year) / rollout_years).clamp(0.0, 1.0)
-    }
-
-    #[inline]
-    pub fn birth_coverage_probability(&self, vaccine_idx: usize, simulation_year: f64) -> f64 {
-        self.birth_coverage_target(vaccine_idx) * self.rollout_progress(vaccine_idx, simulation_year)
     }
 }
 
@@ -1531,13 +1495,6 @@ impl SyndromeParameters {
                     drug_penetration[syndrome_id][drug_idx],
                 );
             }
-        }
-
-        // Syndrome 0 (no-syndrome / undifferentiated): read empiric drug scores from config
-        // so that individual drugs can be penalised in the no-indication prescribing pathway.
-        for (drug_idx, &drug) in DRUG_SHORT_NAMES.iter().enumerate() {
-            let key = format!("syndrome_0_empiric_drug_{}_score", drug);
-            empiric_drug_scores[0][drug_idx] = get_or_default(map, &key, 0.01);
         }
 
         SyndromeParameters {
@@ -2111,20 +2068,6 @@ pub struct BacteriaParameters {
     /// hospital carries resistance mechanisms relative to a community-acquired colonisation.
     /// Default 1.0 (no hospital boost).  Set > 1.0 for ESKAPE / nosocomial-dominant bacteria.
     pub hospital_microbiome_r_multiplier: Vec<f64>,
-    /// Per-bacteria community resistance dilution factor.
-    /// Probability that a community-acquired infection (or microbiome acquisition) draws its
-    /// resistance profile from the human circulating-strain pool rather than being wild-type.
-    /// Lower values for environmental / waterborne organisms whose community reservoir is
-    /// overwhelmingly susceptible; higher for endogenous flora (E. coli, S. aureus) whose
-    /// community reservoir closely reflects recent human-to-human transmission.
-    pub community_resistance_dilution_factor: Vec<f64>,
-    /// Per-bacteria hospital resistance concentration factor.
-    /// Multiplier applied to observed hospital resistance prevalence during EWMA update.
-    /// Captures population-ecology effects that an individual-based model cannot represent:
-    /// cross-transmission via surfaces/HCW hands, device/biofilm reservoirs, and reduced
-    /// infectious dose thresholds in immunocompromised co-located patients.
-    /// Default 1.0 (no amplification).  Set > 1.0 for nosocomial organisms.
-    pub hospital_resistance_concentration_factor: Vec<f64>,
 }
 
 impl BacteriaParameters {
@@ -2151,8 +2094,6 @@ impl BacteriaParameters {
         let mut infection_non_sepsis_mortality_log_odds = Vec::with_capacity(num_bacteria);
         let mut sepsis_death_log_odds_override = Vec::with_capacity(num_bacteria);
         let mut hospital_microbiome_r_multiplier = Vec::with_capacity(num_bacteria);
-        let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
-        let mut hospital_resistance_concentration_factor = Vec::with_capacity(num_bacteria);
 
         for &bacteria in BACTERIA_LIST.iter() {
             let prefix = bacteria;
@@ -2268,16 +2209,6 @@ impl BacteriaParameters {
                 &format!("{}_hospital_microbiome_r_multiplier", prefix),
                 get_or_default(map, "hospital_microbiome_r_multiplier", 1.0),
             ));
-            community_resistance_dilution_factor.push(get_or_default(
-                map,
-                &format!("{}_community_resistance_dilution_factor", prefix),
-                get_or_default(map, "community_resistance_dilution_factor", 0.30),
-            ));
-            hospital_resistance_concentration_factor.push(get_or_default(
-                map,
-                &format!("{}_hospital_resistance_concentration_factor", prefix),
-                get_or_default(map, "hospital_resistance_concentration_factor", 1.0),
-            ));
         }
 
         BacteriaParameters {
@@ -2303,8 +2234,6 @@ impl BacteriaParameters {
             infection_non_sepsis_mortality_log_odds,
             sepsis_death_log_odds_override,
             hospital_microbiome_r_multiplier,
-            community_resistance_dilution_factor,
-            hospital_resistance_concentration_factor,
         }
     }
 
@@ -5677,24 +5606,29 @@ lazy_static! {
             // Age-related bactera-specific infection risk parameters
         map.insert(format!("{}_age_effect_scaling", bacteria), 1.0); // Scale the template effect (1.0 = full effect)
 
-            // --- Birth-cohort vaccination rollout parameters for bacterial vaccines only ---
-            // Vaccination is assigned once at cohort entry (birth / first day alive), rather than
-            // via a daily all-age hazard. Each vaccine has an availability year, a target birth-
-            // cohort coverage, rollout duration, and a full acquisition-baseline uplift used to
-            // Vaccines are modelled as cohort-based reductions in susceptibility.
+            // --- Age-specific daily vaccination probability parameters for bacterial vaccines only ---
+            // Only vaccines targeting bacteria in our BACTERIA_LIST
+            // Age groups: 0-1, 1-5, 5-18, 18-50, 50-70, 70+
             let bacterial_vaccines = vec![
-                ("pneumococcal", 1977.0, 0.75, 20.0),
-                ("meningococcal", 1981.0, 0.55, 20.0),
-                ("hib", 1985.0, 0.85, 15.0),
-                ("pertussis", 1948.0, 0.82, 20.0),
+                ("pneumococcal", 1977), // PCV first licensed in 1977 (earlier polysaccharide vaccines)
+                ("meningococcal", 1981), // First meningococcal vaccine licensed in 1981
+                ("hib", 1985),           // haemophilus_influenzae type b vaccine licensed in 1985
+                ("pertussis", 1948),     // DTP vaccine first licensed in 1948
             ];
-            for (vaccine, availability_year, birth_coverage_target, rollout_years) in &bacterial_vaccines {
-                map.insert(format!("vaccine_{}_availability_year", vaccine), *availability_year);
+            for (vaccine, availability_year) in &bacterial_vaccines {
+                for category in AGE_BUCKETS.iter() {
+                    // Default: 0.0, user should override as needed
                 map.insert(
-                    format!("vaccine_{}_birth_coverage_target", vaccine),
-                    *birth_coverage_target,
-                );
-                map.insert(format!("vaccine_{}_rollout_years", vaccine), *rollout_years);
+                        format!(
+                            "vaccine_{}_daily_prob_age_{}",
+                            vaccine,
+                            category.bucket_slug()
+                        ),
+                        0.0,
+                    );
+                }
+                // Store vaccine availability year for historical modeling
+            map.insert(format!("vaccine_{}_availability_year", vaccine), *availability_year as f64);
             }
         }
 
@@ -7817,48 +7751,48 @@ lazy_static! {
         // This gives ~0.000005% per day per bacteria = ~0.018% per year per bacteria
         // With 34 bacteria: ~0.6% annual baseline, realistic after regional/risk adjustments
 
-        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -12.85);
-        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -20.5);
+        map.insert("neisseria_meningitidis_acquisition_log_odds_baseline".to_string(), -18.3);
+        map.insert("haemophilus_influenzae_acquisition_log_odds_baseline".to_string(), -17.3);
+        map.insert("salmonella_enterica_serovar_typhi_acquisition_log_odds_baseline".to_string(), -17.0);
+        map.insert("bordetella_pertussis_acquisition_log_odds_baseline".to_string(), -13.3);
+        map.insert("acinetobacter_baumannii_acquisition_log_odds_baseline".to_string(), -17.5);
         map.insert("campylobacter_jejuni_acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("chlamydia_trachomatis_acquisition_log_odds_baseline".to_string(), -13.0);
         map.insert("mycoplasma_genitalium_acquisition_log_odds_baseline".to_string(), -12.5);
         map.insert("mycoplasma_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.0); // Periodic epidemics
         map.insert("legionella_pneumophila_acquisition_log_odds_baseline".to_string(), -15.8); // Sporadic environmental
-        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -21.0); // Lowered: CF/CGD centre transmission, not community-acquired
-        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -18.0);
-        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -16.3);
-        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -17.7);
-        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -18.0);
-        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("burkholderia_cepacia_complex_acquisition_log_odds_baseline".to_string(), -18.3); // Lowered: CF/CGD centre transmission, not community-acquired
+        map.insert("citrobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("clostridioides_difficile_acquisition_log_odds_baseline".to_string(), -15.2);
+        map.insert("enterobacter_cloacae_acquisition_log_odds_baseline".to_string(), -15.8);
+        map.insert("enterobacter_spp._acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("enterococcus_faecalis_acquisition_log_odds_baseline".to_string(), -16.5);
+        map.insert("enterococcus_faecium_acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("escherichia_coli_acquisition_log_odds_baseline".to_string(), -11.5);
         map.insert("helicobacter_pylori_acquisition_log_odds_baseline".to_string(), -13.5);
         map.insert("invasive_non-typhoidal_salmonella_spp._acquisition_log_odds_baseline".to_string(), -17.4);
-        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -16.1);
-        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -20.0);
-        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.3);
+        map.insert("klebsiella_pneumoniae_acquisition_log_odds_baseline".to_string(), -15.3);
+        map.insert("listeria_monocytogenes_acquisition_log_odds_baseline".to_string(), -19.6);
+        map.insert("mdr_mycobacterium_tuberculosis_acquisition_log_odds_baseline".to_string(), -16.0);
         map.insert("moraxella_catarrhalis_acquisition_log_odds_baseline".to_string(), -15.0);
-        map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -16.0);
-        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -17.4);
-        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("bacteroides_fragilis_acquisition_log_odds_baseline".to_string(), -15.3);
+        map.insert("morganella_spp._acquisition_log_odds_baseline".to_string(), -15.7);
+        map.insert("p_stuartii_acquisition_log_odds_baseline".to_string(), -16.3); 
         map.insert("neisseria_gonorrhoeae_acquisition_log_odds_baseline".to_string(), -13.5);
-        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -17.3);
-        map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -17.5);
+        map.insert("proteus_spp._acquisition_log_odds_baseline".to_string(), -15.7);
+        map.insert("pseudomonas_aeruginosa_acquisition_log_odds_baseline".to_string(), -15.5);
         map.insert("salmonella_enterica_serovar_paratyphi_a_acquisition_log_odds_baseline".to_string(), -16.5);
-        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -19.0);
+        map.insert("serratia_spp._acquisition_log_odds_baseline".to_string(), -16.5);
         map.insert("shigella_spp._acquisition_log_odds_baseline".to_string(), -12.8);
-        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -18.4); // Lowered: invasive disease is nearly always device/hospital-associated
-        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -21.0); // Lowered: obligate nosocomial, community cases extremely rare
-        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.9);
-        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -16.7);
-        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.6);
+        map.insert("staphylococcus_epidermidis_acquisition_log_odds_baseline".to_string(), -16.6); // Lowered: invasive disease is nearly always device/hospital-associated
+        map.insert("stenotrophomonas_maltophilia_acquisition_log_odds_baseline".to_string(), -18.0); // Lowered: obligate nosocomial, community cases extremely rare
+        map.insert("staphylococcus_aureus_acquisition_log_odds_baseline".to_string(), -12.6);
+        map.insert("streptococcus_agalactiae_acquisition_log_odds_baseline".to_string(), -16.0);
+        map.insert("streptococcus_pneumoniae_acquisition_log_odds_baseline".to_string(), -12.7);
         map.insert("streptococcus_pyogenes_acquisition_log_odds_baseline".to_string(), -14.8);
         map.insert("treponema_pallidum_acquisition_log_odds_baseline".to_string(), -13.2);
-        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.5);
-        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -16.3);
+        map.insert("vibrio_cholerae_acquisition_log_odds_baseline".to_string(), -18.0);
+        map.insert("yersinia_enterocolitica_acquisition_log_odds_baseline".to_string(), -16.0); // Slight boost in cases to get resistance signal
         map.insert("log_odds_vaccinated".to_string(), -2.0); // Vaccination reduces log-odds
         map.insert("log_odds_microbiome_present".to_string(), 0.5); // Microbiome presence effect (example)
         map.insert("log_odds_hospital_acquired".to_string(), 2.0); // Hospital-acquired effect (default/fallback)
@@ -7881,115 +7815,6 @@ lazy_static! {
         map.insert("staphylococcus_aureus_hospital_microbiome_r_multiplier".to_string(), 2.0);
         map.insert("citrobacter_spp._hospital_microbiome_r_multiplier".to_string(), 2.0);
 
-        // Per-bacterium community resistance dilution factor.
-        // Probability that a community-acquired infection or microbiome colonisation draws its
-        // resistance profile from the human circulating-strain pool rather than being wild-type.
-        //
-        // Categories (biological rationale):
-        //
-        // 1. Environmental / waterborne organisms (dilution 0.01–0.05):
-        //    Community reservoir dominated by environmental susceptible strains; human-to-human
-        //    transmission contributes only a thin slice of community acquisitions.
-        map.insert("acinetobacter_baumannii_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("pseudomonas_aeruginosa_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("stenotrophomonas_maltophilia_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("burkholderia_cepacia_complex_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("legionella_pneumophila_community_resistance_dilution_factor".to_string(), 0.03);
-        map.insert("vibrio_cholerae_community_resistance_dilution_factor".to_string(), 0.03);
-        //
-        // 2. Foodborne / animal-reservoir organisms (dilution 0.05–0.10):
-        //    Majority of community acquisitions come from animal / food chain where resistance
-        //    reflects agricultural antibiotic use, not human clinical resistance ecology.
-        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.07);
-        map.insert("shigella_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        //
-        // 3. Healthcare-associated organisms that also colonise community (dilution 0.10–0.25):
-        //    Significant community carriage but community reservoir considerably less resistant
-        //    than the hospital pool.  Includes Enterobacterales with environmental reservoirs.
-        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.10);
-        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.15);
-        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.20);
-        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.20);
-        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.25);
-        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.15);
-        //
-        // 4. Endogenous flora / high-carriage human commensals (dilution 0.30–0.50):
-        //    Majority of community infections arise from the person's own flora or close
-        //    human-to-human contact; community resistance reflects recent human ecology.
-        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.35);
-        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.35);
-        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.40);
-        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.40);
-        //
-        // 5. Obligate human pathogens / STIs (dilution 0.50–1.0):
-        //    Exclusively human-to-human transmission; community resistance pool IS human ecology.
-        map.insert("neisseria_gonorrhoeae_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("neisseria_meningitidis_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("chlamydia_trachomatis_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("mycoplasma_genitalium_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("mycoplasma_pneumoniae_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("treponema_pallidum_community_resistance_dilution_factor".to_string(), 0.80);
-        map.insert("bordetella_pertussis_community_resistance_dilution_factor".to_string(), 0.60);
-        map.insert("mdr_mycobacterium_tuberculosis_community_resistance_dilution_factor".to_string(), 0.80);
-
-
-        // Per-bacterium hospital resistance concentration factor.
-        // Multiplier on observed hospital EWMA resistance prevalence, capturing population-ecology
-        // effects absent from the individual-based model: cross-transmission via surfaces and
-        // healthcare-worker hands, device/biofilm reservoirs, and reduced infectious-dose
-        // thresholds among co-located immunocompromised patients.
-        //
-        // Four tiers based on the biological mechanism (not the target H:C ratio — other
-        // mechanisms such as dilution factors and asymmetric EWMA retention already contribute
-        // to the hospital-community resistance gap).
-        //
-        // Tier 1 — Nosocomial opportunists (1.5):
-        //   Extreme surface survival (weeks), biofilm/device niche, intrinsic resistance.
-        map.insert("acinetobacter_baumannii_hospital_resistance_concentration_factor".to_string(), 1.5);
-        map.insert("pseudomonas_aeruginosa_hospital_resistance_concentration_factor".to_string(), 1.5);
-        map.insert("stenotrophomonas_maltophilia_hospital_resistance_concentration_factor".to_string(), 1.5);
-        map.insert("burkholderia_cepacia_complex_hospital_resistance_concentration_factor".to_string(), 1.5);
-        //
-        // Tier 2 — Hospital-enriched Gram-negatives (1.3):
-        //   Resistant clonal outbreaks (KPC, ESBL), moderate surface survival, device-associated.
-        map.insert("klebsiella_pneumoniae_hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("enterobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("enterobacter_cloacae_hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("citrobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("serratia_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("morganella_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("proteus_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("p_stuartii_hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("invasive_non-typhoidal_salmonella_spp._hospital_resistance_concentration_factor".to_string(), 1.3);
-        map.insert("staphylococcus_epidermidis_hospital_resistance_concentration_factor".to_string(), 1.3);
-        //
-        // Tier 3 — Hospital-enriched Gram-positives (1.2):
-        //   MRSA/VRE lineages, hand-transmitted, moderate device association.
-        map.insert("staphylococcus_aureus_hospital_resistance_concentration_factor".to_string(), 1.2);
-        map.insert("enterococcus_faecium_hospital_resistance_concentration_factor".to_string(), 1.2);
-        map.insert("enterococcus_faecalis_hospital_resistance_concentration_factor".to_string(), 1.2);
-        map.insert("clostridioides_difficile_hospital_resistance_concentration_factor".to_string(), 1.2);
-        //
-        // Tier 4 — Community-dominant (1.0, default):
-        //   Primarily community/endogenous/foodborne/STI; hospital adds minimal ecological
-        //   amplification beyond what treatment pressure already captures.
-        //   All unlisted bacteria default to 1.0 via get_or_default.
 
 
         // Bacteria-specific hospital acquisition log-odds (healthcare-associated infection risk)
@@ -8002,44 +7827,37 @@ lazy_static! {
         // Values are log-odds multipliers: exp(3.0) = 20x higher risk, exp(2.0) = 7x higher, etc.
 
         // High HAI risk bacteria (major hospital pathogens)
-        // Values calibrated to give realistic daily hospital infection probability.
-        // P_hosp/day = logistic(baseline + hospital_LO). Target: ~5-10% HAI per admission (~5-7d stay).
-        // Critical nosocomial — target ~0.1-0.2% daily hospital acquisition
-        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 11.0); // baseline -17.5 → combined -6.5 → P≈0.15%/day (was 5.9)
-        map.insert("staphylococcus_epidermidis_log_odds_hospital_acquired".to_string(), 10.0); // baseline -16.6 → combined -6.6 → P≈0.14%/day (was 7.0)
-        map.insert("stenotrophomonas_maltophilia_log_odds_hospital_acquired".to_string(), 11.0); // baseline -18.0 → combined -7.0 → P≈0.09%/day (was 5.8)
-        map.insert("burkholderia_cepacia_complex_log_odds_hospital_acquired".to_string(), 10.5); // baseline -18.3 → combined -7.8 → P≈0.04%/day (was 5.8)
-        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 8.5); // baseline -15.2 → combined -6.7 → P≈0.12%/day (was 5.9)
-        map.insert("p_stuartii_log_odds_hospital_acquired".to_string(), 9.5); // baseline -16.3 → combined -6.8 → P≈0.11%/day (was 5.7)
+        map.insert("acinetobacter_baumannii_log_odds_hospital_acquired".to_string(), 4.0); // target ~65% HA (ESKAPE pathogen, predominantly nosocomial)
+        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 3.5); // target ~45% HA — ventilator/device-associated
+        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 3.3); // target ~45% HA (VRE)
+        map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 2.8); // target ~30% HA (MRSA)
+        map.insert("clostridioides_difficile_log_odds_hospital_acquired".to_string(), 3.3); // target ~45% HA — antibiotic-associated HAI
+        map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 3.0); // target ~40% HA
+        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 3.2); // target ~45% HA — opportunistic nosocomial
+        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 3.2); // target ~45% HA
+        map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 3.3); // target ~45% HA — ICU/NICU pathogen
+        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 3.1); // target ~42% HA — opportunistic
+        map.insert("p_stuartii_log_odds_hospital_acquired".to_string(), 3.8); // target ~60% HA — catheter-associated, predominantly nosocomial
+        map.insert("bacteroides_fragilis_log_odds_hospital_acquired".to_string(), 2.3); // target ~30% HA — post-surgical/abdominal
+        map.insert("staphylococcus_epidermidis_log_odds_hospital_acquired".to_string(), 4.2); // target ~70% HA — device/implant, obligate nosocomial
+        map.insert("stenotrophomonas_maltophilia_log_odds_hospital_acquired".to_string(), 4.2); // target ~70% HA — ventilated patients, obligate nosocomial
+        map.insert("burkholderia_cepacia_complex_log_odds_hospital_acquired".to_string(), 3.9); // target ~60% HA — CF/CGD, predominantly nosocomial
 
-        // Significant nosocomial — target ~0.05-0.1% daily hospital acquisition
-        map.insert("pseudomonas_aeruginosa_log_odds_hospital_acquired".to_string(), 8.5); // baseline -15.5 → combined -7.0 → P≈0.09%/day (was 4.9)
-        map.insert("klebsiella_pneumoniae_log_odds_hospital_acquired".to_string(), 8.0); // baseline -15.3 → combined -7.3 → P≈0.07%/day (was 5.1)
-        map.insert("enterobacter_spp._log_odds_hospital_acquired".to_string(), 8.5); // baseline -16.0 → combined -7.5 → P≈0.06%/day (was 5.1)
-        map.insert("enterobacter_cloacae_log_odds_hospital_acquired".to_string(), 8.5); // baseline -15.8 → combined -7.3 → P≈0.07%/day (was 5.1)
-        map.insert("enterococcus_faecium_log_odds_hospital_acquired".to_string(), 9.5); // baseline -16.5 → combined -7.0 → P≈0.09%/day (was 4.9)
-        map.insert("serratia_spp._log_odds_hospital_acquired".to_string(), 9.0); // baseline -16.5 → combined -7.5 → P≈0.06%/day (was 5.5)
-        map.insert("citrobacter_spp._log_odds_hospital_acquired".to_string(), 8.5); // baseline -16.0 → combined -7.5 → P≈0.06%/day (was 5.2)
-        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 8.0); // baseline -15.7 → combined -7.7 → P≈0.05%/day (was 5.0)
-        map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 8.0); // baseline -15.7 → combined -7.7 → P≈0.05%/day (was 4.3)
-        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 9.0); // baseline -16.5 → combined -7.5 → P≈0.06%/day (was 4.5)
-
-        // Moderate nosocomial — target ~0.02-0.05% daily hospital acquisition
-        map.insert("staphylococcus_aureus_log_odds_hospital_acquired".to_string(), 5.0); // baseline -12.6 → combined -7.6 → P≈0.05%/day (was 4.3)
-        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 4.2); // baseline -11.5 → combined -7.3 → P≈0.07%/day (unchanged)
-        map.insert("bacteroides_fragilis_log_odds_hospital_acquired".to_string(), 7.0); // baseline -15.3 → combined -8.3 → P≈0.02%/day (was 4.6)
-
-        // Low nosocomial — target ~0.005-0.02% daily hospital acquisition
-        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 3.5); // baseline -12.6 → combined -9.1 → P≈0.01%/day (unchanged)
-        map.insert("streptococcus_pyogenes_log_odds_hospital_acquired".to_string(), 5.5); // baseline -14.8 → combined -9.3 → P≈0.009%/day (was 3.5)
-        map.insert("streptococcus_agalactiae_log_odds_hospital_acquired".to_string(), 7.0); // baseline -16.0 → combined -9.0 → P≈0.012%/day (was 5.3)
-        map.insert("haemophilus_influenzae_log_odds_hospital_acquired".to_string(), 7.5); // baseline -17.3 → combined -9.8 → P≈0.006%/day (was 3.3)
-        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 5.5); // baseline -15.0 → combined -9.5 → P≈0.007%/day (was 3.7)
-        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 5.0); // baseline -18.3 → combined -13.3 → P≈0.0002%/day (was 3.2)
+        // Moderate HAI risk bacteria
+        map.insert("escherichia_coli_log_odds_hospital_acquired".to_string(), 1.1); // ~3x higher risk (device-associated)
+        map.insert("enterococcus_faecalis_log_odds_hospital_acquired".to_string(), 2.1); // 8x higher risk
+        map.insert("streptococcus_pneumoniae_log_odds_hospital_acquired".to_string(), 0.5); // Moderately above community baseline after rollback
+        map.insert("proteus_spp._log_odds_hospital_acquired".to_string(), 1.4); // 4x higher risk
+        map.insert("morganella_spp._log_odds_hospital_acquired".to_string(), 3.0); // target ~40% HA — catheter/wound nosocomial
         map.insert("listeria_monocytogenes_base_bacteria_level_change".to_string(), 0.25); // Prolonged incubation (up to weeks)
-        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), -0.4); // Foodborne pathway dominates (unchanged)
-        map.insert("yersinia_enterocolitica_log_odds_hospital_acquired".to_string(), 2.5); // Foodborne, minimal nosocomial (unchanged)
-        map.insert("mycoplasma_genitalium_log_odds_hospital_acquired".to_string(), -1.5); // STI, hospital cases rare (unchanged)
+        map.insert("listeria_monocytogenes_log_odds_hospital_acquired".to_string(), -0.4); // Foodborne pathway dominates
+        map.insert("neisseria_meningitidis_log_odds_hospital_acquired".to_string(), 0.3); // Lower nosocomial amplification after vaccine scale-up
+        map.insert("streptococcus_pyogenes_log_odds_hospital_acquired".to_string(), 1.1); // 3x higher risk
+        map.insert("streptococcus_agalactiae_log_odds_hospital_acquired".to_string(), 1.2); // 3.3x higher risk
+        map.insert("haemophilus_influenzae_log_odds_hospital_acquired".to_string(), 0.9); // 2.5x higher risk
+        map.insert("moraxella_catarrhalis_log_odds_hospital_acquired".to_string(), 0.3); // Slightly elevated nosocomial risk after rollback
+        map.insert("yersinia_enterocolitica_log_odds_hospital_acquired".to_string(), 0.5); // 1.6x higher risk
+        map.insert("mycoplasma_genitalium_log_odds_hospital_acquired".to_string(), -1.5); // Strongly community-acquired STI; hospital cases rare
 
         // Low/No HAI risk bacteria (mostly community pathogens)
         map.insert("chlamydia_trachomatis_log_odds_hospital_acquired".to_string(), -1.0); // 0.37x (lower risk in hospital)
@@ -8461,16 +8279,16 @@ lazy_static! {
 
          // K. pneumoniae — Gram-negative, Enterobacterales
         // Band 7 (x10)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_01     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_01    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_3   ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_3      ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_3      ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_4 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_4  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_4 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_4  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_4  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_05  ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_05     ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_05     ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.002   ); // classes: chl
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_5); // classes: ag
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.003  ); // classes: ag
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -8482,22 +8300,22 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001_5 ); // classes: fq, tet, chl
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001_5       ); // classes: fq, mls, tet, chl
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_000_3 ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.000_000_05); // classes: pen, bli, ceph, carb
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_003 ); // classes: none (currently zeroed)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01   ); // classes: poly
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001   ); // classes: sulf
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_1   ); // classes: sulf
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.002     ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003    ); // classes: other (fosfomycin)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_2  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001    ); // classes: tet
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_5   ); // classes: ag
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_1  ); // classes: tet
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.003     ); // classes: ag
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.001    ); // classes: tet
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_1  ); // classes: tet
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
@@ -8505,70 +8323,70 @@ lazy_static! {
 
         // Citrobacter spp. — Gram-negative, Enterobacterales
         // Band 8 (x187.5)
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_1  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_1  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_1   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_1 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_1  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_1  ) ; // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_1  ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_1  ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_2  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_2  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_2   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_2 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_2  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2  ) ; // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_2  ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_2  ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_citrobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.015  ); // classes: chl
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.1   ); // classes: ag
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.2   ); // classes: ag
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.05   ); // classes: fq
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.05     ); // classes: fq
-        map.insert("bacteria_citrobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.05   ); // classes: fq
-        map.insert("bacteria_citrobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01   ); // classes: fq, tet, chl
-        map.insert("bacteria_citrobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.000_1  ); // classes: ceph, carb, fq, ag
-        map.insert("bacteria_citrobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.005      ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02   ); // classes: fq
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.02     ); // classes: fq
+        map.insert("bacteria_citrobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.02   ); // classes: fq
+        map.insert("bacteria_citrobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.003  ); // classes: fq, tet, chl
+        map.insert("bacteria_citrobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.000_5  ); // classes: ceph, carb, fq, ag
+        map.insert("bacteria_citrobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002      ); // classes: fq, mls, tet, chl
         map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_3 ); // classes: none (currently zeroed)
         map.insert("bacteria_citrobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.05    ); // classes: poly
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003     ); // classes: sulf
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_8   ); // classes: sulf
         map.insert("bacteria_citrobacter_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01    ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_citrobacter_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003    ); // classes: other (fosfomycin)
         map.insert("bacteria_citrobacter_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.015  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_citrobacter_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.005    ); // classes: tet
-        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.1   ); // classes: ag
+        map.insert("bacteria_citrobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.2   ); // classes: ag
         map.insert("bacteria_citrobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.005     ); // classes: tet
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_1 ); // classes: pen, bli, ceph, mono; modest beta-lactam lift without rebuilding broad efflux resistance
+        map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_4 ); // classes: pen, bli, ceph, mono; modest beta-lactam lift without rebuilding broad efflux resistance
         map.insert("bacteria_citrobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_citrobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
   // Enterobacter spp. — Gram-negative, Enterobacterales
         // Band 8 (x125)
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001     ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001      ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_3  ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_3  ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_3  ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_5   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_5   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_5 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_5  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_5    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_15 ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_15 ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_15 ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_enterobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.003 ); // classes: chl
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.2   ); // classes: ag
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.5   ); // classes: ag
         map.insert("bacteria_enterobacter_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01     ); // classes: fq
-        map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001     ); // classes: fq
-        map.insert("bacteria_enterobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01      ); // classes: fq
-        map.insert("bacteria_enterobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01    ); // classes: fq, tet, chl
+        map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002    ); // classes: fq
+        map.insert("bacteria_enterobacter_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_4   ); // classes: fq
+        map.insert("bacteria_enterobacter_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.002     ); // classes: fq
+        map.insert("bacteria_enterobacter_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.002   ); // classes: fq, tet, chl
         map.insert("bacteria_enterobacter_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_enterobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01        ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_enterobacter_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.002       ); // classes: fq, mls, tet, chl
         map.insert("bacteria_enterobacter_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_5   ); // classes: none (currently zeroed)
@@ -8580,28 +8398,28 @@ lazy_static! {
         map.insert("bacteria_enterobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03    ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_enterobacter_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.008  ); // classes: tet
-        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.2 ); // classes: ag
+        map.insert("bacteria_enterobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.5 ); // classes: ag
         map.insert("bacteria_enterobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.008 ); // classes: tet
-        map.insert("bacteria_enterobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_3   ); // classes: pen, bli, ceph, mono; modest beta-lactam lift without rebuilding broad non-beta-lactam resistance
+        map.insert("bacteria_enterobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_5   ); // classes: pen, bli, ceph, mono; modest beta-lactam lift without rebuilding broad non-beta-lactam resistance
         map.insert("bacteria_enterobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
 
         // E. cloacae — Gram-negative, Enterobacterales
         // Band 8 (x150)
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_05 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_05   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_05   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_005    ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_005   ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_005   ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_015 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_015); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_015 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_015  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_015  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_001    ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_001   ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_001   ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_3   ); // classes: chl
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.005    ); // classes: ag
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.03     ); // classes: ag
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -8624,38 +8442,38 @@ lazy_static! {
         map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.02   ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_enterobacter_cloacae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.01   ); // classes: tet
-        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.005   ); // classes: ag
+        map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.03    ); // classes: ag
         map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.01      ); // classes: tet
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_05 ); // classes: pen, bli, ceph, mono; modest beta-lactam lift without overdriving other classes
+        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_015); // classes: pen, bli, ceph, mono; modest beta-lactam lift without overdriving other classes
         map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterobacter_cloacae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
        // Morganella spp. — Gram-negative, Enterobacterales
         // Band 8 (x300)
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_03 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_03 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_03 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_03  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_03  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_01  ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_01  ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_01  ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_05 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_05 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_05 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_morganella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.1    ); // classes: chl
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.8   ); // classes: ag
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 1.0   ); // classes: ag
         map.insert("bacteria_morganella_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.15 ); // classes: fq
-        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.15   ); // classes: fq
-        map.insert("bacteria_morganella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.15    ); // classes: fq
+        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.04 ); // classes: fq
+        map.insert("bacteria_morganella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.04   ); // classes: fq
+        map.insert("bacteria_morganella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.04    ); // classes: fq
         map.insert("bacteria_morganella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.003   ); // classes: fq, tet, chl
-        map.insert("bacteria_morganella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.000_01 ); // classes: ceph, carb, fq, ag
-        map.insert("bacteria_morganella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01   ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_morganella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.000_2 ); // classes: ceph, carb, fq, ag
+        map.insert("bacteria_morganella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.003  ); // classes: fq, mls, tet, chl
         map.insert("bacteria_morganella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_01  ); // classes: none (currently zeroed)
@@ -8667,27 +8485,27 @@ lazy_static! {
         map.insert("bacteria_morganella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01   ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_morganella_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.003    ); // classes: tet
-        map.insert("bacteria_morganella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.8    ); // classes: ag
+        map.insert("bacteria_morganella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 1.0    ); // classes: ag
         map.insert("bacteria_morganella_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.003     ); // classes: tet
-        map.insert("bacteria_morganella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_01   ); // classes: pen, bli, ceph, mono; tiny seed; not treated as impossible
+        map.insert("bacteria_morganella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_05   ); // classes: pen, bli, ceph, mono; tiny seed; not treated as impossible
         map.insert("bacteria_morganella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_morganella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; 
 
         // Proteus spp. — Gram-negative, Enterobacterales
         // Band 8 (x50)
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_03   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_03    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_03    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_03    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_03     ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_01    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_01    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01     ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_proteus_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_015     ); // classes: pen, bli, ceph, carb, mono
         map.insert("bacteria_proteus_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_015     ); // classes: pen, bli, ceph, carb, mono
         map.insert("bacteria_proteus_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_015     ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_proteus_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_35    ); // classes: chl
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.8           ); // classes: ag
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.02          ); // classes: ag
         map.insert("bacteria_proteus_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -8696,9 +8514,9 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.04       ); // classes: fq
         map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01        ); // classes: fq
         map.insert("bacteria_proteus_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01        ); // classes: fq
-        map.insert("bacteria_proteus_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.003      ); // classes: fq, tet, chl
+        map.insert("bacteria_proteus_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.005      ); // classes: fq, tet, chl
         map.insert("bacteria_proteus_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.03     ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_proteus_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.05     ); // classes: fq, mls, tet, chl
         map.insert("bacteria_proteus_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_15     ); // classes: none (currently zeroed)
@@ -8709,8 +8527,8 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_1       ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_proteus_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.002      ); // classes: tet
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.08     ); // classes: ag
+        map.insert("bacteria_proteus_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.003_5    ); // classes: tet
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.02     ); // classes: ag
         map.insert("bacteria_proteus_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -8941,22 +8759,22 @@ lazy_static! {
         map.insert("bacteria_shigella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001      ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001      ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_shigella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001      ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_shigella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2     ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_shigella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_2      ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_shigella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_2      ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_shigella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_5     ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_shigella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_5      ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_shigella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_5      ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_shigella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_25   ); // classes: chl
         map.insert("bacteria_shigella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.9    ) ; // classes: ag
         map.insert("bacteria_shigella_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 3.0    ); // classes: mls
+        map.insert("bacteria_shigella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.8    ); // classes: mls
         map.insert("bacteria_shigella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.8         ); // classes: fq
         map.insert("bacteria_shigella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.8          ); // classes: fq
         map.insert("bacteria_shigella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.8          ); // classes: fq
         map.insert("bacteria_shigella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.003       ); // classes: fq, tet, chl
         map.insert("bacteria_shigella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_shigella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 3.0     ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_shigella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.9     ); // classes: fq, mls, tet, chl
         map.insert("bacteria_shigella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_shigella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_03    ); // classes: none (currently zeroed)
@@ -9025,31 +8843,31 @@ lazy_static! {
         // ======================================================================
         // P. aeruginosa — Gram-negative, NonFermenter
         // Band 8 (x37.5)
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_15    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_15    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_15    ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_15   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_15   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_15    ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_15  ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_15    ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_05    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_05    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_05    ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_05   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_05   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_05    ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_05  ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_05    ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_2   ); // classes: chl
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_1   ); // classes: ag
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_2   ); // classes: ag
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_02    ); // classes: mls
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_02    ); // classes: oxa, mls, chl
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.002      ); // classes: fq
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.002   ); // classes: fq
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_protection_qnr_emergence_rate".to_string(), 0.002    ); // classes: fq
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001      ); // classes: fq
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001   ); // classes: fq
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_protection_qnr_emergence_rate".to_string(), 0.001    ); // classes: fq
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.000_15    ); // classes: ceph, carb, fq, ag
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.000_05    ); // classes: ceph, carb, fq, ag
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5    ); // classes: fq, mls, tet, chl
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.000_15   ); // classes: carb
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.000_05   ); // classes: carb
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_2  ); // classes: none (currently zeroed)
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.00_05   ); // classes: poly
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.00_2    ); // classes: poly
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.002     ); // classes: sulf
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_02    ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.01      ); // classes: other (fosfomycin)
@@ -9057,7 +8875,7 @@ lazy_static! {
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_5  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_protection_tet_m_emergence_rate".to_string(), 0.002     ); // classes: tet
-        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_1   ); // classes: ag; AMEs extremely common in PA
+        map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_2   ); // classes: ag; AMEs extremely common in PA
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_pseudomonas_aeruginosa_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
@@ -9068,16 +8886,16 @@ lazy_static! {
 
        // A. baumannii — Gram-negative, NonFermenter
         // Band 8 (x100)
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.002); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.002); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.002); // classes: pen, bli, ceph, carb
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_cat_emergence_rate".to_string(), 0.03 ); // classes: chl
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 2.0  ); // classes: ag
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01 ); // classes: chl
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 10.0  ); // classes: ag
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -9093,19 +8911,19 @@ lazy_static! {
         map.insert("bacteria_acinetobacter_baumannii_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1); // classes: none (currently zeroed)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.1  ); // classes: poly; Colistin 0%->12%
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.1   ); // classes: sulf
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.07  ); // classes: sulf
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003_5   ); // classes: other (fosfomycin)
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 1.0  ); // classes: other (rifampicin, fidaxomicin); Rifampicin 0%->55%
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.3  ); // classes: other (rifampicin, fidaxomicin); Rifampicin 0%->55%
         map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.03 ); // classes: tet
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 2.0 ); // classes: ag; AMEs frequent in MDR AB
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.05 ); // classes: tet
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 10.0 ); // classes: ag; AMEs frequent in MDR AB
         map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.002); // classes: carb; OXA-23/40/58 primary carbapenem R in AB
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.006); // classes: carb; OXA-23/40/58 primary carbapenem R in AB
         map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.03   ); // classes: tet
-        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.002_5); // classes: tet
+        map.insert("bacteria_acinetobacter_baumannii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.006); // classes: pen, bli, ceph, mono
         map.insert("bacteria_acinetobacter_baumannii_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_acinetobacter_baumannii_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -9192,7 +9010,7 @@ lazy_static! {
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_000_05); // classes: tet
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholdera_cepacia_complex_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
@@ -9299,31 +9117,31 @@ lazy_static! {
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001  ); // classes: mls
-        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_3 ); // classes: oxa, mls, chl
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_2 ); // classes: fq
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_2  ); // classes: fq
+        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.03 ); // classes: mls
+        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.01 ); // classes: oxa, mls, chl
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005 ); // classes: fq
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005 ); // classes: fq
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_2  ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.003  ); // classes: fq, mls, tet, chl
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0  ); // classes: none (currently zeroed)
         map.insert("bacteria_helicobacter_pylori_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01    ); // classes: sulf
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03    ); // classes: sulf
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.03  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01  ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_2 ); // classes: tet
+        map.insert("bacteria_helicobacter_pylori_mechanism_protection_tet_m_emergence_rate".to_string(), 0.003 ); // classes: tet
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_01  ); // classes: pen; PBP1A proxy via blaZ; targets amox/amp only
+        map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.003   ); // classes: pen; PBP1A proxy via blaZ; targets amox/amp only
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_2 ); // classes: mls; primary clarithromycin R mechanism
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.002 ); // classes: mls; primary clarithromycin R mechanism
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_01 ); // classes: pen, bli, ceph, mono; low PBP1A-type amoxicillin resistance proxy
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.003); // classes: pen, bli, ceph, mono; low PBP1A-type amoxicillin resistance proxy
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -9338,18 +9156,18 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce MBLs
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0; GC does not produce OXA-48
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.001        ); // classes: chl
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 100.0        ); // classes: ag
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 1.0        ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.01     ); // classes: mls
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.01            ); // classes: oxa, mls, chl
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 100.0     ); // classes: fq
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 100.0      ); // classes: fq
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_qnr_emergence_rate".to_string(), 100.0       ); // classes: fq
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 1.0     ); // classes: fq
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 1.0      ); // classes: fq
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_qnr_emergence_rate".to_string(), 1.0       ); // classes: fq
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0        ); // classes: fq, tet, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_efflux_pump_emergence_rate".to_string(), 100.0            ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0            ); // classes: fq, mls, tet, chl
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.001      ); // classes: none (currently zeroed)
@@ -9358,10 +9176,10 @@ lazy_static! {
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.1           ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_3        ); // classes: other (fosfomycin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 100.0        ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 1.0        ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 100.0          ); // classes: tet
-        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 100.0   ); // classes: ag
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_protection_tet_m_emergence_rate".to_string(), 1.0          ); // classes: tet
+        map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 1.0   ); // classes: ag
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.02      ); // classes: pen; TEM-1 penicillinase; all penicillins
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_gonorrhoeae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.03    ); // classes: mls; GC macrolide target-site resistance
@@ -9416,87 +9234,87 @@ lazy_static! {
         // M. catarrhalis — Gram-negative, Fastidious
         // Band 7 (x18.8)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_2 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_5); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_001  ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_02 ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_5 ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_2 ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_001 ); // classes: chl
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_1 ); // classes: ag
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_5 ); // classes: chl
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_02 ); // classes: ag
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_01  ); // classes: mls
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_1 ); // classes: oxa, mls, chl
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_01  ); // classes: fq
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_001 ); // classes: fq
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_001 ); // classes: fq
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_001 ); // classes: fq, tet, chl
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_005  ); // classes: mls
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_05 ); // classes: oxa, mls, chl
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_002  ); // classes: fq
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_5 ); // classes: fq
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_000_2 ); // classes: fq
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_5 ); // classes: fq, tet, chl
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_01  ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_005  ); // classes: fq, mls, tet, chl
         map.insert("bacteria_moraxella_catarrhalis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_002 ); // classes: none (currently zeroed)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_2 ); // classes: poly
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_2 ); // classes: none (currently zeroed)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_02 ); // classes: poly
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_01   ); // classes: sulf
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_002); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_2); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_002 ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_2 ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_1   ); // classes: tet
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_01   ); // classes: tet
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_5); // classes: pen, bli, ceph, mono; PBP mosaic: some PBP modifications reported
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_00_5); // classes: pen, bli, ceph, mono; PBP mosaic: some PBP modifications reported
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_5); // classes: pen, mls, tet, chl; mtrCDE-like efflux: contributes to macrolide/pen R
         map.insert("bacteria_moraxella_catarrhalis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
                // H. influenzae — Gram-negative, Fastidious
         // Band 7 (x18.8)
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_1  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_1); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_1 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_1  ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_1  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_2  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_2); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_2 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_2  ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_2  ); // classes: pen, bli, ceph, mono
         map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_05); // classes: pen, bli, ceph, carb, mono
         map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_05 ); // classes: pen, bli, ceph, carb, mono
         map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_05 ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1    ); // classes: chl
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.1      ); // classes: ag
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.05     ); // classes: ag
         map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_07  ); // classes: mls
-        map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_05 ); // classes: oxa, mls, chl
-        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_8    ); // classes: fq
+        map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_03  ); // classes: mls
+        map.insert("bacteria_haemophilus_influenzae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_03 ); // classes: oxa, mls, chl
+        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_3    ); // classes: fq
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_08    ); // classes: fq
-        map.insert("bacteria_haemophilus_influenzae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_2    ); // classes: fq
+        map.insert("bacteria_haemophilus_influenzae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_1    ); // classes: fq
         map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0   ); // classes: fq, tet, chl
         map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_haemophilus_influenzae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_5  ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_haemophilus_influenzae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3  ); // classes: fq, mls, tet, chl
         map.insert("bacteria_haemophilus_influenzae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_3    ); // classes: none 
         map.insert("bacteria_haemophilus_influenzae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_002     ); // classes: poly
-        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.002      ); // classes: sulf
+        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_8    ); // classes: sulf
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_02      ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.015     ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_haemophilus_influenzae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_haemophilus_influenzae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001       ); // classes: tet
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.1      ); // classes: ag
-        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_000_1   ); // classes: pen
+        map.insert("bacteria_haemophilus_influenzae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_8     ); // classes: tet
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.05     ); // classes: ag
+        map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_000_2   ); // classes: pen
         map.insert("bacteria_haemophilus_influenzae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_003   ); // classes: mls
         map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // classes: tet; tet signal is already high
-        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_1   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_1   ); // classes: pen, mls, tet, chl
+        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_2   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_haemophilus_influenzae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_2   ); // classes: pen, mls, tet, chl
         map.insert("bacteria_haemophilus_influenzae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
 
@@ -9557,31 +9375,31 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_04     ); // classes: chl; chlor target 30%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.2            ); // classes: ag
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_000_2) ; // classes: pen, bli, ceph, carb; driving penicillins ~35-60%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_001     ); // classes: glyc; targets ~10% for vanco/teico
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.25           ); // classes: ag
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_003 ); // classes: pen, bli, ceph, carb; driving penicillins ~35-60%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_002     ); // classes: glyc; targets ~10% for vanco/teico
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_2          ); // classes: glyc
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_15      ); // classes: mls; macrolides ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_2       ); // classes: mls; macrolides ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_1      ); // classes: oxa, mls, chl; Linezolid 1%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.02    ); // classes: fq; FQ target ~40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01     ); // classes: fq; FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01    ); // classes: fq; FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001    ); // classes: fq; FQ target ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_qnr_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.003       ); // classes: fq, mls, tet, chl; bumps FQs, Tet
+        map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001       ); // classes: fq, mls, tet, chl; bumps FQs, Tet
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0; Gram-positive, no outer membrane — porin loss not applicable
         map.insert("bacteria_staphylococcus_aureus_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003    ); // classes: sulf; trim/sulf target 35%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003   ); // classes: sulf; trim/sulf target 35%
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.003        ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003       ); // classes: other (fosfomycin)
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.003        ); // classes: other (daptomycin)
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003        ); // classes: other (rifampicin, fidaxomicin); Rifampicin ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_fus_b_emergence_rate".to_string(), 0.003        ); // classes: other (fusidic acid); Fusidic acid ~20%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_tet_m_emergence_rate".to_string(), 0.002    ); // classes: tet; tet target 20-30%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.2   ); // classes: ag; AG 40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_000_5 ); // classes: pen; blaZ
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.25  ); // classes: ag; AG 40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_01 ); // classes: pen; blaZ
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mls; disabled here; 23S-mediated resistance is possible
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9799,7 +9617,7 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_3  ); // classes: mls; rare but not impossible
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_002   ); // classes: pen, bli, ceph, mono; low-level PBP contribution, much weaker than E. faecium
+        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_005   ); // classes: pen, bli, ceph, mono; low-level PBP contribution, much weaker than E. faecium
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; 
 
@@ -9816,16 +9634,16 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_cat_emergence_rate".to_string(),  0.01     ); // classes: chl
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01       ); // classes: ag
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(),  0.0 ); // classes: pen, bli, ceph, carb
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   0.001   ); // classes: glyc
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.001     ); // classes: glyc
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   0.006   ); // classes: glyc
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.006     ); // classes: glyc
         map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   0.01        ); // classes: mls
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.005    ); // classes: oxa, mls, chl
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.015    ); // classes: fq
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.015   ) ; // classes: fq
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.01     ); // classes: oxa, mls, chl
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.01     ); // classes: fq
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.01    ) ; // classes: fq
         map.insert("bacteria_enterococcus_faecium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.015   ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01    ); // classes: fq, mls, tet, chl
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
@@ -9937,39 +9755,39 @@ lazy_static! {
 
          // B. fragilis — Anaerobe
         // Band 8 (x37.5)
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_3); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_3 ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_3   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_3   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_3   ); // classes: pen, bli, ceph, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_01 ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_01 ); // classes: pen, bli, ceph, carb, mono
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_01  ); // classes: pen, bli, ceph, carb
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_4); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_4 ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_4   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_4   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_4   ); // classes: pen, bli, ceph, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_02 ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_02 ); // classes: pen, bli, ceph, carb, mono
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_02  ); // classes: pen, bli, ceph, carb
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_01   ); // classes: chl
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 3.0       ); // classes: ag
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 1.0       ); // classes: ag
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.01   ); // classes: mls
         map.insert("bacteria_bacteroides_fragilis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_1     ); // classes: oxa, mls, chl
-        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03     ); // classes: fq
-        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03      ); // classes: fq
-        map.insert("bacteria_bacteroides_fragilis_mechanism_protection_qnr_emergence_rate".to_string(), 0.03     ); // classes: fq
-        map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.003      ); // classes: fq, tet, chl
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01     ); // classes: fq
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01      ); // classes: fq
+        map.insert("bacteria_bacteroides_fragilis_mechanism_protection_qnr_emergence_rate".to_string(), 0.01     ); // classes: fq
+        map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001      ); // classes: fq, tet, chl
         map.insert("bacteria_bacteroides_fragilis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
-        map.insert("bacteria_bacteroides_fragilis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.003     ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_bacteroides_fragilis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_05  ); // classes: fq, mls, tet, chl
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_005  ); // classes: none (currently zeroed)
         map.insert("bacteria_bacteroides_fragilis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_5   ); // classes: poly
-        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03       ); // classes: sulf
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001      ); // classes: sulf
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_1  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001      ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_bacteroides_fragilis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.01  ); // classes: tet
-        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 3.0  ); // classes: ag
+        map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 1.0  ); // classes: ag
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mls; disabled; 23S mutations documented in linezolid-resistant Bacteroides
@@ -10034,19 +9852,19 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_cat_emergence_rate".to_string(), 0.03     ); // classes: chl
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_cat_emergence_rate".to_string(), 0.012    ); // classes: chl
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.05     ); // classes: mls; lower clindamycin/macrolides without collapsing them completely
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_cfr_emergence_rate".to_string(), 0.05     ); // classes: oxa, mls, chl
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.7      ); // classes: fq; raise cipro/ofloxacin directly without using broad efflux
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.7      ); // classes: fq; primary FQ lever for levo/moxi in this panel
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.03     ); // classes: mls; lower clindamycin/macrolides without collapsing them completely
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_cfr_emergence_rate".to_string(), 0.03     ); // classes: oxa, mls, chl
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.35     ); // classes: fq; raise cipro/ofloxacin directly without using broad efflux
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.35     ); // classes: fq; primary FQ lever for levo/moxi in this panel
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.2         ); // classes: fq, mls, tet, chl
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.013       ); // classes: fq, mls, tet, chl
         map.insert("bacteria_mycoplasma_genitalium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
@@ -10057,11 +9875,11 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.035  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_tet_m_emergence_rate".to_string(), 0.2      ); // classes: tet  
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_tet_m_emergence_rate".to_string(), 0.07     ); // classes: tet  
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.05   ); // classes: mls; keep macrolides elevated, but closer to the target band
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.035   ); // classes: mls; keep macrolides elevated, but closer to the target band
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -11145,21 +10963,14 @@ lazy_static! {
             }
         }
 
-        // Syndrome 0 (no-syndrome / undifferentiated prescribing) overrides.
-        // By default all drugs score 0.01 for syndrome 0. Drugs that should be
-        // less likely to be chosen when there is no clinical syndrome can be
-        // penalised here so that the softmax-temperature selection disfavours them.
-        map.insert("syndrome_0_empiric_drug_trim_sulf_score".to_string(), 0.001);
-        map.insert("syndrome_0_empiric_drug_sulfanilamide_score".to_string(), 0.001);
-
     // Hospitalization Parameters - Logistic Model
     // P(hospitalization) = 1 / (1 + exp(-log_odds))
     // log_odds = base + (age_years × per_year) + sepsis_effect
     // This naturally bounds P ∈ (0,1) without clamping
     map.insert("hospitalization_base_log_odds".to_string(), -10.4); // baseline: log(0.00003/0.99997) ≈ -10.4
     map.insert("hospitalization_log_odds_per_age_year".to_string(), 0.02); // ~2% increase in log-odds per year
-    map.insert("hospitalization_log_odds_sepsis".to_string(), 13.0); // ~90-95% daily admission for sepsis (base -10.4 + 13.0 = +2.6 → P≈93%)
-    map.insert("hospitalization_log_odds_symptomatic_infection".to_string(), 9.5); // ~30% daily admission for severe symptomatic infection (base -10.4 + 9.5 = -0.9 → P≈29%)
+    map.insert("hospitalization_log_odds_sepsis".to_string(), 4.4); // log(80) ≈ 4.4, sepsis strongly increases admission
+    map.insert("hospitalization_log_odds_symptomatic_infection".to_string(), 2.5); // ~12x multiplier: severe symptomatic infection (level > threshold) drives pre-antibiotic hospitalization
     map.insert("hospitalization_symptomatic_infection_level_threshold".to_string(), 3.0); // Bacteria level must exceed this AND have symptoms to trigger hospitalization effect
     
     // Regional hospitalization log-odds adjustments - HICs admit sepsis patients more readily
@@ -11589,10 +11400,9 @@ lazy_static! {
         // amplify resistance rates when they develop infections. This is THE key mechanism for resistance
         // spread in populations, more important than de novo emergence during treatment.
         // ══▶▶ CALIBRATION AXIS 4: microbiome→infection bridge — CHANGE HERE ◀◀══
-        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);
+        map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);  // 0.50            
         // ══▶▶ CALIBRATION AXIS 5: fraction from human reservoir — CHANGE HERE ◀◀══
-        map.insert("community_resistance_dilution_factor".to_string(), 0.30);
-        map.insert("hospital_profile_cache_retention".to_string(), 0.995); // Hospital ecology persists ~139-day half-life (endemic MRSA/VRE/CRE on wards)
+        map.insert("community_resistance_dilution_factor".to_string(), 0.50); // 0.50
 
         // ══▶▶ CALIBRATION AXIS 1: resistance persistence / reversion speed — CHANGE HERE ◀◀══
         map.insert("mechanism_reversion_rate_global_multiplier".to_string(), 1.0);

@@ -768,19 +768,24 @@ fn print_immunodeficiency_sex_vaccination(store: &amr_project::config::Parameter
     let mut rows = Vec::new();
     for (v_idx, &vaccine) in VACCINES.iter().enumerate() {
         let avail = store.vaccination.availability_year(v_idx);
-        for (a_idx, &cat) in AGE_CATEGORY_SEQUENCE.iter().enumerate() {
-            let prob = store.vaccination.daily_probability(v_idx, a_idx);
-            if prob.abs() > 1e-15 {
-                rows.push(vec![
-                    vaccine.to_string(),
-                    cat.label().to_string(),
-                    format_value(prob),
-                    format_value(avail),
-                ]);
-            }
-        }
+        let birth_coverage = store.vaccination.birth_coverage_target(v_idx);
+        let rollout_years = store.vaccination.rollout_years(v_idx);
+        rows.push(vec![
+            vaccine.to_string(),
+            format_value(avail),
+            format_value(birth_coverage),
+            format_value(rollout_years),
+        ]);
     }
-    md_table(&["Vaccine", "Age category", "Daily probability", "Availability year"], &rows);
+    md_table(
+        &[
+            "Vaccine",
+            "Availability year",
+            "Target birth-cohort coverage",
+            "Rollout years",
+        ],
+        &rows,
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
