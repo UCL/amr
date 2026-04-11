@@ -4220,12 +4220,17 @@ pub(crate) fn apply_rules(
                         if rng.gen::<f64>() < (microbiome_r_multiplier * counterfactual_resistance_multiplier) {
                             use crate::simulation::population::ResistanceMechanism;
 
-                            // Try profile sampling first, fall back to marginal single-mechanism.
-                            // Carriage acquisition uses the same hospital/community pool as the individual's
-                            // current setting — a hospitalised patient acquiring gut or nasal colonisation
-                            // is exposed to the hospital-circulating strain pool.
+                            // Sample a complete profile from the hospital or community pool.
+                            // Hospital carriage uses weighted sampling for consistency
+                            // with infection acquisition.
                             let carriage_hospital = is_hospitalized;
-                            if let Some(profile) = mechanism_cache.sample_profile(region_idx, b_idx, carriage_hospital, rng) {
+                            let carriage_conc_factor = store.bacteria.hospital_resistance_concentration_factor[b_idx];
+                            let carriage_profile = if carriage_hospital && carriage_conc_factor > 1.0 {
+                                mechanism_cache.sample_profile_weighted(region_idx, b_idx, carriage_conc_factor, rng)
+                            } else {
+                                mechanism_cache.sample_profile(region_idx, b_idx, carriage_hospital, rng)
+                            };
+                            if let Some(profile) = carriage_profile {
                                 for m_idx in 0..64 {
                                     if (profile & (1 << m_idx)) != 0 {
                                         if m_idx < ResistanceMechanism::all().len()
@@ -4235,16 +4240,6 @@ pub(crate) fn apply_rules(
                                         }
                                         individual.mechanism_microbiome[b_idx][m_idx] = true;
                                         individual.mechanism_any[b_idx][m_idx] = true;
-                                    }
-                                }
-                            } else {
-                                let sampled_mechanism_idx = mechanism_cache.sample_mechanism(
-                                    region_idx, carriage_hospital, b_idx, rng,
-                                );
-                                if let Some(idx) = sampled_mechanism_idx {
-                                    if !ResistanceMechanism::all()[idx].is_as_yet_unknown() {
-                                        individual.mechanism_microbiome[b_idx][idx] = true;
-                                        individual.mechanism_any[b_idx][idx] = true;
                                     }
                                 }
                             }
@@ -4593,7 +4588,6 @@ pub(crate) fn apply_rules(
                         Region::Home => individual.region_living as usize,
                         r => r as usize,
                     };
-                    let hospital_status_bool = individual.hospital_status.is_hospitalized();
 
                     // Community resistance dilution: community-acquired infections draw
                     // resistance from a broader pool that includes susceptible strains
@@ -4612,21 +4606,22 @@ pub(crate) fn apply_rules(
                     // If drawn from the environmental pool, we default to wild type (0.0 acquired resistance).
                     let from_human_reservoir = rng.gen_bool(community_dilution.clamp(0.0, 1.0));
 
-                    // Sampling hospital status: hospital-acquired infections sample from hospitalized pool
-                    let sampling_hospital_status = if is_hospital_acquired {
-                        true
-                    } else {
-                        hospital_status_bool
-                    };
-
                     // --- Mechanism profile sampling ---
-                    // Prefer the profile cache (samples a complete mechanism genotype from
-                    // an actual circulating strain) over the marginal prevalence cache.
-                    // Fall back to marginal single-mechanism sampling for early simulation
-                    // when the profile cache is empty.
+                    // Sample a complete mechanism genotype from the profile reservoir.
+                    // Hospital-acquired infections use weighted sampling that favours
+                    // resistant profiles (weight = concentration_factor^k where k = number
+                    // of set mechanism bits), modelling the enrichment of resistant organisms
+                    // in hospital environments.  Community infections use uniform sampling.
+                    // If the profile cache is empty (early warm-up), the individual stays
+                    // fully susceptible.
+                    let conc_factor = store.bacteria.hospital_resistance_concentration_factor[b_idx];
                     let profile_sampled = if from_human_reservoir {
-                        if let Some(profile) =
+                        let sampled_profile = if is_hospital_acquired && conc_factor > 1.0 {
+                            mechanism_cache.sample_profile_weighted(region_idx, b_idx, conc_factor, rng)
+                        } else {
                             mechanism_cache.sample_profile(region_idx, b_idx, is_hospital_acquired, rng)
+                        };
+                        if let Some(profile) = sampled_profile
                         {
                             if rng.gen::<f64>() < counterfactual_resistance_multiplier {
                                 for m_idx in 0..64 {
@@ -4645,17 +4640,6 @@ pub(crate) fn apply_rules(
                             }
                             true
                         } else {
-                            // Fallback: sample ONE mechanism from marginal prevalence cache
-                            let sampled_mechanism_idx = mechanism_cache.sample_mechanism(region_idx, sampling_hospital_status, b_idx, rng);
-                            if let Some(idx) = sampled_mechanism_idx {
-                                // Skip AsYetUnknown placeholder mechanisms — dormant until activated
-                                if rng.gen::<f64>() < counterfactual_resistance_multiplier
-                                    && !ResistanceMechanism::all()[idx].is_as_yet_unknown()
-                                {
-                                    individual.mechanism_any[b_idx][idx] = true;
-                                    individual.mechanism_majority[b_idx][idx] = true;
-                                }
-                            }
                             false
                         }
                     } else {

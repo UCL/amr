@@ -395,25 +395,52 @@ When a new infection is acquired from the community, the model needs to decide: 
 
 Rather than sampling each drug-resistance pair independently (which would produce unrealistic resistance patterns), the model uses a six-step pipeline that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:
 
-**Step 1 — Mechanism-level prevalence (EWMA tracking)**
+**Step 1 — Profile reservoir and prevalence tracking**
 
-After every simulated day, the model updates an **exponential moving average** (EWMA) of the fraction of infected individuals carrying each of the 40 resistance mechanisms, tracked separately for every combination of region × care setting (community / hospital) × bacteria × mechanism. The EWMA smoothing factor (`mechanism_cache_ewma_decay` = 0.9) means today's prevalence estimate is 90% the previous estimate and 10% the newly observed fraction — giving the cache a memory that damps day-to-day noise while still following genuine trends. Mathematically:
+After every simulated day, the model refreshes a **profile reservoir** (`MechanismCache`) of up to 200 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). The reservoir is built by **reservoir sampling** from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals (bitmask = 0). Infected individuals contribute to the pool corresponding to their **current location** (hospital or community) at the time of the daily cache update.
 
-$$\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}$$
+The reservoir uses **asymmetric retention** when refreshing its contents each day. Community profiles are retained with a fraction `community_profile_cache_retention` = 0.9 (~7-day half-life), reflecting rapid strain turnover in the community. Hospital profiles are retained with a fraction `hospital_profile_cache_retention` = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.
 
-where $\alpha = 0.9$. Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.
+Because the reservoir includes both resistant and susceptible profiles, the **prevalence** of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the model checks whether any mechanism applicable to that drug is set, and the resistant fraction across all profiles gives the current prevalence estimate. This prevalence is used downstream by antibiotic prescribing logic (Section 6) and calibration scoring.
+
+**Hospital resistance concentration factor.** Each bacterium is assigned a **hospital resistance concentration factor** (`hospital_resistance_concentration_factor`) that reflects the empirical observation that hospital environments concentrate resistant organisms through selective antibiotic pressure, device-associated biofilm persistence, patient-to-patient transmission via healthcare workers, and environmental contamination (Weinstein RA, 1998; Weber DJ et al., 2010). This factor is used at **Step 3** during profile sampling to over-sample resistant profiles when assigning resistance to hospital-acquired infections (see Step 3 for details). The concentration factor is assigned to one of four tiers based on each bacterium's ecological association with healthcare:
+
+| Tier | Factor | Bacteria | Rationale |
+|------|-------:|----------|-----------|
+| 1 — Nosocomial opportunists | 1.5 | *A. baumannii*, *P. aeruginosa*, *S. maltophilia*, *Burkholderia* | Primarily nosocomial, thrive on devices and in ICU environments |
+| 2 — Hospital-enriched GNR | 1.3 | *K. pneumoniae*, *Enterobacter* spp./cloacae, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, iNTS, *S. epidermidis* | Frequently cause HCAI but also circulate in community |
+| 3 — Hospital-enriched GP | 1.2 | *S. aureus*, *E. faecium*, *E. faecalis*, *C. difficile* | Important nosocomial pathogens with substantial community reservoir |
+| 4 — Community-dominant | 1.0 | All remaining 24 bacteria | Resistance ecology not materially amplified by hospital stay |
 
 **Step 2 — Community dilution**
 
-Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (`community_resistance_dilution_factor` = 0.50). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).
+Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria **community resistance dilution factor** (`community_resistance_dilution_factor`). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).
 
-**Step 3 — Correlated mechanism profiles — profile-cache sampling**
+The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir:
 
-Rather than independently sampling each mechanism from its marginal EWMA prevalence (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model maintains a **profile reservoir** (`MechanismProfileCache`) of up to 200 complete resistance genotypes sampled — via reservoir sampling — from currently infected individuals. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). When a new infection is acquired from the human reservoir, the model samples a **complete genotype profile** from this reservoir and assigns all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
+| Category | Dilution range | Example bacteria | Rationale |
+|----------|---------------:|------------------|-----------|
+| Environmental / waterborne | 0.03 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition mostly from environmental sources, not circulating human strains |
+| Foodborne / animal-reservoir | 0.07–0.15 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | Zoonotic or food-chain origin; human-to-human resistance transfer is rare |
+| Healthcare-associated | 0.10–0.25 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance primarily amplified in hospitals; community strains are much more susceptible |
+| Endogenous flora / commensal | 0.30–0.40 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Commensal carriage means community strains partially reflect clinical resistance |
+| Obligate human pathogen / STI | 0.60–0.80 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission; community resistance closely tracks clinical observation |
 
-If the profile cache is empty (early in the simulation, before enough infections have accumulated), the model falls back to sampling a single mechanism from the marginal EWMA cache.
+Per-bacteria values are listed in Appendix B.3.
 
-**Counterfactual gating.** Profile sampling — and the marginal fallback — are gated by the `counterfactual_resistance_multiplier`. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below `counterfactual_resistance_multiplier` (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.
+**Step 3 — Correlated mechanism profiles — weighted profile sampling**
+
+Rather than independently sampling each mechanism from a marginal prevalence estimate (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model draws a **complete genotype profile** from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
+
+**Community-acquired infections** draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles (bitmask = 0), uniform sampling automatically reproduces the true population prevalence of resistance.
+
+**Hospital-acquired weighted sampling.** For hospital-acquired infections where the bacterium's `hospital_resistance_concentration_factor` $f > 1$, the model does not draw a uniform profile from the hospital pool. Instead it uses **weighted profile sampling** (`sample_profile_weighted`): each profile in the reservoir is assigned a sampling weight of $f^{k}$, where $k$ is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher $k$) are over-sampled relative to susceptible profiles ($k = 0$, weight $= f^0 = 1$), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a **real observed genotype** — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired *K. pneumoniae* infection with $f = 1.3$ and 8 mechanism bits, for example, receives a weight of $1.3^8 \approx 8.2$× relative to a susceptible profile, substantially increasing its draw probability.
+
+The same weighted sampling logic is applied to **carriage acquisition** (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same $f^k$ weighting.
+
+If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.
+
+**Counterfactual gating.** Profile sampling is gated by the `counterfactual_resistance_multiplier`. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below `counterfactual_resistance_multiplier` (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.
 
 **Step 4 — Resistance floor enforcement**
 
@@ -1168,7 +1195,7 @@ This section describes how the model represents the biology of resistance emerge
 
 The model tracks resistance at the level of individual **mechanisms** — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant *K. pneumoniae*") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.
 
-**Mechanism-centric architecture.** All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (`mechanism_any`), majority strain (`mechanism_majority`), and microbiome carriage (`mechanism_microbiome`). The scalar resistance metrics (`any_r`, `activity_r`) reported in outputs are **derived** from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified `MechanismCache` maintains the population-level picture: it holds both the EWMA-smoothed per-mechanism prevalence (used as fallback sampling) and a reservoir of up to 200 complete clinical resistance genotypes (used for profile-based acquisition — see Section 3.4).
+**Mechanism-centric architecture.** All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (`mechanism_any`), majority strain (`mechanism_majority`), and microbiome carriage (`mechanism_microbiome`). The scalar resistance metrics (`any_r`, `activity_r`) reported in outputs are **derived** from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified `MechanismCache` maintains the population-level picture: it holds both the EWMA-smoothed per-mechanism prevalence (used as fallback sampling) and a reservoir of up to 200 complete clinical resistance genotypes (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with asymmetric profile retention (hospital profiles persist ~139-day half-life; community profiles ~7-day half-life — see Section 3.4) and applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology.
 
 
 ### 7.1 Resistance mechanisms
@@ -2233,7 +2260,9 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | resistance_development_inhibition_single_drug | 0.05 |
 | resistance_development_inhibition_partial_cross | 0.3 |
 | mechanism_assignment_probability_on_any_r_gain | 0.8 |
-| mechanism_cache_ewma_decay | 0.9 |
+| community_profile_cache_retention | 0.9 |
+| hospital_profile_cache_retention | 0.995 |
+| hospital_resistance_concentration_factor | per-bacteria (1.0–1.5; see B.3) |
 | mechanism_reversion_rate_global_multiplier | 1 |
 | majority_r_memory_retention_per_day | 0.93 |
 
@@ -2249,7 +2278,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | carriage_duration_max_log_odds_effect | -2 |
 | antibiotic_clearance_log_odds_per_unit_activity | 0.5 |
 | carrier_resistance_inheritance_probability | 0.5 |
-| community_resistance_dilution_factor | 0.5 |
+| community_resistance_dilution_factor | per-bacteria (0.03–0.80; see B.3) |
 | microbiome_majority_decay_half_life_days | 60 |
 | microbiome_minority_decay_half_life_days | 18 |
 | microbiome_majority_promotion_rate_per_day | 0.02 |
@@ -2480,50 +2509,50 @@ Per-bacteria parameters governing acquisition, growth, symptom onset, and clinic
 
 See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection dynamics](#42-infection-dynamics), [§4.3 Sepsis](#43-sepsis), [§4.4 Natural clearance](#44-natural-clearance), [§8.1 Carriage compartments](#81-carriage-compartments).
 
-| Bacteria | Acq log-odds | Init level | Δ level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| acinetobacter_baumannii | -17.5 | 0.01 | 0.55 | 5 | 0.1 | 7 | 0.0075 | 0.5 | 1 | -7.7 | 4e-4 |
-| citrobacter_spp. | -16 | 0.01 | 0.5 | 5 | 0.08 | 10 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 |
-| enterobacter_spp. | -16 | 0.01 | 0.5 | 5 | 0.07 | 10 | 0.0045 | 0.5 | 1 | -7.7 | 4e-4 |
-| enterococcus_faecalis | -16.5 | 0.01 | 0.48 | 5 | 0.008 | 10 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 |
-| enterococcus_faecium | -16.5 | 0.01 | 0.48 | 5 | 0.06 | 11 | 0.0075 | 0.5 | 1 | -7 | 4e-4 |
-| escherichia_coli | -11.5 | 0.01 | 0.5 | 5 | 0.005 | 5.7 | 0.025 | 0.5 | 1 | -9.5 | 4e-4 |
-| klebsiella_pneumoniae | -15.3 | 0.01 | 0.52 | 5 | 0.03 | 9 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 |
-| morganella_spp. | -15.5 | 0.01 | 0.48 | 5 | 0.1 | 8.7 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| proteus_spp. | -15.7 | 0.01 | 0.5 | 5 | 0.08 | 6.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| serratia_spp. | -16.5 | 0.01 | 0.48 | 5 | 0.1 | 8.8 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| p_stuartii | -16.1 | 0.01 | 0.5 | 5 | 0.09 | 7.6 | 0.0045 | 0.75 | 1 | -14 | 4e-4 |
-| pseudomonas_aeruginosa | -15.5 | 0.01 | 0.55 | 5 | 0.12 | 7.5 | 0.0075 | 0.8 | 1 | -6.5 | 4e-4 |
-| stenotrophomonas_maltophilia | -18.5 | 0.01 | 0.45 | 5 | 0.06 | 6 | 0.0045 | 0.9 | 2.5 | -8 | 4e-4 |
-| staphylococcus_aureus | -12.6 | 0.01 | 0.6 | 5 | 0.05 | 8.5 | 0.015 | 0.5 | 1 | -7.3 | 4e-4 |
-| staphylococcus_epidermidis | -17.5 | 0.01 | 0.35 | 4 | 0.015 | 11.3 | 0.0045 | 1 | 3 | -8 | 4e-4 |
-| streptococcus_pneumoniae | -12.7 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -10.5 | 4e-4 |
-| salmonella_enterica_serovar_typhi | -17 | 0.01 | 0.45 | 5 | 0.003 | -4 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| salmonella_enterica_serovar_paratyphi_a | -16.5 | 0.01 | 0.45 | 5 | 0.15 | 1.1 | 0.0045 | 0.5 | 1 | -9 | 4e-4 |
-| invasive_non-typhoidal_salmonella_spp. | -17.4 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 |
-| shigella_spp. | -12.8 | 0.01 | 0.55 | 5 | 0.15 | 0.2 | 0.0045 | 0.5 | 1 | -12 | 4e-4 |
-| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 1 | 0.0045 | 0.5 | 1 | -23 | 4e-4 |
-| streptococcus_pyogenes | -14.8 | 0.01 | 0.7 | 5 | 0.08 | 8.8 | 0.015 | 0.5 | 1 | -6.5 | 4e-4 |
-| streptococcus_agalactiae | -16 | 0.01 | 0.52 | 5 | 0.06 | 10.5 | 0.015 | 0.5 | 1 | -7 | 4e-4 |
-| haemophilus_influenzae | -17.3 | 0.01 | 0.55 | 5 | 0.06 | 11.2 | 0.015 | 0.5 | 1 | -9.2 | 4e-4 |
-| chlamydia_trachomatis | -13 | 0.01 | 0.25 | 5 | 0.2 | 4.5 | 0.007 | 0.8 | 1 | -19 | 4e-4 |
-| mycoplasma_genitalium | -12.5 | 0.01 | 0.28 | 5 | 0.18 | 3.5 | 0.0045 | 0.9 | 5 | -14 | 4e-4 |
-| vibrio_cholerae | -18 | 0.01 | 0.7 | 5 | 0.15 | 2.5 | 0.025 | 0.5 | 1 | -9 | 4e-4 |
-| neisseria_meningitidis | -18.3 | 0.01 | 0.65 | 5 | 0.05 | 9.8 | 0.01 | 3 | 1 | -7.9 | 4e-4 |
-| listeria_monocytogenes | -19.6 | 0.01 | 0.25 | 5 | 0.1 | 9.2 | 0.0045 | 0.5 | 1 | -8 | 4e-4 |
-| clostridioides_difficile | -15.2 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -11 | 4e-4 |
-| bacteroides_fragilis | -15.3 | 0.01 | 0.42 | 5 | 0.004 | 11.5 | 0.0045 | 1.2 | 2 | -14 | 4e-4 |
-| campylobacter_jejuni | -13 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -20 | 4e-4 |
-| enterobacter_cloacae | -15.5 | 0.01 | 0.5 | 5 | 0.04 | 11.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 |
-| yersinia_enterocolitica | -16 | 0.01 | 0.45 | 5 | 0.25 | 7 | 0.0045 | 0.5 | 1 | -9.5 | 4e-4 |
-| moraxella_catarrhalis | -15 | 0.01 | 0.55 | 5 | 0.05 | 12.3 | 0.0045 | 2 | 1 | -10.8 | 4e-4 |
-| treponema_pallidum | -13.2 | 0.01 | 0.18 | 5 | 0.35 | 8 | 0.0045 | 0.6 | 1 | -11 | 4e-4 |
-| bordetella_pertussis | -13.3 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -11 | 4e-4 |
-| helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -250 | 4e-4 |
-| mdr_mycobacterium_tuberculosis | -16 | 0.01 | 0.15 | 5 | 0.0015 | 1 | 6e-4 | 2 | 1 | -38 | 4e-4 |
-| mycoplasma_pneumoniae | -12 | 0.01 | 0.35 | 5 | 0.01 | 2 | 0.015 | 0.5 | 1 | -14 | 4e-4 |
-| legionella_pneumophila | -15.8 | 0.01 | 0.55 | 5 | 0.01 | 2 | 0.0085 | 0.5 | 1 | -14 | 4e-4 |
-| burkholderia_cepacia_complex | -19 | 0.01 | 0.45 | 5 | 0.01 | 2 | 0.0075 | 0.5 | 1 | -14 | 4e-4 |
+| Bacteria | Acq log-odds | Init level | Δ level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate | Dilution | Conc factor |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| acinetobacter_baumannii | -22.3 | 0.01 | 0.55 | 5 | 0.1 | 7 | 0.0075 | 0.5 | 1 | -7.7 | 4e-4 | 0.03 | 1.5 |
+| citrobacter_spp. | -18.6 | 0.01 | 0.5 | 5 | 0.08 | 10 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 | 0.15 | 1.3 |
+| enterobacter_spp. | -18.8 | 0.01 | 0.5 | 5 | 0.07 | 10 | 0.0045 | 0.5 | 1 | -7.7 | 4e-4 | 0.15 | 1.3 |
+| enterococcus_faecalis | -19.3 | 0.01 | 0.48 | 5 | 0.008 | 10 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 | 0.25 | 1.2 |
+| enterococcus_faecium | -20.2 | 0.01 | 0.48 | 5 | 0.06 | 11 | 0.0075 | 0.5 | 1 | -7 | 4e-4 | 0.20 | 1.2 |
+| escherichia_coli | -11.5 | 0.01 | 0.5 | 5 | 0.005 | 5.7 | 0.025 | 0.5 | 1 | -9.5 | 4e-4 | 0.35 | 1.0 |
+| klebsiella_pneumoniae | -16.7 | 0.01 | 0.52 | 5 | 0.03 | 9 | 0.0075 | 0.5 | 1 | -7.5 | 4e-4 | 0.20 | 1.3 |
+| morganella_spp. | -18.1 | 0.01 | 0.48 | 5 | 0.1 | 8.7 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 | 0.15 | 1.3 |
+| proteus_spp. | -17.8 | 0.01 | 0.5 | 5 | 0.08 | 6.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 | 0.15 | 1.3 |
+| serratia_spp. | -20.0 | 0.01 | 0.48 | 5 | 0.1 | 8.8 | 0.0045 | 0.5 | 1 | -8 | 4e-4 | 0.15 | 1.3 |
+| p_stuartii | -20.2 | 0.01 | 0.5 | 5 | 0.09 | 7.6 | 0.0045 | 0.75 | 1 | -14 | 4e-4 | 0.15 | 1.3 |
+| pseudomonas_aeruginosa | -18.7 | 0.01 | 0.55 | 5 | 0.12 | 7.5 | 0.0075 | 0.8 | 1 | -6.5 | 4e-4 | 0.03 | 1.5 |
+| stenotrophomonas_maltophilia | -22.2 | 0.01 | 0.45 | 5 | 0.06 | 6 | 0.0045 | 0.9 | 2.5 | -8 | 4e-4 | 0.03 | 1.5 |
+| staphylococcus_aureus | -12.9 | 0.01 | 0.6 | 5 | 0.05 | 8.5 | 0.015 | 0.5 | 1 | -7.3 | 4e-4 | 0.35 | 1.2 |
+| staphylococcus_epidermidis | -19.2 | 0.01 | 0.35 | 4 | 0.015 | 11.3 | 0.0045 | 1 | 3 | -8 | 4e-4 | 0.15 | 1.3 |
+| streptococcus_pneumoniae | -12.6 | 0.01 | 0.6 | 5 | 0.05 | 7 | 0.015 | 0.5 | 1 | -10.5 | 4e-4 | 0.40 | 1.0 |
+| salmonella_enterica_serovar_typhi | -17.3 | 0.01 | 0.45 | 5 | 0.003 | -4 | 0.0045 | 0.5 | 1 | -8 | 4e-4 | 0.10 | 1.0 |
+| salmonella_enterica_serovar_paratyphi_a | -16.5 | 0.01 | 0.45 | 5 | 0.15 | 1.1 | 0.0045 | 0.5 | 1 | -9 | 4e-4 | 0.10 | 1.0 |
+| invasive_non-typhoidal_salmonella_spp. | -17.4 | 0.01 | 0.5 | 5 | 0.12 | 3.2 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 | 0.07 | 1.3 |
+| shigella_spp. | -12.8 | 0.01 | 0.55 | 5 | 0.15 | 0.2 | 0.0045 | 0.5 | 1 | -12 | 4e-4 | 0.15 | 1.0 |
+| neisseria_gonorrhoeae | -13.5 | 0.01 | 0.55 | 5 | 0.2 | 1 | 0.0045 | 0.5 | 1 | -23 | 4e-4 | 0.80 | 1.0 |
+| streptococcus_pyogenes | -14.8 | 0.01 | 0.7 | 5 | 0.08 | 8.8 | 0.015 | 0.5 | 1 | -6.5 | 4e-4 | 0.40 | 1.0 |
+| streptococcus_agalactiae | -17.2 | 0.01 | 0.52 | 5 | 0.06 | 10.5 | 0.015 | 0.5 | 1 | -7 | 4e-4 | 0.40 | 1.0 |
+| haemophilus_influenzae | -19.1 | 0.01 | 0.55 | 5 | 0.06 | 11.2 | 0.015 | 0.5 | 1 | -9.2 | 4e-4 | 0.30 | 1.0 |
+| chlamydia_trachomatis | -13.0 | 0.01 | 0.25 | 5 | 0.2 | 4.5 | 0.007 | 0.8 | 1 | -19 | 4e-4 | 0.80 | 1.0 |
+| mycoplasma_genitalium | -12.5 | 0.01 | 0.28 | 5 | 0.18 | 3.5 | 0.0045 | 0.9 | 5 | -14 | 4e-4 | 0.80 | 1.0 |
+| vibrio_cholerae | -18.5 | 0.01 | 0.7 | 5 | 0.15 | 2.5 | 0.025 | 0.5 | 1 | -9 | 4e-4 | 0.03 | 1.0 |
+| neisseria_meningitidis | -18.5 | 0.01 | 0.65 | 5 | 0.05 | 9.8 | 0.01 | 3 | 1 | -7.9 | 4e-4 | 0.60 | 1.0 |
+| listeria_monocytogenes | -20.0 | 0.01 | 0.25 | 5 | 0.1 | 9.2 | 0.0045 | 0.5 | 1 | -8 | 4e-4 | 0.07 | 1.0 |
+| clostridioides_difficile | -17.2 | 0.01 | 0.55 | 5 | 0.02 | 7 | 0.005 | 0.5 | 1 | -11 | 4e-4 | 0.10 | 1.2 |
+| bacteroides_fragilis | -16.3 | 0.01 | 0.42 | 5 | 0.004 | 11.5 | 0.0045 | 1.2 | 2 | -14 | 4e-4 | 0.30 | 1.0 |
+| campylobacter_jejuni | -13.0 | 0.01 | 0.52 | 5 | 0.12 | 2.5 | 0.015 | 0.5 | 1 | -20 | 4e-4 | 0.07 | 1.0 |
+| enterobacter_cloacae | -18.4 | 0.01 | 0.5 | 5 | 0.04 | 11.5 | 0.0045 | 0.5 | 1 | -7.8 | 4e-4 | 0.15 | 1.3 |
+| yersinia_enterocolitica | -16.3 | 0.01 | 0.45 | 5 | 0.25 | 7 | 0.0045 | 0.5 | 1 | -9.5 | 4e-4 | 0.07 | 1.0 |
+| moraxella_catarrhalis | -15.0 | 0.01 | 0.55 | 5 | 0.05 | 12.3 | 0.0045 | 2 | 1 | -10.8 | 4e-4 | 0.30 | 1.0 |
+| treponema_pallidum | -13.2 | 0.01 | 0.18 | 5 | 0.35 | 8 | 0.0045 | 0.6 | 1 | -11 | 4e-4 | 0.80 | 1.0 |
+| bordetella_pertussis | -12.85 | 0.01 | 0.42 | 5 | 0.2 | 2.5 | 0.0075 | 0.5 | 1 | -11 | 4e-4 | 0.60 | 1.0 |
+| helicobacter_pylori | -13.5 | 0.01 | 0.2 | 5 | 0.001 | 6.65 | 0.005 | 1.5 | 30 | -250 | 4e-4 | 0.40 | 1.0 |
+| mdr_mycobacterium_tuberculosis | -16.3 | 0.01 | 0.15 | 5 | 0.0015 | 1 | 6e-4 | 2 | 1 | -38 | 4e-4 | 0.80 | 1.0 |
+| mycoplasma_pneumoniae | -12.0 | 0.01 | 0.35 | 5 | 0.01 | 2 | 0.015 | 0.5 | 1 | -14 | 4e-4 | 0.60 | 1.0 |
+| legionella_pneumophila | -15.8 | 0.01 | 0.55 | 5 | 0.01 | 2 | 0.0085 | 0.5 | 1 | -14 | 4e-4 | 0.03 | 1.0 |
+| burkholderia_cepacia_complex | -22.1 | 0.01 | 0.45 | 5 | 0.01 | 2 | 0.0075 | 0.5 | 1 | -14 | 4e-4 | 0.03 | 1.5 |
 
 ### B.4 Drug–Bacteria Potency Matrix
 

@@ -787,16 +787,100 @@ a:hover { text-decoration: underline; }
 <h3 id="34-resistance-at-acquisition">3.4 Resistance at acquisition</h3>
 <p>When a new infection is acquired from the community, the model needs to decide: is this bacterium resistant to any drugs, and if so, which ones?</p>
 <p>Rather than sampling each drug-resistance pair independently (which would produce unrealistic resistance patterns), the model uses a six-step pipeline that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:</p>
-<p><strong>Step 1 — Mechanism-level prevalence (EWMA tracking)</strong></p>
-<p>After every simulated day, the model updates an <strong>exponential moving average</strong> (EWMA) of the fraction of infected individuals carrying each of the 40 resistance mechanisms, tracked separately for every combination of region × care setting (community / hospital) × bacteria × mechanism. The EWMA smoothing factor (<code>mechanism_cache_ewma_decay</code> = 0.9) means today's prevalence estimate is 90% the previous estimate and 10% the newly observed fraction — giving the cache a memory that damps day-to-day noise while still following genuine trends. Mathematically:</p>
-<p>\[\text{EWMA}_{t+1} = \alpha \cdot \text{EWMA}_t + (1 - \alpha) \cdot \frac{\text{infected with mechanism}_t}{\text{total infected}_t}\]</p>
-<p>where \(\alpha = 0.9\). Hospital and community populations are tracked separately, so a newly hospitalised patient draws from the hospital strain pool and a community infection draws from the community pool.</p>
+<p><strong>Step 1 — Profile reservoir and prevalence tracking</strong></p>
+<p>After every simulated day, the model refreshes a <strong>profile reservoir</strong> (<code>MechanismCache</code>) of up to 200 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). The reservoir is built by <strong>reservoir sampling</strong> from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals (bitmask = 0). Infected individuals contribute to the pool corresponding to their <strong>current location</strong> (hospital or community) at the time of the daily cache update.</p>
+<p>The reservoir uses <strong>asymmetric retention</strong> when refreshing its contents each day. Community profiles are retained with a fraction <code>community_profile_cache_retention</code> = 0.9 (~7-day half-life), reflecting rapid strain turnover in the community. Hospital profiles are retained with a fraction <code>hospital_profile_cache_retention</code> = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.</p>
+<p>Because the reservoir includes both resistant and susceptible profiles, the <strong>prevalence</strong> of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the model checks whether any mechanism applicable to that drug is set, and the resistant fraction across all profiles gives the current prevalence estimate. This prevalence is used downstream by antibiotic prescribing logic (Section 6) and calibration scoring.</p>
+<p><strong>Hospital resistance concentration factor.</strong> Each bacterium is assigned a <strong>hospital resistance concentration factor</strong> (<code>hospital_resistance_concentration_factor</code>) that reflects the empirical observation that hospital environments concentrate resistant organisms through selective antibiotic pressure, device-associated biofilm persistence, patient-to-patient transmission via healthcare workers, and environmental contamination (Weinstein RA, 1998; Weber DJ et al., 2010). This factor is used at <strong>Step 3</strong> during profile sampling to over-sample resistant profiles when assigning resistance to hospital-acquired infections (see Step 3 for details). The concentration factor is assigned to one of four tiers based on each bacterium's ecological association with healthcare:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th style="text-align: right;">Factor</th>
+<th>Bacteria</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Nosocomial opportunists</td>
+<td style="text-align: right;">1.5</td>
+<td><em>A. baumannii</em>, <em>P. aeruginosa</em>, <em>S. maltophilia</em>, <em>Burkholderia</em></td>
+<td>Primarily nosocomial, thrive on devices and in ICU environments</td>
+</tr>
+<tr>
+<td>2 — Hospital-enriched GNR</td>
+<td style="text-align: right;">1.3</td>
+<td><em>K. pneumoniae</em>, <em>Enterobacter</em> spp./cloacae, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Proteus</em>, <em>P. stuartii</em>, iNTS, <em>S. epidermidis</em></td>
+<td>Frequently cause HCAI but also circulate in community</td>
+</tr>
+<tr>
+<td>3 — Hospital-enriched GP</td>
+<td style="text-align: right;">1.2</td>
+<td><em>S. aureus</em>, <em>E. faecium</em>, <em>E. faecalis</em>, <em>C. difficile</em></td>
+<td>Important nosocomial pathogens with substantial community reservoir</td>
+</tr>
+<tr>
+<td>4 — Community-dominant</td>
+<td style="text-align: right;">1.0</td>
+<td>All remaining 24 bacteria</td>
+<td>Resistance ecology not materially amplified by hospital stay</td>
+</tr>
+</tbody>
+</table>
 <p><strong>Step 2 — Community dilution</strong></p>
-<p>Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a dilution factor (<code>community_resistance_dilution_factor</code> = 0.50). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).</p>
-<p><strong>Step 3 — Correlated mechanism profiles — profile-cache sampling</strong></p>
-<p>Rather than independently sampling each mechanism from its marginal EWMA prevalence (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model maintains a <strong>profile reservoir</strong> (<code>MechanismProfileCache</code>) of up to 200 complete resistance genotypes sampled — via reservoir sampling — from currently infected individuals. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). When a new infection is acquired from the human reservoir, the model samples a <strong>complete genotype profile</strong> from this reservoir and assigns all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired <em>E. coli</em>, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).</p>
-<p>If the profile cache is empty (early in the simulation, before enough infections have accumulated), the model falls back to sampling a single mechanism from the marginal EWMA cache.</p>
-<p><strong>Counterfactual gating.</strong> Profile sampling — and the marginal fallback — are gated by the <code>counterfactual_resistance_multiplier</code>. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below <code>counterfactual_resistance_multiplier</code> (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.</p>
+<p>Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria <strong>community resistance dilution factor</strong> (<code>community_resistance_dilution_factor</code>). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).</p>
+<p>The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th style="text-align: right;">Dilution range</th>
+<th>Example bacteria</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Environmental / waterborne</td>
+<td style="text-align: right;">0.03</td>
+<td><em>A. baumannii</em>, <em>Pseudomonas</em>, <em>Stenotrophomonas</em>, <em>Burkholderia</em>, <em>Legionella</em>, <em>V. cholerae</em></td>
+<td>Community acquisition mostly from environmental sources, not circulating human strains</td>
+</tr>
+<tr>
+<td>Foodborne / animal-reservoir</td>
+<td style="text-align: right;">0.07–0.15</td>
+<td><em>Campylobacter</em>, iNTS, <em>Yersinia</em>, <em>Listeria</em>, <em>S. Typhi</em>, <em>S. Paratyphi</em>, <em>Shigella</em></td>
+<td>Zoonotic or food-chain origin; human-to-human resistance transfer is rare</td>
+</tr>
+<tr>
+<td>Healthcare-associated</td>
+<td style="text-align: right;">0.10–0.25</td>
+<td><em>C. difficile</em>, <em>Enterobacter</em>, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Proteus</em>, <em>P. stuartii</em>, <em>S. epidermidis</em>, <em>K. pneumoniae</em>, <em>E. faecium</em>, <em>E. faecalis</em></td>
+<td>Resistance primarily amplified in hospitals; community strains are much more susceptible</td>
+</tr>
+<tr>
+<td>Endogenous flora / commensal</td>
+<td style="text-align: right;">0.30–0.40</td>
+<td><em>E. coli</em>, <em>S. aureus</em>, <em>S. pneumoniae</em>, <em>B. fragilis</em>, <em>H. influenzae</em>, <em>H. pylori</em></td>
+<td>Commensal carriage means community strains partially reflect clinical resistance</td>
+</tr>
+<tr>
+<td>Obligate human pathogen / STI</td>
+<td style="text-align: right;">0.60–0.80</td>
+<td><em>N. gonorrhoeae</em>, <em>Chlamydia</em>, <em>Mycoplasma</em>, <em>Treponema</em>, MDR-TB, <em>Bordetella</em></td>
+<td>Human-only transmission; community resistance closely tracks clinical observation</td>
+</tr>
+</tbody>
+</table>
+<p>Per-bacteria values are listed in Appendix B.3.</p>
+<p><strong>Step 3 — Correlated mechanism profiles — weighted profile sampling</strong></p>
+<p>Rather than independently sampling each mechanism from a marginal prevalence estimate (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model draws a <strong>complete genotype profile</strong> from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired <em>E. coli</em>, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).</p>
+<p><strong>Community-acquired infections</strong> draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles (bitmask = 0), uniform sampling automatically reproduces the true population prevalence of resistance.</p>
+<p><strong>Hospital-acquired weighted sampling.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model does not draw a uniform profile from the hospital pool. Instead it uses <strong>weighted profile sampling</strong> (<code>sample_profile_weighted</code>): each profile in the reservoir is assigned a sampling weight of \(f^{k}\), where \(k\) is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher \(k\)) are over-sampled relative to susceptible profiles (\(k = 0\), weight \(= f^0 = 1\)), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a <strong>real observed genotype</strong> — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired <em>K. pneumoniae</em> infection with \(f = 1.3\) and 8 mechanism bits, for example, receives a weight of \(1.3^8 \approx 8.2\)× relative to a susceptible profile, substantially increasing its draw probability.</p>
+<p>The same weighted sampling logic is applied to <strong>carriage acquisition</strong> (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same \(f^k\) weighting.</p>
+<p>If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.</p>
+<p><strong>Counterfactual gating.</strong> Profile sampling is gated by the <code>counterfactual_resistance_multiplier</code>. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below <code>counterfactual_resistance_multiplier</code> (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.</p>
 <p><strong>Step 4 — Resistance floor enforcement</strong></p>
 <p>After profile sampling, for each drug in the model the code evaluates <code>calculate_resistance_floor(bacteria, drug, current_day)</code>. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's <code>ramp_years</code> window (see Section 7.5). For organisms with an active floor (currently <em>H. pylori</em> and <em>S. maltophilia</em>), if a Bernoulli draw with probability <code>floor_level ÷ max_resistance_level</code> succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in <code>mechanism_any</code> and <code>mechanism_majority</code>. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few hundred infections per year in a 100,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.</p>
 <p><strong>Step 5 — Scalar <code>any_r</code> derivation via mechanism propagation</strong></p>
@@ -2756,7 +2840,7 @@ a:hover { text-decoration: underline; }
 <h2 id="7-resistance-dynamics">7. Resistance Dynamics</h2>
 <p>This section describes how the model represents the biology of resistance emergence and spread. It maps the model's internal representation onto the resistance patterns seen in routine clinical microbiology reports — for example, when a laboratory report reads "ESBL-producing <em>E. coli</em>", the model tracks the specific enzyme class (CTX-M, TEM, or SHV) that produces that phenotype, which drugs it affects, and how it spreads.</p>
 <p>The model tracks resistance at the level of individual <strong>mechanisms</strong> — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant <em>K. pneumoniae</em>") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.</p>
-<p><strong>Mechanism-centric architecture.</strong> All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (<code>mechanism_any</code>), majority strain (<code>mechanism_majority</code>), and microbiome carriage (<code>mechanism_microbiome</code>). The scalar resistance metrics (<code>any_r</code>, <code>activity_r</code>) reported in outputs are <strong>derived</strong> from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified <code>MechanismCache</code> maintains the population-level picture: it holds both the EWMA-smoothed per-mechanism prevalence (used as fallback sampling) and a reservoir of up to 200 complete clinical resistance genotypes (used for profile-based acquisition — see Section 3.4).</p>
+<p><strong>Mechanism-centric architecture.</strong> All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (<code>mechanism_any</code>), majority strain (<code>mechanism_majority</code>), and microbiome carriage (<code>mechanism_microbiome</code>). The scalar resistance metrics (<code>any_r</code>, <code>activity_r</code>) reported in outputs are <strong>derived</strong> from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified <code>MechanismCache</code> maintains the population-level picture: it holds both the EWMA-smoothed per-mechanism prevalence (used as fallback sampling) and a reservoir of up to 200 complete clinical resistance genotypes (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with asymmetric profile retention (hospital profiles persist ~139-day half-life; community profiles ~7-day half-life — see Section 3.4) and applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology.</p>
 <h3 id="71-resistance-mechanisms">7.1 Resistance mechanisms</h3>
 <p>The model explicitly tracks <strong>40</strong> distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.</p>
 <p>The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) hit <code>pen</code>, <code>c1_2g</code>, <code>c3g</code>, <code>c4g</code>, and related monobactam-active entries but not <code>carb_group1</code>/<code>carb_group2</code>, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well.</p>
@@ -6057,8 +6141,16 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">0.8</td>
 </tr>
 <tr>
-<td>mechanism_cache_ewma_decay</td>
+<td>community_profile_cache_retention</td>
 <td style="text-align: right;">0.9</td>
+</tr>
+<tr>
+<td>hospital_profile_cache_retention</td>
+<td style="text-align: right;">0.995</td>
+</tr>
+<tr>
+<td>hospital_resistance_concentration_factor</td>
+<td style="text-align: right;">per-bacteria (1.0–1.5; see B.3)</td>
 </tr>
 <tr>
 <td>mechanism_reversion_rate_global_multiplier</td>
@@ -6113,7 +6205,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>community_resistance_dilution_factor</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">per-bacteria (0.03–0.80; see B.3)</td>
 </tr>
 <tr>
 <td>microbiome_majority_decay_half_life_days</td>
@@ -7383,12 +7475,14 @@ a:hover { text-decoration: underline; }
 <th style="text-align: right;">Sx delay (d)</th>
 <th style="text-align: right;">Sepsis log-odds</th>
 <th style="text-align: right;">Mech-less rev rate</th>
+<th style="text-align: right;">Dilution</th>
+<th style="text-align: right;">Conc factor</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>acinetobacter_baumannii</td>
-<td style="text-align: right;">-17.5</td>
+<td style="text-align: right;">-22.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
@@ -7399,10 +7493,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.7</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
-<td style="text-align: right;">-16</td>
+<td style="text-align: right;">-18.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
@@ -7413,10 +7509,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.2</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>enterobacter_spp.</td>
-<td style="text-align: right;">-16</td>
+<td style="text-align: right;">-18.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
@@ -7427,10 +7525,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.7</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
-<td style="text-align: right;">-16.5</td>
+<td style="text-align: right;">-19.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
@@ -7441,10 +7541,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.25</td>
+<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
-<td style="text-align: right;">-16.5</td>
+<td style="text-align: right;">-20.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
@@ -7455,6 +7557,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.20</td>
+<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
@@ -7469,10 +7573,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.35</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
-<td style="text-align: right;">-15.3</td>
+<td style="text-align: right;">-16.7</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.52</td>
 <td style="text-align: right;">5</td>
@@ -7483,10 +7589,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.20</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
-<td style="text-align: right;">-15.5</td>
+<td style="text-align: right;">-18.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
@@ -7497,10 +7605,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
-<td style="text-align: right;">-15.7</td>
+<td style="text-align: right;">-17.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
@@ -7511,10 +7621,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>serratia_spp.</td>
-<td style="text-align: right;">-16.5</td>
+<td style="text-align: right;">-20.0</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
@@ -7525,10 +7637,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>p_stuartii</td>
-<td style="text-align: right;">-16.1</td>
+<td style="text-align: right;">-20.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
@@ -7539,10 +7653,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
-<td style="text-align: right;">-15.5</td>
+<td style="text-align: right;">-18.7</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
@@ -7553,10 +7669,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-6.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>stenotrophomonas_maltophilia</td>
-<td style="text-align: right;">-18.5</td>
+<td style="text-align: right;">-22.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
@@ -7567,10 +7685,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">2.5</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>staphylococcus_aureus</td>
-<td style="text-align: right;">-12.6</td>
+<td style="text-align: right;">-12.9</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.6</td>
 <td style="text-align: right;">5</td>
@@ -7581,10 +7701,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.3</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.35</td>
+<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>staphylococcus_epidermidis</td>
-<td style="text-align: right;">-17.5</td>
+<td style="text-align: right;">-19.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.35</td>
 <td style="text-align: right;">4</td>
@@ -7595,10 +7717,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>streptococcus_pneumoniae</td>
-<td style="text-align: right;">-12.7</td>
+<td style="text-align: right;">-12.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.6</td>
 <td style="text-align: right;">5</td>
@@ -7609,10 +7733,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-10.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_typhi</td>
-<td style="text-align: right;">-17</td>
+<td style="text-align: right;">-17.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
@@ -7623,6 +7749,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.10</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
@@ -7637,6 +7765,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.10</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
@@ -7651,6 +7781,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.2</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>shigella_spp.</td>
@@ -7665,6 +7797,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
@@ -7679,6 +7813,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-23</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
@@ -7693,10 +7829,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-6.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
-<td style="text-align: right;">-16</td>
+<td style="text-align: right;">-17.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.52</td>
 <td style="text-align: right;">5</td>
@@ -7707,10 +7845,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
-<td style="text-align: right;">-17.3</td>
+<td style="text-align: right;">-19.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
@@ -7721,10 +7861,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.2</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.30</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
-<td style="text-align: right;">-13</td>
+<td style="text-align: right;">-13.0</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.25</td>
 <td style="text-align: right;">5</td>
@@ -7735,6 +7877,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-19</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
@@ -7749,10 +7893,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>vibrio_cholerae</td>
-<td style="text-align: right;">-18</td>
+<td style="text-align: right;">-18.5</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.7</td>
 <td style="text-align: right;">5</td>
@@ -7763,10 +7909,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>neisseria_meningitidis</td>
-<td style="text-align: right;">-18.3</td>
+<td style="text-align: right;">-18.5</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.65</td>
 <td style="text-align: right;">5</td>
@@ -7777,10 +7925,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.9</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.60</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>listeria_monocytogenes</td>
-<td style="text-align: right;">-19.6</td>
+<td style="text-align: right;">-20.0</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.25</td>
 <td style="text-align: right;">5</td>
@@ -7791,10 +7941,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
-<td style="text-align: right;">-15.2</td>
+<td style="text-align: right;">-17.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
@@ -7805,10 +7957,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-11</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.10</td>
+<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>bacteroides_fragilis</td>
-<td style="text-align: right;">-15.3</td>
+<td style="text-align: right;">-16.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.42</td>
 <td style="text-align: right;">5</td>
@@ -7819,10 +7973,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.30</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>campylobacter_jejuni</td>
-<td style="text-align: right;">-13</td>
+<td style="text-align: right;">-13.0</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.52</td>
 <td style="text-align: right;">5</td>
@@ -7833,10 +7989,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-20</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>enterobacter_cloacae</td>
-<td style="text-align: right;">-15.5</td>
+<td style="text-align: right;">-18.4</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
@@ -7847,10 +8005,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>yersinia_enterocolitica</td>
-<td style="text-align: right;">-16</td>
+<td style="text-align: right;">-16.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
@@ -7861,10 +8021,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.5</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
-<td style="text-align: right;">-15</td>
+<td style="text-align: right;">-15.0</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
@@ -7875,6 +8037,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-10.8</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.30</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>treponema_pallidum</td>
@@ -7889,10 +8053,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-11</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>bordetella_pertussis</td>
-<td style="text-align: right;">-13.3</td>
+<td style="text-align: right;">-12.85</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.42</td>
 <td style="text-align: right;">5</td>
@@ -7903,6 +8069,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-11</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.60</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>helicobacter_pylori</td>
@@ -7917,10 +8085,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">30</td>
 <td style="text-align: right;">-250</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
-<td style="text-align: right;">-16</td>
+<td style="text-align: right;">-16.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.15</td>
 <td style="text-align: right;">5</td>
@@ -7931,10 +8101,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-38</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>mycoplasma_pneumoniae</td>
-<td style="text-align: right;">-12</td>
+<td style="text-align: right;">-12.0</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.35</td>
 <td style="text-align: right;">5</td>
@@ -7945,6 +8117,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.60</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>legionella_pneumophila</td>
@@ -7959,10 +8133,12 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
-<td style="text-align: right;">-19</td>
+<td style="text-align: right;">-22.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
@@ -7973,6 +8149,8 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">1.5</td>
 </tr>
 </tbody>
 </table>

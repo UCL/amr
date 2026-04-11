@@ -237,7 +237,7 @@ fn is_microbiome_excluded(bacteria_idx: usize) -> bool {
 }
 
 /// Maximum mechanism profiles stored per region×bacteria slot.
-const MAX_MECHANISM_PROFILES: usize = 200;
+const MAX_MECHANISM_PROFILES: usize = 500;
 
 /// Cache of *complete* mechanism boolean profiles sampled from currently-infected individuals.
 ///
@@ -407,16 +407,16 @@ impl MechanismProfileCache {
 
 }
 
-/// Unified mechanism resistance cache replacing `MajorityRCache`, `MechanismPrevalenceCache`,
-/// and `MechanismProfileCache` as the single shared cache consumed by `apply_rules`.
+/// Unified mechanism resistance cache built entirely on the profile reservoir.
 ///
-/// - `ewma[region][hosp(0=comm,1=hosp)][bacteria][mechanism]`: exponential moving average of
-///   the fraction of infected individuals carrying each mechanism, updated each simulation step.
-/// - `profiles`: profile reservoir reusing `MechanismProfileCache` for reservoir sampling.
+/// - `profiles`: reservoir of up to 500 complete mechanism genotypes (u64 bitmasks)
+///   per `[region × hospital/community × bacteria]` slot, maintained via reservoir
+///   sampling and asymmetric retention (community vs hospital).
+///
+/// Resistance prevalence for prescribing decisions is computed on-the-fly from the
+/// profile reservoir rather than maintained as a separate EWMA.
 #[derive(Clone)]
 pub struct MechanismCache {
-    /// ewma[region_idx][hosp(0=comm,1=hosp)][bacteria_idx][mechanism_idx]
-    pub ewma: Vec<Vec<Vec<Vec<f64>>>>,
     /// Profile reservoir for profile-based acquisition sampling.
     pub profiles: MechanismProfileCache,
     pub num_regions: usize,
@@ -427,7 +427,6 @@ pub struct MechanismCache {
 impl MechanismCache {
     pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
         Self {
-            ewma: vec![vec![vec![vec![0.0_f64; num_mechanisms]; num_bacteria]; 2]; num_regions],
             profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
             num_regions,
             num_bacteria,
@@ -435,81 +434,15 @@ impl MechanismCache {
         }
     }
 
-    /// Apply EWMA update in-place after a simulation step.
-    /// Replaces the old 3-cache swap chain.
-    pub fn update_ewma(
+    /// Update the profile cache with freshly-collected profiles from this simulation step.
+    /// Uses asymmetric retention: community profiles turn over quickly, hospital profiles persist.
+    pub fn update_profiles(
         &mut self,
-        decay: f64,
-        hospital_profile_retention: f64,
-        mech_infected_comm: &[u32],  // flat [r * nb * nm + b * nm + m]
-        mech_infected_hosp: &[u32],  // flat [r * nb * nm + b * nm + m]
-        total_infected_comm: &[u32], // flat [r * nb + b]
-        total_infected_hosp: &[u32], // flat [r * nb + b]
+        community_retention: f64,
+        hospital_retention: f64,
         merged_profiles: MechanismProfileCache,
-        hospital_concentration_factors: &[f64], // per-bacteria multiplier on hospital obs
     ) {
-        let nb = self.num_bacteria;
-        let nm = self.num_mechanisms;
-        for r in 0..self.num_regions {
-            for b in 0..nb {
-                let tot_c = total_infected_comm[r * nb + b] as f64;
-                let tot_h = total_infected_hosp[r * nb + b] as f64;
-                let conc_factor = if b < hospital_concentration_factors.len() {
-                    hospital_concentration_factors[b]
-                } else {
-                    1.0
-                };
-                for m in 0..nm {
-                    let obs_c = if tot_c > 0.0 {
-                        mech_infected_comm[r * nb * nm + b * nm + m] as f64 / tot_c
-                    } else {
-                        0.0
-                    };
-                    let obs_h = if tot_h > 0.0 {
-                        (mech_infected_hosp[r * nb * nm + b * nm + m] as f64 / tot_h
-                            * conc_factor)
-                            .min(1.0)
-                    } else {
-                        0.0
-                    };
-                    self.ewma[r][0][b][m] =
-                        decay * self.ewma[r][0][b][m] + (1.0 - decay) * obs_c;
-                    self.ewma[r][1][b][m] =
-                        decay * self.ewma[r][1][b][m] + (1.0 - decay) * obs_h;
-                }
-            }
-        }
-        // Blend old profiles with new ones using asymmetric retention:
-        // - Community pool uses EWMA decay (~6.6-day half-life)
-        // - Hospital pool uses longer retention (~139-day half-life) to model
-        //   persistent endemic resistant strains on wards.
-        self.profiles.blend_with_new(merged_profiles, decay, hospital_profile_retention);
-    }
-
-    /// Sample a mechanism index weighted by EWMA prevalence.
-    /// Returns `None` when all mechanism EWMA values are zero for this slot.
-    pub fn sample_mechanism<R: Rng + ?Sized>(
-        &self,
-        region_idx: usize,
-        hospital: bool,
-        bacteria_idx: usize,
-        rng: &mut R,
-    ) -> Option<usize> {
-        let h = hospital as usize;
-        let mechs = &self.ewma[region_idx][h][bacteria_idx];
-        let total: f64 = mechs.iter().sum();
-        if total <= 1e-12 {
-            return None;
-        }
-        let roll = rng.gen_range(0.0..total);
-        let mut sum = 0.0_f64;
-        for (i, &v) in mechs.iter().enumerate() {
-            sum += v;
-            if roll < sum {
-                return Some(i);
-            }
-        }
-        None
+        self.profiles.blend_with_new(merged_profiles, community_retention, hospital_retention);
     }
 
     /// Sample a complete mechanism profile bitmask from the hospital or community profile reservoir.
@@ -525,11 +458,74 @@ impl MechanismCache {
         self.profiles.sample(region_idx, bacteria_idx, hospital, rng)
     }
 
-    /// Estimate resistance prevalence for a (region, hospital, bacteria, drug) slot by
-    /// combining per-mechanism EWMA values via multiplicative susceptibility stacking.
+    /// Sample a profile from the hospital pool with weighting that favours resistant profiles.
     ///
-    /// Returns a value in [0, 1] representing the expected fraction of infections carrying
-    /// at least one mechanism that confers resistance to this drug.
+    /// Each profile in the pool is weighted by `concentration_factor^k` where `k` is the
+    /// number of set mechanism bits.  This over-samples resistant strains relative to
+    /// susceptible ones — modelling the enrichment of resistant organisms in hospital
+    /// environments through cross-transmission, device reservoirs, and HCW-mediated spread —
+    /// while preserving real mechanism correlations (every sampled profile is an actual
+    /// observed genotype).
+    ///
+    /// Falls back to plain uniform `sample_profile` when concentration_factor ≤ 1.0.
+    pub fn sample_profile_weighted<R: Rng + ?Sized>(
+        &self,
+        region_idx: usize,
+        bacteria_idx: usize,
+        concentration_factor: f64,
+        rng: &mut R,
+    ) -> Option<u64> {
+        if concentration_factor <= 1.0 {
+            return self.profiles.sample(region_idx, bacteria_idx, true, rng);
+        }
+        let slot = {
+            let h = 1usize; // hospital
+            let s = &self.profiles.profiles[region_idx][h][bacteria_idx];
+            if s.is_empty() {
+                // Fallback: try community pool
+                let other = &self.profiles.profiles[region_idx][0][bacteria_idx];
+                if other.is_empty() {
+                    return None;
+                }
+                other
+            } else {
+                s
+            }
+        };
+
+        // Compute weights: concentration_factor^(popcount of each profile)
+        // Use ln to avoid overflow for large k: weight = exp(k * ln(f))
+        let ln_f = concentration_factor.ln();
+        let weights: Vec<f64> = slot
+            .iter()
+            .map(|&mask| {
+                let k = mask.count_ones() as f64;
+                (k * ln_f).exp()
+            })
+            .collect();
+        let total_weight: f64 = weights.iter().sum();
+        if total_weight <= 0.0 {
+            return None;
+        }
+
+        let roll = rng.gen_range(0.0..total_weight);
+        let mut cumulative = 0.0_f64;
+        for (i, &w) in weights.iter().enumerate() {
+            cumulative += w;
+            if roll < cumulative {
+                return Some(slot[i]);
+            }
+        }
+        // Floating-point edge case: return last profile
+        Some(*slot.last().unwrap())
+    }
+
+    /// Estimate resistance prevalence for a (region, hospital, bacteria, drug) slot
+    /// by scanning the profile reservoir directly.
+    ///
+    /// For each stored profile, checks whether any mechanism bit that is applicable to
+    /// `drug_idx` for `bacteria_idx` is set.  Returns the fraction of profiles carrying
+    /// at least one such mechanism.
     #[inline]
     pub fn prevalence(
         &self,
@@ -540,30 +536,34 @@ impl MechanismCache {
         param_cache: &crate::rules::ParameterKeyCache,
     ) -> f64 {
         let h = hospital as usize;
-        let mechs = &self.ewma[region_idx][h][bacteria_idx];
-        let mut susceptibility = 1.0_f64;
-        for (m, &ewma_val) in mechs.iter().enumerate() {
-            if ewma_val <= 1e-12 {
-                continue;
-            }
-            if !param_cache.mechanism_applicable(m, bacteria_idx, drug_idx) {
-                continue;
-            }
-            susceptibility *= 1.0 - ewma_val;
+        let slot = &self.profiles.profiles[region_idx][h][bacteria_idx];
+        if slot.is_empty() {
+            return 0.0;
         }
-        (1.0 - susceptibility).clamp(0.0, 1.0)
+
+        // Build a bitmask of all mechanisms applicable to this bacteria×drug
+        let mut applicable_mask: u64 = 0;
+        for m in 0..self.num_mechanisms {
+            if param_cache.mechanism_applicable(m, bacteria_idx, drug_idx) {
+                applicable_mask |= 1 << m;
+            }
+        }
+        if applicable_mask == 0 {
+            return 0.0;
+        }
+
+        let resistant_count = slot.iter().filter(|&&profile| (profile & applicable_mask) != 0).count();
+        resistant_count as f64 / slot.len() as f64
     }
 
-    /// Returns true if ANY mechanism EWMA is non-zero for any region/bacteria/drug slot.
+    /// Returns true if the profile cache has no profiles at all.
     #[inline]
     pub fn is_empty(&self) -> bool {
         for r in 0..self.num_regions {
             for h in 0..2 {
                 for b in 0..self.num_bacteria {
-                    for m in 0..self.num_mechanisms {
-                        if self.ewma[r][h][b][m] > 1e-12 {
-                            return false;
-                        }
+                    if !self.profiles.profiles[r][h][b].is_empty() {
+                        return false;
                     }
                 }
             }
@@ -1392,14 +1392,6 @@ impl Simulation {
                 deaths_by_bacteria_community_acquired: Vec<usize>,
                 resistance_by_bacteria_drug: Vec<usize>,
                 currently_on_drug_by_drug: Vec<usize>,
-                /// Per-mechanism EWMA numerators: flat [r * nb * nm + b * nm + m], community
-                mech_infected_comm: Vec<u32>,
-                /// Per-mechanism EWMA numerators: flat [r * nb * nm + b * nm + m], hospital
-                mech_infected_hosp: Vec<u32>,
-                /// EWMA denominator: flat [r * nb + b], community
-                total_infected_comm: Vec<u32>,
-                /// EWMA denominator: flat [r * nb + b], hospital
-                total_infected_hosp: Vec<u32>,
                 total_deaths: usize,
                 deaths_background: usize,
                 deaths_sepsis: usize,
@@ -1547,10 +1539,6 @@ impl Simulation {
                         deaths_by_bacteria_community_acquired: vec![0; num_bacteria],
                         resistance_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
                         currently_on_drug_by_drug: vec![0; num_drugs],
-                        mech_infected_comm: vec![0u32; num_regions * num_bacteria * num_mechanisms],
-                        mech_infected_hosp: vec![0u32; num_regions * num_bacteria * num_mechanisms],
-                        total_infected_comm: vec![0u32; num_regions * num_bacteria],
-                        total_infected_hosp: vec![0u32; num_regions * num_bacteria],
                         total_deaths: 0,
                         deaths_background: 0,
                         deaths_sepsis: 0,
@@ -1814,18 +1802,6 @@ impl Simulation {
                         .zip(other.currently_on_drug_by_drug)
                     {
                         *a += b;
-                    }
-                    for (a, b) in self.mech_infected_comm.iter_mut().zip(other.mech_infected_comm) {
-                        *a = (*a).saturating_add(b);
-                    }
-                    for (a, b) in self.mech_infected_hosp.iter_mut().zip(other.mech_infected_hosp) {
-                        *a = (*a).saturating_add(b);
-                    }
-                    for (a, b) in self.total_infected_comm.iter_mut().zip(other.total_infected_comm) {
-                        *a = (*a).saturating_add(b);
-                    }
-                    for (a, b) in self.total_infected_hosp.iter_mut().zip(other.total_infected_hosp) {
-                        *a = (*a).saturating_add(b);
                     }
                     self.total_deaths += other.total_deaths;
                     self.deaths_background += other.deaths_background;
@@ -2342,22 +2318,10 @@ impl Simulation {
                                         if individual.mechanism_any[b_idx][mech_idx] {
                                             let flat_idx = b_idx * num_mechanisms + mech_idx;
                                             lt.infected_with_bacteria_and_mechanism[flat_idx] += 1;
-
-                                            if let Some(r_idx) = effective_region_idx_for_any_r {
-                                                let ewma_flat = r_idx * num_bacteria * num_mechanisms + b_idx * num_mechanisms + mech_idx;
-                                                if individual.mechanism_majority[b_idx][mech_idx] {
-                                                    if record_as_hosp {
-                                                        lt.mech_infected_hosp[ewma_flat] = lt.mech_infected_hosp[ewma_flat].saturating_add(1);
-                                                    } else {
-                                                        lt.mech_infected_comm[ewma_flat] = lt.mech_infected_comm[ewma_flat].saturating_add(1);
-                                                    }
-                                                }
-                                            }
                                         }
                                     }
 
-                                    // Record majority-strain mechanism profiles for acquisition sampling,
-                                    // and total infected for EWMA denominators.
+                                    // Record majority-strain mechanism profiles for acquisition sampling.
                                     if let Some(r_idx) = effective_region_idx_for_any_r {
                                         lt.mechanism_profiles.record(
                                             r_idx,
@@ -2366,12 +2330,6 @@ impl Simulation {
                                             &individual.mechanism_majority[b_idx],
                                             &mut lt.rng,
                                         );
-                                        let denom_flat = r_idx * num_bacteria + b_idx;
-                                        if record_as_hosp {
-                                            lt.total_infected_hosp[denom_flat] = lt.total_infected_hosp[denom_flat].saturating_add(1);
-                                        } else {
-                                            lt.total_infected_comm[denom_flat] = lt.total_infected_comm[denom_flat].saturating_add(1);
-                                        }
                                     }
 
                                     if individual.test_identified_infection[b_idx] {
@@ -3102,10 +3060,6 @@ impl Simulation {
                 deaths_by_bacteria_community_acquired,
                 resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                 currently_on_drug_by_drug,
-                mech_infected_comm,
-                mech_infected_hosp,
-                total_infected_comm,
-                total_infected_hosp,
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
@@ -3206,20 +3160,14 @@ impl Simulation {
                 );
             }
 
-            // Update mechanism cache with EWMA and new profiles
+            // Update mechanism profile cache with freshly-collected profiles
             {
-                let decay = config::parameter_store().globals.mechanism_cache_ewma_decay;
+                let community_retention = config::parameter_store().globals.community_profile_cache_retention;
                 let hospital_retention = config::parameter_store().globals.hospital_profile_cache_retention;
-                let concentration_factors = &config::parameter_store().bacteria.hospital_resistance_concentration_factor;
-                self.mechanism_cache.update_ewma(
-                    decay,
+                self.mechanism_cache.update_profiles(
+                    community_retention,
                     hospital_retention,
-                    &mech_infected_comm,
-                    &mech_infected_hosp,
-                    &total_infected_comm,
-                    &total_infected_hosp,
                     mechanism_profiles,
-                    concentration_factors,
                 );
             }
 

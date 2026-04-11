@@ -206,7 +206,7 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("resistance_development_inhibition_single_drug", g.resistance_development_inhibition_single_drug),
         ("resistance_development_inhibition_partial_cross", g.resistance_development_inhibition_partial_cross),
         ("mechanism_assignment_probability_on_any_r_gain", g.mechanism_assignment_probability_on_any_r_gain),
-        ("mechanism_cache_ewma_decay", g.mechanism_cache_ewma_decay),
+        ("community_profile_cache_retention", g.community_profile_cache_retention),
         ("mechanism_reversion_rate_global_multiplier", g.mechanism_reversion_rate_global_multiplier),
         ("majority_r_memory_retention_per_day", g.majority_r_memory_retention_per_day),
     ]);

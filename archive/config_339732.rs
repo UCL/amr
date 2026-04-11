@@ -11607,7 +11607,7 @@ lazy_static! {
         // ══▶▶ CALIBRATION AXIS 1: resistance persistence / reversion speed — CHANGE HERE ◀◀══
         map.insert("mechanism_reversion_rate_global_multiplier".to_string(), 1.0);
         // ══▶▶ CALIBRATION AXIS 2: de-novo emergence in infections — CHANGE HERE ◀◀══
-        map.insert("infection_de_novo_multiplier".to_string(), 3.0);
+        map.insert("infection_de_novo_multiplier".to_string(), 1.0);
         // ══▶▶ CALIBRATION AXIS 3: de-novo emergence in gut carriage — CHANGE HERE ◀◀══
         map.insert("microbiome_de_novo_multiplier".to_string(), 1.0);
         // ══▶▶ CALIBRATION AXIS 7: horizontal gene transfer rate scaling — CHANGE HERE ◀◀══

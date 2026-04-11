@@ -498,9 +498,11 @@ def _gather_calibration_context(
     overall_resistance = _calculate_overall_resistance(resistance_df)
     bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor, window_years)
     resistance_incidence_locus_df = _calculate_resistance_incidence_locus_table(year_df)
+    serious_resistance_locus_df = _calculate_serious_resistance_locus_table(year_df)
 
     return {
         "resistance_incidence_locus_df": resistance_incidence_locus_df,
+        "serious_resistance_locus_df": serious_resistance_locus_df,
         "config": config,
         "targets": targets,
         "df": df,
@@ -817,6 +819,65 @@ _HOSP_COMM_R_RATIO_TARGETS: Dict[str, float] = {
     "bordetella pertussis":                       1.0,   # community; negligible HA
     "mdr mycobacterium tuberculosis":             1.5,   # nosocomial MDR transmission in low-resource
     "helicobacter pylori":                        1.2,   # community; endoscopy re-infection minor
+}
+
+# ── Clinically-meaningful "serious resistance" marker drug(s) per bacterium ──
+# Instead of averaging across all 61 drugs, the serious-R H:C metric uses only
+# the drug(s) whose resistance is clinically alarming for that organism.
+# Drug slugs must match simulation output column names exactly.
+_SERIOUS_R_DRUGS: Dict[str, List[str]] = {
+    # ── GN Enterobacterales → carbapenem ──
+    "escherichia coli":                           ["meropenem"],
+    "klebsiella pneumoniae":                      ["meropenem"],
+    "enterobacter cloacae":                       ["meropenem"],
+    "enterobacter spp.":                          ["meropenem"],
+    "citrobacter spp.":                           ["meropenem"],
+    "serratia spp.":                              ["meropenem"],
+    "morganella spp.":                            ["meropenem"],
+    "proteus spp.":                               ["meropenem"],
+    "providencia stuartii":                       ["meropenem"],
+    # ── GN non-fermenters → carbapenem (except S. maltophilia) ──
+    "acinetobacter baumannii":                    ["meropenem"],
+    "pseudomonas aeruginosa":                     ["meropenem"],
+    "stenotrophomonas maltophilia":               ["trim_sulf"],       # intrinsic carbapenem-R; TMP-SMX is key
+    "burkholderia cepacia complex":               ["meropenem"],
+    # ── Staphylococci → methicillin (flucloxacillin proxy) ──
+    "staphylococcus aureus":                      ["flucloxacillin"],
+    "staphylococcus epidermidis":                 ["flucloxacillin"],
+    # ── Enterococci → vancomycin ──
+    "enterococcus faecium":                       ["vancomycin"],
+    "enterococcus faecalis":                      ["vancomycin"],
+    # ── Anaerobes / C. difficile ──
+    "clostridioides difficile":                   ["vancomycin"],
+    "bacteroides fragilis":                       ["meropenem"],
+    # ── Streptococci ──
+    "streptococcus pneumoniae":                   ["penicillin_g"],
+    "streptococcus agalactiae":                   ["penicillin_g"],
+    "streptococcus pyogenes":                     ["erythromycin"],    # penicillin R ≈ 0%; macrolide R is the concern
+    # ── Respiratory / atypicals → macrolide ──
+    "haemophilus influenzae":                     ["amoxicillin_clavulanate"],
+    "moraxella catarrhalis":                      ["azithromycin"],
+    "mycoplasma pneumoniae":                      ["azithromycin"],
+    "legionella pneumophila":                     ["azithromycin"],
+    "bordetella pertussis":                       ["azithromycin"],
+    # ── Foodborne → fluoroquinolone or 3GC ──
+    "campylobacter jejuni":                       ["ciprofloxacin"],
+    "salmonella enterica serovar typhi":          ["ciprofloxacin"],
+    "salmonella enterica serovar paratyphi a":    ["ciprofloxacin"],
+    "invasive non-typhoidal salmonella spp.":     ["ceftriaxone"],
+    "shigella spp.":                              ["ciprofloxacin"],
+    "yersinia enterocolitica":                    ["ciprofloxacin"],
+    "listeria monocytogenes":                     ["ampicillin"],
+    "vibrio cholerae":                            ["azithromycin"],
+    # ── STIs / obligate human ──
+    "neisseria gonorrhoeae":                      ["ceftriaxone"],
+    "neisseria meningitidis":                     ["ceftriaxone"],
+    "chlamydia trachomatis":                      ["azithromycin"],
+    "mycoplasma genitalium":                      ["azithromycin"],
+    "treponema pallidum":                         ["penicillin_g"],
+    # ── Other ──
+    "helicobacter pylori":                        ["clarithromycin"],
+    "mdr mycobacterium tuberculosis":             ["rifampicin"],
 }
 
 
@@ -1574,6 +1635,113 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
         })
 
     return pd.DataFrame(records, columns=columns)
+
+
+def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataFrame:
+    """Per-bacterium H:C resistance gap using only the clinically 'serious' drug(s).
+
+    Instead of averaging across all 61 drugs, this uses a single curated marker per
+    organism (e.g. meropenem for Gram-negatives, flucloxacillin for staphylococci,
+    vancomycin for enterococci).  Uses the same stock columns as the any-R locus table.
+    """
+    columns = [
+        "Bacteria",
+        "Marker drug(s)",
+        "Total New Infections",
+        "Hospital Serious-R (%)",
+        "Community Serious-R (%)",
+        "Sim H:C ratio",
+        "Target H:C ratio",
+    ]
+    if year_df.empty:
+        return pd.DataFrame(columns=columns)
+
+    _HOSP_REGIONS = ["north_america", "south_america", "europe", "asia", "africa", "oceania"]
+
+    sim_bacteria_set, drug_set = _extract_bacteria_and_drugs(year_df)
+    canonical_sim_map: Dict[str, Set[str]] = {}
+    for raw_slug in sim_bacteria_set:
+        canonical = _canonicalize_bacteria_slug(raw_slug)
+        canonical_sim_map.setdefault(canonical, set()).add(raw_slug)
+
+    records = []
+
+    for slug in sorted(canonical_sim_map.keys()):
+        display_name = BACTERIA_DISPLAY_NAME_OVERRIDES.get(slug, slug.replace("_", " "))
+        serious_drugs = _SERIOUS_R_DRUGS.get(slug.replace("_", " "))
+        if serious_drugs is None:
+            continue
+
+        raw_slugs = canonical_sim_map[slug]
+
+        total_currently_infected = 0.0
+        total_newly_infected = 0.0
+        total_newly_infected_hosp = 0.0
+        drug_totals: Dict[str, Tuple[float, float]] = {}
+
+        for raw_slug in raw_slugs:
+            inf_col = f"{raw_slug}_currently_infected"
+            if inf_col in year_df.columns:
+                total_currently_infected += float(year_df[inf_col].sum(skipna=True))
+
+            for col in (f"{raw_slug}_newly_infected_carrier", f"{raw_slug}_newly_infected_non_carrier"):
+                if col in year_df.columns:
+                    total_newly_infected += float(year_df[col].sum(skipna=True))
+
+            for region in _HOSP_REGIONS:
+                hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
+                if hosp_col in year_df.columns:
+                    total_newly_infected_hosp += float(year_df[hosp_col].sum(skipna=True))
+
+            for d_slug in serious_drugs:
+                if d_slug not in drug_set:
+                    continue
+                hosp_d_col = f"{raw_slug}_sum_any_r_hospital_{d_slug}"
+                total_d_col = f"{raw_slug}_sum_any_r_{d_slug}"
+                if hosp_d_col in year_df.columns and total_d_col in year_df.columns:
+                    h = float(year_df[hosp_d_col].sum(skipna=True))
+                    t = float(year_df[total_d_col].sum(skipna=True))
+                    prev = drug_totals.get(d_slug, (0.0, 0.0))
+                    drug_totals[d_slug] = (prev[0] + t, prev[1] + h)
+
+        hosp_frac = (
+            min(max(total_newly_infected_hosp / total_newly_infected, 0.0), 1.0)
+            if total_newly_infected > 0 else 0.0
+        )
+        hosp_n = total_currently_infected * hosp_frac
+        comm_n = total_currently_infected * (1.0 - hosp_frac)
+
+        hosp_r_vals = []
+        comm_r_vals = []
+        for d_slug, (t_sum, h_sum) in drug_totals.items():
+            c_sum = t_sum - h_sum
+            if hosp_n > 0:
+                hosp_r_vals.append(h_sum / hosp_n * 100.0)
+            if comm_n > 0:
+                comm_r_vals.append(c_sum / comm_n * 100.0)
+
+        hosp_r_pct = float(np.mean(hosp_r_vals)) if hosp_r_vals else np.nan
+        comm_r_pct = float(np.mean(comm_r_vals)) if comm_r_vals else np.nan
+
+        sim_ratio = (
+            hosp_r_pct / comm_r_pct
+            if (np.isfinite(hosp_r_pct) and np.isfinite(comm_r_pct) and comm_r_pct > 0)
+            else np.nan
+        )
+        target_ratio = _HOSP_COMM_R_RATIO_TARGETS.get(slug.replace("_", " "), np.nan)
+
+        records.append({
+            "Bacteria": display_name,
+            "Marker drug(s)": ", ".join(serious_drugs),
+            "Total New Infections": total_newly_infected,
+            "Hospital Serious-R (%)": hosp_r_pct,
+            "Community Serious-R (%)": comm_r_pct,
+            "Sim H:C ratio": sim_ratio,
+            "Target H:C ratio": target_ratio,
+        })
+
+    return pd.DataFrame(records, columns=columns)
+
 
 def _calculate_bacteria_burden_table(
     year_df: pd.DataFrame,
@@ -3432,9 +3600,47 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                 handle.write(f"- Mean community any-R: {mean_comm_r:.2f}%\n")
                 if np.isfinite(weighted_log):
                     handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {weighted_log:.2f}\n")
+            handle.write("\n")
+            # Full per-bacteria locus table
+            handle.write("Resistance Incidence Locus (per-drug hospital vs community resistance gap)\n")
+            handle.write(locus_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write("\n\n")
             # Resistance Locus Fit Summary
             _write_resistance_locus_fit_summary(handle, locus_df)
             handle.write("\n")
+
+        serious_locus_df = context.get("serious_resistance_locus_df")
+        if serious_locus_df is not None and not serious_locus_df.empty:
+            s_hosp_col = "Hospital Serious-R (%)"
+            s_comm_col = "Community Serious-R (%)"
+            s_sim_col = "Sim H:C ratio"
+            s_tgt_col = "Target H:C ratio"
+            s_inf_col = "Total New Infections"
+            s_valid_mask = serious_locus_df[s_hosp_col].notna() & serious_locus_df[s_comm_col].notna()
+            s_valid = serious_locus_df.loc[s_valid_mask]
+            if not s_valid.empty:
+                s_mean_hosp = s_valid[s_hosp_col].mean()
+                s_mean_comm = s_valid[s_comm_col].mean()
+                s_hc_valid = []
+                for _, row in serious_locus_df.iterrows():
+                    sr, tr, ni = row.get(s_sim_col), row.get(s_tgt_col), row.get(s_inf_col, 0.0)
+                    if (sr is not None and tr is not None
+                            and np.isfinite(sr) and np.isfinite(tr)
+                            and sr > 0 and tr > 0 and ni > 0):
+                        s_hc_valid.append((abs(np.log(sr / tr)), float(ni)))
+                s_weighted_log = (
+                    sum(d * w for d, w in s_hc_valid) / sum(w for _, w in s_hc_valid)
+                    if s_hc_valid else np.nan
+                )
+                handle.write("Serious Resistance Locus Summary (hospital vs community)\n")
+                handle.write(f"- Mean hospital serious-R: {s_mean_hosp:.2f}%\n")
+                handle.write(f"- Mean community serious-R: {s_mean_comm:.2f}%\n")
+                if np.isfinite(s_weighted_log):
+                    handle.write(f"- H:C fit |ln(sim/target)|, infection-weighted: {s_weighted_log:.2f}\n")
+            handle.write("\n")
+            handle.write("Serious Resistance Locus (marker-drug hospital vs community resistance gap)\n")
+            handle.write(serious_locus_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
+            handle.write("\n\n")
 
         if not syndrome_df.empty:
             handle.write("Syndrome Incidence Breakdown\n")
