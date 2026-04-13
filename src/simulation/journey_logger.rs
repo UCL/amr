@@ -1,11 +1,9 @@
+// Infection journey logger.
 //
-// Journey Logger for AMR Simulation
-//
-// This module provides focused logging of individual infection journeys,
-// Journey logging enabled silently capturing detailed daily snapshots only during active infections.
-// Much more efficient than full individual logging while providing
-// rich data for debugging and patient journey analysis.
-//
+// This is a targeted debugging/analysis tool: instead of logging every individual every day,
+// it captures dense snapshots only for sampled infections while they are clinically active.
+// That keeps the output tractable while preserving enough detail to reconstruct treatment,
+// resistance, and clearance trajectories for a single journey.
 
 use crate::simulation::population::{
     Individual, BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,

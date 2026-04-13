@@ -1,2189 +1,4 @@
-# AMR Simulation — Technical Model Description
-
-
-
-## Contents
-
-1. [Overview](#1-overview)
-2. [Population and Demographics](#2-population-and-demographics)
-3. [Infection Acquisition](#3-infection-acquisition)
-4. [Clinical Progression](#4-clinical-progression)
-5. [Diagnostic Testing](#5-diagnostic-testing)
-6. [Antibiotic Treatment](#6-antibiotic-treatment)
-7. [Resistance Dynamics](#7-resistance-dynamics)
-8. [Microbiome and Carriage](#8-microbiome-and-carriage)
-9. [Horizontal Gene Transfer](#9-horizontal-gene-transfer)
-10. [Mortality](#10-mortality)
-11. [Counterfactual Design and AMR-Attributable Burden](#11-counterfactual-design-and-amr-attributable-burden)
-12. [Limitations](#12-limitations)
-- [Appendix A — Bacteria, Drugs, Mechanisms and Enums](#appendix-a-bacteria-drugs-mechanisms-and-enums)
-- [Appendix B — Parameter Reference](#appendix-b-parameter-reference)
-    - [B.1 Global Scalar Parameters](#b1-global-scalar-parameters)
-    - [B.2 Drug Properties](#b2-drug-properties)
-    - [B.3 Bacteria Properties](#b3-bacteria-properties)
-    - [B.4 Drug–Bacteria Potency Matrix](#b4-drugbacteria-potency-matrix)
-    - [B.5 Regional Parameters](#b5-regional-parameters)
-    - [B.6 Age-Dependent Parameters](#b6-age-dependent-parameters)
-    - [B.7 Syndrome Parameters](#b7-syndrome-parameters)
-    - [B.8 Clearance Parameters](#b8-clearance-parameters)
-    - [B.9 Immunodeficiency, Sex, and Vaccination Parameters](#b9-immunodeficiency-sex-and-vaccination-parameters)
-    - [B.10 Resistance Mechanisms](#b10-resistance-mechanisms)
-    - [B.11 Horizontal Gene Transfer Matrix](#b11-horizontal-gene-transfer-matrix)
-- [Appendix C — Output Specification](#appendix-c-output-specification)
-
----
-
-
-
-## 1. Overview
-
-
-### 1.1 Model overview
-
-Antimicrobial resistance (AMR) — the ability of bacteria to survive antibiotic treatment — is one of the most serious threats to global health. Understanding how resistance emerges, spreads, and responds to policy changes requires a model that captures the interplay between antibiotic use, bacterial biology, and healthcare systems.
-
-This model simulates the emergence and dynamics of AMR across a synthetic human population from **1930 to 2035**. The simulation starts in 1930 because that is before antibiotics were widely available; by beginning at that point, the model can reproduce the entire historical arc of antibiotic introduction, rising consumption, and the gradual accumulation of resistance that followed.
-
-The model tracks **42 bacterial species**, **61 antibiotics** (grouped into **39 internal drug classes**), and **40 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
-
-We have written this description for readers whom we assume are already familiar with clinical microbiology, infectious diseases, and antimicrobial stewardship. Accordingly, we focus on the biological and clinical distinctions that are most important for interpreting policy experiments, while being explicit where broader host, laboratory, pharmacological, or ecological complexity has been collapsed into a smaller set of model states. That balance is deliberate: at this scope, an attempt to encode every clinically real nuance would make the model difficult to calibrate, difficult to interpret, and ultimately less useful for the policy questions it is intended to address.
-
-
-### 1.2 Model architecture
-
-This is an **individual-based model** (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 100,000 — and simulates what happens to each of them, day by day, over more than 100 years.
-
-**Time steps.** The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of **21 mechanistic rules**. These rules govern the events that can happen to a person on any given day:
-
-- Demographic processes (ageing, births, background mortality)
-- Infection acquisition from community, hospital, or endogenous sources
-- Infection progression, including potential development of sepsis
-- Diagnostic testing — bacterial identification followed by antimicrobial susceptibility testing
-- Antibiotic initiation, continuation, and cessation
-- Resistance emergence via de novo mutation or horizontal gene transfer
-- Mortality from infection, sepsis, or drug toxicity
-
-**Stochastic processes.** The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a *probability* for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories, analogous to the way otherwise similar institutions can still experience materially different case mixes and outcome patterns over time. This stochasticity is intentional: the aim is to characterize a distribution of plausible outcomes rather than a single deterministic path.
-
-**Log-odds — a brief mathematical note.** Many sections of this document describe probabilities using **log-odds** (also called logit values), which is standard in medical statistics:
-
-- A probability of 50% corresponds to log-odds of **0**.
-- Negative log-odds mean the event is unlikely (log-odds of −2 ≈ 12% probability; −4 ≈ 2%).
-- Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).
-- The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.
-
-For example, the daily probability of starting antibiotics might be calculated as: *baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (−0.75) = +5.75*, still yielding near-certainty for a septic immunocompromised patient with symptoms because the acute clinical syndrome dominates the decision.
-
-**Calibration.** The model's parameters (the numbers that control how frequently infections occur, how often drugs are prescribed, how quickly resistance emerges, etc.) are adjusted — *calibrated* — so that the model's outputs match real-world data. For example, the model is calibrated against observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data. Some parameters therefore behave as **effective model parameters** rather than direct one-to-one measurements from surveillance datasets: they are chosen to reproduce the joint behaviour of complex clinical systems that are only partially observed. This is especially true for access modifiers, composite vulnerability states, and behaviourally driven prescribing terms. Accordingly, many quantities here are best read as policy-relevant abstractions of clinical systems rather than as claims that every table entry corresponds to a directly observable microbiological or bedside quantity. Sections 2–10 describe what the model does; Appendix B lists all the parameter values.
-
-Throughout this document, region- and age-specific parameter tables should generally be interpreted as **qualitatively constrained model structures**: the ordering and rough scale are informed by global demographic, travel, and health-system datasets, but the exact numeric values remain modelling choices that are subsequently checked against calibration targets rather than copied directly from any single source.
-
-
-### 1.3 Scope and purpose
-
-The model is specifically designed for reconstructing the historical emergence and growth of AMR over time by mechanistically linking antibiotic consumption, biological mutability, and transmission. It evaluates the potential impact of antibiotic stewardship policies by recreating empirical observations of resistance incidence and separating resistance acquisition across different care settings (e.g., community-acquired versus hospital-acquired).
-
-It is therefore best understood as a policy-facing, mechanism-rich simulation rather than as a full digital twin of clinical microbiology practice. We aim to include detail where omission would materially distort stewardship, diagnostics, access, transmission, or mortality questions, but we do not attempt to reproduce every organism-specific syndrome nuance, laboratory workflow detail, host phenotype, or pharmacokinetic edge case that would matter in a narrower disease-specific model.
-
-
-### 1.4 Document structure
-
-The document is organised to follow the progression of an individual through the simulation:
-
-| Section | Content |
-|---------|---------------|
-| **2. Population** | Who the simulated people are — age, sex, region, immune status |
-| **3. Infection Acquisition** | How people catch bacteria (epidemiology — incidence, risk factors, hospital vs community) |
-| **4. Clinical Progression** | What happens once infected — symptoms, syndromes, sepsis |
-| **5. Diagnostic Testing** | When and how bacteria and resistance are identified |
-| **6. Antibiotic Treatment** | How drugs are started, chosen, dosed, and stopped (empiric and targeted prescribing) |
-| **7. Resistance Dynamics** | How bacteria become resistant and how resistance spreads (biology of AMR — mechanisms, selection pressure) |
-| **8. Microbiome & Carriage** | Asymptomatic bacterial colonisation |
-| **9. Horizontal Gene Transfer** | Bacteria sharing resistance genes (plasmid transfer between species) |
-| **10. Mortality** | Case fatality rates, sepsis mortality |
-| **11. Counterfactual Design and AMR-Attributable Burden** | How the resistance-free counterfactual is constructed and used to estimate AMR-attributable deaths |
-| **12. Limitations** | What the model does not capture / caveats for interpretation |
-| **Appendices** | Reference tables of all bacteria, drugs, parameters, and outputs |
-
-
-
-Each section describes the modelling choices, their clinical rationale, and the specific rules and parameter values. Parameter tables are included for transparency and reproducibility.
-
----
-
-
-
-## 2. Population and Demographics
-
-This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immune status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.
-
-
-### 2.1 Initialisation
-
-The population is created at day 0 (representing the calendar year 1930). Each individual is assigned:
-
-- **Age**: Drawn from a continuous demographic distribution that encodes both living individuals and future births. Negative age values at initialisation represent individuals who have not yet been born; they enter the simulation exactly when their age reaches zero. This is how the model handles births over the 105-year simulation period without needing a separate birth process.
-- **Sex**: Male or female, assigned with equal probability.
-- **Region**: Sampled from demographic weights reflecting the global population distribution.
-
-The six regions and their approximate population shares determine the starting geographical distribution:
-
-Where a table in this document includes a **Citation / source** column, that citation should usually be read as support for the presence, direction, or broad ordering of the modeled effect rather than as a claim that the exact tuned numeric value is taken directly from a single empirical estimate.
-
-| Region | Population Share | Citation / source |
-|--------|------------------|-------------------|
-| Asia | ~55% | UN DESA Population Division, 2024 |
-| Europe | ~15% | UN DESA Population Division, 2024 |
-| Africa | ~12% | UN DESA Population Division, 2024 |
-| North America | ~9% | UN DESA Population Division, 2024 |
-| South America | ~6% | UN DESA Population Division, 2024 |
-| Oceania | ~3% | UN DESA Population Division, 2024 |
-
-
-
-These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations *World Population Prospects 2024*, which provides official demographic estimates and projections across global regions and countries (UN DESA Population Division, 2024).
-
-These regions matter because they differ in antibiotic availability (some drugs reach low-income settings decades later), hospital capacity, testing rates, and the prevalence of specific pathogens. A person's region shapes nearly every aspect of their simulated clinical journey.
-
-
-### 2.2 Ageing and age categories
-
-Each day, every individual's age increments by one day. The model groups people into age categories that determine their risk profiles, reflecting the familiar clinical reality that risk of infection, presentation, and outcome differ substantially across the age spectrum.
-
-**General age categories** (used for most risk calculations):
-
-| Age Category | Age Range | Clinical relevance |
-|--------------|-----------|-------------------|
-| Infant | 0–1 year | Immature immune system, high infection susceptibility |
-| Preschool | 1–5 years | Frequent respiratory and enteric infections |
-| School Age | 5–18 years | Generally lowest infection risk |
-| Young Adult | 18–50 years | Reference group for most risk calculations |
-| Middle Age | 50–70 years | Increasing comorbidities |
-| Elderly | 70+ years | Immunosenescence, highest mortality risk |
-
-
-
-These age bands are structural groupings rather than claims about sharply separated biological states. They are meant to preserve widely observed global gradients in infection burden and mortality risk, especially the concentration of severe infectious outcomes at the extremes of age and the relative protection of school-age and younger adult groups in many syndromes (GBD 2019 Lower Respiratory Infections Collaborators, 2022).
-
-**Sepsis/mortality age categories** (a separate, finer grouping):
-
-Neonates (0–28 days) have dramatically different infection risks and case-fatality rates compared to older infants — since Group B *Streptococcus* sepsis in a 5-day-old neonate is a fundamentally different clinical entity from a respiratory infection in a 10-month-old, the model uses a separate age classification for sepsis onset and infection-related mortality:
-
-| Category | Age Range |
-|----------|-----------|
-| Neonatal | 0–28 days |
-| Paediatric | 28 days–18 years |
-| Young Adult | 18–50 years |
-| Elderly | 50+ years |
-
-
-
-### 2.3 Immunodeficiency
-
-Since immunocompromised hosts — from HIV, chemotherapy, transplantation, advanced frailty — face substantially higher infection risk, treatment difficulty, and mortality (Fishman JA, 2007; Taplitz RA et al., 2018), the model captures this through two types of immunosuppression.
-
-At simulation start, a configurable fraction of the population is seeded into this broader higher-risk host state (`immunosuppression_startup_seed_fraction`, baseline 5%). This startup seeding is a calibration device to avoid an unrealistically long burn-in before immunocompromised-host effects become visible in the simulated population. Published US NHIS analyses place self-reported immunosuppression among adults in the low-single-digit to mid-single-digit range over the last decade (2.7% in 2013 and 6.6% in 2021), so a 5% startup seed sits within the right order of magnitude for a broadened composite vulnerability construct while still remaining a model initial-condition choice rather than a direct epidemiologic estimate (Martinson ML et al., 2024).
-
-**Temporary immunosuppression** represents acute episodes such as a short course of steroids, a viral illness that transiently suppresses immunity, or post-surgical immunosuppression. People enter this state at a rate of `0.00005` per day and recover at `0.01` per day (average duration ~100 days).
-
-**Chronic immunosuppression** represents long-term conditions like HIV/AIDS, solid organ transplant, or autoimmune disease requiring ongoing immunosuppressive therapy. It develops at `0.00006` per day and recovers much more slowly at `0.0012` per day.
-
-When a new immunodeficiency episode occurs in the model, the following age-band probabilities determine whether that episode is typed as **chronic** rather than **temporary**. They are therefore best read as a structural mapping from age to chronic-vs-temporary assignment, not as literal age-specific prevalence estimates of diagnosed immunodeficiency in the underlying population:
-
-| Age group | Probability of chronic typing | Interpretation |
-|-----------|------------|---------|
-| 0–1 year | 30% | Allows some early-life episodes to map to persistent congenital or neonatal high-risk states |
-| 1–18 years | 20% | Keeps most childhood episodes temporary while permitting a smaller chronic subgroup |
-| 18–65 years | 40% | Shifts more episodes into persistent high-risk states compatible with HIV, transplantation, or long-term immunosuppression |
-| 65+ years | 60% | Makes late-life episodes more likely to persist as a composite frailty/immunosenescence-type vulnerability state |
-
-
-
-These probabilities should be read as part of a **composite infection-vulnerability state**, not as literal prevalence estimates of formal immunodeficiency diagnoses. The model therefore aggregates classic immunodeficiency, transplant medicine, chemotherapy-related neutropenia, advanced HIV, frailty, and other clinically important causes of impaired host defence into one tractable state variable (Fishman JA, 2007; Taplitz RA et al., 2018). The seeded starting population uses the configurable startup fraction described above, and the chronic-versus-temporary split follows the same age-stratified mapping shown here. The same age-stratified probabilities also govern the typing of newly arising immunodeficiency episodes during the simulation.
-
-**How immunodeficiency affects the clinical journey:**
-
-The table below summarises all the ways immunosuppression changes a person's trajectory through the model. Each effect has a real-world clinical rationale:
-
-| Effect | Parameter | Value | Clinical effect |
-|--------|-----------|-------|-----------------------------|
-| Weaker direct empiric-start trigger in the absence of symptoms | `antibiotic_initiation_log_odds_immunodeficiency` | −0.75 | Immunodeficiency alone does not usually trigger treatment in the current model; symptoms, sepsis, and test results drive most starts |
-| More diagnostic testing | `testing_immunosuppressed_multiplier` | ×2.5 | Clinicians investigate more aggressively in immunocompromised hosts |
-| Higher sepsis risk | `log_odds_sepsis_onset_immunosuppressed` | +0.7 | ~2× higher daily risk of developing sepsis |
-| Harder to recover from sepsis | `sepsis_log_odds_immunosuppressed` | −1.0 | ~2.7× lower odds of daily recovery, reflecting poor immune clearance |
-| Higher mortality from sepsis | sepsis death log-odds | +1.5 | ~4.5× higher risk of dying during sepsis |
-| Higher mortality from drug toxicity | toxicity death log-odds | +0.9 | ~2.5× higher risk — reflects drug interactions and organ dysfunction |
-| Higher background mortality | `log_odds_mortality_immunosuppressed` | +0.916 | ~2.5× overall mortality uplift |
-
-
-
-### 2.4 Hospitalisation
-
-Given the concentration of resistant organisms, broad-spectrum antibiotic use, and vulnerable patients in hospital settings (Magill SS et al., 2018), the model simulates daily admission decisions, length of stay, and the elevated risks of nosocomial infection.
-
-**Admission criteria.** Each day, the model calculates a probability of hospital admission for every individual using a logistic model. The key factors are:
-
-| Factor | Log-odds contribution | Interpretation |
-|--------|----------------------|---------------|
-| Baseline (healthy person) | −10.4 | Very low daily risk (~0.003%) — most people are not admitted on any given day |
-| Age | +0.02 per year | Older patients are progressively more likely to be admitted |
-| Sepsis | +13.0 | Sepsis is now an overwhelming driver of admission, producing near-immediate inpatient escalation in most cases |
-| Symptomatic infection (severity > 3.0) | +9.5 | Severe symptomatic infection materially increases admission probability even without sepsis |
-| Regional healthcare access | varies (see below) | Reflects real-world differences in hospital capacity |
-
-
-Independent of this baseline logistic admission process, starting a **hospital-managed antibiotic** also triggers inpatient management. In the current model this includes a broad set of parenteral hospital drugs plus a narrow oral reserve subset (`linezolid`, `tedizolid`) used as a proxy for infections that would usually be managed in hospital.
-
-
-**Length of stay:** Once admitted, patients are discharged at a rate of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. Patients with active sepsis or those currently receiving a **hospital-managed antibiotic** cannot be discharged — they remain in hospital until resolving or completing that treatment course. This should be interpreted as an **effective all-cause discharge hazard** in the model, not as a claim that every real-world admission has the same geometric length-of-stay distribution.
-
-**Regional healthcare access:**
-
-Hospital access varies substantially across regions. The model uses regional modifiers that adjust the admission threshold:
-
-| Region | Modifier | Interpretation | Citation / source |
-|--------|----------|---------------|-------------------|
-| Europe | +0.6 | Highest access (universal healthcare systems) | WHO, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| North America | +0.5 | Good access | WHO, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| Oceania | +0.4 | Good access in developed areas | WHO, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| Asia | 0.0 | Reference baseline (mixed access) | WHO, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| South America | −0.2 | Variable access | WHO, 2025; World Bank, `SH.MED.BEDS.ZS` |
-| Africa | −0.5 | Most limited hospital capacity | WHO, 2025; World Bank, `SH.MED.BEDS.ZS` |
-
-
-
-These modifiers should be read as a qualitative ordering of effective hospital access rather than literal estimates of admission probabilities. The ranking is consistent with broad cross-country differences in service coverage and infrastructure documented by WHO's universal health coverage monitoring framework and the World Bank's hospital-bed indicator, which show persistent between-country variation in effective access to care and inpatient capacity even as global service coverage has improved over time (WHO, 2025; World Bank, `SH.MED.BEDS.ZS`).
-
-Negative values mean patients are *less* likely to be admitted — not because they are less sick, but because hospital bed capacity is limited. This matters for AMR because patients who cannot access hospital care may not receive appropriate antibiotics or diagnostics, whereas international sepsis-care programmes have associated better structured in-hospital and ICU bundle delivery with lower hospital mortality (Evans L et al., 2021; Levy MM et al., 2010).
-
-**Nosocomial (hospital-acquired) risks:**
-
-Being in hospital dramatically changes a patient's infection risk profile. Hospital patients are exposed to multi-drug-resistant organisms on surfaces, devices, and other patients. The model captures this with pathogen-specific hospital acquisition modifiers:
-
-| Pathogen group | Current pattern in the live configuration | Clinical context |
-|----------|-----------------------------------------|-----------------|
-| Classic nosocomial opportunists | Strongly positive bacterium-specific hospital-acquisition terms | *A. baumannii*, *P. aeruginosa*, *S. maltophilia*, and related device-associated pathogens remain heavily hospital-enriched |
-| Hospital-enriched Enterobacterales and enterococci | Moderate-to-strong positive bacterium-specific hospital-acquisition terms | Reflects line infections, postoperative infections, ICU outbreaks, and ward-level amplification |
-| Mixed hospital/community organisms | Small positive or near-neutral tuned values depending on calibration | Captures organisms such as *S. aureus*, *E. coli*, and respiratory pathogens that remain important in both settings |
-| Primarily community or STI pathogens | Neutral or only modestly positive tuned values | These organisms are still more often acquired in community transmission networks than from ward ecology |
-
-
-
-Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) and higher sepsis onset risk (+0.5 log-odds, ~1.6×), but they also have a higher probability of *recovering* from sepsis (+0.8 log-odds) because of access to intensive care. The background-mortality term here should be read as a residual inpatient case-mix / frailty adjustment, not as a hospital-acquired-infection term; HCAI pressure is modelled separately through the hospital-acquisition modifiers above.
-
-
-### 2.5 Travel
-
-Since international travel is a well-established vector for AMR importation — as illustrated by ESBL-producing *E. coli* acquired by European travellers in South and South-East Asia (Arcilla MS et al., 2017) — the model needs a cross-region mixing mechanism.
-
-The model simulates this by giving each person a small daily probability of travelling to another region (`0.00005` per day, roughly one trip every 55 years per person). This is intentionally a low **effective cross-region mixing rate**, because the model only needs enough travel to reproduce long-run AMR importation and reseeding; it is not intended to represent literal passenger-trip counts. Travel frequency varies by region of origin, reflecting real-world patterns:
-
-| Region | Travel multiplier | Rationale | Citation / source |
-|--------|------------------|-----------|-------------------|
-| Europe | ×3.5 | High international travel rates | UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` |
-| North America | ×3.0 | High travel, large business travel | UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` |
-| Oceania | ×2.5 | Geographic distance drives air travel | UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` |
-| Asia | ×1.5 | Rapidly growing travel volumes | UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` |
-| South America | ×0.8 | Moderate travel rates | UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` |
-| Africa | ×0.3 | Lowest international travel rates | UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR` |
-
-
-
-These multipliers are intended as a **qualitative ranking of cross-region mixing intensity**, not as literal estimates of per-capita trip counts. The ordering is supported by broad regional patterns in UN Tourism's global and regional tourism dashboard and World Bank indicators for international tourism departures and air passenger volumes, which collectively show very high international mobility in Europe and North America, strong air-travel dependence in Oceania, rapid growth but substantial heterogeneity across Asia, intermediate volumes in South America, and lower outbound tourism and aviation intensity across much of Africa (UN Tourism, 2025; World Bank, `ST.INT.DPRT`; World Bank, `IS.AIR.PSGR`).
-
-When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of *Salmonella enterica* serovar Typhi (+0.8 log-odds) and *Shigella* spp. (+0.5 log-odds), while *V. cholerae* risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones.
-
----
-
-
-
-## 3. Infection Acquisition
-
-This section describes how people in the model catch bacterial infections. In the real world, a person can acquire bacteria from three main sources: the community (e.g., food, water, close contacts), the hospital environment (e.g., ventilators, catheters, other patients), or their own body (bacteria they are already carrying asymptomatically can flare into active infection). The model captures all three pathways, but it does so through a deliberately compressed acquisition architecture that preserves the main epidemiological distinctions needed for long-run AMR policy analysis rather than every route-specific exposure mechanism.
-
-
-### 3.1 Community acquisition
-
-Each day, every person who does not already have an active infection has a chance of acquiring any of the 42 bacterial species. The model calculates a separate probability for each species using a logistic model (see Section 1.2) that combines several risk factors:
-
-- **Baseline acquisition rate** for the specific bacterium — some bacteria (e.g., *E. coli*) cause infections far more frequently than others (e.g., *L. monocytogenes*)
-- **Region** — infection rates vary by geography due to climate, sanitation, and population density
-- **Age** — infants and the elderly are more susceptible to most infections; sexually transmitted infections peak in young adults
-- **Immune status** — immunosuppressed individuals are at higher risk
-- **Season** — respiratory pathogens (e.g., *S. pneumoniae*) follow a sinusoidal seasonal pattern, peaking in winter
-- **Calendar era** — some infections have become more or less common over the decades
-- **Circulating resistance landscape** — the current reservoir of complete resistance profiles, together with prevalence derived directly from those stored profiles, shapes the probability that a newly acquired bacterium already carries one or more resistance mechanisms (see Section 3.4)
-
-| Variable pattern | Function |
-|------------------|-----------------|
-| `bacteria_{name}_acquisition_log_odds` | How common this bacterium is overall |
-| `{region}_bacteria_{name}_acquisition_log_odds` | Regional differences for this bacterium |
-| `bacteria_{name}_log_odds_{age_category}` | Age-specific risk for this bacterium |
-| `{bacteria}_{region}_log_odds_{age_category}` | Interaction between bacterium, region, and age |
-
-#### Vaccination
-
-Vaccination is implemented as a per-bacterium prevention layer that acts before infection or carriage is acquired. Each person carries a boolean `vaccination_status` flag for every bacterium. Vaccination is assigned once, at cohort entry: on the first simulated day that a newborn individual becomes alive in the model, the code checks the historically available vaccines and vaccinates that birth cohort with a probability determined by the vaccine's rollout progress at that calendar year. Once the flag is set to `true`, it remains on for the rest of the simulation; there is currently no waning, revaccination, booster logic, or catch-up campaign.
-
-The vaccine layer currently supports four bacterial vaccines:
-
-| Vaccine | Target bacterium | Availability year |
-| --- | --- | ---: |
-| Pneumococcal | *Streptococcus pneumoniae* | 1977 |
-| Meningococcal | *Neisseria meningitidis* | 1981 |
-| Hib | *Haemophilus influenzae* | 1985 |
-| Pertussis | *Bordetella pertussis* | 1948 |
-
-Vaccination affects acquisition in exactly two places:
-
-- **Infection acquisition**: if an individual is vaccinated against bacterium *b*, the model adds `log_odds_vaccinated` for that bacterium to the infection-acquisition log-odds.
-- **Microbiome / carriage acquisition**: the same log-odds adjustment is applied when modelling asymptomatic carriage acquisition.
-
-The default fallback is `log_odds_vaccinated = -2.0`, corresponding to an odds multiplier of approximately $e^{-2} \approx 0.135$, so vaccination reduces acquisition odds by about 86.5% for bacteria that use the default. Vaccination does **not** directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.
-
-Under the current default parameter map, vaccination is active rather than dormant: each vaccine has a non-zero target birth-cohort coverage and a rollout duration. These defaults are intended as a mechanistic starting point rather than a finalized calibration and should be re-tuned against the headline and organism-specific incidence targets once vaccine-sensitive pathogens are brought into the calibration loop.
-
-
-
-#### Age risk templates
-
-Since age-specific infection risk varies by organism and syndrome, the model assigns each bacterium a **risk template** — a pattern describing how acquisition probability varies across six age bands. The multipliers below are applied to the baseline acquisition rate:
-
-| Template | Typical use | 0–1y | 1–5y | 5–18y | 18–50y | 50–70y | 70+y | Clinical rationale |
-|----------|------------|------|------|-------|--------|--------|------|--------------------|
-| `respiratory` | *S. pneumoniae*, *H. influenzae* | 3.0 | 1.8 | 0.8 | 1.0 | 1.3 | 2.5 | U-shaped: infants and elderly most vulnerable |
-| `gastrointestinal` | *Salmonella*, *Shigella* | 2.5 | 2.0 | 1.2 | 1.0 | 1.1 | 1.8 | Young children and elderly via food/water |
-| `urogenital` | *E. coli* (UTI) | 1.2 | 0.8 | 0.9 | 1.0 | 1.4 | 2.2 | Rises with age, especially in women |
-| `skin_soft_tissue` | *S. aureus* | 1.5 | 1.3 | 1.1 | 1.0 | 1.2 | 1.8 | Moderate age variation |
-| `bloodstream` | *P. aeruginosa* | 4.0 | 2.0 | 0.7 | 1.0 | 1.5 | 3.0 | Neonates and elderly at highest risk |
-| `sexually_transmitted` | *N. gonorrhoeae*, *C. trachomatis* | 0.1 | 0.2 | 0.8 | 1.0 | 0.8 | 0.3 | Peaks in sexually active adults |
-| `flat` | Default | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | Equal risk across all ages |
-
-
-
-A multiplier of 3.0 for infants with the `respiratory` template means that an infant is three times as likely to acquire that bacterium compared to a young adult (the reference group at 1.0).
-
-These community-acquisition templates should be read as structured relative-risk shapes rather than literal incidence-rate estimates for each age-region-organism cell. They preserve broad, globally observed patterns — such as the concentration of enteric disease in children (Troeger C et al., 2018), respiratory vulnerability at the extremes of age (GBD 2019 Lower Respiratory Infections Collaborators, 2022), and young-adult concentration of sexually transmitted infections (Rowley J et al., 2019) — while leaving exact organism-level burden to calibration of the bacterium-specific baseline and interaction terms against the model's target outputs.
-
-
-### 3.2 Hospital acquisition
-
-Since hospitals concentrate nosocomial pathogens — *Acinetobacter* and *Pseudomonas* on ventilators, *Staphylococcus* and *Enterococcus* on central lines, *C. difficile* in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (`{bacteria}_log_odds_hospital_acquired`) for each species.
-
-These hospital-acquisition terms are best interpreted as qualitative rankings of nosocomial exposure pressure rather than direct ward-level attack-rate measurements. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (WHO GLASS, 2026).
-
-
-### 3.3 Carrier-derived infection
-
-Asymptomatic carriage (see Section 8) can give rise to endogenous infection when commensal organisms transition to an active infection site. This pathway is important for AMR because:
-
-- The carried bacteria may already be resistant (having been selected by previous antibiotic courses)
-- The person's resistance profile passes directly from carriage to infection via **mechanism-bit copying** — each resistance mechanism present in the microbiome compartment (`mechanism_microbiome`) is independently considered for transfer to the infection compartment (`mechanism_any`)
-
-This pathway is governed by two parameters:
-
-| Parameter | Value | Interpretation |
-|-----------|-------|---------------|
-| `carrier_resistance_inheritance_probability` | 0.50 | 50% chance that the carrier-derived infection pathway fires at all — when it does, individual mechanisms are copied from the microbiome to the infection compartment |
-| `infection_from_microbiome_dampening` | 0.70 | Per-mechanism transfer probability: each mechanism in the microbiome has a 70% chance of being copied to the infection site, reflecting that not all colonising lineages successfully transition to the infection site |
-
-
-
-### 3.4 Resistance at acquisition
-
-When a new infection is acquired from the community, the model needs to decide: is this bacterium resistant to any drugs, and if so, which ones?
-
-Rather than sampling each drug-resistance pair independently (which would produce unrealistic resistance patterns), the model uses a six-step pipeline that reflects how resistance co-occurs in bacterial populations and how the simulation's policy branches interact with that process:
-
-**Step 1 — Profile reservoir and prevalence tracking**
-
-After every simulated day, the model refreshes a **profile reservoir** (`MechanismCache`) of up to 1000 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). The reservoir is built by **reservoir sampling** from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals (bitmask = 0). Infected individuals contribute to the pool corresponding to their **current location** (hospital or community) at the time of the daily cache update.
-
-The reservoir uses **asymmetric retention** when refreshing its contents each day. Community profiles are retained with a fraction `community_profile_cache_retention` = 0.99 (~69-day half-life), reflecting slower decay than in earlier versions so rare resistant profiles are not stochastically lost too easily. Hospital profiles are retained with a fraction `hospital_profile_cache_retention` = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistant genotype, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.
-
-Because the reservoir includes both resistant and susceptible profiles, the **prevalence** of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the model checks whether any mechanism applicable to that drug is set, and the resistant fraction across all stored profiles gives the current prevalence estimate. In the current architecture there is no separate EWMA fallback layer; the profile reservoir itself is the source of both sampling and derived prevalence. This prevalence is used downstream by antibiotic prescribing logic (Section 6) and calibration scoring.
-
-**Hospital resistance concentration factor.** Each bacterium is assigned a **hospital resistance concentration factor** (`hospital_resistance_concentration_factor`) that reflects the empirical observation that hospital environments concentrate resistant organisms through selective antibiotic pressure, device-associated biofilm persistence, patient-to-patient transmission via healthcare workers, and environmental contamination (Weinstein RA, 1998; Weber DJ et al., 2010). This factor is used at **Step 3** during profile sampling to over-sample resistant profiles when assigning resistance to hospital-acquired infections (see Step 3 for details). The concentration factor is assigned to one of four tiers based on each bacterium's ecological association with healthcare:
-
-| Tier | Factor | Bacteria | Rationale |
-|------|-------:|----------|-----------|
-| 1 — Nosocomial opportunists | 2.25 | *A. baumannii*, *P. aeruginosa*, *S. maltophilia*, *Burkholderia* | Primarily nosocomial, thrive on devices and in ICU environments |
-| 2 — Hospital-enriched GNR | 1.95 | *K. pneumoniae*, *Enterobacter* spp./cloacae, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, iNTS, *S. epidermidis* | Frequently cause HCAI but also circulate in community |
-| 3 — Hospital-enriched GP | 1.8 | *S. aureus*, *E. faecium*, *E. faecalis*, *C. difficile* | Important nosocomial pathogens with substantial community reservoir |
-| 4 — Community-dominant | 1.0 | All remaining bacteria | Resistance ecology not materially amplified by hospital stay |
-
-**Step 2 — Community dilution**
-
-Clinical samples tend to over-represent resistant strains because susceptible infections are more likely to resolve quickly, generate less urgent microbiology, and be under-sampled in surveillance systems. To account for the fact that community bacteria are less resistant than those seen in clinics, the model applies a per-bacteria **community resistance dilution factor** (`community_resistance_dilution_factor`). A random draw determines whether the infection originates from the human (circulating) reservoir at all; if not, the bacterium is treated as wild-type. This step is only applied to community-acquired infections — hospital-acquired infections sample at full prevalence (dilution = 1.0).
-
-The dilution factor is assigned by ecological category, reflecting the strength of each organism's link to the circulating human reservoir:
-
-| Category | Dilution range | Example bacteria | Rationale |
-|----------|---------------:|------------------|-----------|
-| Environmental / waterborne | 0.12–0.15 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition mostly from environmental sources, not circulating human strains |
-| Foodborne / animal-reservoir | 0.18–0.30 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | Zoonotic or food-chain origin; human-to-human resistance transfer is rare |
-| Healthcare-associated | 0.30–0.45 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance primarily amplified in hospitals; community strains are much more susceptible |
-| Endogenous flora / commensal | 0.40–0.50 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Commensal carriage means community strains partially reflect clinical resistance |
-| Obligate human pathogen / STI | 0.60–0.80 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission; community resistance closely tracks clinical observation |
-
-Per-bacteria values are calibrated within these ecological bands in the live configuration.
-
-**Step 3 — Correlated mechanism profiles — weighted profile sampling**
-
-Rather than independently sampling each mechanism from a marginal prevalence estimate (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model draws a **complete genotype profile** from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired *E. coli*, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).
-
-**Community-acquired infections** draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles (bitmask = 0), uniform sampling automatically reproduces the true population prevalence of resistance.
-
-**Hospital-acquired weighted sampling.** For hospital-acquired infections where the bacterium's `hospital_resistance_concentration_factor` $f > 1$, the model does not draw a uniform profile from the hospital pool. Instead it uses **weighted profile sampling** (`sample_profile_weighted`): each profile in the reservoir is assigned a sampling weight of $f^{k}$, where $k$ is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher $k$) are over-sampled relative to susceptible profiles ($k = 0$, weight $= f^0 = 1$), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a **real observed genotype** — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired *K. pneumoniae* infection with $f = 1.3$ and 8 mechanism bits, for example, receives a weight of $1.3^8 \approx 8.2$× relative to a susceptible profile, substantially increasing its draw probability.
-
-The same weighted sampling logic is applied to **carriage acquisition** (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same $f^k$ weighting.
-
-If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.
-
-**Counterfactual gating.** Profile sampling is gated by the `counterfactual_resistance_multiplier`. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below `counterfactual_resistance_multiplier` (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.
-
-**Step 4 — Resistance floor enforcement**
-
-After profile sampling, for each drug in the model the code evaluates `calculate_resistance_floor(bacteria, drug, current_day)`. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's `ramp_years` window (see Section 7.5). For organisms with an active floor (currently *H. pylori* and *S. maltophilia*), if a Bernoulli draw with probability `floor_level ÷ max_resistance_level` succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in `mechanism_any` and `mechanism_majority`. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few hundred infections per year in a 100,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.
-
-**Step 5 — Scalar `any_r` derivation via mechanism propagation**
-
-After the mechanism bits have been set (by profile sampling, floor enforcement, or both), the model calls `propagate_mechanism_resistance()` to translate the boolean mechanism flags into the continuous `any_r` scalar reported in outputs. For every drug, this function computes the **multiplicative susceptibility** across all active mechanisms:
-
-$$\text{any\_r} = 1 - \prod_{m : \text{mechanism\_any}_m = \text{true}} (1 - e_m)$$
-
-where $e_m$ is the enhancement multiplier for mechanism $m$ against that drug (see Section 7.2). This is called in "full-reset" mode (`raise_only = false`) at this point, so the derived value replaces whatever was there before. The same function is called in "raise-only" mode (`raise_only = true`) whenever a later step adds additional mechanisms (e.g., MDR-TB rifampicin seeding below), ensuring that `any_r` can only increase, not decrease, as further mechanisms are layered on.
-
-**Step 6 — MDR-TB guaranteed rifampicin resistance**
-
-*M. tuberculosis* is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (WHO, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the model hard-sets every resistance mechanism applicable to rifampicin for that bacterium — specifically the `rpoB` RNA-polymerase mutation — in both `mechanism_any` and `mechanism_majority`, regardless of what the profile-cache step assigned. `propagate_mechanism_resistance()` is then called again in raise-only mode so that the rifampicin `any_r` is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with `ResistanceAcquisitionType::AtInfectionTB` rather than `AtInfectionCommunity`, which allows the model to track this pathway separately in output statistics. The probability of this guarantee is controlled by `mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance` (default 0.90); at values below 1.0 a small fraction of simulated MDR-TB cases can be acquired without the mechanism, modelling the small percentage of MDR-TB diagnoses that occur before rifampicin susceptibility testing has been completed.
-
-Note: after these six steps, the carrier resistance inheritance step (Section 3.3) may apply additional mechanisms from `mechanism_microbiome` if the individual is also a carrier of the organism. That step is a separate pathway rather than part of the acquisition pipeline described here.
-
----
-
-
-
-## 4. Clinical Progression
-
-Once a person has acquired a bacterial infection, the model simulates the clinical course: which body site is affected, how the infection grows, whether it progresses to sepsis, and whether the body can clear it without treatment. The level of syndromic and host detail is chosen to support policy comparison rather than exhaustive bedside realism.
-
-
-### 4.1 Syndrome assignment
-
-When a person develops an active infection, the model assigns an **anatomical syndrome**. This assignment is consequential because syndrome determines:
-
-- **Empiric drug choice** (prescribing guidelines differ by site — see Section 6.2)
-- **Drug penetration** (varies by tissue — see Section 6.4)
-- **Replication rate** (bloodstream supports rapid growth; bone does not)
-- **Sepsis and mortality risk** (bloodstream infections are far more dangerous than skin infections)
-
-The 10 syndromes correspond to the major infectious disease presentations encountered in clinical microbiology:
-
-| Syndrome | Index | Examples in clinical practice |
-|----------|-------|------------------------------|
-| UTI | 1 | Cystitis, pyelonephritis — the most common bacterial infection |
-| Skin/soft tissue | 2 | Cellulitis, wound infections, abscesses |
-| Respiratory | 3 | Community-acquired and hospital-acquired pneumonia |
-| Bloodstream | 4 | Bacteraemia, line-related infections |
-| Intra-abdominal | 5 | Peritonitis, appendicitis, biliary sepsis |
-| CNS | 6 | Meningitis, brain abscess — drugs must cross the blood-brain barrier |
-| Gastrointestinal | 7 | Gastroenteritis, food poisoning |
-| Genital/pelvic | 8 | Sexually transmitted infections, pelvic inflammatory disease |
-| Bone/joint | 9 | Osteomyelitis, septic arthritis — slow to resolve, needs prolonged treatment |
-| Other | 10 | Device-related infections, undifferentiated febrile illness |
-
-
-
-#### How syndromes affect disease behaviour
-
-Each syndrome modifies two key aspects of the infection:
-
-- **Treatment initiation multiplier** — how urgently the patient seeks care. A patient with pneumonia (×10) presents for clinical assessment far more quickly than one with a mild UTI (×1).
-- **Bacterial growth rate multiplier** — how fast the bacteria replicate at that body site. Bacteria in the bloodstream (×1.4) multiply faster than bacteria embedded in bone (×0.85).
-
-| Syndrome | Treatment-seeking multiplier | Growth multiplier | Clinical rationale |
-|----------|-----------------------------|--------------------|-------------------|
-| UTI | ×1.0 | ×1.0 | Reference group |
-| Skin | ×1.0 | ×1.1 | Faster growth in devitalised tissue |
-| Respiratory | ×10.0 | ×1.2 | Dyspnoea and fever drive rapid presentation |
-| Bloodstream | ×1.0 | ×1.4 | Nutrient-rich blood supports rapid replication |
-| Intra-abdominal | ×1.0 | ×1.15 | Moderate growth rate |
-| CNS | ×1.0 | ×1.3 | Rapid replication in cerebrospinal fluid |
-| GI | ×8.0 | ×1.1 | Diarrhoea and vomiting drive rapid presentation |
-| Genital | ×12.0 | ×0.9 | High care-seeking for STI symptoms; indolent course |
-| Bone/joint | ×1.0 | ×0.85 | Slow, deep-seated infection |
-
-
-
-### 4.2 Infection dynamics
-
-In keeping with the familiar clinical continuum from low-grade bacteriuria to fulminant sepsis, the model tracks a numerical **infection level** — an abstract measure of bacterial burden — that rises and falls over time, rather than using a binary infected/uninfected state.
-
-- **Starting level**: When a person first acquires an infection, the bacterial load is low (`initial_infection_level` = 0.01).
-- **Growth**: Each day, the bacteria multiply. The growth rate depends on the specific bacterium, the syndrome site (see above), and whether antibiotics are active.
-- **Symptom threshold**: When the infection level reaches `3.0` (`symptomatic_infection_level_threshold`), the person develops noticeable symptoms — fever, pain, cough, etc. — and begins seeking medical care. Below this threshold, they are infected but feel well enough that they do not present for assessment.
-
-This mechanism matters for AMR because there is a window between acquiring an infection and becoming symptomatic during which bacteria are replicating without antibiotic pressure — and during which resistance can emerge or be selected.
-
-
-### 4.3 Sepsis
-
-Sepsis — the dysregulated host response to infection carrying high mortality (Singer M et al., 2016; Evans L et al., 2021) — is modelled as a distinct state that dramatically increases both treatment urgency and death risk.
-
-Each day, the model calculates the probability of a person's infection progressing to sepsis using a logistic model that combines:
-
-| Risk factor | Parameter | Value | Interpretation |
-|-------------|-----------|-------|---------------|
-| Bacterial load | `log_odds_sepsis_infection_level` | +0.93 per unit | Higher bacterial burden increases sepsis probability — the single strongest driver |
-| Duration of infection | `log_odds_sepsis_infection_duration` | +0.005 per day | Untreated infections gradually become more dangerous |
-| Neonatal age | `sepsis_age_log_odds_neonatal` | +1.10 | Neonates are ~3× more likely to develop sepsis |
-| Elderly age | `sepsis_age_log_odds_elderly` | +0.69 | Over-70s are ~2× more likely |
-
-
-
-Not all bacteria or body sites carry equal sepsis risk. The model captures this through:
-
-- **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −7.9, reflecting its aggressive clinical course)
-- **Per-syndrome modifier**: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so
-
-**Regional factors** also affect sepsis risk, reflecting differences in healthcare access and sanitation:
-- Europe: −0.6 (best mitigation)
-- North America, Oceania: −0.5
-- Asia: −0.1 (reference)
-- Africa: +0.1 (least mitigation — patients present later and with fewer resources)
-
-
-### 4.4 Natural clearance
-
-This part of the model contains two related but distinct processes:
-
-- **Microbiome or carriage clearance**: `default_microbiome_clearance_probability_per_day` = 0.01 is the default daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific overrides for organisms that are known to persist much longer or clear more quickly.
-- **Duration penalty on carriage clearance**: `carriage_duration_log_odds_coefficient` = −0.01 per day, capped by `carriage_duration_max_log_odds_effect` = −2.0, applies to microbiome carriage rather than directly to symptomatic infection. The rationale is that long-established colonization becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005).
-- **Drug-assisted microbiome clearance**: `microbiome_clearance_probability_on_drug_treatment` = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves.
-
-**Infection resolution itself is modeled separately.** Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level is driven down to a near-zero threshold in the rules engine, or when an immune-clearance event is triggered; this is not controlled by `default_microbiome_clearance_probability_per_day`.
-
-This distinction matters for AMR because there can be a delay between infection acquisition and symptom-driven treatment. During that untreated interval, bacteria continue replicating, and resistant subclones can emerge or expand within the infecting population before antibiotics are started. Before treatment begins, the dominant process is therefore untreated growth and diversification rather than antibiotic selection.
-
----
-
-
-
-## 5. Diagnostic Testing
-
-Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, typically taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology.
-
-We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.
-
-
-### 5.1 Historical introduction
-
-Modern diagnostic microbiology did not exist in 1930. The model introduces testing capabilities at historically appropriate time points:
-
-| Technology | Available from | ~ Calendar year | Clinical context |
-|------------|---------------|-----------------|-----------------|
-| **Bacterial culture** | Day 5,478 | ~1945 | Basic culture techniques became routine in the mid-20th century |
-| **Antimicrobial susceptibility testing (AST)** | Day 9,131 | ~1955 | Standardised AST methods (e.g., disc diffusion) followed about a decade later (Bauer AW et al., 1966) |
-
-
-
-Before these dates, all prescribing in the model is entirely empiric — clinicians have no laboratory information to guide drug choice. This accurately represents the early antibiotic era, when penicillin was prescribed without knowing the susceptibility of the infecting organism.
-
-
-### 5.2 The testing process
-
-Once testing is available and ordered, the model simulates a realistic laboratory workflow:
-
-| Step | Parameter | Value | Interpretation |
-|------|-----------|-------|-------------|
-| **Lab turnaround time** | `test_delay_days` | 3 days | Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time. A 24–72 h window from sample receipt to actionable result is consistent with routine blood and urine culture workflows across contemporary clinical microbiology laboratories (Wain J et al., 2006; Pitt TL & Batchelor BI, 2019) |
-| **AST completion rate** | `prob_test_r_done` | 95% | If a culture grows a bacterium, there is a 95% chance AST is performed (occasionally omitted for low-priority isolates or technical reasons) |
-| **Reporting error rate** | `test_r_error_probability` | 2% | AST results are wrong 2% of the time — the lab reports a resistant organism as susceptible or vice versa. This reflects real-world issues with breakpoint interpretation, contaminated samples, and technical failures. Error rates in disc-diffusion and gradient-strip AST methods are typically in the 1–5% range depending on organism and drug class (ISO 20776-2; EUCAST, 2023) |
-
-
-
-The 3-day delay means that empiric therapy runs for at least three days before any susceptibility data arrives, during which ineffective treatment allows the infection to progress and resistance to be selected.
-
-
-### 5.3 Testing criteria and rates
-
-Since culture ordering rates vary by care setting and clinical urgency — from low rates for uncomplicated UTIs in primary care to near-universal blood cultures in sepsis — the model captures these differences:
-
-| Factor | Parameter | Value | Clinical meaning |
-|--------|-----------|-------|-----------------|
-| **Baseline culture rate** | `bacterial_testing_base_rate_per_day` | 15% per day | A symptomatic outpatient has a 15% daily chance of having a culture sent |
-| **AST reflex rate** | `resistance_testing_base_rate_per_day` | 95% per day | Once a culture is positive, AST is almost always performed |
-| **Sepsis** | `testing_sepsis_multiplier` | ×4.0 | Septic patients are tested urgently |
-| **Immunosuppressed** | `testing_immunosuppressed_multiplier` | ×2.5 | Clinicians investigate more aggressively |
-| **Hospitalised (culture)** | `bacterial_testing_hospital_multiplier` | ×8.0 | Hospital patients have far greater access to microbiology labs |
-| **Hospitalised (AST)** | `resistance_testing_hospital_multiplier` | ×5.0 | Hospitals perform AST more routinely |
-
-
-
-**Regional differences:** Laboratory capacity varies dramatically around the world. Many hospitals in sub-Saharan Africa lack the microbiological infrastructure that is routine in European hospitals (Jacobs J et al., 2019). The model captures this with regional testing multipliers:
-
-| Region | Testing multiplier | Context | Citation / source |
-|--------|-------------------|---------|-------------------|
-| Europe | ×1.2 | Highest testing density | Jacobs J et al., 2019; WHO GLASS, 2026 |
-| North America | ×1.1 | High infrastructure | Jacobs J et al., 2019; WHO GLASS, 2026 |
-| Oceania | ×0.8 | Good but geographically dispersed | Jacobs J et al., 2019; WHO GLASS, 2026 |
-| Asia | ×0.7 | Highly variable by country | Jacobs J et al., 2019; WHO GLASS, 2026 |
-| South America | ×0.6 | Variable access | Jacobs J et al., 2019; WHO GLASS, 2026 |
-| Africa | ×0.3 | Very limited lab infrastructure in many settings | Jacobs J et al., 2019; WHO GLASS, 2026 |
-
-
-
-These regional differences have direct consequences for AMR: in settings where testing is rare, patients are more likely to continue on ineffective empiric therapy, creating selection pressure for resistance without the feedback loop of culture results to guide narrower prescribing.
-
-As with the admission and travel modifiers above, these testing multipliers should be read as qualitative effective-capacity terms rather than literal claims about national culture rates. They combine laboratory availability, specimen transport, clinician ordering behaviour, turnaround reliability, and AST reporting infrastructure, which is the same bundle of constraints emphasized by WHO's GLASS laboratory-strengthening programme and reviews of district-level bacteriology capacity in resource-limited settings (Jacobs J et al., 2019; WHO GLASS, 2026).
-
----
-
-
-
-## 6. Antibiotic Treatment
-
-This section covers the entire antibiotic prescribing process as the model simulates it — from the decision to start an antibiotic, through drug selection and dosing, to stopping the course. Antibiotic use drives the selection pressure that causes resistance to emerge and spread.
-
-The model aims to reproduce how antibiotics are prescribed in clinical practice — including imperfect decisions, regional variation in drug access, and the distinction between empiric therapy (before microbiology results are available) and targeted therapy (guided by culture and susceptibility results). Here especially, the intention is not to encode every bedside nuance of antimicrobial decision-making, but to represent the prescribing features most likely to change AMR trajectories under different policy environments.
-
-
-### 6.1 Treatment initiation — deciding to start antibiotics
-
-Each day, the model decides whether to start a new antibiotic course for each person, using a logistic model (see Section 1.2). The probability of starting antibiotics depends on the person's clinical state:
-
-| Factor | Log-odds | Approximate effect | Clinical rationale |
-|--------|----------|-------------------|-------------------|
-| Baseline (no symptoms) | −5.5 | ~0.4% daily chance | Represents background prescribing without a clear indication, including non-specific or precautionary use seen in ambulatory care (Fleming-Dutra KE et al., 2016) |
-| Symptomatic infection | +6.0 | Jumps to ~62% | Once a patient has obvious symptoms (fever, pain, etc.), prescribing becomes likely |
-| Sepsis | +6.0 | Near-certain | Sepsis is a medical emergency requiring immediate antibiotics |
-| Immunodeficiency | −0.75 | modestly less likely in isolation | In the current model, immunodeficiency alone is not treated as a stand-alone indication; symptoms, sepsis, and test confirmation drive most starts |
-| No clinical indication | −1.05 | ~3× less likely | A protective factor: if investigation shows no active infection, prescribing is dampened |
-| Lab-confirmed infection | +0.92 | ~2.5× more likely | Positive culture results prompt targeted therapy |
-| Already on an antibiotic | +0.18 | ~1.2× more likely | Patients in the "pharmacy loop" may accumulate additional agents (combination therapy) |
-
-
-
-For a 65-year-old immunosuppressed inpatient with a symptomatic *E. coli* UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.0 (symptomatic) − 0.75 (immunodeficiency) = −0.25, which converts to about a 44% probability of starting antibiotics that day before any additional effects from testing, sepsis, or syndrome-specific scoring are applied.
-
-**Regional variation in antibiotic access:**
-
-Not everyone who needs antibiotics can get them. The model captures the large global gradients in antibiotic access documented by consumption surveys (Klein EY et al., 2018):
-
-| Region | Log-odds modifier | Effect on prescribing | Rationale |
-|--------|------------------|----------------------|-----------|
-| North America, Europe, Oceania | 0.0 | Reference | Good pharmaceutical access |
-| Asia | −0.5 | ~38% reduction | Variable access across countries |
-| South America | −0.8 | ~55% reduction | Limited access in some settings |
-| Africa | −1.4 | ~75% reduction | Major access barriers in many countries |
-
-
-
-These access barriers produce a well-recognised tension: in settings where antibiotics are hard to obtain, selection pressure for resistance is lower, but people die of treatable infections. The model captures both sides. The regional prescribing modifiers should therefore be read as **effective access-and-behaviour terms** combining healthcare access, affordability, dispensing practice, and care-seeking, rather than as pure pharmacy-supply measurements (Klein EY et al., 2018).
-
-
-### 6.2 Drug selection — choosing which antibiotic to use
-
-Once the model decides to start an antibiotic, it must choose *which* antibiotic. The choice depends on the information available at the time of prescribing.
-
-**Two modes of prescribing:**
-
-1. **Empiric therapy** — the treating team has no lab results yet and must choose a drug on syndromic grounds. The model uses syndrome-specific scoring templates (see below) to approximate this guideline-anchored prescribing. If there is no meaningful syndrome-specific signal, the candidate drug is treated as ineffective and is heavily penalised rather than being allowed to compete on generic properties alone.
-
-2. **Targeted therapy** — lab results have identified the bacterium and its susceptibility profile. The treating team can now choose a drug known to work. The model strongly rewards narrow-spectrum choices at this stage (×5.0 bonus for narrow-spectrum drugs) and penalises unnecessary broad-spectrum use (×0.1 penalty), reflecting the principle of antibiotic de-escalation that sits at the core of antimicrobial stewardship guidance and is supported by hospital stewardship evidence from Europe and Asia (Barlam TF et al., 2016; Schuts EC et al., 2016; Lee CF et al., 2018).
-
-**Drug scoring algorithm:**
-
-For each candidate drug, the model calculates a score based on several factors. The final candidate scores are placed into a weighted index (probabilistic selection) using a temperature-scaled power function: `Weight = Score^(1.0 / Temperature)`. The baseline `drug_selection_temperature` is **0.55**. A lower temperature makes prescribing more deterministic (strongly favouring the highest score), while a higher temperature reflects stochastic variance (idiosyncratic prescribing habits) in clinical settings. 
-
-| Scoring factor | Empiric phase | Targeted phase | What it captures |
-|---------------|---------------|----------------|-----------------|
-| Syndrome-specific template score | Primary driver | Secondary | How well this drug matches guidelines for the infection site |
-| Spectrum width | Slight bonus (×0.85) for broad-spectrum | Strong penalty (×0.1) for broad-spectrum | Empiric phase favours broader coverage; targeted phase rewards spectrum minimisation |
-| Known ineffectiveness | Near-zero score (×0.001) | Near-zero score (×0.001) | Never select a drug that is known to not work |
-| Narrow-spectrum bonus | — | ×5.0 | Reward de-escalation to targeted therapy |
-
-
-
-**Restricted niche agents:** Some drugs are hard-blocked outside their clinically plausible niche. In particular, **retapamulin** and **fusidic acid** are restricted to **skin/soft-tissue prescribing contexts** and are excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy they are only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (namely *Staphylococcus aureus* or *Streptococcus pyogenes*). This is intended to reflect their main clinical role as topical or narrowly targeted anti-staphylococcal/anti-impetigo agents rather than general systemic therapy (Stevens DL et al., 2014; Koning S et al., 2012).
-
-The same site-restriction logic is applied to other compartment-limited agents. **Nitrofurantoin** and **fosfomycin** are limited to genuine uncomplicated lower-UTI contexts and are excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts. **Furazolidone** is modeled separately as a **GI-local agent** rather than a urinary drug, so it is only eligible in GI-only syndromes and is likewise excluded from sepsis, bloodstream infection, and non-GI prescribing contexts. This keeps these agents from competing as generic systemic therapy when their clinical role is anatomically narrow (Gupta K et al., 2011).
-
-**Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:
-
-| Local resistance rate | Empiric score penalty | Clinical parallel |
-|----------------------|----------------------|------------------|
-| >60% resistant | ×0.3 | Drug dropped from guidelines (e.g., ciprofloxacin for *E. coli* UTI in South-East Asia) |
-| >45% resistant | ×0.5 | Drug used cautiously, alternatives preferred |
-| >10% resistant | ×0.8 | Drug still used but with awareness of resistance risk |
-
-
-
-The syndrome scoring tables below are therefore stylised prescribing-preference weights, not literal market-share estimates for each antibiotic. They are designed to preserve broad world-recognisable clinical tendencies such as narrower outpatient UTI therapy, broader empiric treatment for sepsis and intra-abdominal infection, and de-escalation after microbiology results, while allowing the realised prescribing mix to emerge from access constraints, testing availability, and resistance feedback.
-
-
-#### Treatment cessation — stopping antibiotics
-
-Patients stop their antibiotic course based on several factors.
-
-These values are best interpreted as **daily probabilities of prematurely stopping treatment**, not as the inverse of total course length. They are dropout hazards calibrated so that most patients remain on therapy through a guideline-like treatment window, reflecting growing evidence that shorter courses are often non-inferior for many common infections (Llewelyn MJ et al., 2017).
-
-| Scenario | Daily stop probability | Approximate implication | Real-world parallel |
-|----------|----------------------|-------------------------|-------------------|
-| Default course | 0.45% per day | About 94% of patients are still on treatment by day 14 | Standard course for many infections |
-| No active infection found | 15% per day | Rapid discontinuation over the next few days once infection seems absent | Antibiotics stopped when investigation shows no infection |
-| Cholera / *E. coli* GI | 2.5% per day | Supports short-course therapy, with most patients still on treatment through about 3-5 days | Short courses per guidelines |
-| *S. aureus* / *S. pneumoniae* | 1.5% per day | About 90% of patients are still on treatment by day 7 | Standard courses |
-| MDR-TB | 0.06% per day | About 90% of patients are still on treatment by 6 months before regional adherence modifiers | Prolonged anti-TB regimens |
-
-A constant daily stop probability of 0.45% does not imply an average course of 14 days; rather, it means treatment is only rarely interrupted on any given day, so most courses extend to approximately two weeks.
-
-
-
-#### Syndrome-specific empiric scoring templates
-
-The tables below show which drugs score highest for empiric prescribing in each syndrome. Higher scores mean the drug is more likely to be selected. These templates are calibrated to match real-world prescribing guidelines — for example, nitrofurantoin and trimethoprim-sulfamethoxazole score highest for UTI, while piperacillin-tazobactam and meropenem score highest for bloodstream infections.
-
-**Syndrome 1 — UTI** *(most common bacterial infection; oral `pen`, `bli`, and `c1_2g` agents plus `sulf` are preferred, with `fq`, `nitrofurans`, and `phosphonic_acids` alternatives)*
-
-| Drug | Score |
-|------|-------|
-| trim_sulf | 14.0 |
-| amoxicillin_clavulanate | 14.0 |
-| amoxicillin | 12.0 |
-| ciprofloxacin | 12.0 |
-| ampicillin | 10.0 |
-| levofloxacin | 10.0 |
-| nitrofurantoin | 8.0 |
-| cephalexin | 8.0 |
-| ceftriaxone | 8.0 |
-| cefazolin | 7.0 |
-| cefuroxime | 7.0 |
-| piperacillin_tazobactam | 5.0 |
-| cefepime | 4.0 |
-| ceftazidime | 4.0 |
-| meropenem | 4.0 |
-| imipenem_c | 4.0 |
-| ertapenem | 4.0 |
-| meropenem_vaborbactam | 3.0 |
-| ceftazidime_avibactam | 3.0 |
-
-
-
-**Syndrome 2 — Skin/Soft Tissue** *(anti-staphylococcal and streptococcal coverage; `pen`, `c1_2g`, `glyc`, `lipoglycopeptides`, and `oxa` dominate, while `pleuromutilins` remain niche topical agents)* (Stevens DL et al., 2014)
-
-| Drug | Score |
-|------|-------|
-| penicillin_g | 16.0 |
-| amoxicillin | 14.0 |
-| amoxicillin_clavulanate | 14.0 |
-| ampicillin | 13.0 |
-| cephalexin | 13.0 |
-| cefazolin | 12.0 |
-| clindamycin | 12.0 |
-| vancomycin | 11.0 |
-| linezolid | 10.0 |
-| trim_sulf | 9.0 |
-| doxycycline | 9.0 |
-| minocycline | 9.0 |
-| tedizolid | 9.0 |
-| dalbavancin | 9.0 |
-| quinu_dalfo | 8.0 |
-| ciprofloxacin | 4.0 |
-| piperacillin_tazobactam | 3.0 |
-
-
-
-**Syndrome 3 — Respiratory** *(community-acquired pneumonia pattern: a `pen`/`bli` backbone plus `mls` atypical cover; amoxicillin-clavulanate and penicillins score highest)* (Metlay JP et al., 2019)
-
-| Drug | Score |
-|------|-------|
-| amoxicillin_clavulanate | 20.0 |
-| amoxicillin | 17.0 |
-| penicillin_g | 16.0 |
-| ampicillin | 15.0 |
-| azithromycin | 12.0 |
-| clarithromycin | 11.0 |
-| ceftriaxone | 9.5 |
-| erythromycin | 9.0 |
-| cefuroxime | 8.5 |
-| piperacillin_tazobactam | 8.0 |
-| levofloxacin | 8.0 |
-| moxifloxacin | 8.0 |
-| cefepime | 7.5 |
-| cephalexin | 7.0 |
-| linezolid | 7.0 |
-| doxycycline | 6.5 |
-| vancomycin | 6.5 |
-| meropenem | 6.0 |
-| imipenem_c | 6.0 |
-| ofloxacin | 6.0 |
-| minocycline | 5.5 |
-
-
-
-**Syndrome 4 — Bloodstream** *(medical emergency; `bli`, `bli_anti_pseudomonal`, `bli_sulbactam`, `carb_group2`, and other broad IV agents with strong bactericidal activity dominate)* (Rhodes A et al., 2016)
-
-| Drug | Score |
-|------|-------|
-| piperacillin_tazobactam | 18.0 |
-| ampicillin_sulbactam | 16.0 |
-| amoxicillin_clavulanate | 16.0 |
-| meropenem | 13.0 |
-| imipenem_c | 13.0 |
-| meropenem_vaborbactam | 13.0 |
-| ceftazidime_avibactam | 12.5 |
-| cefepime | 12.0 |
-| ceftazidime | 11.0 |
-| vancomycin | 11.0 |
-| ceftriaxone | 10.0 |
-| ampicillin | 10.0 |
-| linezolid | 10.0 |
-| amoxicillin | 9.5 |
-| tedizolid | 9.0 |
-| quinu_dalfo | 8.5 |
-| dalbavancin | 8.0 |
-| penicillin_g | 6.5 |
-| cefazolin | 6.0 |
-| ciprofloxacin | 6.0 |
-| levofloxacin | 5.5 |
-| cephalexin | 4.0 |
-| gentamicin | 1.0 |
-| tobramycin | 1.0 |
-| amikacin | 1.0 |
-
-
-
-**Syndrome 5 — Intra-abdominal** *(must cover Gram-negatives and anaerobes; `bli`, `bli_anti_pseudomonal`, `bli_sulbactam`, `carb_group1`, and `carb_group2` are preferred)* (Solomkin JS et al., 2010)
-
-| Drug | Score |
-|------|-------|
-| piperacillin_tazobactam | 13.0 |
-| meropenem | 13.0 |
-| ampicillin_sulbactam | 12.5 |
-| imipenem_c | 12.5 |
-| amoxicillin_clavulanate | 11.5 |
-| ertapenem | 11.0 |
-| ceftazidime_avibactam | 10.0 |
-| meropenem_vaborbactam | 10.0 |
-| ceftazidime | 9.0 |
-| cefepime | 9.0 |
-| ceftriaxone | 9.0 |
-| ampicillin | 8.0 |
-| ciprofloxacin | 7.0 |
-| amoxicillin | 7.0 |
-| levofloxacin | 6.5 |
-| trim_sulf | 4.0 |
-| metronidazole | 2.5 |
-
-
-
-**Syndrome 6 — CNS** *(meningitis; only drugs that cross the blood-brain barrier are useful — see Section 6.4)* (Tunkel AR et al., 2004)
-
-| Drug | Score |
-|------|-------|
-| ceftriaxone | 15.0 |
-| ampicillin | 13.0 |
-| vancomycin | 13.0 |
-| ceftazidime | 12.0 |
-| cefepime | 12.0 |
-| penicillin_g | 11.0 |
-| meropenem | 11.0 |
-| linezolid | 10.0 |
-| imipenem_c | 10.0 |
-| piperacillin_tazobactam | 6.0 |
-| chloramphenicol | 2.0 |
-
-
-
-**Syndrome 7 — Gastrointestinal** *(`fq` and `mls` dominate uncomplicated bacterial gastroenteritis scoring, with oral `pen`, `bli`, and selected `nitrofurans` also present)*
-
-| Drug | Score |
-|------|-------|
-| ciprofloxacin | 12.0 |
-| azithromycin | 12.0 |
-| amoxicillin_clavulanate | 11.0 |
-| amoxicillin | 10.0 |
-| ampicillin | 10.0 |
-| levofloxacin | 10.0 |
-| ampicillin_sulbactam | 9.0 |
-| trim_sulf | 8.5 |
-| doxycycline | 8.5 |
-| minocycline | 6.5 |
-| penicillin_g | 5.0 |
-| cephalexin | 5.0 |
-| cefuroxime | 5.0 |
-| furazolidone | 3.0 |
-| metronidazole | 1.0 |
-
-
-
-**Syndrome 8 — Genital/Pelvic** *(STI guidelines: ceftriaxone + azithromycin for gonorrhoea; doxycycline for chlamydia; penicillin G for syphilis)* (Workowski KA et al., 2021)
-
-| Drug | Score |
-|------|-------|
-| penicillin_g | 14.0 |
-| azithromycin | 13.0 |
-| ceftriaxone | 13.0 |
-| doxycycline | 12.0 |
-| amoxicillin_clavulanate | 12.0 |
-| amoxicillin | 11.0 |
-| cefuroxime | 10.0 |
-| clindamycin | 9.0 |
-| ampicillin | 9.0 |
-| ampicillin_sulbactam | 8.0 |
-| ciprofloxacin | 7.0 |
-| levofloxacin | 6.5 |
-| cephalexin | 6.0 |
-| trim_sulf | 5.0 |
-| metronidazole | 1.0 |
-
-
-
-**Syndrome 9 — Bone/Joint** *(prolonged courses required; good bone penetration essential — `pen` including `flucloxacillin`, `c1_2g`/`c3g`, `fq`, `rifamycins`, and `oxa` feature prominently)*
-
-| Drug | Score |
-|------|-------|
-| penicillin_g | 14.0 |
-| cefazolin | 13.0 |
-| ampicillin | 12.0 |
-| vancomycin | 12.0 |
-| cephalexin | 11.0 |
-| ceftriaxone | 11.0 |
-| linezolid | 11.0 |
-| tedizolid | 10.0 |
-| dalbavancin | 10.0 |
-| clindamycin | 10.0 |
-| ciprofloxacin | 9.0 |
-| levofloxacin | 9.0 |
-| trim_sulf | 8.0 |
-| meropenem | 7.0 |
-| piperacillin_tazobactam | 6.5 |
-| rifampicin | 2.0 |
-
-This table is illustrative rather than exhaustive. `flucloxacillin` is part of the model's `pen` class and participates in the same prescribing logic even though it is not shown as a separate row in this abbreviated top-score summary.
-
-
-
-**Syndrome 10 — Other/Device-Related** *(broad empiric cover when site is uncertain; even scoring reflects clinical uncertainty)*
-
-| Drug | Score |
-|------|-------|
-| piperacillin_tazobactam | 8.0 |
-| cefepime | 8.0 |
-| ceftriaxone | 8.0 |
-| meropenem | 8.0 |
-| imipenem_c | 8.0 |
-| vancomycin | 8.0 |
-| linezolid | 7.0 |
-| ciprofloxacin | 7.0 |
-| azithromycin | 6.0 |
-
-
-
-### 6.3 Drug pharmacokinetics
-
-The model uses a simplified pharmacokinetic representation in which each drug has a **half-life** and a **starting level** at administration. Since the mutant selection window — where sub-therapeutic concentrations select for resistance rather than clearing it — is a key driver of emergence (see Section 7.3), the shape of the drug-level decay matters for downstream resistance dynamics.
-
-| Parameter | Default | What it represents |
-|-----------|---------|-------------------|
-| `drug_{name}_half_life_days` | Drug-specific | How quickly the drug is cleared from the body |
-| `drug_{name}_initial_level` | 10.0 | Drug level immediately after dosing |
-| `drug_{name}_double_dose_multiplier` | 2.0 | Level when a double dose is given |
-| `drug_{name}_spectrum_breadth` | 3.0 | How broadly the drug disrupts the microbiome (higher = kills more bystander bacteria = more collateral damage) |
-
-
-
-#### Selected drug half-lives
-
-Half-lives vary enormously — from penicillin G (cleared within an hour, needing frequent dosing) to dalbavancin (which persists for two weeks, enabling single-dose therapy):
-
-| Drug | Half-life (days) | Clinical note | Citation / source |
-|------|-----------------|---------------|-------------------|
-| penicillin_g | 0.042 (~1 hour) | Very short — needs IV infusion or frequent dosing | Brunton LL et al., 2018 |
-| ampicillin | 0.063 (~1.5 hours) | Short-acting penicillin | Brunton LL et al., 2018 |
-| meropenem | 0.042 (~1 hour) | Short — given as IV infusion TDS | Brunton LL et al., 2018 |
-| cefiderocol | 0.10 (~2.4 hours) | Short-acting novel siderophore cephalosporin | Wunderink RG et al., 2021 |
-| ciprofloxacin | 0.17 (~4 hours) | Moderate — allows twice-daily oral dosing | Brunton LL et al., 2018 |
-| linezolid | 0.21 (~5 hours) | Moderate | Brunton LL et al., 2018 |
-| vancomycin | 0.25 (~6 hours) | Requires therapeutic drug monitoring | Rybak MJ et al., 2020 |
-| sulfanilamide | 0.29 (~7 hours) | Historical agent | Brunton LL et al., 2018 |
-| ceftriaxone | 0.33 (~8 hours) | Long enough for once-daily dosing | Brunton LL et al., 2018 |
-| doxycycline | 0.75 (~18 hours) | Long — convenient once or twice-daily oral | Brunton LL et al., 2018 |
-| azithromycin | 2.92 (~70 hours) | Very long tissue half-life — enables 3–5 day courses | Brunton LL et al., 2018 |
-| dalbavancin | 14.0 (2 weeks) | Ultra-long — allows single-dose outpatient treatment | Dunne MW et al., 2016 |
-
-
-
-#### Spectrum breadth — collateral damage to the microbiome
-
-Since broad-spectrum agents exert collateral selection pressure on the commensal microbiome — creating ecological niches for resistant organisms — the model represents spectrum breadth in two related but distinct ways.
-
-Specifically:
-
-1. `spectrum_breadth` is a stewardship-facing drug property used when scoring treatment choices. In empiric therapy it favors broader agents when coverage is uncertain, while in targeted therapy it rewards de-escalation toward narrower agents once the pathogen is identified.
-2. The longer ecological consequence is handled through each drug's `microbiome_disruption_log_odds`, which accumulates into a persistent `microbiome_disruption_level` reservoir. That reservoir decays over time rather than disappearing immediately when treatment stops, and it directly raises the log-odds of later microbiome acquisition events.
-
-The model consequence is not limited to broader initial coverage. Broader therapy influences prescribing behavior up front, and microbiome disruption leaves a persistent ecological effect that can increase later carriage risk even after the course has finished.
-
-Illustrative `spectrum_breadth` values:
-
-| Drug | Breadth | Meaning |
-|------|---------|---------|
-| penicillin_g | 2.0 (Narrow) | Minimal disruption to the microbiome |
-| linezolid | 2.0 (Narrow) | Targets Gram-positives only |
-| vancomycin | 2.5 (Narrow-medium) | Mainly Gram-positive spectrum |
-| trim_sulf | 3.5 (Medium-broad) | Moderate disruption |
-| azithromycin | 4.0 (Broad) | Significant microbiome disruption |
-| ceftriaxone | 4.0 (Broad) | Major disruption; linked to *C. difficile* risk (Slimings C et al., 2021) |
-| ciprofloxacin | 4.5 (Very broad) | Extensive gut microbiome disruption |
-| meropenem | 5.0 (Very broad) | Maximum disruption — the broadest-spectrum agent |
-
-Operationally, this means broad-spectrum therapy can affect the simulation in two downstream places: first by making a drug more attractive for empirical cover but less attractive for narrow targeted de-escalation, and second by increasing later colonization pressure through the microbiome-disruption reservoir that feeds carriage acquisition.
-
-
-
-### 6.4 Drug penetration by syndrome
-
-Since tissue penetration determines whether an antibiotic achieves adequate site concentrations, the model assigns penetration coefficients for each drug–syndrome pair. The pharmacokinetic distinctions most relevant to AMR involve:
-
-- **CNS (meningitis):** The blood-brain barrier blocks most antibiotics. Only a few drugs (ceftriaxone, metronidazole, chloramphenicol, linezolid) achieve therapeutic levels in cerebrospinal fluid.
-- **Bone/joint:** Drugs must penetrate dense, poorly vascularised tissue. `rifamycins` and `fq` agents penetrate well; `ag_group1` and `ag_group2` do not.
-- **Bloodstream:** By definition, any IV drug achieves full levels here (penetration = 1.0 for all drugs).
-
-Penetration values range from 0.0 (no drug reaches the site) to 1.0 (full systemic concentration available):
-
-| Syndrome | Best penetration | Poorest penetration |
-|----------|-----------------|---------------------|
-| UTI (1) | `fq`, `sulf`, `nitrofurans`, `phosphonic_acids` (up to 1.0) | `mls` (0.4), `lincosamides` (0.3), `lipopeptides` (0.1) |
-| Skin (2) | `lipopeptides` (0.95), `fq` (0.9), `oxa` (0.9) | `nitrofurans` (0.2) |
-| Respiratory (3) | `mls` (0.95), `fq` (0.95), `oxa` (0.9) | `lipopeptides` (0.0), `ag_group1`/`ag_group2` (0.4) |
-| Bloodstream (4) | All 1.0 (reference compartment) | — |
-| Intra-abdominal (5) | `nitroimidazoles` (0.9), `fq` (0.75), `carb_group1`/`carb_group2` (0.75) | `ag_group1`/`ag_group2` (0.3) |
-| CNS (6) | `nitroimidazoles` (0.80), `oxa` (0.70), `chl` (0.70) | `ag_group1`/`ag_group2` (0.05), `poly` (0.05), `lipopeptides` (0.05) |
-| GI (7) | `macrocycles` (1.0), `nitroimidazoles` (0.95), oral `glyc` (0.90) | IV `glyc`/`lipoglycopeptides` (0.35) |
-| Genital (8) | `fq` (0.9), `nitroimidazoles` (0.8), `sulf` (0.8) | `ag_group1`/`ag_group2` (0.35) |
-| Bone/joint (9) | `rifamycins` (0.80), `oxa` (0.75), `fq` (0.70) | `ag_group1`/`ag_group2` (0.25), `poly` (0.2) |
-
-
-
-These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if the bacterium is fully susceptible.
-
-
-### 6.5 Drug potency matrix
-
-Since intrinsic susceptibility differs by organism, the model encodes a **potency matrix** — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.
-
-Values range from 0.0 (no activity — the drug simply does not work against this organism) to 1.0 (maximum activity). These potency values are based on published MIC (minimum inhibitory concentration) data and clinical breakpoints. If an organism is intrinsically resistant to a drug (defined as having a baseline potency $\le 0.1$), the model strictly prevents any *acquired* resistance mechanisms from being erroneously assigned to or tracked for that organism-drug pair (e.g., *Mycoplasma*, which lacks a cell wall, cannot acquire PBP mutations against penicillins).
-
-Key examples:
-- Meropenem vs *E. coli*: 0.95 (very high potency — a carbapenem is one of the most effective drugs against Gram-negatives)
-- Vancomycin vs *E. coli*: 0.0 (vancomycin does not work against Gram-negative bacteria)
-- Ceftriaxone vs *S. pneumoniae*: 0.90 (standard treatment for pneumococcal meningitis)
-
-
-
-### 6.6 Drug availability by region and era
-
-The model simulates antibiotics becoming available at their historical introduction dates. Before sulfanilamide was introduced in 1937, there were no antibiotics in the model. Before penicillin G was introduced in 1942, the `pen` era had not yet begun. Before ciprofloxacin was introduced in 1987, the model had no `fq` agents. This historical layering is essential for reproducing the sequential emergence of resistance over the 20th century.
-
-**Regional availability:** Even after a drug is introduced globally, not all regions have equal access. Newer, more expensive drugs may be unavailable or rarely used in low-income settings:
-
-| Region | Access pattern |
-|--------|---------------|
-| North America | Full access to all drugs |
-| Europe | Full access to all drugs |
-| Asia | Most drugs available; limited access to tedizolid, ceftaroline (30%) |
-| Oceania | Good access; limited novel agents (50%) |
-| South America | Limited newer drugs (tedizolid 10%, linezolid 50%, carbapenems 60–70%) |
-| Africa | Basic antibiotics available (80–100%); ceftriaxone 60%; vancomycin 30%; carbapenems 10–20%; most novel drugs 0–10% |
-
-
-
-This has major implications for AMR: in Africa, where carbapenems are rarely available, carbapenem resistance may emerge more slowly — but when it does arrive (via travel or HGT), there are no last-resort drugs available to treat it.
-
-These availability tiers should be interpreted as qualitative access strata rather than audited procurement shares. They summarize broad world patterns in which older essential antibiotics are much more widely available than newer reserve agents, and in which stewardship, financing, regulatory approval, supply-chain reliability, and laboratory support jointly determine whether a drug is realistically usable in practice (WHO GLASS, 2026; WHO, 2025).
-
-
-
-#### Drug introduction dates
-
-The 61 antibiotics in the model span 88 years of pharmaceutical development:
-
-| Drug | ~Year | Drug | ~Year |
-|------|-------|------|-------|
-| sulfanilamide | 1937 | ceftriaxone | 1984 |
-| penicillin_g | 1942 | piperacillin_tazobactam | 1984 |
-| tetracycline | 1948 | ceftazidime | 1985 |
-| chloramphenicol | 1949 | imipenem_c | 1985 |
-| colistin | 1952 | amoxicillin_clavulanate | 1985 |
-| erythromycin | 1952 | aztreonam | 1986 |
-| nitrofurantoin | 1953 | ciprofloxacin | 1987 |
-| furazolidone | 1955 | teicoplanin | 1988 |
-| vancomycin | 1958 | ampicillin_sulbactam | 1990 |
-| fosfomycin | 1959 | clarithromycin | 1990 |
-| metronidazole | 1960 | ofloxacin | 1990 |
-| ampicillin | 1961 | azithromycin | 1991 |
-| fusidic_a | 1962 | cefepime | 1996 |
-| gentamicin | 1963 | meropenem | 1996 |
-| rifampicin | 1966 | levofloxacin | 1996 |
-| doxycycline | 1967 | moxifloxacin | 1999 |
-| clindamycin | 1968 | linezolid | 2000 |
-| trim_sulf | 1968 | ertapenem | 2001 |
-| cephalexin | 1970 | daptomycin | 2005 |
-| minocycline | 1971 | ceftazidime_avibactam | 2006 |
-| amoxicillin | 1972 | tigecycline | 2007 |
-| cefazolin | 1973 | ceftaroline | 2010 |
-| tobramycin | 1975 | fidaxomicin | 2011 |
-| amikacin | 1976 | tedizolid | 2014 |
-| ticarcillin | 1977 | dalbavancin | 2014 |
-| cefuroxime | 1978 | ceftolozane_tazobactam | 2014 |
-| piperacillin | 1981 | meropenem_vaborbactam | 2018 |
-| ticarcillin_clavulanate | 1990 | cefiderocol | 2019 |
-| quinu_dalfo | 1999 | retapamulin | 2007 |
-
-The canonical list also includes `flucloxacillin` (~1970), `cefixime` (~1989), and `aztreonam_avibactam` (~2025).
-
-
-
-**Special case — Colistin:** Colistin was introduced in 1952 but withdrawn from routine use between ~1970 and ~1995 due to severe nephrotoxicity. It was then reintroduced as a last-resort agent for multi-drug-resistant Gram-negative infections (Li J et al., 2006). The model reflects this by dropping colistin availability to 5% during the withdrawal window.
-
-
-
-### 6.7 Drug toxicity
-
-Antibiotics are not without harm. Some drugs — particularly `ag_group1`/`ag_group2` agents (nephrotoxicity, ototoxicity) and `poly` (`colistin`, nephrotoxicity) — carry significant toxicity risks. The model simulates drug toxicity as a **reservoir** that accumulates with continued use and decays when the drug is stopped.
-
-Toxicity can cause two outcomes:
-
-**1. Drug discontinuation (sub-lethal toxicity):** When toxicity accumulates, the treating clinician may stop the drug. This is the more common outcome; for example, rising creatinine during gentamicin exposure may prompt a switch to a less nephrotoxic alternative. The model implements this as a **threshold check**: each day, the combined daily toxicity death risk (see below) is computed; if it exceeds a sub-lethal threshold, the drug with the highest toxicity reservoir is discontinued.
-
-| Factor | Parameter | Value | Effect |
-|--------|-----------|-------|--------|
-| Sub-lethal threshold | `toxicity_discontinuation_threshold` | 0.00001 | When the daily toxicity death risk exceeds this level, the most-toxic active drug is stopped |
-| Recent toxicity avoidance | Avoidance penalty | ×0.001 (1000× penalty) | After stopping a drug for toxicity, it receives a strong prescribing penalty during the avoidance window |
-| Avoidance window | `toxicity_discontinuation_avoidance_days` | 30 days | How long the prescriber avoids re-prescribing the toxicity-stopped drug |
-
-
-
-**2. Drug-related death (lethal toxicity):** Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure. The model uses a **multiplicative hazard** model: each drug has a per-unit daily hazard rate (typically in the 10⁻⁸ range), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.
-
-| Factor | Parameter | Value | Effect |
-|--------|-----------|-------|--------|
-| Drug-specific hazard | Per-drug hazard rate | ~10⁻⁸ (varies by drug) | Colistin and aminoglycosides carry the highest per-unit hazard |
-| Infant vulnerability | `toxicity_age_multiplier_infant` | ×1.8 | Neonates more vulnerable to drug toxicity |
-| Child vulnerability | `toxicity_age_multiplier_child` | ×1.2 | Moderate additional risk |
-| Adult (reference) | `toxicity_age_multiplier_adult` | ×1.0 | Reference group |
-| Elderly vulnerability | `toxicity_age_multiplier_elderly` | ×2.2 | Highest toxicity vulnerability — reduced renal clearance, polypharmacy |
-| Immunosuppressed | `toxicity_immunosuppressed_multiplier` | ×2.5 | Immune compromise increases toxicity risk |
-| Hospitalised | `toxicity_hospital_multiplier` | ×1.3 | Hospitalised patients are often sicker but also monitored |
-
-
-
-### 6.8 Antibiotic infection prevention
-
-Patients who are already receiving an effective antibiotic are partially protected against acquiring new infections — a familiar prophylaxis principle (Bratzler DW et al., 2013).
-
-The model applies a 70% reduction in new infection risk for susceptible organisms when the patient is already on an active antibiotic (`antibiotic_infection_prevention_efficacy` = 0.7). This does *not* protect against resistant organisms — a crucial point, because it means patients on antibiotics are selectively more likely to acquire resistant infections relative to susceptible ones, creating further selection pressure for resistance.
----
-
-
-## 7. Resistance Dynamics
-
-This section describes how the model represents the biology of resistance emergence and spread. It maps the model's internal representation onto the resistance patterns seen in routine clinical microbiology reports — for example, when a laboratory report reads "ESBL-producing *E. coli*", the model tracks the specific enzyme class (CTX-M, TEM, or SHV) that produces that phenotype, which drugs it affects, and how it spreads.
-
-The model tracks resistance at the level of individual **mechanisms** — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant *K. pneumoniae*") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.
-
-**Mechanism-centric architecture.** All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (`mechanism_any`), majority strain (`mechanism_majority`), and microbiome carriage (`mechanism_microbiome`). The scalar resistance metrics (`any_r`, `activity_r`) reported in outputs are **derived** from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified `MechanismCache` maintains the population-level picture as a reservoir of up to 1000 complete clinical resistance genotypes per region × care setting × bacterium (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with asymmetric profile retention (hospital profiles persist ~139-day half-life; community profiles ~69-day half-life — see Section 3.4), preserves a resistant exemplar in slots with resistant history during refresh, derives prevalence directly from the stored profiles, and applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology.
-
-
-### 7.1 Resistance mechanisms
-
-The model explicitly tracks **40** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
-
-The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) hit `pen`, `c1_2g`, `c3g`, `c4g`, and related monobactam-active entries but not `carb_group1`/`carb_group2`, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well.
-
-
-  | Mechanism | Variable name | Description | Explicit Drugs Affected | Bacterial Classes Affected |
-  |-----------|--------------|-------------|-------------------------|----------------------------|
-   | ESBL CTX-M | `esbl_ctx_m` | Extended-spectrum β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | ESBL TEM | `esbl_tem` | Extended-spectrum β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | ESBL SHV | `esbl_shv` | Extended-spectrum β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | AmpC CMY | `ampc_cmy` | Plasmid-mediated AmpC β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | AmpC DHA | `ampc_dha` | Plasmid-mediated AmpC β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | KPC | `kpc` | *K. pneumoniae* carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | NDM/VIM | `ndm_vim` | Metallo-β-lactamases | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-   | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
-  | blaZ | `blaz` | Staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin` | Gram-Positives |
-  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Gram-Positives, Helicobacter |
-  | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Gram-Positives, Helicobacter |
-  | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Gram-Positives, Helicobacter |
-  | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `ciprofloxacin`, `ofloxacin` | All |
-  | GyrA + ParC | `gyra_parc` | Additional topoisomerase mutation | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | All |
-  | Qnr | `qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | 16S rRMT | `16s_rrmt` | 16S rRNA methyltransferase | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Gram-Positives |
-  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Gram-Positives, Anaerobes, Fastidious, Helicobacter |
-  | 23S rRNA | `23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Gram-Positives |
-  | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Gram-Positives, Anaerobes, Fastidious, Helicobacter |
-  | CAT | `cat` | Chloramphenicol acetyltransferase | `chloramphenicol` | All |
-  | MCR-1 | `mcr_1` | Mobilised colistin resistance | `colistin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | AcrAB-TolC | `acrab_tolc` | Gram-negative efflux pump | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | MexXY-OprM | `mexxy_oprm` | Pseudomonas-specific efflux pump | `tetracycline`, `doxycycline`, `minocycline`, `gentamicin`, `tobramycin`, `amikacin`, `chloramphenicol`, `ciprofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | Global eff. | `global_efflux` | Non-specific efflux upregulation | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | All |
-  | TetA/B/C | `tet_abc` | Gram-negative tetracycline efflux | `tetracycline`, `doxycycline` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious |
-  | TetM/TetO | `tetm` | Ribosomal protection | `tetracycline`, `doxycycline`, `minocycline` | All |
-  | OmpK35/36 | `ompk35_36` | Outer membrane porin loss (Klebsiella) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | Global por. | `global_porin_loss` | Non-specific porin downregulation | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | All |
-  | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
-  | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
-  | FosA | `fosa` | Fosfomycin-modifying enzyme | `fosfomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens |
-  | MprF | `mprf` | Membrane charge modification | `daptomycin` | Gram-Positives |
-  | RpoB | `rpob` | RNA polymerase mutation | `fidaxomicin` | All |
-  | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Gram-Positives |
-  | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam` | All |
-  | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
-   | Unknown | `as_yet_unknown` | Placeholder mechanism (dormant) | Evaluates `true` dynamically for all applied overrides | All (Calibration Placeholder) |
-
-
-
-### 7.2 Mechanism–drug-class enhancement multipliers
-
-When a bacterium possesses a resistance mechanism, it does not simply become immune to every drug. Instead, each mechanism **reduces** drug efficacy by a specific amount. The "enhancement multiplier" (0.0–1.0) represents **how much** of a drug's effectiveness is knocked out:
-
-- **0.0** = the mechanism has no effect on this drug (e.g., a tetracycline efflux pump does nothing against meropenem)
-- **0.95** = the mechanism eliminates 95% of the drug's activity (e.g., NDM metallo-β-lactamase virtually destroys carbapenem efficacy)
-- **1.0** = complete resistance (the drug is useless)
-
-In clinical terms, an enhancement multiplier of 0.80 for ESBL CTX-M against cephalosporins means: if a patient has an ESBL-producing *E. coli* UTI treated with ceftriaxone, the drug retains only 20% of its normal killing power — enough to provide some marginal activity but not enough to reliably cure the infection.
-
-There are 40 mechanisms × 39 drug classes = 1,560 individual values. The table below shows the **current global default** multiplier for the major mechanisms discussed most often in the text (used when a specific per-class value has not been configured):
-
-These enhancement multipliers should be interpreted as qualitative within-model effect sizes rather than literal MIC shifts or breakpoint translations. Their role is to preserve the clinically familiar ordering in which carbapenemases, van genes, and key target-site alterations have very large effects, whereas efflux and permeability mechanisms are usually weaker on their own, while final realised resistance still depends on baseline potency, site penetration, and combination with other mechanisms.
-
-| Mechanism | Multiplier | Clinical interpretation |
-|-----------|-----------|----------------------|
-| NDM/VIM | 0.95 | Near-complete resistance — these metallo-β-lactamases destroy almost all β-lactams |
-| VanA | 0.99 | Near-complete vancomycin resistance |
-| KPC | 0.95 | Very high — KPC carbapenemases severely compromise carbapenems |
-| PBP2a/MecA | 0.99 | Very high — defines MRSA; eliminates nearly all β-lactam activity |
-| ESBL CTX-M | 0.80 | High — but β-lactamase inhibitor combinations retain partial activity |
-| VanB | 0.99 | Very high vancomycin resistance |
-| GyrA + ParC | 0.95 | High-level fluoroquinolone resistance (double mutation) |
-| 16S rRMT | 0.95 | High-level aminoglycoside resistance |
-| ESBL TEM | 0.60 | Moderate-high |
-| OXA-48 | 0.60 | Moderate-high — but with variable carbapenem MICs |
-| ErmB | 0.90 | MLS-B resistance (macrolides, lincosamides) |
-| RpoB | 0.95 | Rifampicin resistance |
-| ESBL SHV | 0.60 | Moderate-high |
-| Cfr | 0.95 | Cross-resistance to oxazolidinones and phenicols |
-| AmpC CMY/DHA | 0.70 | Moderate-high — overcomes β-lactamase inhibitors too |
-| CAT | 0.90 | Chloramphenicol resistance |
-| GyrA primary | 0.40 | First-step fluoroquinolone resistance (partial) |
-| Folate pathway | 0.85 | Trimethoprim-sulfamethoxazole resistance |
-| FusB | 0.70 | Fusidic acid resistance |
-| FosA | 0.80 | Fosfomycin resistance |
-| MCR-1 | 0.85 | Colistin resistance — critically important as colistin is the last resort |
-| Nitroreductase | 0.70 | Nitrofurantoin resistance |
-| OprD | 0.80 | Porin loss — carbapenem resistance (mainly in *Pseudomonas*) |
-| MprF | 0.60 | Daptomycin resistance |
-| OmpK35/36 | 0.80 | Porin loss — broad resistance in Enterobacterales |
-| Qnr | 0.20 | Low-level quinolone resistance (facilitates further mutation) |
-| Global porin loss | 0.20 | Broad, non-specific resistance via reduced permeability |
-| MexXY-OprM | 0.30 | Efflux pump — aminoglycoside/FQ resistance in *Pseudomonas* |
-| AcrAB-TolC | 0.30 | Gram-negative efflux — modest broad-spectrum resistance |
-| Global efflux | 0.20 | Non-specific efflux — weakest single mechanism |
-| As-yet-unknown | 0.50 | Calibration placeholder |
-
-
-
-### 7.3 Resistance emergence
-
-This subsection concerns **de novo resistance emergence during treatment**. In the current model, that pathway is only evaluated when a patient is actively exposed to antibiotics. Other routes can still introduce resistance without a new mutation event, including acquisition of already-resistant strains, inheritance from the microbiome, and horizontal transfer.
-
-**Sub-therapeutic exposure and resistance emergence:**
-
-Given the familiar mutant selection window framework (Drlica K et al., 2007), the model parameterises emergence probability as a function of drug concentration that peaks at intermediate exposure:
-
-- **Very low drug levels:** Minimal selective pressure; resistant and susceptible subpopulations have little differential advantage.
-- **Sub-therapeutic levels:** Susceptible bacteria are differentially suppressed while resistant mutants retain a survival advantage — the peak of the emergence curve.
-- **Full therapeutic levels:** Both susceptible and resistant bacteria are strongly suppressed.
-
-Within this framework, incomplete courses, poor adherence, and underdosing matter because they extend the time spent in the sub-therapeutic selection window.
-
-**The emergence formula:**
-
-For de novo emergence in an active infection under antibiotic exposure, the model calculates:
-
-```
-emergence_rate = mechanism_rate
-               × infection_de_novo_multiplier
-               × counterfactual_resistance_multiplier
-               × (1 + bacteria_level_factor)
-               × max_emergence_drug_factor
-               × multi_drug_penalty_factor
-```
-
-| Factor | What it represents | Clinical analogy |
-|--------|-------------------|------------------|
-| `mechanism_rate` | How biologically likely this bacterium is to acquire this specific mechanism | Some mutations are common (e.g., *gyrA* point mutations); others are extremely rare (e.g., acquiring NDM by conjugation) |
-| `infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level and scenario-level scaling applied on top of the organism-specific baseline | Allows calibrated pathway-wide or policy-scenario changes without rebuilding the mechanism table |
-| `bacteria_level_factor` | Logarithmic scaling by bacterial load | A bloodstream infection with 10⁸ bacteria generates more mutants per day than a colonisation with 10⁴ |
-| `max_emergence_drug_factor` | Drug-exposure term based on the highest relevant site-level exposure window across active drugs | Resistance emergence is maximal in the intermediate exposure window rather than at either absent or fully suppressive concentrations |
-| `multi_drug_penalty_factor` | Suppression when multiple relevant drugs are used together | Combination therapy (e.g., meropenem + amikacin) makes it much harder for a single mechanism to confer survival |
-
-
-
-#### Organism-specific emergence calibration
-
-The current model does **not** use a small number of discrete incidence-band multipliers. Instead, de novo resistance emergence is parameterised directly at the **bacterium-mechanism** level. Each organism therefore has its own baseline emergence profile across the mechanism catalogue, with zeros retained for biologically implausible combinations (for example, *S. pyogenes* acquiring NDM-type carbapenemase remains disallowed).
-
-For active infection, the daily hazard for a given mechanism is:
-
-```
-mechanism_emergence_rate = mechanism_rate
-                          × infection_de_novo_multiplier
-                          × counterfactual_resistance_multiplier
-                          × (1 + bacteria_level_factor)
-                          × max_emergence_drug_factor
-                          × multi_drug_penalty_factor
-```
-
-The additional terms do distinct jobs:
-
-| Term | Current role in the model |
-|------|---------------------------|
-| `mechanism_rate` | Organism-specific baseline for that exact mechanism |
-| `bacteria_level_factor` | Log-scaled increase with within-host bacterial burden, bounded by the configured organism maximum |
-| `max_emergence_drug_factor` | Drug-exposure effect, highest at intermediate site concentrations and low at both minimal and fully suppressive exposure |
-| `multi_drug_penalty_factor` | Suppression of emergence when two or more relevant drugs are active and the candidate mechanism covers only part of the regimen |
-| `infection_de_novo_multiplier` / `counterfactual_resistance_multiplier` | Run-level or scenario-level scaling applied without changing the organism-specific baseline table |
-
-In the current architecture, population realism is distributed across three parts of the model: organism-specific infection acquisition parameters determine how often each pathogen appears, organism-specific mechanism baselines determine which resistance pathways are plausible and how readily they arise, and within-host modifiers determine whether the ecological conditions for emergence are present on a given day.
-
-The microbiome pathway is simpler. While on antibiotic exposure, microbiome emergence uses the same organism-mechanism baseline table and applies the microbiome de novo multiplier and counterfactual scaling, but it does not use the infection-burden or drug-window terms described above.
-
-These parameters should therefore be read as **effective emergence hazards** rather than literal mutation-rate measurements. They absorb biology, treatment ecology, and calibration targets jointly through explicit organism-mechanism parameterisation rather than through a separate incidence-band layer.
-
-
-
-
-### 7.4 Resistance reversion and fitness costs
-
-Since fitness costs mean resistant bacteria often replicate more slowly than susceptible competitors in the absence of antibiotic pressure (Andersson DI et al., 2010), resistance can gradually decline when drug use is reduced. The model assigns each mechanism a daily **reversion rate** — the probability of losing resistance per day when no antibiotic pressure is present. Higher rates mean the mechanism is "expensive" and lost quickly; lower rates mean it is nearly cost-free and persists indefinitely. All per-mechanism reversion rates are scaled by a global calibration multiplier (`mechanism_reversion_rate_global_multiplier`, default 1.0) so that the overall speed of resistance decay can be tuned without changing individual mechanism rates.
-
-Reversion operates in **both** compartments, but not in exactly the same way. In the active infection, fitness-cost loss removes a mechanism from `mechanism_majority`, so it no longer contributes to majority-strain surveillance or seeding of newly acquired infections; `mechanism_any` is retained for the currently infected individual. In the microbiome compartment, reversion removes the mechanism from `mechanism_microbiome`, after which `microbiome_r` is re-derived from the updated carriage flags. In each compartment, a mechanism can only revert on a given day if no antibiotic with selective pressure for that mechanism is currently present.
-
-Key patterns:
-- **Most stable:** Single point mutations (e.g., *gyrA* fluoroquinolone resistance, reversion 0.0001/day) — the mutation barely affects the bacterium's fitness, so it persists for years even without ciprofloxacin pressure
-- **Least stable:** Complex multi-gene cassettes (e.g., VanA/VanB vancomycin resistance, reversion 0.002/day; *rpoB* rifampicin resistance, 0.002/day) — these impose significant metabolic costs and are lost relatively quickly without glycopeptide or rifampicin exposure
-- **Default** for non-mechanism-specific resistance: 0.0004/day
-
-The full reversion rates by mechanism category:
-
-### Enzymatic Inactivation
-| Mechanism | Reversion Rate (per day) | Clinical Notes |
-| :--- | :--- | :--- |
-| **KPC** (*bla*KPC) | `0.001` | Plasmid-mediated carbapenemase; moderate maintenance cost. |
-| **NDM / VIM** | `0.0015` | Metallo-β-lactamases, frequently on large, high-burden mobile genetic elements. |
-| **OXA-48** | `0.0005` | Class D carbapenemase; comparatively lower fitness burden. |
-| **ESBL CTX-M / TEM / SHV** | `0.0006` | Standard extended-spectrum β-lactamases. |
-| **AmpC DHA** | `0.0006` | Plasmid-mediated AmpC; typical cost profile. |
-| **AmpC CMY** | `0.0001` | Often native gene upregulation; minimal fitness loss to maintain. |
-| **FosA** | `0.0005` | Plasmid-mediated fosfomycin resistance; moderate cost. |
-| **CAT** | `0.0005` | Chloramphenicol acetyltransferase. |
-| **16S rRMTase** | `0.0005` | Ribosomal RNA methyltransferases conferring high-level aminoglycoside resistance. |
-
-
-
-### Target Site Alterations
-| Mechanism | Reversion Rate (per day) | Clinical Notes |
-| :--- | :--- | :--- |
-| **PBP2a / *mecA*** | `0.0009` | High energetic cost associated with maintaining the staphylococcal cassette chromosome *mec* (SCC*mec*). |
-| ***erm(B)*** | `0.002` | High reversion rate; target methylation for macrolide-lincosamide-streptogramin B (MLS-B) resistance. |
-| **VanA / VanB** | `0.002` | Highly complex target reprograming (D-Ala-D-Ala to D-Ala-D-Lac); significant energetic drain in the absence of glycopeptide exposure. |
-| **CFR** | `0.0005` | RNA methyltransferase (oxazolidinone/phenicol cross-resistance). |
-
-
-
-### Structural Mutations
-| Mechanism | Reversion Rate (per day) | Clinical Notes |
-| :--- | :--- | :--- |
-| ***gyrA* (Primary)** | `0.0001` | Single-step topoisomerase mutation; essentially stable with negligible fitness penalty. |
-| ***parC* (Secondary)** | `0.0002` | Secondary topoisomerase IV mutations; compounding structural cost. |
-| **Folate Pathway** | `0.0001` | Low cost; largely integron-associated (e.g., *sul* or *dfrA* elements). |
-| **Nitroreductase** | `0.0003` | Loss-of-function mutations affecting nitrofurantoin activation; moderate cost. |
-| ***mprF*** | `0.001` | Membrane lipid modification (daptomycin resistance); structural cell wall alterations bear a distinctive fitness cost. |
-| ***rpoB*** | `0.002` | High fitness cost due to structurally significant alterations in RNA polymerase (rifampicin resistance). |
-
-
-
-### Target Protection & Target Modification
-| Mechanism | Reversion Rate (per day) | Clinical Notes |
-| :--- | :--- | :--- |
-| ***mcr-1*** | `0.0015` | Plasmid-mediated phosphoethanolamine transferase (colistin resistance); substantial lipid A modification burden. |
-| **Tet(M)** | `0.0005` | Ribosomal protection protein; moderate cost to maintain on transposons (e.g., Tn*916*). |
-| **Qnr** | `0.0001` | Plasmid-mediated quinolone resistance protein; relatively stable. |
-| **FusB** | `0.0005` | Target protection mechanism for fusidic acid resistance. |
-
-
-
-### Porin Loss & Efflux Pumps
-| Mechanism | Reversion Rate (per day) | Clinical Notes |
-| :--- | :--- | :--- |
-| **OprD Loss** | `0.0005` | Loss of outer membrane channel (carbapenem resistance); hinders nutrient acquisition. |
-| **OmpK35 / OmpK36 Loss** | `0.0005` | Analogous mechanism in Enterobacterales. |
-| **Global / Generic Porin Loss** | `0.0005` | Broad permeability phenotype cost. |
-| **AcrAB-TolC** | `0.0005` | Overexpression of major RND-family efflux pump complex. |
-| **MexXY-OprM** | `0.0005` | Endogenous efflux system upregulation (common in *Pseudomonas aeruginosa*). |
-| **Global / Generic Efflux** | `0.0005` | Broad, non-specific transport energy costs. |
-
-
-
-*Note: The system reserves one remaining placeholder variable (`as_yet_unknown`, baseline rate `0.001`) designated for future empirical calibration. `mutation_pbp_mosaic` has been activated as **PBP mosaic mutations** (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and `efflux_mtr_cde` as **mtrCDE-type broad efflux** (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.*
-
-### 7.5 Resistance floors
-
-In a simulation of 100,000 individuals, rare pathogens like *S. maltophilia* produce so few infections that their resistance levels can randomly drift to zero — a modelling artefact, not real biology. To prevent this, the model enforces **resistance floors**: minimum resistance levels that certain organisms cannot drop below.
-
-| Parameter | Value | Function |
-|-----------|-------|----------|
-| `resistance_floor_feature_enabled` | 1.0 (on) | Master switch for the floor system |
-| `bacteria_{name}_resistance_floor_enabled` | Per-organism | Turns floors on for specific species |
-| `bacteria_{name}_resistance_floor_ramp_years` | 10.0 | Years to reach full floor level after drug introduction |
-| `bacteria_{name}_{drug_class}_resistance_floor` | 0.0–1.0 | The minimum resistance prevalence enforced |
-
-
-
-Configured resistance floors:
-
-- ***S. maltophilia***: **Enabled** (ramp: 5 years) — preserves the near-universal intrinsic non-susceptibility of this organism driven by its chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and constitutively expressed SmeABC/SmeDEF efflux systems (Brooke JS, 2012; Crossman LC et al., 2008):
-
-  | Drug class | Floor | Biological basis |
-  |------------|-------|------------------|
-  | Carbapenems | 0.98 | L1 metallo-β-lactamase hydrolyses all carbapenems; near-complete intrinsic resistance |
-  | Penicillins | 0.95 | Both L1 and L2 β-lactamases active; unprotected penicillins essentially inactive |
-  | Cephalosporins 1–2G | 0.95 | L1/L2 readily hydrolyse first- and second-generation cephalosporins |
-  | Cephalosporins 3–4G | 0.75 | Partial hydrolysis — activity variable with L2 substrate spectrum |
-  | Macrolides | 0.95 | SmeABC-mediated efflux confers high-level macrolide non-susceptibility |
-  | Aminoglycosides | 0.80 | Efflux and aminoglycoside-modifying enzymes; high rates reported globally |
-  | Fluoroquinolones | 0.45 | Moderate intrinsic efflux; Smqnr plasmid gene adds acquired component |
-  | Tetracyclines | 0.40 | Variable — doxycycline and minocycline retain limited activity |
-  | Polymyxins | 0.70 | Moderate colistin resistance via LPS modification |
-  | Folate antagonists | 0.15 | TMP-SMX is the preferred first-line therapy; resistance exists but lower |
-
-  These floors reflect the well-documented finding that *S. maltophilia* is intrinsically resistant to most drug classes and that non-susceptibility rates of >90% to carbapenems and β-lactams are consistently reported in global surveillance (Wang H et al., 2014; SENTRY programme data).
-- ***H. pylori***: **Enabled** (ramp: 10 years) — prevents population noise from erasing the well-documented high background prevalence of primary resistance in this organism (Savoldi A et al., 2018):
-
-  | Drug class | Floor |
-  |------------|-------|
-  | Macrolides | 0.50 |
-  | Nitroimidazoles | 0.50 |
-  | Penicillins | 0.35 |
-  | Fluoroquinolones | 0.30 |
-  | Tetracyclines | 0.15 |
-
-  The macrolide and nitroimidazole floors are anchored to global pooled resistance estimates: clarithromycin resistance averages ~30–50% in many regions, and metronidazole resistance exceeds 50% in parts of Africa and Asia (Savoldi A et al., 2018; Hooi JKY et al., 2017).
-
-- ***E. faecium***: **Disabled**
-
-These floors are structural guardrails, not claims about immutable global prevalence minima. They are used only where the model would otherwise erase well-established intrinsic or near-intrinsic non-susceptibility because of finite population noise.
-
-
-
-### 7.6 Cross-resistance groups
-
-Since resistance to one agent in a class typically confers resistance to related agents — as when an ESBL in *E. coli* hydrolysing ceftriaxone also destroys cefazolin, cefuroxime, and unprotected penicillins through the same β-lactam ring cleavage — the model captures this by defining **cross-resistance groups**: bacteria-specific phenotype bundles applied at the level of the scalar resistance metric `any_r`. In practice, once one drug in a configured group has a non-zero `any_r`, the model raises the other drugs in that group to the same group-maximum `any_r` for that bacterium. This layer therefore equalises the phenotype across related agents, but it does not force the underlying mechanism flags themselves to be acquired or lost in lockstep.
-
-These groups should not be read as one-to-one copies of the **Explicit Drugs Affected** column in Section 7.1. Section 7.1 describes the direct applicability map for an individual mechanism. Section 7.6 describes a separate bacterium-level phenotype-bundling layer that smooths `any_r` across related agents after mechanism effects have been calculated.
-
-These groups are deliberately stylised phenotype bundles rather than exhaustive mechanistic truth tables. They preserve the broad empirical regularity that related agents often move together once resistance is established, while the mechanism-level layer above still carries the main biological detail.
-
-The table below summarises the currently configured cross-resistance groups used by this phenotype-bundling layer:
-
-| Bacteria | Group | Drugs sharing resistance |
-|----------|-------|------------------------|
-| E. coli | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Cephalexin, Cefazolin, Cefuroxime, Ceftriaxone, Amoxicillin Clavulanate, Ampicillin Sulbactam, Piperacillin Tazobactam, Ticarcillin Clavulanate |
-| E. coli | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| E. coli | Group 3 | Gentamicin, Tobramycin, Amikacin |
-| A. baumannii | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Cephalexin, Cefazolin, Cefuroxime, Amoxicillin Clavulanate, Ampicillin Sulbactam, Piperacillin Tazobactam, Ticarcillin Clavulanate |
-| A. baumannii | Group 2 | Meropenem, Imipenem C, Ertapenem, Meropenem Vaborbactam |
-| A. baumannii | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| A. baumannii | Group 4 | Gentamicin, Tobramycin, Amikacin |
-| K. pneumoniae | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Cephalexin, Cefazolin, Cefuroxime, Ceftriaxone, Amoxicillin Clavulanate, Ampicillin Sulbactam, Piperacillin Tazobactam, Ticarcillin Clavulanate |
-| K. pneumoniae | Group 2 | Meropenem, Imipenem C, Ertapenem, Meropenem Vaborbactam |
-| K. pneumoniae | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| S. pneumoniae | Group 1 | Erythromycin, Azithromycin, Clarithromycin |
-| S. pneumoniae | Group 2 | Penicillin G, Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| S. aureus | Group 1 | Penicillin G, Ampicillin, Amoxicillin |
-| S. aureus | Group 2 | Cephalexin, Cefazolin, Cefuroxime, Ceftriaxone |
-| S. aureus | Group 3 | Erythromycin, Azithromycin, Clarithromycin, Clindamycin |
-| S. epidermidis | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Cephalexin, Cefazolin, Cefuroxime, Ceftriaxone |
-| S. epidermidis | Group 2 | Erythromycin, Azithromycin, Clarithromycin, Clindamycin |
-| S. epidermidis | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| S. maltophilia | Group 1 | Trim Sulf |
-| S. maltophilia | Group 2 | Tetracycline, Doxycycline, Minocycline |
-| S. maltophilia | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| P. aeruginosa | Group 1 | Piperacillin, Piperacillin Tazobactam, Ceftazidime, Ceftazidime Avibactam, Cefepime |
-| P. aeruginosa | Group 2 | Meropenem, Meropenem Vaborbactam, Imipenem C |
-| P. aeruginosa | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| P. aeruginosa | Group 4 | Gentamicin, Tobramycin, Amikacin |
-| E. spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| E. spp. | Group 2 | Ceftriaxone, Cefixime, Ceftazidime, Cefepime |
-| E. spp. | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Mdr mycobacterium tuberculosis | Group 1 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Mdr mycobacterium tuberculosis | Group 2 | Gentamicin, Tobramycin, Amikacin |
-| Mdr mycobacterium tuberculosis | Group 3 | Rifampicin |
-| Mdr mycobacterium tuberculosis | Group 4 | Linezolid |
-| E. faecalis | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Piperacillin, Piperacillin Tazobactam, Ticarcillin, Ticarcillin Clavulanate |
-| E. faecalis | Group 2 | Erythromycin, Azithromycin, Clarithromycin, Clindamycin |
-| E. faecalis | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| E. faecalis | Group 4 | Tetracycline, Doxycycline, Minocycline |
-| E. faecalis | Group 5 | Vancomycin, Teicoplanin, Dalbavancin |
-| E. faecium | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Piperacillin, Piperacillin Tazobactam |
-| E. faecium | Group 2 | Erythromycin, Azithromycin, Clarithromycin, Clindamycin |
-| E. faecium | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| E. faecium | Group 4 | Tetracycline, Doxycycline, Minocycline |
-| E. faecium | Group 5 | Vancomycin, Teicoplanin, Dalbavancin |
-| C. spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| C. spp. | Group 2 | Ceftriaxone, Cefixime, Ceftazidime, Cefepime |
-| C. spp. | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| C. spp. | Group 4 | Gentamicin, Tobramycin, Amikacin |
-| E. cloacae | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| E. cloacae | Group 2 | Ceftriaxone, Cefixime, Ceftazidime, Cefepime |
-| E. cloacae | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| M. spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| M. spp. | Group 2 | Ceftriaxone, Cefixime, Ceftazidime, Cefepime |
-| M. spp. | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| P. spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| P. spp. | Group 2 | Ceftriaxone, Cefixime, Ceftazidime |
-| P. spp. | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| S. spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| S. spp. | Group 2 | Ceftriaxone, Ceftazidime, Cefepime |
-| S. spp. | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| S. spp. | Group 4 | Gentamicin, Tobramycin, Amikacin |
-| P. stuartii | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin |
-| P. stuartii | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Salmonella enterica serovar typhi | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate, Cephalexin, Cefazolin, Cefuroxime |
-| Salmonella enterica serovar typhi | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Salmonella enterica serovar typhi | Group 3 | Ceftriaxone, Cefixime, Ceftazidime |
-| Salmonella enterica serovar paratyphi a | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| Salmonella enterica serovar paratyphi a | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Salmonella enterica serovar paratyphi a | Group 3 | Ceftriaxone, Cefixime, Ceftazidime |
-| Invasive non-typhoidal salmonella spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| Invasive non-typhoidal salmonella spp. | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Invasive non-typhoidal salmonella spp. | Group 3 | Ceftriaxone, Cefixime, Ceftazidime |
-| S. spp. | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| S. spp. | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| S. spp. | Group 3 | Ceftriaxone, Cefixime, Ceftazidime |
-| S. spp. | Group 4 | Tetracycline, Doxycycline |
-| V. cholerae | Group 1 | Tetracycline, Doxycycline |
-| V. cholerae | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| V. cholerae | Group 3 | Erythromycin, Azithromycin, Clarithromycin |
-| C. jejuni | Group 1 | Erythromycin, Azithromycin, Clarithromycin |
-| C. jejuni | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| C. jejuni | Group 3 | Tetracycline, Doxycycline |
-| Y. enterocolitica | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| Y. enterocolitica | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| Y. enterocolitica | Group 3 | Tetracycline, Doxycycline |
-| H. pylori | Group 1 | Amoxicillin, Ampicillin, Amoxicillin Clavulanate, Ampicillin Sulbactam |
-| H. pylori | Group 2 | Clarithromycin, Erythromycin, Azithromycin |
-| H. pylori | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| H. pylori | Group 4 | Metronidazole |
-| H. pylori | Group 5 | Tetracycline, Doxycycline |
-| S. pyogenes | Group 1 | Erythromycin, Azithromycin, Clarithromycin, Clindamycin |
-| S. pyogenes | Group 2 | Tetracycline, Doxycycline |
-| S. pyogenes | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| S. agalactiae | Group 1 | Erythromycin, Azithromycin, Clarithromycin, Clindamycin |
-| S. agalactiae | Group 2 | Tetracycline, Doxycycline |
-| S. agalactiae | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| H. influenzae | Group 1 | Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| H. influenzae | Group 2 | Erythromycin, Azithromycin, Clarithromycin |
-| H. influenzae | Group 3 | Ciprofloxacin, Levofloxacin |
-| H. influenzae | Group 4 | Tetracycline, Doxycycline |
-| M. catarrhalis | Group 1 | Ampicillin, Amoxicillin, Penicillin G, Piperacillin, Ticarcillin, Amoxicillin Clavulanate, Ampicillin Sulbactam, Piperacillin Tazobactam, Ticarcillin Clavulanate |
-| M. catarrhalis | Group 2 | Erythromycin, Azithromycin, Clarithromycin |
-| N. gonorrhoeae | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| N. gonorrhoeae | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| N. gonorrhoeae | Group 3 | Tetracycline, Doxycycline |
-| N. gonorrhoeae | Group 4 | Erythromycin, Azithromycin |
-| N. gonorrhoeae | Group 5 | Ceftriaxone, Cefixime |
-| N. meningitidis | Group 1 | Penicillin G, Ampicillin, Amoxicillin, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| N. meningitidis | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| N. meningitidis | Group 3 | Rifampicin |
-| C. difficile | Group 1 | Vancomycin |
-| C. difficile | Group 2 | Metronidazole |
-| B. fragilis | Group 1 | Metronidazole |
-| B. fragilis | Group 2 | Clindamycin |
-| B. fragilis | Group 3 | Meropenem, Imipenem C |
-| L. monocytogenes | Group 1 | Ampicillin, Amoxicillin, Penicillin G, Ampicillin Sulbactam, Amoxicillin Clavulanate |
-| L. monocytogenes | Group 2 | Tetracycline, Doxycycline |
-| C. trachomatis | Group 1 | Azithromycin, Erythromycin, Clarithromycin |
-| C. trachomatis | Group 2 | Doxycycline, Tetracycline |
-| C. trachomatis | Group 3 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| M. genitalium | Group 1 | Azithromycin, Erythromycin, Clarithromycin |
-| M. genitalium | Group 2 | Ciprofloxacin, Levofloxacin, Moxifloxacin, Ofloxacin |
-| M. genitalium | Group 3 | Doxycycline, Tetracycline |
-| T. pallidum | Group 1 | Erythromycin, Azithromycin, Clarithromycin |
-| T. pallidum | Group 2 | Doxycycline, Tetracycline |
-| B. pertussis | Group 1 | Erythromycin, Azithromycin, Clarithromycin |
-
-
-
----
-
-## 8. Microbiome and Carriage
-
-Since the commensal microbiome is the principal reservoir in which resistance is stored, selected by bystander antibiotic exposure, and exchanged between species (Werner G et al., 2008; van Schaik W, 2015; McInnes RS et al., 2020), the model tracks microbiome carriage as a distinct compartment from active infection. A patient treated with ciprofloxacin weeks earlier may still carry fluoroquinolone-resistant *E. coli* in the gut; if that strain subsequently causes a UTI, empiric therapy may fail.
-
-As throughout the model, the microbiome layer is intentionally simplified. We represent the main ecological reservoirs and the policy-relevant consequences of bystander selection, endogenous infection, and within-host persistence, but not the full organism-by-organism spatial ecology that would be required for a dedicated colonisation model.
-
-
-### 8.1 Carriage compartments
-
-Each bacterium in the model has a designated ecological niche — where it naturally lives in (or on) the body:
-
-| Compartment | Example bacteria | Clinical relevance |
-|-------------|-----------------|-------------------|
-| Gut | *E. coli*, *K. pneumoniae*, *Enterococcus spp.*, *Shigella*, *Salmonella*, *C. difficile* | Largest reservoir; disrupted by broad-spectrum antibiotics |
-| Respiratory | *S. pneumoniae*, *H. influenzae*, *P. aeruginosa*, *A. baumannii*, *M. catarrhalis*, *M. tuberculosis* | Carriage often precedes pneumonia |
-| Skin/Soft tissue | *S. aureus*, *S. epidermidis* | Nasal/skin MRSA carriage drives surgical wound infections |
-| Genitourinary | *N. gonorrhoeae*, *C. trachomatis*, *M. genitalium*, *T. pallidum*, *S. agalactiae* | Asymptomatic STI carriage enables transmission |
-
-
-
-These compartment assignments are simplified ecological defaults rather than a full atlas of colonisation niches. They mainly provide the model with the right qualitative reservoirs for bystander selection, endogenous infection, and HGT opportunity.
-
-
-### 8.2 Resistance in the microbiome
-
-The microbiome serves as a hidden reservoir of resistance. Each individual carries a per-mechanism boolean resistance array (`mechanism_microbiome`) for every organism, mirroring the structure of the infection compartment (`mechanism_any`). The scalar `microbiome_r` metric is **derived** from these mechanism flags via the same multiplicative susceptibility formula used for infection resistance (Section 7.2). This unified mechanism-centric architecture ensures that resistance in carriage and infection compartments is always coherent — there is no separate "float-based" tracking for the microbiome.
-
-Key dynamics:
-
-| Process | Parameter | Value | Effect |
-|---------|-----------|-------|---------------|
-| Resistance seeding on acquisition | `microbiome_resistance_multiplier_on_acquisition` | 0.50 | When a person acquires a new carriage episode, there is a 50% probability that the colonising strain inherits the circulating resistance profile (sampled from the mechanism profile cache, just as for infection acquisition — see Section 3.4). If the draw fails, the strain arrives susceptible. The 0.50 value reflects the **colonisation bottleneck**: when a resistant strain from the community pool colonises a new host, only a fraction of transmission events successfully establish a resistant lineage, because susceptible strains in the incoming inoculum can outcompete resistant ones when antibiotic pressure is absent, and because small founding populations are subject to stochastic loss. Carriage acquisition studies consistently show that post-travel or post-admission ESBL carriage rates reach only 20–50% of the prevalence suggested by source-population data, supporting a sub-unity transfer probability (Arcilla MS et al., 2017; Buelow E et al., 2017). The parameter is therefore best interpreted as a colonisation-efficiency discount applied to the profile-cache sampling step. |
-| Established colonies harder to clear | `carriage_duration_log_odds_coefficient` | −0.01/day (caps at −2.0) | The longer a resistant strain has been carried, the harder it is to eradicate — mature colonies are ~7× harder to clear than newly acquired ones |
-| Mechanism-level reversion | `mechanism_reversion_rate_global_multiplier` | 1.0 | Per-mechanism reversion operates in the microbiome compartment using the same rates and global multiplier as in the infection compartment (Section 7.4). Each mechanism can only revert when no selecting antibiotic is present. |
-| De-novo emergence under treatment | `microbiome_de_novo_multiplier` | 1.0 | When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the same emergence formula used for infections (Section 7.3), scaled by this multiplier. Emergence writes to both `mechanism_microbiome` and `mechanism_any`. |
-| Carrier → infection bridge | `carrier_resistance_inheritance_probability` | 0.50 | When a carrier develops an endogenous infection, each mechanism in `mechanism_microbiome` is independently considered for transfer to `mechanism_any` (see Section 3.3) |
-| Infection → microbiome transfer | (automatic) | — | When an infected individual also carries the same bacterium, resistance mechanisms present in the infection but absent in the microbiome are copied to `mechanism_microbiome`, reflecting spillover from the active infection back into the commensal reservoir |
-| HGT into the microbiome | (see Section 9) | — | When a horizontal gene transfer event fires and the recipient carries the donor's bacterium in the microbiome, the transferred mechanism is written to `mechanism_microbiome` as well as `mechanism_any` |
-
-
-
-## 9. Horizontal Gene Transfer (HGT)
-
-Horizontal gene transfer (HGT) — the interspecies sharing of resistance determinants, as seen when the same ESBL plasmids appear across *E. coli*, *Klebsiella*, and *Proteus* on a single ward — is a major driver of resistance spread and is modelled explicitly.
-
-The HGT layer is necessarily schematic. We preserve the major ecological compatibilities and the main amplifiers of transfer risk, but we do not attempt plasmid-by-plasmid reconstruction, incompatibility typing, or ward-level contact-network modelling. At the scale of the present model, that additional detail would be difficult to support empirically and would add substantial runtime and calibration burden without clearly improving the policy comparisons of interest.
-
-
-### 9.1 Transfer compatibility
-
-Not all bacteria can exchange genes equally. Transfer compatibility is not represented as a single species-to-species lookup table. Instead, each bacterium group is assigned to a **plasmid pool**, and the baseline pairwise HGT hazard is generated from that pool structure before the Section 9.2 multipliers are applied.
-
-The pool mapping is:
-
-- **GramPositive pool**: Gram-positive bacteria
-- **EntericGramNegative pool**: Enterobacterales, non-fermenters, and enteric pathogens
-- **RespiratoryGramNegative pool**: fastidious respiratory/genitourinary organisms
-- **Anaerobe pool**: anaerobes
-- **No-transfer structural exclusion**: spirochetes, helicobacters, and mycobacteria are assigned to `None` and therefore have baseline HGT probability `0.0`. This reflects well-established biological constraints: *Treponema pallidum* and other spirochetes lack classical conjugation machinery and have not been shown to exchange resistance plasmids under clinical conditions; *Helicobacter* and *Campylobacter* acquire resistance primarily through chromosomal mutation rather than plasmid-borne transfer; and *Mycobacterium tuberculosis* has a waxy, lipid-rich cell wall that is largely impermeable to conjugative pili and lacks the surface-exposed mating-pair formation proteins required for classical plasmid transfer (Carattoli A, 2009; Borger AL et al., 2023). Excluding these lineages from the HGT pool does not mean they never acquire new resistance — their emergence rates (Section 7.3) handle de novo mutation — but they do not participate in the plasmid-sharing network that connects Gram-negatives and Gram-positives in the model
-
-The baseline compatibility ladder is then:
-
-| Donor-recipient relationship | Baseline pairwise HGT probability |
-|-----------------------------|-----------------------------------|
-| Same plasmid pool, same bacteria group | `1e-9` |
-| Same plasmid pool, different bacteria group | `1e-10` |
-| Enteric Gram-negative <-> respiratory Gram-negative | `3e-11` |
-| Enteric Gram-negative <-> anaerobe | `3e-11` |
-| Anaerobe <-> anaerobe | `1e-9` |
-| All other cross-pool combinations | `0.0` |
-
-These values are effective within-model hazards rather than bedside conjugation frequencies. Their purpose is to preserve the current ordering in the code: transfer is easiest within the same ecological/plasmid pool, much weaker across the small set of allowed cross-pool bridges, and structurally absent for excluded groups.
-
-
-### 9.2 The HGT process
-
-Each day, for every individual carrying resistant bacteria in their microbiome, the model evaluates potential gene transfer events. The model evaluates HGT dynamically per distinct resistance mechanism, allowing independent plasmids (e.g., KPC and *mcr-1*) to transmit independently rather than as a single all-or-nothing block. Furthermore, bacteria do not restrict plasmid donation to only the dominant strain; minority resistance populations can donate, but face a transfer penalty.
-
-When an HGT event fires, the transferred mechanism is written to the recipient's `mechanism_any` (infection compartment). If the recipient also carries the donor's target bacterium in the microbiome, the mechanism is simultaneously written to `mechanism_microbiome`, ensuring the carriage reservoir stays consistent with the infection compartment. All HGT rates are scaled by a global calibration multiplier (`hgt_multiplier`, default 1.0).
-
-| Step | Parameter | Value | Clinical parallel |
-|------|-----------|-------|-------------------|
-| Global HGT scaling | hgt_multiplier | 1.0 | Calibration knob — scales all HGT rates up or down uniformly |
-| Base transfer rate | microbiome_resistance_transfer_probability_per_day | 0.0001 | Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure (San Millán A & MacLean RC, 2017) |
-| Amplification during antibiotic therapy | hgt_antibiotic_pressure_multiplier | 1.50 (×1.5) | Antibiotic stress triggers the bacterial SOS response, which activates mobile genetic elements and increases conjugation rates by 50% (Beaber JW et al., 2004) — one of the reasons antibiotic use drives resistance even beyond the target pathogen |
-| Hospitalization boost | hgt_hospital_multiplier | 3.0 (×3.0) | Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange. |
-| Co-infection baseline | hgt_coinfection_multiplier | 1.25 (×1.25) | Active multi-pathogen infections slightly increase the probability of genetic collision. |
-| Microbiome-only penalty | hgt_microbiome_only_penalty | 0.65 (×0.65) | Asymptomatic carriage interactions are less frequent than active infection environments. |
-| Gut compartment boost | hgt_gut_compartment_multiplier | 2.0 (×2.0) | The gut has higher bacterial density and provides more conjugation opportunities compared to skin or respiratory tracts. |
-| Minority donor penalty | hgt_minority_donor_multiplier | 0.20 (×0.20) | If a donor bacterium carries resistance as a minority strain (sub-dominant), its probability of successful conjugation is penalized by 80%. |
-
-
-
-The absolute HGT probabilities are intentionally low and should be interpreted as effective daily hazards at the model scale, not bedside-measurable event rates. Their main purpose is to preserve plausible relative ordering between low-contact community settings, antibiotic-stressed microbiomes, and high-contact hospital environments.
-
-## 10. Mortality
-
-The model tracks mortality from three sources: background (non-infection) causes, **sepsis** (organ dysfunction from uncontrolled infection), and **non-sepsis infection death** (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).
-
-### 10.1 Background mortality
-
-Every individual faces a baseline daily death risk shaped by age, sex, region, immune status, and the simulated calendar year. The probability is computed via a logistic model whose total log-odds sum the following components:
-
-| Factor | Parameter | Default value | Effect |
-|--------|-----------|--------------|-------|
-| Baseline intercept | `background_mortality_baseline_log_odds` | -14.3 | Global anchor for the daily risk |
-| Historical improvement | `mortality_baseline_1930_multiplier` / `mortality_baseline_2035_multiplier` / `mortality_improvement_half_life_years` | ×3 / ×1 / 35 yrs | Normalized exponential decline from a 3× higher 1930 rate to the configured 2035 reference rate exactly; half-life controls how front-loaded that improvement is |
-| Linear age effect | `log_odds_mortality_per_year_of_age` | 0.055 | Each year of age adds a constant increment to log-odds (≈ ×1.06/year on the odds scale) |
-| Elderly frailty acceleration | `log_odds_mortality_per_year_of_age_squared` | 0.008 | Quadratic term applied **only above age 80** — steepens mortality in the very elderly without making age-90 mortality implausibly extreme |
-| Region | `log_odds_mortality_region_{name}` | N. America 0; S. America +0.26; Africa +0.69; Asia +0.18; Europe −0.11; Oceania 0 | Reflects broad differences in background mortality environment, healthcare access, and non-communicable disease burden |
-| Sex | `log_odds_mortality_sex_male` / `_female` | +0.095 / −0.105 | Male ≈ ×1.1, female ≈ ×0.9 all-cause mortality differential |
-| Immunosuppression | `log_odds_mortality_immunosuppressed` | +0.916 | ≈ ×2.5 higher risk when `immunodeficiency_type` is set |
-| Hospital status | `log_odds_mortality_hospitalized` | +0.262 | ≈ ×1.3 higher risk while in hospital (captures inpatient case-mix and residual non-infectious acuity rather than HCAI, which is modelled separately) |
-
-All parameters operate on a log-odds scale and sum additively before the logistic transform, so their effects multiply on the probability scale.
-
-They should be read as effective demographic mortality-shape terms rather than direct life-table fits for any single country or year. Their role is to preserve the globally familiar pattern of sharply rising all-cause mortality with age and frailty while allowing the simulation's infection-specific pathways to add the AMR-relevant excess risk on top.
-
-In the current implementation, the sex term is a lifelong multiplicative shift rather than an age-specific late-life modifier. That is a simplification: real male-female mortality gaps vary by age, cause, and setting, but a constant term is a defensible low-dimensional approximation if the model's goal is to preserve broad all-cause mortality ranking rather than reproduce detailed life-table structure.
-
-Background mortality is treated as a competing risk alongside infection-specific death pathways rather than being added on top of them. Each day, the model checks for death in the following order: sepsis, drug toxicity, non-sepsis infection death, then background mortality. This means acute infectious deaths displace some deaths that would otherwise have been labelled as background mortality, ensuring each person receives at most one cause of death per time step.
-
-
-### 10.2 Sepsis mortality
-
-Sepsis is the primary death pathway for classic invasive bacterial pathogens. When an individual's infection progresses to sepsis (see Section 4.3), the model applies an escalated daily death risk using a logistic model. The probability of dying from sepsis each day depends on age, immune status, bacterial burden, and access to hospital care. Without effective antibiotics, sepsis is rapidly fatal, and resistant organisms that are untreatable with empiric therapy represent the principal scenario of concern (Murray CJL et al., 2022).
-
-Since sepsis mortality varies enormously by organism — from near-zero for non-invasive STI pathogens to >30% for *S. aureus* bacteraemia (Tong SYC et al., 2015) — the model assigns per-bacterium sepsis baseline log-odds:
-
-| Bacterium | Sepsis baseline | Clinical rationale |
-|-----------|----------------|-------------------|
-| *S. aureus* | −7.3 | Aggressive bloodstream pathogen; 20–30% mortality in bacteraemia (Tong SYC et al., 2015) |
-| *P. aeruginosa* | −6.5 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
-| *S. agalactiae* | −7.0 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2010) |
-| *S. pyogenes* | −7.0 | Invasive GAS disease including necrotising fasciitis and toxic shock (Carapetis JR et al., 2005) |
-| *N. meningitidis* | −7.9 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC; sepsis baseline loosened to −7.9 to reflect frequently invasive presentations (Stephens DS et al., 2007) |
-| *E. faecium* | −7.0 | Hospital-acquired bloodstream infections, especially VRE |
-| *K. pneumoniae* | −7.5 | Gram-negative sepsis; carbapenem-resistant strains carry >40% mortality (Xu L et al., 2017) |
-| *E. faecalis* | −7.5 | Endocarditis and line-related bacteraemia |
-| *E. coli* | −9.5 | Most common Gram-negative bloodstream isolate; UTI-source sepsis usually less severe (Poolman JT et al., 2016) |
-| *S. Paratyphi A* | −9.2 | Enteric fever with occasional septic complications |
-| *iNTS* | −9.0 | Invasive non-typhoidal salmonellosis; high mortality in sub-Saharan Africa (Stanaway JD et al., 2017) |
-| *Y. enterocolitica* | −10.0 | Rare sepsis, mainly in iron-overload or immunosuppressed patients |
-| *C. trachomatis* | −19.0 | STI — essentially never causes sepsis |
-| *N. gonorrhoeae* | −21.0 | Disseminated gonococcal infection is exceedingly rare |
-| *H. pylori* | −250.0 | Gastric pathogen — deaths from cancer, not sepsis |
-| Fallback default | −14.0 | Used for any organism without an explicit override |
-
-
-
-These per-bacterium sepsis baselines are qualitative severity orderings anchored to widely observed differences between invasive and non-invasive pathogens, not claims of portable case-fatality estimates across all settings. Real-world sepsis mortality depends heavily on time-to-treatment, ICU access, comorbidity structure, and health-system capacity, so the model uses these terms mainly to maintain defensible ranking and then lets care access, treatment effectiveness, and syndrome site shape realised mortality in each branch (Rudd KE et al., 2017; Murray CJL et al., 2022).
-
-
-### 10.2.1 Per-organism sepsis case-fatality adjustment
-
-In addition to the per-bacterium sepsis entry baseline (Section 10.2), the model supports an **additive per-organism log-odds adjustment to the daily death probability given sepsis** (parameter name: `{organism}_sepsis_death_log_odds_override`). This term is added on top of all other factors in the sepsis death calculation — age, region, bacterial burden, treatment effectiveness, and immunosuppression. Where multiple bacteria are simultaneously septic, the largest override across all septic organisms takes effect.
-
-Three organisms currently receive non-zero adjustments:
-
-| Bacterium | CFR adjustment | Relative CFR | Clinical rationale |
-|-----------|---------------|--------------|-------------------|
-| *N. meningitidis* | +0.69 | ≈×2 | Purpura fulminans and DIC; meningococcal sepsis has among the highest 24-hour CFR of any bacterial pathogen (Stephens DS et al., 2007) |
-| *S. aureus* | +0.41 | ≈×1.5 | Infective endocarditis and MRSA bacteraemia; 30-day mortality 20–30% even with appropriate therapy (Tong SYC et al., 2015) |
-| *A. baumannii* | +0.69 | ≈×2 | XDR ventilator-associated pneumonia and bloodstream infection; attributable mortality >30% in carbapenem-resistant strains (Bassetti M et al., 2018) |
-
-All other organisms default to 0.0 (no adjustment).
-
-
-### 10.3 Non-sepsis infection death
-
-Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: *V. cholerae* through fatal dehydration (Ali M et al., 2015), *B. pertussis* through infantile respiratory failure (Yeung KHT et al., 2017), *H. pylori* through gastric adenocarcinoma (Plummer M et al., 2015), *T. pallidum* through tertiary and congenital syphilis (Korenromp EL et al., 2019), and *C. difficile* through toxic megacolon (Guh AY et al., 2020). These deaths would not be captured by the sepsis pathway alone.
-
-The model evaluates a **daily non-sepsis infection death probability** for every active infection that is *not* already progressing through the sepsis pathway. The probability is computed via a logistic model:
-
-$$P(\text{non-sepsis death}) = \frac{1}{1 + \exp(-\text{log-odds})}$$
-
-where the total log-odds combines:
-
-| Component | Default | What it captures |
-|-----------|---------|-----------------|
-| Base (`infection_non_sepsis_base_log_odds`) | −9.0 | Global intercept — very low daily risk |
-| Per-bacterium adjustment | 0.0 (default) | How lethal this organism is via non-sepsis mechanisms |
-| Per-syndrome adjustment | 0.0 (default) | How dangerous this body site is |
-| Bacterial level × coefficient | level × 0.0 | Higher burden → higher risk |
-| Age adjustment | varies | Infants and elderly at higher risk |
-| Hospital adjustment | 0.0 | Modified risk in hospital |
-| Immunosuppression | 0.0 | Additional risk for immunocompromised |
-
-
-
-The per-bacterium adjustments are the primary calibration lever. **Negative values** reduce non-sepsis death (used for organisms whose deaths are over-represented at the base rate), while **positive values** increase it (used for organisms whose real-world deaths come from non-sepsis mechanisms that would otherwise be invisible to the model):
-
-| Bacterium | Adjustment | Rationale |
-|-----------|-----------|-----------|
-| *C. trachomatis* | −5.0 | STI with near-zero real-world mortality; base rate produced 128× over-death |
-| *M. genitalium* | −4.5 | STI with essentially no deaths; base rate produced 66× over-death |
-| *N. gonorrhoeae* | −2.5 | Gonorrhoea is rarely fatal; base rate produced 11.6× over-death |
-| *M. pneumoniae* | −0.7 | Low-mortality respiratory pathogen |
-| *C. jejuni* | −0.5 | Self-limiting gastroenteritis in most cases |
-| *S. epidermidis* | −6.0 | Very low direct mortality; primarily a device-associated pathogen |
-| *S. maltophilia* | −4.0 | Some mortality via pneumonia progression, but limited |
-| *B. pertussis* | +4.0 | Deaths from respiratory failure in infants, not sepsis (Yeung KHT et al., 2017) |
-| *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths (Korenromp EL et al., 2019) |
-| *V. cholerae* | +2.5 | Death from dehydration, not bacteraemia (Ali M et al., 2015) |
-| *C. difficile* | +2.0 | Colitis and toxic megacolon deaths (Guh AY et al., 2020) |
-| *S. pyogenes* | +3.0 | STSS and superantigen (SPE-A/C/SMEZ)-mediated rapid death independent of bacterial burden, plus rheumatic heart disease and post-streptococcal complications (Carapetis JR et al., 2005; Watkins DA et al., 2017) |
-| *B. fragilis* | +1.5 | Intra-abdominal abscess mortality |
-| *H. pylori* | +1.0 | Gastric cancer deaths; essentially zero sepsis risk (Plummer M et al., 2015) |
-| *Shigella* spp. | +1.0 | Dysentery deaths in children; sepsis pathway contributes minimally (Troeger C et al., 2018) |
-
-
-
-This dual-pathway design ensures that the model can reproduce both the typical sepsis mortality pattern (where broad-spectrum antibiotics and ICU care determine survival) and the non-sepsis mortality pattern (where the primary driver may be dehydration, organ-specific damage, or chronic sequelae).
-
-The non-sepsis adjustments are therefore best viewed as compensating structural terms for important death pathways that a pure sepsis model would miss, rather than as direct organism-specific fatality estimates. That is especially important for globally important syndromes such as cholera, pertussis, diarrhoeal disease, and chronic sequelae-associated infections, where the pathway to death is real but not well represented by bloodstream invasion alone.
-
-
-### 10.4 Infection mortality — syndrome multipliers
-
-Both death pathways are modulated by the anatomical site of infection. The syndrome multipliers reflect how dangerous each body site is:
-
-| Syndrome | Multiplier | Rationale |
-|----------|-----------|-----------|
-| Genital | 0.05 | Rarely fatal (localised mucosal infections) |
-| Skin / Ear | 0.1 | Low systemic risk unless secondary bacteraemia |
-| UTI | 0.5 | Usually self-limiting but can ascend to urosepsis |
-| Bone/Joint | 0.8 | Serious but slow-progressing; mortality from surgical complications |
-| Intra-abdominal | 1.5 | Peritonitis carries high mortality even with surgery |
-| Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally (GBD 2019 Lower Respiratory Infections Collaborators, 2022) |
-| CNS | 3.0 | Meningitis/brain abscess — poor penetration of many antibiotics (Tunkel AR et al., 2004) |
-| Bloodstream | 4.0 | Bacteraemia/sepsis — the most immediately life-threatening |
-
-
-
-These syndrome multipliers are deliberately qualitative. They encode the broad global ordering in which bloodstream and CNS infections are most lethal, respiratory and intra-abdominal infections are high-risk, and genital or superficial infections are usually much less fatal unless they progress, which is the main pattern needed for policy comparisons in the model.
-
-
-
-## 11. Counterfactual Design and AMR-Attributable Burden
-
-The primary analytical goal of the initial model application is to estimate the number of deaths attributable to antimicrobial resistance. This is achieved by running a **counterfactual experiment**: a resistance-free version of the world is simulated in parallel with the observed (baseline) trajectory over the same period, and the difference in mortality between the two branches provides an estimate of the burden caused by resistance itself.
-
-This framing also explains much of the abstraction elsewhere in the model. We have aimed to retain enough microbiological and clinical structure for the counterfactual comparison to remain mechanistically interpretable, while accepting that a global model intended to span nine decades and remain computationally practical cannot also reproduce every feature that would matter in a disease-specific, organism-specific, or hospital-specific simulation.
-
-
-### 11.1 How the counterfactual works
-
-At the start of **2022** — the opening of the calibration window — the simulation saves a complete snapshot of the entire population (every person's age, infections, microbiome resistance, treatment history, and region) and then runs two independent branches forward through the end of **2025**:
-
-| Branch | What it represents |
-|--------|--------------------|
-| **Baseline** | The observed trajectory — resistance evolves as it has done, driven by antibiotic consumption, transmission, and selection pressure calibrated against historical surveillance data. |
-| **Counterfactual** | A hypothetical world in which all resistance is removed at the branch point. Resistance is wiped from all active infections and microbiome carriage (`clear_all_resistance_on_branch_start = true`), and `counterfactual_resistance_multiplier` is set to 0.0 so that no newly acquired infection can carry any resistance mechanism for the remainder of the simulation. |
-
-Because both branches start from an identical population state at 2022, differences in outcomes (deaths, treatment failures) between them are **causally attributable** — within the model — to resistance alone. The counterfactual is not a forecast; it is an internal experiment used to isolate the mortality contribution of resistance from all other causes of infectious-disease mortality.
-
-The counterfactual is executed once per accepted parameter set. Because the analysis retains all parameter configurations that produce a calibration-acceptable fit to historical data, the result is a **range of AMR-attributable burden estimates**, each internally consistent with the observed epidemiological record. This ensemble approach propagates parametric and structural uncertainty into the final estimates without requiring separate sensitivity analyses.
-
-> **Note on implementation:** the codebase currently uses a branch year of 2027 as placeholder; this will be updated to 2022 once the calibration window is finalised.
-
-
-### 11.2 Potential future model uses
-
-Although the initial application focuses exclusively on burden estimation, the model architecture is designed to support **policy comparison** in subsequent work. The same branching mechanism that enables the counterfactual can be used to evaluate the consequences of alternative prescribing policies, diagnostic strategies, or access interventions by running additional branches from the same population snapshot with modified parameter sets.
-
-Potential future applications include comparing antibiotic stewardship packages (e.g., narrower empiric prescribing, expanded susceptibility testing, shorter course durations), evaluating the trade-off between restricting reserve drugs and preserving last-resort efficacy, and quantifying the projected impact of improved point-of-care diagnostics on resistance trajectories and mortality over multi-decade horizons.
-
----
-
-
-
-## 12. Limitations
-
-The central design judgement has been to retain the features most likely to matter for stewardship, diagnostics, access, transmission, and mortality questions, while omitting layers of nuance that would make a model of this scope difficult to calibrate, computationally burdensome, or unnecessarily difficult to interpret. The main limitations are therefore not incidental omissions but deliberate trade-offs made in order to keep the model usable for the policy questions it is intended to address:
-
-Several of the appendices that follow list exact configuration values and enum definitions. Those tables are included for transparency and reproducibility, but they should still be read in the context established above: many entries are implementation defaults, calibration targets, or structural coding choices rather than direct empirical measurements. Where this document presents an exact value, that should not automatically be interpreted as implying an equivalent degree of empirical certainty.
-
-1. **Abstract drug levels**: Antibiotic concentrations are modelled as dimensionless units rather than true pharmacokinetic concentrations (mg/L). This allows the model to capture the *relative* dynamics of drug accumulation and clearance, but it means model values cannot be compared directly with MIC breakpoints, therapeutic drug monitoring results, or compartment-specific pharmacokinetic measurements from clinical microbiology or pharmacology practice. In particular, the model does not implement pharmacokinetic/pharmacodynamic (PK/PD) target-attainment analysis — it does not compute AUC/MIC or T>MIC indices, nor does it model the Cmax and distribution volume differences between patient subgroups (e.g., critically ill patients with altered volumes of distribution, or renal impairment affecting aminoglycoside and vancomycin clearance). Full mechanistic PK/PD frameworks can generate organism-specific probability-of-target-attainment curves and inform optimal dosing regimens (Nielsen EI & Friberg LE, 2013), which is beyond the scope of this policy-comparison model. The practical consequence is that the model's drug-level dynamics can reproduce the broad direction of resistance selection associated with sub-therapeutic exposure, but cannot support dosing-optimisation analyses or precisely model regimens where PK/PD target attainment drives clinical outcome.
-
-2. **No explicit strain competition**: Within the microbiome, resistant and susceptible strains do not explicitly compete for ecological resources. The model therefore cannot represent scenarios in which clonal replacement, compensatory evolution, or near-cost-free resistance leads to durable dominance of resistant strains in the absence of ongoing antibiotic selection. That said, the model does capture several distinct mechanisms by which antibiotic use promotes resistance in the microbiome: (i) a *microbiome disruption reservoir* that accumulates while drugs are active and decays with a configurable half-life (`antibiotic_disruption_decay_half_life_days`), raising future colonisation risk; (ii) *de novo resistance emergence* in the microbiome, whose rate is amplified by current drug pressure via `microbiome_de_novo_multiplier`; (iii) *selective maintenance* of existing resistance — mechanisms only revert when no selecting drug is active, so ongoing treatment blocks loss of resistance; (iv) daily bidirectional *infection–microbiome resistance spillover* governed by `microbiome_resistance_transfer_probability_per_day`; and (v) *horizontal gene transfer amplified by antibiotic pressure* through `hgt_antibiotic_pressure_multiplier`. Together these five pathways mean that antibiotic exposure promotes and sustains microbiome resistance through multiple complementary routes, even though the model does not track explicit clonal competition between resistant and susceptible lineages.
-
-3. **No within-host spatial structure**: Infections are treated as homogeneous within a body compartment. Biofilm formation, abscess walling-off, source control, and planktonic-versus-sessile distinctions are not modelled. The model therefore cannot reproduce the full treatment implications of deep-seated infection architecture, even though such structure is often decisive in real clinical microbiology and infectious diseases practice.
-
-4. **Static vaccine model**: Vaccinated individuals have a fixed proportional reduction in infection risk. Vaccine effects do not depend on background prevalence (no herd immunity dynamics), and vaccine-driven serotype or lineage replacement is not captured. The vaccine layer should therefore be interpreted as a simplified background modifier on acquisition risk rather than a full transmission model of vaccine ecology. The current implementation improves on the earlier dormant design by assigning vaccination to birth cohorts, but it still does not model herd effects, serotype replacement, waning, boosters, or catch-up campaigns.
-
-5. **Broad regional groupings**: The model uses continental-level regions (e.g., "Europe", "Africa") rather than country-level or hospital-level variation. Antibiotic consumption patterns, testing capacity, pathogen mix, and resistance rates can vary dramatically between countries and institutions within the same region. The regional layer should therefore be read as a coarse structuring device for global comparisons, not as a substitute for country-specific or centre-specific epidemiology.
-
-6. **No person-to-person transmission network**: Community infection rates are driven by organism-specific log-odds parameters calibrated to match observed incidence, not by direct contacts between simulated individuals. There is no explicit transmission network, no basic reproduction number (R₀), and no herd-immunity dynamic. Hospital acquisition is the one partial exception: nosocomial infection rates scale with the current hospital census, creating an implicit density-dependence within the inpatient population. The absence of a transmission model means the simulation cannot reproduce epidemic waves, outbreak amplification, or the impact of interventions — such as isolation, contact tracing, or infection-control procedures — that primarily work through blocking transmission chains. It also means community resistance prevalence is driven by selection, reversion, HGT, and calibrated acquisition rates rather than by strain spread from person to person. This is a deliberate trade-off: adding a full population-transmission layer for 42 organisms would require extensive additional parameterisation and would substantially increase runtime, while the primary policy questions addressed here (prescribing, stewardship, diagnostics, and access) are primarily mediated through selection pressure rather than transmission dynamics.
-
----
-
-
-
-## Appendix A — Bacteria, Drugs, Mechanisms and Enums
-
-This appendix lists every entity in the model. Use it as a lookup reference when you encounter a specific bacterium, drug, or mechanism code in the main text.
-
-The appendix is implementation-facing. Names, groupings, and enum labels are the simulation's internal vocabulary for representing major clinical categories; they are not meant to imply that every organism, drug, or ecological niche is exhaustively or uniquely represented by a single real-world classification scheme. They are included so that readers can see exactly how clinically familiar categories were operationalised inside a policy-scale simulation.
-
-
-
-### A.1 Bacteria (42 species)
-
-| Index | Species | Group | Carriage compartment |
-|-------|---------|-------|---------------------|
-| 0 | Acinetobacter baumannii | NonFermenter | Respiratory |
-| 1 | Citrobacter spp. | Enterobacterales | Gut |
-| 2 | Enterobacter spp. | Enterobacterales | Gut |
-| 3 | Enterococcus faecalis | GramPositive | Gut |
-| 4 | Enterococcus faecium | GramPositive | Gut |
-| 5 | Escherichia coli | Enterobacterales | Gut |
-| 6 | Klebsiella pneumoniae | Enterobacterales | Gut |
-| 7 | Morganella spp. | Enterobacterales | Gut |
-| 8 | Proteus spp. | Enterobacterales | Gut |
-| 9 | Serratia spp. | Enterobacterales | Gut |
-| 10 | Providencia stuartii | Enterobacterales | Genitourinary |
-| 11 | Pseudomonas aeruginosa | NonFermenter | Respiratory |
-| 12 | Stenotrophomonas maltophilia | NonFermenter | Respiratory |
-| 13 | Staphylococcus aureus | GramPositive | Skin/Soft Tissue |
-| 14 | Staphylococcus epidermidis | GramPositive | Skin/Soft Tissue |
-| 15 | Streptococcus pneumoniae | GramPositive | Respiratory |
-| 16 | Salmonella enterica serovar Typhi | Enterobacterales | Gut |
-| 17 | Salmonella enterica serovar Paratyphi A | Enterobacterales | Gut |
-| 18 | Invasive non-typhoidal Salmonella spp. | Enterobacterales | Gut |
-| 19 | Shigella spp. | Enterobacterales | Gut |
-| 20 | Neisseria gonorrhoeae | Fastidious | Genitourinary |
-| 21 | Streptococcus pyogenes | GramPositive | Respiratory |
-| 22 | Streptococcus agalactiae | GramPositive | Genitourinary |
-| 23 | Haemophilus influenzae | Fastidious | Respiratory |
-| 24 | Chlamydia trachomatis | Fastidious | Genitourinary |
-| 25 | Mycoplasma genitalium | Fastidious | Genitourinary |
-| 26 | Vibrio cholerae | EntericPathogen | Gut |
-| 27 | Neisseria meningitidis | Fastidious | Respiratory |
-| 28 | Listeria monocytogenes | GramPositive | Gut |
-| 29 | Clostridioides difficile | Anaerobe | Gut |
-| 30 | Bacteroides fragilis | Anaerobe | Gut |
-| 31 | Campylobacter jejuni | Helicobacter | Gut |
-| 32 | Enterobacter cloacae | Enterobacterales | Gut |
-| 33 | Yersinia enterocolitica | Enterobacterales | Gut |
-| 34 | Moraxella catarrhalis | Fastidious | Respiratory |
-| 35 | Treponema pallidum | Spirochete | Genitourinary |
-| 36 | Bordetella pertussis | Fastidious | Respiratory |
-| 37 | Helicobacter pylori | Helicobacter | Gut |
-| 38 | MDR Mycobacterium tuberculosis | Mycobacteria | Respiratory |
-| 39 | Mycoplasma pneumoniae | Fastidious | Respiratory |
-| 40 | Legionella pneumophila | Fastidious | Respiratory |
-| 41 | Burkholderia cepacia complex | NonFermenter | Respiratory |
-
-
-
-### A.2 Antibiotics (61 drugs)
-
-The class labels in this table mirror the model's current internal `DrugClass` mapping rather than broader textbook umbrella categories.
-
-| Drug | Class |
-|------|-------|
-| sulfanilamide | Sulfonamides |
-| penicillin_g | Penicillins |
-| ampicillin | Penicillins |
-| amoxicillin | Penicillins |
-| piperacillin | Penicillins |
-| ticarcillin | Penicillins |
-| flucloxacillin | Penicillins |
-| cephalexin | Cephalosporins 1–2G |
-| cefazolin | Cephalosporins 1–2G |
-| cefuroxime | Cephalosporins 1–2G |
-| ceftriaxone | Cephalosporins 3G |
-| cefixime | Cephalosporins 3G |
-| ceftazidime | Cephalosporins 3G |
-| cefepime | Cephalosporins 4G |
-| ceftaroline | Anti-MRSA Cephalosporins (5G) |
-| ceftolozane_tazobactam | Cephalosporins 3G/BLI |
-| cefiderocol | Siderophore Cephalosporins |
-| meropenem | Carbapenems Group 2 |
-| imipenem_c | Carbapenems Group 2 |
-| ertapenem | Carbapenems Group 1 |
-| aztreonam | Monobactams |
-| erythromycin | Macrolides |
-| azithromycin | Macrolides |
-| clarithromycin | Macrolides |
-| clindamycin | Lincosamides |
-| gentamicin | Aminoglycosides Group 1 |
-| tobramycin | Aminoglycosides Group 1 |
-| amikacin | Aminoglycosides Group 2 |
-| ciprofloxacin | Fluoroquinolones |
-| levofloxacin | Fluoroquinolones |
-| moxifloxacin | Fluoroquinolones |
-| ofloxacin | Fluoroquinolones |
-| tetracycline | Tetracyclines |
-| doxycycline | Tetracyclines |
-| minocycline | Tetracyclines |
-| tigecycline | Glycylcyclines |
-| vancomycin | Glycopeptides |
-| teicoplanin | Lipoglycopeptides |
-| dalbavancin | Lipoglycopeptides |
-| linezolid | Oxazolidinones |
-| tedizolid | Oxazolidinones |
-| daptomycin | Lipopeptides |
-| quinu_dalfo | Streptogramins |
-| trim_sulf | Sulfonamides |
-| chloramphenicol | Chloramphenicol |
-| nitrofurantoin | Nitrofurans |
-| fosfomycin | Phosphonic Acids |
-| retapamulin | Pleuromutilins |
-| fusidic_a | Steroid Antibacterials |
-| metronidazole | Nitroimidazoles |
-| fidaxomicin | Macrocycles |
-| furazolidone | Nitrofurans |
-| rifampicin | Rifamycins |
-| amoxicillin_clavulanate | BLI Combinations |
-| piperacillin_tazobactam | BLI Anti-Pseudomonal |
-| ampicillin_sulbactam | BLI Sulbactam |
-| ticarcillin_clavulanate | BLI Combinations |
-| ceftazidime_avibactam | Ceftazidime-Avibactam |
-| meropenem_vaborbactam | Meropenem-Vaborbactam |
-| aztreonam_avibactam | Aztreonam-Avibactam |
-| colistin | Polymyxins |
-
-
-
-### A.3 Drug Classes (39 internal classes, mirroring the live `DrugClass` enum)
-
-| Code | Enum variant | Meaning | Canonical drugs |
-|------|--------------|---------|-----------------|
-| `pen` | `Penicillins` | Penicillins | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin` |
-| `bli` | `BliCombinations` | Beta-lactam/beta-lactamase inhibitor combinations | `amoxicillin_clavulanate`, `ticarcillin_clavulanate` |
-| `bli_anti_pseudomonal` | `BliAntiPseudomonal` | Anti-pseudomonal beta-lactam/BLI combinations | `piperacillin_tazobactam` |
-| `bli_sulbactam` | `BliSulbactam` | Sulbactam-containing beta-lactam/BLI combinations | `ampicillin_sulbactam` |
-| `c1_2g` | `Cephalosporins1_2` | First- and second-generation cephalosporins | `cephalexin`, `cefazolin`, `cefuroxime` |
-| `c3g` | `Cephalosporins3` | Third-generation cephalosporins | `ceftriaxone`, `ceftazidime`, `cefixime` |
-| `c3g_bli` | `Cephalosporins3Bli` | Third-generation cephalosporin/BLI combinations | `ceftolozane_tazobactam` |
-| `c4g` | `Cephalosporins4` | Fourth-generation cephalosporins | `cefepime` |
-| `anti_mrsa_ceph` | `AntiMrsaCephalosporins` | Anti-MRSA cephalosporins | `ceftaroline` |
-| `siderophore_ceph` | `SiderophoreCephalosporins` | Siderophore cephalosporins | `cefiderocol` |
-| `cft_avi` | `CeftazidimeAvibactam` | Ceftazidime-avibactam class | `ceftazidime_avibactam` |
-| `mer_vab` | `MeropenemVaborbactam` | Meropenem-vaborbactam class | `meropenem_vaborbactam` |
-| `azt_avi` | `AztreonamAvibactam` | Aztreonam-avibactam class | `aztreonam_avibactam` |
-| `carb_group1` | `CarbapenemsGroup1` | Carbapenems lacking non-fermenter coverage | `ertapenem` |
-| `carb_group2` | `CarbapenemsGroup2` | Broad carbapenems with non-fermenter coverage | `meropenem`, `imipenem_c` |
-| `mono` | `Monobactams` | Monobactams | `aztreonam` |
-| `fq` | `Fluoroquinolones` | Fluoroquinolones | `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin` |
-| `ag_group1` | `AminoglycosidesGroup1` | Aminoglycosides group 1 | `gentamicin`, `tobramycin` |
-| `ag_group2` | `AminoglycosidesGroup2` | Aminoglycosides group 2 | `amikacin` |
-| `mls` | `Macrolides` | Macrolides | `erythromycin`, `azithromycin`, `clarithromycin` |
-| `lincosamides` | `Lincosamides` | Lincosamides | `clindamycin` |
-| `glyc` | `Glycopeptides` | Glycopeptides | `vancomycin` |
-| `lipoglycopeptides` | `Lipoglycopeptides` | Lipoglycopeptides | `teicoplanin`, `dalbavancin` |
-| `tet` | `Tetracyclines` | Tetracyclines | `tetracycline`, `doxycycline`, `minocycline` |
-| `glycylcyclines` | `Glycylcyclines` | Glycylcyclines | `tigecycline` |
-| `poly` | `Polymyxins` | Polymyxins | `colistin` |
-| `oxa` | `Oxazolidinones` | Oxazolidinones | `linezolid`, `tedizolid` |
-| `chl` | `Chloramphenicol` | Chloramphenicol class | `chloramphenicol` |
-| `sulf` | `Sulfonamides` | Sulfonamides | `sulfanilamide`, `trim_sulf` |
-| `lipopeptides` | `Lipopeptides` | Lipopeptides | `daptomycin` |
-| `streptogramins` | `Streptogramins` | Streptogramins | `quinu_dalfo` |
-| `nitrofurans` | `Nitrofurans` | Nitrofurans | `nitrofurantoin`, `furazolidone` |
-| `phosphonic_acids` | `PhosphonicAcids` | Phosphonic acids | `fosfomycin` |
-| `nitroimidazoles` | `Nitroimidazoles` | Nitroimidazoles | `metronidazole` |
-| `rifamycins` | `Rifamycins` | Rifamycins | `rifampicin` |
-| `macrocycles` | `Macrocycles` | Macrocycles | `fidaxomicin` |
-| `steroid_antibacterials` | `SteroidAntibacterials` | Steroid antibacterials | `fusidic_a` |
-| `pleuromutilins` | `Pleuromutilins` | Pleuromutilins | `retapamulin` |
-| `other` | `Other` | Fallback catch-all class | none currently in `DRUG_SHORT_NAMES`; used only if a future drug lacks an explicit mapping |
-
-
-
-### A.4 Resistance Mechanisms (40)
-
-See [Section 7.1](#71-resistance-mechanisms) for the full table.
-
-
-
-### A.5 Enumerations
-
-
-
-#### BacteriaGroup (9 groups)
-
-| Group | Description |
-|-------|-------------|
-| `Enterobacterales` | Gram-negative enteric rods |
-| `NonFermenter` | Non-fermenting Gram-negatives |
-| `GramPositive` | Gram-positive cocci and rods |
-| `Fastidious` | Fastidious Gram-negatives and atypicals |
-| `EntericPathogen` | Specific enteric pathogens (V. cholerae) |
-| `Anaerobe` | Obligate anaerobes |
-| `Spirochete` | Spirochetes (T. pallidum) |
-| `Helicobacter` | Helicobacter/Campylobacter |
-| `Mycobacteria` | Mycobacteria (M. tuberculosis) |
-
-
-
-#### CarriageCompartment (5)
-
-`Gut`, `Respiratory`, `SkinSoftTissue`, `Genitourinary`, `Systemic`
-
-
-
-#### ResistanceAcquisitionType (5)
-
-| Type | Description |
-|------|-------------|
-| `AtInfection` | Acquired at community infection |
-| `AtInfectionHosp` | Acquired at hospital infection |
-| `AtInfectionTB` | Acquired at MDR-TB infection event; rifampicin resistance (`rpoB`) is pre-seeded deterministically because MDR-TB is by definition rifampicin-resistant |
-| `DuringInfection` | De novo emergence during treatment |
-| `HGT` | Horizontal gene transfer |
-
-
-
-#### InfectionResolutionType (6)
-
-`DrugTreatment`, `NaturalClearance`, `Death`, `SepsisDeath`, `ToxicityDeath`, `BackgroundDeath`
-
-
-
-#### ImmunodeficiencyType (2)
-
-`Temporary`, `Chronic`
-
-
-
-#### AgeCategory (7)
-
-`Infant`, `Preschool`, `SchoolAge`, `YoungAdult`, `MiddleAge`, `Elderly`, `NotYetBorn`
-
-
-
-#### HospitalStatus (2)
-
-`Community`, `Hospital`
-
-
-
-#### Region (7)
-
-`NorthAmerica`, `Europe`, `Asia`, `Oceania`, `SouthAmerica`, `Africa`, `Home` (fallback)
-
-
-
-#### MicrobiomeResistanceLevel (4)
-
-`None`, `Low`, `Medium`, `High`
-
----
-
-
-
-## Appendix B — Parameter Reference
+﻿## Appendix B ΓÇö Parameter Reference
 
 This appendix is auto-generated from the live Rust configuration. Parameters are organized thematically into resolved tables derived from the internal data structures. All values shown are the effective defaults before any run-level sampling multipliers are applied.
 
@@ -2191,7 +6,7 @@ This appendix is auto-generated from the live Rust configuration. Parameters are
 
 Scalar parameters that govern cross-cutting model behaviour. Grouped thematically; each row gives the parameter name and its default value.
 
-See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.7 Drug toxicity](#67-drug-toxicity), [§2.4 Hospitalisation](#24-hospitalisation), [§2.5 Travel](#25-travel), [§4.3 Sepsis](#43-sepsis), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs), [§8 Microbiome and Carriage](#8-microbiome-and-carriage), [§9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), [§10 Mortality](#10-mortality).
+See: [┬º6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-antibiotics), [┬º6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [┬º6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [┬º6.7 Drug toxicity](#67-drug-toxicity), [┬º2.4 Hospitalisation](#24-hospitalisation), [┬º2.5 Travel](#25-travel), [┬º4.3 Sepsis](#43-sepsis), [┬º7.3 Resistance emergence](#73-resistance-emergence), [┬º7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs), [┬º8 Microbiome and Carriage](#8-microbiome-and-carriage), [┬º9 Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt), [┬º10 Mortality](#10-mortality).
 
 #### Treatment Initiation (logistic model)
 
@@ -2261,8 +76,6 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | resistance_development_inhibition_partial_cross | 0.3 |
 | mechanism_assignment_probability_on_any_r_gain | 0.8 |
 | community_profile_cache_retention | 0.99 |
-| hospital_profile_cache_retention | 0.995 |
-| hospital_resistance_concentration_factor | per-bacteria (1.0–2.25; see Section 3.4) |
 | mechanism_reversion_rate_global_multiplier | 1 |
 | majority_r_memory_retention_per_day | 0.93 |
 
@@ -2278,7 +91,7 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 | carriage_duration_max_log_odds_effect | -2 |
 | antibiotic_clearance_log_odds_per_unit_activity | 0.5 |
 | carrier_resistance_inheritance_probability | 0.5 |
-| community_resistance_dilution_factor | per-bacteria (0.12–0.80; see Section 3.4) |
+| community_resistance_dilution_factor | 0.3 |
 | microbiome_majority_decay_half_life_days | 60 |
 | microbiome_minority_decay_half_life_days | 18 |
 | microbiome_majority_promotion_rate_per_day | 0.02 |
@@ -2437,9 +250,9 @@ See: [§6.1 Treatment initiation](#61-treatment-initiation-deciding-to-start-ant
 
 Pharmacokinetic and clinical properties for each of the 61 modelled antimicrobial agents. The introduction time step is measured in days from 1 January 1930.
 
-See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.6 Drug availability](#66-drug-availability-by-region-and-era), [§6.7 Drug toxicity](#67-drug-toxicity), [§6.8 Antibiotic infection prevention](#68-antibiotic-infection-prevention).
+See: [┬º6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [┬º6.5 Drug potency matrix](#65-drug-potency-matrix), [┬º6.6 Drug availability](#66-drug-availability-by-region-and-era), [┬º6.7 Drug toxicity](#67-drug-toxicity), [┬º6.8 Antibiotic infection prevention](#68-antibiotic-infection-prevention).
 
-| Drug | Class | Intro (days) | Init level | t½ (days) | 2× dose mult | Spectrum | Tox hazard | Tox t½ (days) | Microbiome disrupt |
+| Drug | Class | Intro (days) | Init level | t┬╜ (days) | 2├ù dose mult | Spectrum | Tox hazard | Tox t┬╜ (days) | Microbiome disrupt |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | sulfanilamide | folate_antagonists | 2555 | 10 | 0.45 | 2 | 3 | 0 | 1.5 | 0.3 |
 | penicillin_g | penicillins | 3555 | 10 | 0.04 | 2 | 2 | 5e-10 | 1.5 | 0.3 |
@@ -2505,11 +318,11 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 
 ### B.3 Bacteria Properties
 
-Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species. Resistance-dilution and hospital-concentration settings are discussed separately in Section 3.4 because they are calibrated as part of the acquisition-reservoir logic rather than the core clinical trajectory table below.
+Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species.
 
-See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection dynamics](#42-infection-dynamics), [§4.3 Sepsis](#43-sepsis), [§4.4 Natural clearance](#44-natural-clearance), [§8.1 Carriage compartments](#81-carriage-compartments).
+See: [┬º3.1 Community acquisition](#31-community-acquisition), [┬º4.2 Infection dynamics](#42-infection-dynamics), [┬º4.3 Sepsis](#43-sepsis), [┬º4.4 Natural clearance](#44-natural-clearance), [┬º8.1 Carriage compartments](#81-carriage-compartments).
 
-| Bacteria | Acq log-odds | Init level | Delta level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate |
+| Bacteria | Acq log-odds | Init level | ╬ö level/day | Max level | Microb clr/day | Microb vs inf | Drug cess prob | Sx threshold | Sx delay (d) | Sepsis log-odds | Mech-less rev rate |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | acinetobacter_baumannii | -18.7 | 0.01 | 0.55 | 5 | 0.1 | 8 | 0.0075 | 0.5 | 1 | -7.7 | 4e-4 |
 | citrobacter_spp. | -16.3 | 0.01 | 0.5 | 5 | 0.08 | 11.3 | 0.0045 | 0.5 | 1 | -9.2 | 4e-4 |
@@ -2554,50 +367,50 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 | legionella_pneumophila | -15.5 | 0.01 | 0.55 | 5 | 0.01 | -2 | 0.0085 | 0.5 | 1 | -14 | 4e-4 |
 | burkholderia_cepacia_complex | -20 | 0.01 | 0.45 | 5 | 0.01 | 0.5 | 0.0075 | 0.5 | 1 | -14 | 4e-4 |
 
-### B.4 Drug–Bacteria Potency Matrix
+### B.4 DrugΓÇôBacteria Potency Matrix
 
-Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 61 drugs = 2562 entries.
+Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drugΓÇôbacteria pair. 42 bacteria ├ù 61 drugs = 2562 entries.
 
-See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).
+See: [┬º6.5 Drug potency matrix](#65-drug-potency-matrix), [┬º6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).
 
 | Bacteria | Drug | Potency (no R) | Init multiplier |
 | --- | ---: | ---: | ---: |
-| acinetobacter_baumannii | sulfanilamide | 0.1 | 1 |
+| acinetobacter_baumannii | sulfanilamide | 0.1 | 0.02 |
 | acinetobacter_baumannii | penicillin_g | 0.05 | 0.01 |
 | acinetobacter_baumannii | ampicillin | 0.05 | 0.01 |
 | acinetobacter_baumannii | amoxicillin | 0.05 | 0.01 |
 | acinetobacter_baumannii | piperacillin | 0.6 | 1 |
 | acinetobacter_baumannii | ticarcillin | 0.5 | 1 |
-| acinetobacter_baumannii | cephalexin | 0.05 | 1 |
-| acinetobacter_baumannii | cefazolin | 0.05 | 1 |
-| acinetobacter_baumannii | cefuroxime | 0.1 | 1 |
-| acinetobacter_baumannii | ceftriaxone | 0.1 | 1 |
-| acinetobacter_baumannii | ceftazidime | 0.6 | 1 |
-| acinetobacter_baumannii | cefepime | 0.7 | 1 |
-| acinetobacter_baumannii | ceftaroline | 0.1 | 1 |
+| acinetobacter_baumannii | cephalexin | 0.05 | 0.3 |
+| acinetobacter_baumannii | cefazolin | 0.05 | 0.3 |
+| acinetobacter_baumannii | cefuroxime | 0.1 | 0.3 |
+| acinetobacter_baumannii | ceftriaxone | 0.1 | 0.2 |
+| acinetobacter_baumannii | ceftazidime | 0.6 | 2 |
+| acinetobacter_baumannii | cefepime | 0.7 | 2 |
+| acinetobacter_baumannii | ceftaroline | 0.1 | 0.002 |
 | acinetobacter_baumannii | ceftolozane_tazobactam | 0.1 | 1 |
 | acinetobacter_baumannii | cefiderocol | 0.1 | 1 |
-| acinetobacter_baumannii | meropenem | 0.85 | 0.005 |
-| acinetobacter_baumannii | imipenem_c | 0.8 | 0.005 |
+| acinetobacter_baumannii | meropenem | 0.85 | 6 |
+| acinetobacter_baumannii | imipenem_c | 0.8 | 4 |
 | acinetobacter_baumannii | ertapenem | 0.1 | 0.005 |
-| acinetobacter_baumannii | aztreonam | 0.1 | 1 |
-| acinetobacter_baumannii | gentamicin | 0.75 | 1 |
-| acinetobacter_baumannii | tobramycin | 0.7 | 1 |
-| acinetobacter_baumannii | amikacin | 0.8 | 1 |
+| acinetobacter_baumannii | aztreonam | 0.1 | 0.003 |
+| acinetobacter_baumannii | gentamicin | 0.75 | 10 |
+| acinetobacter_baumannii | tobramycin | 0.7 | 10 |
+| acinetobacter_baumannii | amikacin | 0.8 | 15 |
 | acinetobacter_baumannii | ciprofloxacin | 0.7 | 1 |
 | acinetobacter_baumannii | levofloxacin | 0.7 | 1 |
 | acinetobacter_baumannii | moxifloxacin | 0.6 | 1 |
 | acinetobacter_baumannii | ofloxacin | 0.6 | 1 |
-| acinetobacter_baumannii | tetracycline | 0.6 | 1 |
-| acinetobacter_baumannii | doxycycline | 0.7 | 1 |
-| acinetobacter_baumannii | minocycline | 0.8 | 1 |
+| acinetobacter_baumannii | tetracycline | 0.6 | 0.25 |
+| acinetobacter_baumannii | doxycycline | 0.7 | 0.25 |
+| acinetobacter_baumannii | minocycline | 0.8 | 0.25 |
 | acinetobacter_baumannii | tigecycline | 0.1 | 1 |
 | acinetobacter_baumannii | dalbavancin | 0 | 0.005 |
 | acinetobacter_baumannii | linezolid | 0 | 0.005 |
 | acinetobacter_baumannii | tedizolid | 0 | 0.005 |
 | acinetobacter_baumannii | daptomycin | 0.1 | 1 |
 | acinetobacter_baumannii | quinu_dalfo | 0 | 0.005 |
-| acinetobacter_baumannii | trim_sulf | 0.6 | 1 |
+| acinetobacter_baumannii | trim_sulf | 0.6 | 0.04 |
 | acinetobacter_baumannii | chloramphenicol | 0.7 | 1 |
 | acinetobacter_baumannii | nitrofurantoin | 0.1 | 1 |
 | acinetobacter_baumannii | fosfomycin | 0.1 | 1 |
@@ -2605,48 +418,48 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | acinetobacter_baumannii | furazolidone | 0.1 | 1 |
 | acinetobacter_baumannii | rifampicin | 0.6 | 1 |
 | acinetobacter_baumannii | amoxicillin_clavulanate | 0.05 | 1 |
-| acinetobacter_baumannii | piperacillin_tazobactam | 0.7 | 1 |
+| acinetobacter_baumannii | piperacillin_tazobactam | 0.7 | 8 |
 | acinetobacter_baumannii | ampicillin_sulbactam | 0.7 | 1 |
-| acinetobacter_baumannii | ticarcillin_clavulanate | 0.6 | 1 |
+| acinetobacter_baumannii | ticarcillin_clavulanate | 0.6 | 3 |
 | acinetobacter_baumannii | ceftazidime_avibactam | 0.7 | 0.005 |
 | acinetobacter_baumannii | meropenem_vaborbactam | 0.8 | 0.005 |
 | acinetobacter_baumannii | colistin | 0.9 | 0.005 |
 | acinetobacter_baumannii | flucloxacillin | 0.01 | 1 |
-| acinetobacter_baumannii | aztreonam_avibactam | 0.1 | 1 |
-| acinetobacter_baumannii | cefixime | 0.1 | 1 |
-| citrobacter_spp. | sulfanilamide | 0.5 | 1 |
+| acinetobacter_baumannii | aztreonam_avibactam | 0.1 | 0.04 |
+| acinetobacter_baumannii | cefixime | 0.1 | 0.2 |
+| citrobacter_spp. | sulfanilamide | 0.5 | 0.02 |
 | citrobacter_spp. | penicillin_g | 0.1 | 1 |
 | citrobacter_spp. | ampicillin | 0.1 | 1 |
 | citrobacter_spp. | amoxicillin | 0.1 | 1 |
 | citrobacter_spp. | piperacillin | 0.8 | 1 |
 | citrobacter_spp. | ticarcillin | 0.75 | 1 |
-| citrobacter_spp. | cephalexin | 0.1 | 1 |
-| citrobacter_spp. | cefazolin | 0.1 | 1 |
-| citrobacter_spp. | cefuroxime | 0.8 | 1 |
-| citrobacter_spp. | ceftriaxone | 0.85 | 1 |
-| citrobacter_spp. | ceftazidime | 0.8 | 1 |
-| citrobacter_spp. | cefepime | 0.9 | 1 |
-| citrobacter_spp. | ceftaroline | 0.6 | 1 |
+| citrobacter_spp. | cephalexin | 0.1 | 0.3 |
+| citrobacter_spp. | cefazolin | 0.1 | 0.3 |
+| citrobacter_spp. | cefuroxime | 0.8 | 0.3 |
+| citrobacter_spp. | ceftriaxone | 0.85 | 0.2 |
+| citrobacter_spp. | ceftazidime | 0.8 | 0.2 |
+| citrobacter_spp. | cefepime | 0.9 | 0.35 |
+| citrobacter_spp. | ceftaroline | 0.6 | 0.002 |
 | citrobacter_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | citrobacter_spp. | cefiderocol | 0.8 | 1 |
-| citrobacter_spp. | meropenem | 0.95 | 0.005 |
+| citrobacter_spp. | meropenem | 0.95 | 4 |
 | citrobacter_spp. | imipenem_c | 0.95 | 0.005 |
-| citrobacter_spp. | ertapenem | 0.9 | 0.005 |
-| citrobacter_spp. | aztreonam | 0.85 | 1 |
+| citrobacter_spp. | ertapenem | 0.9 | 3 |
+| citrobacter_spp. | aztreonam | 0.85 | 0.003 |
 | citrobacter_spp. | erythromycin | 0.1 | 1 |
 | citrobacter_spp. | azithromycin | 0.1 | 1 |
 | citrobacter_spp. | clarithromycin | 0.1 | 1 |
 | citrobacter_spp. | clindamycin | 0.1 | 1 |
-| citrobacter_spp. | gentamicin | 0.85 | 1 |
+| citrobacter_spp. | gentamicin | 0.85 | 10 |
 | citrobacter_spp. | tobramycin | 0.8 | 1 |
 | citrobacter_spp. | amikacin | 0.9 | 1 |
 | citrobacter_spp. | ciprofloxacin | 0.9 | 1 |
 | citrobacter_spp. | levofloxacin | 0.85 | 1 |
 | citrobacter_spp. | moxifloxacin | 0.7 | 1 |
 | citrobacter_spp. | ofloxacin | 0.8 | 1 |
-| citrobacter_spp. | tetracycline | 0.8 | 1 |
-| citrobacter_spp. | doxycycline | 0.85 | 1 |
-| citrobacter_spp. | minocycline | 0.85 | 1 |
+| citrobacter_spp. | tetracycline | 0.8 | 0.25 |
+| citrobacter_spp. | doxycycline | 0.85 | 0.25 |
+| citrobacter_spp. | minocycline | 0.85 | 0.25 |
 | citrobacter_spp. | tigecycline | 0.1 | 1 |
 | citrobacter_spp. | vancomycin | 0.1 | 1 |
 | citrobacter_spp. | teicoplanin | 0.1 | 1 |
@@ -2655,7 +468,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | citrobacter_spp. | tedizolid | 0.1 | 0.005 |
 | citrobacter_spp. | daptomycin | 0.1 | 1 |
 | citrobacter_spp. | quinu_dalfo | 0.1 | 0.005 |
-| citrobacter_spp. | trim_sulf | 0.9 | 1 |
+| citrobacter_spp. | trim_sulf | 0.9 | 0.04 |
 | citrobacter_spp. | chloramphenicol | 0.85 | 1 |
 | citrobacter_spp. | nitrofurantoin | 0.8 | 1 |
 | citrobacter_spp. | fosfomycin | 0.1 | 1 |
@@ -2665,119 +478,120 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | citrobacter_spp. | fidaxomicin | 0.1 | 1 |
 | citrobacter_spp. | furazolidone | 0.1 | 1 |
 | citrobacter_spp. | rifampicin | 0.7 | 1 |
-| citrobacter_spp. | amoxicillin_clavulanate | 0.9 | 1 |
-| citrobacter_spp. | piperacillin_tazobactam | 0.9 | 1 |
+| citrobacter_spp. | amoxicillin_clavulanate | 0.9 | 6 |
+| citrobacter_spp. | piperacillin_tazobactam | 0.9 | 8 |
 | citrobacter_spp. | ampicillin_sulbactam | 0.85 | 1 |
 | citrobacter_spp. | ticarcillin_clavulanate | 0.8 | 1 |
 | citrobacter_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
 | citrobacter_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
 | citrobacter_spp. | colistin | 0.7 | 0.005 |
 | citrobacter_spp. | flucloxacillin | 0.01 | 1 |
-| citrobacter_spp. | aztreonam_avibactam | 1 | 1 |
-| citrobacter_spp. | cefixime | 0.8 | 1 |
-| enterobacter_spp. | sulfanilamide | 0.5 | 1 |
+| citrobacter_spp. | aztreonam_avibactam | 1 | 0.003 |
+| citrobacter_spp. | cefixime | 0.8 | 0.2 |
+| enterobacter_spp. | sulfanilamide | 0.5 | 0.02 |
 | enterobacter_spp. | penicillin_g | 0.1 | 1 |
 | enterobacter_spp. | ampicillin | 0.1 | 1 |
 | enterobacter_spp. | amoxicillin | 0.1 | 1 |
 | enterobacter_spp. | piperacillin | 0.75 | 1 |
 | enterobacter_spp. | ticarcillin | 0.7 | 1 |
-| enterobacter_spp. | cephalexin | 0.1 | 1 |
-| enterobacter_spp. | cefazolin | 0.1 | 1 |
-| enterobacter_spp. | cefuroxime | 0.6 | 1 |
-| enterobacter_spp. | ceftriaxone | 0.5 | 1 |
-| enterobacter_spp. | ceftazidime | 0.8 | 1 |
-| enterobacter_spp. | cefepime | 0.85 | 1 |
-| enterobacter_spp. | ceftaroline | 0.4 | 1 |
+| enterobacter_spp. | cephalexin | 0.1 | 0.3 |
+| enterobacter_spp. | cefazolin | 0.1 | 0.3 |
+| enterobacter_spp. | cefuroxime | 0.6 | 0.3 |
+| enterobacter_spp. | ceftriaxone | 0.5 | 0.2 |
+| enterobacter_spp. | ceftazidime | 0.8 | 0.2 |
+| enterobacter_spp. | cefepime | 0.85 | 2.5 |
+| enterobacter_spp. | ceftaroline | 0.4 | 0.002 |
 | enterobacter_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | enterobacter_spp. | cefiderocol | 0.8 | 1 |
-| enterobacter_spp. | meropenem | 0.95 | 0.005 |
-| enterobacter_spp. | imipenem_c | 0.95 | 0.005 |
-| enterobacter_spp. | ertapenem | 0.9 | 0.005 |
-| enterobacter_spp. | aztreonam | 0.8 | 1 |
-| enterobacter_spp. | gentamicin | 0.85 | 1 |
+| enterobacter_spp. | meropenem | 0.95 | 5 |
+| enterobacter_spp. | imipenem_c | 0.95 | 3 |
+| enterobacter_spp. | ertapenem | 0.9 | 3 |
+| enterobacter_spp. | aztreonam | 0.8 | 0.003 |
+| enterobacter_spp. | gentamicin | 0.85 | 10 |
 | enterobacter_spp. | tobramycin | 0.8 | 1 |
-| enterobacter_spp. | amikacin | 0.9 | 1 |
+| enterobacter_spp. | amikacin | 0.9 | 8 |
 | enterobacter_spp. | ciprofloxacin | 0.9 | 1 |
 | enterobacter_spp. | levofloxacin | 0.85 | 1 |
 | enterobacter_spp. | moxifloxacin | 0.7 | 1 |
 | enterobacter_spp. | ofloxacin | 0.8 | 1 |
-| enterobacter_spp. | tetracycline | 0.8 | 1 |
-| enterobacter_spp. | doxycycline | 0.85 | 1 |
-| enterobacter_spp. | minocycline | 0.85 | 1 |
+| enterobacter_spp. | tetracycline | 0.8 | 0.25 |
+| enterobacter_spp. | doxycycline | 0.85 | 0.25 |
+| enterobacter_spp. | minocycline | 0.85 | 0.25 |
 | enterobacter_spp. | tigecycline | 0.1 | 1 |
 | enterobacter_spp. | dalbavancin | 0 | 0.005 |
 | enterobacter_spp. | linezolid | 0 | 0.005 |
 | enterobacter_spp. | tedizolid | 0 | 0.005 |
 | enterobacter_spp. | daptomycin | 0.1 | 1 |
 | enterobacter_spp. | quinu_dalfo | 0 | 0.005 |
-| enterobacter_spp. | trim_sulf | 0.85 | 1 |
+| enterobacter_spp. | trim_sulf | 0.85 | 0.04 |
 | enterobacter_spp. | chloramphenicol | 0.8 | 1 |
 | enterobacter_spp. | nitrofurantoin | 0.7 | 1 |
 | enterobacter_spp. | fosfomycin | 0.1 | 1 |
 | enterobacter_spp. | fidaxomicin | 0.1 | 1 |
 | enterobacter_spp. | furazolidone | 0.1 | 1 |
 | enterobacter_spp. | rifampicin | 0.6 | 1 |
-| enterobacter_spp. | amoxicillin_clavulanate | 0.7 | 1 |
-| enterobacter_spp. | piperacillin_tazobactam | 0.85 | 1 |
+| enterobacter_spp. | amoxicillin_clavulanate | 0.7 | 6 |
+| enterobacter_spp. | piperacillin_tazobactam | 0.85 | 8 |
 | enterobacter_spp. | ampicillin_sulbactam | 0.7 | 1 |
 | enterobacter_spp. | ticarcillin_clavulanate | 0.8 | 1 |
 | enterobacter_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
 | enterobacter_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
 | enterobacter_spp. | colistin | 0.7 | 0.005 |
 | enterobacter_spp. | flucloxacillin | 0.01 | 1 |
-| enterobacter_spp. | aztreonam_avibactam | 1 | 1 |
-| enterobacter_spp. | cefixime | 0.8 | 1 |
-| enterococcus_faecalis | sulfanilamide | 0.1 | 1 |
+| enterobacter_spp. | aztreonam_avibactam | 1 | 0.003 |
+| enterobacter_spp. | cefixime | 0.8 | 0.2 |
+| enterococcus_faecalis | sulfanilamide | 0.1 | 0.02 |
 | enterococcus_faecalis | penicillin_g | 0.8 | 1 |
-| enterococcus_faecalis | ampicillin | 0.9 | 1 |
+| enterococcus_faecalis | ampicillin | 0.9 | 6 |
 | enterococcus_faecalis | amoxicillin | 0.9 | 1 |
 | enterococcus_faecalis | piperacillin | 0.75 | 1 |
 | enterococcus_faecalis | ticarcillin | 0.7 | 1 |
-| enterococcus_faecalis | cephalexin | 0.1 | 1 |
-| enterococcus_faecalis | cefazolin | 0.1 | 1 |
-| enterococcus_faecalis | cefuroxime | 0.1 | 1 |
-| enterococcus_faecalis | ceftriaxone | 0.1 | 1 |
-| enterococcus_faecalis | ceftazidime | 0.1 | 1 |
-| enterococcus_faecalis | cefepime | 0.1 | 1 |
-| enterococcus_faecalis | ceftaroline | 0.1 | 1 |
+| enterococcus_faecalis | cephalexin | 0.1 | 0.3 |
+| enterococcus_faecalis | cefazolin | 0.1 | 0.3 |
+| enterococcus_faecalis | cefuroxime | 0.1 | 0.3 |
+| enterococcus_faecalis | ceftriaxone | 0.1 | 0.2 |
+| enterococcus_faecalis | ceftazidime | 0.1 | 0.2 |
+| enterococcus_faecalis | cefepime | 0.1 | 0.35 |
+| enterococcus_faecalis | ceftaroline | 0.1 | 0.002 |
 | enterococcus_faecalis | ceftolozane_tazobactam | 0.05 | 1 |
 | enterococcus_faecalis | cefiderocol | 0.05 | 1 |
 | enterococcus_faecalis | meropenem | 0.7 | 0.005 |
 | enterococcus_faecalis | imipenem_c | 0.7 | 0.005 |
 | enterococcus_faecalis | ertapenem | 0.1 | 0.005 |
+| enterococcus_faecalis | aztreonam | 0 | 0.003 |
 | enterococcus_faecalis | erythromycin | 0.7 | 0.01 |
 | enterococcus_faecalis | azithromycin | 0.7 | 0.01 |
 | enterococcus_faecalis | clarithromycin | 0.7 | 1 |
 | enterococcus_faecalis | clindamycin | 0.7 | 1 |
-| enterococcus_faecalis | gentamicin | 0.1 | 1 |
+| enterococcus_faecalis | gentamicin | 0.1 | 20 |
 | enterococcus_faecalis | tobramycin | 0.1 | 1 |
 | enterococcus_faecalis | amikacin | 0.1 | 1 |
 | enterococcus_faecalis | ciprofloxacin | 0.7 | 1 |
 | enterococcus_faecalis | levofloxacin | 0.7 | 1 |
 | enterococcus_faecalis | moxifloxacin | 0.7 | 1 |
 | enterococcus_faecalis | ofloxacin | 0.7 | 1 |
-| enterococcus_faecalis | tetracycline | 0.8 | 1 |
-| enterococcus_faecalis | doxycycline | 0.8 | 1 |
-| enterococcus_faecalis | minocycline | 0.85 | 1 |
+| enterococcus_faecalis | tetracycline | 0.8 | 0.25 |
+| enterococcus_faecalis | doxycycline | 0.8 | 0.25 |
+| enterococcus_faecalis | minocycline | 0.85 | 0.25 |
 | enterococcus_faecalis | tigecycline | 0.1 | 1 |
 | enterococcus_faecalis | vancomycin | 0.95 | 4 |
-| enterococcus_faecalis | teicoplanin | 0.9 | 1 |
+| enterococcus_faecalis | teicoplanin | 0.9 | 5 |
 | enterococcus_faecalis | dalbavancin | 0.9 | 0.005 |
-| enterococcus_faecalis | linezolid | 0.9 | 0.25 |
+| enterococcus_faecalis | linezolid | 0.9 | 2 |
 | enterococcus_faecalis | tedizolid | 0.9 | 0.005 |
-| enterococcus_faecalis | daptomycin | 0.1 | 1 |
+| enterococcus_faecalis | daptomycin | 0.1 | 3 |
 | enterococcus_faecalis | quinu_dalfo | 0.1 | 0.005 |
-| enterococcus_faecalis | trim_sulf | 0.1 | 1 |
+| enterococcus_faecalis | trim_sulf | 0.1 | 0.04 |
 | enterococcus_faecalis | chloramphenicol | 0.8 | 1 |
-| enterococcus_faecalis | nitrofurantoin | 0.9 | 1 |
-| enterococcus_faecalis | fosfomycin | 0.1 | 1 |
+| enterococcus_faecalis | nitrofurantoin | 0.9 | 20 |
+| enterococcus_faecalis | fosfomycin | 0.1 | 15 |
 | enterococcus_faecalis | retapamulin | 0.1 | 1 |
 | enterococcus_faecalis | fusidic_a | 0.1 | 1 |
 | enterococcus_faecalis | metronidazole | 0.1 | 1 |
 | enterococcus_faecalis | fidaxomicin | 0.1 | 1 |
 | enterococcus_faecalis | furazolidone | 0.1 | 1 |
 | enterococcus_faecalis | rifampicin | 0.1 | 1 |
-| enterococcus_faecalis | amoxicillin_clavulanate | 0.9 | 1 |
+| enterococcus_faecalis | amoxicillin_clavulanate | 0.9 | 12 |
 | enterococcus_faecalis | piperacillin_tazobactam | 0.75 | 1 |
 | enterococcus_faecalis | ampicillin_sulbactam | 0.9 | 1 |
 | enterococcus_faecalis | ticarcillin_clavulanate | 0.7 | 1 |
@@ -2785,26 +599,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecalis | meropenem_vaborbactam | 0.75 | 0.005 |
 | enterococcus_faecalis | colistin | 0 | 0.005 |
 | enterococcus_faecalis | flucloxacillin | 0.05 | 1 |
-| enterococcus_faecalis | aztreonam_avibactam | 0.01 | 1 |
-| enterococcus_faecalis | cefixime | 0.05 | 1 |
-| enterococcus_faecium | sulfanilamide | 0.1 | 1 |
+| enterococcus_faecalis | aztreonam_avibactam | 0.01 | 0.003 |
+| enterococcus_faecalis | cefixime | 0.05 | 0.2 |
+| enterococcus_faecium | sulfanilamide | 0.1 | 0.02 |
 | enterococcus_faecium | penicillin_g | 0.1 | 1 |
 | enterococcus_faecium | ampicillin | 0.3 | 1 |
 | enterococcus_faecium | amoxicillin | 0.3 | 1 |
 | enterococcus_faecium | piperacillin | 0.1 | 1 |
 | enterococcus_faecium | ticarcillin | 0.1 | 1 |
-| enterococcus_faecium | cephalexin | 0.1 | 1 |
-| enterococcus_faecium | cefazolin | 0.1 | 1 |
-| enterococcus_faecium | cefuroxime | 0.1 | 1 |
-| enterococcus_faecium | ceftriaxone | 0.1 | 1 |
-| enterococcus_faecium | ceftazidime | 0.1 | 1 |
-| enterococcus_faecium | cefepime | 0.1 | 1 |
-| enterococcus_faecium | ceftaroline | 0.1 | 1 |
+| enterococcus_faecium | cephalexin | 0.1 | 0.3 |
+| enterococcus_faecium | cefazolin | 0.1 | 0.3 |
+| enterococcus_faecium | cefuroxime | 0.1 | 0.3 |
+| enterococcus_faecium | ceftriaxone | 0.1 | 0.2 |
+| enterococcus_faecium | ceftazidime | 0.1 | 0.2 |
+| enterococcus_faecium | cefepime | 0.1 | 0.35 |
+| enterococcus_faecium | ceftaroline | 0.1 | 0.002 |
 | enterococcus_faecium | ceftolozane_tazobactam | 0.05 | 1 |
 | enterococcus_faecium | cefiderocol | 0.05 | 1 |
 | enterococcus_faecium | meropenem | 0.1 | 0.005 |
 | enterococcus_faecium | imipenem_c | 0.1 | 0.005 |
 | enterococcus_faecium | ertapenem | 0.1 | 0.005 |
+| enterococcus_faecium | aztreonam | 0 | 0.003 |
 | enterococcus_faecium | erythromycin | 0.7 | 0.01 |
 | enterococcus_faecium | azithromycin | 0.7 | 0.01 |
 | enterococcus_faecium | clarithromycin | 0.7 | 1 |
@@ -2816,20 +631,20 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecium | levofloxacin | 0.7 | 1 |
 | enterococcus_faecium | moxifloxacin | 0.7 | 1 |
 | enterococcus_faecium | ofloxacin | 0.7 | 1 |
-| enterococcus_faecium | tetracycline | 0.8 | 1 |
-| enterococcus_faecium | doxycycline | 0.8 | 1 |
-| enterococcus_faecium | minocycline | 0.85 | 1 |
+| enterococcus_faecium | tetracycline | 0.8 | 0.25 |
+| enterococcus_faecium | doxycycline | 0.8 | 0.25 |
+| enterococcus_faecium | minocycline | 0.85 | 0.25 |
 | enterococcus_faecium | tigecycline | 0.1 | 1 |
-| enterococcus_faecium | vancomycin | 0.9 | 3.5 |
-| enterococcus_faecium | teicoplanin | 0.85 | 1 |
+| enterococcus_faecium | vancomycin | 0.9 | 5 |
+| enterococcus_faecium | teicoplanin | 0.85 | 5 |
 | enterococcus_faecium | dalbavancin | 0.85 | 0.005 |
-| enterococcus_faecium | linezolid | 0.9 | 0.3 |
+| enterococcus_faecium | linezolid | 0.9 | 3 |
 | enterococcus_faecium | tedizolid | 0.9 | 0.005 |
-| enterococcus_faecium | daptomycin | 0.1 | 1 |
+| enterococcus_faecium | daptomycin | 0.1 | 4 |
 | enterococcus_faecium | quinu_dalfo | 0.7 | 0.005 |
-| enterococcus_faecium | trim_sulf | 0.6 | 1 |
+| enterococcus_faecium | trim_sulf | 0.6 | 0.04 |
 | enterococcus_faecium | chloramphenicol | 0.7 | 1 |
-| enterococcus_faecium | nitrofurantoin | 0.7 | 1 |
+| enterococcus_faecium | nitrofurantoin | 0.7 | 15 |
 | enterococcus_faecium | fosfomycin | 0.1 | 1 |
 | enterococcus_faecium | retapamulin | 0.1 | 1 |
 | enterococcus_faecium | fusidic_a | 0.1 | 1 |
@@ -2845,145 +660,145 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterococcus_faecium | meropenem_vaborbactam | 0.1 | 0.005 |
 | enterococcus_faecium | colistin | 0 | 0.005 |
 | enterococcus_faecium | flucloxacillin | 0.05 | 1 |
-| enterococcus_faecium | aztreonam_avibactam | 0.01 | 1 |
-| enterococcus_faecium | cefixime | 0.05 | 1 |
-| escherichia_coli | sulfanilamide | 0.5 | 1 |
+| enterococcus_faecium | aztreonam_avibactam | 0.01 | 0.003 |
+| enterococcus_faecium | cefixime | 0.05 | 0.2 |
+| escherichia_coli | sulfanilamide | 0.5 | 0.02 |
 | escherichia_coli | penicillin_g | 0.1 | 1 |
 | escherichia_coli | ampicillin | 0.8 | 1 |
-| escherichia_coli | amoxicillin | 0.8 | 1 |
+| escherichia_coli | amoxicillin | 0.8 | 6 |
 | escherichia_coli | piperacillin | 0.85 | 1 |
 | escherichia_coli | ticarcillin | 0.8 | 1 |
-| escherichia_coli | cephalexin | 0.7 | 1 |
-| escherichia_coli | cefazolin | 0.75 | 1 |
-| escherichia_coli | cefuroxime | 0.8 | 1 |
-| escherichia_coli | ceftriaxone | 0.9 | 1 |
-| escherichia_coli | ceftazidime | 0.9 | 1 |
-| escherichia_coli | cefepime | 0.9 | 1 |
-| escherichia_coli | ceftaroline | 0.7 | 1 |
+| escherichia_coli | cephalexin | 0.7 | 0.3 |
+| escherichia_coli | cefazolin | 0.75 | 1.5 |
+| escherichia_coli | cefuroxime | 0.8 | 0.3 |
+| escherichia_coli | ceftriaxone | 0.9 | 1.5 |
+| escherichia_coli | ceftazidime | 0.9 | 0.2 |
+| escherichia_coli | cefepime | 0.9 | 2 |
+| escherichia_coli | ceftaroline | 0.7 | 0.002 |
 | escherichia_coli | ceftolozane_tazobactam | 0.8 | 1 |
 | escherichia_coli | cefiderocol | 0.8 | 1 |
-| escherichia_coli | meropenem | 0.95 | 0.05 |
-| escherichia_coli | imipenem_c | 0.95 | 0.005 |
-| escherichia_coli | ertapenem | 0.95 | 0.05 |
-| escherichia_coli | aztreonam | 0.9 | 1 |
-| escherichia_coli | gentamicin | 0.9 | 1 |
-| escherichia_coli | tobramycin | 0.85 | 1 |
-| escherichia_coli | amikacin | 0.9 | 1 |
-| escherichia_coli | ciprofloxacin | 0.95 | 1 |
+| escherichia_coli | meropenem | 0.95 | 8 |
+| escherichia_coli | imipenem_c | 0.95 | 4 |
+| escherichia_coli | ertapenem | 0.95 | 5 |
+| escherichia_coli | aztreonam | 0.9 | 0.003 |
+| escherichia_coli | gentamicin | 0.9 | 20 |
+| escherichia_coli | tobramycin | 0.85 | 8 |
+| escherichia_coli | amikacin | 0.9 | 12 |
+| escherichia_coli | ciprofloxacin | 0.95 | 5 |
 | escherichia_coli | levofloxacin | 0.9 | 1 |
 | escherichia_coli | moxifloxacin | 0.8 | 1 |
-| escherichia_coli | ofloxacin | 0.9 | 1 |
-| escherichia_coli | tetracycline | 0.8 | 1 |
-| escherichia_coli | doxycycline | 0.8 | 1 |
-| escherichia_coli | minocycline | 0.85 | 1 |
+| escherichia_coli | ofloxacin | 0.9 | 3 |
+| escherichia_coli | tetracycline | 0.8 | 0.25 |
+| escherichia_coli | doxycycline | 0.8 | 0.25 |
+| escherichia_coli | minocycline | 0.85 | 0.25 |
 | escherichia_coli | tigecycline | 0.1 | 1 |
 | escherichia_coli | dalbavancin | 0 | 0.005 |
 | escherichia_coli | linezolid | 0 | 0.005 |
 | escherichia_coli | tedizolid | 0 | 0.005 |
 | escherichia_coli | daptomycin | 0.1 | 1 |
 | escherichia_coli | quinu_dalfo | 0 | 0.005 |
-| escherichia_coli | trim_sulf | 0.9 | 1 |
+| escherichia_coli | trim_sulf | 0.9 | 0.06 |
 | escherichia_coli | chloramphenicol | 0.85 | 1 |
-| escherichia_coli | nitrofurantoin | 0.95 | 1 |
-| escherichia_coli | fosfomycin | 0.1 | 1 |
+| escherichia_coli | nitrofurantoin | 0.95 | 40 |
+| escherichia_coli | fosfomycin | 0.1 | 20 |
 | escherichia_coli | fidaxomicin | 0.1 | 1 |
 | escherichia_coli | furazolidone | 0.1 | 1 |
 | escherichia_coli | rifampicin | 0.7 | 1 |
-| escherichia_coli | amoxicillin_clavulanate | 0.9 | 1 |
-| escherichia_coli | piperacillin_tazobactam | 0.97 | 1 |
+| escherichia_coli | amoxicillin_clavulanate | 0.9 | 12 |
+| escherichia_coli | piperacillin_tazobactam | 0.97 | 8 |
 | escherichia_coli | ampicillin_sulbactam | 0.9 | 1 |
-| escherichia_coli | ticarcillin_clavulanate | 0.9 | 1 |
+| escherichia_coli | ticarcillin_clavulanate | 0.9 | 3 |
 | escherichia_coli | ceftazidime_avibactam | 0.95 | 0.005 |
 | escherichia_coli | meropenem_vaborbactam | 0.95 | 0.005 |
 | escherichia_coli | colistin | 0.7 | 0.005 |
 | escherichia_coli | flucloxacillin | 0.01 | 1 |
-| escherichia_coli | aztreonam_avibactam | 1 | 1 |
-| escherichia_coli | cefixime | 0.8 | 1 |
-| klebsiella_pneumoniae | sulfanilamide | 0.5 | 1 |
+| escherichia_coli | aztreonam_avibactam | 1 | 0.003 |
+| escherichia_coli | cefixime | 0.8 | 0.2 |
+| klebsiella_pneumoniae | sulfanilamide | 0.5 | 0.02 |
 | klebsiella_pneumoniae | penicillin_g | 0.1 | 1 |
 | klebsiella_pneumoniae | ampicillin | 0.1 | 1 |
 | klebsiella_pneumoniae | amoxicillin | 0.1 | 1 |
 | klebsiella_pneumoniae | piperacillin | 0.8 | 1 |
 | klebsiella_pneumoniae | ticarcillin | 0.75 | 1 |
-| klebsiella_pneumoniae | cephalexin | 0.5 | 1 |
-| klebsiella_pneumoniae | cefazolin | 0.5 | 1 |
-| klebsiella_pneumoniae | cefuroxime | 0.7 | 1 |
-| klebsiella_pneumoniae | ceftriaxone | 0.9 | 1 |
-| klebsiella_pneumoniae | ceftazidime | 0.85 | 1 |
-| klebsiella_pneumoniae | cefepime | 0.92 | 1 |
-| klebsiella_pneumoniae | ceftaroline | 0.5 | 1 |
+| klebsiella_pneumoniae | cephalexin | 0.5 | 0.3 |
+| klebsiella_pneumoniae | cefazolin | 0.5 | 1.5 |
+| klebsiella_pneumoniae | cefuroxime | 0.7 | 0.3 |
+| klebsiella_pneumoniae | ceftriaxone | 0.9 | 1.5 |
+| klebsiella_pneumoniae | ceftazidime | 0.85 | 0.2 |
+| klebsiella_pneumoniae | cefepime | 0.92 | 2 |
+| klebsiella_pneumoniae | ceftaroline | 0.5 | 0.002 |
 | klebsiella_pneumoniae | ceftolozane_tazobactam | 0.8 | 1 |
 | klebsiella_pneumoniae | cefiderocol | 0.8 | 1 |
-| klebsiella_pneumoniae | meropenem | 0.94 | 0.05 |
-| klebsiella_pneumoniae | imipenem_c | 0.95 | 0.05 |
-| klebsiella_pneumoniae | ertapenem | 0.94 | 0.05 |
-| klebsiella_pneumoniae | aztreonam | 0.85 | 1 |
-| klebsiella_pneumoniae | gentamicin | 0.9 | 1 |
-| klebsiella_pneumoniae | tobramycin | 0.85 | 1 |
-| klebsiella_pneumoniae | amikacin | 0.9 | 1 |
-| klebsiella_pneumoniae | ciprofloxacin | 0.9 | 1 |
+| klebsiella_pneumoniae | meropenem | 0.94 | 8 |
+| klebsiella_pneumoniae | imipenem_c | 0.95 | 4 |
+| klebsiella_pneumoniae | ertapenem | 0.94 | 5 |
+| klebsiella_pneumoniae | aztreonam | 0.85 | 0.005 |
+| klebsiella_pneumoniae | gentamicin | 0.9 | 15 |
+| klebsiella_pneumoniae | tobramycin | 0.85 | 8 |
+| klebsiella_pneumoniae | amikacin | 0.9 | 12 |
+| klebsiella_pneumoniae | ciprofloxacin | 0.9 | 4 |
 | klebsiella_pneumoniae | levofloxacin | 0.85 | 1 |
 | klebsiella_pneumoniae | moxifloxacin | 0.7 | 1 |
 | klebsiella_pneumoniae | ofloxacin | 0.8 | 1 |
-| klebsiella_pneumoniae | tetracycline | 0.8 | 1 |
-| klebsiella_pneumoniae | doxycycline | 0.8 | 1 |
-| klebsiella_pneumoniae | minocycline | 0.85 | 1 |
+| klebsiella_pneumoniae | tetracycline | 0.8 | 0.25 |
+| klebsiella_pneumoniae | doxycycline | 0.8 | 0.25 |
+| klebsiella_pneumoniae | minocycline | 0.85 | 0.25 |
 | klebsiella_pneumoniae | tigecycline | 0.1 | 1 |
 | klebsiella_pneumoniae | dalbavancin | 0 | 0.005 |
 | klebsiella_pneumoniae | linezolid | 0 | 0.005 |
 | klebsiella_pneumoniae | tedizolid | 0 | 0.005 |
 | klebsiella_pneumoniae | daptomycin | 0.1 | 1 |
 | klebsiella_pneumoniae | quinu_dalfo | 0 | 0.005 |
-| klebsiella_pneumoniae | trim_sulf | 0.9 | 1 |
+| klebsiella_pneumoniae | trim_sulf | 0.9 | 0.04 |
 | klebsiella_pneumoniae | chloramphenicol | 0.85 | 1 |
-| klebsiella_pneumoniae | nitrofurantoin | 0.8 | 1 |
-| klebsiella_pneumoniae | fosfomycin | 0.1 | 1 |
+| klebsiella_pneumoniae | nitrofurantoin | 0.8 | 25 |
+| klebsiella_pneumoniae | fosfomycin | 0.1 | 10 |
 | klebsiella_pneumoniae | fidaxomicin | 0.1 | 1 |
 | klebsiella_pneumoniae | furazolidone | 0.1 | 1 |
 | klebsiella_pneumoniae | rifampicin | 0.6 | 1 |
-| klebsiella_pneumoniae | amoxicillin_clavulanate | 0.85 | 1 |
-| klebsiella_pneumoniae | piperacillin_tazobactam | 0.92 | 1 |
+| klebsiella_pneumoniae | amoxicillin_clavulanate | 0.85 | 12 |
+| klebsiella_pneumoniae | piperacillin_tazobactam | 0.92 | 8 |
 | klebsiella_pneumoniae | ampicillin_sulbactam | 0.75 | 1 |
-| klebsiella_pneumoniae | ticarcillin_clavulanate | 0.75 | 1 |
+| klebsiella_pneumoniae | ticarcillin_clavulanate | 0.75 | 3 |
 | klebsiella_pneumoniae | ceftazidime_avibactam | 0.95 | 0.005 |
 | klebsiella_pneumoniae | meropenem_vaborbactam | 0.95 | 0.005 |
 | klebsiella_pneumoniae | colistin | 0.7 | 0.005 |
 | klebsiella_pneumoniae | flucloxacillin | 0.01 | 1 |
-| klebsiella_pneumoniae | aztreonam_avibactam | 1 | 1 |
-| klebsiella_pneumoniae | cefixime | 0.8 | 1 |
-| morganella_spp. | sulfanilamide | 0.5 | 1 |
+| klebsiella_pneumoniae | aztreonam_avibactam | 1 | 0.005 |
+| klebsiella_pneumoniae | cefixime | 0.8 | 0.2 |
+| morganella_spp. | sulfanilamide | 0.5 | 0.02 |
 | morganella_spp. | penicillin_g | 0.1 | 1 |
 | morganella_spp. | ampicillin | 0.5 | 1 |
 | morganella_spp. | amoxicillin | 0.5 | 1 |
 | morganella_spp. | piperacillin | 0.75 | 1 |
 | morganella_spp. | ticarcillin | 0.7 | 1 |
-| morganella_spp. | cephalexin | 0.5 | 1 |
-| morganella_spp. | cefazolin | 0.5 | 1 |
-| morganella_spp. | cefuroxime | 0.6 | 1 |
-| morganella_spp. | ceftriaxone | 0.8 | 1 |
-| morganella_spp. | ceftazidime | 0.8 | 1 |
-| morganella_spp. | cefepime | 0.85 | 1 |
-| morganella_spp. | ceftaroline | 0.4 | 1 |
+| morganella_spp. | cephalexin | 0.5 | 0.3 |
+| morganella_spp. | cefazolin | 0.5 | 0.3 |
+| morganella_spp. | cefuroxime | 0.6 | 0.3 |
+| morganella_spp. | ceftriaxone | 0.8 | 0.2 |
+| morganella_spp. | ceftazidime | 0.8 | 0.2 |
+| morganella_spp. | cefepime | 0.85 | 0.35 |
+| morganella_spp. | ceftaroline | 0.4 | 0.002 |
 | morganella_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | morganella_spp. | cefiderocol | 0.8 | 1 |
-| morganella_spp. | meropenem | 0.95 | 0.005 |
+| morganella_spp. | meropenem | 0.95 | 4 |
 | morganella_spp. | imipenem_c | 0.95 | 0.005 |
 | morganella_spp. | ertapenem | 0.9 | 0.005 |
-| morganella_spp. | aztreonam | 0.8 | 1 |
+| morganella_spp. | aztreonam | 0.8 | 0.003 |
 | morganella_spp. | erythromycin | 0.1 | 1 |
 | morganella_spp. | azithromycin | 0.1 | 1 |
 | morganella_spp. | clarithromycin | 0.1 | 1 |
 | morganella_spp. | clindamycin | 0.1 | 1 |
-| morganella_spp. | gentamicin | 0.85 | 1 |
+| morganella_spp. | gentamicin | 0.85 | 10 |
 | morganella_spp. | tobramycin | 0.8 | 1 |
 | morganella_spp. | amikacin | 0.9 | 1 |
 | morganella_spp. | ciprofloxacin | 0.9 | 1 |
 | morganella_spp. | levofloxacin | 0.85 | 1 |
 | morganella_spp. | moxifloxacin | 0.7 | 1 |
 | morganella_spp. | ofloxacin | 0.8 | 1 |
-| morganella_spp. | tetracycline | 0.8 | 1 |
-| morganella_spp. | doxycycline | 0.85 | 1 |
-| morganella_spp. | minocycline | 0.85 | 1 |
+| morganella_spp. | tetracycline | 0.8 | 0.25 |
+| morganella_spp. | doxycycline | 0.85 | 0.25 |
+| morganella_spp. | minocycline | 0.85 | 0.25 |
 | morganella_spp. | tigecycline | 0.1 | 1 |
 | morganella_spp. | vancomycin | 0.1 | 1 |
 | morganella_spp. | teicoplanin | 0.1 | 1 |
@@ -2992,7 +807,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | morganella_spp. | tedizolid | 0.1 | 0.005 |
 | morganella_spp. | daptomycin | 0.1 | 1 |
 | morganella_spp. | quinu_dalfo | 0.1 | 0.005 |
-| morganella_spp. | trim_sulf | 0.8 | 1 |
+| morganella_spp. | trim_sulf | 0.8 | 0.04 |
 | morganella_spp. | chloramphenicol | 0.85 | 1 |
 | morganella_spp. | nitrofurantoin | 0.7 | 1 |
 | morganella_spp. | fosfomycin | 0.1 | 1 |
@@ -3002,101 +817,101 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | morganella_spp. | fidaxomicin | 0.1 | 1 |
 | morganella_spp. | furazolidone | 0.1 | 1 |
 | morganella_spp. | rifampicin | 0.6 | 1 |
-| morganella_spp. | amoxicillin_clavulanate | 0.7 | 1 |
-| morganella_spp. | piperacillin_tazobactam | 0.85 | 1 |
+| morganella_spp. | amoxicillin_clavulanate | 0.7 | 6 |
+| morganella_spp. | piperacillin_tazobactam | 0.85 | 8 |
 | morganella_spp. | ampicillin_sulbactam | 0.7 | 1 |
 | morganella_spp. | ticarcillin_clavulanate | 0.8 | 1 |
 | morganella_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
 | morganella_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
 | morganella_spp. | colistin | 0.7 | 0.005 |
 | morganella_spp. | flucloxacillin | 0.01 | 1 |
-| morganella_spp. | aztreonam_avibactam | 1 | 1 |
-| morganella_spp. | cefixime | 0.8 | 1 |
-| proteus_spp. | sulfanilamide | 0.5 | 1 |
+| morganella_spp. | aztreonam_avibactam | 1 | 0.003 |
+| morganella_spp. | cefixime | 0.8 | 0.2 |
+| proteus_spp. | sulfanilamide | 0.5 | 0.02 |
 | proteus_spp. | penicillin_g | 0.1 | 1 |
 | proteus_spp. | ampicillin | 0.8 | 1 |
 | proteus_spp. | amoxicillin | 0.8 | 1 |
 | proteus_spp. | piperacillin | 0.85 | 1 |
 | proteus_spp. | ticarcillin | 0.8 | 1 |
-| proteus_spp. | cephalexin | 0.7 | 1 |
-| proteus_spp. | cefazolin | 0.75 | 1 |
-| proteus_spp. | cefuroxime | 0.8 | 1 |
-| proteus_spp. | ceftriaxone | 0.95 | 1 |
-| proteus_spp. | ceftazidime | 0.9 | 1 |
-| proteus_spp. | cefepime | 0.9 | 1 |
-| proteus_spp. | ceftaroline | 0.7 | 1 |
+| proteus_spp. | cephalexin | 0.7 | 0.3 |
+| proteus_spp. | cefazolin | 0.75 | 0.3 |
+| proteus_spp. | cefuroxime | 0.8 | 0.3 |
+| proteus_spp. | ceftriaxone | 0.95 | 0.2 |
+| proteus_spp. | ceftazidime | 0.9 | 0.2 |
+| proteus_spp. | cefepime | 0.9 | 0.35 |
+| proteus_spp. | ceftaroline | 0.7 | 0.002 |
 | proteus_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | proteus_spp. | cefiderocol | 0.8 | 1 |
-| proteus_spp. | meropenem | 0.95 | 0.005 |
+| proteus_spp. | meropenem | 0.95 | 4 |
 | proteus_spp. | imipenem_c | 0.95 | 0.005 |
-| proteus_spp. | ertapenem | 0.95 | 0.005 |
-| proteus_spp. | aztreonam | 0.9 | 1 |
-| proteus_spp. | gentamicin | 0.8 | 1 |
+| proteus_spp. | ertapenem | 0.95 | 3 |
+| proteus_spp. | aztreonam | 0.9 | 0.003 |
+| proteus_spp. | gentamicin | 0.8 | 10 |
 | proteus_spp. | tobramycin | 0.75 | 1 |
 | proteus_spp. | amikacin | 0.85 | 1 |
-| proteus_spp. | ciprofloxacin | 0.9 | 1 |
+| proteus_spp. | ciprofloxacin | 0.9 | 4 |
 | proteus_spp. | levofloxacin | 0.85 | 1 |
 | proteus_spp. | moxifloxacin | 0.7 | 1 |
 | proteus_spp. | ofloxacin | 0.8 | 1 |
-| proteus_spp. | tetracycline | 0.8 | 1 |
-| proteus_spp. | doxycycline | 0.8 | 1 |
-| proteus_spp. | minocycline | 0.85 | 1 |
+| proteus_spp. | tetracycline | 0.8 | 0.25 |
+| proteus_spp. | doxycycline | 0.8 | 0.25 |
+| proteus_spp. | minocycline | 0.85 | 0.25 |
 | proteus_spp. | tigecycline | 0.1 | 1 |
 | proteus_spp. | dalbavancin | 0 | 0.005 |
 | proteus_spp. | linezolid | 0 | 0.005 |
 | proteus_spp. | tedizolid | 0 | 0.005 |
 | proteus_spp. | daptomycin | 0.1 | 1 |
 | proteus_spp. | quinu_dalfo | 0 | 0.005 |
-| proteus_spp. | trim_sulf | 0.9 | 1 |
+| proteus_spp. | trim_sulf | 0.9 | 0.04 |
 | proteus_spp. | chloramphenicol | 0.85 | 1 |
-| proteus_spp. | nitrofurantoin | 0.8 | 1 |
+| proteus_spp. | nitrofurantoin | 0.8 | 0.05 |
 | proteus_spp. | fosfomycin | 0.1 | 1 |
 | proteus_spp. | fidaxomicin | 0.1 | 1 |
 | proteus_spp. | furazolidone | 0.1 | 1 |
 | proteus_spp. | rifampicin | 0.7 | 1 |
-| proteus_spp. | amoxicillin_clavulanate | 0.9 | 1 |
-| proteus_spp. | piperacillin_tazobactam | 0.95 | 1 |
+| proteus_spp. | amoxicillin_clavulanate | 0.9 | 12 |
+| proteus_spp. | piperacillin_tazobactam | 0.95 | 8 |
 | proteus_spp. | ampicillin_sulbactam | 0.9 | 1 |
-| proteus_spp. | ticarcillin_clavulanate | 0.9 | 1 |
+| proteus_spp. | ticarcillin_clavulanate | 0.9 | 3 |
 | proteus_spp. | ceftazidime_avibactam | 0.95 | 0.005 |
 | proteus_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
 | proteus_spp. | colistin | 0.7 | 0.005 |
 | proteus_spp. | flucloxacillin | 0.01 | 1 |
-| proteus_spp. | aztreonam_avibactam | 1 | 1 |
-| proteus_spp. | cefixime | 0.8 | 1 |
-| serratia_spp. | sulfanilamide | 0.5 | 1 |
+| proteus_spp. | aztreonam_avibactam | 1 | 0.003 |
+| proteus_spp. | cefixime | 0.8 | 0.2 |
+| serratia_spp. | sulfanilamide | 0.5 | 0.02 |
 | serratia_spp. | penicillin_g | 0.1 | 1 |
 | serratia_spp. | ampicillin | 0.1 | 1 |
 | serratia_spp. | amoxicillin | 0.1 | 1 |
 | serratia_spp. | piperacillin | 0.75 | 1 |
 | serratia_spp. | ticarcillin | 0.7 | 1 |
-| serratia_spp. | cephalexin | 0.1 | 1 |
-| serratia_spp. | cefazolin | 0.1 | 1 |
-| serratia_spp. | cefuroxime | 0.6 | 1 |
-| serratia_spp. | ceftriaxone | 0.8 | 1 |
-| serratia_spp. | ceftazidime | 0.85 | 1 |
-| serratia_spp. | cefepime | 0.85 | 1 |
-| serratia_spp. | ceftaroline | 0.5 | 1 |
+| serratia_spp. | cephalexin | 0.1 | 0.3 |
+| serratia_spp. | cefazolin | 0.1 | 0.3 |
+| serratia_spp. | cefuroxime | 0.6 | 0.3 |
+| serratia_spp. | ceftriaxone | 0.8 | 0.2 |
+| serratia_spp. | ceftazidime | 0.85 | 0.2 |
+| serratia_spp. | cefepime | 0.85 | 0.35 |
+| serratia_spp. | ceftaroline | 0.5 | 0.002 |
 | serratia_spp. | ceftolozane_tazobactam | 0.8 | 1 |
 | serratia_spp. | cefiderocol | 0.8 | 1 |
-| serratia_spp. | meropenem | 0.95 | 0.005 |
+| serratia_spp. | meropenem | 0.95 | 4 |
 | serratia_spp. | imipenem_c | 0.95 | 0.005 |
-| serratia_spp. | ertapenem | 0.9 | 0.005 |
-| serratia_spp. | aztreonam | 0.85 | 1 |
+| serratia_spp. | ertapenem | 0.9 | 3 |
+| serratia_spp. | aztreonam | 0.85 | 0.003 |
 | serratia_spp. | erythromycin | 0.1 | 1 |
 | serratia_spp. | azithromycin | 0.1 | 1 |
 | serratia_spp. | clarithromycin | 0.1 | 1 |
 | serratia_spp. | clindamycin | 0.1 | 1 |
-| serratia_spp. | gentamicin | 0.85 | 1 |
+| serratia_spp. | gentamicin | 0.85 | 10 |
 | serratia_spp. | tobramycin | 0.8 | 1 |
-| serratia_spp. | amikacin | 0.9 | 1 |
+| serratia_spp. | amikacin | 0.9 | 8 |
 | serratia_spp. | ciprofloxacin | 0.85 | 1 |
 | serratia_spp. | levofloxacin | 0.8 | 1 |
 | serratia_spp. | moxifloxacin | 0.7 | 1 |
 | serratia_spp. | ofloxacin | 0.75 | 1 |
-| serratia_spp. | tetracycline | 0.8 | 1 |
-| serratia_spp. | doxycycline | 0.8 | 1 |
-| serratia_spp. | minocycline | 0.85 | 1 |
+| serratia_spp. | tetracycline | 0.8 | 0.25 |
+| serratia_spp. | doxycycline | 0.8 | 0.25 |
+| serratia_spp. | minocycline | 0.85 | 0.25 |
 | serratia_spp. | tigecycline | 0.1 | 1 |
 | serratia_spp. | vancomycin | 0.1 | 1 |
 | serratia_spp. | teicoplanin | 0.1 | 1 |
@@ -3105,7 +920,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | serratia_spp. | tedizolid | 0.1 | 0.005 |
 | serratia_spp. | daptomycin | 0.1 | 1 |
 | serratia_spp. | quinu_dalfo | 0.1 | 0.005 |
-| serratia_spp. | trim_sulf | 0.85 | 1 |
+| serratia_spp. | trim_sulf | 0.85 | 0.04 |
 | serratia_spp. | chloramphenicol | 0.8 | 1 |
 | serratia_spp. | nitrofurantoin | 0.7 | 1 |
 | serratia_spp. | fosfomycin | 0.1 | 1 |
@@ -3115,35 +930,35 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | serratia_spp. | fidaxomicin | 0.1 | 1 |
 | serratia_spp. | furazolidone | 0.1 | 1 |
 | serratia_spp. | rifampicin | 0.6 | 1 |
-| serratia_spp. | amoxicillin_clavulanate | 0.7 | 1 |
-| serratia_spp. | piperacillin_tazobactam | 0.85 | 1 |
+| serratia_spp. | amoxicillin_clavulanate | 0.7 | 6 |
+| serratia_spp. | piperacillin_tazobactam | 0.85 | 8 |
 | serratia_spp. | ampicillin_sulbactam | 0.7 | 1 |
 | serratia_spp. | ticarcillin_clavulanate | 0.75 | 1 |
 | serratia_spp. | ceftazidime_avibactam | 0.9 | 0.005 |
 | serratia_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
 | serratia_spp. | colistin | 0.7 | 0.005 |
 | serratia_spp. | flucloxacillin | 0.01 | 1 |
-| serratia_spp. | aztreonam_avibactam | 1 | 1 |
-| serratia_spp. | cefixime | 0.8 | 1 |
-| p_stuartii | sulfanilamide | 0.1 | 1 |
+| serratia_spp. | aztreonam_avibactam | 1 | 0.003 |
+| serratia_spp. | cefixime | 0.8 | 0.2 |
+| p_stuartii | sulfanilamide | 0.1 | 0.02 |
 | p_stuartii | penicillin_g | 0.05 | 1 |
 | p_stuartii | ampicillin | 0.05 | 1 |
 | p_stuartii | amoxicillin | 0.05 | 1 |
 | p_stuartii | piperacillin | 0.35 | 1 |
 | p_stuartii | ticarcillin | 0.3 | 1 |
-| p_stuartii | cephalexin | 0.1 | 1 |
-| p_stuartii | cefazolin | 0.1 | 1 |
-| p_stuartii | cefuroxime | 0.2 | 1 |
-| p_stuartii | ceftriaxone | 0.45 | 1 |
-| p_stuartii | ceftazidime | 0.75 | 1 |
-| p_stuartii | cefepime | 0.85 | 1 |
-| p_stuartii | ceftaroline | 0.2 | 1 |
+| p_stuartii | cephalexin | 0.1 | 0.3 |
+| p_stuartii | cefazolin | 0.1 | 0.3 |
+| p_stuartii | cefuroxime | 0.2 | 0.3 |
+| p_stuartii | ceftriaxone | 0.45 | 0.2 |
+| p_stuartii | ceftazidime | 0.75 | 0.2 |
+| p_stuartii | cefepime | 0.85 | 0.35 |
+| p_stuartii | ceftaroline | 0.2 | 0.002 |
 | p_stuartii | ceftolozane_tazobactam | 0.8 | 1 |
 | p_stuartii | cefiderocol | 0.8 | 1 |
 | p_stuartii | meropenem | 0.9 | 0.005 |
 | p_stuartii | imipenem_c | 0.9 | 0.005 |
 | p_stuartii | ertapenem | 0.85 | 0.005 |
-| p_stuartii | aztreonam | 0.65 | 1 |
+| p_stuartii | aztreonam | 0.65 | 0.003 |
 | p_stuartii | erythromycin | 0.05 | 1 |
 | p_stuartii | azithromycin | 0.05 | 1 |
 | p_stuartii | clarithromycin | 0.05 | 1 |
@@ -3155,9 +970,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | p_stuartii | levofloxacin | 0.6 | 1 |
 | p_stuartii | moxifloxacin | 0.6 | 1 |
 | p_stuartii | ofloxacin | 0.55 | 1 |
-| p_stuartii | tetracycline | 0.2 | 1 |
-| p_stuartii | doxycycline | 0.3 | 1 |
-| p_stuartii | minocycline | 0.35 | 1 |
+| p_stuartii | tetracycline | 0.2 | 0.25 |
+| p_stuartii | doxycycline | 0.3 | 0.25 |
+| p_stuartii | minocycline | 0.35 | 0.25 |
 | p_stuartii | tigecycline | 0.1 | 1 |
 | p_stuartii | vancomycin | 0.05 | 1 |
 | p_stuartii | teicoplanin | 0.05 | 1 |
@@ -3166,7 +981,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | p_stuartii | tedizolid | 0.05 | 0.005 |
 | p_stuartii | daptomycin | 0.1 | 1 |
 | p_stuartii | quinu_dalfo | 0.05 | 0.005 |
-| p_stuartii | trim_sulf | 0.3 | 1 |
+| p_stuartii | trim_sulf | 0.3 | 0.04 |
 | p_stuartii | chloramphenicol | 0.25 | 1 |
 | p_stuartii | nitrofurantoin | 0.05 | 1 |
 | p_stuartii | fosfomycin | 0.1 | 1 |
@@ -3184,79 +999,79 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | p_stuartii | meropenem_vaborbactam | 0.95 | 0.005 |
 | p_stuartii | colistin | 0.05 | 0.005 |
 | p_stuartii | flucloxacillin | 0.01 | 1 |
-| p_stuartii | aztreonam_avibactam | 1 | 1 |
-| p_stuartii | cefixime | 0.8 | 1 |
-| pseudomonas_aeruginosa | sulfanilamide | 0.1 | 1 |
+| p_stuartii | aztreonam_avibactam | 1 | 0.003 |
+| p_stuartii | cefixime | 0.8 | 0.2 |
+| pseudomonas_aeruginosa | sulfanilamide | 0.1 | 0.02 |
 | pseudomonas_aeruginosa | penicillin_g | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | ampicillin | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | amoxicillin | 0.05 | 0.01 |
 | pseudomonas_aeruginosa | piperacillin | 0.8 | 1 |
 | pseudomonas_aeruginosa | ticarcillin | 0.7 | 1 |
-| pseudomonas_aeruginosa | cephalexin | 0.05 | 1 |
-| pseudomonas_aeruginosa | cefazolin | 0.05 | 1 |
-| pseudomonas_aeruginosa | cefuroxime | 0.1 | 1 |
-| pseudomonas_aeruginosa | ceftriaxone | 0.1 | 1 |
-| pseudomonas_aeruginosa | ceftazidime | 0.85 | 4.5 |
-| pseudomonas_aeruginosa | cefepime | 0.9 | 4.5 |
-| pseudomonas_aeruginosa | ceftaroline | 0.1 | 1 |
+| pseudomonas_aeruginosa | cephalexin | 0.05 | 0.3 |
+| pseudomonas_aeruginosa | cefazolin | 0.05 | 0.3 |
+| pseudomonas_aeruginosa | cefuroxime | 0.1 | 0.3 |
+| pseudomonas_aeruginosa | ceftriaxone | 0.1 | 0.2 |
+| pseudomonas_aeruginosa | ceftazidime | 0.85 | 3 |
+| pseudomonas_aeruginosa | cefepime | 0.9 | 3 |
+| pseudomonas_aeruginosa | ceftaroline | 0.1 | 0.002 |
 | pseudomonas_aeruginosa | ceftolozane_tazobactam | 0.1 | 1 |
 | pseudomonas_aeruginosa | cefiderocol | 0.1 | 1 |
-| pseudomonas_aeruginosa | meropenem | 0.9 | 0.05 |
-| pseudomonas_aeruginosa | imipenem_c | 0.85 | 0.05 |
+| pseudomonas_aeruginosa | meropenem | 0.9 | 5 |
+| pseudomonas_aeruginosa | imipenem_c | 0.85 | 3 |
 | pseudomonas_aeruginosa | ertapenem | 0.1 | 0.005 |
-| pseudomonas_aeruginosa | aztreonam | 0.8 | 1 |
-| pseudomonas_aeruginosa | gentamicin | 0.85 | 1 |
-| pseudomonas_aeruginosa | tobramycin | 0.9 | 1 |
-| pseudomonas_aeruginosa | amikacin | 0.9 | 1 |
-| pseudomonas_aeruginosa | ciprofloxacin | 0.9 | 1 |
+| pseudomonas_aeruginosa | aztreonam | 0.8 | 0.05 |
+| pseudomonas_aeruginosa | gentamicin | 0.85 | 12 |
+| pseudomonas_aeruginosa | tobramycin | 0.9 | 15 |
+| pseudomonas_aeruginosa | amikacin | 0.9 | 15 |
+| pseudomonas_aeruginosa | ciprofloxacin | 0.9 | 5 |
 | pseudomonas_aeruginosa | levofloxacin | 0.8 | 1 |
 | pseudomonas_aeruginosa | moxifloxacin | 0.5 | 1 |
 | pseudomonas_aeruginosa | ofloxacin | 0.7 | 1 |
-| pseudomonas_aeruginosa | tetracycline | 0.1 | 1 |
-| pseudomonas_aeruginosa | doxycycline | 0.1 | 1 |
-| pseudomonas_aeruginosa | minocycline | 0.1 | 1 |
+| pseudomonas_aeruginosa | tetracycline | 0.1 | 0.25 |
+| pseudomonas_aeruginosa | doxycycline | 0.1 | 0.25 |
+| pseudomonas_aeruginosa | minocycline | 0.1 | 0.25 |
 | pseudomonas_aeruginosa | tigecycline | 0.1 | 1 |
 | pseudomonas_aeruginosa | dalbavancin | 0 | 0.005 |
 | pseudomonas_aeruginosa | linezolid | 0 | 0.005 |
 | pseudomonas_aeruginosa | tedizolid | 0 | 0.005 |
 | pseudomonas_aeruginosa | daptomycin | 0.1 | 1 |
 | pseudomonas_aeruginosa | quinu_dalfo | 0 | 0.005 |
-| pseudomonas_aeruginosa | trim_sulf | 0.1 | 1 |
+| pseudomonas_aeruginosa | trim_sulf | 0.1 | 0.04 |
 | pseudomonas_aeruginosa | chloramphenicol | 0.1 | 1 |
-| pseudomonas_aeruginosa | nitrofurantoin | 0.05 | 1 |
-| pseudomonas_aeruginosa | fosfomycin | 0.1 | 1 |
+| pseudomonas_aeruginosa | nitrofurantoin | 0.05 | 0.01 |
+| pseudomonas_aeruginosa | fosfomycin | 0.1 | 0.05 |
 | pseudomonas_aeruginosa | fidaxomicin | 0.1 | 1 |
 | pseudomonas_aeruginosa | furazolidone | 0.05 | 1 |
 | pseudomonas_aeruginosa | rifampicin | 0.1 | 1 |
 | pseudomonas_aeruginosa | amoxicillin_clavulanate | 0.05 | 1 |
-| pseudomonas_aeruginosa | piperacillin_tazobactam | 0.9 | 5 |
+| pseudomonas_aeruginosa | piperacillin_tazobactam | 0.9 | 8 |
 | pseudomonas_aeruginosa | ampicillin_sulbactam | 0.05 | 1 |
-| pseudomonas_aeruginosa | ticarcillin_clavulanate | 0.8 | 1 |
+| pseudomonas_aeruginosa | ticarcillin_clavulanate | 0.8 | 3 |
 | pseudomonas_aeruginosa | ceftazidime_avibactam | 0.95 | 0.005 |
 | pseudomonas_aeruginosa | meropenem_vaborbactam | 0.9 | 0.005 |
 | pseudomonas_aeruginosa | colistin | 0.85 | 0.05 |
 | pseudomonas_aeruginosa | flucloxacillin | 0.01 | 1 |
-| pseudomonas_aeruginosa | aztreonam_avibactam | 0.9 | 1 |
-| pseudomonas_aeruginosa | cefixime | 0.1 | 1 |
-| stenotrophomonas_maltophilia | sulfanilamide | 0.6 | 1 |
+| pseudomonas_aeruginosa | aztreonam_avibactam | 0.9 | 0.04 |
+| pseudomonas_aeruginosa | cefixime | 0.1 | 0.2 |
+| stenotrophomonas_maltophilia | sulfanilamide | 0.6 | 0.02 |
 | stenotrophomonas_maltophilia | penicillin_g | 0.05 | 1 |
 | stenotrophomonas_maltophilia | ampicillin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | amoxicillin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | piperacillin | 0.2 | 1 |
 | stenotrophomonas_maltophilia | ticarcillin | 0.25 | 1 |
-| stenotrophomonas_maltophilia | cephalexin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | cefazolin | 0.05 | 1 |
-| stenotrophomonas_maltophilia | cefuroxime | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ceftriaxone | 0.05 | 1 |
-| stenotrophomonas_maltophilia | ceftazidime | 0.35 | 0.1 |
-| stenotrophomonas_maltophilia | cefepime | 0.15 | 1 |
-| stenotrophomonas_maltophilia | ceftaroline | 0.05 | 1 |
+| stenotrophomonas_maltophilia | cephalexin | 0.05 | 0.3 |
+| stenotrophomonas_maltophilia | cefazolin | 0.05 | 0.3 |
+| stenotrophomonas_maltophilia | cefuroxime | 0.05 | 0.3 |
+| stenotrophomonas_maltophilia | ceftriaxone | 0.05 | 0.2 |
+| stenotrophomonas_maltophilia | ceftazidime | 0.35 | 0.2 |
+| stenotrophomonas_maltophilia | cefepime | 0.15 | 0.35 |
+| stenotrophomonas_maltophilia | ceftaroline | 0.05 | 0.002 |
 | stenotrophomonas_maltophilia | ceftolozane_tazobactam | 0.1 | 1 |
 | stenotrophomonas_maltophilia | cefiderocol | 0.1 | 1 |
 | stenotrophomonas_maltophilia | meropenem | 0.05 | 0.01 |
 | stenotrophomonas_maltophilia | imipenem_c | 0.05 | 0.01 |
 | stenotrophomonas_maltophilia | ertapenem | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | aztreonam | 0.1 | 1 |
+| stenotrophomonas_maltophilia | aztreonam | 0.1 | 0.003 |
 | stenotrophomonas_maltophilia | erythromycin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | azithromycin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | clarithromycin | 0.05 | 1 |
@@ -3268,7 +1083,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | stenotrophomonas_maltophilia | levofloxacin | 0.75 | 3.5 |
 | stenotrophomonas_maltophilia | moxifloxacin | 0.8 | 1 |
 | stenotrophomonas_maltophilia | ofloxacin | 0.6 | 1 |
-| stenotrophomonas_maltophilia | tetracycline | 0.35 | 1 |
+| stenotrophomonas_maltophilia | tetracycline | 0.35 | 0.25 |
 | stenotrophomonas_maltophilia | doxycycline | 0.6 | 4.5 |
 | stenotrophomonas_maltophilia | minocycline | 0.85 | 6 |
 | stenotrophomonas_maltophilia | tigecycline | 0.1 | 1 |
@@ -3279,7 +1094,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | stenotrophomonas_maltophilia | tedizolid | 0.05 | 0.005 |
 | stenotrophomonas_maltophilia | daptomycin | 0.1 | 1 |
 | stenotrophomonas_maltophilia | quinu_dalfo | 0.05 | 0.005 |
-| stenotrophomonas_maltophilia | trim_sulf | 0.95 | 7 |
+| stenotrophomonas_maltophilia | trim_sulf | 0.95 | 5 |
 | stenotrophomonas_maltophilia | chloramphenicol | 0.4 | 1 |
 | stenotrophomonas_maltophilia | nitrofurantoin | 0.05 | 1 |
 | stenotrophomonas_maltophilia | fosfomycin | 0.1 | 1 |
@@ -3297,87 +1112,88 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | stenotrophomonas_maltophilia | meropenem_vaborbactam | 0.05 | 0.005 |
 | stenotrophomonas_maltophilia | colistin | 0.05 | 0.005 |
 | stenotrophomonas_maltophilia | flucloxacillin | 0.01 | 1 |
-| stenotrophomonas_maltophilia | aztreonam_avibactam | 0.75 | 1 |
-| stenotrophomonas_maltophilia | cefixime | 0.1 | 1 |
-| staphylococcus_aureus | sulfanilamide | 0.1 | 1 |
+| stenotrophomonas_maltophilia | aztreonam_avibactam | 0.75 | 0.003 |
+| stenotrophomonas_maltophilia | cefixime | 0.1 | 0.2 |
+| staphylococcus_aureus | sulfanilamide | 0.1 | 0.02 |
 | staphylococcus_aureus | penicillin_g | 0.95 | 1 |
 | staphylococcus_aureus | ampicillin | 0.1 | 1 |
-| staphylococcus_aureus | amoxicillin | 0.1 | 1 |
+| staphylococcus_aureus | amoxicillin | 0.1 | 6 |
 | staphylococcus_aureus | piperacillin | 0.7 | 1 |
 | staphylococcus_aureus | ticarcillin | 0.6 | 1 |
-| staphylococcus_aureus | cephalexin | 0.8 | 1 |
-| staphylococcus_aureus | cefazolin | 0.85 | 1 |
-| staphylococcus_aureus | cefuroxime | 0.7 | 1 |
-| staphylococcus_aureus | ceftriaxone | 0.7 | 1 |
-| staphylococcus_aureus | ceftazidime | 0.1 | 1 |
-| staphylococcus_aureus | cefepime | 0.6 | 1 |
-| staphylococcus_aureus | ceftaroline | 0.95 | 1 |
+| staphylococcus_aureus | cephalexin | 0.8 | 5 |
+| staphylococcus_aureus | cefazolin | 0.85 | 5 |
+| staphylococcus_aureus | cefuroxime | 0.7 | 3 |
+| staphylococcus_aureus | ceftriaxone | 0.7 | 0.2 |
+| staphylococcus_aureus | ceftazidime | 0.1 | 0.2 |
+| staphylococcus_aureus | cefepime | 0.6 | 0.35 |
+| staphylococcus_aureus | ceftaroline | 0.95 | 0.15 |
 | staphylococcus_aureus | ceftolozane_tazobactam | 0.75 | 1 |
 | staphylococcus_aureus | cefiderocol | 0.75 | 1 |
 | staphylococcus_aureus | meropenem | 0.7 | 0.005 |
 | staphylococcus_aureus | imipenem_c | 0.7 | 0.005 |
 | staphylococcus_aureus | ertapenem | 0.7 | 0.005 |
+| staphylococcus_aureus | aztreonam | 0 | 0.003 |
 | staphylococcus_aureus | erythromycin | 0.8 | 1 |
 | staphylococcus_aureus | azithromycin | 0.8 | 1 |
 | staphylococcus_aureus | clarithromycin | 0.8 | 1 |
 | staphylococcus_aureus | clindamycin | 0.8 | 1 |
-| staphylococcus_aureus | gentamicin | 0.7 | 1 |
+| staphylococcus_aureus | gentamicin | 0.7 | 15 |
 | staphylococcus_aureus | tobramycin | 0.7 | 1 |
 | staphylococcus_aureus | amikacin | 0.7 | 1 |
 | staphylococcus_aureus | ciprofloxacin | 0.7 | 1 |
 | staphylococcus_aureus | levofloxacin | 0.7 | 1 |
 | staphylococcus_aureus | moxifloxacin | 0.8 | 1 |
 | staphylococcus_aureus | ofloxacin | 0.7 | 1 |
-| staphylococcus_aureus | tetracycline | 0.8 | 1 |
-| staphylococcus_aureus | doxycycline | 0.85 | 1 |
-| staphylococcus_aureus | minocycline | 0.85 | 1 |
+| staphylococcus_aureus | tetracycline | 0.8 | 0.25 |
+| staphylococcus_aureus | doxycycline | 0.85 | 0.25 |
+| staphylococcus_aureus | minocycline | 0.85 | 0.25 |
 | staphylococcus_aureus | tigecycline | 0.1 | 1 |
 | staphylococcus_aureus | vancomycin | 0.95 | 5 |
 | staphylococcus_aureus | teicoplanin | 0.9 | 4 |
 | staphylococcus_aureus | dalbavancin | 0.9 | 0.005 |
-| staphylococcus_aureus | linezolid | 0.9 | 4 |
+| staphylococcus_aureus | linezolid | 0.9 | 5 |
 | staphylococcus_aureus | tedizolid | 0.9 | 0.005 |
-| staphylococcus_aureus | daptomycin | 0.1 | 1 |
+| staphylococcus_aureus | daptomycin | 0.1 | 4 |
 | staphylococcus_aureus | quinu_dalfo | 0.85 | 0.005 |
-| staphylococcus_aureus | trim_sulf | 0.7 | 1 |
+| staphylococcus_aureus | trim_sulf | 0.7 | 0.04 |
 | staphylococcus_aureus | chloramphenicol | 0.8 | 1 |
-| staphylococcus_aureus | nitrofurantoin | 0.1 | 1 |
-| staphylococcus_aureus | fosfomycin | 0.1 | 1 |
+| staphylococcus_aureus | nitrofurantoin | 0.1 | 8 |
+| staphylococcus_aureus | fosfomycin | 0.1 | 6 |
 | staphylococcus_aureus | retapamulin | 0.9 | 1 |
 | staphylococcus_aureus | fusidic_a | 0.85 | 1 |
 | staphylococcus_aureus | metronidazole | 0.1 | 1 |
 | staphylococcus_aureus | fidaxomicin | 0.1 | 1 |
 | staphylococcus_aureus | furazolidone | 0.1 | 1 |
 | staphylococcus_aureus | rifampicin | 0.8 | 1 |
-| staphylococcus_aureus | amoxicillin_clavulanate | 0.85 | 1 |
+| staphylococcus_aureus | amoxicillin_clavulanate | 0.85 | 12 |
 | staphylococcus_aureus | piperacillin_tazobactam | 0.7 | 1 |
 | staphylococcus_aureus | ampicillin_sulbactam | 0.8 | 1 |
 | staphylococcus_aureus | ticarcillin_clavulanate | 0.6 | 1 |
 | staphylococcus_aureus | ceftazidime_avibactam | 0.1 | 0.005 |
 | staphylococcus_aureus | meropenem_vaborbactam | 0.7 | 0.005 |
 | staphylococcus_aureus | colistin | 0 | 0.005 |
-| staphylococcus_aureus | flucloxacillin | 0.95 | 1 |
-| staphylococcus_aureus | aztreonam_avibactam | 0.01 | 1 |
-| staphylococcus_aureus | cefixime | 0.75 | 1 |
-| staphylococcus_epidermidis | sulfanilamide | 0.1 | 1 |
+| staphylococcus_aureus | flucloxacillin | 0.95 | 4 |
+| staphylococcus_aureus | aztreonam_avibactam | 0.01 | 0.003 |
+| staphylococcus_aureus | cefixime | 0.75 | 0.2 |
+| staphylococcus_epidermidis | sulfanilamide | 0.1 | 0.02 |
 | staphylococcus_epidermidis | penicillin_g | 0.15 | 1 |
 | staphylococcus_epidermidis | ampicillin | 0.15 | 1 |
-| staphylococcus_epidermidis | amoxicillin | 0.15 | 1 |
+| staphylococcus_epidermidis | amoxicillin | 0.15 | 6 |
 | staphylococcus_epidermidis | piperacillin | 0.2 | 1 |
 | staphylococcus_epidermidis | ticarcillin | 0.2 | 1 |
-| staphylococcus_epidermidis | cephalexin | 0.2 | 1 |
-| staphylococcus_epidermidis | cefazolin | 0.2 | 1 |
-| staphylococcus_epidermidis | cefuroxime | 0.2 | 1 |
-| staphylococcus_epidermidis | ceftriaxone | 0.25 | 1 |
-| staphylococcus_epidermidis | ceftazidime | 0.1 | 1 |
-| staphylococcus_epidermidis | cefepime | 0.15 | 1 |
-| staphylococcus_epidermidis | ceftaroline | 0.75 | 1 |
+| staphylococcus_epidermidis | cephalexin | 0.2 | 0.3 |
+| staphylococcus_epidermidis | cefazolin | 0.2 | 0.3 |
+| staphylococcus_epidermidis | cefuroxime | 0.2 | 0.3 |
+| staphylococcus_epidermidis | ceftriaxone | 0.25 | 0.2 |
+| staphylococcus_epidermidis | ceftazidime | 0.1 | 0.2 |
+| staphylococcus_epidermidis | cefepime | 0.15 | 0.35 |
+| staphylococcus_epidermidis | ceftaroline | 0.75 | 0.04 |
 | staphylococcus_epidermidis | ceftolozane_tazobactam | 0.75 | 1 |
 | staphylococcus_epidermidis | cefiderocol | 0.75 | 1 |
 | staphylococcus_epidermidis | meropenem | 0.4 | 0.005 |
 | staphylococcus_epidermidis | imipenem_c | 0.5 | 0.005 |
 | staphylococcus_epidermidis | ertapenem | 0.4 | 0.005 |
-| staphylococcus_epidermidis | aztreonam | 0.05 | 1 |
+| staphylococcus_epidermidis | aztreonam | 0.05 | 0.003 |
 | staphylococcus_epidermidis | erythromycin | 0.45 | 1 |
 | staphylococcus_epidermidis | azithromycin | 0.5 | 1 |
 | staphylococcus_epidermidis | clarithromycin | 0.5 | 1 |
@@ -3389,78 +1205,79 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | staphylococcus_epidermidis | levofloxacin | 0.55 | 1 |
 | staphylococcus_epidermidis | moxifloxacin | 0.6 | 1 |
 | staphylococcus_epidermidis | ofloxacin | 0.5 | 1 |
-| staphylococcus_epidermidis | tetracycline | 0.5 | 1 |
-| staphylococcus_epidermidis | doxycycline | 0.75 | 1 |
-| staphylococcus_epidermidis | minocycline | 0.8 | 1 |
+| staphylococcus_epidermidis | tetracycline | 0.5 | 0.25 |
+| staphylococcus_epidermidis | doxycycline | 0.75 | 0.25 |
+| staphylococcus_epidermidis | minocycline | 0.8 | 0.25 |
 | staphylococcus_epidermidis | tigecycline | 0.1 | 1 |
-| staphylococcus_epidermidis | vancomycin | 0.95 | 6 |
-| staphylococcus_epidermidis | teicoplanin | 0.95 | 5 |
+| staphylococcus_epidermidis | vancomycin | 0.95 | 4 |
+| staphylococcus_epidermidis | teicoplanin | 0.95 | 4 |
 | staphylococcus_epidermidis | dalbavancin | 0.95 | 0.005 |
 | staphylococcus_epidermidis | linezolid | 0.95 | 5 |
 | staphylococcus_epidermidis | tedizolid | 0.95 | 0.005 |
-| staphylococcus_epidermidis | daptomycin | 0.1 | 1 |
+| staphylococcus_epidermidis | daptomycin | 0.1 | 3 |
 | staphylococcus_epidermidis | quinu_dalfo | 0.9 | 4 |
-| staphylococcus_epidermidis | trim_sulf | 0.75 | 2.5 |
+| staphylococcus_epidermidis | trim_sulf | 0.75 | 1.2 |
 | staphylococcus_epidermidis | chloramphenicol | 0.6 | 1 |
-| staphylococcus_epidermidis | nitrofurantoin | 0.2 | 1 |
-| staphylococcus_epidermidis | fosfomycin | 0.1 | 1 |
+| staphylococcus_epidermidis | nitrofurantoin | 0.2 | 8 |
+| staphylococcus_epidermidis | fosfomycin | 0.1 | 6 |
 | staphylococcus_epidermidis | retapamulin | 0.8 | 1 |
 | staphylococcus_epidermidis | fusidic_a | 0.85 | 1 |
 | staphylococcus_epidermidis | metronidazole | 0.05 | 1 |
 | staphylococcus_epidermidis | fidaxomicin | 0.1 | 1 |
 | staphylococcus_epidermidis | furazolidone | 0.05 | 1 |
 | staphylococcus_epidermidis | rifampicin | 0.9 | 1 |
-| staphylococcus_epidermidis | amoxicillin_clavulanate | 0.2 | 1 |
+| staphylococcus_epidermidis | amoxicillin_clavulanate | 0.2 | 12 |
 | staphylococcus_epidermidis | piperacillin_tazobactam | 0.4 | 1 |
 | staphylococcus_epidermidis | ampicillin_sulbactam | 0.2 | 1 |
 | staphylococcus_epidermidis | ticarcillin_clavulanate | 0.25 | 1 |
 | staphylococcus_epidermidis | ceftazidime_avibactam | 0.1 | 0.005 |
 | staphylococcus_epidermidis | meropenem_vaborbactam | 0.4 | 0.005 |
 | staphylococcus_epidermidis | colistin | 0.05 | 0.005 |
-| staphylococcus_epidermidis | flucloxacillin | 0.85 | 1 |
-| staphylococcus_epidermidis | aztreonam_avibactam | 0.01 | 1 |
-| staphylococcus_epidermidis | cefixime | 0.75 | 1 |
-| streptococcus_pneumoniae | sulfanilamide | 0.1 | 1 |
-| streptococcus_pneumoniae | penicillin_g | 0.95 | 1 |
-| streptococcus_pneumoniae | ampicillin | 0.95 | 1 |
-| streptococcus_pneumoniae | amoxicillin | 0.95 | 1 |
+| staphylococcus_epidermidis | flucloxacillin | 0.85 | 3 |
+| staphylococcus_epidermidis | aztreonam_avibactam | 0.01 | 0.003 |
+| staphylococcus_epidermidis | cefixime | 0.75 | 0.2 |
+| streptococcus_pneumoniae | sulfanilamide | 0.1 | 0.02 |
+| streptococcus_pneumoniae | penicillin_g | 0.95 | 6 |
+| streptococcus_pneumoniae | ampicillin | 0.95 | 6 |
+| streptococcus_pneumoniae | amoxicillin | 0.95 | 6 |
 | streptococcus_pneumoniae | piperacillin | 0.9 | 1 |
 | streptococcus_pneumoniae | ticarcillin | 0.9 | 1 |
-| streptococcus_pneumoniae | cephalexin | 0.85 | 1 |
-| streptococcus_pneumoniae | cefazolin | 0.9 | 1 |
-| streptococcus_pneumoniae | cefuroxime | 0.9 | 1 |
-| streptococcus_pneumoniae | ceftriaxone | 0.95 | 1 |
-| streptococcus_pneumoniae | ceftazidime | 0.7 | 1 |
-| streptococcus_pneumoniae | cefepime | 0.8 | 1 |
-| streptococcus_pneumoniae | ceftaroline | 0.95 | 1 |
+| streptococcus_pneumoniae | cephalexin | 0.85 | 0.3 |
+| streptococcus_pneumoniae | cefazolin | 0.9 | 0.3 |
+| streptococcus_pneumoniae | cefuroxime | 0.9 | 3 |
+| streptococcus_pneumoniae | ceftriaxone | 0.95 | 3 |
+| streptococcus_pneumoniae | ceftazidime | 0.7 | 0.2 |
+| streptococcus_pneumoniae | cefepime | 0.8 | 0.35 |
+| streptococcus_pneumoniae | ceftaroline | 0.95 | 0.05 |
 | streptococcus_pneumoniae | ceftolozane_tazobactam | 0.75 | 1 |
 | streptococcus_pneumoniae | cefiderocol | 0.75 | 1 |
 | streptococcus_pneumoniae | meropenem | 0.95 | 0.005 |
 | streptococcus_pneumoniae | imipenem_c | 0.95 | 0.005 |
 | streptococcus_pneumoniae | ertapenem | 0.95 | 0.005 |
-| streptococcus_pneumoniae | erythromycin | 0.8 | 1 |
-| streptococcus_pneumoniae | azithromycin | 0.85 | 1 |
-| streptococcus_pneumoniae | clarithromycin | 0.85 | 1 |
+| streptococcus_pneumoniae | aztreonam | 0 | 0.003 |
+| streptococcus_pneumoniae | erythromycin | 0.8 | 5 |
+| streptococcus_pneumoniae | azithromycin | 0.85 | 7 |
+| streptococcus_pneumoniae | clarithromycin | 0.85 | 7 |
 | streptococcus_pneumoniae | clindamycin | 0.8 | 1 |
 | streptococcus_pneumoniae | gentamicin | 0.1 | 1 |
 | streptococcus_pneumoniae | tobramycin | 0.1 | 1 |
 | streptococcus_pneumoniae | amikacin | 0.1 | 1 |
 | streptococcus_pneumoniae | ciprofloxacin | 0.9 | 1 |
-| streptococcus_pneumoniae | levofloxacin | 0.95 | 1 |
-| streptococcus_pneumoniae | moxifloxacin | 0.95 | 1 |
+| streptococcus_pneumoniae | levofloxacin | 0.95 | 5 |
+| streptococcus_pneumoniae | moxifloxacin | 0.95 | 5 |
 | streptococcus_pneumoniae | ofloxacin | 0.9 | 1 |
-| streptococcus_pneumoniae | tetracycline | 0.8 | 1 |
-| streptococcus_pneumoniae | doxycycline | 0.85 | 1 |
-| streptococcus_pneumoniae | minocycline | 0.85 | 1 |
+| streptococcus_pneumoniae | tetracycline | 0.8 | 0.25 |
+| streptococcus_pneumoniae | doxycycline | 0.85 | 0.25 |
+| streptococcus_pneumoniae | minocycline | 0.85 | 0.25 |
 | streptococcus_pneumoniae | tigecycline | 0.1 | 1 |
-| streptococcus_pneumoniae | vancomycin | 0.95 | 1 |
+| streptococcus_pneumoniae | vancomycin | 0.95 | 3 |
 | streptococcus_pneumoniae | teicoplanin | 0.9 | 1 |
 | streptococcus_pneumoniae | dalbavancin | 0.9 | 0.005 |
 | streptococcus_pneumoniae | linezolid | 0.9 | 0.005 |
 | streptococcus_pneumoniae | tedizolid | 0.9 | 0.005 |
 | streptococcus_pneumoniae | daptomycin | 0.1 | 1 |
 | streptococcus_pneumoniae | quinu_dalfo | 0.85 | 0.005 |
-| streptococcus_pneumoniae | trim_sulf | 0.7 | 1 |
+| streptococcus_pneumoniae | trim_sulf | 0.7 | 0.04 |
 | streptococcus_pneumoniae | chloramphenicol | 0.8 | 1 |
 | streptococcus_pneumoniae | nitrofurantoin | 0.1 | 1 |
 | streptococcus_pneumoniae | fosfomycin | 0.1 | 1 |
@@ -3470,7 +1287,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pneumoniae | fidaxomicin | 0.1 | 1 |
 | streptococcus_pneumoniae | furazolidone | 0.1 | 1 |
 | streptococcus_pneumoniae | rifampicin | 0.8 | 1 |
-| streptococcus_pneumoniae | amoxicillin_clavulanate | 0.95 | 1 |
+| streptococcus_pneumoniae | amoxicillin_clavulanate | 0.95 | 12 |
 | streptococcus_pneumoniae | piperacillin_tazobactam | 0.9 | 1 |
 | streptococcus_pneumoniae | ampicillin_sulbactam | 0.95 | 1 |
 | streptococcus_pneumoniae | ticarcillin_clavulanate | 0.9 | 1 |
@@ -3478,47 +1295,47 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pneumoniae | meropenem_vaborbactam | 0.95 | 0.005 |
 | streptococcus_pneumoniae | colistin | 0 | 0.005 |
 | streptococcus_pneumoniae | flucloxacillin | 0.8 | 1 |
-| streptococcus_pneumoniae | aztreonam_avibactam | 0.01 | 1 |
-| streptococcus_pneumoniae | cefixime | 0.75 | 1 |
-| salmonella_enterica_serovar_typhi | sulfanilamide | 0.7 | 1 |
+| streptococcus_pneumoniae | aztreonam_avibactam | 0.01 | 0.003 |
+| streptococcus_pneumoniae | cefixime | 0.75 | 0.2 |
+| salmonella_enterica_serovar_typhi | sulfanilamide | 0.7 | 0.02 |
 | salmonella_enterica_serovar_typhi | penicillin_g | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | ampicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | amoxicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | piperacillin | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | ticarcillin | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | cephalexin | 0.7 | 1 |
-| salmonella_enterica_serovar_typhi | cefazolin | 0.75 | 1 |
-| salmonella_enterica_serovar_typhi | cefuroxime | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | ceftriaxone | 0.95 | 1 |
-| salmonella_enterica_serovar_typhi | ceftazidime | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | cefepime | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | ceftaroline | 0.7 | 1 |
+| salmonella_enterica_serovar_typhi | cephalexin | 0.7 | 0.3 |
+| salmonella_enterica_serovar_typhi | cefazolin | 0.75 | 0.3 |
+| salmonella_enterica_serovar_typhi | cefuroxime | 0.8 | 0.3 |
+| salmonella_enterica_serovar_typhi | ceftriaxone | 0.95 | 4 |
+| salmonella_enterica_serovar_typhi | ceftazidime | 0.9 | 0.2 |
+| salmonella_enterica_serovar_typhi | cefepime | 0.9 | 0.35 |
+| salmonella_enterica_serovar_typhi | ceftaroline | 0.7 | 0.002 |
 | salmonella_enterica_serovar_typhi | ceftolozane_tazobactam | 0.75 | 1 |
 | salmonella_enterica_serovar_typhi | cefiderocol | 0.75 | 1 |
 | salmonella_enterica_serovar_typhi | meropenem | 0.95 | 0.005 |
 | salmonella_enterica_serovar_typhi | imipenem_c | 0.95 | 0.005 |
 | salmonella_enterica_serovar_typhi | ertapenem | 0.95 | 0.005 |
-| salmonella_enterica_serovar_typhi | aztreonam | 0.9 | 1 |
+| salmonella_enterica_serovar_typhi | aztreonam | 0.9 | 0.003 |
 | salmonella_enterica_serovar_typhi | erythromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | azithromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | clarithromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | gentamicin | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | tobramycin | 0.8 | 1 |
 | salmonella_enterica_serovar_typhi | amikacin | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | ciprofloxacin | 0.9 | 1 |
+| salmonella_enterica_serovar_typhi | ciprofloxacin | 0.9 | 4 |
 | salmonella_enterica_serovar_typhi | levofloxacin | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | moxifloxacin | 0.7 | 1 |
 | salmonella_enterica_serovar_typhi | ofloxacin | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | tetracycline | 0.8 | 1 |
-| salmonella_enterica_serovar_typhi | doxycycline | 0.85 | 1 |
-| salmonella_enterica_serovar_typhi | minocycline | 0.85 | 1 |
+| salmonella_enterica_serovar_typhi | tetracycline | 0.8 | 0.25 |
+| salmonella_enterica_serovar_typhi | doxycycline | 0.85 | 0.25 |
+| salmonella_enterica_serovar_typhi | minocycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_typhi | tigecycline | 0.7 | 1 |
 | salmonella_enterica_serovar_typhi | dalbavancin | 0 | 0.005 |
 | salmonella_enterica_serovar_typhi | linezolid | 0 | 0.005 |
 | salmonella_enterica_serovar_typhi | tedizolid | 0 | 0.005 |
 | salmonella_enterica_serovar_typhi | daptomycin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | quinu_dalfo | 0 | 0.005 |
-| salmonella_enterica_serovar_typhi | trim_sulf | 0.9 | 1 |
+| salmonella_enterica_serovar_typhi | trim_sulf | 0.9 | 0.04 |
 | salmonella_enterica_serovar_typhi | chloramphenicol | 0.85 | 1 |
 | salmonella_enterica_serovar_typhi | nitrofurantoin | 0.1 | 1 |
 | salmonella_enterica_serovar_typhi | fosfomycin | 0.1 | 1 |
@@ -3533,27 +1350,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_typhi | meropenem_vaborbactam | 0.95 | 0.005 |
 | salmonella_enterica_serovar_typhi | colistin | 0.7 | 0.005 |
 | salmonella_enterica_serovar_typhi | flucloxacillin | 0.01 | 1 |
-| salmonella_enterica_serovar_typhi | aztreonam_avibactam | 0.9 | 1 |
-| salmonella_enterica_serovar_typhi | cefixime | 0.75 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | sulfanilamide | 0.7 | 1 |
+| salmonella_enterica_serovar_typhi | aztreonam_avibactam | 0.9 | 0.003 |
+| salmonella_enterica_serovar_typhi | cefixime | 0.75 | 3 |
+| salmonella_enterica_serovar_paratyphi_a | sulfanilamide | 0.7 | 0.02 |
 | salmonella_enterica_serovar_paratyphi_a | penicillin_g | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ampicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | amoxicillin | 0.8 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | piperacillin | 0.85 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ticarcillin | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cephalexin | 0.7 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefazolin | 0.75 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefuroxime | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftriaxone | 0.95 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftazidime | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefepime | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | ceftaroline | 0.7 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | cephalexin | 0.7 | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | cefazolin | 0.75 | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | cefuroxime | 0.8 | 0.3 |
+| salmonella_enterica_serovar_paratyphi_a | ceftriaxone | 0.95 | 4 |
+| salmonella_enterica_serovar_paratyphi_a | ceftazidime | 0.9 | 0.2 |
+| salmonella_enterica_serovar_paratyphi_a | cefepime | 0.9 | 0.35 |
+| salmonella_enterica_serovar_paratyphi_a | ceftaroline | 0.7 | 0.002 |
 | salmonella_enterica_serovar_paratyphi_a | ceftolozane_tazobactam | 0.75 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | cefiderocol | 0.75 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | meropenem | 0.95 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | imipenem_c | 0.95 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | ertapenem | 0.95 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | aztreonam | 0.9 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | aztreonam | 0.9 | 0.003 |
 | salmonella_enterica_serovar_paratyphi_a | erythromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | azithromycin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | clarithromycin | 0.1 | 1 |
@@ -3564,16 +1381,16 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_paratyphi_a | levofloxacin | 0.85 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | moxifloxacin | 0.7 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | ofloxacin | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | tetracycline | 0.8 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | doxycycline | 0.85 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | minocycline | 0.85 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | tetracycline | 0.8 | 0.25 |
+| salmonella_enterica_serovar_paratyphi_a | doxycycline | 0.85 | 0.25 |
+| salmonella_enterica_serovar_paratyphi_a | minocycline | 0.85 | 0.25 |
 | salmonella_enterica_serovar_paratyphi_a | tigecycline | 0.7 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | dalbavancin | 0 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | linezolid | 0 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | tedizolid | 0 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | daptomycin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | quinu_dalfo | 0 | 0.005 |
-| salmonella_enterica_serovar_paratyphi_a | trim_sulf | 0.9 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | trim_sulf | 0.9 | 0.04 |
 | salmonella_enterica_serovar_paratyphi_a | chloramphenicol | 0.85 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | nitrofurantoin | 0.1 | 1 |
 | salmonella_enterica_serovar_paratyphi_a | fosfomycin | 0.1 | 1 |
@@ -3588,27 +1405,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | salmonella_enterica_serovar_paratyphi_a | meropenem_vaborbactam | 0.95 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | colistin | 0.7 | 0.005 |
 | salmonella_enterica_serovar_paratyphi_a | flucloxacillin | 0.01 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | aztreonam_avibactam | 0.9 | 1 |
-| salmonella_enterica_serovar_paratyphi_a | cefixime | 0.75 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | sulfanilamide | 0.7 | 1 |
+| salmonella_enterica_serovar_paratyphi_a | aztreonam_avibactam | 0.9 | 0.003 |
+| salmonella_enterica_serovar_paratyphi_a | cefixime | 0.75 | 0.2 |
+| invasive_non-typhoidal_salmonella_spp. | sulfanilamide | 0.7 | 0.02 |
 | invasive_non-typhoidal_salmonella_spp. | penicillin_g | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ampicillin | 0.8 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | amoxicillin | 0.8 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | piperacillin | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ticarcillin | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cephalexin | 0.7 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefazolin | 0.75 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefuroxime | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftriaxone | 0.95 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftazidime | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefepime | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | ceftaroline | 0.7 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | cephalexin | 0.7 | 0.3 |
+| invasive_non-typhoidal_salmonella_spp. | cefazolin | 0.75 | 0.3 |
+| invasive_non-typhoidal_salmonella_spp. | cefuroxime | 0.8 | 0.3 |
+| invasive_non-typhoidal_salmonella_spp. | ceftriaxone | 0.95 | 3 |
+| invasive_non-typhoidal_salmonella_spp. | ceftazidime | 0.9 | 0.2 |
+| invasive_non-typhoidal_salmonella_spp. | cefepime | 0.9 | 0.35 |
+| invasive_non-typhoidal_salmonella_spp. | ceftaroline | 0.7 | 0.002 |
 | invasive_non-typhoidal_salmonella_spp. | ceftolozane_tazobactam | 0.75 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | cefiderocol | 0.75 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | meropenem | 0.95 | 0.005 |
 | invasive_non-typhoidal_salmonella_spp. | imipenem_c | 0.95 | 0.005 |
 | invasive_non-typhoidal_salmonella_spp. | ertapenem | 0.95 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | aztreonam | 0.9 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | aztreonam | 0.9 | 0.003 |
 | invasive_non-typhoidal_salmonella_spp. | erythromycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | azithromycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | clarithromycin | 0.1 | 1 |
@@ -3620,9 +1437,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | invasive_non-typhoidal_salmonella_spp. | levofloxacin | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | moxifloxacin | 0.7 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | ofloxacin | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | tetracycline | 0.8 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | doxycycline | 0.85 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | minocycline | 0.85 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | tetracycline | 0.8 | 0.25 |
+| invasive_non-typhoidal_salmonella_spp. | doxycycline | 0.85 | 0.25 |
+| invasive_non-typhoidal_salmonella_spp. | minocycline | 0.85 | 0.25 |
 | invasive_non-typhoidal_salmonella_spp. | tigecycline | 0.7 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | vancomycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | teicoplanin | 0.1 | 1 |
@@ -3631,7 +1448,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | invasive_non-typhoidal_salmonella_spp. | tedizolid | 0.1 | 0.005 |
 | invasive_non-typhoidal_salmonella_spp. | daptomycin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | quinu_dalfo | 0.1 | 0.005 |
-| invasive_non-typhoidal_salmonella_spp. | trim_sulf | 0.9 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | trim_sulf | 0.9 | 0.04 |
 | invasive_non-typhoidal_salmonella_spp. | chloramphenicol | 0.85 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | nitrofurantoin | 0.1 | 1 |
 | invasive_non-typhoidal_salmonella_spp. | fosfomycin | 0.1 | 1 |
@@ -3648,47 +1465,47 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | invasive_non-typhoidal_salmonella_spp. | meropenem_vaborbactam | 0.95 | 0.005 |
 | invasive_non-typhoidal_salmonella_spp. | colistin | 0.7 | 0.005 |
 | invasive_non-typhoidal_salmonella_spp. | flucloxacillin | 0.01 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | aztreonam_avibactam | 0.9 | 1 |
-| invasive_non-typhoidal_salmonella_spp. | cefixime | 0.75 | 1 |
-| shigella_spp. | sulfanilamide | 0.5 | 1 |
+| invasive_non-typhoidal_salmonella_spp. | aztreonam_avibactam | 0.9 | 0.003 |
+| invasive_non-typhoidal_salmonella_spp. | cefixime | 0.75 | 0.2 |
+| shigella_spp. | sulfanilamide | 0.5 | 0.02 |
 | shigella_spp. | penicillin_g | 0.1 | 1 |
 | shigella_spp. | ampicillin | 0.7 | 1 |
 | shigella_spp. | amoxicillin | 0.7 | 1 |
 | shigella_spp. | piperacillin | 0.75 | 1 |
 | shigella_spp. | ticarcillin | 0.7 | 1 |
-| shigella_spp. | cephalexin | 0.6 | 1 |
-| shigella_spp. | cefazolin | 0.65 | 1 |
-| shigella_spp. | cefuroxime | 0.7 | 1 |
-| shigella_spp. | ceftriaxone | 0.9 | 1 |
-| shigella_spp. | ceftazidime | 0.85 | 1 |
-| shigella_spp. | cefepime | 0.85 | 1 |
-| shigella_spp. | ceftaroline | 0.6 | 1 |
+| shigella_spp. | cephalexin | 0.6 | 0.3 |
+| shigella_spp. | cefazolin | 0.65 | 0.3 |
+| shigella_spp. | cefuroxime | 0.7 | 0.3 |
+| shigella_spp. | ceftriaxone | 0.9 | 0.2 |
+| shigella_spp. | ceftazidime | 0.85 | 0.2 |
+| shigella_spp. | cefepime | 0.85 | 0.35 |
+| shigella_spp. | ceftaroline | 0.6 | 0.002 |
 | shigella_spp. | ceftolozane_tazobactam | 0.75 | 1 |
 | shigella_spp. | cefiderocol | 0.75 | 1 |
 | shigella_spp. | meropenem | 0.9 | 0.005 |
 | shigella_spp. | imipenem_c | 0.9 | 0.005 |
 | shigella_spp. | ertapenem | 0.9 | 0.005 |
-| shigella_spp. | aztreonam | 0.8 | 1 |
+| shigella_spp. | aztreonam | 0.8 | 0.003 |
 | shigella_spp. | erythromycin | 0.7 | 1 |
 | shigella_spp. | azithromycin | 0.85 | 1 |
 | shigella_spp. | clarithromycin | 0.75 | 1 |
 | shigella_spp. | gentamicin | 0.8 | 1 |
 | shigella_spp. | tobramycin | 0.75 | 1 |
 | shigella_spp. | amikacin | 0.85 | 1 |
-| shigella_spp. | ciprofloxacin | 0.95 | 1 |
+| shigella_spp. | ciprofloxacin | 0.95 | 4 |
 | shigella_spp. | levofloxacin | 0.9 | 1 |
 | shigella_spp. | moxifloxacin | 0.8 | 1 |
 | shigella_spp. | ofloxacin | 0.9 | 1 |
-| shigella_spp. | tetracycline | 0.8 | 1 |
-| shigella_spp. | doxycycline | 0.85 | 1 |
-| shigella_spp. | minocycline | 0.85 | 1 |
+| shigella_spp. | tetracycline | 0.8 | 0.25 |
+| shigella_spp. | doxycycline | 0.85 | 0.25 |
+| shigella_spp. | minocycline | 0.85 | 0.25 |
 | shigella_spp. | tigecycline | 0.7 | 1 |
 | shigella_spp. | dalbavancin | 0 | 0.005 |
 | shigella_spp. | linezolid | 0 | 0.005 |
 | shigella_spp. | tedizolid | 0 | 0.005 |
 | shigella_spp. | daptomycin | 0.1 | 1 |
 | shigella_spp. | quinu_dalfo | 0 | 0.005 |
-| shigella_spp. | trim_sulf | 0.9 | 1 |
+| shigella_spp. | trim_sulf | 0.9 | 0.04 |
 | shigella_spp. | chloramphenicol | 0.85 | 1 |
 | shigella_spp. | nitrofurantoin | 0.1 | 1 |
 | shigella_spp. | fosfomycin | 0.1 | 1 |
@@ -3703,47 +1520,47 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | shigella_spp. | meropenem_vaborbactam | 0.9 | 0.005 |
 | shigella_spp. | colistin | 0.7 | 0.005 |
 | shigella_spp. | flucloxacillin | 0.01 | 1 |
-| shigella_spp. | aztreonam_avibactam | 0.9 | 1 |
-| shigella_spp. | cefixime | 0.75 | 1 |
-| neisseria_gonorrhoeae | sulfanilamide | 0.1 | 1 |
+| shigella_spp. | aztreonam_avibactam | 0.9 | 0.003 |
+| shigella_spp. | cefixime | 0.75 | 0.2 |
+| neisseria_gonorrhoeae | sulfanilamide | 0.1 | 0.02 |
 | neisseria_gonorrhoeae | penicillin_g | 0.9 | 4 |
 | neisseria_gonorrhoeae | ampicillin | 0.85 | 1 |
 | neisseria_gonorrhoeae | amoxicillin | 0.85 | 2.5 |
 | neisseria_gonorrhoeae | piperacillin | 0.8 | 1 |
 | neisseria_gonorrhoeae | ticarcillin | 0.8 | 1 |
-| neisseria_gonorrhoeae | cephalexin | 0.7 | 1 |
-| neisseria_gonorrhoeae | cefazolin | 0.75 | 1 |
-| neisseria_gonorrhoeae | cefuroxime | 0.85 | 1 |
-| neisseria_gonorrhoeae | ceftriaxone | 0.95 | 12 |
-| neisseria_gonorrhoeae | ceftazidime | 0.9 | 1 |
-| neisseria_gonorrhoeae | cefepime | 0.9 | 1 |
-| neisseria_gonorrhoeae | ceftaroline | 0.8 | 1 |
+| neisseria_gonorrhoeae | cephalexin | 0.7 | 0.3 |
+| neisseria_gonorrhoeae | cefazolin | 0.75 | 0.3 |
+| neisseria_gonorrhoeae | cefuroxime | 0.85 | 0.3 |
+| neisseria_gonorrhoeae | ceftriaxone | 0.95 | 6 |
+| neisseria_gonorrhoeae | ceftazidime | 0.9 | 0.2 |
+| neisseria_gonorrhoeae | cefepime | 0.9 | 0.35 |
+| neisseria_gonorrhoeae | ceftaroline | 0.8 | 0.002 |
 | neisseria_gonorrhoeae | ceftolozane_tazobactam | 0.8 | 1 |
 | neisseria_gonorrhoeae | cefiderocol | 0.8 | 1 |
 | neisseria_gonorrhoeae | meropenem | 0.9 | 0.005 |
 | neisseria_gonorrhoeae | imipenem_c | 0.9 | 0.005 |
 | neisseria_gonorrhoeae | ertapenem | 0.9 | 0.005 |
-| neisseria_gonorrhoeae | aztreonam | 0.9 | 1 |
+| neisseria_gonorrhoeae | aztreonam | 0.9 | 0.003 |
 | neisseria_gonorrhoeae | erythromycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | azithromycin | 0.7 | 5 |
 | neisseria_gonorrhoeae | clarithromycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | gentamicin | 0.7 | 2 |
 | neisseria_gonorrhoeae | tobramycin | 0.7 | 1 |
 | neisseria_gonorrhoeae | amikacin | 0.7 | 1 |
-| neisseria_gonorrhoeae | ciprofloxacin | 0.9 | 5 |
+| neisseria_gonorrhoeae | ciprofloxacin | 0.9 | 3 |
 | neisseria_gonorrhoeae | levofloxacin | 0.85 | 1 |
 | neisseria_gonorrhoeae | moxifloxacin | 0.8 | 1 |
-| neisseria_gonorrhoeae | ofloxacin | 0.85 | 1 |
-| neisseria_gonorrhoeae | tetracycline | 0.8 | 1 |
-| neisseria_gonorrhoeae | doxycycline | 0.9 | 4 |
-| neisseria_gonorrhoeae | minocycline | 0.85 | 1 |
+| neisseria_gonorrhoeae | ofloxacin | 0.85 | 2 |
+| neisseria_gonorrhoeae | tetracycline | 0.8 | 0.25 |
+| neisseria_gonorrhoeae | doxycycline | 0.9 | 0.25 |
+| neisseria_gonorrhoeae | minocycline | 0.85 | 0.25 |
 | neisseria_gonorrhoeae | tigecycline | 0.1 | 1 |
 | neisseria_gonorrhoeae | dalbavancin | 0 | 0.005 |
 | neisseria_gonorrhoeae | linezolid | 0 | 0.005 |
 | neisseria_gonorrhoeae | tedizolid | 0 | 0.005 |
 | neisseria_gonorrhoeae | daptomycin | 0.1 | 1 |
 | neisseria_gonorrhoeae | quinu_dalfo | 0 | 0.005 |
-| neisseria_gonorrhoeae | trim_sulf | 0.7 | 1 |
+| neisseria_gonorrhoeae | trim_sulf | 0.7 | 0.04 |
 | neisseria_gonorrhoeae | chloramphenicol | 0.8 | 1 |
 | neisseria_gonorrhoeae | nitrofurantoin | 0.1 | 1 |
 | neisseria_gonorrhoeae | fosfomycin | 0.1 | 1 |
@@ -3758,29 +1575,30 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_gonorrhoeae | meropenem_vaborbactam | 0.9 | 0.005 |
 | neisseria_gonorrhoeae | colistin | 0.05 | 0.005 |
 | neisseria_gonorrhoeae | flucloxacillin | 0.01 | 1 |
-| neisseria_gonorrhoeae | aztreonam_avibactam | 0.8 | 1 |
-| neisseria_gonorrhoeae | cefixime | 0.55 | 6 |
-| streptococcus_pyogenes | sulfanilamide | 0.1 | 1 |
-| streptococcus_pyogenes | penicillin_g | 1 | 1 |
-| streptococcus_pyogenes | ampicillin | 0.95 | 1 |
-| streptococcus_pyogenes | amoxicillin | 0.95 | 1 |
+| neisseria_gonorrhoeae | aztreonam_avibactam | 0.8 | 0.003 |
+| neisseria_gonorrhoeae | cefixime | 0.55 | 5 |
+| streptococcus_pyogenes | sulfanilamide | 0.1 | 0.02 |
+| streptococcus_pyogenes | penicillin_g | 1 | 6 |
+| streptococcus_pyogenes | ampicillin | 0.95 | 6 |
+| streptococcus_pyogenes | amoxicillin | 0.95 | 6 |
 | streptococcus_pyogenes | piperacillin | 0.9 | 1 |
 | streptococcus_pyogenes | ticarcillin | 0.9 | 1 |
-| streptococcus_pyogenes | cephalexin | 0.9 | 1 |
-| streptococcus_pyogenes | cefazolin | 0.9 | 1 |
-| streptococcus_pyogenes | cefuroxime | 0.95 | 1 |
-| streptococcus_pyogenes | ceftriaxone | 0.95 | 1 |
-| streptococcus_pyogenes | ceftazidime | 0.7 | 1 |
-| streptococcus_pyogenes | cefepime | 0.8 | 1 |
-| streptococcus_pyogenes | ceftaroline | 0.95 | 1 |
+| streptococcus_pyogenes | cephalexin | 0.9 | 4 |
+| streptococcus_pyogenes | cefazolin | 0.9 | 0.3 |
+| streptococcus_pyogenes | cefuroxime | 0.95 | 0.3 |
+| streptococcus_pyogenes | ceftriaxone | 0.95 | 0.2 |
+| streptococcus_pyogenes | ceftazidime | 0.7 | 0.2 |
+| streptococcus_pyogenes | cefepime | 0.8 | 0.35 |
+| streptococcus_pyogenes | ceftaroline | 0.95 | 0.002 |
 | streptococcus_pyogenes | ceftolozane_tazobactam | 0.75 | 1 |
 | streptococcus_pyogenes | cefiderocol | 0.75 | 1 |
 | streptococcus_pyogenes | meropenem | 0.95 | 0.005 |
 | streptococcus_pyogenes | imipenem_c | 0.95 | 0.005 |
 | streptococcus_pyogenes | ertapenem | 0.95 | 0.005 |
+| streptococcus_pyogenes | aztreonam | 0 | 0.003 |
 | streptococcus_pyogenes | erythromycin | 0.9 | 1 |
-| streptococcus_pyogenes | azithromycin | 0.9 | 1 |
-| streptococcus_pyogenes | clarithromycin | 0.9 | 1 |
+| streptococcus_pyogenes | azithromycin | 0.9 | 5 |
+| streptococcus_pyogenes | clarithromycin | 0.9 | 4.5 |
 | streptococcus_pyogenes | clindamycin | 0.85 | 1 |
 | streptococcus_pyogenes | gentamicin | 0.1 | 1 |
 | streptococcus_pyogenes | tobramycin | 0.1 | 1 |
@@ -3789,18 +1607,18 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pyogenes | levofloxacin | 0.9 | 1 |
 | streptococcus_pyogenes | moxifloxacin | 0.9 | 1 |
 | streptococcus_pyogenes | ofloxacin | 0.85 | 1 |
-| streptococcus_pyogenes | tetracycline | 0.8 | 1 |
-| streptococcus_pyogenes | doxycycline | 0.85 | 1 |
-| streptococcus_pyogenes | minocycline | 0.85 | 1 |
+| streptococcus_pyogenes | tetracycline | 0.8 | 0.25 |
+| streptococcus_pyogenes | doxycycline | 0.85 | 0.25 |
+| streptococcus_pyogenes | minocycline | 0.85 | 0.25 |
 | streptococcus_pyogenes | tigecycline | 0.1 | 1 |
-| streptococcus_pyogenes | vancomycin | 0.95 | 1 |
+| streptococcus_pyogenes | vancomycin | 0.95 | 2 |
 | streptococcus_pyogenes | teicoplanin | 0.9 | 1 |
 | streptococcus_pyogenes | dalbavancin | 0.9 | 0.005 |
 | streptococcus_pyogenes | linezolid | 0.9 | 0.005 |
 | streptococcus_pyogenes | tedizolid | 0.9 | 0.005 |
 | streptococcus_pyogenes | daptomycin | 0.1 | 1 |
 | streptococcus_pyogenes | quinu_dalfo | 0.85 | 0.005 |
-| streptococcus_pyogenes | trim_sulf | 0.7 | 1 |
+| streptococcus_pyogenes | trim_sulf | 0.7 | 0.04 |
 | streptococcus_pyogenes | chloramphenicol | 0.8 | 1 |
 | streptococcus_pyogenes | nitrofurantoin | 0.1 | 1 |
 | streptococcus_pyogenes | fosfomycin | 0.1 | 1 |
@@ -3810,7 +1628,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pyogenes | fidaxomicin | 0.1 | 1 |
 | streptococcus_pyogenes | furazolidone | 0.1 | 1 |
 | streptococcus_pyogenes | rifampicin | 0.8 | 1 |
-| streptococcus_pyogenes | amoxicillin_clavulanate | 0.95 | 1 |
+| streptococcus_pyogenes | amoxicillin_clavulanate | 0.95 | 12 |
 | streptococcus_pyogenes | piperacillin_tazobactam | 0.9 | 1 |
 | streptococcus_pyogenes | ampicillin_sulbactam | 0.95 | 1 |
 | streptococcus_pyogenes | ticarcillin_clavulanate | 0.9 | 1 |
@@ -3818,26 +1636,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_pyogenes | meropenem_vaborbactam | 0.95 | 0.005 |
 | streptococcus_pyogenes | colistin | 0 | 0.005 |
 | streptococcus_pyogenes | flucloxacillin | 0.8 | 1 |
-| streptococcus_pyogenes | aztreonam_avibactam | 0.01 | 1 |
-| streptococcus_pyogenes | cefixime | 0.75 | 1 |
-| streptococcus_agalactiae | sulfanilamide | 0.1 | 1 |
-| streptococcus_agalactiae | penicillin_g | 0.95 | 1 |
-| streptococcus_agalactiae | ampicillin | 0.95 | 1 |
-| streptococcus_agalactiae | amoxicillin | 0.95 | 1 |
+| streptococcus_pyogenes | aztreonam_avibactam | 0.01 | 0.003 |
+| streptococcus_pyogenes | cefixime | 0.75 | 0.2 |
+| streptococcus_agalactiae | sulfanilamide | 0.1 | 0.02 |
+| streptococcus_agalactiae | penicillin_g | 0.95 | 6 |
+| streptococcus_agalactiae | ampicillin | 0.95 | 6 |
+| streptococcus_agalactiae | amoxicillin | 0.95 | 6 |
 | streptococcus_agalactiae | piperacillin | 0.9 | 1 |
 | streptococcus_agalactiae | ticarcillin | 0.9 | 1 |
-| streptococcus_agalactiae | cephalexin | 0.9 | 1 |
-| streptococcus_agalactiae | cefazolin | 0.9 | 1 |
-| streptococcus_agalactiae | cefuroxime | 0.95 | 1 |
-| streptococcus_agalactiae | ceftriaxone | 0.95 | 1 |
-| streptococcus_agalactiae | ceftazidime | 0.7 | 1 |
-| streptococcus_agalactiae | cefepime | 0.8 | 1 |
-| streptococcus_agalactiae | ceftaroline | 0.95 | 1 |
+| streptococcus_agalactiae | cephalexin | 0.9 | 4 |
+| streptococcus_agalactiae | cefazolin | 0.9 | 0.3 |
+| streptococcus_agalactiae | cefuroxime | 0.95 | 0.3 |
+| streptococcus_agalactiae | ceftriaxone | 0.95 | 0.2 |
+| streptococcus_agalactiae | ceftazidime | 0.7 | 0.2 |
+| streptococcus_agalactiae | cefepime | 0.8 | 0.35 |
+| streptococcus_agalactiae | ceftaroline | 0.95 | 0.002 |
 | streptococcus_agalactiae | ceftolozane_tazobactam | 0.75 | 1 |
 | streptococcus_agalactiae | cefiderocol | 0.75 | 1 |
 | streptococcus_agalactiae | meropenem | 0.95 | 0.005 |
 | streptococcus_agalactiae | imipenem_c | 0.95 | 0.005 |
 | streptococcus_agalactiae | ertapenem | 0.95 | 0.005 |
+| streptococcus_agalactiae | aztreonam | 0 | 0.003 |
 | streptococcus_agalactiae | erythromycin | 0.8 | 1 |
 | streptococcus_agalactiae | azithromycin | 0.85 | 1 |
 | streptococcus_agalactiae | clarithromycin | 0.85 | 1 |
@@ -3849,18 +1668,18 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_agalactiae | levofloxacin | 0.9 | 1 |
 | streptococcus_agalactiae | moxifloxacin | 0.9 | 1 |
 | streptococcus_agalactiae | ofloxacin | 0.85 | 1 |
-| streptococcus_agalactiae | tetracycline | 0.8 | 1 |
-| streptococcus_agalactiae | doxycycline | 0.85 | 1 |
-| streptococcus_agalactiae | minocycline | 0.85 | 1 |
+| streptococcus_agalactiae | tetracycline | 0.8 | 0.25 |
+| streptococcus_agalactiae | doxycycline | 0.85 | 0.25 |
+| streptococcus_agalactiae | minocycline | 0.85 | 0.25 |
 | streptococcus_agalactiae | tigecycline | 0.1 | 1 |
-| streptococcus_agalactiae | vancomycin | 0.95 | 1 |
+| streptococcus_agalactiae | vancomycin | 0.95 | 2 |
 | streptococcus_agalactiae | teicoplanin | 0.9 | 1 |
 | streptococcus_agalactiae | dalbavancin | 0.9 | 0.005 |
 | streptococcus_agalactiae | linezolid | 0.9 | 0.005 |
 | streptococcus_agalactiae | tedizolid | 0.9 | 0.005 |
 | streptococcus_agalactiae | daptomycin | 0.1 | 1 |
 | streptococcus_agalactiae | quinu_dalfo | 0.85 | 0.005 |
-| streptococcus_agalactiae | trim_sulf | 0.7 | 1 |
+| streptococcus_agalactiae | trim_sulf | 0.7 | 0.04 |
 | streptococcus_agalactiae | chloramphenicol | 0.8 | 1 |
 | streptococcus_agalactiae | nitrofurantoin | 0.1 | 1 |
 | streptococcus_agalactiae | fosfomycin | 0.1 | 1 |
@@ -3870,7 +1689,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_agalactiae | fidaxomicin | 0.1 | 1 |
 | streptococcus_agalactiae | furazolidone | 0.1 | 1 |
 | streptococcus_agalactiae | rifampicin | 0.8 | 1 |
-| streptococcus_agalactiae | amoxicillin_clavulanate | 0.95 | 1 |
+| streptococcus_agalactiae | amoxicillin_clavulanate | 0.95 | 12 |
 | streptococcus_agalactiae | piperacillin_tazobactam | 0.9 | 1 |
 | streptococcus_agalactiae | ampicillin_sulbactam | 0.95 | 1 |
 | streptococcus_agalactiae | ticarcillin_clavulanate | 0.9 | 1 |
@@ -3878,84 +1697,84 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | streptococcus_agalactiae | meropenem_vaborbactam | 0.95 | 0.005 |
 | streptococcus_agalactiae | colistin | 0 | 0.005 |
 | streptococcus_agalactiae | flucloxacillin | 0.8 | 1 |
-| streptococcus_agalactiae | aztreonam_avibactam | 0.01 | 1 |
-| streptococcus_agalactiae | cefixime | 0.75 | 1 |
-| haemophilus_influenzae | sulfanilamide | 0.1 | 1 |
+| streptococcus_agalactiae | aztreonam_avibactam | 0.01 | 0.003 |
+| streptococcus_agalactiae | cefixime | 0.75 | 0.2 |
+| haemophilus_influenzae | sulfanilamide | 0.1 | 0.02 |
 | haemophilus_influenzae | penicillin_g | 0.7 | 1 |
-| haemophilus_influenzae | ampicillin | 0.8 | 1 |
-| haemophilus_influenzae | amoxicillin | 0.9 | 1 |
+| haemophilus_influenzae | ampicillin | 0.8 | 6 |
+| haemophilus_influenzae | amoxicillin | 0.9 | 6 |
 | haemophilus_influenzae | piperacillin | 0.85 | 1 |
 | haemophilus_influenzae | ticarcillin | 0.8 | 1 |
-| haemophilus_influenzae | cephalexin | 0.7 | 1 |
-| haemophilus_influenzae | cefazolin | 0.75 | 1 |
-| haemophilus_influenzae | cefuroxime | 0.85 | 1 |
-| haemophilus_influenzae | ceftriaxone | 0.95 | 1 |
-| haemophilus_influenzae | ceftazidime | 0.9 | 1 |
-| haemophilus_influenzae | cefepime | 0.9 | 1 |
-| haemophilus_influenzae | ceftaroline | 0.8 | 1 |
+| haemophilus_influenzae | cephalexin | 0.7 | 0.3 |
+| haemophilus_influenzae | cefazolin | 0.75 | 0.3 |
+| haemophilus_influenzae | cefuroxime | 0.85 | 3 |
+| haemophilus_influenzae | ceftriaxone | 0.95 | 3 |
+| haemophilus_influenzae | ceftazidime | 0.9 | 0.2 |
+| haemophilus_influenzae | cefepime | 0.9 | 0.35 |
+| haemophilus_influenzae | ceftaroline | 0.8 | 0.002 |
 | haemophilus_influenzae | ceftolozane_tazobactam | 0.8 | 1 |
 | haemophilus_influenzae | cefiderocol | 0.8 | 1 |
 | haemophilus_influenzae | meropenem | 0.95 | 0.005 |
 | haemophilus_influenzae | imipenem_c | 0.95 | 0.005 |
 | haemophilus_influenzae | ertapenem | 0.95 | 0.005 |
-| haemophilus_influenzae | aztreonam | 0.9 | 1 |
-| haemophilus_influenzae | erythromycin | 0.7 | 4 |
-| haemophilus_influenzae | azithromycin | 0.9 | 4 |
-| haemophilus_influenzae | clarithromycin | 0.85 | 4 |
+| haemophilus_influenzae | aztreonam | 0.9 | 0.003 |
+| haemophilus_influenzae | erythromycin | 0.7 | 6 |
+| haemophilus_influenzae | azithromycin | 0.9 | 7 |
+| haemophilus_influenzae | clarithromycin | 0.85 | 7 |
 | haemophilus_influenzae | gentamicin | 0.7 | 1 |
 | haemophilus_influenzae | tobramycin | 0.7 | 1 |
 | haemophilus_influenzae | amikacin | 0.7 | 1 |
 | haemophilus_influenzae | ciprofloxacin | 0.9 | 1 |
-| haemophilus_influenzae | levofloxacin | 0.85 | 1 |
-| haemophilus_influenzae | moxifloxacin | 0.8 | 1 |
+| haemophilus_influenzae | levofloxacin | 0.85 | 4 |
+| haemophilus_influenzae | moxifloxacin | 0.8 | 4 |
 | haemophilus_influenzae | ofloxacin | 0.85 | 1 |
-| haemophilus_influenzae | tetracycline | 0.85 | 1 |
-| haemophilus_influenzae | doxycycline | 0.85 | 1 |
-| haemophilus_influenzae | minocycline | 0.85 | 1 |
+| haemophilus_influenzae | tetracycline | 0.85 | 0.25 |
+| haemophilus_influenzae | doxycycline | 0.85 | 0.25 |
+| haemophilus_influenzae | minocycline | 0.85 | 0.25 |
 | haemophilus_influenzae | tigecycline | 0.1 | 1 |
 | haemophilus_influenzae | dalbavancin | 0 | 0.005 |
 | haemophilus_influenzae | linezolid | 0 | 0.005 |
 | haemophilus_influenzae | tedizolid | 0 | 0.005 |
 | haemophilus_influenzae | daptomycin | 0.1 | 1 |
 | haemophilus_influenzae | quinu_dalfo | 0 | 0.005 |
-| haemophilus_influenzae | trim_sulf | 0.85 | 1 |
+| haemophilus_influenzae | trim_sulf | 0.85 | 0.04 |
 | haemophilus_influenzae | chloramphenicol | 0.8 | 1 |
 | haemophilus_influenzae | nitrofurantoin | 0.1 | 1 |
 | haemophilus_influenzae | fosfomycin | 0.1 | 1 |
 | haemophilus_influenzae | fidaxomicin | 0.1 | 1 |
 | haemophilus_influenzae | furazolidone | 0.1 | 1 |
 | haemophilus_influenzae | rifampicin | 0.7 | 1 |
-| haemophilus_influenzae | amoxicillin_clavulanate | 0.9 | 1 |
-| haemophilus_influenzae | piperacillin_tazobactam | 0.85 | 1 |
+| haemophilus_influenzae | amoxicillin_clavulanate | 0.9 | 12 |
+| haemophilus_influenzae | piperacillin_tazobactam | 0.85 | 8 |
 | haemophilus_influenzae | ampicillin_sulbactam | 0.9 | 1 |
 | haemophilus_influenzae | ticarcillin_clavulanate | 0.8 | 1 |
 | haemophilus_influenzae | ceftazidime_avibactam | 0.95 | 0.005 |
 | haemophilus_influenzae | meropenem_vaborbactam | 0.95 | 0.005 |
 | haemophilus_influenzae | colistin | 0.05 | 0.005 |
 | haemophilus_influenzae | flucloxacillin | 0.01 | 1 |
-| haemophilus_influenzae | aztreonam_avibactam | 0.8 | 1 |
-| haemophilus_influenzae | cefixime | 0.8 | 1 |
-| chlamydia_trachomatis | sulfanilamide | 0.1 | 1 |
+| haemophilus_influenzae | aztreonam_avibactam | 0.8 | 0.003 |
+| haemophilus_influenzae | cefixime | 0.8 | 0.2 |
+| chlamydia_trachomatis | sulfanilamide | 0.1 | 0.02 |
 | chlamydia_trachomatis | penicillin_g | 0.1 | 1 |
 | chlamydia_trachomatis | ampicillin | 0.1 | 1 |
 | chlamydia_trachomatis | amoxicillin | 0.1 | 1 |
 | chlamydia_trachomatis | piperacillin | 0.1 | 1 |
 | chlamydia_trachomatis | ticarcillin | 0.1 | 1 |
-| chlamydia_trachomatis | cephalexin | 0.1 | 1 |
-| chlamydia_trachomatis | cefazolin | 0.1 | 1 |
-| chlamydia_trachomatis | cefuroxime | 0.1 | 1 |
-| chlamydia_trachomatis | ceftriaxone | 0.1 | 1 |
-| chlamydia_trachomatis | ceftazidime | 0.1 | 1 |
-| chlamydia_trachomatis | cefepime | 0.1 | 1 |
-| chlamydia_trachomatis | ceftaroline | 0.1 | 1 |
+| chlamydia_trachomatis | cephalexin | 0.1 | 0.3 |
+| chlamydia_trachomatis | cefazolin | 0.1 | 0.3 |
+| chlamydia_trachomatis | cefuroxime | 0.1 | 0.3 |
+| chlamydia_trachomatis | ceftriaxone | 0.1 | 0.2 |
+| chlamydia_trachomatis | ceftazidime | 0.1 | 0.2 |
+| chlamydia_trachomatis | cefepime | 0.1 | 0.35 |
+| chlamydia_trachomatis | ceftaroline | 0.1 | 0.002 |
 | chlamydia_trachomatis | ceftolozane_tazobactam | 0.01 | 1 |
 | chlamydia_trachomatis | cefiderocol | 0.01 | 1 |
 | chlamydia_trachomatis | meropenem | 0.1 | 0.005 |
 | chlamydia_trachomatis | imipenem_c | 0.1 | 0.005 |
 | chlamydia_trachomatis | ertapenem | 0.1 | 0.005 |
-| chlamydia_trachomatis | aztreonam | 0.1 | 1 |
+| chlamydia_trachomatis | aztreonam | 0.1 | 0.003 |
 | chlamydia_trachomatis | erythromycin | 0.8 | 1 |
-| chlamydia_trachomatis | azithromycin | 0.95 | 4 |
+| chlamydia_trachomatis | azithromycin | 0.95 | 8 |
 | chlamydia_trachomatis | clarithromycin | 0.9 | 1 |
 | chlamydia_trachomatis | clindamycin | 0.7 | 1 |
 | chlamydia_trachomatis | gentamicin | 0.1 | 1 |
@@ -3964,10 +1783,10 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | chlamydia_trachomatis | ciprofloxacin | 0.8 | 1 |
 | chlamydia_trachomatis | levofloxacin | 0.85 | 1 |
 | chlamydia_trachomatis | moxifloxacin | 0.85 | 1 |
-| chlamydia_trachomatis | ofloxacin | 0.8 | 1 |
-| chlamydia_trachomatis | tetracycline | 0.95 | 4.5 |
-| chlamydia_trachomatis | doxycycline | 0.95 | 5 |
-| chlamydia_trachomatis | minocycline | 0.9 | 1 |
+| chlamydia_trachomatis | ofloxacin | 0.8 | 3 |
+| chlamydia_trachomatis | tetracycline | 0.95 | 2 |
+| chlamydia_trachomatis | doxycycline | 0.95 | 1.5 |
+| chlamydia_trachomatis | minocycline | 0.9 | 0.25 |
 | chlamydia_trachomatis | tigecycline | 0.85 | 1 |
 | chlamydia_trachomatis | vancomycin | 0.1 | 1 |
 | chlamydia_trachomatis | teicoplanin | 0.1 | 1 |
@@ -3976,7 +1795,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | chlamydia_trachomatis | tedizolid | 0.1 | 0.005 |
 | chlamydia_trachomatis | daptomycin | 0.1 | 1 |
 | chlamydia_trachomatis | quinu_dalfo | 0.1 | 0.005 |
-| chlamydia_trachomatis | trim_sulf | 0.1 | 1 |
+| chlamydia_trachomatis | trim_sulf | 0.1 | 0.04 |
 | chlamydia_trachomatis | chloramphenicol | 0.8 | 1 |
 | chlamydia_trachomatis | nitrofurantoin | 0.1 | 1 |
 | chlamydia_trachomatis | fosfomycin | 0.1 | 1 |
@@ -3994,29 +1813,29 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | chlamydia_trachomatis | meropenem_vaborbactam | 0.1 | 0.005 |
 | chlamydia_trachomatis | colistin | 0.1 | 0.005 |
 | chlamydia_trachomatis | flucloxacillin | 0.01 | 1 |
-| chlamydia_trachomatis | aztreonam_avibactam | 0.01 | 1 |
-| chlamydia_trachomatis | cefixime | 0.01 | 1 |
-| mycoplasma_genitalium | sulfanilamide | 0.05 | 1 |
+| chlamydia_trachomatis | aztreonam_avibactam | 0.01 | 0.003 |
+| chlamydia_trachomatis | cefixime | 0.01 | 0.2 |
+| mycoplasma_genitalium | sulfanilamide | 0.05 | 0.02 |
 | mycoplasma_genitalium | penicillin_g | 0.05 | 1 |
 | mycoplasma_genitalium | ampicillin | 0.05 | 1 |
 | mycoplasma_genitalium | amoxicillin | 0.05 | 1 |
 | mycoplasma_genitalium | piperacillin | 0.05 | 1 |
 | mycoplasma_genitalium | ticarcillin | 0.05 | 1 |
-| mycoplasma_genitalium | cephalexin | 0.05 | 1 |
-| mycoplasma_genitalium | cefazolin | 0.05 | 1 |
-| mycoplasma_genitalium | cefuroxime | 0.05 | 1 |
-| mycoplasma_genitalium | ceftriaxone | 0.05 | 1 |
-| mycoplasma_genitalium | ceftazidime | 0.05 | 1 |
-| mycoplasma_genitalium | cefepime | 0.05 | 1 |
-| mycoplasma_genitalium | ceftaroline | 0.05 | 1 |
+| mycoplasma_genitalium | cephalexin | 0.05 | 0.3 |
+| mycoplasma_genitalium | cefazolin | 0.05 | 0.3 |
+| mycoplasma_genitalium | cefuroxime | 0.05 | 0.3 |
+| mycoplasma_genitalium | ceftriaxone | 0.05 | 0.2 |
+| mycoplasma_genitalium | ceftazidime | 0.05 | 0.2 |
+| mycoplasma_genitalium | cefepime | 0.05 | 0.35 |
+| mycoplasma_genitalium | ceftaroline | 0.05 | 0.002 |
 | mycoplasma_genitalium | ceftolozane_tazobactam | 0.01 | 1 |
 | mycoplasma_genitalium | cefiderocol | 0.01 | 1 |
 | mycoplasma_genitalium | meropenem | 0.05 | 0.005 |
 | mycoplasma_genitalium | imipenem_c | 0.05 | 0.005 |
 | mycoplasma_genitalium | ertapenem | 0.05 | 0.005 |
-| mycoplasma_genitalium | aztreonam | 0.05 | 1 |
+| mycoplasma_genitalium | aztreonam | 0.05 | 0.003 |
 | mycoplasma_genitalium | erythromycin | 0.8 | 1 |
-| mycoplasma_genitalium | azithromycin | 0.9 | 8 |
+| mycoplasma_genitalium | azithromycin | 0.9 | 5 |
 | mycoplasma_genitalium | clarithromycin | 0.9 | 1 |
 | mycoplasma_genitalium | clindamycin | 0.2 | 1 |
 | mycoplasma_genitalium | gentamicin | 0.05 | 1 |
@@ -4026,9 +1845,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_genitalium | levofloxacin | 0.5 | 2.5 |
 | mycoplasma_genitalium | moxifloxacin | 0.85 | 4 |
 | mycoplasma_genitalium | ofloxacin | 0.45 | 1 |
-| mycoplasma_genitalium | tetracycline | 0.4 | 1 |
+| mycoplasma_genitalium | tetracycline | 0.4 | 0.25 |
 | mycoplasma_genitalium | doxycycline | 0.6 | 1.5 |
-| mycoplasma_genitalium | minocycline | 0.7 | 1 |
+| mycoplasma_genitalium | minocycline | 0.7 | 0.25 |
 | mycoplasma_genitalium | tigecycline | 0.85 | 1 |
 | mycoplasma_genitalium | vancomycin | 0.05 | 1 |
 | mycoplasma_genitalium | teicoplanin | 0.05 | 1 |
@@ -4037,7 +1856,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_genitalium | tedizolid | 0.05 | 0.005 |
 | mycoplasma_genitalium | daptomycin | 0.1 | 1 |
 | mycoplasma_genitalium | quinu_dalfo | 0.05 | 0.005 |
-| mycoplasma_genitalium | trim_sulf | 0.05 | 1 |
+| mycoplasma_genitalium | trim_sulf | 0.05 | 0.04 |
 | mycoplasma_genitalium | chloramphenicol | 0.2 | 1 |
 | mycoplasma_genitalium | nitrofurantoin | 0.05 | 1 |
 | mycoplasma_genitalium | fosfomycin | 0.1 | 1 |
@@ -4055,27 +1874,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_genitalium | meropenem_vaborbactam | 0.05 | 0.005 |
 | mycoplasma_genitalium | colistin | 0.05 | 0.005 |
 | mycoplasma_genitalium | flucloxacillin | 0.01 | 1 |
-| mycoplasma_genitalium | aztreonam_avibactam | 0.01 | 1 |
-| mycoplasma_genitalium | cefixime | 0.01 | 1 |
-| vibrio_cholerae | sulfanilamide | 0.5 | 1 |
+| mycoplasma_genitalium | aztreonam_avibactam | 0.01 | 0.003 |
+| mycoplasma_genitalium | cefixime | 0.01 | 0.2 |
+| vibrio_cholerae | sulfanilamide | 0.5 | 0.02 |
 | vibrio_cholerae | penicillin_g | 0.7 | 1 |
 | vibrio_cholerae | ampicillin | 0.8 | 1 |
 | vibrio_cholerae | amoxicillin | 0.8 | 1 |
 | vibrio_cholerae | piperacillin | 0.85 | 1 |
 | vibrio_cholerae | ticarcillin | 0.8 | 1 |
-| vibrio_cholerae | cephalexin | 0.7 | 1 |
-| vibrio_cholerae | cefazolin | 0.75 | 1 |
-| vibrio_cholerae | cefuroxime | 0.8 | 1 |
-| vibrio_cholerae | ceftriaxone | 0.9 | 1 |
-| vibrio_cholerae | ceftazidime | 0.85 | 1 |
-| vibrio_cholerae | cefepime | 0.85 | 1 |
-| vibrio_cholerae | ceftaroline | 0.7 | 1 |
+| vibrio_cholerae | cephalexin | 0.7 | 0.3 |
+| vibrio_cholerae | cefazolin | 0.75 | 0.3 |
+| vibrio_cholerae | cefuroxime | 0.8 | 0.3 |
+| vibrio_cholerae | ceftriaxone | 0.9 | 0.2 |
+| vibrio_cholerae | ceftazidime | 0.85 | 0.2 |
+| vibrio_cholerae | cefepime | 0.85 | 0.35 |
+| vibrio_cholerae | ceftaroline | 0.7 | 0.002 |
 | vibrio_cholerae | ceftolozane_tazobactam | 0.75 | 1 |
 | vibrio_cholerae | cefiderocol | 0.75 | 1 |
 | vibrio_cholerae | meropenem | 0.9 | 0.005 |
 | vibrio_cholerae | imipenem_c | 0.9 | 0.005 |
 | vibrio_cholerae | ertapenem | 0.9 | 0.005 |
-| vibrio_cholerae | aztreonam | 0.8 | 1 |
+| vibrio_cholerae | aztreonam | 0.8 | 0.003 |
 | vibrio_cholerae | erythromycin | 0.7 | 1 |
 | vibrio_cholerae | azithromycin | 0.8 | 1 |
 | vibrio_cholerae | clarithromycin | 0.75 | 1 |
@@ -4087,9 +1906,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | vibrio_cholerae | levofloxacin | 0.85 | 1 |
 | vibrio_cholerae | moxifloxacin | 0.75 | 1 |
 | vibrio_cholerae | ofloxacin | 0.85 | 1 |
-| vibrio_cholerae | tetracycline | 0.95 | 1 |
-| vibrio_cholerae | doxycycline | 0.95 | 1 |
-| vibrio_cholerae | minocycline | 0.9 | 1 |
+| vibrio_cholerae | tetracycline | 0.95 | 0.25 |
+| vibrio_cholerae | doxycycline | 0.95 | 0.25 |
+| vibrio_cholerae | minocycline | 0.9 | 0.25 |
 | vibrio_cholerae | tigecycline | 0.7 | 1 |
 | vibrio_cholerae | vancomycin | 0.1 | 1 |
 | vibrio_cholerae | teicoplanin | 0.1 | 1 |
@@ -4098,7 +1917,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | vibrio_cholerae | tedizolid | 0.1 | 0.005 |
 | vibrio_cholerae | daptomycin | 0.1 | 1 |
 | vibrio_cholerae | quinu_dalfo | 0.1 | 0.005 |
-| vibrio_cholerae | trim_sulf | 0.8 | 1 |
+| vibrio_cholerae | trim_sulf | 0.8 | 0.04 |
 | vibrio_cholerae | chloramphenicol | 0.8 | 1 |
 | vibrio_cholerae | nitrofurantoin | 0.1 | 1 |
 | vibrio_cholerae | fosfomycin | 0.1 | 1 |
@@ -4116,27 +1935,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | vibrio_cholerae | meropenem_vaborbactam | 0.9 | 0.005 |
 | vibrio_cholerae | colistin | 0.7 | 0.005 |
 | vibrio_cholerae | flucloxacillin | 0.01 | 1 |
-| vibrio_cholerae | aztreonam_avibactam | 0.9 | 1 |
-| vibrio_cholerae | cefixime | 0.75 | 1 |
-| neisseria_meningitidis | sulfanilamide | 0.1 | 1 |
-| neisseria_meningitidis | penicillin_g | 0.95 | 25 |
-| neisseria_meningitidis | ampicillin | 0.9 | 22 |
+| vibrio_cholerae | aztreonam_avibactam | 0.9 | 0.003 |
+| vibrio_cholerae | cefixime | 0.75 | 0.2 |
+| neisseria_meningitidis | sulfanilamide | 0.1 | 0.02 |
+| neisseria_meningitidis | penicillin_g | 0.95 | 6 |
+| neisseria_meningitidis | ampicillin | 0.9 | 6 |
 | neisseria_meningitidis | amoxicillin | 0.9 | 1 |
 | neisseria_meningitidis | piperacillin | 0.85 | 1 |
 | neisseria_meningitidis | ticarcillin | 0.8 | 1 |
-| neisseria_meningitidis | cephalexin | 0.8 | 1 |
-| neisseria_meningitidis | cefazolin | 0.85 | 1 |
-| neisseria_meningitidis | cefuroxime | 0.9 | 1 |
-| neisseria_meningitidis | ceftriaxone | 0.95 | 30 |
-| neisseria_meningitidis | ceftazidime | 0.9 | 1 |
-| neisseria_meningitidis | cefepime | 0.9 | 1 |
-| neisseria_meningitidis | ceftaroline | 0.8 | 1 |
+| neisseria_meningitidis | cephalexin | 0.8 | 0.3 |
+| neisseria_meningitidis | cefazolin | 0.85 | 0.3 |
+| neisseria_meningitidis | cefuroxime | 0.9 | 0.3 |
+| neisseria_meningitidis | ceftriaxone | 0.95 | 5 |
+| neisseria_meningitidis | ceftazidime | 0.9 | 0.2 |
+| neisseria_meningitidis | cefepime | 0.9 | 0.35 |
+| neisseria_meningitidis | ceftaroline | 0.8 | 0.002 |
 | neisseria_meningitidis | ceftolozane_tazobactam | 0.8 | 1 |
 | neisseria_meningitidis | cefiderocol | 0.8 | 1 |
 | neisseria_meningitidis | meropenem | 0.95 | 0.005 |
 | neisseria_meningitidis | imipenem_c | 0.95 | 0.005 |
 | neisseria_meningitidis | ertapenem | 0.95 | 0.005 |
-| neisseria_meningitidis | aztreonam | 0.9 | 1 |
+| neisseria_meningitidis | aztreonam | 0.9 | 0.003 |
 | neisseria_meningitidis | erythromycin | 0.7 | 1 |
 | neisseria_meningitidis | azithromycin | 0.8 | 1 |
 | neisseria_meningitidis | clarithromycin | 0.75 | 1 |
@@ -4148,9 +1967,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_meningitidis | levofloxacin | 0.85 | 1 |
 | neisseria_meningitidis | moxifloxacin | 0.8 | 1 |
 | neisseria_meningitidis | ofloxacin | 0.85 | 1 |
-| neisseria_meningitidis | tetracycline | 0.8 | 1 |
-| neisseria_meningitidis | doxycycline | 0.8 | 1 |
-| neisseria_meningitidis | minocycline | 0.85 | 1 |
+| neisseria_meningitidis | tetracycline | 0.8 | 0.25 |
+| neisseria_meningitidis | doxycycline | 0.8 | 0.25 |
+| neisseria_meningitidis | minocycline | 0.85 | 0.25 |
 | neisseria_meningitidis | tigecycline | 0.1 | 1 |
 | neisseria_meningitidis | vancomycin | 0.1 | 1 |
 | neisseria_meningitidis | teicoplanin | 0.1 | 1 |
@@ -4159,7 +1978,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_meningitidis | tedizolid | 0.1 | 0.005 |
 | neisseria_meningitidis | daptomycin | 0.1 | 1 |
 | neisseria_meningitidis | quinu_dalfo | 0.1 | 0.005 |
-| neisseria_meningitidis | trim_sulf | 0.7 | 1 |
+| neisseria_meningitidis | trim_sulf | 0.7 | 0.04 |
 | neisseria_meningitidis | chloramphenicol | 0.85 | 18 |
 | neisseria_meningitidis | nitrofurantoin | 0.1 | 1 |
 | neisseria_meningitidis | fosfomycin | 0.1 | 1 |
@@ -4177,27 +1996,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | neisseria_meningitidis | meropenem_vaborbactam | 0.95 | 0.005 |
 | neisseria_meningitidis | colistin | 0.05 | 0.005 |
 | neisseria_meningitidis | flucloxacillin | 0.01 | 1 |
-| neisseria_meningitidis | aztreonam_avibactam | 0.8 | 1 |
-| neisseria_meningitidis | cefixime | 0.8 | 1 |
-| listeria_monocytogenes | sulfanilamide | 0.1 | 1 |
+| neisseria_meningitidis | aztreonam_avibactam | 0.8 | 0.003 |
+| neisseria_meningitidis | cefixime | 0.8 | 0.2 |
+| listeria_monocytogenes | sulfanilamide | 0.1 | 0.02 |
 | listeria_monocytogenes | penicillin_g | 0.7 | 1 |
-| listeria_monocytogenes | ampicillin | 0.95 | 1 |
+| listeria_monocytogenes | ampicillin | 0.95 | 6 |
 | listeria_monocytogenes | amoxicillin | 0.95 | 1 |
 | listeria_monocytogenes | piperacillin | 0.7 | 1 |
 | listeria_monocytogenes | ticarcillin | 0.6 | 1 |
-| listeria_monocytogenes | cephalexin | 0.1 | 1 |
-| listeria_monocytogenes | cefazolin | 0.1 | 1 |
-| listeria_monocytogenes | cefuroxime | 0.1 | 1 |
-| listeria_monocytogenes | ceftriaxone | 0.1 | 1 |
-| listeria_monocytogenes | ceftazidime | 0.1 | 1 |
-| listeria_monocytogenes | cefepime | 0.1 | 1 |
-| listeria_monocytogenes | ceftaroline | 0.1 | 1 |
+| listeria_monocytogenes | cephalexin | 0.1 | 0.3 |
+| listeria_monocytogenes | cefazolin | 0.1 | 0.3 |
+| listeria_monocytogenes | cefuroxime | 0.1 | 0.3 |
+| listeria_monocytogenes | ceftriaxone | 0.1 | 0.2 |
+| listeria_monocytogenes | ceftazidime | 0.1 | 0.2 |
+| listeria_monocytogenes | cefepime | 0.1 | 0.35 |
+| listeria_monocytogenes | ceftaroline | 0.1 | 0.002 |
 | listeria_monocytogenes | ceftolozane_tazobactam | 0.05 | 1 |
 | listeria_monocytogenes | cefiderocol | 0.05 | 1 |
 | listeria_monocytogenes | meropenem | 0.7 | 0.005 |
 | listeria_monocytogenes | imipenem_c | 0.7 | 0.005 |
 | listeria_monocytogenes | ertapenem | 0.7 | 0.005 |
-| listeria_monocytogenes | aztreonam | 0.1 | 1 |
+| listeria_monocytogenes | aztreonam | 0.1 | 0.003 |
 | listeria_monocytogenes | erythromycin | 0.8 | 1 |
 | listeria_monocytogenes | azithromycin | 0.85 | 1 |
 | listeria_monocytogenes | clarithromycin | 0.8 | 1 |
@@ -4209,9 +2028,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | listeria_monocytogenes | levofloxacin | 0.85 | 1 |
 | listeria_monocytogenes | moxifloxacin | 0.8 | 1 |
 | listeria_monocytogenes | ofloxacin | 0.8 | 1 |
-| listeria_monocytogenes | tetracycline | 0.8 | 1 |
-| listeria_monocytogenes | doxycycline | 0.85 | 1 |
-| listeria_monocytogenes | minocycline | 0.85 | 1 |
+| listeria_monocytogenes | tetracycline | 0.8 | 0.25 |
+| listeria_monocytogenes | doxycycline | 0.85 | 0.25 |
+| listeria_monocytogenes | minocycline | 0.85 | 0.25 |
 | listeria_monocytogenes | tigecycline | 0.1 | 1 |
 | listeria_monocytogenes | vancomycin | 0.1 | 1 |
 | listeria_monocytogenes | teicoplanin | 0.1 | 1 |
@@ -4220,7 +2039,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | listeria_monocytogenes | tedizolid | 0.1 | 0.005 |
 | listeria_monocytogenes | daptomycin | 0.1 | 1 |
 | listeria_monocytogenes | quinu_dalfo | 0.1 | 0.005 |
-| listeria_monocytogenes | trim_sulf | 0.9 | 1 |
+| listeria_monocytogenes | trim_sulf | 0.9 | 1.5 |
 | listeria_monocytogenes | chloramphenicol | 0.85 | 1 |
 | listeria_monocytogenes | nitrofurantoin | 0.1 | 1 |
 | listeria_monocytogenes | fosfomycin | 0.1 | 1 |
@@ -4230,7 +2049,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | listeria_monocytogenes | fidaxomicin | 0.1 | 1 |
 | listeria_monocytogenes | furazolidone | 0.1 | 1 |
 | listeria_monocytogenes | rifampicin | 0.8 | 1 |
-| listeria_monocytogenes | amoxicillin_clavulanate | 0.7 | 1 |
+| listeria_monocytogenes | amoxicillin_clavulanate | 0.7 | 6 |
 | listeria_monocytogenes | piperacillin_tazobactam | 0.95 | 1 |
 | listeria_monocytogenes | ampicillin_sulbactam | 0.6 | 1 |
 | listeria_monocytogenes | ticarcillin_clavulanate | 0.1 | 1 |
@@ -4238,27 +2057,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | listeria_monocytogenes | meropenem_vaborbactam | 0.05 | 0.005 |
 | listeria_monocytogenes | colistin | 0.1 | 0.005 |
 | listeria_monocytogenes | flucloxacillin | 0.05 | 1 |
-| listeria_monocytogenes | aztreonam_avibactam | 0.01 | 1 |
-| listeria_monocytogenes | cefixime | 0.05 | 1 |
-| clostridioides_difficile | sulfanilamide | 0.1 | 1 |
+| listeria_monocytogenes | aztreonam_avibactam | 0.01 | 0.003 |
+| listeria_monocytogenes | cefixime | 0.05 | 0.2 |
+| clostridioides_difficile | sulfanilamide | 0.1 | 0.02 |
 | clostridioides_difficile | penicillin_g | 0.1 | 1 |
 | clostridioides_difficile | ampicillin | 0.1 | 1 |
 | clostridioides_difficile | amoxicillin | 0.1 | 1 |
 | clostridioides_difficile | piperacillin | 0.1 | 1 |
 | clostridioides_difficile | ticarcillin | 0.1 | 1 |
-| clostridioides_difficile | cephalexin | 0.1 | 1 |
-| clostridioides_difficile | cefazolin | 0.1 | 1 |
-| clostridioides_difficile | cefuroxime | 0.1 | 1 |
-| clostridioides_difficile | ceftriaxone | 0.1 | 1 |
-| clostridioides_difficile | ceftazidime | 0.1 | 1 |
-| clostridioides_difficile | cefepime | 0.1 | 1 |
-| clostridioides_difficile | ceftaroline | 0.1 | 1 |
+| clostridioides_difficile | cephalexin | 0.1 | 0.3 |
+| clostridioides_difficile | cefazolin | 0.1 | 0.3 |
+| clostridioides_difficile | cefuroxime | 0.1 | 0.3 |
+| clostridioides_difficile | ceftriaxone | 0.1 | 0.2 |
+| clostridioides_difficile | ceftazidime | 0.1 | 0.2 |
+| clostridioides_difficile | cefepime | 0.1 | 0.35 |
+| clostridioides_difficile | ceftaroline | 0.1 | 0.002 |
 | clostridioides_difficile | ceftolozane_tazobactam | 0.05 | 1 |
 | clostridioides_difficile | cefiderocol | 0.05 | 1 |
 | clostridioides_difficile | meropenem | 0.1 | 0.005 |
 | clostridioides_difficile | imipenem_c | 0.1 | 0.005 |
 | clostridioides_difficile | ertapenem | 0.1 | 0.005 |
-| clostridioides_difficile | aztreonam | 0.1 | 1 |
+| clostridioides_difficile | aztreonam | 0.1 | 0.003 |
 | clostridioides_difficile | erythromycin | 0.7 | 1 |
 | clostridioides_difficile | azithromycin | 0.75 | 1 |
 | clostridioides_difficile | clarithromycin | 0.7 | 1 |
@@ -4270,9 +2089,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | clostridioides_difficile | levofloxacin | 0.1 | 1 |
 | clostridioides_difficile | moxifloxacin | 0.1 | 1 |
 | clostridioides_difficile | ofloxacin | 0.1 | 1 |
-| clostridioides_difficile | tetracycline | 0.7 | 1 |
-| clostridioides_difficile | doxycycline | 0.7 | 1 |
-| clostridioides_difficile | minocycline | 0.7 | 1 |
+| clostridioides_difficile | tetracycline | 0.7 | 0.25 |
+| clostridioides_difficile | doxycycline | 0.7 | 0.25 |
+| clostridioides_difficile | minocycline | 0.7 | 0.25 |
 | clostridioides_difficile | tigecycline | 0.1 | 1 |
 | clostridioides_difficile | vancomycin | 0.95 | 5 |
 | clostridioides_difficile | teicoplanin | 0.9 | 1 |
@@ -4281,13 +2100,13 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | clostridioides_difficile | tedizolid | 0.85 | 0.005 |
 | clostridioides_difficile | daptomycin | 0.1 | 1 |
 | clostridioides_difficile | quinu_dalfo | 0.1 | 0.005 |
-| clostridioides_difficile | trim_sulf | 0.1 | 1 |
+| clostridioides_difficile | trim_sulf | 0.1 | 0.04 |
 | clostridioides_difficile | chloramphenicol | 0.1 | 1 |
 | clostridioides_difficile | nitrofurantoin | 0.1 | 1 |
 | clostridioides_difficile | fosfomycin | 0.1 | 1 |
 | clostridioides_difficile | retapamulin | 0.1 | 1 |
 | clostridioides_difficile | fusidic_a | 0.1 | 1 |
-| clostridioides_difficile | metronidazole | 0.9 | 6 |
+| clostridioides_difficile | metronidazole | 0.9 | 5 |
 | clostridioides_difficile | fidaxomicin | 0.1 | 1 |
 | clostridioides_difficile | furazolidone | 0.1 | 1 |
 | clostridioides_difficile | rifampicin | 0.1 | 1 |
@@ -4299,27 +2118,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | clostridioides_difficile | meropenem_vaborbactam | 0.1 | 0.005 |
 | clostridioides_difficile | colistin | 0.05 | 0.005 |
 | clostridioides_difficile | flucloxacillin | 0.01 | 1 |
-| clostridioides_difficile | aztreonam_avibactam | 0.01 | 1 |
-| clostridioides_difficile | cefixime | 0.05 | 1 |
-| bacteroides_fragilis | sulfanilamide | 0.05 | 1 |
+| clostridioides_difficile | aztreonam_avibactam | 0.01 | 0.003 |
+| clostridioides_difficile | cefixime | 0.05 | 0.2 |
+| bacteroides_fragilis | sulfanilamide | 0.05 | 0.02 |
 | bacteroides_fragilis | penicillin_g | 0.1 | 1 |
 | bacteroides_fragilis | ampicillin | 0.2 | 1 |
 | bacteroides_fragilis | amoxicillin | 0.25 | 1 |
 | bacteroides_fragilis | piperacillin | 0.5 | 1 |
 | bacteroides_fragilis | ticarcillin | 0.4 | 1 |
-| bacteroides_fragilis | cephalexin | 0.05 | 1 |
-| bacteroides_fragilis | cefazolin | 0.05 | 1 |
-| bacteroides_fragilis | cefuroxime | 0.2 | 1 |
-| bacteroides_fragilis | ceftriaxone | 0.2 | 1 |
-| bacteroides_fragilis | ceftazidime | 0.25 | 1 |
-| bacteroides_fragilis | cefepime | 0.25 | 1 |
-| bacteroides_fragilis | ceftaroline | 0.2 | 1 |
+| bacteroides_fragilis | cephalexin | 0.05 | 0.3 |
+| bacteroides_fragilis | cefazolin | 0.05 | 0.3 |
+| bacteroides_fragilis | cefuroxime | 0.2 | 0.3 |
+| bacteroides_fragilis | ceftriaxone | 0.2 | 0.2 |
+| bacteroides_fragilis | ceftazidime | 0.25 | 0.2 |
+| bacteroides_fragilis | cefepime | 0.25 | 0.35 |
+| bacteroides_fragilis | ceftaroline | 0.2 | 0.002 |
 | bacteroides_fragilis | ceftolozane_tazobactam | 0.45 | 1 |
 | bacteroides_fragilis | cefiderocol | 0.45 | 1 |
 | bacteroides_fragilis | meropenem | 0.95 | 0.005 |
 | bacteroides_fragilis | imipenem_c | 0.95 | 0.005 |
 | bacteroides_fragilis | ertapenem | 0.95 | 0.005 |
-| bacteroides_fragilis | aztreonam | 0.05 | 1 |
+| bacteroides_fragilis | aztreonam | 0.05 | 0.003 |
 | bacteroides_fragilis | erythromycin | 0.05 | 1 |
 | bacteroides_fragilis | azithromycin | 0.05 | 1 |
 | bacteroides_fragilis | clarithromycin | 0.05 | 1 |
@@ -4331,9 +2150,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bacteroides_fragilis | levofloxacin | 0.35 | 1 |
 | bacteroides_fragilis | moxifloxacin | 0.5 | 1 |
 | bacteroides_fragilis | ofloxacin | 0.25 | 1 |
-| bacteroides_fragilis | tetracycline | 0.3 | 1 |
-| bacteroides_fragilis | doxycycline | 0.5 | 1 |
-| bacteroides_fragilis | minocycline | 0.5 | 1 |
+| bacteroides_fragilis | tetracycline | 0.3 | 0.25 |
+| bacteroides_fragilis | doxycycline | 0.5 | 0.25 |
+| bacteroides_fragilis | minocycline | 0.5 | 0.25 |
 | bacteroides_fragilis | tigecycline | 0.1 | 1 |
 | bacteroides_fragilis | vancomycin | 0.05 | 1 |
 | bacteroides_fragilis | teicoplanin | 0.05 | 1 |
@@ -4342,59 +2161,59 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bacteroides_fragilis | tedizolid | 0.05 | 0.005 |
 | bacteroides_fragilis | daptomycin | 0.1 | 1 |
 | bacteroides_fragilis | quinu_dalfo | 0.05 | 0.005 |
-| bacteroides_fragilis | trim_sulf | 0.3 | 1 |
+| bacteroides_fragilis | trim_sulf | 0.3 | 0.04 |
 | bacteroides_fragilis | chloramphenicol | 0.7 | 1 |
 | bacteroides_fragilis | nitrofurantoin | 0.05 | 1 |
 | bacteroides_fragilis | fosfomycin | 0.1 | 1 |
 | bacteroides_fragilis | retapamulin | 0.05 | 1 |
 | bacteroides_fragilis | fusidic_a | 0.05 | 1 |
-| bacteroides_fragilis | metronidazole | 0.95 | 1 |
+| bacteroides_fragilis | metronidazole | 0.95 | 15 |
 | bacteroides_fragilis | fidaxomicin | 0.1 | 1 |
 | bacteroides_fragilis | furazolidone | 0.05 | 1 |
 | bacteroides_fragilis | rifampicin | 0.2 | 1 |
-| bacteroides_fragilis | amoxicillin_clavulanate | 0.75 | 1 |
-| bacteroides_fragilis | piperacillin_tazobactam | 0.85 | 1 |
+| bacteroides_fragilis | amoxicillin_clavulanate | 0.75 | 6 |
+| bacteroides_fragilis | piperacillin_tazobactam | 0.85 | 8 |
 | bacteroides_fragilis | ampicillin_sulbactam | 0.75 | 1 |
 | bacteroides_fragilis | ticarcillin_clavulanate | 0.8 | 1 |
 | bacteroides_fragilis | ceftazidime_avibactam | 0.5 | 0.005 |
 | bacteroides_fragilis | meropenem_vaborbactam | 0.95 | 0.005 |
 | bacteroides_fragilis | colistin | 0.05 | 0.005 |
 | bacteroides_fragilis | flucloxacillin | 0.01 | 1 |
-| bacteroides_fragilis | aztreonam_avibactam | 0.01 | 1 |
-| bacteroides_fragilis | cefixime | 0.45 | 1 |
-| campylobacter_jejuni | sulfanilamide | 0.1 | 1 |
+| bacteroides_fragilis | aztreonam_avibactam | 0.01 | 0.003 |
+| bacteroides_fragilis | cefixime | 0.45 | 0.2 |
+| campylobacter_jejuni | sulfanilamide | 0.1 | 0.02 |
 | campylobacter_jejuni | penicillin_g | 0.1 | 1 |
 | campylobacter_jejuni | ampicillin | 0.1 | 1 |
 | campylobacter_jejuni | amoxicillin | 0.1 | 1 |
 | campylobacter_jejuni | piperacillin | 0.1 | 1 |
 | campylobacter_jejuni | ticarcillin | 0.1 | 1 |
-| campylobacter_jejuni | cephalexin | 0.1 | 1 |
-| campylobacter_jejuni | cefazolin | 0.1 | 1 |
-| campylobacter_jejuni | cefuroxime | 0.1 | 1 |
-| campylobacter_jejuni | ceftriaxone | 0.1 | 1 |
-| campylobacter_jejuni | ceftazidime | 0.1 | 1 |
-| campylobacter_jejuni | cefepime | 0.1 | 1 |
-| campylobacter_jejuni | ceftaroline | 0.1 | 1 |
+| campylobacter_jejuni | cephalexin | 0.1 | 0.3 |
+| campylobacter_jejuni | cefazolin | 0.1 | 0.3 |
+| campylobacter_jejuni | cefuroxime | 0.1 | 0.3 |
+| campylobacter_jejuni | ceftriaxone | 0.1 | 0.2 |
+| campylobacter_jejuni | ceftazidime | 0.1 | 0.2 |
+| campylobacter_jejuni | cefepime | 0.1 | 0.35 |
+| campylobacter_jejuni | ceftaroline | 0.1 | 0.002 |
 | campylobacter_jejuni | ceftolozane_tazobactam | 0.75 | 1 |
 | campylobacter_jejuni | cefiderocol | 0.75 | 1 |
 | campylobacter_jejuni | meropenem | 0.1 | 0.005 |
 | campylobacter_jejuni | imipenem_c | 0.1 | 0.005 |
 | campylobacter_jejuni | ertapenem | 0.1 | 0.005 |
-| campylobacter_jejuni | aztreonam | 0.1 | 1 |
+| campylobacter_jejuni | aztreonam | 0.1 | 0.003 |
 | campylobacter_jejuni | erythromycin | 0.85 | 5 |
-| campylobacter_jejuni | azithromycin | 0.9 | 4.5 |
+| campylobacter_jejuni | azithromycin | 0.9 | 5 |
 | campylobacter_jejuni | clarithromycin | 0.85 | 1 |
 | campylobacter_jejuni | clindamycin | 0.7 | 1 |
 | campylobacter_jejuni | gentamicin | 0.7 | 1 |
 | campylobacter_jejuni | tobramycin | 0.7 | 1 |
 | campylobacter_jejuni | amikacin | 0.7 | 1 |
-| campylobacter_jejuni | ciprofloxacin | 0.8 | 1 |
+| campylobacter_jejuni | ciprofloxacin | 0.8 | 4 |
 | campylobacter_jejuni | levofloxacin | 0.75 | 1 |
 | campylobacter_jejuni | moxifloxacin | 0.7 | 1 |
 | campylobacter_jejuni | ofloxacin | 0.75 | 1 |
-| campylobacter_jejuni | tetracycline | 0.75 | 1 |
-| campylobacter_jejuni | doxycycline | 0.8 | 1 |
-| campylobacter_jejuni | minocycline | 0.8 | 1 |
+| campylobacter_jejuni | tetracycline | 0.75 | 0.25 |
+| campylobacter_jejuni | doxycycline | 0.8 | 0.25 |
+| campylobacter_jejuni | minocycline | 0.8 | 0.25 |
 | campylobacter_jejuni | tigecycline | 0.7 | 1 |
 | campylobacter_jejuni | vancomycin | 0.1 | 1 |
 | campylobacter_jejuni | teicoplanin | 0.1 | 1 |
@@ -4403,7 +2222,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | campylobacter_jejuni | tedizolid | 0.1 | 0.005 |
 | campylobacter_jejuni | daptomycin | 0.1 | 1 |
 | campylobacter_jejuni | quinu_dalfo | 0.1 | 0.005 |
-| campylobacter_jejuni | trim_sulf | 0.1 | 1 |
+| campylobacter_jejuni | trim_sulf | 0.1 | 0.04 |
 | campylobacter_jejuni | chloramphenicol | 0.7 | 1 |
 | campylobacter_jejuni | nitrofurantoin | 0.1 | 1 |
 | campylobacter_jejuni | fosfomycin | 0.1 | 1 |
@@ -4421,41 +2240,41 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | campylobacter_jejuni | meropenem_vaborbactam | 0.1 | 0.005 |
 | campylobacter_jejuni | colistin | 0.05 | 0.005 |
 | campylobacter_jejuni | flucloxacillin | 0.01 | 1 |
-| campylobacter_jejuni | aztreonam_avibactam | 0.9 | 1 |
-| campylobacter_jejuni | cefixime | 0.75 | 1 |
-| enterobacter_cloacae | sulfanilamide | 0.5 | 1 |
+| campylobacter_jejuni | aztreonam_avibactam | 0.9 | 0.003 |
+| campylobacter_jejuni | cefixime | 0.75 | 0.2 |
+| enterobacter_cloacae | sulfanilamide | 0.5 | 0.02 |
 | enterobacter_cloacae | penicillin_g | 0.1 | 1 |
 | enterobacter_cloacae | ampicillin | 0.5 | 1 |
 | enterobacter_cloacae | amoxicillin | 0.5 | 1 |
 | enterobacter_cloacae | piperacillin | 0.75 | 1 |
 | enterobacter_cloacae | ticarcillin | 0.7 | 1 |
-| enterobacter_cloacae | cephalexin | 0.5 | 1 |
-| enterobacter_cloacae | cefazolin | 0.5 | 1 |
-| enterobacter_cloacae | cefuroxime | 0.6 | 1 |
-| enterobacter_cloacae | ceftriaxone | 0.4 | 1 |
-| enterobacter_cloacae | ceftazidime | 0.8 | 1 |
-| enterobacter_cloacae | cefepime | 0.85 | 1 |
-| enterobacter_cloacae | ceftaroline | 0.4 | 1 |
+| enterobacter_cloacae | cephalexin | 0.5 | 0.3 |
+| enterobacter_cloacae | cefazolin | 0.5 | 0.3 |
+| enterobacter_cloacae | cefuroxime | 0.6 | 0.3 |
+| enterobacter_cloacae | ceftriaxone | 0.4 | 0.2 |
+| enterobacter_cloacae | ceftazidime | 0.8 | 0.2 |
+| enterobacter_cloacae | cefepime | 0.85 | 2.5 |
+| enterobacter_cloacae | ceftaroline | 0.4 | 0.002 |
 | enterobacter_cloacae | ceftolozane_tazobactam | 0.8 | 1 |
 | enterobacter_cloacae | cefiderocol | 0.8 | 1 |
-| enterobacter_cloacae | meropenem | 0.95 | 0.005 |
-| enterobacter_cloacae | imipenem_c | 0.95 | 0.005 |
-| enterobacter_cloacae | ertapenem | 0.9 | 0.005 |
-| enterobacter_cloacae | aztreonam | 0.8 | 1 |
+| enterobacter_cloacae | meropenem | 0.95 | 5 |
+| enterobacter_cloacae | imipenem_c | 0.95 | 3 |
+| enterobacter_cloacae | ertapenem | 0.9 | 3 |
+| enterobacter_cloacae | aztreonam | 0.8 | 0.003 |
 | enterobacter_cloacae | erythromycin | 0.1 | 1 |
 | enterobacter_cloacae | azithromycin | 0.1 | 1 |
 | enterobacter_cloacae | clarithromycin | 0.1 | 1 |
 | enterobacter_cloacae | clindamycin | 0.1 | 1 |
-| enterobacter_cloacae | gentamicin | 0.85 | 1 |
+| enterobacter_cloacae | gentamicin | 0.85 | 10 |
 | enterobacter_cloacae | tobramycin | 0.8 | 1 |
 | enterobacter_cloacae | amikacin | 0.9 | 1 |
 | enterobacter_cloacae | ciprofloxacin | 0.9 | 1 |
 | enterobacter_cloacae | levofloxacin | 0.85 | 1 |
 | enterobacter_cloacae | moxifloxacin | 0.7 | 1 |
 | enterobacter_cloacae | ofloxacin | 0.8 | 1 |
-| enterobacter_cloacae | tetracycline | 0.8 | 1 |
-| enterobacter_cloacae | doxycycline | 0.85 | 1 |
-| enterobacter_cloacae | minocycline | 0.85 | 1 |
+| enterobacter_cloacae | tetracycline | 0.8 | 0.25 |
+| enterobacter_cloacae | doxycycline | 0.85 | 0.25 |
+| enterobacter_cloacae | minocycline | 0.85 | 0.25 |
 | enterobacter_cloacae | tigecycline | 0.1 | 1 |
 | enterobacter_cloacae | vancomycin | 0.1 | 1 |
 | enterobacter_cloacae | teicoplanin | 0.1 | 1 |
@@ -4464,7 +2283,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterobacter_cloacae | tedizolid | 0.1 | 0.005 |
 | enterobacter_cloacae | daptomycin | 0.1 | 1 |
 | enterobacter_cloacae | quinu_dalfo | 0.1 | 0.005 |
-| enterobacter_cloacae | trim_sulf | 0.85 | 1 |
+| enterobacter_cloacae | trim_sulf | 0.85 | 0.04 |
 | enterobacter_cloacae | chloramphenicol | 0.8 | 1 |
 | enterobacter_cloacae | nitrofurantoin | 0.7 | 1 |
 | enterobacter_cloacae | fosfomycin | 0.1 | 1 |
@@ -4474,35 +2293,35 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | enterobacter_cloacae | fidaxomicin | 0.1 | 1 |
 | enterobacter_cloacae | furazolidone | 0.1 | 1 |
 | enterobacter_cloacae | rifampicin | 0.6 | 1 |
-| enterobacter_cloacae | amoxicillin_clavulanate | 0.7 | 1 |
-| enterobacter_cloacae | piperacillin_tazobactam | 0.85 | 1 |
+| enterobacter_cloacae | amoxicillin_clavulanate | 0.7 | 6 |
+| enterobacter_cloacae | piperacillin_tazobactam | 0.85 | 8 |
 | enterobacter_cloacae | ampicillin_sulbactam | 0.7 | 1 |
 | enterobacter_cloacae | ticarcillin_clavulanate | 0.8 | 1 |
 | enterobacter_cloacae | ceftazidime_avibactam | 0.9 | 0.005 |
 | enterobacter_cloacae | meropenem_vaborbactam | 0.95 | 0.005 |
 | enterobacter_cloacae | colistin | 0.7 | 0.005 |
 | enterobacter_cloacae | flucloxacillin | 0.01 | 1 |
-| enterobacter_cloacae | aztreonam_avibactam | 1 | 1 |
-| enterobacter_cloacae | cefixime | 0.8 | 1 |
-| yersinia_enterocolitica | sulfanilamide | 0.5 | 1 |
+| enterobacter_cloacae | aztreonam_avibactam | 1 | 0.003 |
+| enterobacter_cloacae | cefixime | 0.8 | 0.2 |
+| yersinia_enterocolitica | sulfanilamide | 0.5 | 0.02 |
 | yersinia_enterocolitica | penicillin_g | 0.1 | 1 |
 | yersinia_enterocolitica | ampicillin | 0.7 | 1 |
 | yersinia_enterocolitica | amoxicillin | 0.7 | 1 |
 | yersinia_enterocolitica | piperacillin | 0.75 | 1 |
 | yersinia_enterocolitica | ticarcillin | 0.7 | 1 |
-| yersinia_enterocolitica | cephalexin | 0.6 | 1 |
-| yersinia_enterocolitica | cefazolin | 0.65 | 1 |
-| yersinia_enterocolitica | cefuroxime | 0.7 | 1 |
-| yersinia_enterocolitica | ceftriaxone | 0.9 | 1 |
-| yersinia_enterocolitica | ceftazidime | 0.85 | 1 |
-| yersinia_enterocolitica | cefepime | 0.85 | 1 |
-| yersinia_enterocolitica | ceftaroline | 0.6 | 1 |
+| yersinia_enterocolitica | cephalexin | 0.6 | 0.3 |
+| yersinia_enterocolitica | cefazolin | 0.65 | 0.3 |
+| yersinia_enterocolitica | cefuroxime | 0.7 | 0.3 |
+| yersinia_enterocolitica | ceftriaxone | 0.9 | 0.2 |
+| yersinia_enterocolitica | ceftazidime | 0.85 | 0.2 |
+| yersinia_enterocolitica | cefepime | 0.85 | 0.35 |
+| yersinia_enterocolitica | ceftaroline | 0.6 | 0.002 |
 | yersinia_enterocolitica | ceftolozane_tazobactam | 0.75 | 1 |
 | yersinia_enterocolitica | cefiderocol | 0.75 | 1 |
 | yersinia_enterocolitica | meropenem | 0.95 | 0.005 |
 | yersinia_enterocolitica | imipenem_c | 0.95 | 0.005 |
 | yersinia_enterocolitica | ertapenem | 0.95 | 0.005 |
-| yersinia_enterocolitica | aztreonam | 0.85 | 1 |
+| yersinia_enterocolitica | aztreonam | 0.85 | 0.003 |
 | yersinia_enterocolitica | erythromycin | 0.1 | 1 |
 | yersinia_enterocolitica | azithromycin | 0.1 | 1 |
 | yersinia_enterocolitica | clarithromycin | 0.1 | 1 |
@@ -4514,9 +2333,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | yersinia_enterocolitica | levofloxacin | 0.85 | 1 |
 | yersinia_enterocolitica | moxifloxacin | 0.7 | 1 |
 | yersinia_enterocolitica | ofloxacin | 0.8 | 1 |
-| yersinia_enterocolitica | tetracycline | 0.8 | 1 |
-| yersinia_enterocolitica | doxycycline | 0.85 | 1 |
-| yersinia_enterocolitica | minocycline | 0.85 | 1 |
+| yersinia_enterocolitica | tetracycline | 0.8 | 0.25 |
+| yersinia_enterocolitica | doxycycline | 0.85 | 2 |
+| yersinia_enterocolitica | minocycline | 0.85 | 0.25 |
 | yersinia_enterocolitica | tigecycline | 0.7 | 1 |
 | yersinia_enterocolitica | vancomycin | 0.1 | 1 |
 | yersinia_enterocolitica | teicoplanin | 0.1 | 1 |
@@ -4525,7 +2344,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | yersinia_enterocolitica | tedizolid | 0.1 | 0.005 |
 | yersinia_enterocolitica | daptomycin | 0.1 | 1 |
 | yersinia_enterocolitica | quinu_dalfo | 0.1 | 0.005 |
-| yersinia_enterocolitica | trim_sulf | 0.95 | 1 |
+| yersinia_enterocolitica | trim_sulf | 0.95 | 0.04 |
 | yersinia_enterocolitica | chloramphenicol | 0.85 | 1 |
 | yersinia_enterocolitica | nitrofurantoin | 0.1 | 1 |
 | yersinia_enterocolitica | fosfomycin | 0.1 | 1 |
@@ -4543,41 +2362,41 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | yersinia_enterocolitica | meropenem_vaborbactam | 0.95 | 0.005 |
 | yersinia_enterocolitica | colistin | 0.7 | 0.005 |
 | yersinia_enterocolitica | flucloxacillin | 0.01 | 1 |
-| yersinia_enterocolitica | aztreonam_avibactam | 0.9 | 1 |
-| yersinia_enterocolitica | cefixime | 0.75 | 1 |
-| moraxella_catarrhalis | sulfanilamide | 0.1 | 1 |
+| yersinia_enterocolitica | aztreonam_avibactam | 0.9 | 0.003 |
+| yersinia_enterocolitica | cefixime | 0.75 | 0.2 |
+| moraxella_catarrhalis | sulfanilamide | 0.1 | 0.02 |
 | moraxella_catarrhalis | penicillin_g | 0.9 | 1 |
 | moraxella_catarrhalis | ampicillin | 0.9 | 1 |
-| moraxella_catarrhalis | amoxicillin | 0.9 | 1 |
+| moraxella_catarrhalis | amoxicillin | 0.9 | 6 |
 | moraxella_catarrhalis | piperacillin | 0.8 | 1 |
 | moraxella_catarrhalis | ticarcillin | 0.8 | 1 |
-| moraxella_catarrhalis | cephalexin | 0.8 | 1 |
-| moraxella_catarrhalis | cefazolin | 0.85 | 1 |
-| moraxella_catarrhalis | cefuroxime | 0.9 | 1 |
-| moraxella_catarrhalis | ceftriaxone | 0.95 | 1 |
-| moraxella_catarrhalis | ceftazidime | 0.9 | 1 |
-| moraxella_catarrhalis | cefepime | 0.9 | 1 |
-| moraxella_catarrhalis | ceftaroline | 0.8 | 1 |
+| moraxella_catarrhalis | cephalexin | 0.8 | 0.3 |
+| moraxella_catarrhalis | cefazolin | 0.85 | 0.3 |
+| moraxella_catarrhalis | cefuroxime | 0.9 | 0.3 |
+| moraxella_catarrhalis | ceftriaxone | 0.95 | 0.2 |
+| moraxella_catarrhalis | ceftazidime | 0.9 | 0.2 |
+| moraxella_catarrhalis | cefepime | 0.9 | 0.35 |
+| moraxella_catarrhalis | ceftaroline | 0.8 | 0.002 |
 | moraxella_catarrhalis | ceftolozane_tazobactam | 0.8 | 1 |
 | moraxella_catarrhalis | cefiderocol | 0.8 | 1 |
 | moraxella_catarrhalis | meropenem | 0.95 | 0.005 |
 | moraxella_catarrhalis | imipenem_c | 0.95 | 0.005 |
 | moraxella_catarrhalis | ertapenem | 0.95 | 0.005 |
-| moraxella_catarrhalis | aztreonam | 0.9 | 1 |
+| moraxella_catarrhalis | aztreonam | 0.9 | 0.003 |
 | moraxella_catarrhalis | erythromycin | 0.8 | 1 |
-| moraxella_catarrhalis | azithromycin | 0.85 | 1 |
-| moraxella_catarrhalis | clarithromycin | 0.8 | 1 |
+| moraxella_catarrhalis | azithromycin | 0.85 | 5 |
+| moraxella_catarrhalis | clarithromycin | 0.8 | 5 |
 | moraxella_catarrhalis | clindamycin | 0.1 | 1 |
 | moraxella_catarrhalis | gentamicin | 0.1 | 1 |
 | moraxella_catarrhalis | tobramycin | 0.1 | 1 |
 | moraxella_catarrhalis | amikacin | 0.1 | 1 |
 | moraxella_catarrhalis | ciprofloxacin | 0.9 | 1 |
-| moraxella_catarrhalis | levofloxacin | 0.85 | 1 |
+| moraxella_catarrhalis | levofloxacin | 0.85 | 4 |
 | moraxella_catarrhalis | moxifloxacin | 0.8 | 1 |
 | moraxella_catarrhalis | ofloxacin | 0.85 | 1 |
-| moraxella_catarrhalis | tetracycline | 0.8 | 1 |
-| moraxella_catarrhalis | doxycycline | 0.8 | 1 |
-| moraxella_catarrhalis | minocycline | 0.85 | 1 |
+| moraxella_catarrhalis | tetracycline | 0.8 | 0.25 |
+| moraxella_catarrhalis | doxycycline | 0.8 | 0.25 |
+| moraxella_catarrhalis | minocycline | 0.85 | 0.25 |
 | moraxella_catarrhalis | tigecycline | 0.1 | 1 |
 | moraxella_catarrhalis | vancomycin | 0.1 | 1 |
 | moraxella_catarrhalis | teicoplanin | 0.1 | 1 |
@@ -4586,7 +2405,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | moraxella_catarrhalis | tedizolid | 0.1 | 0.005 |
 | moraxella_catarrhalis | daptomycin | 0.1 | 1 |
 | moraxella_catarrhalis | quinu_dalfo | 0.1 | 0.005 |
-| moraxella_catarrhalis | trim_sulf | 0.95 | 1 |
+| moraxella_catarrhalis | trim_sulf | 0.95 | 0.04 |
 | moraxella_catarrhalis | chloramphenicol | 0.85 | 1 |
 | moraxella_catarrhalis | nitrofurantoin | 0.1 | 1 |
 | moraxella_catarrhalis | fosfomycin | 0.1 | 1 |
@@ -4596,7 +2415,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | moraxella_catarrhalis | fidaxomicin | 0.1 | 1 |
 | moraxella_catarrhalis | furazolidone | 0.1 | 1 |
 | moraxella_catarrhalis | rifampicin | 0.7 | 1 |
-| moraxella_catarrhalis | amoxicillin_clavulanate | 0.95 | 1 |
+| moraxella_catarrhalis | amoxicillin_clavulanate | 0.95 | 12 |
 | moraxella_catarrhalis | piperacillin_tazobactam | 0.85 | 1 |
 | moraxella_catarrhalis | ampicillin_sulbactam | 0.95 | 1 |
 | moraxella_catarrhalis | ticarcillin_clavulanate | 0.85 | 1 |
@@ -4604,27 +2423,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | moraxella_catarrhalis | meropenem_vaborbactam | 0.95 | 0.005 |
 | moraxella_catarrhalis | colistin | 0.05 | 0.005 |
 | moraxella_catarrhalis | flucloxacillin | 0.01 | 1 |
-| moraxella_catarrhalis | aztreonam_avibactam | 0.8 | 1 |
-| moraxella_catarrhalis | cefixime | 0.8 | 1 |
-| treponema_pallidum | sulfanilamide | 0.1 | 1 |
-| treponema_pallidum | penicillin_g | 1 | 1 |
+| moraxella_catarrhalis | aztreonam_avibactam | 0.8 | 0.003 |
+| moraxella_catarrhalis | cefixime | 0.8 | 0.2 |
+| treponema_pallidum | sulfanilamide | 0.1 | 0.02 |
+| treponema_pallidum | penicillin_g | 1 | 6 |
 | treponema_pallidum | ampicillin | 0.95 | 1 |
 | treponema_pallidum | amoxicillin | 0.95 | 1 |
 | treponema_pallidum | piperacillin | 0.9 | 1 |
 | treponema_pallidum | ticarcillin | 0.9 | 1 |
-| treponema_pallidum | cephalexin | 0.9 | 1 |
-| treponema_pallidum | cefazolin | 0.9 | 1 |
-| treponema_pallidum | cefuroxime | 0.95 | 1 |
-| treponema_pallidum | ceftriaxone | 0.95 | 1 |
-| treponema_pallidum | ceftazidime | 0.9 | 1 |
-| treponema_pallidum | cefepime | 0.9 | 1 |
-| treponema_pallidum | ceftaroline | 0.9 | 1 |
+| treponema_pallidum | cephalexin | 0.9 | 0.3 |
+| treponema_pallidum | cefazolin | 0.9 | 0.3 |
+| treponema_pallidum | cefuroxime | 0.95 | 0.3 |
+| treponema_pallidum | ceftriaxone | 0.95 | 0.2 |
+| treponema_pallidum | ceftazidime | 0.9 | 0.2 |
+| treponema_pallidum | cefepime | 0.9 | 0.35 |
+| treponema_pallidum | ceftaroline | 0.9 | 0.002 |
 | treponema_pallidum | ceftolozane_tazobactam | 0.1 | 1 |
 | treponema_pallidum | cefiderocol | 0.1 | 1 |
 | treponema_pallidum | meropenem | 0.95 | 0.005 |
 | treponema_pallidum | imipenem_c | 0.95 | 0.005 |
 | treponema_pallidum | ertapenem | 0.95 | 0.005 |
-| treponema_pallidum | aztreonam | 0.9 | 1 |
+| treponema_pallidum | aztreonam | 0.9 | 0.003 |
 | treponema_pallidum | erythromycin | 0.8 | 1 |
 | treponema_pallidum | azithromycin | 0.85 | 1 |
 | treponema_pallidum | clarithromycin | 0.8 | 1 |
@@ -4636,9 +2455,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | treponema_pallidum | levofloxacin | 0.75 | 1 |
 | treponema_pallidum | moxifloxacin | 0.75 | 1 |
 | treponema_pallidum | ofloxacin | 0.7 | 1 |
-| treponema_pallidum | tetracycline | 0.8 | 1 |
-| treponema_pallidum | doxycycline | 0.8 | 1 |
-| treponema_pallidum | minocycline | 0.85 | 1 |
+| treponema_pallidum | tetracycline | 0.8 | 0.25 |
+| treponema_pallidum | doxycycline | 0.8 | 2 |
+| treponema_pallidum | minocycline | 0.85 | 0.25 |
 | treponema_pallidum | tigecycline | 0.1 | 1 |
 | treponema_pallidum | vancomycin | 0.1 | 1 |
 | treponema_pallidum | teicoplanin | 0.1 | 1 |
@@ -4647,7 +2466,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | treponema_pallidum | tedizolid | 0.1 | 0.005 |
 | treponema_pallidum | daptomycin | 0.1 | 1 |
 | treponema_pallidum | quinu_dalfo | 0.1 | 0.005 |
-| treponema_pallidum | trim_sulf | 0.1 | 1 |
+| treponema_pallidum | trim_sulf | 0.1 | 0.04 |
 | treponema_pallidum | chloramphenicol | 0.8 | 1 |
 | treponema_pallidum | nitrofurantoin | 0.1 | 1 |
 | treponema_pallidum | fosfomycin | 0.1 | 1 |
@@ -4665,30 +2484,30 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | treponema_pallidum | meropenem_vaborbactam | 0.95 | 0.005 |
 | treponema_pallidum | colistin | 0.05 | 0.005 |
 | treponema_pallidum | flucloxacillin | 0.01 | 1 |
-| treponema_pallidum | aztreonam_avibactam | 0.9 | 1 |
-| treponema_pallidum | cefixime | 0.1 | 1 |
-| bordetella_pertussis | sulfanilamide | 0.1 | 1 |
+| treponema_pallidum | aztreonam_avibactam | 0.9 | 0.003 |
+| treponema_pallidum | cefixime | 0.1 | 0.2 |
+| bordetella_pertussis | sulfanilamide | 0.1 | 0.02 |
 | bordetella_pertussis | penicillin_g | 0.1 | 1 |
 | bordetella_pertussis | ampicillin | 0.1 | 1 |
 | bordetella_pertussis | amoxicillin | 0.1 | 1 |
 | bordetella_pertussis | piperacillin | 0.1 | 1 |
 | bordetella_pertussis | ticarcillin | 0.1 | 1 |
-| bordetella_pertussis | cephalexin | 0.1 | 1 |
-| bordetella_pertussis | cefazolin | 0.1 | 1 |
-| bordetella_pertussis | cefuroxime | 0.1 | 1 |
-| bordetella_pertussis | ceftriaxone | 0.1 | 1 |
-| bordetella_pertussis | ceftazidime | 0.1 | 1 |
-| bordetella_pertussis | cefepime | 0.1 | 1 |
-| bordetella_pertussis | ceftaroline | 0.1 | 1 |
+| bordetella_pertussis | cephalexin | 0.1 | 0.3 |
+| bordetella_pertussis | cefazolin | 0.1 | 0.3 |
+| bordetella_pertussis | cefuroxime | 0.1 | 0.3 |
+| bordetella_pertussis | ceftriaxone | 0.1 | 0.2 |
+| bordetella_pertussis | ceftazidime | 0.1 | 0.2 |
+| bordetella_pertussis | cefepime | 0.1 | 0.35 |
+| bordetella_pertussis | ceftaroline | 0.1 | 0.002 |
 | bordetella_pertussis | ceftolozane_tazobactam | 0.8 | 1 |
 | bordetella_pertussis | cefiderocol | 0.8 | 1 |
 | bordetella_pertussis | meropenem | 0.1 | 0.005 |
 | bordetella_pertussis | imipenem_c | 0.1 | 0.005 |
 | bordetella_pertussis | ertapenem | 0.1 | 0.005 |
-| bordetella_pertussis | aztreonam | 0.1 | 1 |
-| bordetella_pertussis | erythromycin | 0.9 | 1 |
-| bordetella_pertussis | azithromycin | 0.95 | 1 |
-| bordetella_pertussis | clarithromycin | 0.9 | 1 |
+| bordetella_pertussis | aztreonam | 0.1 | 0.003 |
+| bordetella_pertussis | erythromycin | 0.9 | 7 |
+| bordetella_pertussis | azithromycin | 0.95 | 8 |
+| bordetella_pertussis | clarithromycin | 0.9 | 7 |
 | bordetella_pertussis | clindamycin | 0.1 | 1 |
 | bordetella_pertussis | gentamicin | 0.7 | 1 |
 | bordetella_pertussis | tobramycin | 0.7 | 1 |
@@ -4697,9 +2516,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bordetella_pertussis | levofloxacin | 0.75 | 1 |
 | bordetella_pertussis | moxifloxacin | 0.75 | 1 |
 | bordetella_pertussis | ofloxacin | 0.7 | 1 |
-| bordetella_pertussis | tetracycline | 0.7 | 1 |
-| bordetella_pertussis | doxycycline | 0.75 | 1 |
-| bordetella_pertussis | minocycline | 0.75 | 1 |
+| bordetella_pertussis | tetracycline | 0.7 | 0.25 |
+| bordetella_pertussis | doxycycline | 0.75 | 1.5 |
+| bordetella_pertussis | minocycline | 0.75 | 0.25 |
 | bordetella_pertussis | tigecycline | 0.1 | 1 |
 | bordetella_pertussis | vancomycin | 0.1 | 1 |
 | bordetella_pertussis | teicoplanin | 0.1 | 1 |
@@ -4708,7 +2527,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bordetella_pertussis | tedizolid | 0.1 | 0.005 |
 | bordetella_pertussis | daptomycin | 0.1 | 1 |
 | bordetella_pertussis | quinu_dalfo | 0.1 | 0.005 |
-| bordetella_pertussis | trim_sulf | 0.7 | 1 |
+| bordetella_pertussis | trim_sulf | 0.7 | 0.03 |
 | bordetella_pertussis | chloramphenicol | 0.8 | 1 |
 | bordetella_pertussis | nitrofurantoin | 0.1 | 1 |
 | bordetella_pertussis | fosfomycin | 0.1 | 1 |
@@ -4726,30 +2545,30 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | bordetella_pertussis | meropenem_vaborbactam | 0.1 | 0.005 |
 | bordetella_pertussis | colistin | 0.05 | 0.005 |
 | bordetella_pertussis | flucloxacillin | 0.01 | 1 |
-| bordetella_pertussis | aztreonam_avibactam | 0.8 | 1 |
-| bordetella_pertussis | cefixime | 0.8 | 1 |
-| helicobacter_pylori | sulfanilamide | 0.1 | 1 |
+| bordetella_pertussis | aztreonam_avibactam | 0.8 | 0.003 |
+| bordetella_pertussis | cefixime | 0.8 | 0.2 |
+| helicobacter_pylori | sulfanilamide | 0.1 | 0.02 |
 | helicobacter_pylori | penicillin_g | 0.1 | 1 |
 | helicobacter_pylori | ampicillin | 0.7 | 1 |
 | helicobacter_pylori | amoxicillin | 0.85 | 12 |
 | helicobacter_pylori | piperacillin | 0.1 | 1 |
 | helicobacter_pylori | ticarcillin | 0.1 | 1 |
-| helicobacter_pylori | cephalexin | 0.1 | 1 |
-| helicobacter_pylori | cefazolin | 0.1 | 1 |
-| helicobacter_pylori | cefuroxime | 0.1 | 1 |
-| helicobacter_pylori | ceftriaxone | 0.1 | 1 |
-| helicobacter_pylori | ceftazidime | 0.1 | 1 |
-| helicobacter_pylori | cefepime | 0.1 | 1 |
-| helicobacter_pylori | ceftaroline | 0.1 | 1 |
+| helicobacter_pylori | cephalexin | 0.1 | 0.3 |
+| helicobacter_pylori | cefazolin | 0.1 | 0.3 |
+| helicobacter_pylori | cefuroxime | 0.1 | 0.3 |
+| helicobacter_pylori | ceftriaxone | 0.1 | 0.2 |
+| helicobacter_pylori | ceftazidime | 0.1 | 0.2 |
+| helicobacter_pylori | cefepime | 0.1 | 0.35 |
+| helicobacter_pylori | ceftaroline | 0.1 | 0.002 |
 | helicobacter_pylori | ceftolozane_tazobactam | 0.05 | 1 |
 | helicobacter_pylori | cefiderocol | 0.05 | 1 |
 | helicobacter_pylori | meropenem | 0.1 | 0.005 |
 | helicobacter_pylori | imipenem_c | 0.1 | 0.005 |
 | helicobacter_pylori | ertapenem | 0.1 | 0.005 |
-| helicobacter_pylori | aztreonam | 0.1 | 1 |
+| helicobacter_pylori | aztreonam | 0.1 | 0.003 |
 | helicobacter_pylori | erythromycin | 0.8 | 1 |
 | helicobacter_pylori | azithromycin | 0.85 | 1 |
-| helicobacter_pylori | clarithromycin | 0.8 | 15 |
+| helicobacter_pylori | clarithromycin | 0.8 | 5 |
 | helicobacter_pylori | clindamycin | 0.1 | 1 |
 | helicobacter_pylori | gentamicin | 0.1 | 1 |
 | helicobacter_pylori | tobramycin | 0.1 | 1 |
@@ -4758,9 +2577,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | helicobacter_pylori | levofloxacin | 0.7 | 5 |
 | helicobacter_pylori | moxifloxacin | 0.75 | 1 |
 | helicobacter_pylori | ofloxacin | 0.7 | 1 |
-| helicobacter_pylori | tetracycline | 0.8 | 6 |
-| helicobacter_pylori | doxycycline | 0.8 | 1 |
-| helicobacter_pylori | minocycline | 0.85 | 1 |
+| helicobacter_pylori | tetracycline | 0.8 | 2 |
+| helicobacter_pylori | doxycycline | 0.8 | 0.25 |
+| helicobacter_pylori | minocycline | 0.85 | 0.25 |
 | helicobacter_pylori | tigecycline | 0.1 | 1 |
 | helicobacter_pylori | vancomycin | 0.1 | 1 |
 | helicobacter_pylori | teicoplanin | 0.1 | 1 |
@@ -4769,15 +2588,15 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | helicobacter_pylori | tedizolid | 0.1 | 0.005 |
 | helicobacter_pylori | daptomycin | 0.1 | 1 |
 | helicobacter_pylori | quinu_dalfo | 0.1 | 0.005 |
-| helicobacter_pylori | trim_sulf | 0.1 | 1 |
+| helicobacter_pylori | trim_sulf | 0.1 | 0.04 |
 | helicobacter_pylori | chloramphenicol | 0.7 | 1 |
 | helicobacter_pylori | nitrofurantoin | 0.1 | 1 |
 | helicobacter_pylori | fosfomycin | 0.1 | 1 |
 | helicobacter_pylori | retapamulin | 0.05 | 1 |
 | helicobacter_pylori | fusidic_a | 0.05 | 1 |
-| helicobacter_pylori | metronidazole | 0.8 | 8 |
+| helicobacter_pylori | metronidazole | 0.8 | 10 |
 | helicobacter_pylori | fidaxomicin | 0.1 | 1 |
-| helicobacter_pylori | furazolidone | 0.1 | 1 |
+| helicobacter_pylori | furazolidone | 0.1 | 6 |
 | helicobacter_pylori | rifampicin | 0.1 | 1 |
 | helicobacter_pylori | amoxicillin_clavulanate | 0.85 | 1 |
 | helicobacter_pylori | piperacillin_tazobactam | 0.1 | 1 |
@@ -4787,27 +2606,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | helicobacter_pylori | meropenem_vaborbactam | 0.1 | 0.005 |
 | helicobacter_pylori | colistin | 0.05 | 0.005 |
 | helicobacter_pylori | flucloxacillin | 0.01 | 1 |
-| helicobacter_pylori | aztreonam_avibactam | 0.01 | 1 |
-| helicobacter_pylori | cefixime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | sulfanilamide | 0.1 | 1 |
+| helicobacter_pylori | aztreonam_avibactam | 0.01 | 0.003 |
+| helicobacter_pylori | cefixime | 0.05 | 0.2 |
+| mdr_mycobacterium_tuberculosis | sulfanilamide | 0.1 | 0.02 |
 | mdr_mycobacterium_tuberculosis | penicillin_g | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ampicillin | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | amoxicillin | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | piperacillin | 0.05 | 1 |
 | mdr_mycobacterium_tuberculosis | ticarcillin | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cephalexin | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cefazolin | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cefuroxime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftriaxone | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftazidime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | cefepime | 0.05 | 1 |
-| mdr_mycobacterium_tuberculosis | ceftaroline | 0.05 | 1 |
+| mdr_mycobacterium_tuberculosis | cephalexin | 0.05 | 0.3 |
+| mdr_mycobacterium_tuberculosis | cefazolin | 0.05 | 0.3 |
+| mdr_mycobacterium_tuberculosis | cefuroxime | 0.05 | 0.3 |
+| mdr_mycobacterium_tuberculosis | ceftriaxone | 0.05 | 0.2 |
+| mdr_mycobacterium_tuberculosis | ceftazidime | 0.05 | 0.2 |
+| mdr_mycobacterium_tuberculosis | cefepime | 0.05 | 0.35 |
+| mdr_mycobacterium_tuberculosis | ceftaroline | 0.05 | 0.002 |
 | mdr_mycobacterium_tuberculosis | ceftolozane_tazobactam | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | cefiderocol | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | meropenem | 0.2 | 0.005 |
 | mdr_mycobacterium_tuberculosis | imipenem_c | 0.2 | 0.005 |
 | mdr_mycobacterium_tuberculosis | ertapenem | 0.2 | 0.005 |
-| mdr_mycobacterium_tuberculosis | aztreonam | 0.2 | 1 |
+| mdr_mycobacterium_tuberculosis | aztreonam | 0.2 | 0.003 |
 | mdr_mycobacterium_tuberculosis | erythromycin | 0.2 | 1 |
 | mdr_mycobacterium_tuberculosis | azithromycin | 0.25 | 1 |
 | mdr_mycobacterium_tuberculosis | clarithromycin | 0.2 | 1 |
@@ -4819,9 +2638,9 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | levofloxacin | 0.45 | 1 |
 | mdr_mycobacterium_tuberculosis | moxifloxacin | 0.45 | 1 |
 | mdr_mycobacterium_tuberculosis | ofloxacin | 0.4 | 1 |
-| mdr_mycobacterium_tuberculosis | tetracycline | 0.3 | 1 |
-| mdr_mycobacterium_tuberculosis | doxycycline | 0.35 | 1 |
-| mdr_mycobacterium_tuberculosis | minocycline | 0.35 | 1 |
+| mdr_mycobacterium_tuberculosis | tetracycline | 0.3 | 0.25 |
+| mdr_mycobacterium_tuberculosis | doxycycline | 0.35 | 0.25 |
+| mdr_mycobacterium_tuberculosis | minocycline | 0.35 | 0.25 |
 | mdr_mycobacterium_tuberculosis | tigecycline | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | vancomycin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | teicoplanin | 0.1 | 1 |
@@ -4830,7 +2649,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | tedizolid | 0.1 | 0.005 |
 | mdr_mycobacterium_tuberculosis | daptomycin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | quinu_dalfo | 0.1 | 0.005 |
-| mdr_mycobacterium_tuberculosis | trim_sulf | 0.2 | 1 |
+| mdr_mycobacterium_tuberculosis | trim_sulf | 0.2 | 0.04 |
 | mdr_mycobacterium_tuberculosis | chloramphenicol | 0.2 | 1 |
 | mdr_mycobacterium_tuberculosis | nitrofurantoin | 0.1 | 1 |
 | mdr_mycobacterium_tuberculosis | fosfomycin | 0.1 | 1 |
@@ -4848,41 +2667,41 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mdr_mycobacterium_tuberculosis | meropenem_vaborbactam | 0.2 | 0.005 |
 | mdr_mycobacterium_tuberculosis | colistin | 0.2 | 0.005 |
 | mdr_mycobacterium_tuberculosis | flucloxacillin | 0.01 | 1 |
-| mdr_mycobacterium_tuberculosis | aztreonam_avibactam | 0.9 | 1 |
-| mdr_mycobacterium_tuberculosis | cefixime | 0.1 | 1 |
-| mycoplasma_pneumoniae | sulfanilamide | 0.05 | 1 |
+| mdr_mycobacterium_tuberculosis | aztreonam_avibactam | 0.9 | 0.003 |
+| mdr_mycobacterium_tuberculosis | cefixime | 0.1 | 0.2 |
+| mycoplasma_pneumoniae | sulfanilamide | 0.05 | 0.02 |
 | mycoplasma_pneumoniae | penicillin_g | 0.05 | 0.001 |
 | mycoplasma_pneumoniae | ampicillin | 0.05 | 0.001 |
 | mycoplasma_pneumoniae | amoxicillin | 0.05 | 0.001 |
 | mycoplasma_pneumoniae | piperacillin | 0.05 | 1 |
 | mycoplasma_pneumoniae | ticarcillin | 0.05 | 1 |
-| mycoplasma_pneumoniae | cephalexin | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | cefazolin | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | cefuroxime | 0.05 | 1 |
-| mycoplasma_pneumoniae | ceftriaxone | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | ceftazidime | 0.05 | 1 |
-| mycoplasma_pneumoniae | cefepime | 0.05 | 1 |
-| mycoplasma_pneumoniae | ceftaroline | 0.05 | 1 |
+| mycoplasma_pneumoniae | cephalexin | 0.05 | 0.3 |
+| mycoplasma_pneumoniae | cefazolin | 0.05 | 0.3 |
+| mycoplasma_pneumoniae | cefuroxime | 0.05 | 0.3 |
+| mycoplasma_pneumoniae | ceftriaxone | 0.05 | 0.2 |
+| mycoplasma_pneumoniae | ceftazidime | 0.05 | 0.2 |
+| mycoplasma_pneumoniae | cefepime | 0.05 | 0.35 |
+| mycoplasma_pneumoniae | ceftaroline | 0.05 | 0.002 |
 | mycoplasma_pneumoniae | ceftolozane_tazobactam | 0.01 | 1 |
 | mycoplasma_pneumoniae | cefiderocol | 0.01 | 1 |
 | mycoplasma_pneumoniae | meropenem | 0.05 | 0.001 |
 | mycoplasma_pneumoniae | imipenem_c | 0.05 | 0.005 |
 | mycoplasma_pneumoniae | ertapenem | 0.05 | 0.001 |
-| mycoplasma_pneumoniae | aztreonam | 0.05 | 1 |
+| mycoplasma_pneumoniae | aztreonam | 0.05 | 0.003 |
 | mycoplasma_pneumoniae | erythromycin | 0.8 | 1 |
-| mycoplasma_pneumoniae | azithromycin | 0.85 | 1 |
-| mycoplasma_pneumoniae | clarithromycin | 0.8 | 1 |
+| mycoplasma_pneumoniae | azithromycin | 0.85 | 8 |
+| mycoplasma_pneumoniae | clarithromycin | 0.8 | 7 |
 | mycoplasma_pneumoniae | clindamycin | 0.05 | 1 |
 | mycoplasma_pneumoniae | gentamicin | 0.05 | 1 |
 | mycoplasma_pneumoniae | tobramycin | 0.05 | 1 |
 | mycoplasma_pneumoniae | amikacin | 0.05 | 1 |
 | mycoplasma_pneumoniae | ciprofloxacin | 0.7 | 1 |
-| mycoplasma_pneumoniae | levofloxacin | 0.75 | 1 |
-| mycoplasma_pneumoniae | moxifloxacin | 0.8 | 1 |
+| mycoplasma_pneumoniae | levofloxacin | 0.75 | 4 |
+| mycoplasma_pneumoniae | moxifloxacin | 0.8 | 4 |
 | mycoplasma_pneumoniae | ofloxacin | 0.6 | 1 |
-| mycoplasma_pneumoniae | tetracycline | 0.7 | 1 |
-| mycoplasma_pneumoniae | doxycycline | 0.75 | 1 |
-| mycoplasma_pneumoniae | minocycline | 0.8 | 1 |
+| mycoplasma_pneumoniae | tetracycline | 0.7 | 0.25 |
+| mycoplasma_pneumoniae | doxycycline | 0.75 | 1.5 |
+| mycoplasma_pneumoniae | minocycline | 0.8 | 0.25 |
 | mycoplasma_pneumoniae | tigecycline | 0.85 | 1 |
 | mycoplasma_pneumoniae | vancomycin | 0.05 | 1 |
 | mycoplasma_pneumoniae | teicoplanin | 0.05 | 1 |
@@ -4891,7 +2710,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_pneumoniae | tedizolid | 0.05 | 0.005 |
 | mycoplasma_pneumoniae | daptomycin | 0.1 | 1 |
 | mycoplasma_pneumoniae | quinu_dalfo | 0.05 | 0.005 |
-| mycoplasma_pneumoniae | trim_sulf | 0.05 | 1 |
+| mycoplasma_pneumoniae | trim_sulf | 0.05 | 0.04 |
 | mycoplasma_pneumoniae | chloramphenicol | 0.05 | 1 |
 | mycoplasma_pneumoniae | nitrofurantoin | 0.05 | 1 |
 | mycoplasma_pneumoniae | fosfomycin | 0.1 | 1 |
@@ -4909,27 +2728,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | mycoplasma_pneumoniae | meropenem_vaborbactam | 0.05 | 0.005 |
 | mycoplasma_pneumoniae | colistin | 0.05 | 0.005 |
 | mycoplasma_pneumoniae | flucloxacillin | 0.01 | 1 |
-| mycoplasma_pneumoniae | aztreonam_avibactam | 0.01 | 1 |
-| mycoplasma_pneumoniae | cefixime | 0.01 | 1 |
-| legionella_pneumophila | sulfanilamide | 0.05 | 1 |
+| mycoplasma_pneumoniae | aztreonam_avibactam | 0.01 | 0.003 |
+| mycoplasma_pneumoniae | cefixime | 0.01 | 0.2 |
+| legionella_pneumophila | sulfanilamide | 0.05 | 0.02 |
 | legionella_pneumophila | penicillin_g | 0.05 | 0.001 |
 | legionella_pneumophila | ampicillin | 0.05 | 0.001 |
 | legionella_pneumophila | amoxicillin | 0.05 | 0.001 |
 | legionella_pneumophila | piperacillin | 0.05 | 1 |
 | legionella_pneumophila | ticarcillin | 0.05 | 1 |
-| legionella_pneumophila | cephalexin | 0.05 | 0.001 |
-| legionella_pneumophila | cefazolin | 0.05 | 0.001 |
-| legionella_pneumophila | cefuroxime | 0.05 | 1 |
-| legionella_pneumophila | ceftriaxone | 0.05 | 0.001 |
-| legionella_pneumophila | ceftazidime | 0.05 | 1 |
-| legionella_pneumophila | cefepime | 0.05 | 1 |
-| legionella_pneumophila | ceftaroline | 0.05 | 1 |
+| legionella_pneumophila | cephalexin | 0.05 | 0.3 |
+| legionella_pneumophila | cefazolin | 0.05 | 0.3 |
+| legionella_pneumophila | cefuroxime | 0.05 | 0.3 |
+| legionella_pneumophila | ceftriaxone | 0.05 | 0.2 |
+| legionella_pneumophila | ceftazidime | 0.05 | 0.2 |
+| legionella_pneumophila | cefepime | 0.05 | 0.35 |
+| legionella_pneumophila | ceftaroline | 0.05 | 0.002 |
 | legionella_pneumophila | ceftolozane_tazobactam | 0.8 | 1 |
 | legionella_pneumophila | cefiderocol | 0.8 | 1 |
 | legionella_pneumophila | meropenem | 0.05 | 0.001 |
 | legionella_pneumophila | imipenem_c | 0.05 | 0.005 |
 | legionella_pneumophila | ertapenem | 0.05 | 0.001 |
-| legionella_pneumophila | aztreonam | 0.8 | 1 |
+| legionella_pneumophila | aztreonam | 0.8 | 0.003 |
 | legionella_pneumophila | erythromycin | 0.8 | 1 |
 | legionella_pneumophila | azithromycin | 0.9 | 1 |
 | legionella_pneumophila | clarithromycin | 0.8 | 1 |
@@ -4938,12 +2757,12 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | tobramycin | 0.05 | 1 |
 | legionella_pneumophila | amikacin | 0.05 | 1 |
 | legionella_pneumophila | ciprofloxacin | 0.9 | 1 |
-| legionella_pneumophila | levofloxacin | 0.95 | 1 |
+| legionella_pneumophila | levofloxacin | 0.95 | 6 |
 | legionella_pneumophila | moxifloxacin | 0.9 | 1 |
 | legionella_pneumophila | ofloxacin | 0.7 | 1 |
-| legionella_pneumophila | tetracycline | 0.8 | 1 |
-| legionella_pneumophila | doxycycline | 0.85 | 1 |
-| legionella_pneumophila | minocycline | 0.9 | 1 |
+| legionella_pneumophila | tetracycline | 0.8 | 0.25 |
+| legionella_pneumophila | doxycycline | 0.85 | 2 |
+| legionella_pneumophila | minocycline | 0.9 | 0.25 |
 | legionella_pneumophila | tigecycline | 0.1 | 1 |
 | legionella_pneumophila | vancomycin | 0.05 | 1 |
 | legionella_pneumophila | teicoplanin | 0.05 | 1 |
@@ -4952,7 +2771,7 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | tedizolid | 0.05 | 0.005 |
 | legionella_pneumophila | daptomycin | 0.1 | 1 |
 | legionella_pneumophila | quinu_dalfo | 0.05 | 0.005 |
-| legionella_pneumophila | trim_sulf | 0.05 | 1 |
+| legionella_pneumophila | trim_sulf | 0.05 | 0.04 |
 | legionella_pneumophila | chloramphenicol | 0.05 | 1 |
 | legionella_pneumophila | nitrofurantoin | 0.05 | 1 |
 | legionella_pneumophila | fosfomycin | 0.1 | 1 |
@@ -4970,27 +2789,27 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | legionella_pneumophila | meropenem_vaborbactam | 0.05 | 0.005 |
 | legionella_pneumophila | colistin | 0.05 | 0.005 |
 | legionella_pneumophila | flucloxacillin | 0.01 | 1 |
-| legionella_pneumophila | aztreonam_avibactam | 0.01 | 1 |
-| legionella_pneumophila | cefixime | 0.8 | 1 |
-| burkholderia_cepacia_complex | sulfanilamide | 0.1 | 1 |
+| legionella_pneumophila | aztreonam_avibactam | 0.01 | 0.003 |
+| legionella_pneumophila | cefixime | 0.8 | 0.2 |
+| burkholderia_cepacia_complex | sulfanilamide | 0.1 | 0.02 |
 | burkholderia_cepacia_complex | penicillin_g | 0.05 | 1 |
 | burkholderia_cepacia_complex | ampicillin | 0.05 | 1 |
 | burkholderia_cepacia_complex | amoxicillin | 0.05 | 1 |
 | burkholderia_cepacia_complex | piperacillin | 0.6 | 1 |
 | burkholderia_cepacia_complex | ticarcillin | 0.5 | 1 |
-| burkholderia_cepacia_complex | cephalexin | 0.05 | 1 |
-| burkholderia_cepacia_complex | cefazolin | 0.05 | 1 |
-| burkholderia_cepacia_complex | cefuroxime | 0.1 | 1 |
-| burkholderia_cepacia_complex | ceftriaxone | 0.1 | 1 |
-| burkholderia_cepacia_complex | ceftazidime | 0.7 | 1 |
-| burkholderia_cepacia_complex | cefepime | 0.75 | 1 |
-| burkholderia_cepacia_complex | ceftaroline | 0.1 | 1 |
+| burkholderia_cepacia_complex | cephalexin | 0.05 | 0.3 |
+| burkholderia_cepacia_complex | cefazolin | 0.05 | 0.3 |
+| burkholderia_cepacia_complex | cefuroxime | 0.1 | 0.3 |
+| burkholderia_cepacia_complex | ceftriaxone | 0.1 | 0.2 |
+| burkholderia_cepacia_complex | ceftazidime | 0.7 | 0.2 |
+| burkholderia_cepacia_complex | cefepime | 0.75 | 0.35 |
+| burkholderia_cepacia_complex | ceftaroline | 0.1 | 0.002 |
 | burkholderia_cepacia_complex | ceftolozane_tazobactam | 0.1 | 1 |
 | burkholderia_cepacia_complex | cefiderocol | 0.1 | 1 |
 | burkholderia_cepacia_complex | meropenem | 0.8 | 0.005 |
 | burkholderia_cepacia_complex | imipenem_c | 0.8 | 0.005 |
 | burkholderia_cepacia_complex | ertapenem | 0.1 | 0.005 |
-| burkholderia_cepacia_complex | aztreonam | 0.1 | 1 |
+| burkholderia_cepacia_complex | aztreonam | 0.1 | 0.003 |
 | burkholderia_cepacia_complex | gentamicin | 0.7 | 1 |
 | burkholderia_cepacia_complex | tobramycin | 0.65 | 1 |
 | burkholderia_cepacia_complex | amikacin | 0.75 | 1 |
@@ -4998,16 +2817,16 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | levofloxacin | 0.65 | 1 |
 | burkholderia_cepacia_complex | moxifloxacin | 0.6 | 1 |
 | burkholderia_cepacia_complex | ofloxacin | 0.6 | 1 |
-| burkholderia_cepacia_complex | tetracycline | 0.6 | 1 |
-| burkholderia_cepacia_complex | doxycycline | 0.65 | 1 |
-| burkholderia_cepacia_complex | minocycline | 0.7 | 1 |
+| burkholderia_cepacia_complex | tetracycline | 0.6 | 0.25 |
+| burkholderia_cepacia_complex | doxycycline | 0.65 | 0.25 |
+| burkholderia_cepacia_complex | minocycline | 0.7 | 0.25 |
 | burkholderia_cepacia_complex | tigecycline | 0.1 | 1 |
 | burkholderia_cepacia_complex | dalbavancin | 0 | 0.005 |
 | burkholderia_cepacia_complex | linezolid | 0 | 0.005 |
 | burkholderia_cepacia_complex | tedizolid | 0 | 0.005 |
 | burkholderia_cepacia_complex | daptomycin | 0.1 | 1 |
 | burkholderia_cepacia_complex | quinu_dalfo | 0 | 0.005 |
-| burkholderia_cepacia_complex | trim_sulf | 0.6 | 1 |
+| burkholderia_cepacia_complex | trim_sulf | 0.6 | 0.04 |
 | burkholderia_cepacia_complex | chloramphenicol | 0.7 | 1 |
 | burkholderia_cepacia_complex | nitrofurantoin | 0.1 | 1 |
 | burkholderia_cepacia_complex | fosfomycin | 0.1 | 1 |
@@ -5022,14 +2841,14 @@ See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection
 | burkholderia_cepacia_complex | meropenem_vaborbactam | 0.75 | 0.005 |
 | burkholderia_cepacia_complex | colistin | 0.8 | 0.005 |
 | burkholderia_cepacia_complex | flucloxacillin | 0.01 | 1 |
-| burkholderia_cepacia_complex | aztreonam_avibactam | 0.6 | 1 |
-| burkholderia_cepacia_complex | cefixime | 0.1 | 1 |
+| burkholderia_cepacia_complex | aztreonam_avibactam | 0.6 | 0.003 |
+| burkholderia_cepacia_complex | cefixime | 0.1 | 0.2 |
 
 ### B.5 Regional Parameters
 
 Region-level scalars (applicable to all bacteria) and the per-region per-bacteria acquisition log-odds adjustments.
 
-See: [§2.5 Travel](#25-travel), [§3.1 Community acquisition](#31-community-acquisition).
+See: [┬º2.5 Travel](#25-travel), [┬º3.1 Community acquisition](#31-community-acquisition).
 
 #### Region Scalars
 
@@ -5043,7 +2862,7 @@ See: [§2.5 Travel](#25-travel), [§3.1 Community acquisition](#31-community-acq
 | oceania | 2.5 | 0.85 | 0 | 0.3 | 0.5 | 0.8 | 0 | 0.4 |
 | home | 1 | 1 | 0 | 0 | 1 | 1 | 0 | 0 |
 
-#### Region–Bacteria Acquisition Log-Odds
+#### RegionΓÇôBacteria Acquisition Log-Odds
 
 | Region | Bacteria | Acquisition log-odds |
 | --- | ---: | ---: |
@@ -5195,7 +3014,7 @@ See: [§2.5 Travel](#25-travel), [§3.1 Community acquisition](#31-community-acq
 
 Log-odds adjustments by age category for bacteria acquisition and regional effects. Age categories: infant, preschool, school, young_adult, middle_age, elderly.
 
-See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Community acquisition](#31-community-acquisition).
+See: [┬º2.2 Ageing and age categories](#22-ageing-and-age-categories), [┬º3.1 Community acquisition](#31-community-acquisition).
 
 #### Default Age Log-Odds
 
@@ -5208,7 +3027,7 @@ See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Co
 | middle_age | 0.2 |
 | elderly | 0.9 |
 
-#### Bacteria–Age Log-Odds
+#### BacteriaΓÇôAge Log-Odds
 
 | Bacteria | Age category | Log-odds |
 | --- | ---: | ---: |
@@ -5434,7 +3253,7 @@ See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Co
 | burkholderia_cepacia_complex | middle_age | 0.2 |
 | burkholderia_cepacia_complex | elderly | 0.9 |
 
-#### Region–Age Log-Odds
+#### RegionΓÇôAge Log-Odds
 
 | Region | Age category | Log-odds |
 | --- | ---: | ---: |
@@ -5466,7 +3285,7 @@ See: [§2.2 Ageing and age categories](#22-ageing-and-age-categories), [§3.1 Co
 
 Infection-site (syndrome) specific parameters. Syndromes are: 1 = UTI, 2 = skin/soft tissue, 3 = respiratory, 4 = bloodstream, 5 = intra-abdominal, 6 = CNS/meningitis, 7 = gastrointestinal, 8 = genital/STI, 9 = bone/joint, 10 = other.
 
-See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [§6.4 Drug penetration by syndrome](#64-drug-penetration-by-syndrome).
+See: [┬º4.1 Syndrome assignment](#41-syndrome-assignment), [┬º6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use), [┬º6.4 Drug penetration by syndrome](#64-drug-penetration-by-syndrome).
 
 #### Syndrome Empiric Drug Scores
 
@@ -5487,8 +3306,9 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | uti | levofloxacin | 6 |
 | uti | vancomycin | 0.1 |
 | uti | linezolid | 0.1 |
-| uti | trim_sulf | 11 |
-| uti | nitrofurantoin | 5 |
+| uti | trim_sulf | 1 |
+| uti | nitrofurantoin | 8 |
+| uti | fosfomycin | 10 |
 | uti | amoxicillin_clavulanate | 14 |
 | uti | piperacillin_tazobactam | 5 |
 | uti | ceftazidime_avibactam | 3 |
@@ -5503,14 +3323,14 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | skin_soft_tissue | cefazolin | 12 |
 | skin_soft_tissue | clindamycin | 12 |
 | skin_soft_tissue | ciprofloxacin | 4 |
-| skin_soft_tissue | doxycycline | 9 |
-| skin_soft_tissue | minocycline | 9 |
+| skin_soft_tissue | doxycycline | 3.5 |
+| skin_soft_tissue | minocycline | 3 |
 | skin_soft_tissue | vancomycin | 11 |
 | skin_soft_tissue | dalbavancin | 9 |
 | skin_soft_tissue | linezolid | 10 |
 | skin_soft_tissue | tedizolid | 9 |
 | skin_soft_tissue | quinu_dalfo | 8 |
-| skin_soft_tissue | trim_sulf | 9 |
+| skin_soft_tissue | trim_sulf | 0.5 |
 | skin_soft_tissue | rifampicin | 0.5 |
 | skin_soft_tissue | amoxicillin_clavulanate | 14 |
 | skin_soft_tissue | piperacillin_tazobactam | 3 |
@@ -5530,13 +3350,12 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | respiratory | levofloxacin | 8 |
 | respiratory | moxifloxacin | 8 |
 | respiratory | ofloxacin | 6 |
-| respiratory | doxycycline | 6.5 |
-| respiratory | minocycline | 5.5 |
+| respiratory | doxycycline | 3 |
+| respiratory | minocycline | 2.5 |
 | respiratory | vancomycin | 6.5 |
 | respiratory | linezolid | 7 |
 | respiratory | amoxicillin_clavulanate | 20 |
 | respiratory | piperacillin_tazobactam | 8 |
-| respiratory | aztreonam_avibactam | 6 |
 | respiratory | cefixime | 6.5 |
 | bloodstream | penicillin_g | 6.5 |
 | bloodstream | ampicillin | 10 |
@@ -5546,11 +3365,11 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | bloodstream | ceftriaxone | 10 |
 | bloodstream | ceftazidime | 11 |
 | bloodstream | cefepime | 12 |
-| bloodstream | meropenem | 13 |
-| bloodstream | imipenem_c | 13 |
-| bloodstream | gentamicin | 1 |
-| bloodstream | tobramycin | 1 |
-| bloodstream | amikacin | 1 |
+| bloodstream | meropenem | 17 |
+| bloodstream | imipenem_c | 15 |
+| bloodstream | gentamicin | 10 |
+| bloodstream | tobramycin | 9 |
+| bloodstream | amikacin | 10 |
 | bloodstream | ciprofloxacin | 6 |
 | bloodstream | levofloxacin | 5.5 |
 | bloodstream | vancomycin | 11 |
@@ -5560,24 +3379,26 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | bloodstream | quinu_dalfo | 8.5 |
 | bloodstream | rifampicin | 0.5 |
 | bloodstream | amoxicillin_clavulanate | 16 |
-| bloodstream | piperacillin_tazobactam | 18 |
+| bloodstream | piperacillin_tazobactam | 13 |
 | bloodstream | ampicillin_sulbactam | 16 |
 | bloodstream | ceftazidime_avibactam | 12.5 |
 | bloodstream | meropenem_vaborbactam | 13 |
 | bloodstream | colistin | 0.1 |
 | bloodstream | flucloxacillin | 7.5 |
-| bloodstream | aztreonam_avibactam | 12 |
+| bloodstream | aztreonam_avibactam | 2 |
 | intra_abdominal | ampicillin | 8 |
 | intra_abdominal | amoxicillin | 7 |
 | intra_abdominal | ceftriaxone | 9 |
 | intra_abdominal | ceftazidime | 9 |
 | intra_abdominal | cefepime | 9 |
-| intra_abdominal | meropenem | 13 |
-| intra_abdominal | imipenem_c | 12.5 |
+| intra_abdominal | meropenem | 15 |
+| intra_abdominal | imipenem_c | 14 |
 | intra_abdominal | ertapenem | 11 |
+| intra_abdominal | gentamicin | 7 |
+| intra_abdominal | amikacin | 7 |
 | intra_abdominal | ciprofloxacin | 7 |
 | intra_abdominal | levofloxacin | 6.5 |
-| intra_abdominal | trim_sulf | 4 |
+| intra_abdominal | trim_sulf | 0.1 |
 | intra_abdominal | metronidazole | 2.5 |
 | intra_abdominal | amoxicillin_clavulanate | 11.5 |
 | intra_abdominal | piperacillin_tazobactam | 13 |
@@ -5585,7 +3406,7 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | intra_abdominal | ceftazidime_avibactam | 10 |
 | intra_abdominal | meropenem_vaborbactam | 10 |
 | intra_abdominal | colistin | 0.1 |
-| intra_abdominal | aztreonam_avibactam | 9.5 |
+| intra_abdominal | aztreonam_avibactam | 2 |
 | cns_meningitis | penicillin_g | 11 |
 | cns_meningitis | ampicillin | 13 |
 | cns_meningitis | ceftriaxone | 15 |
@@ -5607,9 +3428,9 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | gastrointestinal | azithromycin | 12 |
 | gastrointestinal | ciprofloxacin | 8 |
 | gastrointestinal | levofloxacin | 6 |
-| gastrointestinal | doxycycline | 8.5 |
-| gastrointestinal | minocycline | 6.5 |
-| gastrointestinal | trim_sulf | 8.5 |
+| gastrointestinal | doxycycline | 4 |
+| gastrointestinal | minocycline | 2.5 |
+| gastrointestinal | trim_sulf | 0.5 |
 | gastrointestinal | metronidazole | 0.2 |
 | gastrointestinal | furazolidone | 0.2 |
 | gastrointestinal | rifampicin | 0.5 |
@@ -5626,8 +3447,8 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | genital_sti | clindamycin | 9 |
 | genital_sti | ciprofloxacin | 4 |
 | genital_sti | levofloxacin | 4 |
-| genital_sti | doxycycline | 12 |
-| genital_sti | trim_sulf | 5 |
+| genital_sti | doxycycline | 5.5 |
+| genital_sti | trim_sulf | 0.4 |
 | genital_sti | metronidazole | 0.25 |
 | genital_sti | rifampicin | 0.5 |
 | genital_sti | amoxicillin_clavulanate | 12 |
@@ -5646,7 +3467,7 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | bone_joint | dalbavancin | 10 |
 | bone_joint | linezolid | 11 |
 | bone_joint | tedizolid | 10 |
-| bone_joint | trim_sulf | 8 |
+| bone_joint | trim_sulf | 0.5 |
 | bone_joint | rifampicin | 2 |
 | bone_joint | piperacillin_tazobactam | 6.5 |
 | bone_joint | flucloxacillin | 14 |
@@ -5659,7 +3480,7 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 | other | vancomycin | 8 |
 | other | linezolid | 7 |
 | other | piperacillin_tazobactam | 8 |
-| other | aztreonam_avibactam | 7.5 |
+| other | aztreonam_avibactam | 2 |
 
 #### Syndrome Drug Penetration
 
@@ -6115,7 +3936,7 @@ See: [§4.1 Syndrome assignment](#41-syndrome-assignment), [§6.2 Drug selection
 
 Infection clearance model parameters. The clearance hazard is a logistic function of base log-odds, per-bacteria adjustments, age effects, immunodeficiency, bacteria level, and treatment duration.
 
-See: [§4.4 Natural clearance](#44-natural-clearance).
+See: [┬º4.4 Natural clearance](#44-natural-clearance).
 
 | Parameter | Value |
 | --- | ---: |
@@ -6129,7 +3950,7 @@ See: [§4.4 Natural clearance](#44-natural-clearance).
 
 ### B.9 Immunodeficiency, Sex, and Vaccination Parameters
 
-See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortality).
+See: [┬º2.3 Immunodeficiency](#23-immunodeficiency), [┬º10 Mortality](#10-mortality).
 
 #### Immunodeficiency
 
@@ -6154,28 +3975,17 @@ See: [§2.3 Immunodeficiency](#23-immunodeficiency), [§10 Mortality](#10-mortal
 
 #### Vaccination
 
-Vaccination parameters are split into three parts:
-
-- a vaccine-specific historical availability year,
-- a target birth-cohort coverage reached over a configurable rollout period,
-- and a bacterium-specific acquisition-effect term `log_odds_vaccinated` (default `-2.0`).
-
-`vaccination_status` is stored per bacterium rather than per vaccine brand, and once acquired it is permanent within the current model. The active runtime mapping is pneumococcal → *S. pneumoniae*, meningococcal → *N. meningitidis*, Hib → *H. influenzae*, and pertussis → *B. pertussis*. Vaccination is assigned once at birth / first day alive, not as a repeated daily age-band hazard.
-
-Under the default parameter map below, vaccination is active. Coverage ramps linearly from 0 at the availability year to the target birth-cohort coverage over `rollout_years`.
-
 | Vaccine | Availability year | Target birth-cohort coverage | Rollout years |
 | --- | ---: | ---: | ---: |
 | pneumococcal | 1977 | 0.75 | 20 |
 | meningococcal | 1981 | 0.55 | 20 |
 | hib | 1985 | 0.85 | 15 |
-| pertussis | 1948 | 0.82 | 20 |
 
 ### B.10 Resistance Mechanisms
 
 Parameters for the 40 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
 
-See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
+See: [┬º7.1 Resistance mechanisms](#71-resistance-mechanisms), [┬º7.2 MechanismΓÇôdrug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [┬º7.3 Resistance emergence](#73-resistance-emergence), [┬º7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
 #### Mechanism Reversion Rates
 
@@ -7692,62 +5502,62 @@ How much resistance each mechanism confers against each drug class. Only non-zer
 | as_yet_unknown | pleuromutilins | 0.5 |
 | as_yet_unknown | other | 0.5 |
 
-#### Bacteria–Mechanism Emergence Rates
+#### BacteriaΓÇôMechanism Emergence Rates
 
-De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero entries shown.
+De novo emergence rate per day for each bacteriaΓÇômechanism pair. Only non-zero entries shown.
 
 | Bacteria | Mechanism | Emergence rate/day |
 | --- | ---: | ---: |
-| acinetobacter_baumannii | enzyme_esbl_ctx_m | 0.006 |
-| acinetobacter_baumannii | enzyme_esbl_tem | 0.006 |
-| acinetobacter_baumannii | enzyme_esbl_shv | 0.006 |
-| acinetobacter_baumannii | enzyme_kpc | 0.006 |
-| acinetobacter_baumannii | enzyme_ndm_vim | 0.006 |
-| acinetobacter_baumannii | enzyme_oxa_48 | 0.006 |
-| acinetobacter_baumannii | enzyme_ampc_cmy | 0.006 |
-| acinetobacter_baumannii | enzyme_ampc_dha | 0.006 |
+| acinetobacter_baumannii | enzyme_esbl_ctx_m | 0.003 |
+| acinetobacter_baumannii | enzyme_esbl_tem | 0.003 |
+| acinetobacter_baumannii | enzyme_esbl_shv | 0.003 |
+| acinetobacter_baumannii | enzyme_kpc | 0.002 |
+| acinetobacter_baumannii | enzyme_ndm_vim | 0.002 |
+| acinetobacter_baumannii | enzyme_oxa_48 | 0.002 |
+| acinetobacter_baumannii | enzyme_ampc_cmy | 0.003 |
+| acinetobacter_baumannii | enzyme_ampc_dha | 0.003 |
 | acinetobacter_baumannii | mutation_gyra_primary | 0.09 |
 | acinetobacter_baumannii | mutation_gyra_parc_secondary | 0.09 |
 | acinetobacter_baumannii | protection_qnr | 0.09 |
-| acinetobacter_baumannii | enzyme_16s_rrmt | 10 |
-| acinetobacter_baumannii | enzyme_cat | 0.01 |
-| acinetobacter_baumannii | modification_mcr_1 | 0.01 |
+| acinetobacter_baumannii | enzyme_16s_rrmt | 2 |
+| acinetobacter_baumannii | enzyme_cat | 0.03 |
+| acinetobacter_baumannii | modification_mcr_1 | 0.1 |
 | acinetobacter_baumannii | global_efflux_pump | 0.025 |
 | acinetobacter_baumannii | global_porin_loss | 1e-4 |
-| acinetobacter_baumannii | mutation_folate_pathway | 0.05 |
+| acinetobacter_baumannii | mutation_folate_pathway | 0.1 |
 | acinetobacter_baumannii | enzyme_fos_a | 0.0035 |
-| acinetobacter_baumannii | mutation_rpo_b | 0.045 |
-| acinetobacter_baumannii | protection_tet_m | 0.05 |
-| acinetobacter_baumannii | enzyme_aac_aph | 10 |
-| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 0.006 |
-| acinetobacter_baumannii | efflux_tet_abc | 0.0025 |
-| acinetobacter_baumannii | mutation_pbp_mosaic | 0.006 |
-| citrobacter_spp. | enzyme_esbl_ctx_m | 0.001 |
-| citrobacter_spp. | enzyme_esbl_tem | 0.001 |
-| citrobacter_spp. | enzyme_esbl_shv | 0.001 |
-| citrobacter_spp. | enzyme_kpc | 0.001 |
-| citrobacter_spp. | enzyme_ndm_vim | 0.001 |
-| citrobacter_spp. | enzyme_oxa_48 | 0.001 |
-| citrobacter_spp. | enzyme_ampc_cmy | 0.001 |
-| citrobacter_spp. | enzyme_ampc_dha | 0.001 |
-| citrobacter_spp. | mutation_gyra_primary | 0.04 |
-| citrobacter_spp. | mutation_gyra_parc_secondary | 3e-4 |
-| citrobacter_spp. | protection_qnr | 0.04 |
-| citrobacter_spp. | enzyme_16s_rrmt | 0.5 |
-| citrobacter_spp. | enzyme_cat | 0.03 |
-| citrobacter_spp. | efflux_acrab_tolc | 0.015 |
-| citrobacter_spp. | efflux_mexxy_oprm | 0.0015 |
+| acinetobacter_baumannii | mutation_rpo_b | 1 |
+| acinetobacter_baumannii | protection_tet_m | 0.03 |
+| acinetobacter_baumannii | enzyme_aac_aph | 2 |
+| acinetobacter_baumannii | enzyme_oxa_acinetobacter | 0.002 |
+| acinetobacter_baumannii | efflux_tet_abc | 0.03 |
+| acinetobacter_baumannii | mutation_pbp_mosaic | 0.003 |
+| citrobacter_spp. | enzyme_esbl_ctx_m | 1e-4 |
+| citrobacter_spp. | enzyme_esbl_tem | 1e-4 |
+| citrobacter_spp. | enzyme_esbl_shv | 1e-4 |
+| citrobacter_spp. | enzyme_kpc | 1e-4 |
+| citrobacter_spp. | enzyme_ndm_vim | 1e-4 |
+| citrobacter_spp. | enzyme_oxa_48 | 1e-4 |
+| citrobacter_spp. | enzyme_ampc_cmy | 1e-4 |
+| citrobacter_spp. | enzyme_ampc_dha | 1e-4 |
+| citrobacter_spp. | mutation_gyra_primary | 0.05 |
+| citrobacter_spp. | mutation_gyra_parc_secondary | 0.05 |
+| citrobacter_spp. | protection_qnr | 0.05 |
+| citrobacter_spp. | enzyme_16s_rrmt | 0.1 |
+| citrobacter_spp. | enzyme_cat | 0.015 |
+| citrobacter_spp. | efflux_acrab_tolc | 0.01 |
+| citrobacter_spp. | efflux_mexxy_oprm | 1e-4 |
 | citrobacter_spp. | modification_mcr_1 | 0.05 |
-| citrobacter_spp. | global_efflux_pump | 0.003 |
-| citrobacter_spp. | global_porin_loss | 5e-4 |
+| citrobacter_spp. | global_efflux_pump | 0.005 |
+| citrobacter_spp. | global_porin_loss | 3e-4 |
 | citrobacter_spp. | mutation_folate_pathway | 0.003 |
-| citrobacter_spp. | mutation_nitroreductase | 0.015 |
-| citrobacter_spp. | enzyme_fos_a | 0.005 |
-| citrobacter_spp. | mutation_rpo_b | 0.02 |
-| citrobacter_spp. | protection_tet_m | 0.004 |
-| citrobacter_spp. | enzyme_aac_aph | 0.5 |
-| citrobacter_spp. | efflux_tet_abc | 0.004 |
-| citrobacter_spp. | mutation_pbp_mosaic | 0.0015 |
+| citrobacter_spp. | mutation_nitroreductase | 0.01 |
+| citrobacter_spp. | enzyme_fos_a | 0.003 |
+| citrobacter_spp. | mutation_rpo_b | 0.015 |
+| citrobacter_spp. | protection_tet_m | 0.005 |
+| citrobacter_spp. | enzyme_aac_aph | 0.1 |
+| citrobacter_spp. | efflux_tet_abc | 0.005 |
+| citrobacter_spp. | mutation_pbp_mosaic | 1e-4 |
 | enterobacter_spp. | enzyme_esbl_ctx_m | 0.001 |
 | enterobacter_spp. | enzyme_esbl_tem | 0.001 |
 | enterobacter_spp. | enzyme_esbl_shv | 0.001 |
@@ -7756,185 +5566,185 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | enterobacter_spp. | enzyme_oxa_48 | 3e-4 |
 | enterobacter_spp. | enzyme_ampc_cmy | 0.001 |
 | enterobacter_spp. | enzyme_ampc_dha | 0.001 |
-| enterobacter_spp. | mutation_gyra_primary | 5e-4 |
-| enterobacter_spp. | mutation_gyra_parc_secondary | 5e-4 |
-| enterobacter_spp. | protection_qnr | 5e-4 |
-| enterobacter_spp. | enzyme_16s_rrmt | 0.3 |
-| enterobacter_spp. | enzyme_cat | 0.004 |
-| enterobacter_spp. | efflux_acrab_tolc | 5e-4 |
+| enterobacter_spp. | mutation_gyra_primary | 0.01 |
+| enterobacter_spp. | mutation_gyra_parc_secondary | 0.001 |
+| enterobacter_spp. | protection_qnr | 0.01 |
+| enterobacter_spp. | enzyme_16s_rrmt | 0.2 |
+| enterobacter_spp. | enzyme_cat | 0.003 |
+| enterobacter_spp. | efflux_acrab_tolc | 0.01 |
 | enterobacter_spp. | modification_mcr_1 | 0.03 |
-| enterobacter_spp. | global_efflux_pump | 5e-4 |
+| enterobacter_spp. | global_efflux_pump | 0.01 |
 | enterobacter_spp. | global_porin_loss | 5e-4 |
 | enterobacter_spp. | mutation_folate_pathway | 0.001 |
 | enterobacter_spp. | mutation_nitroreductase | 0.005 |
 | enterobacter_spp. | enzyme_fos_a | 0.02 |
 | enterobacter_spp. | mutation_rpo_b | 0.03 |
-| enterobacter_spp. | protection_tet_m | 0.01 |
-| enterobacter_spp. | enzyme_aac_aph | 0.3 |
-| enterobacter_spp. | efflux_tet_abc | 0.01 |
-| enterobacter_spp. | mutation_pbp_mosaic | 0.001 |
-| enterococcus_faecalis | target_site_pbp2a_meca | 2e-5 |
+| enterobacter_spp. | protection_tet_m | 0.008 |
+| enterobacter_spp. | enzyme_aac_aph | 0.2 |
+| enterobacter_spp. | efflux_tet_abc | 0.008 |
+| enterobacter_spp. | mutation_pbp_mosaic | 3e-4 |
+| enterococcus_faecalis | target_site_pbp2a_meca | 5e-6 |
 | enterococcus_faecalis | target_site_van_a | 0.02 |
 | enterococcus_faecalis | target_site_van_b | 0.02 |
-| enterococcus_faecalis | mutation_gyra_primary | 0.002 |
-| enterococcus_faecalis | mutation_gyra_parc_secondary | 3e-4 |
+| enterococcus_faecalis | mutation_gyra_primary | 0.01 |
+| enterococcus_faecalis | mutation_gyra_parc_secondary | 0.01 |
 | enterococcus_faecalis | target_site_erm_b | 0.002 |
 | enterococcus_faecalis | target_site_cfr | 0.003 |
 | enterococcus_faecalis | enzyme_cat | 2e-4 |
-| enterococcus_faecalis | global_efflux_pump | 3e-4 |
+| enterococcus_faecalis | global_efflux_pump | 0.001 |
 | enterococcus_faecalis | global_porin_loss | 1e-4 |
 | enterococcus_faecalis | mutation_folate_pathway | 0.02 |
 | enterococcus_faecalis | mutation_nitroreductase | 0.02 |
 | enterococcus_faecalis | mutation_mpr_f | 0.005 |
 | enterococcus_faecalis | mutation_rpo_b | 0.005 |
 | enterococcus_faecalis | protection_fus_b | 5e-4 |
-| enterococcus_faecalis | protection_tet_m | 0.002 |
+| enterococcus_faecalis | protection_tet_m | 0.004 |
 | enterococcus_faecalis | enzyme_aac_aph | 2e-5 |
 | enterococcus_faecalis | mutation_23s_rrna | 3e-4 |
-| enterococcus_faecalis | mutation_pbp_mosaic | 1.5e-5 |
-| enterococcus_faecium | target_site_van_a | 0.008 |
-| enterococcus_faecium | target_site_van_b | 0.008 |
-| enterococcus_faecium | mutation_gyra_primary | 5e-4 |
-| enterococcus_faecium | mutation_gyra_parc_secondary | 0.002 |
-| enterococcus_faecium | enzyme_16s_rrmt | 0.003 |
-| enterococcus_faecium | target_site_erm_b | 0.008 |
-| enterococcus_faecium | target_site_cfr | 0.008 |
-| enterococcus_faecium | enzyme_cat | 0.0015 |
-| enterococcus_faecium | global_efflux_pump | 0.005 |
-| enterococcus_faecium | mutation_folate_pathway | 0.004 |
+| enterococcus_faecalis | mutation_pbp_mosaic | 2e-6 |
+| enterococcus_faecium | target_site_van_a | 0.001 |
+| enterococcus_faecium | target_site_van_b | 0.001 |
+| enterococcus_faecium | mutation_gyra_primary | 0.015 |
+| enterococcus_faecium | mutation_gyra_parc_secondary | 0.015 |
+| enterococcus_faecium | enzyme_16s_rrmt | 0.01 |
+| enterococcus_faecium | target_site_erm_b | 0.01 |
+| enterococcus_faecium | target_site_cfr | 0.005 |
+| enterococcus_faecium | enzyme_cat | 0.01 |
+| enterococcus_faecium | global_efflux_pump | 0.015 |
+| enterococcus_faecium | mutation_folate_pathway | 0.01 |
 | enterococcus_faecium | mutation_nitroreductase | 0.3 |
-| enterococcus_faecium | enzyme_fos_a | 0.3 |
-| enterococcus_faecium | mutation_mpr_f | 0.012 |
-| enterococcus_faecium | mutation_rpo_b | 0.12 |
+| enterococcus_faecium | enzyme_fos_a | 0.5 |
+| enterococcus_faecium | mutation_mpr_f | 0.03 |
+| enterococcus_faecium | mutation_rpo_b | 0.3 |
 | enterococcus_faecium | protection_fus_b | 0.012 |
-| enterococcus_faecium | protection_tet_m | 0.004 |
-| enterococcus_faecium | enzyme_aac_aph | 0.025 |
-| enterococcus_faecium | mutation_23s_rrna | 0.0012 |
-| enterococcus_faecium | mutation_pbp_mosaic | 0.012 |
+| enterococcus_faecium | protection_tet_m | 0.01 |
+| enterococcus_faecium | enzyme_aac_aph | 0.1 |
+| enterococcus_faecium | mutation_23s_rrna | 0.002 |
+| enterococcus_faecium | mutation_pbp_mosaic | 0.03 |
 | enterococcus_faecium | efflux_mtr_cde | 0.0012 |
-| escherichia_coli | enzyme_esbl_ctx_m | 1e-6 |
-| escherichia_coli | enzyme_esbl_tem | 1e-6 |
-| escherichia_coli | enzyme_esbl_shv | 1e-6 |
-| escherichia_coli | enzyme_kpc | 1e-6 |
-| escherichia_coli | enzyme_ndm_vim | 1e-6 |
-| escherichia_coli | enzyme_oxa_48 | 1e-6 |
-| escherichia_coli | enzyme_ampc_cmy | 1e-6 |
-| escherichia_coli | enzyme_ampc_dha | 1e-6 |
-| escherichia_coli | mutation_gyra_primary | 0.003 |
-| escherichia_coli | mutation_gyra_parc_secondary | 3e-4 |
-| escherichia_coli | protection_qnr | 0.003 |
-| escherichia_coli | enzyme_16s_rrmt | 1e-6 |
+| escherichia_coli | enzyme_esbl_ctx_m | 5e-7 |
+| escherichia_coli | enzyme_esbl_tem | 5e-7 |
+| escherichia_coli | enzyme_esbl_shv | 5e-7 |
+| escherichia_coli | enzyme_kpc | 5e-8 |
+| escherichia_coli | enzyme_ndm_vim | 5e-8 |
+| escherichia_coli | enzyme_oxa_48 | 5e-8 |
+| escherichia_coli | enzyme_ampc_cmy | 5e-7 |
+| escherichia_coli | enzyme_ampc_dha | 5e-7 |
+| escherichia_coli | mutation_gyra_primary | 0.02 |
+| escherichia_coli | mutation_gyra_parc_secondary | 0.003 |
+| escherichia_coli | protection_qnr | 0.03 |
+| escherichia_coli | enzyme_16s_rrmt | 0.01 |
 | escherichia_coli | enzyme_cat | 1e-6 |
-| escherichia_coli | efflux_acrab_tolc | 1e-4 |
+| escherichia_coli | efflux_acrab_tolc | 0.003 |
 | escherichia_coli | modification_mcr_1 | 1e-5 |
-| escherichia_coli | global_efflux_pump | 1e-4 |
+| escherichia_coli | global_efflux_pump | 0.003 |
 | escherichia_coli | global_porin_loss | 1e-7 |
-| escherichia_coli | mutation_folate_pathway | 1e-4 |
+| escherichia_coli | mutation_folate_pathway | 2e-4 |
 | escherichia_coli | mutation_nitroreductase | 1e-6 |
-| escherichia_coli | enzyme_fos_a | 1e-6 |
-| escherichia_coli | mutation_rpo_b | 1e-5 |
-| escherichia_coli | protection_tet_m | 1e-6 |
-| escherichia_coli | enzyme_aac_aph | 0.001 |
-| escherichia_coli | efflux_tet_abc | 1e-6 |
+| escherichia_coli | enzyme_fos_a | 3e-6 |
+| escherichia_coli | mutation_rpo_b | 1e-4 |
+| escherichia_coli | protection_tet_m | 0.01 |
+| escherichia_coli | enzyme_aac_aph | 0.01 |
+| escherichia_coli | efflux_tet_abc | 0.003 |
 | klebsiella_pneumoniae | enzyme_esbl_ctx_m | 1e-5 |
 | klebsiella_pneumoniae | enzyme_esbl_tem | 1e-5 |
 | klebsiella_pneumoniae | enzyme_esbl_shv | 1e-5 |
-| klebsiella_pneumoniae | enzyme_kpc | 1e-5 |
-| klebsiella_pneumoniae | enzyme_ndm_vim | 1e-5 |
-| klebsiella_pneumoniae | enzyme_oxa_48 | 1e-5 |
+| klebsiella_pneumoniae | enzyme_kpc | 3e-7 |
+| klebsiella_pneumoniae | enzyme_ndm_vim | 3e-7 |
+| klebsiella_pneumoniae | enzyme_oxa_48 | 3e-7 |
 | klebsiella_pneumoniae | enzyme_ampc_cmy | 1e-5 |
 | klebsiella_pneumoniae | enzyme_ampc_dha | 1e-5 |
 | klebsiella_pneumoniae | mutation_gyra_primary | 0.001 |
-| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.001 |
-| klebsiella_pneumoniae | protection_qnr | 0.001 |
-| klebsiella_pneumoniae | enzyme_16s_rrmt | 0.015 |
+| klebsiella_pneumoniae | mutation_gyra_parc_secondary | 0.0015 |
+| klebsiella_pneumoniae | protection_qnr | 0.0015 |
+| klebsiella_pneumoniae | enzyme_16s_rrmt | 5e-4 |
 | klebsiella_pneumoniae | enzyme_cat | 0.002 |
-| klebsiella_pneumoniae | efflux_acrab_tolc | 0.001 |
-| klebsiella_pneumoniae | porin_loss_ompk35_36 | 1e-5 |
+| klebsiella_pneumoniae | efflux_acrab_tolc | 0.0015 |
+| klebsiella_pneumoniae | porin_loss_ompk35_36 | 3e-7 |
 | klebsiella_pneumoniae | modification_mcr_1 | 0.01 |
-| klebsiella_pneumoniae | global_efflux_pump | 0.001 |
+| klebsiella_pneumoniae | global_efflux_pump | 0.0015 |
 | klebsiella_pneumoniae | global_porin_loss | 3e-9 |
 | klebsiella_pneumoniae | mutation_folate_pathway | 0.001 |
 | klebsiella_pneumoniae | mutation_nitroreductase | 0.002 |
 | klebsiella_pneumoniae | enzyme_fos_a | 0.003 |
 | klebsiella_pneumoniae | mutation_rpo_b | 2e-4 |
-| klebsiella_pneumoniae | protection_tet_m | 2e-4 |
-| klebsiella_pneumoniae | enzyme_aac_aph | 0.04 |
-| klebsiella_pneumoniae | efflux_tet_abc | 3e-4 |
-| morganella_spp. | enzyme_esbl_ctx_m | 2e-4 |
-| morganella_spp. | enzyme_esbl_tem | 2e-4 |
-| morganella_spp. | enzyme_esbl_shv | 2e-4 |
-| morganella_spp. | enzyme_kpc | 5e-5 |
-| morganella_spp. | enzyme_ndm_vim | 5e-5 |
-| morganella_spp. | enzyme_oxa_48 | 5e-5 |
-| morganella_spp. | enzyme_ampc_cmy | 1e-4 |
-| morganella_spp. | enzyme_ampc_dha | 1e-4 |
-| morganella_spp. | mutation_gyra_primary | 0.03 |
-| morganella_spp. | mutation_gyra_parc_secondary | 0.03 |
-| morganella_spp. | protection_qnr | 0.03 |
-| morganella_spp. | enzyme_16s_rrmt | 1 |
+| klebsiella_pneumoniae | protection_tet_m | 0.001 |
+| klebsiella_pneumoniae | enzyme_aac_aph | 5e-4 |
+| klebsiella_pneumoniae | efflux_tet_abc | 0.001 |
+| morganella_spp. | enzyme_esbl_ctx_m | 3e-5 |
+| morganella_spp. | enzyme_esbl_tem | 3e-5 |
+| morganella_spp. | enzyme_esbl_shv | 3e-5 |
+| morganella_spp. | enzyme_kpc | 1e-5 |
+| morganella_spp. | enzyme_ndm_vim | 1e-5 |
+| morganella_spp. | enzyme_oxa_48 | 1e-5 |
+| morganella_spp. | enzyme_ampc_cmy | 3e-5 |
+| morganella_spp. | enzyme_ampc_dha | 3e-5 |
+| morganella_spp. | mutation_gyra_primary | 0.15 |
+| morganella_spp. | mutation_gyra_parc_secondary | 0.15 |
+| morganella_spp. | protection_qnr | 0.15 |
+| morganella_spp. | enzyme_16s_rrmt | 0.8 |
 | morganella_spp. | enzyme_cat | 0.1 |
 | morganella_spp. | efflux_acrab_tolc | 0.003 |
-| morganella_spp. | efflux_mexxy_oprm | 2e-4 |
+| morganella_spp. | efflux_mexxy_oprm | 1e-5 |
 | morganella_spp. | modification_mcr_1 | 0.02 |
-| morganella_spp. | global_efflux_pump | 0.003 |
+| morganella_spp. | global_efflux_pump | 0.01 |
 | morganella_spp. | global_porin_loss | 1e-5 |
-| morganella_spp. | mutation_folate_pathway | 0.004 |
+| morganella_spp. | mutation_folate_pathway | 0.003 |
 | morganella_spp. | mutation_nitroreductase | 0.03 |
 | morganella_spp. | enzyme_fos_a | 0.003 |
 | morganella_spp. | mutation_rpo_b | 0.01 |
 | morganella_spp. | protection_tet_m | 0.003 |
-| morganella_spp. | enzyme_aac_aph | 1 |
+| morganella_spp. | enzyme_aac_aph | 0.8 |
 | morganella_spp. | efflux_tet_abc | 0.003 |
-| morganella_spp. | mutation_pbp_mosaic | 2e-5 |
-| proteus_spp. | enzyme_esbl_ctx_m | 2e-5 |
-| proteus_spp. | enzyme_esbl_tem | 2e-5 |
-| proteus_spp. | enzyme_esbl_shv | 2e-5 |
+| morganella_spp. | mutation_pbp_mosaic | 1e-5 |
+| proteus_spp. | enzyme_esbl_ctx_m | 3e-5 |
+| proteus_spp. | enzyme_esbl_tem | 3e-5 |
+| proteus_spp. | enzyme_esbl_shv | 3e-5 |
 | proteus_spp. | enzyme_kpc | 1.5e-5 |
 | proteus_spp. | enzyme_ndm_vim | 1.5e-5 |
 | proteus_spp. | enzyme_oxa_48 | 1.5e-5 |
-| proteus_spp. | enzyme_ampc_cmy | 2e-5 |
-| proteus_spp. | enzyme_ampc_dha | 2e-5 |
+| proteus_spp. | enzyme_ampc_cmy | 3e-5 |
+| proteus_spp. | enzyme_ampc_dha | 3e-5 |
 | proteus_spp. | mutation_gyra_primary | 0.04 |
 | proteus_spp. | mutation_gyra_parc_secondary | 0.01 |
 | proteus_spp. | protection_qnr | 0.01 |
-| proteus_spp. | enzyme_16s_rrmt | 0.02 |
+| proteus_spp. | enzyme_16s_rrmt | 0.8 |
 | proteus_spp. | enzyme_cat | 3.5e-4 |
-| proteus_spp. | efflux_acrab_tolc | 0.005 |
+| proteus_spp. | efflux_acrab_tolc | 0.003 |
 | proteus_spp. | modification_mcr_1 | 5e-4 |
-| proteus_spp. | global_efflux_pump | 0.05 |
+| proteus_spp. | global_efflux_pump | 0.03 |
 | proteus_spp. | global_porin_loss | 1.5e-4 |
 | proteus_spp. | mutation_folate_pathway | 0.002 |
 | proteus_spp. | mutation_nitroreductase | 1.5e-5 |
 | proteus_spp. | enzyme_fos_a | 0.0015 |
 | proteus_spp. | mutation_rpo_b | 1e-4 |
-| proteus_spp. | protection_tet_m | 0.0035 |
-| proteus_spp. | enzyme_aac_aph | 0.02 |
+| proteus_spp. | protection_tet_m | 0.002 |
+| proteus_spp. | enzyme_aac_aph | 0.08 |
 | proteus_spp. | efflux_tet_abc | 1e-6 |
-| serratia_spp. | enzyme_esbl_ctx_m | 0.0018 |
-| serratia_spp. | enzyme_esbl_tem | 0.0018 |
-| serratia_spp. | enzyme_esbl_shv | 0.0018 |
-| serratia_spp. | enzyme_kpc | 4e-4 |
-| serratia_spp. | enzyme_ndm_vim | 4e-4 |
-| serratia_spp. | enzyme_oxa_48 | 4e-4 |
-| serratia_spp. | enzyme_ampc_cmy | 0.0018 |
-| serratia_spp. | enzyme_ampc_dha | 0.0018 |
-| serratia_spp. | mutation_gyra_primary | 0.02 |
+| serratia_spp. | enzyme_esbl_ctx_m | 5e-4 |
+| serratia_spp. | enzyme_esbl_tem | 5e-4 |
+| serratia_spp. | enzyme_esbl_shv | 5e-4 |
+| serratia_spp. | enzyme_kpc | 1e-4 |
+| serratia_spp. | enzyme_ndm_vim | 1e-4 |
+| serratia_spp. | enzyme_oxa_48 | 1e-4 |
+| serratia_spp. | enzyme_ampc_cmy | 5e-4 |
+| serratia_spp. | enzyme_ampc_dha | 5e-4 |
+| serratia_spp. | mutation_gyra_primary | 0.025 |
 | serratia_spp. | mutation_gyra_parc_secondary | 0.01 |
 | serratia_spp. | protection_qnr | 0.01 |
-| serratia_spp. | enzyme_16s_rrmt | 0.9 |
-| serratia_spp. | enzyme_cat | 5e-5 |
-| serratia_spp. | efflux_acrab_tolc | 0.008 |
+| serratia_spp. | enzyme_16s_rrmt | 0.5 |
+| serratia_spp. | enzyme_cat | 3e-5 |
+| serratia_spp. | efflux_acrab_tolc | 0.005 |
 | serratia_spp. | modification_mcr_1 | 0.03 |
-| serratia_spp. | global_efflux_pump | 0.0015 |
+| serratia_spp. | global_efflux_pump | 0.005 |
 | serratia_spp. | global_porin_loss | 3e-5 |
 | serratia_spp. | mutation_folate_pathway | 0.001 |
 | serratia_spp. | mutation_nitroreductase | 0.002 |
 | serratia_spp. | enzyme_fos_a | 2e-4 |
 | serratia_spp. | mutation_rpo_b | 0.03 |
-| serratia_spp. | protection_tet_m | 0.0015 |
-| serratia_spp. | enzyme_aac_aph | 1 |
-| serratia_spp. | efflux_tet_abc | 2e-4 |
+| serratia_spp. | protection_tet_m | 0.003 |
+| serratia_spp. | enzyme_aac_aph | 0.5 |
+| serratia_spp. | efflux_tet_abc | 0.003 |
 | p_stuartii | enzyme_esbl_ctx_m | 1.9e-4 |
 | p_stuartii | enzyme_esbl_tem | 1.9e-4 |
 | p_stuartii | enzyme_esbl_shv | 3.7e-5 |
@@ -7959,33 +5769,33 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | p_stuartii | protection_tet_m | 3.8e-4 |
 | p_stuartii | enzyme_aac_aph | 5e-11 |
 | p_stuartii | efflux_tet_abc | 5e-11 |
-| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_tem | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_esbl_shv | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_kpc | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_ndm_vim | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_oxa_48 | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_cmy | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_ampc_dha | 3e-5 |
-| pseudomonas_aeruginosa | mutation_gyra_primary | 0.001 |
-| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.001 |
-| pseudomonas_aeruginosa | protection_qnr | 0.001 |
-| pseudomonas_aeruginosa | enzyme_16s_rrmt | 4e-4 |
-| pseudomonas_aeruginosa | target_site_erm_b | 3e-5 |
-| pseudomonas_aeruginosa | target_site_cfr | 3e-5 |
-| pseudomonas_aeruginosa | enzyme_cat | 4e-4 |
-| pseudomonas_aeruginosa | efflux_mexxy_oprm | 5e-4 |
-| pseudomonas_aeruginosa | porin_loss_oprd | 5e-4 |
-| pseudomonas_aeruginosa | modification_mcr_1 | 0.003 |
-| pseudomonas_aeruginosa | global_efflux_pump | 3e-4 |
-| pseudomonas_aeruginosa | global_porin_loss | 3e-4 |
-| pseudomonas_aeruginosa | mutation_folate_pathway | 0.003 |
-| pseudomonas_aeruginosa | mutation_nitroreductase | 3e-5 |
+| pseudomonas_aeruginosa | enzyme_esbl_ctx_m | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_esbl_tem | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_esbl_shv | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_kpc | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_ndm_vim | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_oxa_48 | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_ampc_cmy | 1.5e-4 |
+| pseudomonas_aeruginosa | enzyme_ampc_dha | 1.5e-4 |
+| pseudomonas_aeruginosa | mutation_gyra_primary | 0.002 |
+| pseudomonas_aeruginosa | mutation_gyra_parc_secondary | 0.002 |
+| pseudomonas_aeruginosa | protection_qnr | 0.002 |
+| pseudomonas_aeruginosa | enzyme_16s_rrmt | 1e-4 |
+| pseudomonas_aeruginosa | target_site_erm_b | 2e-5 |
+| pseudomonas_aeruginosa | target_site_cfr | 2e-5 |
+| pseudomonas_aeruginosa | enzyme_cat | 2e-4 |
+| pseudomonas_aeruginosa | efflux_mexxy_oprm | 1.5e-4 |
+| pseudomonas_aeruginosa | porin_loss_oprd | 1.5e-4 |
+| pseudomonas_aeruginosa | modification_mcr_1 | 5e-4 |
+| pseudomonas_aeruginosa | global_efflux_pump | 5e-4 |
+| pseudomonas_aeruginosa | global_porin_loss | 2e-4 |
+| pseudomonas_aeruginosa | mutation_folate_pathway | 0.002 |
+| pseudomonas_aeruginosa | mutation_nitroreductase | 2e-5 |
 | pseudomonas_aeruginosa | enzyme_fos_a | 0.01 |
-| pseudomonas_aeruginosa | mutation_rpo_b | 0.001 |
-| pseudomonas_aeruginosa | protection_tet_m | 0.004 |
-| pseudomonas_aeruginosa | enzyme_aac_aph | 0.001 |
-| pseudomonas_aeruginosa | efflux_tet_abc | 2e-5 |
+| pseudomonas_aeruginosa | mutation_rpo_b | 5e-4 |
+| pseudomonas_aeruginosa | protection_tet_m | 0.002 |
+| pseudomonas_aeruginosa | enzyme_aac_aph | 1e-4 |
+| pseudomonas_aeruginosa | efflux_tet_abc | 1e-5 |
 | stenotrophomonas_maltophilia | enzyme_esbl_ctx_m | 2e-5 |
 | stenotrophomonas_maltophilia | enzyme_esbl_tem | 2e-5 |
 | stenotrophomonas_maltophilia | enzyme_esbl_shv | 2e-5 |
@@ -7996,39 +5806,39 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | stenotrophomonas_maltophilia | enzyme_ampc_dha | 2e-4 |
 | stenotrophomonas_maltophilia | mutation_gyra_primary | 5e-8 |
 | stenotrophomonas_maltophilia | mutation_gyra_parc_secondary | 5e-8 |
-| stenotrophomonas_maltophilia | protection_qnr | 2e-5 |
+| stenotrophomonas_maltophilia | protection_qnr | 1.5e-5 |
 | stenotrophomonas_maltophilia | enzyme_16s_rrmt | 0.01 |
 | stenotrophomonas_maltophilia | target_site_erm_b | 0.1 |
 | stenotrophomonas_maltophilia | enzyme_cat | 5e-7 |
 | stenotrophomonas_maltophilia | modification_mcr_1 | 0.05 |
 | stenotrophomonas_maltophilia | global_efflux_pump | 1e-7 |
 | stenotrophomonas_maltophilia | global_porin_loss | 1e-13 |
-| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.005 |
+| stenotrophomonas_maltophilia | mutation_folate_pathway | 0.003 |
 | stenotrophomonas_maltophilia | mutation_nitroreductase | 10 |
 | stenotrophomonas_maltophilia | enzyme_fos_a | 0.03 |
 | stenotrophomonas_maltophilia | mutation_rpo_b | 2e-4 |
-| stenotrophomonas_maltophilia | protection_tet_m | 5e-7 |
+| stenotrophomonas_maltophilia | protection_tet_m | 2e-7 |
 | stenotrophomonas_maltophilia | enzyme_aac_aph | 0.05 |
 | stenotrophomonas_maltophilia | efflux_tet_abc | 2e-9 |
-| staphylococcus_aureus | target_site_pbp2a_meca | 1e-7 |
-| staphylococcus_aureus | target_site_van_a | 1e-8 |
-| staphylococcus_aureus | target_site_van_b | 5e-11 |
-| staphylococcus_aureus | mutation_gyra_primary | 1.5e-5 |
-| staphylococcus_aureus | mutation_gyra_parc_secondary | 1.5e-5 |
-| staphylococcus_aureus | enzyme_16s_rrmt | 1e-5 |
-| staphylococcus_aureus | target_site_erm_b | 4e-6 |
-| staphylococcus_aureus | target_site_cfr | 4e-8 |
-| staphylococcus_aureus | enzyme_cat | 1e-8 |
-| staphylococcus_aureus | global_efflux_pump | 4e-6 |
-| staphylococcus_aureus | mutation_folate_pathway | 1e-5 |
-| staphylococcus_aureus | mutation_nitroreductase | 1e-5 |
-| staphylococcus_aureus | enzyme_fos_a | 1e-5 |
-| staphylococcus_aureus | mutation_mpr_f | 1e-5 |
-| staphylococcus_aureus | mutation_rpo_b | 1e-5 |
-| staphylococcus_aureus | protection_fus_b | 1e-5 |
-| staphylococcus_aureus | protection_tet_m | 4e-6 |
-| staphylococcus_aureus | enzyme_aac_aph | 1e-5 |
-| staphylococcus_aureus | enzyme_bla_z | 1e-8 |
+| staphylococcus_aureus | target_site_pbp2a_meca | 2e-7 |
+| staphylococcus_aureus | target_site_van_a | 1e-6 |
+| staphylococcus_aureus | target_site_van_b | 2e-7 |
+| staphylococcus_aureus | mutation_gyra_primary | 0.02 |
+| staphylococcus_aureus | mutation_gyra_parc_secondary | 0.01 |
+| staphylococcus_aureus | enzyme_16s_rrmt | 0.2 |
+| staphylococcus_aureus | target_site_erm_b | 1.5e-4 |
+| staphylococcus_aureus | target_site_cfr | 1e-4 |
+| staphylococcus_aureus | enzyme_cat | 4e-5 |
+| staphylococcus_aureus | global_efflux_pump | 0.003 |
+| staphylococcus_aureus | mutation_folate_pathway | 0.003 |
+| staphylococcus_aureus | mutation_nitroreductase | 0.003 |
+| staphylococcus_aureus | enzyme_fos_a | 0.003 |
+| staphylococcus_aureus | mutation_mpr_f | 0.003 |
+| staphylococcus_aureus | mutation_rpo_b | 0.003 |
+| staphylococcus_aureus | protection_fus_b | 0.003 |
+| staphylococcus_aureus | protection_tet_m | 0.002 |
+| staphylococcus_aureus | enzyme_aac_aph | 0.2 |
+| staphylococcus_aureus | enzyme_bla_z | 5e-7 |
 | staphylococcus_epidermidis | target_site_pbp2a_meca | 1e-6 |
 | staphylococcus_epidermidis | target_site_van_a | 1e-8 |
 | staphylococcus_epidermidis | target_site_van_b | 1e-8 |
@@ -8110,14 +5920,14 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | salmonella_enterica_serovar_paratyphi_a | efflux_tet_abc | 0.007 |
 | salmonella_enterica_serovar_paratyphi_a | mutation_pbp_mosaic | 0.001 |
 | salmonella_enterica_serovar_paratyphi_a | efflux_mtr_cde | 5e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 2.2e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 2.2e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 2.2e-5 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 2.2e-4 |
-| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 2.2e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_ctx_m | 1.5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_tem | 1.5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_esbl_shv | 1.5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_kpc | 1.5e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ndm_vim | 1.5e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_oxa_48 | 1.5e-5 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_cmy | 1.5e-4 |
+| invasive_non-typhoidal_salmonella_spp. | enzyme_ampc_dha | 1.5e-4 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_gyra_primary | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | mutation_gyra_parc_secondary | 0.1 |
 | invasive_non-typhoidal_salmonella_spp. | protection_qnr | 0.1 |
@@ -8134,24 +5944,24 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | invasive_non-typhoidal_salmonella_spp. | protection_tet_m | 0.004 |
 | invasive_non-typhoidal_salmonella_spp. | enzyme_aac_aph | 0.8 |
 | invasive_non-typhoidal_salmonella_spp. | efflux_tet_abc | 0.08 |
-| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 2.5e-6 |
+| invasive_non-typhoidal_salmonella_spp. | efflux_mtr_cde | 5e-5 |
 | shigella_spp. | enzyme_esbl_ctx_m | 0.001 |
 | shigella_spp. | enzyme_esbl_tem | 0.001 |
 | shigella_spp. | enzyme_esbl_shv | 0.001 |
-| shigella_spp. | enzyme_kpc | 0.001 |
-| shigella_spp. | enzyme_ndm_vim | 0.001 |
-| shigella_spp. | enzyme_oxa_48 | 0.001 |
+| shigella_spp. | enzyme_kpc | 2e-4 |
+| shigella_spp. | enzyme_ndm_vim | 2e-4 |
+| shigella_spp. | enzyme_oxa_48 | 2e-4 |
 | shigella_spp. | enzyme_ampc_cmy | 0.001 |
 | shigella_spp. | enzyme_ampc_dha | 0.001 |
-| shigella_spp. | mutation_gyra_primary | 5e-4 |
-| shigella_spp. | mutation_gyra_parc_secondary | 5e-4 |
-| shigella_spp. | protection_qnr | 5e-4 |
+| shigella_spp. | mutation_gyra_primary | 0.8 |
+| shigella_spp. | mutation_gyra_parc_secondary | 0.8 |
+| shigella_spp. | protection_qnr | 0.8 |
 | shigella_spp. | enzyme_16s_rrmt | 0.9 |
-| shigella_spp. | target_site_erm_b | 0.8 |
+| shigella_spp. | target_site_erm_b | 3 |
 | shigella_spp. | enzyme_cat | 2.5e-4 |
-| shigella_spp. | efflux_acrab_tolc | 5e-4 |
+| shigella_spp. | efflux_acrab_tolc | 0.003 |
 | shigella_spp. | modification_mcr_1 | 3e-4 |
-| shigella_spp. | global_efflux_pump | 0.9 |
+| shigella_spp. | global_efflux_pump | 3 |
 | shigella_spp. | global_porin_loss | 3e-5 |
 | shigella_spp. | mutation_folate_pathway | 0.003 |
 | shigella_spp. | mutation_rpo_b | 0.04 |
@@ -8161,22 +5971,22 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | shigella_spp. | efflux_tet_abc | 0.03 |
 | shigella_spp. | mutation_pbp_mosaic | 0.001 |
 | shigella_spp. | efflux_mtr_cde | 0.001 |
-| neisseria_gonorrhoeae | mutation_gyra_primary | 1 |
-| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 1 |
-| neisseria_gonorrhoeae | protection_qnr | 1 |
-| neisseria_gonorrhoeae | enzyme_16s_rrmt | 1 |
+| neisseria_gonorrhoeae | mutation_gyra_primary | 100 |
+| neisseria_gonorrhoeae | mutation_gyra_parc_secondary | 100 |
+| neisseria_gonorrhoeae | protection_qnr | 100 |
+| neisseria_gonorrhoeae | enzyme_16s_rrmt | 100 |
 | neisseria_gonorrhoeae | target_site_erm_b | 0.01 |
 | neisseria_gonorrhoeae | target_site_cfr | 0.01 |
 | neisseria_gonorrhoeae | enzyme_cat | 0.001 |
 | neisseria_gonorrhoeae | modification_mcr_1 | 0.005 |
-| neisseria_gonorrhoeae | global_efflux_pump | 1 |
+| neisseria_gonorrhoeae | global_efflux_pump | 100 |
 | neisseria_gonorrhoeae | global_porin_loss | 0.001 |
 | neisseria_gonorrhoeae | mutation_folate_pathway | 0.1 |
 | neisseria_gonorrhoeae | mutation_nitroreductase | 0.1 |
 | neisseria_gonorrhoeae | enzyme_fos_a | 3e-4 |
-| neisseria_gonorrhoeae | mutation_rpo_b | 1 |
-| neisseria_gonorrhoeae | protection_tet_m | 1 |
-| neisseria_gonorrhoeae | enzyme_aac_aph | 1 |
+| neisseria_gonorrhoeae | mutation_rpo_b | 100 |
+| neisseria_gonorrhoeae | protection_tet_m | 100 |
+| neisseria_gonorrhoeae | enzyme_aac_aph | 100 |
 | neisseria_gonorrhoeae | enzyme_bla_z | 0.02 |
 | neisseria_gonorrhoeae | mutation_23s_rrna | 0.03 |
 | neisseria_gonorrhoeae | efflux_tet_abc | 0.003 |
@@ -8210,33 +6020,33 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | streptococcus_agalactiae | protection_tet_m | 0.001 |
 | streptococcus_agalactiae | mutation_23s_rrna | 5e-11 |
 | streptococcus_agalactiae | mutation_pbp_mosaic | 1e-6 |
-| haemophilus_influenzae | enzyme_esbl_ctx_m | 5e-7 |
-| haemophilus_influenzae | enzyme_esbl_tem | 5e-7 |
-| haemophilus_influenzae | enzyme_esbl_shv | 5e-7 |
+| haemophilus_influenzae | enzyme_esbl_ctx_m | 1e-7 |
+| haemophilus_influenzae | enzyme_esbl_tem | 1e-7 |
+| haemophilus_influenzae | enzyme_esbl_shv | 1e-7 |
 | haemophilus_influenzae | enzyme_kpc | 5e-8 |
 | haemophilus_influenzae | enzyme_ndm_vim | 5e-8 |
 | haemophilus_influenzae | enzyme_oxa_48 | 5e-8 |
-| haemophilus_influenzae | enzyme_ampc_cmy | 5e-7 |
-| haemophilus_influenzae | enzyme_ampc_dha | 5e-7 |
-| haemophilus_influenzae | mutation_gyra_primary | 3e-4 |
+| haemophilus_influenzae | enzyme_ampc_cmy | 1e-7 |
+| haemophilus_influenzae | enzyme_ampc_dha | 1e-7 |
+| haemophilus_influenzae | mutation_gyra_primary | 8e-4 |
 | haemophilus_influenzae | mutation_gyra_parc_secondary | 8e-5 |
-| haemophilus_influenzae | protection_qnr | 1e-4 |
-| haemophilus_influenzae | enzyme_16s_rrmt | 0.05 |
-| haemophilus_influenzae | target_site_erm_b | 3e-5 |
-| haemophilus_influenzae | target_site_cfr | 3e-5 |
+| haemophilus_influenzae | protection_qnr | 2e-4 |
+| haemophilus_influenzae | enzyme_16s_rrmt | 0.1 |
+| haemophilus_influenzae | target_site_erm_b | 7e-5 |
+| haemophilus_influenzae | target_site_cfr | 5e-5 |
 | haemophilus_influenzae | enzyme_cat | 1e-4 |
 | haemophilus_influenzae | modification_mcr_1 | 2e-6 |
-| haemophilus_influenzae | global_efflux_pump | 3e-4 |
+| haemophilus_influenzae | global_efflux_pump | 5e-4 |
 | haemophilus_influenzae | global_porin_loss | 3e-7 |
-| haemophilus_influenzae | mutation_folate_pathway | 8e-4 |
+| haemophilus_influenzae | mutation_folate_pathway | 0.002 |
 | haemophilus_influenzae | mutation_nitroreductase | 2e-5 |
 | haemophilus_influenzae | mutation_rpo_b | 0.015 |
-| haemophilus_influenzae | protection_tet_m | 8e-4 |
-| haemophilus_influenzae | enzyme_aac_aph | 0.05 |
-| haemophilus_influenzae | enzyme_bla_z | 5e-7 |
+| haemophilus_influenzae | protection_tet_m | 0.001 |
+| haemophilus_influenzae | enzyme_aac_aph | 0.1 |
+| haemophilus_influenzae | enzyme_bla_z | 1e-7 |
 | haemophilus_influenzae | mutation_23s_rrna | 3e-6 |
-| haemophilus_influenzae | mutation_pbp_mosaic | 5e-7 |
-| haemophilus_influenzae | efflux_mtr_cde | 5e-7 |
+| haemophilus_influenzae | mutation_pbp_mosaic | 1e-7 |
+| haemophilus_influenzae | efflux_mtr_cde | 1e-7 |
 | chlamydia_trachomatis | mutation_gyra_primary | 2e-7 |
 | chlamydia_trachomatis | mutation_gyra_parc_secondary | 2e-7 |
 | chlamydia_trachomatis | target_site_erm_b | 1e-7 |
@@ -8248,17 +6058,17 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | chlamydia_trachomatis | mutation_rpo_b | 2e-8 |
 | chlamydia_trachomatis | protection_tet_m | 2e-7 |
 | chlamydia_trachomatis | mutation_23s_rrna | 1e-10 |
-| mycoplasma_genitalium | mutation_gyra_primary | 0.3 |
-| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.3 |
-| mycoplasma_genitalium | target_site_erm_b | 0.025 |
-| mycoplasma_genitalium | target_site_cfr | 0.025 |
-| mycoplasma_genitalium | enzyme_cat | 0.01 |
-| mycoplasma_genitalium | global_efflux_pump | 0.01 |
-| mycoplasma_genitalium | mutation_folate_pathway | 0.003 |
-| mycoplasma_genitalium | mutation_nitroreductase | 0.003 |
-| mycoplasma_genitalium | mutation_rpo_b | 0.03 |
-| mycoplasma_genitalium | protection_tet_m | 0.06 |
-| mycoplasma_genitalium | mutation_23s_rrna | 0.03 |
+| mycoplasma_genitalium | mutation_gyra_primary | 0.7 |
+| mycoplasma_genitalium | mutation_gyra_parc_secondary | 0.7 |
+| mycoplasma_genitalium | target_site_erm_b | 0.05 |
+| mycoplasma_genitalium | target_site_cfr | 0.05 |
+| mycoplasma_genitalium | enzyme_cat | 0.03 |
+| mycoplasma_genitalium | global_efflux_pump | 0.2 |
+| mycoplasma_genitalium | mutation_folate_pathway | 0.0035 |
+| mycoplasma_genitalium | mutation_nitroreductase | 0.0035 |
+| mycoplasma_genitalium | mutation_rpo_b | 0.035 |
+| mycoplasma_genitalium | protection_tet_m | 0.2 |
+| mycoplasma_genitalium | mutation_23s_rrna | 0.05 |
 | vibrio_cholerae | enzyme_esbl_ctx_m | 3e-6 |
 | vibrio_cholerae | enzyme_esbl_tem | 3e-6 |
 | vibrio_cholerae | enzyme_esbl_shv | 1e-6 |
@@ -8333,31 +6143,31 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | clostridioides_difficile | mutation_nitroreductase | 1.2e-4 |
 | clostridioides_difficile | mutation_rpo_b | 6e-5 |
 | clostridioides_difficile | protection_tet_m | 6e-5 |
-| bacteroides_fragilis | enzyme_esbl_ctx_m | 0.003 |
-| bacteroides_fragilis | enzyme_esbl_tem | 0.003 |
-| bacteroides_fragilis | enzyme_esbl_shv | 0.003 |
-| bacteroides_fragilis | enzyme_kpc | 3e-5 |
-| bacteroides_fragilis | enzyme_ndm_vim | 3e-5 |
-| bacteroides_fragilis | enzyme_oxa_48 | 3e-5 |
-| bacteroides_fragilis | enzyme_ampc_cmy | 0.001 |
-| bacteroides_fragilis | enzyme_ampc_dha | 0.001 |
-| bacteroides_fragilis | mutation_gyra_primary | 5e-4 |
-| bacteroides_fragilis | mutation_gyra_parc_secondary | 0.01 |
-| bacteroides_fragilis | protection_qnr | 2e-4 |
-| bacteroides_fragilis | enzyme_16s_rrmt | 1 |
-| bacteroides_fragilis | target_site_erm_b | 0.02 |
-| bacteroides_fragilis | target_site_cfr | 2e-4 |
-| bacteroides_fragilis | enzyme_cat | 2e-5 |
-| bacteroides_fragilis | efflux_acrab_tolc | 1e-4 |
-| bacteroides_fragilis | modification_mcr_1 | 0.002 |
-| bacteroides_fragilis | global_efflux_pump | 1e-4 |
-| bacteroides_fragilis | global_porin_loss | 1e-5 |
-| bacteroides_fragilis | mutation_folate_pathway | 0.005 |
-| bacteroides_fragilis | mutation_nitroreductase | 5e-4 |
-| bacteroides_fragilis | mutation_rpo_b | 0.002 |
+| bacteroides_fragilis | enzyme_esbl_ctx_m | 3e-4 |
+| bacteroides_fragilis | enzyme_esbl_tem | 3e-4 |
+| bacteroides_fragilis | enzyme_esbl_shv | 3e-4 |
+| bacteroides_fragilis | enzyme_kpc | 1e-5 |
+| bacteroides_fragilis | enzyme_ndm_vim | 1e-5 |
+| bacteroides_fragilis | enzyme_oxa_48 | 1e-5 |
+| bacteroides_fragilis | enzyme_ampc_cmy | 3e-4 |
+| bacteroides_fragilis | enzyme_ampc_dha | 3e-4 |
+| bacteroides_fragilis | mutation_gyra_primary | 0.03 |
+| bacteroides_fragilis | mutation_gyra_parc_secondary | 0.03 |
+| bacteroides_fragilis | protection_qnr | 0.03 |
+| bacteroides_fragilis | enzyme_16s_rrmt | 3 |
+| bacteroides_fragilis | target_site_erm_b | 0.01 |
+| bacteroides_fragilis | target_site_cfr | 1e-4 |
+| bacteroides_fragilis | enzyme_cat | 1e-5 |
+| bacteroides_fragilis | efflux_acrab_tolc | 0.003 |
+| bacteroides_fragilis | modification_mcr_1 | 5e-4 |
+| bacteroides_fragilis | global_efflux_pump | 0.003 |
+| bacteroides_fragilis | global_porin_loss | 5e-6 |
+| bacteroides_fragilis | mutation_folate_pathway | 0.03 |
+| bacteroides_fragilis | mutation_nitroreductase | 1e-4 |
+| bacteroides_fragilis | mutation_rpo_b | 0.001 |
 | bacteroides_fragilis | protection_tet_m | 0.01 |
-| bacteroides_fragilis | enzyme_aac_aph | 1 |
-| bacteroides_fragilis | mutation_pbp_mosaic | 0.001 |
+| bacteroides_fragilis | enzyme_aac_aph | 3 |
+| bacteroides_fragilis | mutation_pbp_mosaic | 2e-4 |
 | campylobacter_jejuni | mutation_gyra_primary | 0.03 |
 | campylobacter_jejuni | mutation_gyra_parc_secondary | 0.03 |
 | campylobacter_jejuni | target_site_erm_b | 1e-5 |
@@ -8372,30 +6182,30 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | campylobacter_jejuni | mutation_23s_rrna | 3e-4 |
 | campylobacter_jejuni | efflux_tet_abc | 0.001 |
 | campylobacter_jejuni | efflux_mtr_cde | 2e-4 |
-| enterobacter_cloacae | enzyme_esbl_ctx_m | 5e-6 |
-| enterobacter_cloacae | enzyme_esbl_tem | 5e-6 |
-| enterobacter_cloacae | enzyme_esbl_shv | 5e-6 |
-| enterobacter_cloacae | enzyme_kpc | 1e-5 |
-| enterobacter_cloacae | enzyme_ndm_vim | 1e-5 |
-| enterobacter_cloacae | enzyme_oxa_48 | 1e-5 |
-| enterobacter_cloacae | enzyme_ampc_cmy | 5e-6 |
-| enterobacter_cloacae | enzyme_ampc_dha | 5e-6 |
-| enterobacter_cloacae | mutation_gyra_primary | 2e-4 |
-| enterobacter_cloacae | mutation_gyra_parc_secondary | 2e-4 |
-| enterobacter_cloacae | protection_qnr | 2e-4 |
-| enterobacter_cloacae | enzyme_16s_rrmt | 0.03 |
-| enterobacter_cloacae | enzyme_cat | 2e-4 |
-| enterobacter_cloacae | efflux_acrab_tolc | 5e-5 |
+| enterobacter_cloacae | enzyme_esbl_ctx_m | 5e-5 |
+| enterobacter_cloacae | enzyme_esbl_tem | 5e-5 |
+| enterobacter_cloacae | enzyme_esbl_shv | 5e-5 |
+| enterobacter_cloacae | enzyme_kpc | 5e-6 |
+| enterobacter_cloacae | enzyme_ndm_vim | 5e-6 |
+| enterobacter_cloacae | enzyme_oxa_48 | 5e-6 |
+| enterobacter_cloacae | enzyme_ampc_cmy | 5e-5 |
+| enterobacter_cloacae | enzyme_ampc_dha | 5e-5 |
+| enterobacter_cloacae | mutation_gyra_primary | 0.003 |
+| enterobacter_cloacae | mutation_gyra_parc_secondary | 0.003 |
+| enterobacter_cloacae | protection_qnr | 0.003 |
+| enterobacter_cloacae | enzyme_16s_rrmt | 0.005 |
+| enterobacter_cloacae | enzyme_cat | 3e-4 |
+| enterobacter_cloacae | efflux_acrab_tolc | 0.003 |
 | enterobacter_cloacae | modification_mcr_1 | 0.01 |
-| enterobacter_cloacae | global_porin_loss | 1e-6 |
-| enterobacter_cloacae | mutation_folate_pathway | 5e-5 |
-| enterobacter_cloacae | mutation_nitroreductase | 0.001 |
-| enterobacter_cloacae | enzyme_fos_a | 0.001 |
-| enterobacter_cloacae | mutation_rpo_b | 0.01 |
-| enterobacter_cloacae | protection_tet_m | 0.002 |
-| enterobacter_cloacae | enzyme_aac_aph | 0.1 |
-| enterobacter_cloacae | efflux_tet_abc | 1e-4 |
-| enterobacter_cloacae | mutation_pbp_mosaic | 5e-6 |
+| enterobacter_cloacae | global_porin_loss | 1e-4 |
+| enterobacter_cloacae | mutation_folate_pathway | 0.003 |
+| enterobacter_cloacae | mutation_nitroreductase | 0.002 |
+| enterobacter_cloacae | enzyme_fos_a | 0.002 |
+| enterobacter_cloacae | mutation_rpo_b | 0.02 |
+| enterobacter_cloacae | protection_tet_m | 0.01 |
+| enterobacter_cloacae | enzyme_aac_aph | 0.005 |
+| enterobacter_cloacae | efflux_tet_abc | 0.01 |
+| enterobacter_cloacae | mutation_pbp_mosaic | 5e-5 |
 | yersinia_enterocolitica | enzyme_esbl_ctx_m | 3e-10 |
 | yersinia_enterocolitica | enzyme_esbl_tem | 3e-10 |
 | yersinia_enterocolitica | enzyme_esbl_shv | 1e-10 |
@@ -8422,26 +6232,26 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | yersinia_enterocolitica | efflux_tet_abc | 1.5e-10 |
 | yersinia_enterocolitica | efflux_mtr_cde | 3e-10 |
 | moraxella_catarrhalis | enzyme_esbl_ctx_m | 2e-7 |
-| moraxella_catarrhalis | enzyme_esbl_tem | 1e-6 |
+| moraxella_catarrhalis | enzyme_esbl_tem | 5e-7 |
 | moraxella_catarrhalis | enzyme_esbl_shv | 2e-8 |
 | moraxella_catarrhalis | enzyme_ampc_cmy | 5e-7 |
 | moraxella_catarrhalis | enzyme_ampc_dha | 2e-7 |
-| moraxella_catarrhalis | mutation_gyra_primary | 2e-6 |
-| moraxella_catarrhalis | mutation_gyra_parc_secondary | 5e-7 |
-| moraxella_catarrhalis | protection_qnr | 2e-7 |
-| moraxella_catarrhalis | enzyme_16s_rrmt | 2e-8 |
-| moraxella_catarrhalis | target_site_erm_b | 5e-6 |
-| moraxella_catarrhalis | target_site_cfr | 5e-8 |
-| moraxella_catarrhalis | enzyme_cat | 5e-7 |
-| moraxella_catarrhalis | efflux_acrab_tolc | 5e-7 |
-| moraxella_catarrhalis | modification_mcr_1 | 2e-8 |
-| moraxella_catarrhalis | global_efflux_pump | 5e-6 |
-| moraxella_catarrhalis | global_porin_loss | 2e-7 |
+| moraxella_catarrhalis | mutation_gyra_primary | 1e-5 |
+| moraxella_catarrhalis | mutation_gyra_parc_secondary | 1e-6 |
+| moraxella_catarrhalis | protection_qnr | 1e-6 |
+| moraxella_catarrhalis | enzyme_16s_rrmt | 1e-7 |
+| moraxella_catarrhalis | target_site_erm_b | 1e-5 |
+| moraxella_catarrhalis | target_site_cfr | 1e-7 |
+| moraxella_catarrhalis | enzyme_cat | 1e-6 |
+| moraxella_catarrhalis | efflux_acrab_tolc | 1e-6 |
+| moraxella_catarrhalis | modification_mcr_1 | 2e-7 |
+| moraxella_catarrhalis | global_efflux_pump | 1e-5 |
+| moraxella_catarrhalis | global_porin_loss | 2e-6 |
 | moraxella_catarrhalis | mutation_folate_pathway | 1e-5 |
-| moraxella_catarrhalis | mutation_nitroreductase | 2e-7 |
-| moraxella_catarrhalis | mutation_rpo_b | 2e-7 |
-| moraxella_catarrhalis | protection_tet_m | 1e-5 |
-| moraxella_catarrhalis | mutation_pbp_mosaic | 5e-6 |
+| moraxella_catarrhalis | mutation_nitroreductase | 2e-6 |
+| moraxella_catarrhalis | mutation_rpo_b | 2e-6 |
+| moraxella_catarrhalis | protection_tet_m | 1e-4 |
+| moraxella_catarrhalis | mutation_pbp_mosaic | 5e-7 |
 | moraxella_catarrhalis | efflux_mtr_cde | 5e-7 |
 | treponema_pallidum | mutation_gyra_primary | 1.5e-6 |
 | treponema_pallidum | mutation_gyra_parc_secondary | 7.5e-7 |
@@ -8468,19 +6278,18 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 | bordetella_pertussis | mutation_rpo_b | 1e-12 |
 | bordetella_pertussis | protection_tet_m | 1e-11 |
 | bordetella_pertussis | efflux_mtr_cde | 2e-12 |
-| helicobacter_pylori | mutation_gyra_primary | 1 |
-| helicobacter_pylori | mutation_gyra_parc_secondary | 1 |
-| helicobacter_pylori | target_site_erm_b | 1 |
-| helicobacter_pylori | target_site_cfr | 1 |
-| helicobacter_pylori | global_efflux_pump | 1 |
-| helicobacter_pylori | global_porin_loss | 1 |
-| helicobacter_pylori | mutation_folate_pathway | 1 |
-| helicobacter_pylori | mutation_nitroreductase | 1 |
-| helicobacter_pylori | mutation_rpo_b | 1 |
-| helicobacter_pylori | protection_tet_m | 1 |
-| helicobacter_pylori | enzyme_bla_z | 1 |
-| helicobacter_pylori | mutation_23s_rrna | 1 |
-| helicobacter_pylori | mutation_pbp_mosaic | 1 |
+| helicobacter_pylori | mutation_gyra_primary | 2e-4 |
+| helicobacter_pylori | mutation_gyra_parc_secondary | 2e-4 |
+| helicobacter_pylori | target_site_erm_b | 0.001 |
+| helicobacter_pylori | target_site_cfr | 3e-4 |
+| helicobacter_pylori | global_efflux_pump | 2e-4 |
+| helicobacter_pylori | mutation_folate_pathway | 0.01 |
+| helicobacter_pylori | mutation_nitroreductase | 0.03 |
+| helicobacter_pylori | mutation_rpo_b | 0.01 |
+| helicobacter_pylori | protection_tet_m | 2e-4 |
+| helicobacter_pylori | enzyme_bla_z | 1e-5 |
+| helicobacter_pylori | mutation_23s_rrna | 2e-4 |
+| helicobacter_pylori | mutation_pbp_mosaic | 1e-5 |
 | mycoplasma_pneumoniae | mutation_gyra_primary | 3e-7 |
 | mycoplasma_pneumoniae | mutation_gyra_parc_secondary | 1.5e-7 |
 | mycoplasma_pneumoniae | target_site_erm_b | 1.5e-5 |
@@ -8540,7 +6349,7 @@ De novo emergence rate per day for each bacteria–mechanism pair. Only non-zero
 
 Per-day probability of horizontal gene transfer of resistance between co-colonising bacterial species. Only non-zero entries shown.
 
-See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT process](#92-the-hgt-process).
+See: [┬º9.1 Transfer compatibility](#91-transfer-compatibility), [┬º9.2 The HGT process](#92-the-hgt-process).
 
 | Donor | Recipient | Probability/day |
 | --- | ---: | ---: |
@@ -9435,283 +7244,3 @@ See: [§9.1 Transfer compatibility](#91-transfer-compatibility), [§9.2 The HGT 
 | burkholderia_cepacia_complex | mycoplasma_pneumoniae | 3e-11 |
 | burkholderia_cepacia_complex | legionella_pneumophila | 3e-11 |
 
-## Appendix C — Output Specification
-
-The simulation produces a single large CSV file per run. This appendix describes the column structure so you can interpret the output data.
-
-
-
-### C.1 Output File
-
-Each simulation run produces a single CSV file:
-
-```
-amr_simulation_output_analysis_outputs/simulation_summary_NNNNNN.csv
-```
-
-where `NNNNNN` is a zero-padded run identifier.
-
-
-
-### C.2 Row Structure
-
-Each row represents one simulated day. The number of rows equals the total number of time steps (default 38,325).
-
-
-
-### C.3 Column Categories
-
-
-
-#### Scalar columns (per-timestep)
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `day` | int | Simulation day (0-indexed) |
-| `year` | float | Calendar year (1930.0 + day/365.25) |
-| `total_alive` | int | Living individuals |
-| `total_infected` | int | Individuals with ≥1 active infection |
-| `total_on_treatment` | int | Individuals receiving ≥1 antibiotic |
-| `total_in_hospital` | int | Hospitalised individuals |
-| `total_sepsis` | int | Individuals with sepsis |
-| `total_died_infection` | int | Cumulative infection deaths |
-| `total_died_sepsis` | int | Cumulative sepsis deaths |
-| `total_died_background` | int | Cumulative background deaths |
-| `total_died_toxicity` | int | Cumulative drug toxicity deaths |
-| `total_new_infections` | int | New infections this day |
-| `drug_stops_due_to_toxicity` | int | Drug courses stopped for toxicity this day |
-| `total_carriers` | int | Individuals carrying ≥1 bacteria |
-| `total_immunosuppressed` | int | Immunosuppressed individuals |
-| `policy_name` | string | Active policy branch name |
-
-
-
-#### Per-bacteria columns (~42 each)
-
-| Pattern | Description |
-|---------|-------------|
-| `{bacteria}_infected` | Currently infected count |
-| `{bacteria}_carriers` | Current carrier count |
-| `{bacteria}_deaths` | Cumulative deaths from this species |
-| `{bacteria}_new_infections` | New infections this day |
-| `{bacteria}_new_infections_community` | From community acquisition |
-| `{bacteria}_new_infections_hospital` | From hospital acquisition |
-| `{bacteria}_new_infections_carrier` | From carrier-to-infection |
-| `{bacteria}_sepsis` | Current sepsis count |
-
-
-
-#### Per-drug columns (~58 each)
-
-| Pattern | Description |
-|---------|-------------|
-| `{drug}_prescribed` | Courses initiated this day |
-| `{drug}_active_treatments` | Currently on this drug |
-
-
-
-#### Per-bacteria × per-drug columns (~2,436 each)
-
-| Pattern | Description |
-|---------|-------------|
-| `{bacteria}_{drug}_activity_r` | Mean resistance (activity_r, derived from mechanism flags) |
-| `{bacteria}_{drug}_majority_r` | Population-level resistance prevalence (derived from stored mechanism profiles) |
-
-
-
-#### Per-region columns (~6 each)
-
-| Pattern | Description |
-|---------|-------------|
-| `{region}_infected` | Regional infection count |
-| `{region}_hospitalized` | Regional hospital count |
-| `{region}_deaths` | Regional death count |
-
-
-
-### C.4 Total Column Count
-
-With 42 bacteria, 61 drugs, and 6 regions, the CSV contains approximately:
-
-- ~16 scalar columns
-- ~336 per-bacteria columns (42 × 8)
-- ~122 per-drug columns (61 × 2)
-- ~5,124 per-bacteria-per-drug columns (42 × 61 × 2)
-- ~18 per-region columns (6 × 3)
-- **Total: ~5,616 columns**
-
-
-
-### C.5 Infection Journey Logs
-
-When enabled, individual infection journeys are logged to the `infection_journeys/` directory as CSV files, capturing:
-
-- Infection acquisition details
-- Resistance profile at acquisition and over time
-- Treatment episodes
-- Clinical outcome (clearance, death, ongoing)
-- Mechanism gains and losses
-
----
-
-*This document describes the model as implemented in the Rust codebase. All variable names correspond to parameter keys used in `src/config.rs`.*
-
----
-
-## References
-
-- Ali M, Nelson AR, Lopez AL, Sack DA. Updated global burden of cholera in endemic countries. *PLoS Negl Trop Dis.* 2015;9(6):e0003832. doi:10.1371/journal.pntd.0003832
-
-- Andersson DI, Hughes D. Antibiotic resistance and its cost: is it possible to reverse resistance? *Nat Rev Microbiol.* 2010;8(4):260–271. doi:10.1038/nrmicro2319
-
-- Arcilla MS, van Hattem JM, Haverkate MR, et al. Import and spread of extended-spectrum β-lactamase-producing Enterobacteriaceae by international travellers (COMBAT study): a prospective, multicentre cohort study. *Lancet Infect Dis.* 2017;17(1):78–85. doi:10.1016/S1473-3099(16)30319-X
-
-- Barlam TF, Cosgrove SE, Abbo LM, et al. Implementing an antibiotic stewardship program: guidelines by the Infectious Diseases Society of America and the Society for Healthcare Epidemiology of America. *Clin Infect Dis.* 2016;62(10):e51–e77. doi:10.1093/cid/ciw118
-
-- Bassetti M, Vena A, Croxatto A, Righi E, Guery B. How to manage *Pseudomonas aeruginosa* infections. *Drugs Context.* 2018;7:212527. doi:10.7573/dic.212527
-
-- Bauer AW, Kirby WMM, Sherris JC, Turck M. Antibiotic susceptibility testing by a standardized single disk method. *Am J Clin Pathol.* 1966;45(4):493–496. doi:10.1093/ajcp/45.4_ts.493
-
-- Beaber JW, Hochhut B, Waldor MK. SOS response promotes horizontal dissemination of antibiotic resistance genes. *Nature.* 2004;427(6969):72–74. doi:10.1038/nature02241
-
-- Bratzler DW, Dellinger EP, Olsen KM, et al. Clinical practice guidelines for antimicrobial prophylaxis in surgery. *Am J Health-Syst Pharm.* 2013;70(3):195–283. doi:10.2146/ajhp120568
-
-- Carapetis JR, Steer AC, Mulholland EK, Weber M. The global burden of group A streptococcal diseases. *Lancet Infect Dis.* 2005;5(11):685–694. doi:10.1016/S1473-3099(05)70267-X
-
-- Drlica K, Zhao X. Mutant selection window hypothesis updated. *Clin Infect Dis.* 2007;44(5):681–688. doi:10.1086/511025
-
-- Evans L, Rhodes A, Alhazzani W, et al. Surviving sepsis campaign: international guidelines for management of sepsis and septic shock 2021. *Intensive Care Med.* 2021;47(11):1181–1247. doi:10.1007/s00134-021-06506-y
-
-- Fishman JA. Infection in solid-organ transplant recipients. *N Engl J Med.* 2007;357(25):2601–2614. doi:10.1056/NEJMra064928
-
-- Fleming-Dutra KE, Hersh AL, Shapiro DJ, et al. Prevalence of inappropriate antibiotic prescriptions among US ambulatory care visits, 2010–2011. *JAMA.* 2016;315(17):1864–1873. doi:10.1001/jama.2016.4151
-
-- GBD 2019 Lower Respiratory Infections Collaborators. Age-sex differences in the global burden of lower respiratory infections and risk factors, 1990–2019: results from the Global Burden of Disease Study 2019. *Lancet Infect Dis.* 2022;22(11):1626–1647. doi:10.1016/S1473-3099(22)00510-2
-
-- Guh AY, Mu Y, Winston LG, et al. Trends in U.S. burden of *Clostridioides difficile* infection and outcomes. *N Engl J Med.* 2020;382(14):1320–1330. doi:10.1056/NEJMoa1910215
-
-- Gupta K, Hooton TM, Naber KG, et al. International clinical practice guidelines for the treatment of acute uncomplicated cystitis and pyelonephritis in women: a 2010 update by the Infectious Diseases Society of America and the European Society for Microbiology and Infectious Diseases. *Clin Infect Dis.* 2011;52(5):e103–e120. doi:10.1093/cid/ciq257
-
-- UN Tourism. *UN Tourism Data Dashboard: Global and Regional Tourism Performance.* 2025. Accessed March 24, 2026. https://www.untourism.int/tourism-data/global-and-regional-tourism-performance
-
-- World Bank. *International tourism, number of departures (ST.INT.DPRT).* World Development Indicators; source: UN Tourism. Accessed March 24, 2026. https://data.worldbank.org/indicator/ST.INT.DPRT
-
-- World Bank. *Air transport, passengers carried (IS.AIR.PSGR).* World Development Indicators; source: International Civil Aviation Organization (ICAO). Accessed March 24, 2026. https://data.worldbank.org/indicator/IS.AIR.PSGR
-
-- Jacobs J, Hardy L, Semret M, et al. Diagnostic bacteriology in district hospitals in sub-Saharan Africa: at the forefront of the containment of antimicrobial resistance. *Front Med (Lausanne).* 2019;6:205. doi:10.3389/fmed.2019.00205
-
-- Koning S, van der Sande R, Verhagen AP, et al. Interventions for impetigo. *Cochrane Database Syst Rev.* 2012;(1):CD003261. doi:10.1002/14651858.CD003261.pub3
-
-- Korenromp EL, Rowley J, Alonso M, et al. Global burden of maternal and congenital syphilis and associated adverse birth outcomes — Estimates for 2016 and progress since 2012. *PLoS One.* 2019;14(2):e0211720. doi:10.1371/journal.pone.0211720
-
-- Lee CF, Cowling BJ, Feng S, et al. Impact of antibiotic stewardship programmes in Asia: a systematic review and meta-analysis. *J Antimicrob Chemother.* 2018;73(4):844–851. doi:10.1093/jac/dkx492
-
-- Levy MM, Dellinger RP, Townsend SR, et al. The Surviving Sepsis Campaign: results of an international guideline-based performance improvement program targeting severe sepsis. *Intensive Care Med.* 2010;36(2):222–231. doi:10.1007/s00134-009-1738-3
-
-- Li J, Nation RL, Turnidge JD, et al. Colistin: the re-emerging antibiotic for multidrug-resistant Gram-negative bacterial infections. *Lancet Infect Dis.* 2006;6(9):589–601. doi:10.1016/S1473-3099(06)70580-1
-
-- Magill SS, O'Leary E, Janelle SJ, et al. Changes in prevalence of health care–associated infections in U.S. hospitals. *N Engl J Med.* 2018;379(18):1732–1744. doi:10.1056/NEJMoa1801550
-
-- Martinson ML, Lapham J. Prevalence of immunosuppression among US adults. *JAMA.* 2024;331(10):880–882. doi:10.1001/jama.2023.28019
-
-- United Nations Department of Economic and Social Affairs, Population Division. *World Population Prospects 2024.* Accessed March 24, 2026. https://population.un.org/wpp/
-
-- World Bank. *Hospital beds (per 1,000 people) (SH.MED.BEDS.ZS).* World Development Indicators; source: World Health Organization. Accessed March 24, 2026. https://data.worldbank.org/indicator/SH.MED.BEDS.ZS
-
-- World Health Organization. *Universal health coverage (UHC).* Fact sheet, 2025. Accessed March 24, 2026. https://www.who.int/news-room/fact-sheets/detail/universal-health-coverage-(uhc)
-
-- World Health Organization. *Global Antimicrobial Resistance and Use Surveillance System (GLASS).* Accessed March 24, 2026. https://www.who.int/initiatives/glass
-
-- McInnes RS, McCallum GE, Lamberte LE, van Schaik W. Horizontal transfer of antibiotic resistance genes in the human gut microbiome. *Curr Opin Microbiol.* 2020;53:35–43. doi:10.1016/j.mib.2020.02.002
-
-- Metlay JP, Waterer GW, Long AC, et al. Diagnosis and treatment of adults with community-acquired pneumonia: an official clinical practice guideline of the American Thoracic Society and Infectious Diseases Society of America. *Am J Respir Crit Care Med.* 2019;200(7):e45–e67. doi:10.1164/rccm.201908-1581ST
-
-- Murray CJL, Ikuta KS, Sharara F, et al. Global burden of bacterial antimicrobial resistance in 2019: a systematic analysis. *Lancet.* 2022;399(10325):629–655. doi:10.1016/S0140-6736(21)02724-0
-
-- Plummer M, Franceschi S, Vignat J, Forman D, de Martel C. Global burden of gastric cancer attributable to *Helicobacter pylori*. *Int J Cancer.* 2015;136(2):487–490. doi:10.1002/ijc.28999
-
-- Poolman JT, Wacker M. Extraintestinal pathogenic *Escherichia coli*, a common human pathogen: challenges for vaccine development and progress in the field. *J Infect Dis.* 2016;213(1):6–13. doi:10.1093/infdis/jiv429
-
-- Rhodes A, Evans LE, Alhazzani W, et al. Surviving Sepsis Campaign: international guidelines for management of sepsis and septic shock: 2016. *Intensive Care Med.* 2017;43(3):304–377. doi:10.1007/s00134-017-4683-6
-
-- Rudd KE, Johnson SC, Agesa KM, et al. Global, regional, and national sepsis incidence and mortality, 1990–2017: analysis for the Global Burden of Disease Study. *Lancet.* 2020;395(10219):200–211. doi:10.1016/S0140-6736(19)32989-7
-
-- Schuts EC, Hulscher MEJL, Mouton JW, et al. Current evidence on hospital antimicrobial stewardship objectives: a systematic review and meta-analysis. *Lancet Infect Dis.* 2016;16(7):847–856. doi:10.1016/S1473-3099(16)00065-7
-
-- Seale AC, Blencowe H, Zaidi A, et al. Neonatal severe bacterial infection impairment estimates in South Asia, sub-Saharan Africa, and Latin America for 2010. *Pediatr Res.* 2013;74(S1):73–85. doi:10.1038/pr.2013.207
-
-- Singer M, Deutschman CS, Seymour CW, et al. The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3). *JAMA.* 2016;315(8):801–810. doi:10.1001/jama.2016.0287
-
-- Slimings C, Riley TV. Antibiotics and healthcare facility-associated *Clostridioides difficile* infection: updated systematic review and meta-analysis. *J Antimicrob Chemother.* 2021;76(7):1676–1688. doi:10.1093/jac/dkab091
-
-- Solomkin JS, Mazuski JE, Bradley JS, et al. Diagnosis and management of complicated intra-abdominal infection in adults and children: guidelines by the Surgical Infection Society and the Infectious Diseases Society of America. *Clin Infect Dis.* 2010;50(2):133–164. doi:10.1086/649554
-
-- Stanaway JD, Parisi A, Sarber K, et al. The global burden of non-typhoidal salmonella invasive disease: a systematic analysis for the Global Burden of Disease Study 2017. *Lancet Infect Dis.* 2019;19(12):1312–1324. doi:10.1016/S1473-3099(19)30418-9
-
-- Stevens DL, Bisno AL, Chambers HF, et al. Practice guidelines for the diagnosis and management of skin and soft tissue infections: 2014 update by the Infectious Diseases Society of America. *Clin Infect Dis.* 2014;59(2):e10–e52. doi:10.1093/cid/ciu296
-
-- Taplitz RA, Kennedy EB, Bow EJ, et al. Antimicrobial prophylaxis for adult patients with cancer-related immunosuppression: ASCO and IDSA clinical practice guideline update. *J Clin Oncol.* 2018;36(30):3043–3054. doi:10.1200/JCO.18.00374
-
-- Tong SYC, Davis JS, Eichenberger E, Holland TL, Fowler VG Jr. *Staphylococcus aureus* infections: epidemiology, pathophysiology, clinical manifestations, and management. *Clin Microbiol Rev.* 2015;28(3):603–661. doi:10.1128/CMR.00134-14
-
-- Trampuz A, Zimmerli W. Prosthetic joint infections: update in diagnosis and treatment. *Swiss Med Wkly.* 2005;135(17-18):243–251. doi:10.4414/smw.2005.10934
-
-- Troeger C, Blacker BF, Khalil IA, et al. Estimates of the global, regional, and national morbidity, mortality, and aetiologies of diarrhoea in 195 countries: a systematic analysis for the Global Burden of Disease Study 2016. *Lancet Infect Dis.* 2018;18(11):1211–1228. doi:10.1016/S1473-3099(18)30362-1
-
-- Tunkel AR, Hartman BJ, Kaplan SL, et al. Practice guidelines for the management of bacterial meningitis. *Clin Infect Dis.* 2004;39(9):1267–1284. doi:10.1086/425368
-
-- van de Beek D, Brouwer MC, Thwaites GE, Tunkel AR. Advances in treatment of bacterial meningitis. *Lancet.* 2012;380(9854):1693–1702. doi:10.1016/S0140-6736(12)61186-6
-
-- van Schaik W. The human gut resistome. *Philos Trans R Soc Lond B Biol Sci.* 2015;370(1670):20140087. doi:10.1098/rstb.2014.0087
-
-- Watkins DA, Johnson CO, Colquhoun SM, et al. Global, regional, and national burden of rheumatic heart disease, 1990–2015. *N Engl J Med.* 2017;377(8):713–722. doi:10.1056/NEJMoa1603693
-
-- Werner G, Coque TM, Hammerum AM, et al. Emergence and spread of vancomycin resistance among enterococci in Europe. *Euro Surveill.* 2008;13(47):19046.
-
-- Borger AL, Abarca AA, Dötsch A, et al. Mobile resistance genes in *Mycobacterium tuberculosis*: current evidence and future perspectives. *Lancet Infect Dis.* 2023;23(7):e268–e278. doi:10.1016/S1473-3099(22)00785-0
-
-- Brooke JS. *Stenotrophomonas maltophilia*: an emerging global opportunistic pathogen. *Clin Microbiol Rev.* 2012;25(1):2–41. doi:10.1128/CMR.00019-11
-
-- Buelow E, Gonzalez TB, Versluis D, et al. Effects of selective digestive decontamination on the human gut microbiome and resistome as revealed by a large-scale longitudinal metagenomic study. *Microbiome.* 2017;5(1):154. doi:10.1186/s40168-017-0369-0
-
-- Carattoli A. Resistance plasmid families in Enterobacteriaceae. *Antimicrob Agents Chemother.* 2009;53(6):2227–2238. doi:10.1128/AAC.01707-08
-
-- Crossman LC, Gould VC, Dow JM, et al. The complete genome, comparative and functional analysis of *Stenotrophomonas maltophilia* reveals an organism heavily shielded by drug resistance determinants. *Genome Biol.* 2008;9(4):R74. doi:10.1186/gb-2008-9-4-r74
-
-- Hooi JKY, Lai WY, Ng WK, et al. Global prevalence of *Helicobacter pylori* infection: systematic review and meta-analysis. *Gastroenterology.* 2017;153(2):420–429. doi:10.1053/j.gastro.2017.04.022
-
-- Partridge SR, Kwong SM, Firth N, Jensen SO. Mobile genetic elements associated with antimicrobial resistance. *Clin Microbiol Rev.* 2018;31(4):e00088-17. doi:10.1128/CMR.00088-17
-
-- World Health Organization. *WHO consolidated guidelines on drug-resistant tuberculosis treatment.* Geneva: WHO; 2020. ISBN 978-92-4-155056-7. Available at: https://www.who.int/publications/i/item/9789241550567
-
-- Savoldi A, Carrara E, Graham DY, Conti M, Tacconelli E. Prevalence of antibiotic resistance in *Helicobacter pylori*: a systematic review and meta-analysis in World Health Organization regions. *Gastroenterology.* 2018;155(5):1372–1382.e17. doi:10.1053/j.gastro.2018.07.022
-
-- Workowski KA, Bachmann LH, Chan PA, et al. Sexually transmitted infections treatment guidelines, 2021. *MMWR Recomm Rep.* 2021;70(4):1–187. doi:10.15585/mmwr.rr7004a1
-
-- Xu L, Sun X, Ma X. Systematic review and meta-analysis of mortality of patients infected with carbapenem-resistant *Klebsiella pneumoniae*. *Ann Clin Microbiol Antimicrob.* 2017;16(1):18. doi:10.1186/s12941-017-0191-3
-
-- Yeung KHT, Duclos P, Nelson EAS, Hutubessy RCW. An update of the global burden of pertussis in children younger than 5 years: a modelling study. *Lancet Infect Dis.* 2017;17(9):974–980. doi:10.1016/S1473-3099(17)30390-0
-
-- Davey P, Marwick CA, Scott CL, et al. Interventions to improve antibiotic prescribing practices for hospital inpatients. *Cochrane Database Syst Rev.* 2017;(2):CD003543. doi:10.1002/14651858.CD003543.pub4
-
-- San Millán A, MacLean RC. Fitness costs of plasmids: a limit to plasmid transmission. *Microbiol Spectr.* 2017;5(5):MTBP-0016-2017. doi:10.1128/microbiolspec.MTBP-0016-2017
-
-- Brunton LL, Hilal-Dandan R, Knollmann BC, eds. *Goodman & Gilman's: The Pharmacological Basis of Therapeutics.* 13th ed. New York: McGraw-Hill; 2018.
-
-- Dunne MW, Puttagunta S, Giordano P, Krievins D, Zelasky M, Baldassarre J. A randomized clinical trial of single-dose versus weekly dalbavancin for treatment of acute bacterial skin and skin structure infection. *Clin Infect Dis.* 2016;62(5):545–551. doi:10.1093/cid/ciw005
-
-- Klein EY, Van Boeckel TP, Martinez EM, et al. Global increase and geographic convergence in antibiotic consumption between 2000 and 2015. *Proc Natl Acad Sci USA.* 2018;115(15):E3463–E3470. doi:10.1073/pnas.1717295115
-
-- Llewelyn MJ, Fitzpatrick JM, Darwin E, et al. The antibiotic course has had its day. *BMJ.* 2017;358:j3418. doi:10.1136/bmj.j3418
-
-- Rowley J, Vander Hoorn S, Korenromp EL, et al. Chlamydia, gonorrhoea, trichomoniasis and syphilis: global prevalence and incidence estimates, 2016. *Bull World Health Organ.* 2019;97(8):548–562P. doi:10.2471/BLT.18.228486
-
-- Rybak MJ, Le J, Lodise TP, et al. Therapeutic monitoring of vancomycin for serious methicillin-resistant *Staphylococcus aureus* infections: A revised consensus guideline and review by the American Society of Health-System Pharmacists, the Infectious Diseases Society of America, and the Society of Infectious Diseases Pharmacists. *Am J Health-Syst Pharm.* 2020;77(11):835–864. doi:10.1093/ajhp/zxaa036
-
-- Wunderink RG, Matsunaga Y, Ariyasu M, et al. Cefiderocol versus high-dose, extended-infusion meropenem for the treatment of Gram-negative nosocomial pneumonia (APEKS-NP): a randomised, double-blind, phase 3, non-inferiority trial. *Lancet Infect Dis.* 2021;21(2):213–225. doi:10.1016/S1473-3099(20)30731-3
-
-- Nielsen EI, Friberg LE. Pharmacokinetic-pharmacodynamic modeling of antibacterial drugs. *Pharmacol Rev.* 2013;65(3):1053–1090. doi:10.1124/pr.111.005769
-
-- Pitt TL, Batchelor BI. Antimicrobial susceptibility testing. In: Greenwood D, Barer M, Slack R, Irving W, eds. *Medical Microbiology.* 19th ed. Edinburgh: Churchill Livingstone; 2019.
-
-- Wain J, Kilmarx PH, eds. *Practical Laboratory Manual for National Tuberculosis Programmes.* Geneva: WHO; 2006.

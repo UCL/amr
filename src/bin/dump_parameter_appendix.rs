@@ -159,6 +159,7 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("antibiotic_initiation_log_odds_already_on_drug", g.antibiotic_initiation_log_odds_already_on_drug),
         ("antibiotic_initiation_log_odds_immunodeficiency", g.antibiotic_initiation_log_odds_immunodeficiency),
         ("antibiotic_initiation_log_odds_sepsis", g.antibiotic_initiation_log_odds_sepsis),
+        ("antibiotic_initiation_log_odds_hospitalized", g.antibiotic_initiation_log_odds_hospitalized),
         ("antibiotic_initiation_log_odds_no_indication", g.antibiotic_initiation_log_odds_no_indication),
     ]);
 
@@ -430,7 +431,8 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
         "Bacteria", "Acq log-odds", "Init level", "Δ level/day",
         "Max level", "Microb clr/day", "Microb vs inf",
         "Drug cess prob", "Sx threshold", "Sx delay (d)",
-        "Sepsis log-odds", "Mech-less rev rate",
+        "Sepsis log-odds", "Mech-less rev rate", "Comm dilution",
+        "Hosp conc", "Hosp prune %",
     ];
     let mut rows = Vec::new();
     for (idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
@@ -447,6 +449,9 @@ fn print_bacteria_properties(store: &amr_project::config::ParameterStore) {
             format_value(b.symptom_onset_delay_days[idx]),
             format_value(b.sepsis_baseline_log_odds[idx]),
             format_value(b.mechanismless_resistance_reversion_rate[idx]),
+            format_value(b.community_resistance_dilution_factor[idx]),
+            format_value(b.hospital_resistance_concentration_factor[idx]),
+            format_value(b.hospital_resistance_prune_susceptible_percent[idx]),
         ]);
     }
     md_table(headers, &rows);

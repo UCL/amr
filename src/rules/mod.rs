@@ -163,6 +163,52 @@ fn is_drug_available(drug_idx: usize, drug_name: &str, region_cur_in: &str, regi
     avail >= 0.01
 }
 
+#[inline]
+fn is_hospital_administered_drug(drug_name: &str) -> bool {
+    matches!(
+        drug_name,
+        "penicillin_g"
+            | "piperacillin_tazobactam"
+            | "ampicillin_sulbactam"
+            | "ticarcillin_clavulanate"
+            | "cefazolin"
+            | "cefuroxime"
+            | "ceftriaxone"
+            | "ceftazidime"
+            | "cefepime"
+            | "ceftaroline"
+            | "ceftolozane_tazobactam"
+            | "cefiderocol"
+            | "meropenem"
+            | "meropenem_vaborbactam"
+            | "imipenem_c"
+            | "ertapenem"
+            | "aztreonam"
+            | "aztreonam_avibactam"
+            | "ceftazidime_avibactam"
+            | "gentamicin"
+            | "tobramycin"
+            | "amikacin"
+            | "tigecycline"
+            | "vancomycin"
+            | "teicoplanin"
+            | "dalbavancin"
+            | "daptomycin"
+            | "quinu_dalfo"
+            | "colistin"
+    )
+}
+
+#[inline]
+fn is_hospital_restricted_reserve_drug(drug_name: &str) -> bool {
+    matches!(drug_name, "linezolid" | "tedizolid")
+}
+
+#[inline]
+fn requires_hospital_management(drug_name: &str) -> bool {
+    is_hospital_administered_drug(drug_name) || is_hospital_restricted_reserve_drug(drug_name)
+}
+
 // =====================================================================================
 // HELPER FUNCTIONS
 // =====================================================================================
@@ -245,8 +291,10 @@ fn propagate_mechanism_resistance(
     let max_resistance_level = store.globals.max_resistance_level;
 
     for drug_index in 0..DRUG_SHORT_NAMES.len() {
-        // Compute cumulative mechanism resistance via multiplicative stacking
-        // Two accumulators: one for mechanism_any → any_r, one for mechanism_microbiome → microbiome_r
+        // Mechanisms stack on the susceptible fraction rather than add on the resistant
+        // fraction, so overlapping pathways saturate smoothly instead of overshooting 1.0.
+        // Track infection and microbiome resistance separately because the sampled
+        // infection profile can legitimately differ from the colonizing reservoir.
         let mut infection_susceptibility = 1.0_f64;
         let mut microbiome_susceptibility = 1.0_f64;
 
@@ -281,7 +329,8 @@ fn propagate_mechanism_resistance(
         let resistance_data = &mut individual.resistances[b_idx][drug_index];
 
         if raise_only {
-            // Only raise any_r — don't lower it (preserves higher cache-sampled values)
+            // Acquisition mode only raises resistance: a cache-sampled resistant profile
+            // should not be weakened by a partial set of currently visible mechanisms.
             if new_any_r > resistance_data.any_r {
                 resistance_data.any_r = new_any_r;
             }
@@ -614,6 +663,10 @@ fn hgt_context_multiplier(
 ) -> f64 {
     let mut multiplier = 1.0;
 
+    // This folds together the model's coarse-grained biology for HGT opportunity:
+    // hospitals, antibiotic pressure, true co-infection, and shared gut carriage all
+    // make cell-to-cell transfer more plausible than background microbiome-only contact.
+
     if is_hospitalized {
         multiplier *= globals.hgt_hospital_multiplier;
     }
@@ -743,17 +796,19 @@ fn assess_treatment_failure(
         let mut score = 0.0;
 
         // Base potency score
-        let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
+            let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
+                continue;
+            };
         let potency = store
             .drug_bacteria
-            .potency(*bacteria_idx_for_cache, drug_idx);
+                .potency(bacteria_idx_for_cache, drug_idx);
         if potency >= store.globals.minimal_potency_threshold_for_drug_selection {
             score += potency;
         }
 
         // Apply clinical multipliers (same as original logic)
         // Use pre-computed clinical preference multiplier from cache
-        let preference_multiplier = param_cache.clinical_preference_multiplier(*bacteria_idx_for_cache, drug_idx);
+        let preference_multiplier = param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
         if preference_multiplier != 1.0 {
             score *= preference_multiplier;
         }
@@ -815,6 +870,9 @@ fn treatment_failure_assessment_day_for(
 ) -> i32 {
     let mut final_day = default_day.max(1);
 
+    // Acute syndromes should declare failure quickly because clinicians expect visible
+    // improvement within a few days; indolent syndromes keep longer windows to avoid
+    // misclassifying slow-but-appropriate responses as treatment failure.
     // Rapid infection syndromes: respiratory (3), bloodstream (4), intra-abdominal (5), CNS (6)
     let fast_track_syndromes = [3, 4, 5, 6];
     if fast_track_syndromes.contains(&syndrome_id) {
@@ -895,10 +953,9 @@ fn assess_restart_window(
         let restart_window_days = store.globals.restart_window_days;
         let days_since_cessation = (time_step as i32) - cessation_day;
 
-        // CRITICAL CHECK: If patient is currently on ANY drug, do not trigger "Restart Window".
-        // The restart logic is for patients who stopped care and are failing. 
-        // If they are on a new drug (e.g. switch from Metronidazole to Amoxicillin), 
-        // we shouldn't blindly restart the old drug.
+        // Restart windows are only for people who fell out of treatment entirely.
+        // A drug switch counts as ongoing care, so reviving the old regimen here would
+        // double-count escalation and recreate drugs that were deliberately stopped.
         if individual.cur_use_drug.iter().any(|&on| on) {
             // Already being treated, clear the restart tracking for this bacteria to prevent future firing
             individual.drug_stopped_with_infection_day[bacteria_idx] = None;
@@ -990,10 +1047,12 @@ fn start_restart_treatment(
 
         if drug_avail && !individual.cur_use_drug[prev_drug_idx] {
             // Check if drug has adequate potency (basic safety check)
-            let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
+            let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
+                return false;
+            };
             let potency = store
                 .drug_bacteria
-                .potency(*bacteria_idx_for_cache, prev_drug_idx);
+                .potency(bacteria_idx_for_cache, prev_drug_idx);
             if potency >= minimal_potency_threshold {
                 // Restart the previously effective drug!
                 individual.cur_use_drug[prev_drug_idx] = true;
@@ -1045,16 +1104,18 @@ fn start_restart_treatment(
         let mut score = 0.0;
 
         // Base potency score
-        let bacteria_idx_for_cache = bacteria_indices.get(bacteria_name).unwrap_or(&0);
+        let Some(&bacteria_idx_for_cache) = bacteria_indices.get(bacteria_name) else {
+            continue;
+        };
         let potency = store
             .drug_bacteria
-            .potency(*bacteria_idx_for_cache, drug_idx);
+            .potency(bacteria_idx_for_cache, drug_idx);
         if potency >= minimal_potency_threshold {
             score += potency;
         }
 
         // Apply clinical preference multipliers using cached values
-        let preference_multiplier = param_cache.clinical_preference_multiplier(*bacteria_idx_for_cache, drug_idx);
+        let preference_multiplier = param_cache.clinical_preference_multiplier(bacteria_idx_for_cache, drug_idx);
         if preference_multiplier != 1.0 {
             score *= preference_multiplier;
         }
@@ -1410,6 +1471,7 @@ pub(crate) fn apply_rules(
     let antibiotic_init_base_log_odds = store.globals.antibiotic_initiation_base_log_odds;
     let antibiotic_init_log_odds_symptomatic = store.globals.antibiotic_initiation_log_odds_symptomatic_infection;
     let antibiotic_init_log_odds_sepsis = store.globals.antibiotic_initiation_log_odds_sepsis; // NEW
+    let antibiotic_init_log_odds_hospitalized = store.globals.antibiotic_initiation_log_odds_hospitalized;
     let antibiotic_init_log_odds_test_identified = store.globals.antibiotic_initiation_log_odds_test_identified;
     let antibiotic_init_log_odds_already_on_drug = store.globals.antibiotic_initiation_log_odds_already_on_drug;
     let antibiotic_init_log_odds_immunodeficiency = store.globals.antibiotic_initiation_log_odds_immunodeficiency;
@@ -1521,8 +1583,9 @@ pub(crate) fn apply_rules(
             log_odds += hosp_log_odds_symptomatic;
         }
         
-        // Regional healthcare access effect - HICs admit patients more readily
-        // This improves sepsis survival in well-resourced regions
+        // Regional hospitalization log-odds act as the model's coarse healthcare-access lever:
+        // higher-resource settings admit earlier and therefore expose patients to earlier
+        // IV therapy, monitoring, and sepsis rescue.
         log_odds += store.region.hospitalization_log_odds(individual.region_living);
         
         // Logistic transformation: P = 1 / (1 + exp(-log_odds))
@@ -1538,28 +1601,10 @@ pub(crate) fn apply_rules(
 
         // Determine if discharge is allowed
         // Check if patient is currently on any IV-only drug
-        let is_on_iv_drug = individual.cur_use_drug.iter().enumerate().any(|(idx, &on)| {
-             if !on { return false; }
-             let drug_name = DRUG_SHORT_NAMES[idx];
-             matches!(drug_name, 
-                 "penicillin_g" | 
-                 "piperacillin_tazobactam" | 
-                 "ceftazidime" | 
-                 "ceftriaxone" | 
-                 "cefepime" | 
-                 "meropenem" | 
-                 "meropenem_vaborbactam" | 
-                 "imipenem_c" | 
-                 "ertapenem" | 
-                 "vancomycin" | 
-                 "colistin" | 
-                 "dalbavancin" | 
-                 "quinu_dalfo" | 
-                 "gentamicin" | 
-                 "tobramycin" | 
-                 "amikacin"
-             )
-        });
+           let is_on_iv_drug = individual.cur_use_drug.iter().enumerate().any(|(idx, &on)| {
+               if !on { return false; }
+               requires_hospital_management(DRUG_SHORT_NAMES[idx])
+           });
 
         let can_discharge = if prevent_discharge_with_sepsis && has_sepsis {
             false // Cannot discharge if patient has sepsis
@@ -2043,6 +2088,11 @@ pub(crate) fn apply_rules(
         // region or other factors, reflecting emergency medical necessity.
         if individual.sepsis.iter().any(|&s| s) {
             log_odds += antibiotic_init_log_odds_sepsis;
+        }
+
+        // Inpatients are more likely to receive earlier empiric treatment once infection is active.
+        if individual.hospital_status.is_hospitalized() {
+            log_odds += antibiotic_init_log_odds_hospitalized;
         }
         
         // Laboratory test has identified an infection
@@ -3067,6 +3117,9 @@ pub(crate) fn apply_rules(
                     // Even with identified infection, carbapenems and other reserve agents should require
                     // documented prior treatment failure to maintain antimicrobial stewardship
                     if reserve_candidate {
+                        // Targeted therapy can escalate to reserve agents, but only when there is
+                        // evidence that an earlier regimen already failed; otherwise the model
+                        // would jump straight to carbapenems/last-line drugs too often.
                         let mut failure_documented = false;
                         let failure_memory_days = store.globals.drug_failure_memory_days;
                         for b_idx in 0..BACTERIA_LIST.len() {
@@ -3142,6 +3195,9 @@ pub(crate) fn apply_rules(
                         let has_any_activity = empiric_signal_present;
 
                         if reserve_candidate {
+                            // Empiric reserve use is deliberately stricter than targeted use:
+                            // require both a recent failure signal and surveillance evidence that
+                            // high resistance pressure justifies spending a last-line agent.
                             // Stage therapy: require documented recent failure before escalating to reserve agents
                             let mut failure_documented = false;
                             let failure_memory_days = store.globals.drug_failure_memory_days;
@@ -3347,24 +3403,7 @@ pub(crate) fn apply_rules(
 
                     // Force hospitalization if this is an IV-only drug
                     // This captures nosocomial risk for patients receiving parenteral therapy
-                    if matches!(drug_name, 
-                        "penicillin_g" | 
-                        "piperacillin_tazobactam" | 
-                        "ceftazidime" | 
-                        "ceftriaxone" | 
-                        "cefepime" | 
-                        "meropenem" | 
-                        "meropenem_vaborbactam" | 
-                        "imipenem_c" | 
-                        "ertapenem" | 
-                        "vancomycin" | 
-                        "colistin" | 
-                        "dalbavancin" | 
-                        "quinu_dalfo" | 
-                        "gentamicin" | 
-                        "tobramycin" | 
-                        "amikacin"
-                    ) {
+                    if requires_hospital_management(drug_name) {
                         if !individual.hospital_status.is_hospitalized() {
                             individual.hospital_status = HospitalStatus::InHospital;
                             individual.days_hospitalized = 0;
@@ -4615,9 +4654,19 @@ pub(crate) fn apply_rules(
                     // If the profile cache is empty (early warm-up), the individual stays
                     // fully susceptible.
                     let conc_factor = store.bacteria.hospital_resistance_concentration_factor[b_idx];
+                    let prune_susceptible_percent =
+                        store.bacteria.hospital_resistance_prune_susceptible_percent[b_idx];
                     let profile_sampled = if from_human_reservoir {
-                        let sampled_profile = if is_hospital_acquired && conc_factor > 1.0 {
-                            mechanism_cache.sample_profile_weighted(region_idx, b_idx, conc_factor, rng)
+                        let sampled_profile = if is_hospital_acquired
+                            && (conc_factor > 1.0 || prune_susceptible_percent > 0.0)
+                        {
+                            mechanism_cache.sample_profile_hospital_enriched(
+                                region_idx,
+                                b_idx,
+                                conc_factor,
+                                prune_susceptible_percent,
+                                rng,
+                            )
                         } else {
                             mechanism_cache.sample_profile(region_idx, b_idx, is_hospital_acquired, rng)
                         };

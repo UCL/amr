@@ -1,20 +1,44 @@
-﻿// Centralized configuration and parameter plumbing for the AMR simulation.
+﻿// Centralized configuration and parameter management for the AMR simulation.
 //
-// This file does two distinct jobs:
-// 1. Build the canonical parameter map by inserting defaults and explicit overrides.
-// 2. Expose typed readers so the rest of the simulation can ask for structured values
-//    without repeatedly parsing string keys.
+// Contains:
+//   - Initialization of global, bacteria-specific, and drug-specific parameters
+//   - Functions for parameter lookup and cross-resistance group management
+//   - Age-specific vaccination, HGT, and other model parameters
+//   - Reference for template and override logic
 //
-// Reading guide:
-// - The early sections define typed parameter stores and lookup helpers.
-// - The large middle sections populate the default parameter map for drugs, bacteria,
-//   regions, demographics, and resistance mechanisms.
-// - The final sections expose helper lookups used by hot paths in rules/ and simulation/.
-//
-// When changing model behaviour, keep the default inserted into the raw map aligned with
-// the typed reader that consumes it; most bugs in this file come from updating one layer
-// without the other.
+// ===================== PARAMETER DEFAULTS QUICK INDEX =====================
+//   A) Bacteria baseline defaults & vaccination scaffolding ........... ~4140
+//   B) Horizontal gene transfer (HGT) priors ........................... ~4185
+//   C) Drug initiation, selection, and pharmacokinetics ................ ~4199
+//   D) Drug interaction adjustments & therapy flow ..................... ~4356
+//   E) Drug-bacteria potency & emergence settings ...................... ~4381
+//   F) Regional acquisition pressure baselines ........................ ~5556
+//   G) Microbiome carriage & clearance priors .......................... ~5836
+//   H) Resistance emergence, transfer, and mechanism weights ........... ~5922
+//   I) Clinical outcome scalars (mortality, sepsis, toxicity) .......... ~6186
+//   J) Regional availability & introduction timelines .................. ~6834
+//   K) Demographic distribution defaults .............................. ~6950
+// ========================================================================
+// ===================== READER / LOOKUP STRUCTURE =======================
+//   1) Core indices & constants ........................................ ~46
+//   2) Parameter store & struct definitions ............................ ~91
+//   3) Global scalar readers (from_map accessors) ...................... ~153
+//   4) Immunodeficiency / region / syndrome / sex readers .............. ~747
+//   5) Vaccination & age category readers .............................. ~880
+//   6) Drug parameter blocks (reader structs) .......................... ~1096
+//   7) Bacteria-level readers & microbiome logic ....................... ~1210
+//   8) Clearance, acquisition, and age readers ......................... ~1466
+//   9) Drug-bacteria matrices & cross-resistance readers ............... ~4385
+//  10) Regional drug availability & introduction lookups ............... ~6837
+//  11) Demographic distribution readers ................................ ~6953
+//  12) Helper lookups (drug intro, availability, etc.) ................. ~7125
+//  13) HGT matrices & resistance mechanism readers ..................... ~7266
+// ========================================================================
+// Sections A-K highlight where defaults are inserted. Sections 1-13 show the
+// typed readers that consume those defaults (falling back to literals only
+// when a configuration key is absent).
 
+// src/config.rs
 use crate::simulation::population::{
     AgeCategory, BacteriaGroup, Region, ResistanceMechanism, AGE_CATEGORY_SEQUENCE,
     BACTERIA_GROUPS, BACTERIA_LIST, DRUG_SHORT_NAMES,
@@ -106,8 +130,6 @@ pub struct ParameterStore {
 
 impl ParameterStore {
     fn from_parameter_map(map: &HashMap<String, f64>) -> Self {
-        // Construct every typed view from the same underlying map so one run sees one
-        // coherent parameter universe across globals, per-bacteria settings, and matrices.
         let num_bacteria = BACTERIA_LIST.len();
         let num_drugs = DRUG_SHORT_NAMES.len();
 
@@ -351,9 +373,7 @@ fn parameter_map() -> &'static HashMap<String, f64> {
 
 fn set_active_parameter_context(parameter_map: HashMap<String, f64>) {
     let store = ParameterStore::from_parameter_map(&parameter_map);
-    // Run-level sampling swaps the entire parameter universe at once. The context is leaked on
-    // purpose so the rest of the simulation can keep using &'static accessors without threading
-    // lifetimes through every hot path.
+    // Leak the run context so existing read-heavy code can keep borrowing static references.
     let leaked_context = Box::leak(Box::new(ActiveParameterContext {
         map: parameter_map,
         store,
@@ -374,8 +394,6 @@ pub fn activate_run_parameter_sampling<R: Rng + ?Sized>(
         return Vec::new();
     }
 
-    // Sampling starts from the canonical defaults, then writes a coherent set of latent
-    // pathway multipliers into a fresh map so one run sees one internally-consistent draw.
     let mut sampled_parameter_map = PARAMETERS.clone();
     let sampled_records = sample_parameter_records(&mut sampled_parameter_map, rng);
     set_active_parameter_context(sampled_parameter_map);
@@ -392,7 +410,7 @@ pub struct GlobalScalars {
     pub antibiotic_initiation_log_odds_test_identified: f64,
     pub antibiotic_initiation_log_odds_already_on_drug: f64,
     pub antibiotic_initiation_log_odds_immunodeficiency: f64,
-    pub antibiotic_initiation_log_odds_sepsis: f64,
+    pub antibiotic_initiation_log_odds_sepsis: f64, // New parameter for sepsis cases
     pub antibiotic_initiation_log_odds_hospitalized: f64,
     pub antibiotic_initiation_log_odds_no_indication: f64, // negative effect when prescribing without infection/immunodeficiency
     // Drug activity parameters (still used for bacteria level effects)
@@ -627,7 +645,7 @@ impl GlobalScalars {
             microbiome_resistance_transfer_probability_per_day: get_or_default(
                 map,
                 "microbiome_resistance_transfer_probability_per_day",
-                0.000_000_000_000_000_000_000_000_000_000_000_000_000_1,
+                0.000_000_000_000_000_000_000_000_000_000_000_000_000_1,  // 0.0008  ***
             ),
             // Logistic hospitalization parameters
             // Calibrated to produce ~3-4% baseline hospitalization rate
@@ -1060,10 +1078,11 @@ impl GlobalScalars {
                 "antibiotic_disruption_decay_half_life_days",
                 30.0,
             ),
+            // ── CALIBRATION AXIS 6 (default): microbiome seeding probability ──
             microbiome_resistance_multiplier_on_acquisition: get_or_default(
                 map,
                 "microbiome_resistance_multiplier_on_acquisition",
-                0.18,
+                0.18,  // 0.18 ***  (overridden to 0.50 in PARAMETERS block ~line 10744)
             ),
             infection_from_microbiome_dampening: get_or_default(
                 map,
@@ -1085,15 +1104,17 @@ impl GlobalScalars {
                 "antibiotic_clearance_log_odds_per_unit_activity",
                 0.9,
             ),
+            // ── CALIBRATION AXIS 4 (default): microbiome→infection bridge ──
             carrier_resistance_inheritance_probability: get_or_default(
                 map,
                 "carrier_resistance_inheritance_probability",
-                0.32,
+                0.32,  // 0.32 ***  (overridden to 0.50 in PARAMETERS block ~line 10790)
             ),
+            // ── CALIBRATION AXIS 5 (default): fraction from human reservoir ──
             community_resistance_dilution_factor: get_or_default(
                 map,
                 "community_resistance_dilution_factor",
-                0.50,
+                0.50,  // 0.50 ***  (overridden to 0.50 in PARAMETERS block ~line 10791)
             ),
             // ── Hospital profile cache retention: fraction of old profiles kept per step ──
             // Hospital ecology persists for months (surfaces, devices, HCW colonisation);
@@ -1104,23 +1125,29 @@ impl GlobalScalars {
                 0.995,
             ),
 
-            // Setting the hospital multiplier to 0.0 effectively disables HGT in practice,
-            // because every downstream transfer calculation includes this context multiplier.
-            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),
+            // =====================================================================
+            // COUNTERFACTUAL HGT CONTROL
+            // To run a "No Horizontal Gene Transfer" counterfactual scenario, set
+            // the `hgt_hospital_multiplier` parameter to 0.0 (or set it here below).
+            // Since this parameter multiplies every HGT calculation, 0.0 effectively
+            // disables all HGT events across the simulation without needing to touch
+            // the HgtMatrix pair-probabilities or modify the core Rust simulation loop.
+            // =====================================================================
+            hgt_hospital_multiplier: get_or_default(map, "hgt_hospital_multiplier", 3.0),  // 3.0  ***
             hgt_antibiotic_pressure_multiplier: get_or_default(
                 map,
                 "hgt_antibiotic_pressure_multiplier",
-                1.5,
+                1.5,  // 1.5  ***
             ),
             hgt_coinfection_multiplier: get_or_default(
                 map,
                 "hgt_coinfection_multiplier",
-                1.25,
+                1.25,  // 1.25 ***
             ),
             hgt_microbiome_only_penalty: get_or_default(
                 map,
                 "hgt_microbiome_only_penalty",
-                0.65,
+                0.65,  // 0.65 ***   ^^^ micro
             ),
             hgt_gut_compartment_multiplier: get_or_default(
                 map,
@@ -1137,21 +1164,26 @@ impl GlobalScalars {
                 "majority_r_memory_retention_per_day",
                 0.93,
             ),
+            // ^^^ micro
+            // ── CALIBRATION AXIS 1 (default): resistance persistence / reversion speed ──
             mechanism_reversion_rate_global_multiplier: get_or_default(
                 map,
                 "mechanism_reversion_rate_global_multiplier",
                 1.0,
             ),
+            // ── CALIBRATION AXIS 2 (default): de-novo emergence in infections ──
             infection_de_novo_multiplier: get_or_default(
                 map,
                 "infection_de_novo_multiplier",
                 1.0,
             ),
+            // ── CALIBRATION AXIS 3 (default): de-novo emergence in gut carriage ──
             microbiome_de_novo_multiplier: get_or_default(
                 map,
                 "microbiome_de_novo_multiplier",
                 1.0,
             ),
+            // ── CALIBRATION AXIS 7 (default): horizontal gene transfer rate scaling ──
             hgt_multiplier: get_or_default(
                 map,
                 "hgt_multiplier",
@@ -2099,10 +2131,6 @@ pub struct BacteriaParameters {
     /// infectious dose thresholds in immunocompromised co-located patients.
     /// Default 1.0 (no amplification).  Set > 1.0 for nosocomial organisms.
     pub hospital_resistance_concentration_factor: Vec<f64>,
-    /// Per-bacteria hospital cache prune percentage for mechanism-free profiles.
-    /// Before sampling a hospital acquisition profile, this percentage of all-zero
-    /// profiles is temporarily removed from the candidate pool.
-    pub hospital_resistance_prune_susceptible_percent: Vec<f64>,
 }
 
 impl BacteriaParameters {
@@ -2131,7 +2159,6 @@ impl BacteriaParameters {
         let mut hospital_microbiome_r_multiplier = Vec::with_capacity(num_bacteria);
         let mut community_resistance_dilution_factor = Vec::with_capacity(num_bacteria);
         let mut hospital_resistance_concentration_factor = Vec::with_capacity(num_bacteria);
-        let mut hospital_resistance_prune_susceptible_percent = Vec::with_capacity(num_bacteria);
 
         for &bacteria in BACTERIA_LIST.iter() {
             let prefix = bacteria;
@@ -2210,7 +2237,7 @@ impl BacteriaParameters {
             microbiome_vs_infection_log_odds.push(get_or_default(
                 map,
                 &format!("{}_log_odds_microbiome_vs_infection", prefix),
-                get_or_default(map, "log_odds_microbiome_vs_infection", 3.0),
+                get_or_default(map, "log_odds_microbiome_vs_infection", 3.0), // Iter7: was -6.0 (99.75% infection!), changed to 3.0 (~5% infection)
             ));
             let cessation_key = format!("{}_drug_cessation_probability", prefix.to_lowercase());
             let default_cessation = get_or_default(map, "random_drug_cessation_probability", 0.001);
@@ -2257,11 +2284,6 @@ impl BacteriaParameters {
                 &format!("{}_hospital_resistance_concentration_factor", prefix),
                 get_or_default(map, "hospital_resistance_concentration_factor", 1.0),
             ));
-            hospital_resistance_prune_susceptible_percent.push(get_or_default(
-                map,
-                &format!("{}_hospital_resistance_prune_susceptible_percent", prefix),
-                get_or_default(map, "hospital_resistance_prune_susceptible_percent", 0.0),
-            ));
         }
 
         BacteriaParameters {
@@ -2289,7 +2311,6 @@ impl BacteriaParameters {
             hospital_microbiome_r_multiplier,
             community_resistance_dilution_factor,
             hospital_resistance_concentration_factor,
-            hospital_resistance_prune_susceptible_percent,
         }
     }
 
@@ -5685,8 +5706,16 @@ lazy_static! {
 
         // === [B] Horizontal gene transfer (HGT) priors ===
         // Baseline daily probabilities for each donor/recipient pair; tweak here for broad shifts,
-        // or override specific pairs in input templates. Setting these probabilities to 0.0 is the
-        // cleanest way to run a no-HGT counterfactual.
+        // or override specific pairs in input templates.
+        // 
+        // =====================================================================
+        // COUNTERFACTUAL HGT CONTROL:
+        // To run a "No Horizontal Gene Transfer" counterfactual scenario, simply modify the
+        // `default_prob` value below to be 0.0 for all pairs, or in your Python launcher script
+        // programmatically generate and pass all `hgt_prob_{donor}_to_{recipient}: 0.0` pairs.
+        // Doing this will bypass all downstream HGT operations.
+        // =====================================================================
+        // --- HGT Probabilities for All Donor-Recipient Bacteria Pairs ---
         for (donor_idx, &donor) in BACTERIA_LIST.iter().enumerate() {
             for (recipient_idx, &recipient) in BACTERIA_LIST.iter().enumerate() {
                 if donor_idx == recipient_idx {
@@ -5706,11 +5735,14 @@ lazy_static! {
         // Core knobs for therapy behaviour: initiation heuristics, scoring multipliers, and half-lives
         // that drive drug levels. Overwrite these for global experiments; use per-drug keys for specifics.
         
-        // Logistic model for antibiotic initiation probability.
+        // *** Logistic model for antibiotic initiation probability ***
         // P(initiation) = 1 / (1 + exp(-log_odds))
         // log_odds = base + sum of applicable effects (additive in log-odds space)
-        // This replaces the old multiplicative model while keeping prescribing drivers additive
-        // and interpretable on the log-odds scale.
+        // This replaces the old multiplicative model and naturally bounds P ∈ (0,1)
+        // Defaults calibrated to match historical behavior:
+        //   - Base alone: P ≈ 0.1% (background rate)
+        //   - With symptomatic infection: P ≈ 26% per day
+        //   - With test + immunodeficiency: can approach high certainty
         map.insert("antibiotic_initiation_base_log_odds".to_string(), -5.5); // baseline: log(0.001/0.999) ≈ -6.9
         map.insert("antibiotic_initiation_log_odds_symptomatic_infection".to_string(), 6.0); // +5.85 → brings P from 0.1% to ~26%
         map.insert("antibiotic_initiation_log_odds_sepsis".to_string(), 6.0); // +6.0 -> strong boost for emergency care
@@ -5829,7 +5861,7 @@ lazy_static! {
         map.insert("drug_metronidazole_half_life_days".to_string(), 0.33); // ~8 hours
         map.insert("drug_furazolidone_half_life_days".to_string(), 0.25); // ~6 hours
 
-        // Additional late-era and reserve drugs.
+        // === NEW RESCUE DRUGS ===
         map.insert("drug_ceftolozane_tazobactam_half_life_days".to_string(), 0.125); // ~3 hours
         map.insert("drug_cefiderocol_half_life_days".to_string(), 0.1); // ~2.5 hours
         map.insert("drug_tigecycline_half_life_days".to_string(), 1.75); // ~42 hours
@@ -7932,30 +7964,33 @@ lazy_static! {
 
 
     // Per-bacterium hospital resistance concentration factor.
-    // Debug run: keep the weighting pathway wired in, but neutralize it.
-    map.insert("hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("acinetobacter_baumannii_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("pseudomonas_aeruginosa_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("stenotrophomonas_maltophilia_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("burkholderia_cepacia_complex_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("klebsiella_pneumoniae_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterobacter_cloacae_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("citrobacter_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("serratia_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("morganella_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("proteus_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("p_stuartii_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("invasive_non-typhoidal_salmonella_spp._hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("staphylococcus_epidermidis_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("staphylococcus_aureus_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterococcus_faecium_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("enterococcus_faecalis_hospital_resistance_concentration_factor".to_string(), 1.0);
-    map.insert("clostridioides_difficile_hospital_resistance_concentration_factor".to_string(), 1.0);
-    // Per-bacterium hospital cache pruning of mechanism-free profiles.
-    // Debug run: remove all susceptible hospital-cache entries before infection-profile
-    // sampling whenever any resistant profiles are present in the selected pool.
-    map.insert("hospital_resistance_prune_susceptible_percent".to_string(), 100.0);
+    // Extreme debug stress test: push all organisms above 10,000 while preserving the
+    // existing relative ranking of the explicitly overridden hospital-enriched taxa.
+    map.insert("hospital_resistance_concentration_factor".to_string(), 10001.0);
+    //
+    // Tier 1 — Nosocomial opportunists.
+    map.insert("acinetobacter_baumannii_hospital_resistance_concentration_factor".to_string(), 15000.0);
+    map.insert("pseudomonas_aeruginosa_hospital_resistance_concentration_factor".to_string(), 15000.0);
+    map.insert("stenotrophomonas_maltophilia_hospital_resistance_concentration_factor".to_string(), 15000.0);
+    map.insert("burkholderia_cepacia_complex_hospital_resistance_concentration_factor".to_string(), 15000.0);
+    //
+    // Tier 2 — Hospital-enriched Gram-negatives.
+    map.insert("klebsiella_pneumoniae_hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("enterobacter_spp._hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("enterobacter_cloacae_hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("citrobacter_spp._hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("serratia_spp._hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("morganella_spp._hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("proteus_spp._hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("p_stuartii_hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("invasive_non-typhoidal_salmonella_spp._hospital_resistance_concentration_factor".to_string(), 13000.0);
+    map.insert("staphylococcus_epidermidis_hospital_resistance_concentration_factor".to_string(), 13000.0);
+    //
+    // Tier 3 — Hospital-enriched Gram-positives.
+    map.insert("staphylococcus_aureus_hospital_resistance_concentration_factor".to_string(), 12000.0);
+    map.insert("enterococcus_faecium_hospital_resistance_concentration_factor".to_string(), 12000.0);
+    map.insert("enterococcus_faecalis_hospital_resistance_concentration_factor".to_string(), 12000.0);
+    map.insert("clostridioides_difficile_hospital_resistance_concentration_factor".to_string(), 12000.0);
         //
         // Tier 4 — Community-dominant (1.0, default):
         //   Primarily community/endogenous/foodborne/STI; hospital adds minimal ecological
@@ -8366,8 +8401,9 @@ lazy_static! {
         map.insert("any_r_emergence_level_on_first_emergence".to_string(), 0.5); // The resistance level 'any_r' starts at upon emergence
 
 
-    // Daily probability of resistance transfer between active infection and microbiome carriage.
-    map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0001);
+        //  Microbiome Resistance Transfer Parameter
+        // ^^^ micro
+        map.insert("microbiome_resistance_transfer_probability_per_day".to_string(), 0.0001); // 0.00001  *** Probability per day for resistance transfer between infection and microbiome
 
         // --- Multi-Drug Resistance Emergence Penalty Parameters ---
         // When multiple drugs are active, resistance emergence is reduced because mutations
@@ -8378,8 +8414,17 @@ lazy_static! {
 
 
 
-        // --- Resistance mechanism emergence rates ---
-        // Direct emergence rates (per day when drug pressure is present) for each bacteria-mechanism pair.
+        // --- Resistance Mechanisms Parameters ---
+        // Implementation of granular resistance mechanisms (40 types)
+        //
+        // =====================================================================================
+        // BACTERIA-MECHANISM-SPECIFIC EMERGENCE RATES
+        // =====================================================================================
+        // Direct emergence rates (per day when drug present) for each bacteria-mechanism pair.
+        // All 40 resistance mechanisms in standardized biological order for all 42 bacteria.
+        //
+        // ^^^^
+        //
         // ======================================================================
         // Gram-Negative Bacteria — Enterobacterales
         // ======================================================================
@@ -11240,10 +11285,12 @@ lazy_static! {
         map.insert("drug_cefixime_spectrum_breadth".to_string(), 2.8); // 3rd gen oral
 
 
-        // Logistic sepsis risk parameters.
+        // NEW: Logistic Sepsis Risk Parameters (replacing old linear model)
         map.insert("sepsis_baseline_log_odds".to_string(), -14.0); // Fallback baseline for organisms without explicit intercept
 
 
+        // sepsis rates
+        // ***sepsis_incidence
         // Bacteria-specific sepsis baseline log-odds (best-guess placeholders calibrated by clinical severity)
         let bacteria_sepsis_baseline_overrides: &[(&str, f64)] = &[
             ("acinetobacter_baumannii", -7.7),
@@ -11304,7 +11351,8 @@ lazy_static! {
         // Acinetobacter baumannii: XDR VAP/bacteraemia CFR 40-60% in ICU; worst gram-negative prognosis
         map.insert("acinetobacter_baumannii_sepsis_death_log_odds_override".to_string(), 0.69); // ~2× CFR given sepsis vs average
 
-        map.insert("log_odds_sepsis_infection_level".to_string(), 0.93); // Log odds increase per unit bacterial level
+        // ***sepsis_incidence
+        map.insert("log_odds_sepsis_infection_level".to_string(), 0.93); // 0.8      Log odds increase per unit bacterial level
         // === [I] Clinical outcome scalars (mortality, sepsis, toxicity) ===
         // Collects mortality/sepsis odds adjustments together so scenario designers can reason about
         // outcome severity in one place. These parameters shape the probability of severe outcomes
@@ -11483,7 +11531,8 @@ lazy_static! {
 
         map.insert("sepsis_minimum_duration_days".to_string(), 1.0); // Minimum sepsis duration (1 day)
 
-        // Default microbiome clearance parameter required by carriage dynamics.
+        //  Default Toxicity Parameter
+        //  Default Microbiome Clearance Parameter (required by simulation logic)
         map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
         // Probability of clearing microbiome when drug treatment successfully clears infection
         map.insert("microbiome_clearance_probability_on_drug_treatment".to_string(), 0.8); // 80% chance drugs clear microbiome when they clear infection
@@ -11504,8 +11553,10 @@ lazy_static! {
         // Empirical basis: 5-15x increased colonization risk during antibiotic therapy, persisting weeks
         // to months after cessation. Studies show antibiotics are the strongest risk factor for MDR carriage.
         map.insert("default_microbiome_disruption_log_odds".to_string(), 0.3);
-        map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.50);
-        map.insert("infection_from_microbiome_dampening".to_string(), 0.70);
+        // ^^^ micro
+        // ══▶▶ CALIBRATION AXIS 6: microbiome seeding probability — CHANGE HERE ◀◀══
+        map.insert("microbiome_resistance_multiplier_on_acquisition".to_string(), 0.50);  //  0.50 
+        map.insert("infection_from_microbiome_dampening".to_string(), 0.70);  // 0.85  ***
         // Each active antibiotic adds +0.3 to log-odds of carriage acquisition (multiplicative ~1.35x per drug)
         // Default 0.3 gives ~2x risk with 2 drugs, ~3x with 3 drugs (reasonable based on literature)
 
@@ -11534,7 +11585,7 @@ lazy_static! {
         // why treatment courses often clear carriage as a side effect.
         // Empirical basis: Decolonization protocols use topical antibiotics (mupirocin for MRSA nasal carriage).
         // Systemic treatment often clears S. aureus carriage. However, resistant strains persist.
-        map.insert("antibiotic_clearance_log_odds_per_unit_activity".to_string(), 0.5);
+        map.insert("antibiotic_clearance_log_odds_per_unit_activity".to_string(), 0.5);  // ***
         // Each unit of activity_r adds +0.5 to clearance log-odds
         // activity_r already accounts for drug level, potency, and resistance, so this scales appropriately
         // Example: activity_r=2.0 → +1.0 log-odds → ~2.7x higher clearance probability
@@ -12214,8 +12265,6 @@ lazy_static! {
 #[allow(dead_code)]
 pub fn parameter_store() -> &'static ParameterStore {
     if let Some(context) = get_active_parameter_context() {
-        // Prefer the sampled run context whenever one is active so every downstream lookup
-        // sees the same sampled draw rather than mixing baseline and run-specific parameters.
         &context.store
     } else {
         &PARAMETER_STORE

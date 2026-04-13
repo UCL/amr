@@ -1087,10 +1087,10 @@ pub static DRUG_CLASS_LOOKUP: std::sync::LazyLock<Vec<usize>> = std::sync::LazyL
         .collect()
 });
 
-// HospitalStatus: models healthcare-associated risk of acquiring resistant bacteria (not hospitalization due to infection/comorbidities).
-// note that hospital status is modelled to allow health care associated risk of acquisition of bacteria with
-// resistance to be modelled we do not attempt to model whether a person is hospitalized as a result of an infection
-// or what underlying other conditions they may have that would affect risk of hospitalization
+// HospitalStatus tracks current inpatient status for healthcare-associated acquisition,
+// and is also updated by infection severity and hospital-managed treatment decisions.
+// It remains a deliberately simplified inpatient-state abstraction rather than a full
+// model of admission diagnoses, ward structure, or comorbidity-specific bed use.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HospitalStatus {
