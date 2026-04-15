@@ -1,3 +1,142 @@
+
+// TEMPORARY NOTES _ DURING DEVELOPMENT
+//
+// -- additional outputs / thoughts on calibration  ---------------------------------------------------------------------------------
+//
+// maybe publish online results from 1 run with fixed seed and also results using the same fixed seed but changing
+// one parameter value only ?  Can refer to this in supplementary material.
+//
+// case fatality by infection if untreated
+//
+// look at data on effects of stewardship policies on resistance and see if model can re-produce
+//
+// consider whether can replicate recent antibiotic use as associated with resistance presence
+//
+// add mechanisms present by day to infection journeys
+//
+// need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
+// multiple mechansims
+//
+// relative chance of drug start by infection site
+//
+// need targets for (i) % infections started in hospital by bacteria (ii) % of hospital infections with resistance by bacteria
+// add to calibration summary: death rate from infection by bacteria
+//
+// death within 30 days by bacteria, syndrome, age and region ? - make a formal part of calibration 
+// score or just present as an fyi ?
+//
+// infections with test_r done by x days (by region ?)
+// or proportion of drug treatment days which is empiric (by region and hospital status ?)
+//
+// present a global antibiotic activity for each bacteria over time
+// - sum across drugs existing at the time of 
+//   mean potency x (1 - any_r) amongst those infected with the bacteria
+//
+//
+//
+// -- calibration approach:  
+// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
+// policy comparison several times on each 
+//
+//
+//
+//
+//
+// -- model structure developments to consider ------------------------------------------------------------
+//
+//  should we be reducing the hospital microbiome resistance acquisition as this
+//  must be a mechanism for hospital resistance getting into community ?
+//
+//  separate age categories of 70-80 and 80+ throughout
+//
+//  have increased risk of strep b, e coli and listeria in women of childbearing age ?
+//
+//  ? add an immunodeficiency-specific empiric broad-spectrum bonus ?
+//
+//
+//
+//
+//
+//
+//
+//
+//
+// consider for future iterations:
+//
+// model low level "treatment" resulting from antimicrobials in the environment ?
+// consider having incidence of infection rising in situations if they occur in future in which infections cannot be treated
+// reduced bacterial growth rates for resistant strains ?
+// competition between sensitive and resistant strains in microbiome ?
+// time-dependent costs: higher initially, decreasing with compensatory mutations
+// multi-drug cost interactions: costs compound with multiple resistance mechanisms
+// differentiate growth rates - fast vs. slow growing bacteria ?
+// consider treatment phases - intensive vs. continuation therapy ?
+// model dormancy - especially for chronic infections like mdr tb ?
+// biofilm resistance - reduced drug effectiveness in chronic infections ?
+// use gbd super regions instead of continents ?
+// bear in mind that strep pneu for example has a vaccine against it but this has resulted in growth of non-vaccine-covered serotypes
+// we may still decide we need to model drug-specific drug levels but not clear how we would get data
+// consider whether infection from the environment should also depend on concurrent majority_r - or do we need
+// to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ?
+// (maybe someone can do this in a future interation.....)
+// add legionella ?  tick-borne bacteria ? 
+// remember that we model use of antibiotics when no modelled bacteria present so in some ways this takes care of bacteria not modelled 
+// should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
+// should we consider some syndromes (from which spread is more likely) more than others for population majority_r ?
+// consider more granular breakdown of regions
+// consider adding tb, consider adding fungi
+//
+//
+// calibration data: approx drug usage per 100_000 per calendar year
+//                   incidence of infection with each bacteria by age and calendar year
+//                   deaths from each bacteria per 100_000 by region and calendar year
+//                   resistance distribution for each used drug for each bacteria by calendar year
+//
+// https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
+//
+// add age and region-specific all cause death rates from wpp/who and try to subtract bacterial
+// infection rates so they are background death rates
+//
+//
+//
+//
+// set up automated testing for the simulation (?) (probably not yet though)
+//
+//
+// comparisons:
+//
+// default combination therapy from (i) 1950 (ii) 1975 (iii) 2000 (iv) 2000 (v) 2025
+// - consider modelling of lower replication capacity of resistant virus in absence of drug
+// - consider if raise this what effect has on emergence rates 
+// - consider effect of having the floor for some bacteria
+// - consider various approaches to choice of the two drugs 
+//
+// other counterfactuals to include in first paper:
+// - stop all antibiotic use  
+// - drug can be started from infection
+// - test_r known at infection and drug can be started
+// - no further existence of resistance (already in)
+//
+// decide on time zero for mda azithromycin project
+//
+// work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
+// for azithromycin mda project
+//
+// ? need poc test for drug level at infection site
+//
+// consider case for real time infection site drug level monitoring 
+//
+// mda with azithromycin is to reduce community incidence as well as treat existing
+// infection
+//
+// for mda project can base in africa with an "other" region all groued together
+//
+
+
+
+
+
+
 // src/main.rs
 // Simulation entry point.
 //
@@ -228,3 +367,4 @@ fn validate_bacteria_configuration() {
     }
     println!("=====================================\n");
 }
+

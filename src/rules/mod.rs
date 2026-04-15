@@ -101,9 +101,18 @@ use crate::simulation::population::{
 use rand::Rng;
 
 use crate::simulation::simulation::{MechanismCache, PolicyAdjustments};
+use lazy_static::lazy_static;
 use log;
 use std::collections::HashMap;
 use std::f64::consts::LN_2;
+
+lazy_static! {
+    static ref DRUG_INDEX_BY_NAME: HashMap<&'static str, usize> = DRUG_SHORT_NAMES
+        .iter()
+        .enumerate()
+        .map(|(idx, &name)| (name, idx))
+        .collect();
+}
 
 // =====================================================================================
 // CONSTANTS
@@ -207,6 +216,73 @@ fn is_hospital_restricted_reserve_drug(drug_name: &str) -> bool {
 #[inline]
 fn requires_hospital_management(drug_name: &str) -> bool {
     is_hospital_administered_drug(drug_name) || is_hospital_restricted_reserve_drug(drug_name)
+}
+
+#[inline]
+fn serious_resistance_marker_drugs(bacteria_name: &str) -> &'static [&'static str] {
+    match bacteria_name {
+        "escherichia_coli"
+        | "klebsiella_pneumoniae"
+        | "enterobacter_cloacae"
+        | "enterobacter_spp."
+        | "citrobacter_spp."
+        | "serratia_spp."
+        | "morganella_spp."
+        | "proteus_spp."
+        | "p_stuartii"
+        | "acinetobacter_baumannii"
+        | "pseudomonas_aeruginosa"
+        | "burkholderia_cepacia_complex"
+        | "bacteroides_fragilis" => &["meropenem"],
+        "stenotrophomonas_maltophilia" => &["trim_sulf"],
+        "staphylococcus_aureus" | "staphylococcus_epidermidis" => &["flucloxacillin"],
+        "enterococcus_faecium" | "enterococcus_faecalis" | "clostridioides_difficile" => {
+            &["vancomycin"]
+        }
+        "streptococcus_pneumoniae" | "streptococcus_agalactiae" | "treponema_pallidum" => {
+            &["penicillin_g"]
+        }
+        "streptococcus_pyogenes" => &["erythromycin"],
+        "haemophilus_influenzae" => &["amoxicillin_clavulanate"],
+        "moraxella_catarrhalis"
+        | "mycoplasma_pneumoniae"
+        | "legionella_pneumophila"
+        | "bordetella_pertussis"
+        | "vibrio_cholerae"
+        | "chlamydia_trachomatis"
+        | "mycoplasma_genitalium" => &["azithromycin"],
+        "campylobacter_jejuni"
+        | "salmonella_enterica_serovar_typhi"
+        | "salmonella_enterica_serovar_paratyphi_a"
+        | "shigella_spp."
+        | "yersinia_enterocolitica" => &["ciprofloxacin"],
+        "invasive_non-typhoidal_salmonella_spp." | "neisseria_gonorrhoeae" | "neisseria_meningitidis" => {
+            &["ceftriaxone"]
+        }
+        "listeria_monocytogenes" => &["ampicillin"],
+        "helicobacter_pylori" => &["clarithromycin"],
+        "mdr_mycobacterium_tuberculosis" => &["rifampicin"],
+        _ => &[],
+    }
+}
+
+#[inline]
+fn has_serious_resistance_test_positive(individual: &Individual) -> bool {
+    for (b_idx, &bacteria_name) in BACTERIA_LIST.iter().enumerate() {
+        if individual.level[b_idx] <= INFECTION_EPS {
+            continue;
+        }
+
+        for &drug_name in serious_resistance_marker_drugs(bacteria_name) {
+            if let Some(&drug_idx) = DRUG_INDEX_BY_NAME.get(drug_name) {
+                if individual.resistances[b_idx][drug_idx].test_r > INFECTION_EPS {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
 }
 
 // =====================================================================================
@@ -1549,6 +1625,9 @@ pub(crate) fn apply_rules(
     let hosp_log_odds_per_age_year = store.globals.hospitalization_log_odds_per_age_year;
     let hosp_log_odds_sepsis = store.globals.hospitalization_log_odds_sepsis;
     let hosp_log_odds_symptomatic = store.globals.hospitalization_log_odds_symptomatic_infection;
+    let hosp_log_odds_serious_resistance = store
+        .globals
+        .hospitalization_log_odds_serious_resistance_test_positive;
     let hosp_symptomatic_level_threshold = store.globals.hospitalization_symptomatic_infection_level_threshold;
     let recovery_rate = store.globals.hospital_recovery_rate_per_day;
     let max_days_in_hospital = store.globals.hospital_max_days.max(0.0) as u32;
@@ -1562,6 +1641,8 @@ pub(crate) fn apply_rules(
     let has_severe_symptomatic_infection = individual.level.iter().enumerate().any(|(b_idx, &lvl)| {
         lvl > hosp_symptomatic_level_threshold && individual.infection_has_caused_symptoms[b_idx]
     });
+    let has_active_infection = individual.level.iter().any(|&lvl| lvl > INFECTION_EPS);
+    let has_serious_resistance_test = has_serious_resistance_test_positive(individual);
 
     // Potentially get hospitalized (if not currently hospitalized)
     if !individual.hospital_status.is_hospitalized() {
@@ -1581,6 +1662,10 @@ pub(crate) fn apply_rules(
         // seek hospital care even without antibiotics being available (pre-antibiotic era driver)
         if has_severe_symptomatic_infection {
             log_odds += hosp_log_odds_symptomatic;
+        }
+
+        if has_active_infection && has_serious_resistance_test {
+            log_odds += hosp_log_odds_serious_resistance;
         }
         
         // Regional hospitalization log-odds act as the model's coarse healthcare-access lever:
@@ -1608,6 +1693,8 @@ pub(crate) fn apply_rules(
 
         let can_discharge = if prevent_discharge_with_sepsis && has_sepsis {
             false // Cannot discharge if patient has sepsis
+        } else if has_active_infection {
+            false // Cannot discharge while any active infection remains above the model threshold
         } else if is_on_iv_drug {
             false // Cannot discharge if on IV drugs
         } else {

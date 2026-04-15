@@ -163,6 +163,11 @@ Each day, every individual's age increments by one day. The model groups people 
 
 
 
+Within this broad 0–1 year category, the neonatal period (0–28 days) carries especially high infection risk and infection-attributable mortality. We keep neonates inside the general infant bucket for most risk calculations to avoid over-fragmenting the main host structure, but treat them separately where that distinction is most clinically important, namely sepsis onset and infection-related mortality.
+
+Likewise, the broad 70+ category compresses clinically important heterogeneity within later life: the risk of poor infection outcomes rises further in the oldest-old, especially above age 80. We retain a single elderly bucket for most risk calculations to keep the main host structure tractable, while continuous age effects and the separate sepsis/mortality classification capture part of that additional late-life risk.
+
+
 These age bands are structural groupings rather than claims about sharply separated biological states. They are meant to preserve widely observed global gradients in infection burden and mortality risk, especially the concentration of severe infectious outcomes at the extremes of age and the relative protection of school-age and younger adult groups in many syndromes (GBD 2019 Lower Respiratory Infections Collaborators, 2022).
 
 **Sepsis/mortality age categories** (a separate, finer grouping):
@@ -184,7 +189,9 @@ Since immunocompromised hosts — from HIV, chemotherapy, transplantation, advan
 
 At simulation start, a configurable fraction of the population is seeded into this broader higher-risk host state (`immunosuppression_startup_seed_fraction`, baseline 5%). This startup seeding is a calibration device to avoid an unrealistically long burn-in before immunocompromised-host effects become visible in the simulated population. Published US NHIS analyses place self-reported immunosuppression among adults in the low-single-digit to mid-single-digit range over the last decade (2.7% in 2013 and 6.6% in 2021), so a 5% startup seed sits within the right order of magnitude for a broadened composite vulnerability construct while still remaining a model initial-condition choice rather than a direct epidemiologic estimate (Martinson ML et al., 2024).
 
-**Temporary immunosuppression** represents acute episodes such as a short course of steroids, a viral illness that transiently suppresses immunity, or post-surgical immunosuppression. People enter this state at a rate of `0.00005` per day and recover at `0.01` per day (average duration ~100 days).
+**Temporary immunosuppression** represents medium-duration higher-risk episodes more compatible with prolonged corticosteroid exposure, chemotherapy or radiotherapy-related suppression, or other treatment-associated immunosuppression lasting weeks to months than with a brief viral illness or only a few post-operative days. People enter this state at a rate of `0.00005` per day and recover at `0.01` per day (average duration ~100 days).
+
+**Pregnancy is not currently represented as a separate maternal immunologic state within this immunosuppression framework.** Some pregnancy-associated susceptibility is only indirectly proxied in a few organism-specific age-pattern assumptions (for example, young-adult risk comments for *E. coli* and *Listeria monocytogenes*), but the model does not currently include an explicit late-pregnancy Th1/Th2 shift or a dedicated pregnancy-related infection-risk modifier.
 
 **Chronic immunosuppression** represents long-term conditions like HIV/AIDS, solid organ transplant, or autoimmune disease requiring ongoing immunosuppressive therapy. It develops at `0.00006` per day and recovers much more slowly at `0.0012` per day.
 
@@ -215,6 +222,8 @@ The table below summarises all the ways immunosuppression changes a person's tra
 | Higher mortality from drug toxicity | toxicity death log-odds | +0.9 | ~2.5× higher risk — reflects drug interactions and organ dysfunction |
 | Higher background mortality | `log_odds_mortality_immunosuppressed` | +0.916 | ~2.5× overall mortality uplift |
 
+Clinically, severely immunocompromised patients often also receive broader empiric cover, sometimes extending to agents such as carbapenems or aminoglycosides because of opportunistic pathogens, resistant organisms, repeated prior antibiotic exposure, and heavier healthcare contact. The current model does **not** encode a separate immunodeficiency-specific bonus for broad-spectrum drug selection. Instead, that real-world tendency is only captured indirectly through the model's general empiric preference for broader-spectrum therapy, increased testing, higher sepsis risk, higher hospitalization exposure, and a small constrained prophylaxis pool for some immunocompromised hosts.
+
 
 
 ### 2.4 Hospitalisation
@@ -232,10 +241,10 @@ Given the concentration of resistant organisms, broad-spectrum antibiotic use, a
 | Regional healthcare access | varies (see below) | Reflects real-world differences in hospital capacity |
 
 
-Independent of this baseline logistic admission process, starting a **hospital-managed antibiotic** also triggers inpatient management. In the current model this includes a broad set of parenteral hospital drugs plus a narrow oral reserve subset (`linezolid`, `tedizolid`) used as a proxy for infections that would usually be managed in hospital.
+Independent of this baseline logistic admission process, starting a **hospital-managed antibiotic** also triggers inpatient management. In the current model this includes a broad set of parenteral hospital drugs plus a narrow oral reserve subset (`linezolid`, `tedizolid`) used as a proxy for infections that would usually be managed in hospital. This is a simplification: in real practice, some prolonged IV courses are delivered through outpatient parenteral antimicrobial therapy (OPAT), especially in higher-income settings and particularly for infections such as bone and joint disease that may require 4-6 weeks of IV treatment.
 
 
-**Length of stay:** Once admitted, patients are discharged at a rate of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. Patients with active sepsis or those currently receiving a **hospital-managed antibiotic** cannot be discharged — they remain in hospital until resolving or completing that treatment course. This should be interpreted as an **effective all-cause discharge hazard** in the model, not as a claim that every real-world admission has the same geometric length-of-stay distribution.
+**Length of stay:** Once admitted, patients face a baseline discharge hazard of `0.28` per day (average stay ~3.6 days), with a hard maximum of 30 days. This baseline applies only to relatively uncomplicated admissions. Patients with active sepsis, any still-active infection above the model threshold, or a current **hospital-managed antibiotic** cannot be discharged; in the current model, septic patients therefore remain admitted until the sepsis episode has resolved, the infection has cleared below the discharge threshold, and any hospital-managed treatment course has finished. Real systems are less rigid because some patients complete part of a prolonged IV course via OPAT rather than remaining continuously hospitalised. The `0.28` figure should therefore be interpreted as an **effective all-cause discharge hazard for clinically stable inpatients**, not as a claim that sepsis admissions average only 3.6 days or that every real-world admission has the same geometric length-of-stay distribution.
 
 **Regional healthcare access:**
 
@@ -258,7 +267,7 @@ Negative values mean patients are *less* likely to be admitted — not because t
 
 **Nosocomial (hospital-acquired) risks:**
 
-Being in hospital dramatically changes a patient's infection risk profile. Hospital patients are exposed to multi-drug-resistant organisms on surfaces, devices, and other patients. The model captures this with pathogen-specific hospital acquisition modifiers:
+Being in hospital dramatically changes a patient's infection risk profile. In practice, an important route is staff-mediated transmission between patients when infection prevention and control (IPC) is inadequate; contaminated devices and the hospital environment are additional contributors rather than the sole or necessarily dominant route. The model captures this with pathogen-specific hospital acquisition modifiers:
 
 | Pathogen group | Current pattern in the live configuration | Clinical context |
 |----------|-----------------------------------------|-----------------|

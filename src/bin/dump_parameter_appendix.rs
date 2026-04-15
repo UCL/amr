@@ -193,6 +193,7 @@ fn print_global_scalars(store: &amr_project::config::ParameterStore) {
         ("hospitalization_log_odds_per_age_year", g.hospitalization_log_odds_per_age_year),
         ("hospitalization_log_odds_sepsis", g.hospitalization_log_odds_sepsis),
         ("hospitalization_log_odds_symptomatic_infection", g.hospitalization_log_odds_symptomatic_infection),
+        ("hospitalization_log_odds_serious_resistance_test_positive", g.hospitalization_log_odds_serious_resistance_test_positive),
         ("hospitalization_symptomatic_infection_level_threshold", g.hospitalization_symptomatic_infection_level_threshold),
         ("hospital_recovery_rate_per_day", g.hospital_recovery_rate_per_day),
         ("hospital_max_days", g.hospital_max_days),

@@ -1657,7 +1657,8 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
 
     Instead of averaging across all 61 drugs, this uses a single curated marker per
     organism (e.g. meropenem for Gram-negatives, flucloxacillin for staphylococci,
-    vancomycin for enterococci).  Uses the same stock columns as the any-R locus table.
+    vancomycin for enterococci).  Prefers hospital/community split resistant-stock columns
+    when present so percentages remain bounded by 0-100 within the summary window.
     """
     columns = [
         "Bacteria",
@@ -1721,13 +1722,22 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
             for d_slug in serious_drugs:
                 if d_slug not in drug_set:
                     continue
+                hosp_positive_col = f"{raw_slug}_infected_with_any_r_positive_hospital_{d_slug}"
+                comm_positive_col = f"{raw_slug}_infected_with_any_r_positive_community_{d_slug}"
+                if hosp_positive_col in year_df.columns and comm_positive_col in year_df.columns:
+                    h = float(year_df[hosp_positive_col].sum(skipna=True))
+                    c = float(year_df[comm_positive_col].sum(skipna=True))
+                    prev = drug_totals.get(d_slug, (0.0, 0.0))
+                    drug_totals[d_slug] = (prev[0] + h, prev[1] + c)
+                    continue
+
                 hosp_d_col = f"{raw_slug}_sum_any_r_hospital_{d_slug}"
                 total_d_col = f"{raw_slug}_sum_any_r_{d_slug}"
                 if hosp_d_col in year_df.columns and total_d_col in year_df.columns:
                     h = float(year_df[hosp_d_col].sum(skipna=True))
                     t = float(year_df[total_d_col].sum(skipna=True))
                     prev = drug_totals.get(d_slug, (0.0, 0.0))
-                    drug_totals[d_slug] = (prev[0] + t, prev[1] + h)
+                    drug_totals[d_slug] = (prev[0] + h, prev[1] + (t - h))
 
         has_true_stock_split = (current_hosp_infected + current_comm_infected) > 0
         if has_true_stock_split:
@@ -1743,8 +1753,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
 
         hosp_r_vals = []
         comm_r_vals = []
-        for d_slug, (t_sum, h_sum) in drug_totals.items():
-            c_sum = t_sum - h_sum
+        for d_slug, (h_sum, c_sum) in drug_totals.items():
             if hosp_n > 0:
                 hosp_r_vals.append(h_sum / hosp_n * 100.0)
             if comm_n > 0:
@@ -1752,6 +1761,10 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
 
         hosp_r_pct = float(np.mean(hosp_r_vals)) if hosp_r_vals else np.nan
         comm_r_pct = float(np.mean(comm_r_vals)) if comm_r_vals else np.nan
+        if np.isfinite(hosp_r_pct):
+            hosp_r_pct = float(np.clip(hosp_r_pct, 0.0, 100.0))
+        if np.isfinite(comm_r_pct):
+            comm_r_pct = float(np.clip(comm_r_pct, 0.0, 100.0))
 
         sim_ratio = (
             hosp_r_pct / comm_r_pct
