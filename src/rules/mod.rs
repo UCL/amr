@@ -2382,36 +2382,73 @@ pub(crate) fn apply_rules(
                     }
                 }
 
-                // BLOCK: Topical/niche anti-staphylococcal agents outside skin-focused use
-                // Retapamulin and fusidic acid should not appear in prophylaxis, undifferentiated
-                // no-syndrome prescribing, or non-skin systemic infections.
+                // BLOCK: Topical/niche anti-staphylococcal agents outside plausible use.
+                // Retapamulin remains skin-focused; fusidic acid is broader but should still be
+                // excluded from sepsis, undifferentiated starts, and non-targeted systemic use.
                 if matches!(drug_name, "retapamulin" | "fusidic_a") {
                     let has_skin_only_syndrome = !active_syndrome_ids.is_empty()
                         && active_syndrome_ids.iter().all(|&sid| sid == 2);
+                    let has_bone_joint_only_syndrome = !active_syndrome_ids.is_empty()
+                        && active_syndrome_ids.iter().all(|&sid| sid == 9);
                     let has_sepsis = individual.sepsis.iter().any(|&s| s);
 
                     if has_sepsis {
                         continue;
                     }
 
-                    if empiric_selection {
-                        if !has_skin_only_syndrome {
-                            continue;
-                        }
-                    } else if targeted_selection {
-                        let allowed_skin_pathogen = !identified_bacteria.is_empty()
-                            && identified_bacteria.iter().all(|&b_idx| {
-                                matches!(
-                                    BACTERIA_LIST[b_idx],
-                                    "staphylococcus_aureus" | "streptococcus_pyogenes"
-                                )
-                            });
+                    match drug_name {
+                        "retapamulin" => {
+                            if empiric_selection {
+                                if !has_skin_only_syndrome {
+                                    continue;
+                                }
+                            } else if targeted_selection {
+                                let allowed_skin_pathogen = !identified_bacteria.is_empty()
+                                    && identified_bacteria.iter().all(|&b_idx| {
+                                        matches!(
+                                            BACTERIA_LIST[b_idx],
+                                            "staphylococcus_aureus" | "streptococcus_pyogenes"
+                                        )
+                                    });
 
-                        if !has_skin_only_syndrome || !allowed_skin_pathogen {
-                            continue;
+                                if !has_skin_only_syndrome || !allowed_skin_pathogen {
+                                    continue;
+                                }
+                            } else {
+                                continue;
+                            }
                         }
-                    } else {
-                        continue;
+                        "fusidic_a" => {
+                            if empiric_selection {
+                                if !has_skin_only_syndrome {
+                                    continue;
+                                }
+                            } else if targeted_selection {
+                                let allowed_skin_pathogen = !identified_bacteria.is_empty()
+                                    && identified_bacteria.iter().all(|&b_idx| {
+                                        matches!(
+                                            BACTERIA_LIST[b_idx],
+                                            "staphylococcus_aureus" | "streptococcus_pyogenes"
+                                        )
+                                    });
+                                let allowed_bone_joint_pathogen = !identified_bacteria.is_empty()
+                                    && identified_bacteria.iter().all(|&b_idx| {
+                                        matches!(
+                                            BACTERIA_LIST[b_idx],
+                                            "staphylococcus_aureus" | "staphylococcus_epidermidis"
+                                        )
+                                    });
+
+                                let allowed_context = (has_skin_only_syndrome && allowed_skin_pathogen)
+                                    || (has_bone_joint_only_syndrome && allowed_bone_joint_pathogen);
+                                if !allowed_context {
+                                    continue;
+                                }
+                            } else {
+                                continue;
+                            }
+                        }
+                        _ => continue,
                     }
                 }
 
@@ -2669,7 +2706,7 @@ pub(crate) fn apply_rules(
                             ("escherichia_coli", "nitrofurantoin") => score *= 3.5,
                             ("escherichia_coli", "trim_sulf") => score *= 3.0,
                             ("escherichia_coli", "ceftriaxone") => score *= 9.0,
-                            ("escherichia_coli", "amoxicillin_clavulanate") => score *= 150.0, // MASSIVELY STRENGTHENED (was 16.0)
+                            ("escherichia_coli", "amoxicillin_clavulanate") => score *= 50.0, // reduced from 150 (was originally 16.0); 150 was indefensible — revisit if drug class share drifts
                             ("escherichia_coli", "ampicillin_sulbactam") => score *= 140.0, // MASSIVELY STRENGTHENED (was 10.0)
                             ("escherichia_coli", "ampicillin") => {
                                 if time_step < 7300 {

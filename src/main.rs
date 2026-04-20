@@ -35,9 +35,12 @@
 //
 //
 // -- calibration approach:  
+//
 // maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
 // policy comparison several times on each 
 //
+// need to check back on drug share in earlier periods as certain drugs might have been used a lot in the 
+// past for a bacteria and now used less due to resistance development
 //
 //
 //

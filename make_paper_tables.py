@@ -838,6 +838,15 @@ def make_s3(agg: dict, out_dir: Path) -> None:
             "Hospital Infections with Any Resistance (%)":  "Hospital-acquired new infections with any resistance (%)",
             "Community Infections with Any Resistance (%)": "Community-acquired new infections with any resistance (%)",
         })
+        # Drop spurious summary-stat rows that the parser picks up after the
+        # data table (e.g. "Resistance Locus Fit Summary", "- Bacteria with...",
+        # "Serious Resistance Locus Summary"). These have non-bacteria text in
+        # the first column and NaN in all numeric columns.
+        first_col = ril.columns[0]
+        summary_mask = ril[first_col].astype(str).str.match(
+            r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False
+        )
+        ril = ril[~summary_mask].copy()
 
     footnotes = [
         _window_note(n),
@@ -883,8 +892,8 @@ def make_s4(agg: dict, out_dir: Path) -> None:
     rb_nonneg = rb_nonneg.rename(columns={
         "Inf sim (%)":               "Percent of infections with resistance — simulation (%)",
         "Inf observed estimate (%)": "Percent of infections with resistance — observed estimate (%)",
-        "Avg sim (%)":               "Proportion of infection-days with resistance — simulation (%)",
-        "Avg observed estimate (%)": "Proportion of infection-days with resistance — observed estimate (%)",
+        "Avg sim (%)":               "Average resistance level among resistant infection-days — simulation (%)",
+        "Avg observed estimate (%)": "Average resistance level among resistant infection-days — observed estimate (%)",
         "Micro sim (%)":             "Percent of people carrying the bacterium in whom a resistant strain is present (%)",
     })
 
@@ -892,8 +901,8 @@ def make_s4(agg: dict, out_dir: Path) -> None:
         "Drug", "Class",
         "Percent of infections with resistance — simulation (%)",
         "Percent of infections with resistance — observed estimate (%)",
-        "Proportion of infection-days with resistance — simulation (%)",
-        "Proportion of infection-days with resistance — observed estimate (%)",
+        "Average resistance level among resistant infection-days — simulation (%)",
+        "Average resistance level among resistant infection-days — observed estimate (%)",
         "Percent of people carrying the bacterium in whom a resistant strain is present (%)",
     ] if c in rb_nonneg.columns]
 
@@ -904,9 +913,11 @@ def make_s4(agg: dict, out_dir: Path) -> None:
         "<em>Percent of infections with resistance</em>: percentage of active infections "
         "carrying any resistance to this drug at a point in time "
         "(simulated vs. surveillance estimate).",
-        "<em>Proportion of infection-days with resistance</em>: resistance prevalence "
-        "weighted by the full duration of each infection episode. This typically exceeds "
-        "the point-in-time prevalence because resistant infections tend to last longer.",
+        "<em>Average resistance level among resistant infection-days</em>: among infection-days "
+        "where any resistance is present, the mean resistance level expressed as a percentage (0–100%). "
+        "A value near 100% indicates that resistance, when present, is essentially complete; "
+        "lower values indicate partial resistance. This is distinct from the prevalence column above, "
+        "which measures the proportion of infection-days with any resistance.",
         "<em>Percent of people carrying the bacterium in whom a resistant strain is present</em>: "
         "percentage of the global population carrying a resistant strain of this organism "
         "in the gut or upper respiratory microbiome.",

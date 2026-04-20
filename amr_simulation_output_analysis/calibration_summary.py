@@ -2654,6 +2654,12 @@ def _compute_resistance_component_stats(
         "Simulation mean (%)",
         "Target mean (%)",
         "Mean |Δ| (pp)",
+        # Variance-stabilising metric: mean |sqrt(sim%) - sqrt(target%)| on the 0-100
+        # percentage scale. Compresses high-prevalence differences and amplifies low-
+        # prevalence ones — a 5→20 pp gap at low resistance counts ~2.7× more than the
+        # same 15 pp gap at 75→90%, reflecting the greater epidemiological significance
+        # of emerging resistance at low baseline levels.
+        "Mean |Δ√%|",
         "Combinations counted",
     ]
     if eligible.empty:
@@ -2679,24 +2685,26 @@ def _compute_resistance_component_stats(
 
     for key, label, sim_col, target_col in component_config:
         if sim_col not in eligible.columns or target_col not in eligible.columns:
-            component_lookup[key] = {"abs_delta": None}
+            component_lookup[key] = {"abs_delta": None, "sqrt_abs_delta": None}
             rows.append({
                 "Component": label,
                 "Simulation mean (%)": np.nan,
                 "Target mean (%)": np.nan,
                 "Mean |Δ| (pp)": np.nan,
+                "Mean |Δ√%|": np.nan,
                 "Combinations counted": 0,
             })
             continue
 
         mask = (~eligible[sim_col].isna()) & (~eligible[target_col].isna())
         if not mask.any():
-            component_lookup[key] = {"abs_delta": None}
+            component_lookup[key] = {"abs_delta": None, "sqrt_abs_delta": None}
             rows.append({
                 "Component": label,
                 "Simulation mean (%)": np.nan,
                 "Target mean (%)": np.nan,
                 "Mean |Δ| (pp)": np.nan,
+                "Mean |Δ√%|": np.nan,
                 "Combinations counted": 0,
             })
             continue
@@ -2705,14 +2713,22 @@ def _compute_resistance_component_stats(
         sim_mean = float(subset[sim_col].mean(skipna=True))
         target_mean = float(subset[target_col].mean(skipna=True))
         abs_delta = float((subset[sim_col] - subset[target_col]).abs().mean(skipna=True))
+        # Square-root-scale delta: sqrt applied to the 0-100 % values so that units
+        # run 0–10 (√100 = 10) and differences at low prevalence are penalised more.
+        sqrt_abs_delta = float(
+            (np.sqrt(subset[sim_col].clip(lower=0)) - np.sqrt(subset[target_col].clip(lower=0)))
+            .abs()
+            .mean(skipna=True)
+        )
         combo_count = int(mask.sum())
 
-        component_lookup[key] = {"abs_delta": abs_delta}
+        component_lookup[key] = {"abs_delta": abs_delta, "sqrt_abs_delta": sqrt_abs_delta}
         rows.append({
             "Component": label,
             "Simulation mean (%)": sim_mean,
             "Target mean (%)": target_mean,
             "Mean |Δ| (pp)": abs_delta,
+            "Mean |Δ√%|": sqrt_abs_delta,
             "Combinations counted": combo_count,
         })
 
@@ -2752,6 +2768,9 @@ def _calculate_resistance_fit_metrics(
         "infection_abs_delta": None,
         "average_resistant_abs_delta": None,
         "weighted_overall_abs_delta": None,
+        "infection_sqrt_abs_delta": None,
+        "average_resistant_sqrt_abs_delta": None,
+        "weighted_overall_sqrt_abs_delta": None,
     }
 
     empty_result = (metrics, pd.DataFrame(columns=[
@@ -2759,6 +2778,7 @@ def _calculate_resistance_fit_metrics(
         "Simulation mean (%)",
         "Target mean (%)",
         "Mean |Δ| (pp)",
+        "Mean |Δ√%|",
         "Combinations counted",
     ]))
 
@@ -2773,12 +2793,18 @@ def _calculate_resistance_fit_metrics(
 
     metrics["infection_abs_delta"] = component_lookup.get("infection", {}).get("abs_delta")
     metrics["average_resistant_abs_delta"] = component_lookup.get("average", {}).get("abs_delta")
+    metrics["infection_sqrt_abs_delta"] = component_lookup.get("infection", {}).get("sqrt_abs_delta")
+    metrics["average_resistant_sqrt_abs_delta"] = component_lookup.get("average", {}).get("sqrt_abs_delta")
 
     weighted_sum = 0.0
     total_weight = 0.0
+    sqrt_weighted_sum = 0.0
+    sqrt_total_weight = 0.0
 
     infection_abs = metrics["infection_abs_delta"]
     average_abs = metrics["average_resistant_abs_delta"]
+    infection_sqrt = metrics["infection_sqrt_abs_delta"]
+    average_sqrt = metrics["average_resistant_sqrt_abs_delta"]
 
     if infection_abs is not None:
         weighted_sum += 3.0 * infection_abs
@@ -2786,9 +2812,17 @@ def _calculate_resistance_fit_metrics(
     if average_abs is not None:
         weighted_sum += average_abs
         total_weight += 1.0
+    if infection_sqrt is not None:
+        sqrt_weighted_sum += 3.0 * infection_sqrt
+        sqrt_total_weight += 3.0
+    if average_sqrt is not None:
+        sqrt_weighted_sum += average_sqrt
+        sqrt_total_weight += 1.0
 
     if total_weight > 0.0:
         metrics["weighted_overall_abs_delta"] = weighted_sum / total_weight
+    if sqrt_total_weight > 0.0:
+        metrics["weighted_overall_sqrt_abs_delta"] = sqrt_weighted_sum / sqrt_total_weight
 
     return metrics, component_df
 
@@ -3791,7 +3825,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         def _format_abs_delta(value: Optional[float]) -> str:
             return f"{value:,.2f}" if value is not None else "n/a"
 
-        handle.write("Overall Resistance Fit (mean |Δ| in percentage points)\n")
+        handle.write(
+            "Overall Resistance Fit (mean |Δ| in percentage points;\n"
+            "  Mean |Δ√%| is mean |sqrt(sim%) − sqrt(target%)| on 0-100 scale,\n"
+            "  down-weighting high-prevalence errors relative to low-prevalence ones)\n"
+        )
         if not resistance_component_df.empty:
             component_display_df = resistance_component_df.copy()
             if "Combinations counted" in component_display_df.columns:
@@ -3811,7 +3849,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
         handle.write(
             "- Weighted overall delta (3× infection + 1× resistant-level): "
-            f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_abs_delta'])}\n\n"
+            f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_abs_delta'])}\n"
+        )
+        handle.write(
+            "- Weighted overall delta, √% scale (3× infection + 1× resistant-level): "
+            f"{_format_abs_delta(resistance_fit_metrics['weighted_overall_sqrt_abs_delta'])}\n\n"
         )
 
         handle.write("Per-Bacteria Mean |simulation - target| (percentage points)\n")

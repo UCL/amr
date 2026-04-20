@@ -2,31 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AMR Simulation — Model Description</title>
-<style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.6;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 20px;
-  color: #333;
-}
-h1 { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }
-h2 { border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-top: 40px; }
-h3 { margin-top: 30px; }
-table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
-th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-th { background-color: #f2f2f2; font-weight: 600; }
-tr:nth-child(even) { background-color: #fafafa; }
-code { background-color: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-pre code { display: block; padding: 12px; overflow-x: auto; background-color: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; }
-blockquote { border-left: 4px solid #2c3e50; margin: 1em 0; padding: 0.5em 1em; background-color: #f9f9f9; }
-strong { color: #2c3e50; }
-hr { border: none; border-top: 1px solid #ddd; margin: 30px 0; }
-a { color: #2980b9; text-decoration: none; }
-a:hover { text-decoration: underline; }
-</style>
+<style>body { font-family: sans-serif; line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 20px; } table { border-collapse: collapse; margin-bottom: 20px; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; } code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 4px; } pre code { display: block; padding: 10px; overflow-x: auto; }</style>
+
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
@@ -89,7 +67,7 @@ a:hover { text-decoration: underline; }
 <li>Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).</li>
 <li>The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.</li>
 </ul>
-<p>For example, the daily probability of starting antibiotics might be calculated as: <em>baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (+2.08) = +8.58</em>, yielding near-certainty for a septic immunocompromised patient with symptoms.</p>
+<p>For example, the daily probability of starting antibiotics might be calculated as: <em>baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (−0.75) = +5.75</em>, still yielding near-certainty for a septic immunocompromised patient with symptoms because the acute clinical syndrome dominates the decision.</p>
 <p><strong>Calibration.</strong> The model's parameters (the numbers that control how frequently infections occur, how often drugs are prescribed, how quickly resistance emerges, etc.) are adjusted — <em>calibrated</em> — so that the model's outputs match real-world data. For example, the model is calibrated against observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data. Some parameters therefore behave as <strong>effective model parameters</strong> rather than direct one-to-one measurements from surveillance datasets: they are chosen to reproduce the joint behaviour of complex clinical systems that are only partially observed. This is especially true for access modifiers, composite vulnerability states, and behaviourally driven prescribing terms. Accordingly, many quantities here are best read as policy-relevant abstractions of clinical systems rather than as claims that every table entry corresponds to a directly observable microbiological or bedside quantity. Sections 2–10 describe what the model does; Appendix B lists all the parameter values.</p>
 <p>Throughout this document, region- and age-specific parameter tables should generally be interpreted as <strong>qualitatively constrained model structures</strong>: the ordering and rough scale are informed by global demographic, travel, and health-system datasets, but the exact numeric values remain modelling choices that are subsequently checked against calibration targets rather than copied directly from any single source.</p>
 <h3 id="13-scope-and-purpose">1.3 Scope and purpose</h3>
@@ -381,6 +359,7 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
+<p>Clinically, severely immunocompromised patients often also receive broader empiric cover, sometimes extending to agents such as carbapenems or aminoglycosides because of opportunistic pathogens, resistant organisms, repeated prior antibiotic exposure, and heavier healthcare contact. The current model does <strong>not</strong> encode a separate immunodeficiency-specific bonus for broad-spectrum drug selection. Instead, that real-world tendency is only captured indirectly through the model's general empiric preference for broader-spectrum therapy, increased testing, higher sepsis risk, higher hospitalization exposure, and a small constrained prophylaxis pool for some immunocompromised hosts.</p>
 <h3 id="24-hospitalisation">2.4 Hospitalisation</h3>
 <p>Given the concentration of resistant organisms, broad-spectrum antibiotic use, and vulnerable patients in hospital settings (Magill SS et al., 2018), the model simulates daily admission decisions, length of stay, and the elevated risks of nosocomial infection.</p>
 <p><strong>Admission criteria.</strong> Each day, the model calculates a probability of hospital admission for every individual using a logistic model. The key factors are:</p>
@@ -479,48 +458,31 @@ a:hover { text-decoration: underline; }
 <table>
 <thead>
 <tr>
-<th>Pathogen</th>
-<th>Hospital modifier</th>
-<th>Approximate risk multiplier</th>
+<th>Pathogen group</th>
+<th>Current pattern in the live configuration</th>
 <th>Clinical context</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><em>A. baumannii</em></td>
-<td>+3.4</td>
-<td>~30×</td>
-<td>Ventilator-associated pneumonia, ICU pathogen (Magill SS et al., 2018)</td>
+<td>Classic nosocomial opportunists</td>
+<td>Strongly positive bacterium-specific hospital-acquisition terms</td>
+<td><em>A. baumannii</em>, <em>P. aeruginosa</em>, <em>S. maltophilia</em>, and related device-associated pathogens remain heavily hospital-enriched</td>
 </tr>
 <tr>
-<td><em>E. faecium</em></td>
-<td>+3.3</td>
-<td>~27×</td>
-<td>Line infections, post-surgical (Magill SS et al., 2018)</td>
+<td>Hospital-enriched Enterobacterales and enterococci</td>
+<td>Moderate-to-strong positive bacterium-specific hospital-acquisition terms</td>
+<td>Reflects line infections, postoperative infections, ICU outbreaks, and ward-level amplification</td>
 </tr>
 <tr>
-<td><em>P. aeruginosa</em></td>
-<td>+3.0</td>
-<td>~20×</td>
-<td>Burns, wounds, ventilators (Magill SS et al., 2018)</td>
+<td>Mixed hospital/community organisms</td>
+<td>Small positive or near-neutral tuned values depending on calibration</td>
+<td>Captures organisms such as <em>S. aureus</em>, <em>E. coli</em>, and respiratory pathogens that remain important in both settings</td>
 </tr>
 <tr>
-<td><em>S. aureus</em></td>
-<td>+2.3</td>
-<td>~10×</td>
-<td>Surgical site, line-related infections (Magill SS et al., 2018)</td>
-</tr>
-<tr>
-<td><em>K. pneumoniae</em></td>
-<td>+2.0</td>
-<td>~7×</td>
-<td>Carbapenem-resistant strains in ICU (Magill SS et al., 2018)</td>
-</tr>
-<tr>
-<td>Community pathogens (<em>C. trachomatis</em>, <em>T. pallidum</em>, <em>Campylobacter</em>)</td>
-<td>−0.6 to −1.5</td>
-<td>Lower in hospital</td>
-<td>Community-acquired; log-odds suppressed in hospital</td>
+<td>Primarily community or STI pathogens</td>
+<td>Neutral or only modestly positive tuned values</td>
+<td>These organisms are still more often acquired in community transmission networks than from ward ecology</td>
 </tr>
 </tbody>
 </table>
@@ -586,7 +548,6 @@ a:hover { text-decoration: underline; }
 <ul>
 <li><strong>Baseline acquisition rate</strong> for the specific bacterium — some bacteria (e.g., <em>E. coli</em>) cause infections far more frequently than others (e.g., <em>L. monocytogenes</em>)</li>
 <li><strong>Region</strong> — infection rates vary by geography due to climate, sanitation, and population density</li>
-<p>Clinically, severely immunocompromised patients often also receive broader empiric cover, sometimes extending to agents such as carbapenems or aminoglycosides because of opportunistic pathogens, resistant organisms, repeated prior antibiotic exposure, and heavier healthcare contact. The current model does <strong>not</strong> encode a separate immunodeficiency-specific bonus for broad-spectrum drug selection. Instead, that real-world tendency is only captured indirectly through the model's general empiric preference for broader-spectrum therapy, increased testing, higher sepsis risk, higher hospitalization exposure, and a small constrained prophylaxis pool for some immunocompromised hosts.</p>
 <li><strong>Age</strong> — infants and the elderly are more susceptible to most infections; sexually transmitted infections peak in young adults</li>
 <li><strong>Immune status</strong> — immunosuppressed individuals are at higher risk</li>
 <li><strong>Season</strong> — respiratory pathogens (e.g., <em>S. pneumoniae</em>) follow a sinusoidal seasonal pattern, peaking in winter</li>
@@ -658,7 +619,7 @@ a:hover { text-decoration: underline; }
 <li><strong>Infection acquisition</strong>: if an individual is vaccinated against bacterium <em>b</em>, the model adds <code>log_odds_vaccinated</code> for that bacterium to the infection-acquisition log-odds.</li>
 <li><strong>Microbiome / carriage acquisition</strong>: the same log-odds adjustment is applied when modelling asymptomatic carriage acquisition.</li>
 </ul>
-<p>The default fallback is <code>log_odds_vaccinated = -2.0</code>, corresponding to an odds multiplier of approximately \(e^{-2} \approx 0.135\), so vaccination reduces acquisition odds by about 86.5% for bacteria that use the default. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
+<p>The default fallback is <code>log_odds_vaccinated = -2.0</code>, corresponding to an odds multiplier of approximately $e^{-2} \approx 0.135$, so vaccination reduces acquisition odds by about 86.5% for bacteria that use the default. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
 <p>Under the current default parameter map, vaccination is active rather than dormant: each vaccine has a non-zero target birth-cohort coverage and a rollout duration. These defaults are intended as a mechanistic starting point rather than a finalized calibration and should be re-tuned against the headline and organism-specific incidence targets once vaccine-sensitive pathogens are brought into the calibration loop.</p>
 <h4 id="age-risk-templates">Age risk templates</h4>
 <p>Since age-specific infection risk varies by organism and syndrome, the model assigns each bacterium a <strong>risk template</strong> — a pattern describing how acquisition probability varies across six age bands. The multipliers below are applied to the baseline acquisition rate:</p>
@@ -708,7 +669,7 @@ a:hover { text-decoration: underline; }
 <td>1.0</td>
 <td>1.4</td>
 <td>2.2</td>
-<td>Rises with age, especially in women</td>
+<td>Female risk is bimodal: sexually active adult women and postmenopausal ages; coarse bands mainly capture the later-life rise</td>
 </tr>
 <tr>
 <td><code>skin_soft_tissue</code></td>
@@ -759,8 +720,9 @@ a:hover { text-decoration: underline; }
 <p>A multiplier of 3.0 for infants with the <code>respiratory</code> template means that an infant is three times as likely to acquire that bacterium compared to a young adult (the reference group at 1.0).</p>
 <p>These community-acquisition templates should be read as structured relative-risk shapes rather than literal incidence-rate estimates for each age-region-organism cell. They preserve broad, globally observed patterns — such as the concentration of enteric disease in children (Troeger C et al., 2018), respiratory vulnerability at the extremes of age (GBD 2019 Lower Respiratory Infections Collaborators, 2022), and young-adult concentration of sexually transmitted infections (Rowley J et al., 2019) — while leaving exact organism-level burden to calibration of the bacterium-specific baseline and interaction terms against the model's target outputs.</p>
 <h3 id="32-hospital-acquisition">3.2 Hospital acquisition</h3>
-<p>Since hospitals concentrate nosocomial pathogens — <em>Acinetobacter</em> and <em>Pseudomonas</em> on ventilators, <em>Staphylococcus</em> and <em>Enterococcus</em> on central lines, <em>C. difficile</em> in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (<code>{bacteria}_log_odds_hospital_acquired</code>) for each species.</p>
+<p>Since hospitals concentrate nosocomial pathogens — <em>Acinetobacter</em> and <em>Pseudomonas</em> on ventilators, <em>Staphylococcus</em> (including coagulase-negative staphylococci) and <em>Enterococcus</em> on central lines, <em>C. difficile</em> in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (<code>{bacteria}_log_odds_hospital_acquired</code>) for each species.</p>
 <p>These hospital-acquisition terms are best interpreted as qualitative rankings of nosocomial exposure pressure rather than direct ward-level attack-rate measurements. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (WHO GLASS, 2026).</p>
+<p>For pathogens whose transmission is overwhelmingly sexual or foodborne, the live configuration now drives hospital acquisition to effectively zero. In practice, that means organisms such as <em>C. trachomatis</em>, <em>N. gonorrhoeae</em>, <em>M. genitalium</em>, <em>T. pallidum</em>, and <em>Campylobacter</em> can still be diagnosed while a patient is in hospital, but the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.</p>
 <h3 id="33-carrier-derived-infection">3.3 Carrier-derived infection</h3>
 <p>Asymptomatic carriage (see Section 8) can give rise to endogenous infection when commensal organisms transition to an active infection site. This pathway is important for AMR because:</p>
 <ul>
@@ -809,26 +771,26 @@ a:hover { text-decoration: underline; }
 <tbody>
 <tr>
 <td>1 — Nosocomial opportunists</td>
-<td style="text-align: right;">1.5</td>
+<td style="text-align: right;">2.25</td>
 <td><em>A. baumannii</em>, <em>P. aeruginosa</em>, <em>S. maltophilia</em>, <em>Burkholderia</em></td>
 <td>Primarily nosocomial, thrive on devices and in ICU environments</td>
 </tr>
 <tr>
 <td>2 — Hospital-enriched GNR</td>
-<td style="text-align: right;">1.3</td>
+<td style="text-align: right;">1.95</td>
 <td><em>K. pneumoniae</em>, <em>Enterobacter</em> spp./cloacae, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Proteus</em>, <em>P. stuartii</em>, iNTS, <em>S. epidermidis</em></td>
 <td>Frequently cause HCAI but also circulate in community</td>
 </tr>
 <tr>
 <td>3 — Hospital-enriched GP</td>
-<td style="text-align: right;">1.2</td>
+<td style="text-align: right;">1.8</td>
 <td><em>S. aureus</em>, <em>E. faecium</em>, <em>E. faecalis</em>, <em>C. difficile</em></td>
 <td>Important nosocomial pathogens with substantial community reservoir</td>
 </tr>
 <tr>
 <td>4 — Community-dominant</td>
 <td style="text-align: right;">1.0</td>
-<td>All remaining 24 bacteria</td>
+<td>All remaining bacteria</td>
 <td>Resistance ecology not materially amplified by hospital stay</td>
 </tr>
 </tbody>
@@ -848,25 +810,25 @@ a:hover { text-decoration: underline; }
 <tbody>
 <tr>
 <td>Environmental / waterborne</td>
-<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">0.12–0.15</td>
 <td><em>A. baumannii</em>, <em>Pseudomonas</em>, <em>Stenotrophomonas</em>, <em>Burkholderia</em>, <em>Legionella</em>, <em>V. cholerae</em></td>
 <td>Community acquisition mostly from environmental sources, not circulating human strains</td>
 </tr>
 <tr>
 <td>Foodborne / animal-reservoir</td>
-<td style="text-align: right;">0.07–0.15</td>
+<td style="text-align: right;">0.18–0.30</td>
 <td><em>Campylobacter</em>, iNTS, <em>Yersinia</em>, <em>Listeria</em>, <em>S. Typhi</em>, <em>S. Paratyphi</em>, <em>Shigella</em></td>
 <td>Zoonotic or food-chain origin; human-to-human resistance transfer is rare</td>
 </tr>
 <tr>
 <td>Healthcare-associated</td>
-<td style="text-align: right;">0.10–0.25</td>
+<td style="text-align: right;">0.30–0.45</td>
 <td><em>C. difficile</em>, <em>Enterobacter</em>, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Proteus</em>, <em>P. stuartii</em>, <em>S. epidermidis</em>, <em>K. pneumoniae</em>, <em>E. faecium</em>, <em>E. faecalis</em></td>
 <td>Resistance primarily amplified in hospitals; community strains are much more susceptible</td>
 </tr>
 <tr>
 <td>Endogenous flora / commensal</td>
-<td style="text-align: right;">0.30–0.40</td>
+<td style="text-align: right;">0.40–0.50</td>
 <td><em>E. coli</em>, <em>S. aureus</em>, <em>S. pneumoniae</em>, <em>B. fragilis</em>, <em>H. influenzae</em>, <em>H. pylori</em></td>
 <td>Commensal carriage means community strains partially reflect clinical resistance</td>
 </tr>
@@ -878,20 +840,20 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>Per-bacteria values are listed in Appendix B.3.</p>
+<p>Per-bacteria values are calibrated within these ecological bands in the live configuration.</p>
 <p><strong>Step 3 — Correlated mechanism profiles — weighted profile sampling</strong></p>
 <p>Rather than independently sampling each mechanism from a marginal prevalence estimate (which would miss the real-world phenomenon of multiple resistance genes co-travelling on the same plasmid), the model draws a <strong>complete genotype profile</strong> from the profile reservoir described in Step 1, assigning all mechanisms set in that profile to the newly infected individual simultaneously. The result is that newly acquired <em>E. coli</em>, for example, arrives with a resistance profile that mirrors an actual circulating strain — e.g., ESBL CTX-M together with fluoroquinolone resistance, as these co-occur on real plasmids (Partridge SR et al., 2018).</p>
 <p><strong>Community-acquired infections</strong> draw a profile uniformly at random from the community reservoir for the relevant region and bacterium. Because the reservoir already includes susceptible profiles (bitmask = 0), uniform sampling automatically reproduces the true population prevalence of resistance.</p>
-<p><strong>Hospital-acquired weighted sampling.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model does not draw a uniform profile from the hospital pool. Instead it uses <strong>weighted profile sampling</strong> (<code>sample_profile_weighted</code>): each profile in the reservoir is assigned a sampling weight of \(f^{k}\), where \(k\) is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher \(k\)) are over-sampled relative to susceptible profiles (\(k = 0\), weight \(= f^0 = 1\)), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a <strong>real observed genotype</strong> — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired <em>K. pneumoniae</em> infection with \(f = 1.3\) and 8 mechanism bits, for example, receives a weight of \(1.3^8 \approx 8.2\)× relative to a susceptible profile, substantially increasing its draw probability.</p>
-<p>The same weighted sampling logic is applied to <strong>carriage acquisition</strong> (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same \(f^k\) weighting.</p>
+<p><strong>Hospital-acquired weighted sampling.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> $f &gt; 1$, the model does not draw a uniform profile from the hospital pool. Instead it uses <strong>weighted profile sampling</strong> (<code>sample_profile_weighted</code>): each profile in the reservoir is assigned a sampling weight of $f^{k}$, where $k$ is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher $k$) are over-sampled relative to susceptible profiles ($k = 0$, weight $= f^0 = 1$), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a <strong>real observed genotype</strong> — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired <em>K. pneumoniae</em> infection with $f = 1.3$ and 8 mechanism bits, for example, receives a weight of $1.3^8 \approx 8.2$× relative to a susceptible profile, substantially increasing its draw probability.</p>
+<p>The same weighted sampling logic is applied to <strong>carriage acquisition</strong> (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same $f^k$ weighting.</p>
 <p>If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.</p>
 <p><strong>Counterfactual gating.</strong> Profile sampling is gated by the <code>counterfactual_resistance_multiplier</code>. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below <code>counterfactual_resistance_multiplier</code> (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.</p>
 <p><strong>Step 4 — Resistance floor enforcement</strong></p>
 <p>After profile sampling, for each drug in the model the code evaluates <code>calculate_resistance_floor(bacteria, drug, current_day)</code>. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's <code>ramp_years</code> window (see Section 7.5). For organisms with an active floor (currently <em>H. pylori</em> and <em>S. maltophilia</em>), if a Bernoulli draw with probability <code>floor_level ÷ max_resistance_level</code> succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in <code>mechanism_any</code> and <code>mechanism_majority</code>. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few hundred infections per year in a 100,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.</p>
 <p><strong>Step 5 — Scalar <code>any_r</code> derivation via mechanism propagation</strong></p>
 <p>After the mechanism bits have been set (by profile sampling, floor enforcement, or both), the model calls <code>propagate_mechanism_resistance()</code> to translate the boolean mechanism flags into the continuous <code>any_r</code> scalar reported in outputs. For every drug, this function computes the <strong>multiplicative susceptibility</strong> across all active mechanisms:</p>
-<p>\[\text{any_r} = 1 - \prod_{m : \text{mechanism_any}_m = \text{true}} (1 - e_m)\]</p>
-<p>where \(e_m\) is the enhancement multiplier for mechanism \(m\) against that drug (see Section 7.2). This is called in "full-reset" mode (<code>raise_only = false</code>) at this point, so the derived value replaces whatever was there before. The same function is called in "raise-only" mode (<code>raise_only = true</code>) whenever a later step adds additional mechanisms (e.g., MDR-TB rifampicin seeding below), ensuring that <code>any_r</code> can only increase, not decrease, as further mechanisms are layered on.</p>
+<p>$$\text{any_r} = 1 - \prod_{m : \text{mechanism_any}_m = \text{true}} (1 - e_m)$$</p>
+<p>where $e_m$ is the enhancement multiplier for mechanism $m$ against that drug (see Section 7.2). This is called in "full-reset" mode (<code>raise_only = false</code>) at this point, so the derived value replaces whatever was there before. The same function is called in "raise-only" mode (<code>raise_only = true</code>) whenever a later step adds additional mechanisms (e.g., MDR-TB rifampicin seeding below), ensuring that <code>any_r</code> can only increase, not decrease, as further mechanisms are layered on.</p>
 <p><strong>Step 6 — MDR-TB guaranteed rifampicin resistance</strong></p>
 <p><em>M. tuberculosis</em> is defined as multi-drug-resistant (MDR) by its rifampicin resistance — any isolate labelled MDR-TB will already carry a rifampicin-resistance mutation at the time of diagnosis (WHO, 2020). The model reflects this definitional requirement with a dedicated post-sampling step. For all MDR-TB acquisitions occurring in or after 1966 (when rifampicin was introduced), the model hard-sets every resistance mechanism applicable to rifampicin for that bacterium — specifically the <code>rpoB</code> RNA-polymerase mutation — in both <code>mechanism_any</code> and <code>mechanism_majority</code>, regardless of what the profile-cache step assigned. <code>propagate_mechanism_resistance()</code> is then called again in raise-only mode so that the rifampicin <code>any_r</code> is updated to reflect this guaranteed mechanism. The acquisition provenance for rifampicin is stamped with <code>ResistanceAcquisitionType::AtInfectionTB</code> rather than <code>AtInfectionCommunity</code>, which allows the model to track this pathway separately in output statistics. The probability of this guarantee is controlled by <code>mdr_mycobacterium_tuberculosis_guaranteed_rifampicin_resistance</code> (default 0.90); at values below 1.0 a small fraction of simulated MDR-TB cases can be acquired without the mechanism, modelling the small percentage of MDR-TB diagnoses that occur before rifampicin susceptibility testing has been completed.</p>
 <p>Note: after these six steps, the carrier resistance inheritance step (Section 3.3) may apply additional mechanisms from <code>mechanism_microbiome</code> if the individual is also a carrier of the organism. That step is a separate pathway rather than part of the acquisition pipeline described here.</p>
@@ -919,7 +881,7 @@ a:hover { text-decoration: underline; }
 <tr>
 <td>UTI</td>
 <td>1</td>
-<td>Cystitis, pyelonephritis — the most common bacterial infection</td>
+<td>Simple UTI, pyelonephritis — the most common bacterial infection</td>
 </tr>
 <tr>
 <td>Skin/soft tissue</td>
@@ -939,7 +901,7 @@ a:hover { text-decoration: underline; }
 <tr>
 <td>Intra-abdominal</td>
 <td>5</td>
-<td>Peritonitis, appendicitis, biliary sepsis</td>
+<td>Peritonitis, appendicitis, diverticulitis, cholangitis</td>
 </tr>
 <tr>
 <td>CNS</td>
@@ -971,7 +933,7 @@ a:hover { text-decoration: underline; }
 <h4 id="how-syndromes-affect-disease-behaviour">How syndromes affect disease behaviour</h4>
 <p>Each syndrome modifies two key aspects of the infection:</p>
 <ul>
-<li><strong>Treatment initiation multiplier</strong> — how urgently the patient seeks care. A patient with pneumonia (×10) presents for clinical assessment far more quickly than one with a mild UTI (×1).</li>
+<li><strong>Treatment initiation multiplier</strong> — how strongly symptoms at that site accelerate care-seeking once the infection has become symptomatic. A patient with bacteraemia (×16) or meningitis (×14) is pushed to assessment much faster than a patient with a simple UTI (×6).</li>
 <li><strong>Bacterial growth rate multiplier</strong> — how fast the bacteria replicate at that body site. Bacteria in the bloodstream (×1.4) multiply faster than bacteria embedded in bone (×0.85).</li>
 </ul>
 <table>
@@ -986,15 +948,15 @@ a:hover { text-decoration: underline; }
 <tbody>
 <tr>
 <td>UTI</td>
+<td>×6.0</td>
 <td>×1.0</td>
-<td>×1.0</td>
-<td>Reference group</td>
+<td>Common symptomatic outpatient presentation; dysuria and fever usually prompt treatment once symptoms emerge</td>
 </tr>
 <tr>
 <td>Skin</td>
-<td>×1.0</td>
+<td>×6.0</td>
 <td>×1.1</td>
-<td>Faster growth in devitalised tissue</td>
+<td>Painful cellulitis, wound infection, and abscesses are commonly brought for treatment</td>
 </tr>
 <tr>
 <td>Respiratory</td>
@@ -1004,39 +966,45 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>Bloodstream</td>
-<td>×1.0</td>
+<td>×16.0</td>
 <td>×1.4</td>
-<td>Nutrient-rich blood supports rapid replication</td>
+<td>Systemic toxicity and rapid incapacitation create a near-immediate treatment imperative</td>
 </tr>
 <tr>
 <td>Intra-abdominal</td>
-<td>×1.0</td>
+<td>×10.0</td>
 <td>×1.15</td>
-<td>Moderate growth rate</td>
+<td>Severe pain and systemic upset usually drive prompt review even if progression is not as explosive as bacteraemia</td>
 </tr>
 <tr>
 <td>CNS</td>
-<td>×1.0</td>
+<td>×14.0</td>
 <td>×1.3</td>
-<td>Rapid replication in cerebrospinal fluid</td>
+<td>Severe headache, altered mental status, meningism, and neurological compromise should trigger urgent assessment</td>
 </tr>
 <tr>
 <td>GI</td>
 <td>×8.0</td>
 <td>×1.1</td>
-<td>Diarrhoea and vomiting drive rapid presentation</td>
+<td>Diarrhoea, vomiting, abdominal pain, and dehydration drive presentation</td>
 </tr>
 <tr>
 <td>Genital</td>
 <td>×12.0</td>
 <td>×0.9</td>
-<td>High care-seeking for STI symptoms; indolent course</td>
+<td>Symptomatic urethritis, cervicitis, PID, and genital ulcer disease often prompt treatment, but asymptomatic infections must still first cross the symptom threshold</td>
 </tr>
 <tr>
 <td>Bone/joint</td>
-<td>×1.0</td>
+<td>×4.0</td>
 <td>×0.85</td>
-<td>Slow, deep-seated infection</td>
+<td>Important to treat once recognized, but many bone and joint infections are slower and less immediately explosive</td>
+</tr>
+<tr>
+<td>Other</td>
+<td>×4.0</td>
+<td>×1.0</td>
+<td>Catch-all for clinically recognized infections that usually merit treatment but lack a more urgent syndrome-specific cue</td>
 </tr>
 </tbody>
 </table>
@@ -1065,7 +1033,7 @@ a:hover { text-decoration: underline; }
 <td>Bacterial load</td>
 <td><code>log_odds_sepsis_infection_level</code></td>
 <td>+0.93 per unit</td>
-<td>Higher bacterial burden increases sepsis probability — the single strongest driver</td>
+<td>Higher bacterial burden increases sepsis probability — the strongest generic driver, though organism-specific virulence is captured separately in the per-bacterium baseline</td>
 </tr>
 <tr>
 <td>Duration of infection</td>
@@ -1089,7 +1057,7 @@ a:hover { text-decoration: underline; }
 </table>
 <p>Not all bacteria or body sites carry equal sepsis risk. The model captures this through:</p>
 <ul>
-<li><strong>Per-bacterium baseline</strong>: Ranges from very low (<em>E. coli</em> UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (<em>N. meningitidis</em>: −7.9, reflecting its aggressive clinical course)</li>
+<li><strong>Per-bacterium baseline</strong>: Ranges from very low (<em>E. coli</em> UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (<em>N. meningitidis</em>: −7.9, reflecting its aggressive clinical course). This is also where organism-specific propensity for toxin-mediated or otherwise disproportionately severe illness sits, such as invasive GAS and toxic-shock phenotypes relative to a less toxigenic organism at similar burden.</li>
 <li><strong>Per-syndrome modifier</strong>: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so</li>
 </ul>
 <p><strong>Regional factors</strong> also affect sepsis risk, reflecting differences in healthcare access and sanitation:
@@ -1102,13 +1070,13 @@ a:hover { text-decoration: underline; }
 <ul>
 <li><strong>Microbiome or carriage clearance</strong>: <code>default_microbiome_clearance_probability_per_day</code> = 0.01 is the default daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific overrides for organisms that are known to persist much longer or clear more quickly.</li>
 <li><strong>Duration penalty on carriage clearance</strong>: <code>carriage_duration_log_odds_coefficient</code> = −0.01 per day, capped by <code>carriage_duration_max_log_odds_effect</code> = −2.0, applies to microbiome carriage rather than directly to symptomatic infection. The rationale is that long-established colonization becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005).</li>
-<li><strong>Drug-assisted microbiome clearance</strong>: <code>microbiome_clearance_probability_on_drug_treatment</code> = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves.</li>
+<li><strong>Drug-assisted carriage clearance</strong>: <code>microbiome_clearance_probability_on_drug_treatment</code> = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves.</li>
 </ul>
 <p><strong>Infection resolution itself is modeled separately.</strong> Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level is driven down to a near-zero threshold in the rules engine, or when an immune-clearance event is triggered; this is not controlled by <code>default_microbiome_clearance_probability_per_day</code>.</p>
 <p>This distinction matters for AMR because there can be a delay between infection acquisition and symptom-driven treatment. During that untreated interval, bacteria continue replicating, and resistant subclones can emerge or expand within the infecting population before antibiotics are started. Before treatment begins, the dominant process is therefore untreated growth and diversification rather than antibiotic selection.</p>
 <hr />
 <h2 id="5-diagnostic-testing">5. Diagnostic Testing</h2>
-<p>Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, typically taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology.</p>
+<p>Since the transition from empiric to targeted prescribing depends on laboratory turnaround — classically culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.</p>
 <p>We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.</p>
 <h3 id="51-historical-introduction">5.1 Historical introduction</h3>
 <p>Modern diagnostic microbiology did not exist in 1930. The model introduces testing capabilities at historically appropriate time points:</p>
@@ -1153,7 +1121,7 @@ a:hover { text-decoration: underline; }
 <td><strong>Lab turnaround time</strong></td>
 <td><code>test_delay_days</code></td>
 <td>3 days</td>
-<td>Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time. A 24–72 h window from sample receipt to actionable result is consistent with routine blood and urine culture workflows across contemporary clinical microbiology laboratories (Wain J et al., 2006; Pitt TL &amp; Batchelor BI, 2019)</td>
+<td>Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time. This is a deliberate simplification of a pathway that can now range from same-day species ID or targeted resistance-gene detection in some settings to multi-day conventional culture-plus-AST workflows; a 24–72 h window remains a reasonable aggregate representation for routine blood and urine culture pathways (Wain J et al., 2006; Pitt TL &amp; Batchelor BI, 2019)</td>
 </tr>
 <tr>
 <td><strong>AST completion rate</strong></td>
@@ -1171,7 +1139,7 @@ a:hover { text-decoration: underline; }
 </table>
 <p>The 3-day delay means that empiric therapy runs for at least three days before any susceptibility data arrives, during which ineffective treatment allows the infection to progress and resistance to be selected.</p>
 <h3 id="53-testing-criteria-and-rates">5.3 Testing criteria and rates</h3>
-<p>Since culture ordering rates vary by care setting and clinical urgency — from low rates for uncomplicated UTIs in primary care to near-universal blood cultures in sepsis — the model captures these differences:</p>
+<p>Since culture ordering rates vary by care setting and clinical urgency — from selective but still often clinically useful urine cultures in outpatient UTIs to higher, though still imperfect, blood-culture use in sepsis — the model captures these differences:</p>
 <table>
 <thead>
 <tr>
@@ -1198,7 +1166,7 @@ a:hover { text-decoration: underline; }
 <td><strong>Sepsis</strong></td>
 <td><code>testing_sepsis_multiplier</code></td>
 <td>×4.0</td>
-<td>Septic patients are tested urgently</td>
+<td>Sepsis makes clinicians much more likely to send cultures, although recommended blood cultures are still not obtained in every real-world case; this changes testing probability, not laboratory turnaround time</td>
 </tr>
 <tr>
 <td><strong>Immunosuppressed</strong></td>
@@ -1216,7 +1184,7 @@ a:hover { text-decoration: underline; }
 <td><strong>Hospitalised (AST)</strong></td>
 <td><code>resistance_testing_hospital_multiplier</code></td>
 <td>×5.0</td>
-<td>Hospitals perform AST more routinely</td>
+<td>Hospital settings are modelled as more likely to complete AST when resources are constrained, especially in earlier eras and lower-capacity settings; in modern high-income systems this difference may be small because cultured clinically relevant isolates often get AST regardless of referral source</td>
 </tr>
 </tbody>
 </table>
@@ -1307,9 +1275,9 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>Immunodeficiency</td>
-<td>+2.08</td>
-<td>~8× more likely</td>
-<td>Clinicians have a much lower threshold for prescribing in immunocompromised patients</td>
+<td>−0.75</td>
+<td>modestly less likely in isolation</td>
+<td>In the current model, immunodeficiency alone is not treated as a stand-alone indication; symptoms, sepsis, and test confirmation drive most starts</td>
 </tr>
 <tr>
 <td>No clinical indication</td>
@@ -1331,7 +1299,7 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>For a 65-year-old immunosuppressed inpatient with a symptomatic <em>E. coli</em> UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.0 (symptomatic) + 2.08 (immunodeficiency) = +2.58, which converts to about a 93% probability of starting antibiotics that day.</p>
+<p>For a 65-year-old immunosuppressed inpatient with a symptomatic <em>E. coli</em> UTI and no lab results yet, the daily initiation log-odds would be roughly: −5.5 (baseline) + 6.0 (symptomatic) − 0.75 (immunodeficiency) = −0.25, which converts to about a 44% probability of starting antibiotics that day before any additional effects from testing, sepsis, or syndrome-specific scoring are applied.</p>
 <p><strong>Regional variation in antibiotic access:</strong></p>
 <p>Not everyone who needs antibiotics can get them. The model captures the large global gradients in antibiotic access documented by consumption surveys (Klein EY et al., 2018):</p>
 <table>
@@ -1420,8 +1388,8 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p><strong>Restricted niche agents:</strong> Some drugs are hard-blocked outside their clinically plausible niche. In particular, <strong>retapamulin</strong> and <strong>fusidic acid</strong> are restricted to <strong>skin/soft-tissue prescribing contexts</strong> and are excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy they are only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (namely <em>Staphylococcus aureus</em> or <em>Streptococcus pyogenes</em>). This is intended to reflect their main clinical role as topical or narrowly targeted anti-staphylococcal/anti-impetigo agents rather than general systemic therapy (Stevens DL et al., 2014; Koning S et al., 2012).</p>
-<p>The same site-restriction logic is applied to other compartment-limited agents. <strong>Nitrofurantoin</strong> and <strong>fosfomycin</strong> are limited to genuine uncomplicated lower-UTI contexts and are excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts. <strong>Furazolidone</strong> is modeled separately as a <strong>GI-local agent</strong> rather than a urinary drug, so it is only eligible in GI-only syndromes and is likewise excluded from sepsis, bloodstream infection, and non-GI prescribing contexts. This keeps these agents from competing as generic systemic therapy when their clinical role is anatomically narrow (Gupta K et al., 2011).</p>
+<p><strong>Restricted niche agents:</strong> Some drugs are hard-blocked outside their clinically plausible niche. <strong>Retapamulin</strong> is restricted to <strong>skin/soft-tissue prescribing contexts</strong> and is excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy it is only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (namely <em>Staphylococcus aureus</em> or <em>Streptococcus pyogenes</em>). <strong>Fusidic acid</strong> remains excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts, but in targeted therapy it is also allowed for anti-staphylococcal <strong>bone/joint</strong> infections in addition to skin/soft-tissue use. This is intended to reflect retapamulin's mainly topical niche while allowing fusidic acid to retain its broader anti-staphylococcal role without competing as generic systemic therapy (Stevens DL et al., 2014; Koning S et al., 2012).</p>
+<p>The same site-restriction logic is applied to other compartment-limited agents. <strong>Nitrofurantoin</strong> is limited to genuine lower-UTI contexts. <strong>Fosfomycin</strong> is also kept within lower-UTI prescribing contexts in the current model, including situations where prior cultures or resistance history would make ESBL-active oral cover attractive, and both remain excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts. <strong>Furazolidone</strong> is modeled separately as a <strong>GI-local agent</strong> rather than a urinary drug, so it is only eligible in GI-only syndromes and is likewise excluded from sepsis, bloodstream infection, and non-GI prescribing contexts. This keeps these agents from competing as generic systemic therapy when their clinical role is anatomically narrow (Gupta K et al., 2011).</p>
 <p><strong>Regional resistance surveillance:</strong> If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:</p>
 <table>
 <thead>
@@ -1470,10 +1438,10 @@ a:hover { text-decoration: underline; }
 <td>Standard course for many infections</td>
 </tr>
 <tr>
-<td>No active infection found</td>
+<td>No relevant active infection remains</td>
 <td>15% per day</td>
-<td>Rapid discontinuation over the next few days once infection seems absent</td>
-<td>Antibiotics stopped when investigation shows no infection</td>
+<td>Rapid discontinuation over the next few days once the presentation no longer seems to reflect an ongoing bacterial infection</td>
+<td>Antibiotics stopped when the patient improves and ongoing bacterial infection is no longer thought likely, even if no bacterium was identified</td>
 </tr>
 <tr>
 <td>Cholera / <em>E. coli</em> GI</td>
@@ -1485,7 +1453,7 @@ a:hover { text-decoration: underline; }
 <td><em>S. aureus</em> / <em>S. pneumoniae</em></td>
 <td>1.5% per day</td>
 <td>About 90% of patients are still on treatment by day 7</td>
-<td>Standard courses</td>
+<td>Representative shorter courses for milder skin/soft-tissue or respiratory infection; more serious invasive infections can still require longer treatment</td>
 </tr>
 <tr>
 <td>MDR-TB</td>
@@ -1498,7 +1466,7 @@ a:hover { text-decoration: underline; }
 <p>A constant daily stop probability of 0.45% does not imply an average course of 14 days; rather, it means treatment is only rarely interrupted on any given day, so most courses extend to approximately two weeks.</p>
 <h4 id="syndrome-specific-empiric-scoring-templates">Syndrome-specific empiric scoring templates</h4>
 <p>The tables below show which drugs score highest for empiric prescribing in each syndrome. Higher scores mean the drug is more likely to be selected. These templates are calibrated to match real-world prescribing guidelines — for example, nitrofurantoin and trimethoprim-sulfamethoxazole score highest for UTI, while piperacillin-tazobactam and meropenem score highest for bloodstream infections.</p>
-<p><strong>Syndrome 1 — UTI</strong> <em>(most common bacterial infection; oral <code>pen</code>, <code>bli</code>, and <code>c1_2g</code> agents plus <code>sulf</code> are preferred, with <code>fq</code>, <code>nitrofurans</code>, and <code>phosphonic_acids</code> alternatives)</em></p>
+<p><strong>Syndrome 1 — UTI</strong> <em>(most common bacterial infection; oral <code>sulf</code>, <code>nitrofurans</code>, and <code>phosphonic_acids</code> are preferred for lower UTI, with selected <code>pen</code>, <code>c1_2g</code>, and <code>fq</code> agents used as alternatives when susceptibility history or clinical context supports them)</em></p>
 <table>
 <thead>
 <tr>
@@ -1512,7 +1480,7 @@ a:hover { text-decoration: underline; }
 <td>14.0</td>
 </tr>
 <tr>
-<td>amoxicillin_clavulanate</td>
+<td>nitrofurantoin</td>
 <td>14.0</td>
 </tr>
 <tr>
@@ -1532,8 +1500,8 @@ a:hover { text-decoration: underline; }
 <td>10.0</td>
 </tr>
 <tr>
-<td>nitrofurantoin</td>
-<td>8.0</td>
+<td>amoxicillin_clavulanate</td>
+<td>6.0</td>
 </tr>
 <tr>
 <td>cephalexin</td>
@@ -2516,7 +2484,7 @@ a:hover { text-decoration: underline; }
 <p>These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if the bacterium is fully susceptible.</p>
 <h3 id="65-drug-potency-matrix">6.5 Drug potency matrix</h3>
 <p>Since intrinsic susceptibility differs by organism, the model encodes a <strong>potency matrix</strong> — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.</p>
-<p>Values range from 0.0 (no activity — the drug simply does not work against this organism) to 1.0 (maximum activity). These potency values are based on published MIC (minimum inhibitory concentration) data and clinical breakpoints. If an organism is intrinsically resistant to a drug (defined as having a baseline potency \(\le 0.1\)), the model strictly prevents any <em>acquired</em> resistance mechanisms from being erroneously assigned to or tracked for that organism-drug pair (e.g., <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins).</p>
+<p>Values range from 0.0 (no activity — the drug simply does not work against this organism) to 1.0 (maximum activity). These potency values are based on published MIC (minimum inhibitory concentration) data and clinical breakpoints. If an organism is intrinsically resistant to a drug (defined as having a baseline potency $\le 0.1$), the model strictly prevents any <em>acquired</em> resistance mechanisms from being erroneously assigned to or tracked for that organism-drug pair (e.g., <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins).</p>
 <p>Key examples:
 - Meropenem vs <em>E. coli</em>: 0.95 (very high potency — a carbapenem is one of the most effective drugs against Gram-negatives)
 - Vancomycin vs <em>E. coli</em>: 0.0 (vancomycin does not work against Gram-negative bacteria)
@@ -4810,7 +4778,7 @@ a:hover { text-decoration: underline; }
 <h3 id="103-non-sepsis-infection-death">10.3 Non-sepsis infection death</h3>
 <p>Not all infection-related deaths involve sepsis. Many pathogens kill through tissue-specific mechanisms: <em>V. cholerae</em> through fatal dehydration (Ali M et al., 2015), <em>B. pertussis</em> through infantile respiratory failure (Yeung KHT et al., 2017), <em>H. pylori</em> through gastric adenocarcinoma (Plummer M et al., 2015), <em>T. pallidum</em> through tertiary and congenital syphilis (Korenromp EL et al., 2019), and <em>C. difficile</em> through toxic megacolon (Guh AY et al., 2020). These deaths would not be captured by the sepsis pathway alone.</p>
 <p>The model evaluates a <strong>daily non-sepsis infection death probability</strong> for every active infection that is <em>not</em> already progressing through the sepsis pathway. The probability is computed via a logistic model:</p>
-<p>\[P(\text{non-sepsis death}) = \frac{1}{1 + \exp(-\text{log-odds})}\]</p>
+<p>$$P(\text{non-sepsis death}) = \frac{1}{1 + \exp(-\text{log-odds})}$$</p>
 <p>where the total log-odds combines:</p>
 <table>
 <thead>
@@ -5956,7 +5924,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>antibiotic_initiation_log_odds_immunodeficiency</td>
-<td style="text-align: right;">2.08</td>
+<td style="text-align: right;">-0.75</td>
 </tr>
 <tr>
 <td>antibiotic_initiation_log_odds_sepsis</td>
@@ -6084,11 +6052,11 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>hospitalization_log_odds_sepsis</td>
-<td style="text-align: right;">4.4</td>
+<td style="text-align: right;">13</td>
 </tr>
 <tr>
 <td>hospitalization_log_odds_symptomatic_infection</td>
-<td style="text-align: right;">2.5</td>
+<td style="text-align: right;">9.5</td>
 </tr>
 <tr>
 <td>hospitalization_symptomatic_infection_level_threshold</td>
@@ -6147,7 +6115,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>community_profile_cache_retention</td>
-<td style="text-align: right;">0.9</td>
+<td style="text-align: right;">0.99</td>
 </tr>
 <tr>
 <td>hospital_profile_cache_retention</td>
@@ -6155,7 +6123,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>hospital_resistance_concentration_factor</td>
-<td style="text-align: right;">per-bacteria (1.0–1.5; see B.3)</td>
+<td style="text-align: right;">per-bacteria (1.0–2.25; see Section 3.4)</td>
 </tr>
 <tr>
 <td>mechanism_reversion_rate_global_multiplier</td>
@@ -6210,7 +6178,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td>community_resistance_dilution_factor</td>
-<td style="text-align: right;">per-bacteria (0.03–0.80; see B.3)</td>
+<td style="text-align: right;">per-bacteria (0.12–0.80; see Section 3.4)</td>
 </tr>
 <tr>
 <td>microbiome_majority_decay_half_life_days</td>
@@ -6237,7 +6205,7 @@ a:hover { text-decoration: underline; }
 <tbody>
 <tr>
 <td>infection_de_novo_multiplier</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">3</td>
 </tr>
 <tr>
 <td>microbiome_de_novo_multiplier</td>
@@ -7463,7 +7431,7 @@ a:hover { text-decoration: underline; }
 </tbody>
 </table>
 <h3 id="b3-bacteria-properties">B.3 Bacteria Properties</h3>
-<p>Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species.</p>
+<p>Per-bacteria parameters governing acquisition, growth, symptom onset, and clinical outcomes for each of the 42 bacterial species. Resistance-dilution and hospital-concentration settings are discussed separately in Section 3.4 because they are calibrated as part of the acquisition-reservoir logic rather than the core clinical trajectory table below.</p>
 <p>See: <a href="#31-community-acquisition">§3.1 Community acquisition</a>, <a href="#42-infection-dynamics">§4.2 Infection dynamics</a>, <a href="#43-sepsis">§4.3 Sepsis</a>, <a href="#44-natural-clearance">§4.4 Natural clearance</a>, <a href="#81-carriage-compartments">§8.1 Carriage compartments</a>.</p>
 <table>
 <thead>
@@ -7471,7 +7439,7 @@ a:hover { text-decoration: underline; }
 <th>Bacteria</th>
 <th style="text-align: right;">Acq log-odds</th>
 <th style="text-align: right;">Init level</th>
-<th style="text-align: right;">Δ level/day</th>
+<th style="text-align: right;">Delta level/day</th>
 <th style="text-align: right;">Max level</th>
 <th style="text-align: right;">Microb clr/day</th>
 <th style="text-align: right;">Microb vs inf</th>
@@ -7480,218 +7448,190 @@ a:hover { text-decoration: underline; }
 <th style="text-align: right;">Sx delay (d)</th>
 <th style="text-align: right;">Sepsis log-odds</th>
 <th style="text-align: right;">Mech-less rev rate</th>
-<th style="text-align: right;">Dilution</th>
-<th style="text-align: right;">Conc factor</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>acinetobacter_baumannii</td>
-<td style="text-align: right;">-22.3</td>
+<td style="text-align: right;">-18.7</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.1</td>
-<td style="text-align: right;">7</td>
+<td style="text-align: right;">8</td>
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.7</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.03</td>
-<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>citrobacter_spp.</td>
-<td style="text-align: right;">-18.6</td>
+<td style="text-align: right;">-16.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.08</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">11.3</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.2</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>enterobacter_spp.</td>
-<td style="text-align: right;">-18.8</td>
+<td style="text-align: right;">-16.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.07</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">11.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.7</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>enterococcus_faecalis</td>
-<td style="text-align: right;">-19.3</td>
+<td style="text-align: right;">-17.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.008</td>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">11.5</td>
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.25</td>
-<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>enterococcus_faecium</td>
-<td style="text-align: right;">-20.2</td>
+<td style="text-align: right;">-17.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.06</td>
-<td style="text-align: right;">11</td>
+<td style="text-align: right;">13</td>
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.20</td>
-<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>escherichia_coli</td>
-<td style="text-align: right;">-11.5</td>
+<td style="text-align: right;">-11.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.005</td>
-<td style="text-align: right;">5.7</td>
+<td style="text-align: right;">6</td>
 <td style="text-align: right;">0.025</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.35</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>klebsiella_pneumoniae</td>
-<td style="text-align: right;">-16.7</td>
+<td style="text-align: right;">-14.7</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.52</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.03</td>
-<td style="text-align: right;">9</td>
+<td style="text-align: right;">9.2</td>
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.20</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>morganella_spp.</td>
-<td style="text-align: right;">-18.1</td>
+<td style="text-align: right;">-17.2</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.1</td>
-<td style="text-align: right;">8.7</td>
+<td style="text-align: right;">10</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>proteus_spp.</td>
-<td style="text-align: right;">-17.8</td>
+<td style="text-align: right;">-16.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.08</td>
-<td style="text-align: right;">6.5</td>
+<td style="text-align: right;">8.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>serratia_spp.</td>
-<td style="text-align: right;">-20.0</td>
+<td style="text-align: right;">-17.3</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.48</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.1</td>
-<td style="text-align: right;">8.8</td>
+<td style="text-align: right;">10</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>p_stuartii</td>
-<td style="text-align: right;">-20.2</td>
+<td style="text-align: right;">-17.5</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.09</td>
-<td style="text-align: right;">7.6</td>
+<td style="text-align: right;">8.7</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.75</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>pseudomonas_aeruginosa</td>
-<td style="text-align: right;">-18.7</td>
+<td style="text-align: right;">-16</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.12</td>
-<td style="text-align: right;">7.5</td>
+<td style="text-align: right;">9</td>
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.8</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-6.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.03</td>
-<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>stenotrophomonas_maltophilia</td>
-<td style="text-align: right;">-22.2</td>
+<td style="text-align: right;">-19</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.06</td>
-<td style="text-align: right;">6</td>
+<td style="text-align: right;">7</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.9</td>
 <td style="text-align: right;">2.5</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.03</td>
-<td style="text-align: right;">1.5</td>
 </tr>
 <tr>
 <td>staphylococcus_aureus</td>
@@ -7700,30 +7640,26 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">0.6</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.05</td>
-<td style="text-align: right;">8.5</td>
+<td style="text-align: right;">7.5</td>
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.3</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.35</td>
-<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>staphylococcus_epidermidis</td>
-<td style="text-align: right;">-19.2</td>
+<td style="text-align: right;">-16</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.35</td>
 <td style="text-align: right;">4</td>
 <td style="text-align: right;">0.015</td>
-<td style="text-align: right;">11.3</td>
+<td style="text-align: right;">13.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>streptococcus_pneumoniae</td>
@@ -7738,8 +7674,6 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-10.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.40</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_typhi</td>
@@ -7748,34 +7682,30 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.003</td>
-<td style="text-align: right;">-4</td>
+<td style="text-align: right;">-7</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.10</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>salmonella_enterica_serovar_paratyphi_a</td>
-<td style="text-align: right;">-16.5</td>
+<td style="text-align: right;">-16.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.1</td>
+<td style="text-align: right;">-0.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.10</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>invasive_non-typhoidal_salmonella_spp.</td>
-<td style="text-align: right;">-17.4</td>
+<td style="text-align: right;">-17.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
@@ -7786,24 +7716,20 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.2</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.07</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>shigella_spp.</td>
-<td style="text-align: right;">-12.8</td>
+<td style="text-align: right;">-12.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.15</td>
-<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">-0.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-12</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>neisseria_gonorrhoeae</td>
@@ -7812,66 +7738,58 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.2</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">3</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-23</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.80</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>streptococcus_pyogenes</td>
-<td style="text-align: right;">-14.8</td>
+<td style="text-align: right;">-14.4</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.7</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.08</td>
-<td style="text-align: right;">8.8</td>
+<td style="text-align: right;">8</td>
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-6.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.40</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>streptococcus_agalactiae</td>
-<td style="text-align: right;">-17.2</td>
+<td style="text-align: right;">-15.9</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.52</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.06</td>
-<td style="text-align: right;">10.5</td>
+<td style="text-align: right;">11</td>
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.40</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>haemophilus_influenzae</td>
-<td style="text-align: right;">-19.1</td>
+<td style="text-align: right;">-17.4</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.06</td>
-<td style="text-align: right;">11.2</td>
+<td style="text-align: right;">12.5</td>
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.2</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.30</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>chlamydia_trachomatis</td>
-<td style="text-align: right;">-13.0</td>
+<td style="text-align: right;">-12.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.25</td>
 <td style="text-align: right;">5</td>
@@ -7882,40 +7800,34 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-19</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.80</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>mycoplasma_genitalium</td>
-<td style="text-align: right;">-12.5</td>
+<td style="text-align: right;">-12.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.28</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.18</td>
-<td style="text-align: right;">3.5</td>
+<td style="text-align: right;">4.7</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.9</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.80</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>vibrio_cholerae</td>
-<td style="text-align: right;">-18.5</td>
+<td style="text-align: right;">-18.65</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.7</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.15</td>
-<td style="text-align: right;">2.5</td>
+<td style="text-align: right;">1</td>
 <td style="text-align: right;">0.025</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.03</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>neisseria_meningitidis</td>
@@ -7924,34 +7836,30 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">0.65</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.05</td>
-<td style="text-align: right;">9.8</td>
+<td style="text-align: right;">10.5</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.9</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.60</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>listeria_monocytogenes</td>
-<td style="text-align: right;">-20.0</td>
+<td style="text-align: right;">-19</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.25</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.1</td>
-<td style="text-align: right;">9.2</td>
+<td style="text-align: right;">12.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.07</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>clostridioides_difficile</td>
-<td style="text-align: right;">-17.2</td>
+<td style="text-align: right;">-15.15</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
@@ -7962,28 +7870,24 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-11</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.10</td>
-<td style="text-align: right;">1.2</td>
 </tr>
 <tr>
 <td>bacteroides_fragilis</td>
-<td style="text-align: right;">-16.3</td>
+<td style="text-align: right;">-15.1</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.42</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.004</td>
-<td style="text-align: right;">11.5</td>
+<td style="text-align: right;">11</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">1.2</td>
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.30</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>campylobacter_jejuni</td>
-<td style="text-align: right;">-13.0</td>
+<td style="text-align: right;">-13</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.52</td>
 <td style="text-align: right;">5</td>
@@ -7994,72 +7898,62 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-20</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.07</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>enterobacter_cloacae</td>
-<td style="text-align: right;">-18.4</td>
+<td style="text-align: right;">-16.8</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.04</td>
-<td style="text-align: right;">11.5</td>
+<td style="text-align: right;">13</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-7.8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.15</td>
-<td style="text-align: right;">1.3</td>
 </tr>
 <tr>
 <td>yersinia_enterocolitica</td>
-<td style="text-align: right;">-16.3</td>
+<td style="text-align: right;">-16.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.25</td>
-<td style="text-align: right;">7</td>
+<td style="text-align: right;">5.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-9.5</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.07</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>moraxella_catarrhalis</td>
-<td style="text-align: right;">-15.0</td>
+<td style="text-align: right;">-14.6</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.05</td>
-<td style="text-align: right;">12.3</td>
+<td style="text-align: right;">11</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-10.8</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.30</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>treponema_pallidum</td>
-<td style="text-align: right;">-13.2</td>
+<td style="text-align: right;">-12.7</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.18</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.35</td>
-<td style="text-align: right;">8</td>
+<td style="text-align: right;">5.5</td>
 <td style="text-align: right;">0.0045</td>
 <td style="text-align: right;">0.6</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-11</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.80</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>bordetella_pertussis</td>
@@ -8074,8 +7968,6 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-11</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.60</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>helicobacter_pylori</td>
@@ -8090,72 +7982,62 @@ a:hover { text-decoration: underline; }
 <td style="text-align: right;">30</td>
 <td style="text-align: right;">-250</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.40</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>mdr_mycobacterium_tuberculosis</td>
-<td style="text-align: right;">-16.3</td>
+<td style="text-align: right;">-16.9</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.15</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.0015</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">-1</td>
 <td style="text-align: right;">6e-4</td>
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-38</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.80</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>mycoplasma_pneumoniae</td>
-<td style="text-align: right;">-12.0</td>
+<td style="text-align: right;">-12</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.35</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.01</td>
-<td style="text-align: right;">2</td>
+<td style="text-align: right;">0.5</td>
 <td style="text-align: right;">0.015</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.60</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>legionella_pneumophila</td>
-<td style="text-align: right;">-15.8</td>
+<td style="text-align: right;">-15.5</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.55</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.01</td>
-<td style="text-align: right;">2</td>
+<td style="text-align: right;">-2</td>
 <td style="text-align: right;">0.0085</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.03</td>
-<td style="text-align: right;">1.0</td>
 </tr>
 <tr>
 <td>burkholderia_cepacia_complex</td>
-<td style="text-align: right;">-22.1</td>
+<td style="text-align: right;">-20</td>
 <td style="text-align: right;">0.01</td>
 <td style="text-align: right;">0.45</td>
 <td style="text-align: right;">5</td>
 <td style="text-align: right;">0.01</td>
-<td style="text-align: right;">2</td>
+<td style="text-align: right;">0.5</td>
 <td style="text-align: right;">0.0075</td>
 <td style="text-align: right;">0.5</td>
 <td style="text-align: right;">1</td>
 <td style="text-align: right;">-14</td>
 <td style="text-align: right;">4e-4</td>
-<td style="text-align: right;">0.03</td>
-<td style="text-align: right;">1.5</td>
 </tr>
 </tbody>
 </table>

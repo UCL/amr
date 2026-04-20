@@ -362,7 +362,7 @@ Since age-specific infection risk varies by organism and syndrome, the model ass
 |----------|------------|------|------|-------|--------|--------|------|--------------------|
 | `respiratory` | *S. pneumoniae*, *H. influenzae* | 3.0 | 1.8 | 0.8 | 1.0 | 1.3 | 2.5 | U-shaped: infants and elderly most vulnerable |
 | `gastrointestinal` | *Salmonella*, *Shigella* | 2.5 | 2.0 | 1.2 | 1.0 | 1.1 | 1.8 | Young children and elderly via food/water |
-| `urogenital` | *E. coli* (UTI) | 1.2 | 0.8 | 0.9 | 1.0 | 1.4 | 2.2 | Rises with age, especially in women |
+| `urogenital` | *E. coli* (UTI) | 1.2 | 0.8 | 0.9 | 1.0 | 1.4 | 2.2 | Female risk is bimodal: sexually active adult women and postmenopausal ages; coarse bands mainly capture the later-life rise |
 | `skin_soft_tissue` | *S. aureus* | 1.5 | 1.3 | 1.1 | 1.0 | 1.2 | 1.8 | Moderate age variation |
 | `bloodstream` | *P. aeruginosa* | 4.0 | 2.0 | 0.7 | 1.0 | 1.5 | 3.0 | Neonates and elderly at highest risk |
 | `sexually_transmitted` | *N. gonorrhoeae*, *C. trachomatis* | 0.1 | 0.2 | 0.8 | 1.0 | 0.8 | 0.3 | Peaks in sexually active adults |
@@ -377,9 +377,11 @@ These community-acquisition templates should be read as structured relative-risk
 
 ### 3.2 Hospital acquisition
 
-Since hospitals concentrate nosocomial pathogens — *Acinetobacter* and *Pseudomonas* on ventilators, *Staphylococcus* and *Enterococcus* on central lines, *C. difficile* in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (`{bacteria}_log_odds_hospital_acquired`) for each species.
+Since hospitals concentrate nosocomial pathogens — *Acinetobacter* and *Pseudomonas* on ventilators, *Staphylococcus* (including coagulase-negative staphylococci) and *Enterococcus* on central lines, *C. difficile* in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (`{bacteria}_log_odds_hospital_acquired`) for each species.
 
 These hospital-acquisition terms are best interpreted as qualitative rankings of nosocomial exposure pressure rather than direct ward-level attack-rate measurements. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (WHO GLASS, 2026).
+
+For pathogens whose transmission is overwhelmingly sexual or foodborne, the live configuration now drives hospital acquisition to effectively zero. In practice, that means organisms such as *C. trachomatis*, *N. gonorrhoeae*, *M. genitalium*, *T. pallidum*, and *Campylobacter* can still be diagnosed while a patient is in hospital, but the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.
 
 
 ### 3.3 Carrier-derived infection
@@ -491,11 +493,11 @@ The 10 syndromes correspond to the major infectious disease presentations encoun
 
 | Syndrome | Index | Examples in clinical practice |
 |----------|-------|------------------------------|
-| UTI | 1 | Cystitis, pyelonephritis — the most common bacterial infection |
+| UTI | 1 | Simple UTI, pyelonephritis — the most common bacterial infection |
 | Skin/soft tissue | 2 | Cellulitis, wound infections, abscesses |
 | Respiratory | 3 | Community-acquired and hospital-acquired pneumonia |
 | Bloodstream | 4 | Bacteraemia, line-related infections |
-| Intra-abdominal | 5 | Peritonitis, appendicitis, biliary sepsis |
+| Intra-abdominal | 5 | Peritonitis, appendicitis, diverticulitis, cholangitis |
 | CNS | 6 | Meningitis, brain abscess — drugs must cross the blood-brain barrier |
 | Gastrointestinal | 7 | Gastroenteritis, food poisoning |
 | Genital/pelvic | 8 | Sexually transmitted infections, pelvic inflammatory disease |
@@ -508,20 +510,21 @@ The 10 syndromes correspond to the major infectious disease presentations encoun
 
 Each syndrome modifies two key aspects of the infection:
 
-- **Treatment initiation multiplier** — how urgently the patient seeks care. A patient with pneumonia (×10) presents for clinical assessment far more quickly than one with a mild UTI (×1).
+- **Treatment initiation multiplier** — how strongly symptoms at that site accelerate care-seeking once the infection has become symptomatic. A patient with bacteraemia (×16) or meningitis (×14) is pushed to assessment much faster than a patient with a simple UTI (×6).
 - **Bacterial growth rate multiplier** — how fast the bacteria replicate at that body site. Bacteria in the bloodstream (×1.4) multiply faster than bacteria embedded in bone (×0.85).
 
 | Syndrome | Treatment-seeking multiplier | Growth multiplier | Clinical rationale |
 |----------|-----------------------------|--------------------|-------------------|
-| UTI | ×1.0 | ×1.0 | Reference group |
-| Skin | ×1.0 | ×1.1 | Faster growth in devitalised tissue |
+| UTI | ×6.0 | ×1.0 | Common symptomatic outpatient presentation; dysuria and fever usually prompt treatment once symptoms emerge |
+| Skin | ×6.0 | ×1.1 | Painful cellulitis, wound infection, and abscesses are commonly brought for treatment |
 | Respiratory | ×10.0 | ×1.2 | Dyspnoea and fever drive rapid presentation |
-| Bloodstream | ×1.0 | ×1.4 | Nutrient-rich blood supports rapid replication |
-| Intra-abdominal | ×1.0 | ×1.15 | Moderate growth rate |
-| CNS | ×1.0 | ×1.3 | Rapid replication in cerebrospinal fluid |
-| GI | ×8.0 | ×1.1 | Diarrhoea and vomiting drive rapid presentation |
-| Genital | ×12.0 | ×0.9 | High care-seeking for STI symptoms; indolent course |
-| Bone/joint | ×1.0 | ×0.85 | Slow, deep-seated infection |
+| Bloodstream | ×16.0 | ×1.4 | Systemic toxicity and rapid incapacitation create a near-immediate treatment imperative |
+| Intra-abdominal | ×10.0 | ×1.15 | Severe pain and systemic upset usually drive prompt review even if progression is not as explosive as bacteraemia |
+| CNS | ×14.0 | ×1.3 | Severe headache, altered mental status, meningism, and neurological compromise should trigger urgent assessment |
+| GI | ×8.0 | ×1.1 | Diarrhoea, vomiting, abdominal pain, and dehydration drive presentation |
+| Genital | ×12.0 | ×0.9 | Symptomatic urethritis, cervicitis, PID, and genital ulcer disease often prompt treatment, but asymptomatic infections must still first cross the symptom threshold |
+| Bone/joint | ×4.0 | ×0.85 | Important to treat once recognized, but many bone and joint infections are slower and less immediately explosive |
+| Other | ×4.0 | ×1.0 | Catch-all for clinically recognized infections that usually merit treatment but lack a more urgent syndrome-specific cue |
 
 
 
@@ -544,7 +547,7 @@ Each day, the model calculates the probability of a person's infection progressi
 
 | Risk factor | Parameter | Value | Interpretation |
 |-------------|-----------|-------|---------------|
-| Bacterial load | `log_odds_sepsis_infection_level` | +0.93 per unit | Higher bacterial burden increases sepsis probability — the single strongest driver |
+| Bacterial load | `log_odds_sepsis_infection_level` | +0.93 per unit | Higher bacterial burden increases sepsis probability — the strongest generic driver, though organism-specific virulence is captured separately in the per-bacterium baseline |
 | Duration of infection | `log_odds_sepsis_infection_duration` | +0.005 per day | Untreated infections gradually become more dangerous |
 | Neonatal age | `sepsis_age_log_odds_neonatal` | +1.10 | Neonates are ~3× more likely to develop sepsis |
 | Elderly age | `sepsis_age_log_odds_elderly` | +0.69 | Over-70s are ~2× more likely |
@@ -553,7 +556,7 @@ Each day, the model calculates the probability of a person's infection progressi
 
 Not all bacteria or body sites carry equal sepsis risk. The model captures this through:
 
-- **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −7.9, reflecting its aggressive clinical course)
+- **Per-bacterium baseline**: Ranges from very low (*E. coli* UTI: −21.0, making sepsis extremely rare for routine UTIs) to high (*N. meningitidis*: −7.9, reflecting its aggressive clinical course). This is also where organism-specific propensity for toxin-mediated or otherwise disproportionately severe illness sits, such as invasive GAS and toxic-shock phenotypes relative to a less toxigenic organism at similar burden.
 - **Per-syndrome modifier**: Bloodstream (+1.5) and CNS (+1.2) infections are far more likely to cause sepsis; genitourinary (−2.0) and skin (−1.0) infections far less so
 
 **Regional factors** also affect sepsis risk, reflecting differences in healthcare access and sanitation:
@@ -569,7 +572,7 @@ This part of the model contains two related but distinct processes:
 
 - **Microbiome or carriage clearance**: `default_microbiome_clearance_probability_per_day` = 0.01 is the default daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific overrides for organisms that are known to persist much longer or clear more quickly.
 - **Duration penalty on carriage clearance**: `carriage_duration_log_odds_coefficient` = −0.01 per day, capped by `carriage_duration_max_log_odds_effect` = −2.0, applies to microbiome carriage rather than directly to symptomatic infection. The rationale is that long-established colonization becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005).
-- **Drug-assisted microbiome clearance**: `microbiome_clearance_probability_on_drug_treatment` = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves.
+- **Drug-assisted carriage clearance**: `microbiome_clearance_probability_on_drug_treatment` = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves.
 
 **Infection resolution itself is modeled separately.** Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level is driven down to a near-zero threshold in the rules engine, or when an immune-clearance event is triggered; this is not controlled by `default_microbiome_clearance_probability_per_day`.
 
@@ -581,7 +584,7 @@ This distinction matters for AMR because there can be a delay between infection 
 
 ## 5. Diagnostic Testing
 
-Since the transition from empiric to targeted prescribing depends on laboratory turnaround — culture followed by AST, typically taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology.
+Since the transition from empiric to targeted prescribing depends on laboratory turnaround — classically culture followed by AST, often taking days during which empiric therapy continues — the model simulates the decision to send a test, the delay in getting results, the possibility of laboratory errors, and the historical availability of testing technology. In modern laboratories, species identification from a blood-culture bottle that has flagged positive and some genotypic resistance calls can often be available within hours rather than days, but the current model collapses that heterogeneity into a single simplified turnaround parameter.
 
 We do not attempt to reproduce the full heterogeneity of specimen quality, breakpoint revision, platform-specific AST performance, or local reporting conventions; instead we include the parts of the laboratory pathway most likely to alter prescribing and therefore policy-relevant resistance dynamics.
 
@@ -606,7 +609,7 @@ Once testing is available and ordered, the model simulates a realistic laborator
 
 | Step | Parameter | Value | Interpretation |
 |------|-----------|-------|-------------|
-| **Lab turnaround time** | `test_delay_days` | 3 days | Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time. A 24–72 h window from sample receipt to actionable result is consistent with routine blood and urine culture workflows across contemporary clinical microbiology laboratories (Wain J et al., 2006; Pitt TL & Batchelor BI, 2019) |
+| **Lab turnaround time** | `test_delay_days` | 3 days | Results are not available until 3 days after the sample is sent — the patient is treated empirically during this time. This is a deliberate simplification of a pathway that can now range from same-day species ID or targeted resistance-gene detection in some settings to multi-day conventional culture-plus-AST workflows; a 24–72 h window remains a reasonable aggregate representation for routine blood and urine culture pathways (Wain J et al., 2006; Pitt TL & Batchelor BI, 2019) |
 | **AST completion rate** | `prob_test_r_done` | 95% | If a culture grows a bacterium, there is a 95% chance AST is performed (occasionally omitted for low-priority isolates or technical reasons) |
 | **Reporting error rate** | `test_r_error_probability` | 2% | AST results are wrong 2% of the time — the lab reports a resistant organism as susceptible or vice versa. This reflects real-world issues with breakpoint interpretation, contaminated samples, and technical failures. Error rates in disc-diffusion and gradient-strip AST methods are typically in the 1–5% range depending on organism and drug class (ISO 20776-2; EUCAST, 2023) |
 
@@ -617,16 +620,16 @@ The 3-day delay means that empiric therapy runs for at least three days before a
 
 ### 5.3 Testing criteria and rates
 
-Since culture ordering rates vary by care setting and clinical urgency — from low rates for uncomplicated UTIs in primary care to near-universal blood cultures in sepsis — the model captures these differences:
+Since culture ordering rates vary by care setting and clinical urgency — from selective but still often clinically useful urine cultures in outpatient UTIs to higher, though still imperfect, blood-culture use in sepsis — the model captures these differences:
 
 | Factor | Parameter | Value | Clinical meaning |
 |--------|-----------|-------|-----------------|
 | **Baseline culture rate** | `bacterial_testing_base_rate_per_day` | 15% per day | A symptomatic outpatient has a 15% daily chance of having a culture sent |
 | **AST reflex rate** | `resistance_testing_base_rate_per_day` | 95% per day | Once a culture is positive, AST is almost always performed |
-| **Sepsis** | `testing_sepsis_multiplier` | ×4.0 | Septic patients are tested urgently |
+| **Sepsis** | `testing_sepsis_multiplier` | ×4.0 | Sepsis makes clinicians much more likely to send cultures, although recommended blood cultures are still not obtained in every real-world case; this changes testing probability, not laboratory turnaround time |
 | **Immunosuppressed** | `testing_immunosuppressed_multiplier` | ×2.5 | Clinicians investigate more aggressively |
 | **Hospitalised (culture)** | `bacterial_testing_hospital_multiplier` | ×8.0 | Hospital patients have far greater access to microbiology labs |
-| **Hospitalised (AST)** | `resistance_testing_hospital_multiplier` | ×5.0 | Hospitals perform AST more routinely |
+| **Hospitalised (AST)** | `resistance_testing_hospital_multiplier` | ×5.0 | Hospital settings are modelled as more likely to complete AST when resources are constrained, especially in earlier eras and lower-capacity settings; in modern high-income systems this difference may be small because cultured clinically relevant isolates often get AST regardless of referral source |
 
 
 
@@ -715,9 +718,9 @@ For each candidate drug, the model calculates a score based on several factors. 
 
 
 
-**Restricted niche agents:** Some drugs are hard-blocked outside their clinically plausible niche. In particular, **retapamulin** and **fusidic acid** are restricted to **skin/soft-tissue prescribing contexts** and are excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy they are only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (namely *Staphylococcus aureus* or *Streptococcus pyogenes*). This is intended to reflect their main clinical role as topical or narrowly targeted anti-staphylococcal/anti-impetigo agents rather than general systemic therapy (Stevens DL et al., 2014; Koning S et al., 2012).
+**Restricted niche agents:** Some drugs are hard-blocked outside their clinically plausible niche. **Retapamulin** is restricted to **skin/soft-tissue prescribing contexts** and is excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy it is only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (namely *Staphylococcus aureus* or *Streptococcus pyogenes*). **Fusidic acid** remains excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts, but in targeted therapy it is also allowed for anti-staphylococcal **bone/joint** infections in addition to skin/soft-tissue use. This is intended to reflect retapamulin's mainly topical niche while allowing fusidic acid to retain its broader anti-staphylococcal role without competing as generic systemic therapy (Stevens DL et al., 2014; Koning S et al., 2012).
 
-The same site-restriction logic is applied to other compartment-limited agents. **Nitrofurantoin** and **fosfomycin** are limited to genuine uncomplicated lower-UTI contexts and are excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts. **Furazolidone** is modeled separately as a **GI-local agent** rather than a urinary drug, so it is only eligible in GI-only syndromes and is likewise excluded from sepsis, bloodstream infection, and non-GI prescribing contexts. This keeps these agents from competing as generic systemic therapy when their clinical role is anatomically narrow (Gupta K et al., 2011).
+The same site-restriction logic is applied to other compartment-limited agents. **Nitrofurantoin** is limited to genuine lower-UTI contexts. **Fosfomycin** is also kept within lower-UTI prescribing contexts in the current model, including situations where prior cultures or resistance history would make ESBL-active oral cover attractive, and both remain excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts. **Furazolidone** is modeled separately as a **GI-local agent** rather than a urinary drug, so it is only eligible in GI-only syndromes and is likewise excluded from sepsis, bloodstream infection, and non-GI prescribing contexts. This keeps these agents from competing as generic systemic therapy when their clinical role is anatomically narrow (Gupta K et al., 2011).
 
 **Regional resistance surveillance:** If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:
 
@@ -741,9 +744,9 @@ These values are best interpreted as **daily probabilities of prematurely stoppi
 | Scenario | Daily stop probability | Approximate implication | Real-world parallel |
 |----------|----------------------|-------------------------|-------------------|
 | Default course | 0.45% per day | About 94% of patients are still on treatment by day 14 | Standard course for many infections |
-| No active infection found | 15% per day | Rapid discontinuation over the next few days once infection seems absent | Antibiotics stopped when investigation shows no infection |
+| No relevant active infection remains | 15% per day | Rapid discontinuation over the next few days once the presentation no longer seems to reflect an ongoing bacterial infection | Antibiotics stopped when the patient improves and ongoing bacterial infection is no longer thought likely, even if no bacterium was identified |
 | Cholera / *E. coli* GI | 2.5% per day | Supports short-course therapy, with most patients still on treatment through about 3-5 days | Short courses per guidelines |
-| *S. aureus* / *S. pneumoniae* | 1.5% per day | About 90% of patients are still on treatment by day 7 | Standard courses |
+| *S. aureus* / *S. pneumoniae* | 1.5% per day | About 90% of patients are still on treatment by day 7 | Representative shorter courses for milder skin/soft-tissue or respiratory infection; more serious invasive infections can still require longer treatment |
 | MDR-TB | 0.06% per day | About 90% of patients are still on treatment by 6 months before regional adherence modifiers | Prolonged anti-TB regimens |
 
 A constant daily stop probability of 0.45% does not imply an average course of 14 days; rather, it means treatment is only rarely interrupted on any given day, so most courses extend to approximately two weeks.
@@ -754,17 +757,17 @@ A constant daily stop probability of 0.45% does not imply an average course of 1
 
 The tables below show which drugs score highest for empiric prescribing in each syndrome. Higher scores mean the drug is more likely to be selected. These templates are calibrated to match real-world prescribing guidelines — for example, nitrofurantoin and trimethoprim-sulfamethoxazole score highest for UTI, while piperacillin-tazobactam and meropenem score highest for bloodstream infections.
 
-**Syndrome 1 — UTI** *(most common bacterial infection; oral `pen`, `bli`, and `c1_2g` agents plus `sulf` are preferred, with `fq`, `nitrofurans`, and `phosphonic_acids` alternatives)*
+**Syndrome 1 — UTI** *(most common bacterial infection; oral `sulf`, `nitrofurans`, and `phosphonic_acids` are preferred for lower UTI, with selected `pen`, `c1_2g`, and `fq` agents used as alternatives when susceptibility history or clinical context supports them)*
 
 | Drug | Score |
 |------|-------|
 | trim_sulf | 14.0 |
-| amoxicillin_clavulanate | 14.0 |
+| nitrofurantoin | 14.0 |
 | amoxicillin | 12.0 |
 | ciprofloxacin | 12.0 |
 | ampicillin | 10.0 |
 | levofloxacin | 10.0 |
-| nitrofurantoin | 8.0 |
+| amoxicillin_clavulanate | 6.0 |
 | cephalexin | 8.0 |
 | ceftriaxone | 8.0 |
 | cefazolin | 7.0 |
@@ -858,11 +861,11 @@ The tables below show which drugs score highest for empiric prescribing in each 
 | ciprofloxacin | 6.0 |
 | levofloxacin | 5.5 |
 | cephalexin | 4.0 |
-| gentamicin | 1.0 |
-| tobramycin | 1.0 |
-| amikacin | 1.0 |
+| gentamicin | 10.0 |
+| tobramycin | 9.0 |
+| amikacin | 10.0 |
 
-
+Aminoglycosides appear as individual agents in the empiric table, but in practice they are most often prescribed as add-ons to a primary beta-lactam rather than as monotherapy. The model captures this through its combination-therapy mechanism: once a primary drug has been initiated, an increased log-odds of initiating a further drug is applied, making aminoglycosides competitive as second-line additions in serious contexts (syndromes 4, 5, 6, 10 and sepsis) without displacing broad-spectrum beta-lactams as the initial choice. Outside these serious contexts, aminoglycosides receive a strong penalty (×0.04) that makes standalone empiric prescribing negligible. Amikacin's comparative advantage over gentamicin for resistant gram-negatives is captured in the targeted (organism-identified) prescribing layer rather than the empiric table, where the two agents are approximately interchangeable empirically.
 
 **Syndrome 5 — Intra-abdominal** *(must cover Gram-negatives and anaerobes; `bli`, `bli_anti_pseudomonal`, `bli_sulbactam`, `carb_group1`, and `carb_group2` are preferred)* (Solomkin JS et al., 2010)
 
@@ -1040,6 +1043,7 @@ Illustrative `spectrum_breadth` values:
 
 | Drug | Breadth | Meaning |
 |------|---------|---------|
+| nitrofurantoin | 1.0 (Minimal) | Renally concentrated and rapidly metabolised; negligible gut microbiome disruption |
 | penicillin_g | 2.0 (Narrow) | Minimal disruption to the microbiome |
 | linezolid | 2.0 (Narrow) | Targets Gram-positives only |
 | vancomycin | 2.5 (Narrow-medium) | Mainly Gram-positive spectrum |
@@ -1057,7 +1061,7 @@ Operationally, this means broad-spectrum therapy can affect the simulation in tw
 
 Since tissue penetration determines whether an antibiotic achieves adequate site concentrations, the model assigns penetration coefficients for each drug–syndrome pair. The pharmacokinetic distinctions most relevant to AMR involve:
 
-- **CNS (meningitis):** The blood-brain barrier blocks most antibiotics. Only a few drugs (ceftriaxone, metronidazole, chloramphenicol, linezolid) achieve therapeutic levels in cerebrospinal fluid.
+- **CNS (meningitis):** The blood-brain barrier normally blocks most antibiotics, but bacterial meningitis causes substantial BBB inflammation that increases drug permeability. The penetration coefficients for CNS syndrome therefore reflect the *inflamed* BBB state rather than healthy-CNS values. Even so, drugs with very poor lipid solubility, large molecular weight, or active efflux transport (particularly aminoglycosides, polymyxins, and lipopeptides) remain inadequate at the site, while agents such as ceftriaxone, metronidazole, chloramphenicol, and linezolid achieve therapeutic CSF levels under these conditions.
 - **Bone/joint:** Drugs must penetrate dense, poorly vascularised tissue. `rifamycins` and `fq` agents penetrate well; `ag_group1` and `ag_group2` do not.
 - **Bloodstream:** By definition, any IV drug achieves full levels here (penetration = 1.0 for all drugs).
 
@@ -1176,7 +1180,7 @@ Toxicity can cause two outcomes:
 
 
 
-**2. Drug-related death (lethal toxicity):** Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure. The model uses a **multiplicative hazard** model: each drug has a per-unit daily hazard rate (typically in the 10⁻⁸ range), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.
+**2. Drug-related death (lethal toxicity):** Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure. Other real-world examples include fulminant hepatic failure from anti-tuberculosis regimens (isoniazid, rifampicin, pyrazinamide); however, these TB drugs are not individually modelled in the current simulation, so that pathway is not represented here. The model uses a **multiplicative hazard** model: each drug has a per-unit daily hazard rate (typically in the 10⁻⁸ range), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.
 
 | Factor | Parameter | Value | Effect |
 |--------|-----------|-------|--------|
@@ -1658,9 +1662,10 @@ Each bacterium in the model has a designated ecological niche — where it natur
 | Compartment | Example bacteria | Clinical relevance |
 |-------------|-----------------|-------------------|
 | Gut | *E. coli*, *K. pneumoniae*, *Enterococcus spp.*, *Shigella*, *Salmonella*, *C. difficile* | Largest reservoir; disrupted by broad-spectrum antibiotics |
-| Respiratory | *S. pneumoniae*, *H. influenzae*, *P. aeruginosa*, *A. baumannii*, *M. catarrhalis*, *M. tuberculosis* | Carriage often precedes pneumonia |
+| Respiratory | *S. pneumoniae*, *H. influenzae*, *P. aeruginosa*, *A. baumannii*, *M. catarrhalis* | Carriage often precedes pneumonia |
+| Respiratory (latent) | *M. tuberculosis* | Modelled as latent infection with stochastic reactivation (~0.1% daily hazard); this represents LTBI rather than conventional mucosal carriage |
 | Skin/Soft tissue | *S. aureus*, *S. epidermidis* | Nasal/skin MRSA carriage drives surgical wound infections |
-| Genitourinary | *N. gonorrhoeae*, *C. trachomatis*, *M. genitalium*, *T. pallidum*, *S. agalactiae* | Asymptomatic STI carriage enables transmission |
+| Genitourinary | *N. gonorrhoeae*, *C. trachomatis*, *M. genitalium*, *T. pallidum*, *S. agalactiae* | Modelled as asymptomatic infection rather than commensal carriage — these are obligate pathogens present without causing symptoms, which enables onward transmission |
 
 
 
@@ -1741,7 +1746,7 @@ The absolute HGT probabilities are intentionally low and should be interpreted a
 
 ## 10. Mortality
 
-The model tracks mortality from three sources: background (non-infection) causes, **sepsis** (organ dysfunction from uncontrolled infection), and **non-sepsis infection death** (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).
+The model tracks mortality from three sources: background (non-infection) causes, **sepsis** (organ dysfunction from uncontrolled immune response to infection), and **non-sepsis infection death** (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).
 
 ### 10.1 Background mortality
 
@@ -1778,7 +1783,7 @@ Since sepsis mortality varies enormously by organism — from near-zero for non-
 | *S. aureus* | −7.3 | Aggressive bloodstream pathogen; 20–30% mortality in bacteraemia (Tong SYC et al., 2015) |
 | *P. aeruginosa* | −6.5 | High mortality in ICU infections; often in immunocompromised hosts (Bassetti M et al., 2018) |
 | *S. agalactiae* | −7.0 | Neonatal and pregnancy-associated sepsis (Seale AC et al., 2010) |
-| *S. pyogenes* | −7.0 | Invasive GAS disease including necrotising fasciitis and toxic shock (Carapetis JR et al., 2005) |
+| *S. pyogenes* | −6.5 | Invasive GAS disease including necrotising fasciitis and toxic shock; STSS case-fatality 30–70% places invasive GAS among the most lethal bacterial syndromes (Carapetis JR et al., 2005) |
 | *N. meningitidis* | −7.9 | Meningococcal disease; rapid sepsis progression with purpura fulminans and DIC; sepsis baseline loosened to −7.9 to reflect frequently invasive presentations (Stephens DS et al., 2007) |
 | *E. faecium* | −7.0 | Hospital-acquired bloodstream infections, especially VRE |
 | *K. pneumoniae* | −7.5 | Gram-negative sepsis; carbapenem-resistant strains carry >40% mortality (Xu L et al., 2017) |
@@ -1843,7 +1848,7 @@ The per-bacterium adjustments are the primary calibration lever. **Negative valu
 | *N. gonorrhoeae* | −2.5 | Gonorrhoea is rarely fatal; base rate produced 11.6× over-death |
 | *M. pneumoniae* | −0.7 | Low-mortality respiratory pathogen |
 | *C. jejuni* | −0.5 | Self-limiting gastroenteritis in most cases |
-| *S. epidermidis* | −6.0 | Very low direct mortality; primarily a device-associated pathogen |
+| *S. epidermidis* | −8.0 | Predominantly indolent, device-associated infection; acute sepsis is uncommon. Untreated prosthetic valve endocarditis carries ~20–30% mortality, but this is a subacute process partially captured by non-sepsis death parameters rather than the acute sepsis baseline |
 | *S. maltophilia* | −4.0 | Some mortality via pneumonia progression, but limited |
 | *B. pertussis* | +4.0 | Deaths from respiratory failure in infants, not sepsis (Yeung KHT et al., 2017) |
 | *T. pallidum* | +3.5 | Tertiary/congenital syphilis deaths (Korenromp EL et al., 2019) |
@@ -1869,8 +1874,8 @@ Both death pathways are modulated by the anatomical site of infection. The syndr
 |----------|-----------|-----------|
 | Genital | 0.05 | Rarely fatal (localised mucosal infections) |
 | Skin / Ear | 0.1 | Low systemic risk unless secondary bacteraemia |
-| UTI | 0.5 | Usually self-limiting but can ascend to urosepsis |
-| Bone/Joint | 0.8 | Serious but slow-progressing; mortality from surgical complications |
+| UTI | 0.5 | Usually self-limiting, but untreated or inadequately treated UTI — particularly in the elderly, pregnant women, or those with structural abnormalities — can ascend to urosepsis and carries meaningful mortality in that context |
+| Bone/Joint | 0.8 | Serious but often slow-progressing; mortality arises from surgical complications, but also from haematogenous spread — bacteraemia, sepsis, and seeding of distant sites (e.g. vertebral osteomyelitis seeding cardiac valves) |
 | Intra-abdominal | 1.5 | Peritonitis carries high mortality even with surgery |
 | Respiratory | 1.5 | Pneumonia — leading infectious cause of death globally (GBD 2019 Lower Respiratory Infections Collaborators, 2022) |
 | CNS | 3.0 | Meningitis/brain abscess — poor penetration of many antibiotics (Tunkel AR et al., 2004) |
@@ -2493,7 +2498,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | quinu_dalfo | unknown | 25290 | 10 | 0.5 | 2 | 3 | 0 | 1.5 | 0.3 |
 | trim_sulf | folate_antagonists | 13870 | 10 | 0.5 | 2 | 3.5 | 2e-9 | 1.5 | 0.3 |
 | chloramphenicol | unknown | 6935 | 10 | 0.125 | 2 | 3 | 1e-8 | 1.5 | 0.3 |
-| nitrofurantoin | unknown | 8395 | 10 | 0.017 | 2 | 3 | 3e-9 | 1.5 | 0.3 |
+| nitrofurantoin | unknown | 8395 | 10 | 0.017 | 2 | 1 | 3e-9 | 1.5 | 0.3 |
 | fosfomycin | unknown | 10590 | 10 | 0.15 | 2 | 3 | 0 | 1.5 | 0.3 |
 | retapamulin | unknown | 28405 | 10 | 0.25 | 2 | 3 | 0 | 1.5 | 0.3 |
 | fusidic_a | unknown | 11680 | 10 | 0.375 | 2 | 3 | 0 | 1.5 | 0.3 |
