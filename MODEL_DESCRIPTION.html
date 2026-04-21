@@ -1826,18 +1826,19 @@
 </tr>
 <tr>
 <td>gentamicin</td>
-<td>1.0</td>
+<td>10.0</td>
 </tr>
 <tr>
 <td>tobramycin</td>
-<td>1.0</td>
+<td>9.0</td>
 </tr>
 <tr>
 <td>amikacin</td>
-<td>1.0</td>
+<td>10.0</td>
 </tr>
 </tbody>
 </table>
+<p>Aminoglycosides appear as individual agents in the empiric table, but in practice they are most often prescribed as add-ons to a primary beta-lactam rather than as monotherapy. The model captures this through its combination-therapy mechanism: once a primary drug has been initiated, an increased log-odds of initiating a further drug is applied, making aminoglycosides competitive as second-line additions in serious contexts (syndromes 4, 5, 6, 10 and sepsis) without displacing broad-spectrum beta-lactams as the initial choice. Outside these serious contexts, aminoglycosides receive a strong penalty (×0.04) that makes standalone empiric prescribing negligible. Amikacin's comparative advantage over gentamicin for resistant gram-negatives is captured in the targeted (organism-identified) prescribing layer rather than the empiric table, where the two agents are approximately interchangeable empirically.</p>
 <p><strong>Syndrome 5 — Intra-abdominal</strong> <em>(must cover Gram-negatives and anaerobes; <code>bli</code>, <code>bli_anti_pseudomonal</code>, <code>bli_sulbactam</code>, <code>carb_group1</code>, and <code>carb_group2</code> are preferred)</em> (Solomkin JS et al., 2010)</p>
 <table>
 <thead>
@@ -2237,6 +2238,186 @@
 </tr>
 </tbody>
 </table>
+<h4 id="species-specific-and-time-varying-prescribing-multipliers">Species-specific and time-varying prescribing multipliers</h4>
+<p>The syndrome-level empiric tables above describe population-wide prescribing tendencies; they are agnostic to which organism is causing the infection. Once an organism is identified (targeted therapy), a second layer of species-specific <strong>initiation multipliers</strong> is applied on top of the syndrome score. These encode disease-area guidelines that name a specific drug–organism combination — for example, the WHO recommendation for ceftriaxone in gonorrhoea, or triple therapy for <em>H. pylori</em> — rather than leaving the choice to the generic spectrum-and-syndrome heuristic.</p>
+<p>Multipliers greater than 1 boost a drug's score for that organism; values less than 1 suppress it. A value of 0.01 effectively blocks use (e.g., penicillin G for <em>Pseudomonas aeruginosa</em>). The default for any drug–organism pair with no explicit entry is 1.0 (no modification).</p>
+<p><strong>Time-varying era overrides.</strong> For many organisms the preferred drug changed substantially during the simulation period — not because of drug licensing (that is handled separately by <code>DRUG_INTRODUCTION_DATES</code>) but because of guideline shifts driven by accumulating clinical evidence or emerging resistance. The model encodes this using <code>_before_YYYY</code> suffix keys: for a given drug–organism pair the lookup proceeds as follows — if the current simulation year is before the earliest applicable cutoff year, the corresponding override multiplier is used; otherwise the base multiplier applies. This allows a single config to describe a continuous temporal arc without adding time-step logic to the core prescribing loop.</p>
+<p>The species-guideline shifts currently encoded are:</p>
+<table>
+<thead>
+<tr>
+<th>Organism</th>
+<th>Drug</th>
+<th>Pre-era multiplier</th>
+<th>Era</th>
+<th>Base (post) multiplier</th>
+<th>Historical rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>penicillin G</td>
+<td>14.0</td>
+<td>→ 1987</td>
+<td>2.0</td>
+<td>Penicillin sole first-line before FQs licenced</td>
+</tr>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>ciprofloxacin</td>
+<td>0.5</td>
+<td>→ 1987</td>
+<td>—</td>
+<td>FQ not yet in gonorrhoea guidelines</td>
+</tr>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>ciprofloxacin</td>
+<td>14.0</td>
+<td>1987–2007</td>
+<td>2.0</td>
+<td>Sole first-line per CDC/WHO; resistance then ended use</td>
+</tr>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>ceftriaxone</td>
+<td>2.0</td>
+<td>→ 2007</td>
+<td>12.0</td>
+<td>Adopted as first-line following FQ resistance</td>
+</tr>
+<tr>
+<td><em>S.</em> Typhi / <em>S.</em> Paratyphi A</td>
+<td>chloramphenicol</td>
+<td>14.0</td>
+<td>→ 1990</td>
+<td>2.0</td>
+<td>Dominant first-line until FQ era</td>
+</tr>
+<tr>
+<td><em>S.</em> Typhi / <em>S.</em> Paratyphi A</td>
+<td>ciprofloxacin</td>
+<td>0.5 → 14.0</td>
+<td>→ 1990 / 1990–2010</td>
+<td>2.0</td>
+<td>FQ first-line 1990–2010; declining after XDR emergence</td>
+</tr>
+<tr>
+<td><em>S.</em> Typhi / <em>S.</em> Paratyphi A</td>
+<td>ceftriaxone / azithromycin</td>
+<td>—</td>
+<td>2010+</td>
+<td>10.0 / 8.0</td>
+<td>XDR typhoid era first-line</td>
+</tr>
+<tr>
+<td><em>S.</em> Typhi / <em>S.</em> Paratyphi A</td>
+<td>ampicillin</td>
+<td>6.0</td>
+<td>→ 2000</td>
+<td>1.0</td>
+<td>Oral alternative to chloramphenicol until widespread resistance</td>
+</tr>
+<tr>
+<td><em>S.</em> Typhi / <em>S.</em> Paratyphi A</td>
+<td>TMP-SMX</td>
+<td>7.0</td>
+<td>→ 2000</td>
+<td>1.0</td>
+<td>Widely used alternative until resistance spread</td>
+</tr>
+<tr>
+<td><em>Shigella</em> spp.</td>
+<td>ampicillin + TMP-SMX</td>
+<td>7.0</td>
+<td>→ 2000</td>
+<td>1.0</td>
+<td>WHO first-line until multi-drug resistance</td>
+</tr>
+<tr>
+<td><em>Shigella</em> spp.</td>
+<td>ciprofloxacin</td>
+<td>14.0</td>
+<td>1990–2010</td>
+<td>2.0</td>
+<td>Global first-line until FQ resistance</td>
+</tr>
+<tr>
+<td><em>Shigella</em> spp.</td>
+<td>azithromycin</td>
+<td>2.0 → 10.0</td>
+<td>1991–2010 / 2010+</td>
+<td>—</td>
+<td>Preferred for FQ-resistant strains</td>
+</tr>
+<tr>
+<td><em>Campylobacter jejuni</em></td>
+<td>ciprofloxacin</td>
+<td>0.5</td>
+<td>→ 1990</td>
+<td>—</td>
+<td>Not established for <em>Campylobacter</em> before FQ era</td>
+</tr>
+<tr>
+<td><em>Campylobacter jejuni</em></td>
+<td>ciprofloxacin</td>
+<td>10.0</td>
+<td>1990–2010</td>
+<td>2.0</td>
+<td>Widely used for severe/traveller disease</td>
+</tr>
+<tr>
+<td><em>Campylobacter jejuni</em></td>
+<td>azithromycin</td>
+<td>3.0</td>
+<td>1991–2010</td>
+<td>5.0</td>
+<td>Preferred once FQ resistance prevalent</td>
+</tr>
+<tr>
+<td><em>E. faecalis</em> / <em>E. faecium</em></td>
+<td>vancomycin</td>
+<td>0.3</td>
+<td>→ 1985</td>
+<td>4.0 / 3.5</td>
+<td>Early vancomycin abandoned due to nephrotoxicity; reintroduced ~1985 for MRSA cover</td>
+</tr>
+<tr>
+<td><em>C. difficile</em></td>
+<td>metronidazole</td>
+<td>12.0</td>
+<td>1977–2017</td>
+<td>4.0</td>
+<td>IDSA dominant first-line; downgraded in 2017 IDSA/SHEA guidelines</td>
+</tr>
+<tr>
+<td><em>C. difficile</em></td>
+<td>vancomycin (oral)</td>
+<td>4.0</td>
+<td>1977–2017</td>
+<td>10.0</td>
+<td>Severe/refractory only before 2017; universal first-line after</td>
+</tr>
+<tr>
+<td><em>S. aureus</em></td>
+<td>ciprofloxacin</td>
+<td>10.0</td>
+<td>→ 2000</td>
+<td>2.0</td>
+<td>1988–2000: heavily used empirically for MRSA before FQ resistance precluded guideline use; modern era restricted to MSSA indications</td>
+</tr>
+<tr>
+<td><em>M. genitalium</em></td>
+<td>doxycycline</td>
+<td>8.0</td>
+<td>→ 1991</td>
+<td>1.5</td>
+<td>Pre-PCR diagnosis era (before 1991): doxycycline was sole empiric first-line for all non-gonococcal urethritis; now used only for debulking</td>
+</tr>
+</tbody>
+</table>
+<p><em>C. difficile</em> also has a <code>treatment_recognition_year</code> of 1977 — before the Bartlett et al. description of antibiotic-associated colitis, no antibiotic pressure is applied to this organism regardless of multiplier values.</p>
 <h3 id="63-drug-pharmacokinetics">6.3 Drug pharmacokinetics</h3>
 <p>The model uses a simplified pharmacokinetic representation in which each drug has a <strong>half-life</strong> and a <strong>starting level</strong> at administration. Since the mutant selection window — where sub-therapeutic concentrations select for resistance rather than clearing it — is a key driver of emergence (see Section 7.3), the shape of the drug-level decay matters for downstream resistance dynamics.</p>
 <table>
@@ -2375,6 +2556,11 @@
 </thead>
 <tbody>
 <tr>
+<td>nitrofurantoin</td>
+<td>1.0 (Minimal)</td>
+<td>Renally concentrated and rapidly metabolised; negligible gut microbiome disruption</td>
+</tr>
+<tr>
 <td>penicillin_g</td>
 <td>2.0 (Narrow)</td>
 <td>Minimal disruption to the microbiome</td>
@@ -2420,7 +2606,7 @@
 <h3 id="64-drug-penetration-by-syndrome">6.4 Drug penetration by syndrome</h3>
 <p>Since tissue penetration determines whether an antibiotic achieves adequate site concentrations, the model assigns penetration coefficients for each drug–syndrome pair. The pharmacokinetic distinctions most relevant to AMR involve:</p>
 <ul>
-<li><strong>CNS (meningitis):</strong> The blood-brain barrier blocks most antibiotics. Only a few drugs (ceftriaxone, metronidazole, chloramphenicol, linezolid) achieve therapeutic levels in cerebrospinal fluid.</li>
+<li><strong>CNS (meningitis):</strong> The blood-brain barrier normally blocks most antibiotics, but bacterial meningitis causes substantial BBB inflammation that increases drug permeability. The penetration coefficients for CNS syndrome therefore reflect the <em>inflamed</em> BBB state rather than healthy-CNS values. Even so, drugs with very poor lipid solubility, large molecular weight, or active efflux transport (particularly aminoglycosides, polymyxins, and lipopeptides) remain inadequate at the site, while agents such as ceftriaxone, metronidazole, chloramphenicol, and linezolid achieve therapeutic CSF levels under these conditions.</li>
 <li><strong>Bone/joint:</strong> Drugs must penetrate dense, poorly vascularised tissue. <code>rifamycins</code> and <code>fq</code> agents penetrate well; <code>ag_group1</code> and <code>ag_group2</code> do not.</li>
 <li><strong>Bloodstream:</strong> By definition, any IV drug achieves full levels here (penetration = 1.0 for all drugs).</li>
 </ul>
@@ -2484,11 +2670,59 @@
 <p>These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if the bacterium is fully susceptible.</p>
 <h3 id="65-drug-potency-matrix">6.5 Drug potency matrix</h3>
 <p>Since intrinsic susceptibility differs by organism, the model encodes a <strong>potency matrix</strong> — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.</p>
-<p>Values range from 0.0 (no activity — the drug simply does not work against this organism) to 1.0 (maximum activity). These potency values are based on published MIC (minimum inhibitory concentration) data and clinical breakpoints. If an organism is intrinsically resistant to a drug (defined as having a baseline potency $\le 0.1$), the model strictly prevents any <em>acquired</em> resistance mechanisms from being erroneously assigned to or tracked for that organism-drug pair (e.g., <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins).</p>
+<p>Values range from 0.0 (no activity) to values above 1.0 for a small number of agents (e.g., glycopeptides and oxazolidinones against susceptible Gram-positives, where the model allows slightly supra-maximal values to reflect the exceptional clinical reliability of these agents). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $\le 0.1$), the model strictly prevents any <em>acquired</em> resistance mechanisms from being assigned to that organism-drug pair — for example, <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins.</p>
+<p><strong>A key modelling principle is that intrinsic resistance must be represented exclusively through potency = 0, not through artificially inflated mechanism emergence rates.</strong> A non-zero potency for a drug-organism pair that is intrinsically resistant creates spurious drug pressure and can drive calibration artefacts. Several such miscalibrations were identified and corrected:</p>
+<table>
+<thead>
+<tr>
+<th>Drug class</th>
+<th>Organisms</th>
+<th>Basis for zeroing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vancomycin</td>
+<td>All Gram-negative bacteria</td>
+<td>Glycopeptide molecule (~1450 Da) cannot penetrate the Gram-negative outer membrane; no acquired mechanism can confer susceptibility</td>
+</tr>
+<tr>
+<td>Metronidazole</td>
+<td>All aerobic and facultative organisms</td>
+<td>Requires anaerobic nitroreductase activation; cytotoxic radical intermediates cannot form under aerobic conditions</td>
+</tr>
+<tr>
+<td>Aztreonam</td>
+<td>All Gram-positive organisms</td>
+<td>Monobactam PBP3 target requires outer-membrane permeation absent in Gram-positive cell walls</td>
+</tr>
+<tr>
+<td>Aminoglycosides</td>
+<td><em>C. difficile</em>, <em>B. fragilis</em></td>
+<td>Obligate anaerobes — AG uptake depends on oxygen-dependent active transport, which is completely abolished anaerobically</td>
+</tr>
+<tr>
+<td>TMP-SMX</td>
+<td><em>B. fragilis</em></td>
+<td>Constitutively encoded insensitivity to sulfonamides (chromosomal folate pathway)</td>
+</tr>
+<tr>
+<td>Nitrofurantoin</td>
+<td><em>S. maltophilia</em></td>
+<td>Intrinsic non-fermenter resistance; nitrofurantoin is never used for <em>Stenotrophomonas</em> infections</td>
+</tr>
+</tbody>
+</table>
+<p>For the aminoglycoside/aztreonam/vancomycin/metronidazole cases, the zeroing is applied via group loops covering all organisms in the relevant anatomical or Gram-stain group, so it applies consistently to any organism added to those groups in future.</p>
 <p>Key examples:
-- Meropenem vs <em>E. coli</em>: 0.95 (very high potency — a carbapenem is one of the most effective drugs against Gram-negatives)
-- Vancomycin vs <em>E. coli</em>: 0.0 (vancomycin does not work against Gram-negative bacteria)
-- Ceftriaxone vs <em>S. pneumoniae</em>: 0.90 (standard treatment for pneumococcal meningitis)</p>
+- Meropenem vs <em>E. coli</em>: 0.95 (very high potency — carbapenem against susceptible Gram-negative)
+- Vancomycin vs <em>S. aureus</em>: 1.00 (first-line MRSA therapy)
+- Vancomycin vs <em>E. coli</em>: 0.0 (outer membrane blocks access — intrinsic, not acquired)
+- Metronidazole vs <em>C. difficile</em>: 0.90 (obligate anaerobe — activated drug reaches target)
+- Metronidazole vs <em>S. aureus</em>: 0.0 (aerobe — drug cannot be activated)
+- Ceftriaxone vs <em>S. pneumoniae</em>: 0.90 (standard treatment for pneumococcal meningitis)
+- Aztreonam vs <em>P. aeruginosa</em>: 0.90 (monobactam active against Gram-negatives including Pseudomonas)
+- Aztreonam vs <em>S. aureus</em>: 0.0 (Gram-positive — outer-membrane route absent)</p>
 <h3 id="66-drug-availability-by-region-and-era">6.6 Drug availability by region and era</h3>
 <p>The model simulates antibiotics becoming available at their historical introduction dates. Before sulfanilamide was introduced in 1937, there were no antibiotics in the model. Before penicillin G was introduced in 1942, the <code>pen</code> era had not yet begun. Before ciprofloxacin was introduced in 1987, the model had no <code>fq</code> agents. This historical layering is essential for reproducing the sequential emergence of resistance over the 20th century.</p>
 <p><strong>Regional availability:</strong> Even after a drug is introduced globally, not all regions have equal access. Newer, more expensive drugs may be unavailable or rarely used in low-income settings:</p>
@@ -2752,7 +2986,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>2. Drug-related death (lethal toxicity):</strong> Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure. The model uses a <strong>multiplicative hazard</strong> model: each drug has a per-unit daily hazard rate (typically in the 10⁻⁸ range), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.</p>
+<p><strong>2. Drug-related death (lethal toxicity):</strong> Rarely, severe drug toxicity can be fatal — for example, acute kidney injury from colistin leading to multiorgan failure. Other real-world examples include fulminant hepatic failure from anti-tuberculosis regimens (isoniazid, rifampicin, pyrazinamide); however, these TB drugs are not individually modelled in the current simulation, so that pathway is not represented here. The model uses a <strong>multiplicative hazard</strong> model: each drug has a per-unit daily hazard rate (typically in the 10⁻⁸ range), and the total risk is the sum of (drug level × drug-specific hazard) across all active drugs, multiplied by patient-specific vulnerability factors.</p>
 <table>
 <thead>
 <tr>
@@ -3598,6 +3832,56 @@
 </tr>
 </tbody>
 </table>
+<h4 id="741-community-setting-accelerated-reversion-for-hospital-adapted-organisms">7.4.1 Community-setting accelerated reversion for hospital-adapted organisms</h4>
+<p>The baseline reversion rates above reflect averages across all clinical settings. For a subset of predominantly nosocomial organisms, epidemiological evidence indicates that hospital-adapted resistance mechanisms are biologically unstable outside the selective pressure of an acute-care environment and revert far more rapidly in community carriers. Three interconnected processes drive this:</p>
+<ol>
+<li>
+<p><strong>Fitness cost without compensatory selection.</strong> The high-level resistance cassettes that define MDR nosocomial clones — carbapenemases (OXA-type, KPC, NDM), VanA/VanB glycopeptide resistance operons, and acquired efflux overexpression — impose a significant metabolic burden. In the hospital, that cost is offset by continuous antibiotic pressure and clonal amplification under selection. In community carriers who are no longer receiving antibiotics, susceptible wild-type competitors rapidly displace the resistant clone. Studies of post-discharge decolonisation document median MDR-GNR clearance of 2–4 weeks and MRSA clearance of 4–8 weeks; clearance of Acinetobacter MDR carriage appears faster still (Saidel-Odes L et al., 2012; van Boeckel TP et al., 2014).</p>
+</li>
+<li>
+<p><strong>Absence of the hospital ecological niche.</strong> MDR hospital-adapted clones (e.g., OXA-23/40/58 <em>A. baumannii</em> international clones, VRE <em>E. faecium</em> clonal complex 17, MDR <em>Stenotrophomonas</em> lineages) are ecologically distinct from their community congeners. They have no established animal reservoir, no stable environmental water niche, and no food-chain transmission route. Community-dwelling individuals who are not recent hospital discharges are rarely colonised at all; when they are, the MDR clone does not persist (Plantinga NL et al., 2018; Arvaniti K et al., 2020).</p>
+</li>
+<li>
+<p><strong>Consequence for resistance pool dynamics.</strong> If the standard per-mechanism reversion rates (which are calibrated against in-hospital and clinical data) are applied uniformly to community carriers of these organisms, the community resistance pool accumulates resistant profiles that have no biological basis. Hospitalized patients who discharge and briefly carry an MDR nosocomial clone would continuously seed a community pool from which subsequent community-acquired infections then sample — artificially inflating community resistance prevalence and compressing the hospital:community resistance ratio toward 1.0, contrary to all surveillance data for these organisms.</p>
+</li>
+</ol>
+<p>To address this, the model assigns a per-bacteria <code>community_mechanism_reversion_multiplier</code> (default 1.0, no effect) that is applied to the per-mechanism reversion rate <strong>only when the individual is not currently hospitalised</strong>. The multiplier is applied before the <code>!selecting_drug_present</code> guard is evaluated: a community carrier who happens to be receiving an antibiotic that selects for a given mechanism will still not experience accelerated reversion for that specific mechanism, because the guard prevents the reversion block from executing at all. Accelerated reversion therefore only fires when there is genuinely no ongoing selective pressure.</p>
+<p>The following organisms are assigned a community multiplier of <strong>200×</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Organism</th>
+<th>Multiplier</th>
+<th>Effective community carbapenemase reversion</th>
+<th>Effective community VanA/B reversion</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>Acinetobacter baumannii</em></td>
+<td>200</td>
+<td>~0.2/day (50% in ~3 days)</td>
+<td>—</td>
+<td>Paradigmatic ICU organism; MDR community carriage near-absent in surveillance; OXA-type carbapenemases unstable without carbapenem pressure</td>
+</tr>
+<tr>
+<td><em>Stenotrophomonas maltophilia</em></td>
+<td>200</td>
+<td>~0.2/day</td>
+<td>—</td>
+<td>Exclusively ventilator/device-associated MDR; no community ecology for resistant lineages</td>
+</tr>
+<tr>
+<td><em>Enterococcus faecium</em></td>
+<td>200</td>
+<td>—</td>
+<td>~0.4/day (50% in ~1.5 days)</td>
+<td>VRE E. faecium is hospital-concentrated; community VRE prevalence is low except in LTCF/post-discharge patients; VanA/B operons on Tn1546 are metabolically expensive</td>
+</tr>
+</tbody>
+</table>
+<p>These values ensure that MDR profiles acquired from the hospital pool during brief nosocomial episodes revert to susceptibility within days in the community, so the community profile reservoir for these organisms reflects the genuinely low resistance prevalence documented by surveillance studies of community-acquired infections from these pathogens.</p>
 <p><em>Note: The system reserves one remaining placeholder variable (<code>as_yet_unknown</code>, baseline rate <code>0.001</code>) designated for future empirical calibration. <code>mutation_pbp_mosaic</code> has been activated as </em><em>PBP mosaic mutations</em><em> (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and <code>efflux_mtr_cde</code> as </em><em>mtrCDE-type broad efflux</em><em> (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.</em></p>
 <h3 id="75-resistance-floors">7.5 Resistance floors</h3>
 <p>In a simulation of 100,000 individuals, rare pathogens like <em>S. maltophilia</em> produce so few infections that their resistance levels can randomly drift to zero — a modelling artefact, not real biology. To prevent this, the model enforces <strong>resistance floors</strong>: minimum resistance levels that certain organisms cannot drop below.</p>
@@ -4392,8 +4676,13 @@
 </tr>
 <tr>
 <td>Respiratory</td>
-<td><em>S. pneumoniae</em>, <em>H. influenzae</em>, <em>P. aeruginosa</em>, <em>A. baumannii</em>, <em>M. catarrhalis</em>, <em>M. tuberculosis</em></td>
+<td><em>S. pneumoniae</em>, <em>H. influenzae</em>, <em>P. aeruginosa</em>, <em>A. baumannii</em>, <em>M. catarrhalis</em></td>
 <td>Carriage often precedes pneumonia</td>
+</tr>
+<tr>
+<td>Respiratory (latent)</td>
+<td><em>M. tuberculosis</em></td>
+<td>Modelled as latent infection with stochastic reactivation (~0.1% daily hazard); this represents LTBI rather than conventional mucosal carriage</td>
 </tr>
 <tr>
 <td>Skin/Soft tissue</td>
@@ -4403,7 +4692,7 @@
 <tr>
 <td>Genitourinary</td>
 <td><em>N. gonorrhoeae</em>, <em>C. trachomatis</em>, <em>M. genitalium</em>, <em>T. pallidum</em>, <em>S. agalactiae</em></td>
-<td>Asymptomatic STI carriage enables transmission</td>
+<td>Modelled as asymptomatic infection rather than commensal carriage — these are obligate pathogens present without causing symptoms, which enables onward transmission</td>
 </tr>
 </tbody>
 </table>
@@ -4579,7 +4868,7 @@
 </table>
 <p>The absolute HGT probabilities are intentionally low and should be interpreted as effective daily hazards at the model scale, not bedside-measurable event rates. Their main purpose is to preserve plausible relative ordering between low-contact community settings, antibiotic-stressed microbiomes, and high-contact hospital environments.</p>
 <h2 id="10-mortality">10. Mortality</h2>
-<p>The model tracks mortality from three sources: background (non-infection) causes, <strong>sepsis</strong> (organ dysfunction from uncontrolled infection), and <strong>non-sepsis infection death</strong> (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).</p>
+<p>The model tracks mortality from three sources: background (non-infection) causes, <strong>sepsis</strong> (organ dysfunction from uncontrolled immune response to infection), and <strong>non-sepsis infection death</strong> (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).</p>
 <h3 id="101-background-mortality">10.1 Background mortality</h3>
 <p>Every individual faces a baseline daily death risk shaped by age, sex, region, immune status, and the simulated calendar year. The probability is computed via a logistic model whose total log-odds sum the following components:</p>
 <table>
@@ -4675,8 +4964,8 @@
 </tr>
 <tr>
 <td><em>S. pyogenes</em></td>
-<td>−7.0</td>
-<td>Invasive GAS disease including necrotising fasciitis and toxic shock (Carapetis JR et al., 2005)</td>
+<td>−6.5</td>
+<td>Invasive GAS disease including necrotising fasciitis and toxic shock; STSS case-fatality 30–70% places invasive GAS among the most lethal bacterial syndromes (Carapetis JR et al., 2005)</td>
 </tr>
 <tr>
 <td><em>N. meningitidis</em></td>
@@ -4863,8 +5152,8 @@
 </tr>
 <tr>
 <td><em>S. epidermidis</em></td>
-<td>−6.0</td>
-<td>Very low direct mortality; primarily a device-associated pathogen</td>
+<td>−8.0</td>
+<td>Predominantly indolent, device-associated infection; acute sepsis is uncommon. Untreated prosthetic valve endocarditis carries ~20–30% mortality, but this is a subacute process partially captured by non-sepsis death parameters rather than the acute sepsis baseline</td>
 </tr>
 <tr>
 <td><em>S. maltophilia</em></td>
@@ -4939,12 +5228,12 @@
 <tr>
 <td>UTI</td>
 <td>0.5</td>
-<td>Usually self-limiting but can ascend to urosepsis</td>
+<td>Usually self-limiting, but untreated or inadequately treated UTI — particularly in the elderly, pregnant women, or those with structural abnormalities — can ascend to urosepsis and carries meaningful mortality in that context</td>
 </tr>
 <tr>
 <td>Bone/Joint</td>
 <td>0.8</td>
-<td>Serious but slow-progressing; mortality from surgical complications</td>
+<td>Serious but often slow-progressing; mortality arises from surgical complications, but also from haematogenous spread — bacteraemia, sepsis, and seeding of distant sites (e.g. vertebral osteomyelitis seeding cardiac valves)</td>
 </tr>
 <tr>
 <td>Intra-abdominal</td>
@@ -7219,7 +7508,7 @@
 <td style="text-align: right;">10</td>
 <td style="text-align: right;">0.017</td>
 <td style="text-align: right;">2</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
 <td style="text-align: right;">3e-9</td>
 <td style="text-align: right;">1.5</td>
 <td style="text-align: right;">0.3</td>

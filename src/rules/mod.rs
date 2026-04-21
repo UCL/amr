@@ -3094,7 +3094,7 @@ pub(crate) fn apply_rules(
                         }
 
                         let specific_multiplier =
-                            store.drug_bacteria.initiation_multiplier(b_idx, drug_idx);
+                            store.drug_bacteria.initiation_multiplier_at_year(b_idx, drug_idx, current_year);
                         max_bacteria_specific_multiplier =
                             max_bacteria_specific_multiplier.max(specific_multiplier);
                     }
@@ -4546,10 +4546,16 @@ pub(crate) fn apply_rules(
                                     },
                                 );
                                 if !selecting_drug_present {
+                                    let community_reversion_mult = if !individual.hospital_status.is_hospitalized() {
+                                        store.bacteria.community_mechanism_reversion_multiplier(b_idx)
+                                    } else {
+                                        1.0
+                                    };
                                     let mechanism_reversion_rate =
                                         store.resistance_mechanism.reversion_rate(mechanism_idx)
                                         * store.globals.mechanism_reversion_rate_global_multiplier
-                                        * reversion_rate_sampling_multiplier;
+                                        * reversion_rate_sampling_multiplier
+                                        * community_reversion_mult;
                                     if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
                                         individual.mechanism_microbiome[b_idx][mechanism_idx] = false;
                                         any_microbiome_reverted = true;
@@ -5438,10 +5444,16 @@ pub(crate) fn apply_rules(
                         );
 
                         if !selecting_drug_present {
+                            let community_reversion_mult = if !individual.hospital_status.is_hospitalized() {
+                                store.bacteria.community_mechanism_reversion_multiplier(b_idx)
+                            } else {
+                                1.0
+                            };
                             let mechanism_reversion_rate =
                                 store.resistance_mechanism.reversion_rate(mechanism_idx)
                                 * store.globals.mechanism_reversion_rate_global_multiplier
-                                * reversion_rate_sampling_multiplier;
+                                * reversion_rate_sampling_multiplier
+                                * community_reversion_mult;
 
                             if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
                                 individual.mechanism_majority[b_idx][mechanism_idx] = false;

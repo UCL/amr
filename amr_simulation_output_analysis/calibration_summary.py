@@ -773,7 +773,7 @@ _HOSP_COMM_R_RATIO_TARGETS: Dict[str, float] = {
     # ── ESKAPE / critical priority ──
     "acinetobacter baumannii":                    3.5,   # ICU MDR/XDR >> community
     "enterococcus faecium":                       3.5,   # VRE concentrated in hospitals
-    "staphylococcus aureus":                      2.2,   # HA-MRSA >> CA, but CA-MRSA rising
+    "staphylococcus aureus":                      1.5,   # CA-MRSA (USA300 lineage) has substantially eroded H/C gap; global contemporary estimate ~1.4-1.7
     "klebsiella pneumoniae":                      2.8,   # CRE/ESBL heavily nosocomial
     "pseudomonas aeruginosa":                     3.0,   # MDR/XDR VAP strains
     "enterobacter cloacae":                       2.8,   # derepressed AmpC, ESBL in hospitals
@@ -789,13 +789,13 @@ _HOSP_COMM_R_RATIO_TARGETS: Dict[str, float] = {
     # ── Healthcare-associated Gram-positives ──
     "staphylococcus epidermidis":                 3.5,   # device/implant; high methicillin-R in hospitals
     "enterococcus faecalis":                      2.0,   # less VRE than faecium but HA gap exists
-    "clostridioides difficile":                   2.0,   # hospital ribotypes (027/078) more resistant
+    "clostridioides difficile":                   1.0,   # treatment-drug resistance (vancomycin/fidaxomicin) near-zero in both settings; this metric is not meaningful for C. diff
     # ── Endogenous commensals (moderate gap) ──
     "escherichia coli":                           1.8,   # ESBL community rising; HA still higher
     "bacteroides fragilis":                       1.8,   # post-surgical; moderate gap
     "streptococcus agalactiae":                   1.5,   # neonatal/obstetric HA
-    "streptococcus pneumoniae":                   1.3,   # DRSP mainly community-driven
-    "haemophilus influenzae":                     1.3,   # mostly community; slight HA elderly bias
+    "streptococcus pneumoniae":                   1.0,   # DRSP is community-driven (repeated childhood amoxicillin courses); no meaningful H/C gap
+    "haemophilus influenzae":                     1.0,   # beta-lactamase H. influenzae is community-selected (paediatric AMR; no H/C gap)
     "moraxella catarrhalis":                      1.3,
     "streptococcus pyogenes":                     1.2,   # community; minimal HA
     # ── Foodborne / animal reservoir (small gap) ──
