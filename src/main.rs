@@ -48,16 +48,16 @@
 // -- model structure developments to consider ------------------------------------------------------------
 //
 //  should we be reducing the hospital microbiome resistance acquisition as this
-//  must be a mechanism for hospital resistance getting into community ?
+//  must be a mechanism for hospital resistance getting into community ?  (I think we are now making it disappear faster)
 //
-//  separate age categories of 70-80 and 80+ throughout
+//  separate age categories of 70-80 and 80+ throughout ?
 //
 //  have increased risk of strep b, e coli and listeria in women of childbearing age ?
 //
 //  ? add an immunodeficiency-specific empiric broad-spectrum bonus ?
 //
-//
-//
+//  could we do it so that for each bacteria we have 3-5 different calibrations and then for each run
+//  we randomly select which of the parameter sets for each bacteria
 //
 //
 //

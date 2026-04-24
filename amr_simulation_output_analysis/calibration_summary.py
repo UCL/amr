@@ -1238,6 +1238,12 @@ def _calculate_resistance_table(
         return pd.DataFrame(columns=columns)
 
     bacteria_set, drug_set = _extract_bacteria_and_drugs(df)
+    # Map canonical slug (used in benchmark targets) → raw slug (used in CSV column names).
+    # Needed for organisms like p_stuartii whose internal simulation name differs from the
+    # canonical display slug (providencia_stuartii) applied by _canonicalize_bacteria_slug.
+    canonical_to_raw: Dict[str, str] = {
+        _canonicalize_bacteria_slug(raw): raw for raw in bacteria_set
+    }
 
     combo_display: Dict[Tuple[str, str], Tuple[str, str]] = {}
     prevalence_lookup: Dict[Tuple[str, str], Tuple[Optional[float], str]] = {}
@@ -1295,7 +1301,11 @@ def _calculate_resistance_table(
         # simulation reports.  Microbiome sim values are shown for information only.
         microbiome_target_raw = microbiome_lookup.get((b_slug, d_slug))
 
-        if b_slug not in bacteria_set or d_slug not in drug_set:
+        # Resolve to the raw slug used in CSV column names (handles organisms like
+        # p_stuartii whose canonical slug differs from the simulation internal name).
+        col_slug = canonical_to_raw.get(b_slug, b_slug)
+
+        if b_slug not in canonical_to_raw or d_slug not in drug_set:
             note_parts.append("not modelled in simulation")
             records.append({
                 "Bacteria": bacteria_name,
@@ -1319,11 +1329,11 @@ def _calculate_resistance_table(
             })
             continue
 
-        infected_col = f"{b_slug}_currently_infected"
-        sum_any_r_col = f"{b_slug}_sum_any_r_{d_slug}"
-        positive_col = f"{b_slug}_infected_with_any_r_positive_{d_slug}"
-        microbiome_positive_col = f"{b_slug}_microbiome_r_positive_{d_slug}"
-        presence_col = f"{b_slug}_presence_microbiome"
+        infected_col = f"{col_slug}_currently_infected"
+        sum_any_r_col = f"{col_slug}_sum_any_r_{d_slug}"
+        positive_col = f"{col_slug}_infected_with_any_r_positive_{d_slug}"
+        microbiome_positive_col = f"{col_slug}_microbiome_r_positive_{d_slug}"
+        presence_col = f"{col_slug}_presence_microbiome"
 
         required_cols = [infected_col, sum_any_r_col, positive_col]
         missing_cols = [col for col in required_cols if col not in year_df.columns]
@@ -1461,10 +1471,10 @@ def _calculate_resistance_table(
                 return np.nan
             return float(np.rint(value))
 
-        src_community = year_df[f"{b_slug}_{d_slug}_new_resistance_at_infection_community"].sum() if f"{b_slug}_{d_slug}_new_resistance_at_infection_community" in year_df.columns else 0.0
-        src_hgt = year_df[f"{b_slug}_{d_slug}_new_resistance_hgt"].sum() if f"{b_slug}_{d_slug}_new_resistance_hgt" in year_df.columns else 0.0
-        src_microbiome = year_df[f"{b_slug}_{d_slug}_new_resistance_from_microbiome_r"].sum() if f"{b_slug}_{d_slug}_new_resistance_from_microbiome_r" in year_df.columns else 0.0
-        src_de_novo = year_df[f"{b_slug}_{d_slug}_new_resistance_de_novo_infection"].sum() if f"{b_slug}_{d_slug}_new_resistance_de_novo_infection" in year_df.columns else 0.0
+        src_community = year_df[f"{col_slug}_{d_slug}_new_resistance_at_infection_community"].sum() if f"{col_slug}_{d_slug}_new_resistance_at_infection_community" in year_df.columns else 0.0
+        src_hgt = year_df[f"{col_slug}_{d_slug}_new_resistance_hgt"].sum() if f"{col_slug}_{d_slug}_new_resistance_hgt" in year_df.columns else 0.0
+        src_microbiome = year_df[f"{col_slug}_{d_slug}_new_resistance_from_microbiome_r"].sum() if f"{col_slug}_{d_slug}_new_resistance_from_microbiome_r" in year_df.columns else 0.0
+        src_de_novo = year_df[f"{col_slug}_{d_slug}_new_resistance_de_novo_infection"].sum() if f"{col_slug}_{d_slug}_new_resistance_de_novo_infection" in year_df.columns else 0.0
         
         total_sources = src_community + src_hgt + src_microbiome + src_de_novo
         
@@ -1478,7 +1488,7 @@ def _calculate_resistance_table(
             src_hgt = np.nan
             src_microbiome = np.nan
             src_de_novo = np.nan
-        asymptomatic_hgt = year_df[f"{b_slug}_{d_slug}_asymptomatic_microbiome_hgt_events"].sum() if f"{b_slug}_{d_slug}_asymptomatic_microbiome_hgt_events" in year_df.columns else 0.0
+        asymptomatic_hgt = year_df[f"{col_slug}_{d_slug}_asymptomatic_microbiome_hgt_events"].sum() if f"{col_slug}_{d_slug}_asymptomatic_microbiome_hgt_events" in year_df.columns else 0.0
         if not np.isfinite(asymptomatic_hgt) or asymptomatic_hgt == 0.0:
             asymptomatic_hgt = np.nan
         else:

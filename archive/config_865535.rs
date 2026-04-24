@@ -207,51 +207,55 @@ struct RunLevelSamplingSpec {
     max_multiplier: f64,
 }
 
-// Five axes were chosen for the initial global calibration search (see axis comments at end of
-// file). The four dropped axes — microbiome de-novo emergence, community resistance dilution,
-// carrier resistance inheritance, and microbiome disruption — overlap mechanistically with the
-// retained five and are candidates for targeted sensitivity runs once calibrated sets exist.
-const RUN_LEVEL_SAMPLING_SPECS: [RunLevelSamplingSpec; 5] = [
-    // Axis 1: how strongly does treatment select for resistance during active infection?
-    // Directly scales the expected resistance-selection avoided per episode when a test
-    // enables targeted therapy.  Wide range reflects genuine measurement uncertainty.
+const RUN_LEVEL_SAMPLING_SPECS: [RunLevelSamplingSpec; 9] = [
     RunLevelSamplingSpec {
         parameter_key: RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
         applies_to: "infection_de_novo_pathway",
         min_multiplier: 0.01,
         max_multiplier: 100.0,
     },
-    // Axis 2: is resistance ecologically stable or does it drift back when pressure is removed?
-    // Determines whether a reduction in prescribing produces a lasting or transient benefit.
     RunLevelSamplingSpec {
-        parameter_key: RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
-        applies_to: "mechanism_reversion_rate",
-        min_multiplier: 0.1,
-        max_multiplier: 10.0,
+        parameter_key: RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
+        applies_to: "microbiome_de_novo_pathway",
+        min_multiplier: 0.01,
+        max_multiplier: 100.0,
     },
-    // Axis 3: how much does resistance spread laterally via HGT, independent of
-    // individual treatment pressure?  Determines whether prescribing changes can bend
-    // the curve at all, or whether resistance propagates regardless.
     RunLevelSamplingSpec {
         parameter_key: RUN_PATHWAY_HGT_MULTIPLIER_KEY,
         applies_to: "hgt_pathway",
         min_multiplier: 0.01,
         max_multiplier: 100.0,
     },
-    // Axis 4: strength of community reservoir seeding into new infections.
-    // Controls the background resistance floor that cannot be reduced by targeting
-    // individual episodes.  The mechanistically more important half of the microbiome
-    // story — infection_from_microbiome_dampening — is currently hardcoded and is a
-    // candidate for axis 6 in future work.
+    RunLevelSamplingSpec {
+        parameter_key: RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY,
+        applies_to: "mechanism_reversion_rate",
+        min_multiplier: 0.1,
+        max_multiplier: 10.0,
+    },
+    RunLevelSamplingSpec {
+        parameter_key: RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
+        applies_to: "carrier_resistance_inheritance",
+        min_multiplier: 0.2,
+        max_multiplier: 2.0,
+    },
+    RunLevelSamplingSpec {
+        parameter_key: RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
+        applies_to: "community_resistance_dilution",
+        min_multiplier: 0.2,
+        max_multiplier: 2.0,
+    },
     RunLevelSamplingSpec {
         parameter_key: RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
         applies_to: "microbiome_acquisition_seeding",
         min_multiplier: 0.1,
         max_multiplier: 2.0,
     },
-    // Axis 5: uncertainty in drug efficacy, which is genuinely poorly measured globally.
-    // Scales both the clinical benefit of correct de-escalation and the selection pressure
-    // exerted by inappropriate empirical treatment — directly policy-coupled.
+    RunLevelSamplingSpec {
+        parameter_key: RUN_PATHWAY_MICROBIOME_DISRUPTION_MULTIPLIER_KEY,
+        applies_to: "microbiome_disruption_log_odds",
+        min_multiplier: 0.2,
+        max_multiplier: 5.0,
+    },
     RunLevelSamplingSpec {
         parameter_key: RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY,
         applies_to: "drug_activity_efficacy",
@@ -7186,19 +7190,13 @@ lazy_static! {
         map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.0); // 2007+: resistance-limited residual use
         map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007".to_string(), 14.0); // 1987-2007: sole first-line in high-income settings
         map.insert("drug_ciprofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987".to_string(), 0.5); // pre-1987: drug not yet in use for gonorrhoea
-        // Ofloxacin was co-first-line alongside ciprofloxacin for GC in many European/Asian guidelines 1990–2007
-        map.insert("drug_ofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_2007".to_string(), 8.0); // 1990-2007: co-first-line FQ option (lower use than cipro but substantial additional selection pressure)
 
         map.insert("drug_penicillin_g_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.0); // modern: residual use only
         map.insert("drug_penicillin_g_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987".to_string(), 14.0); // pre-1987: dominant first-line
 
         map.insert("drug_cefixime_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 6.0);    // Oral alternative where ceftriaxone IM unavailable
         map.insert("drug_azithromycin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 5.0); // Dual-therapy partner (used until recent guideline changes)
-        map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 4.0);  // 2007+: empiric co-treatment for possible chlamydia co-infection
-        map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1987".to_string(), 12.0); // 1950s–1987: tetracyclines were a major alternative to penicillin G (penicillin-allergic patients, combination therapy); doxycycline increasingly dominant from ~1967
-        // Trim/sulf: TMP-SMX available from 1969; models the entire sulfonamide-class selection pressure on GC (sulfonamides were the dominant GC treatment 1937–~1975, resistance became near-universal, TMP-SMX then continued that pressure into the 1990s)
-        map.insert("drug_trim_sulf_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 0.5);            // modern: TMP-SMX not recommended for GC (near-universal resistance)
-        map.insert("drug_trim_sulf_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier_before_1990".to_string(), 10.0); // pre-1990: heavy sulfonamide/TMP-SMX use for GC (proxies the full sulfonamide era)
+        map.insert("drug_doxycycline_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 4.0);  // Empiric co-treatment for possible chlamydia co-infection
         map.insert("drug_amoxicillin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.5);  // Oral penicillin alternative in some settings
         map.insert("drug_gentamicin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.0);   // WHO-recommended alternative (240 mg IM single dose)
 
@@ -8328,12 +8326,6 @@ lazy_static! {
     map.insert("acinetobacter_baumannii_community_mechanism_reversion_multiplier".to_string(), 200.0);
     map.insert("stenotrophomonas_maltophilia_community_mechanism_reversion_multiplier".to_string(), 200.0);
     map.insert("enterococcus_faecium_community_mechanism_reversion_multiplier".to_string(), 200.0);
-    // N. gonorrhoeae: FQ resistance (gyrA/parC mutations, AcrAB-TolC efflux) is essentially
-    // fitness-neutral in this organism — surveillance data show no rebound in FQ susceptibility
-    // since ciprofloxacin was withdrawn from GC guidelines in 2007. A multiplier < 1.0 slows
-    // community reversion; 0.05 gives a ~20× longer half-life relative to the global default,
-    // reflecting the observed stability of FQ resistance in the circulating GC strain pool.
-    map.insert("neisseria_gonorrhoeae_community_mechanism_reversion_multiplier".to_string(), 0.05);
 
 
         // Bacteria-specific hospital acquisition log-odds (healthcare-associated infection risk)
@@ -8762,16 +8754,16 @@ lazy_static! {
         // ======================================================================
         // E. coli — Gram-negative, Enterobacterales
         // Band 6 (x0.6)
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_2      ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_2      ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_2    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_2     ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_2     ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_03     ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_03     ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_03   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_03    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_03    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_003     ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_003      ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_003      ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_03             ); // classes: chl
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.1         ); // classes: ag
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.03        ); // classes: ag
         map.insert("bacteria_escherichia_coli_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -8793,22 +8785,22 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001           ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_escherichia_coli_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 0.5     ); // classes: tet
-        map.insert("bacteria_escherichia_coli_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.1           ); // classes: ag
+        map.insert("bacteria_escherichia_coli_mechanism_protection_tet_m_emergence_rate".to_string(), 0.3     ); // classes: tet
+        map.insert("bacteria_escherichia_coli_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.03          ); // classes: ag
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled; 23S mutations rare but documented in linezolid-resistant E. coli  ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
-        map.insert("bacteria_escherichia_coli_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.5  ); // classes: tet
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_2     ); // classes: pen, flu, bli, ceph, mono; tiny beta-lactam seed ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_escherichia_coli_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.05  ); // classes: tet
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_03    ); // classes: pen, flu, bli, ceph, mono; tiny beta-lactam seed ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_escherichia_coli_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; 
 
 
-         // K. pneumoniae — Gram-negative, Enterobacterales
+        // K. pneumoniae — Gram-negative, Enterobacterales
         // Band 7 (x10)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_25  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_25   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_25  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_2   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_2    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_2   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_1    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_1    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_015 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
@@ -8831,7 +8823,7 @@ lazy_static! {
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_01  ); // classes: none (currently zeroed)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03    ); // classes: poly
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03    ); // classes: sulf
+        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05    ); // classes: sulf
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01      ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.01     ); // classes: other (fosfomycin)
         map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
@@ -8851,14 +8843,14 @@ lazy_static! {
  
       // Citrobacter spp. — Gram-negative, Enterobacterales
       // Band 8 (x187.5)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_45 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_45 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_45  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_45); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_45 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_15  ) ; // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_15  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_15  ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_5 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_5 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_5  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_5); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_5 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_1  ) ; // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+      map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.01   ); // classes: chl
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.015 ); // classes: ag
       map.insert("bacteria_citrobacter_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
@@ -8875,34 +8867,35 @@ lazy_static! {
       map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0  ); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.001   ); // classes: none (currently zeroed)
-      map.insert("bacteria_citrobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03   ); // classes: poly
-      map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05      ); // classes: sulf
+      map.insert("bacteria_citrobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.015   ); // classes: poly
+      map.insert("bacteria_citrobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.02      ); // classes: sulf
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01    ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003    ); // classes: other (fosfomycin)
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01  ); // classes: other (rifampicin, fidaxomicin)
+      map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.005  ); // classes: other (rifampicin, fidaxomicin)
       map.insert("bacteria_citrobacter_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_citrobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.005    ); // classes: tet
+      map.insert("bacteria_citrobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.01    ); // classes: tet
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.015 ); // classes: ag
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_citrobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.005      ); // classes: tet
-      map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_45  ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without rebuilding broad efflux resistance ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+      map.insert("bacteria_citrobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.01      ); // classes: tet
+      map.insert("bacteria_citrobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_5  ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without rebuilding broad efflux resistance ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
       map.insert("bacteria_citrobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_citrobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
- // Enterobacter spp. — Gram-negative, Enterobacterales
+
+  // Enterobacter spp. — Gram-negative, Enterobacterales
       // Band 8 (x125)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_77    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_7     ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_7     ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_7     ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_7    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_25 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_25 ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_25 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.002   ); // classes: chl
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.005  ); // classes: ag
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_55    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_55    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_55    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_25    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_25   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.001   ); // classes: chl
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.02   ); // classes: ag
       map.insert("bacteria_enterobacter_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -8918,46 +8911,46 @@ lazy_static! {
       map.insert("bacteria_enterobacter_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.001     ); // classes: none (currently zeroed)
       map.insert("bacteria_enterobacter_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.1      ); // classes: poly
-      map.insert("bacteria_enterobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.07   ); // classes: sulf
+      map.insert("bacteria_enterobacter_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05   ); // classes: sulf
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01   ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.008    ); // classes: other (fosfomycin)
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03    ); // classes: other (rifampicin, fidaxomicin)
       map.insert("bacteria_enterobacter_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_enterobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.01   ); // classes: tet
-      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.005  ); // classes: ag
+      map.insert("bacteria_enterobacter_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.008  ); // classes: tet
+      map.insert("bacteria_enterobacter_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.02   ); // classes: ag
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-      map.insert("bacteria_enterobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.005  ); // classes: tet
-      map.insert("bacteria_enterobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_25  ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without rebuilding broad non-beta-lactam resistance ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+      map.insert("bacteria_enterobacter_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.008  ); // classes: tet
+      map.insert("bacteria_enterobacter_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_3   ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without rebuilding broad non-beta-lactam resistance ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
       map.insert("bacteria_enterobacter_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
       map.insert("bacteria_enterobacter_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
 
       // E. cloacae — Gram-negative, Enterobacterales
       // Band 8 (x150)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_035   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_035  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_035   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_035  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_035  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_015  ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_015 ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_015 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1   ); // classes: chl
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.03    ); // classes: ag
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01    ); // classes: ag
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.04   ); // classes: fq
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.04   ); // classes: fq
-    map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.04  ); // classes: fq
-    map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.04   ); // classes: fq, tet, chl
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.015  ); // classes: fq
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.015  ); // classes: fq
+    map.insert("bacteria_enterobacter_cloacae_mechanism_protection_qnr_emergence_rate".to_string(), 0.015 ); // classes: fq
+    map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.015  ); // classes: fq, tet, chl
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0   ); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.04   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.015  ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
     map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_15); // classes: none (currently zeroed)
@@ -8968,13 +8961,13 @@ lazy_static! {
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.02   ); // classes: other (rifampicin, fidaxomicin)
     map.insert("bacteria_enterobacter_cloacae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.02   ); // classes: tet
-    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.03   ); // classes: ag
+    map.insert("bacteria_enterobacter_cloacae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.002   ); // classes: tet
+    map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01   ); // classes: ag
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-    map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.02      ); // classes: tet
-    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_035  ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without overdriving other classes ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+    map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.002      ); // classes: tet
+    map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, bli, ceph, mono; modest beta-lactam lift without overdriving other classes ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
     map.insert("bacteria_enterobacter_cloacae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
     map.insert("bacteria_enterobacter_cloacae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -9023,11 +9016,11 @@ lazy_static! {
 
         // Proteus spp. — Gram-negative, Enterobacterales
         // Band 8 (x50)
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_03   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_03    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_03    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_03    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_03     ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_01    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_01    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_proteus_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01     ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_proteus_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_005    ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
         map.insert("bacteria_proteus_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_005    ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
         map.insert("bacteria_proteus_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_005    ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
@@ -9038,12 +9031,12 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.05       ); // classes: fq
-        map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.05        ); // classes: fq
-        map.insert("bacteria_proteus_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.05        ); // classes: fq
-        map.insert("bacteria_proteus_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.05       ); // classes: fq, tet, chl
+        map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1        ); // classes: fq
+        map.insert("bacteria_proteus_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1         ); // classes: fq
+        map.insert("bacteria_proteus_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.1         ); // classes: fq
+        map.insert("bacteria_proteus_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.1        ); // classes: fq, tet, chl
         map.insert("bacteria_proteus_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0    ); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.05     ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_proteus_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1      ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_proteus_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0    ); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.001        ); // classes: none (currently zeroed)
@@ -9052,7 +9045,7 @@ lazy_static! {
         map.insert("bacteria_proteus_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_1        ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_proteus_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.01         ); // classes: other (fosfomycin)
         map.insert("bacteria_proteus_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_proteus_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003         ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_proteus_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001         ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_proteus_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_proteus_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.001      ); // classes: tet
         map.insert("bacteria_proteus_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.004    ); // classes: ag
@@ -9066,59 +9059,59 @@ lazy_static! {
 
         // Serratia spp. — Gram-negative, Enterobacterales
         // Band 8 (x250)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_35  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_35 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_35    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_35    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_35   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2     ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_2   ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_2  ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.002    ); // classes: chl
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.03     ); // classes: ag
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_25  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_25 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_25    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_25    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_25   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_15    ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_15  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_15 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.001    ); // classes: chl
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.004    ); // classes: ag
         map.insert("bacteria_serratia_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01    ); // classes: fq
-        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01   ); // classes: fq
-        map.insert("bacteria_serratia_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.01     ); // classes: fq
-        map.insert("bacteria_serratia_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01    ); // classes: fq, tet, chl
+        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.015   ); // classes: fq
+        map.insert("bacteria_serratia_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.015  ); // classes: fq
+        map.insert("bacteria_serratia_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.015    ); // classes: fq
+        map.insert("bacteria_serratia_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.015   ); // classes: fq, tet, chl
         map.insert("bacteria_serratia_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01    ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_serratia_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.015   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_serratia_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.001   ); // classes: none (currently zeroed)
         map.insert("bacteria_serratia_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.15     ); // classes: poly
         map.insert("bacteria_serratia_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.02   ); // classes: sulf
-        map.insert("bacteria_serratia_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.02      ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.002      ); // classes: other (fosfomycin)
+        map.insert("bacteria_serratia_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.005     ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.001      ); // classes: other (fosfomycin)
         map.insert("bacteria_serratia_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.1  ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.05 ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_serratia_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.005  ); // classes: tet
-        map.insert("bacteria_serratia_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.03  ); // classes: ag
+        map.insert("bacteria_serratia_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.01   ); // classes: tet
+        map.insert("bacteria_serratia_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.004 ); // classes: ag
         map.insert("bacteria_serratia_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_serratia_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.005   ); // classes: tet
-        map.insert("bacteria_serratia_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_35 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_serratia_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.01    ); // classes: tet
+        map.insert("bacteria_serratia_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_25 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_serratia_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_serratia_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // P. stuartii — Gram-negative, Enterobacterales
         // Band 9 (x375)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001_5  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001_5  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001_5  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001_5  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001_5  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_2  ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_2  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_2  ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_02 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_02 ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_02 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
         map.insert("bacteria_p_stuartii_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_2 ); // classes: chl
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01    ); // classes: ag
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.001   ); // classes: ag
         map.insert("bacteria_p_stuartii_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
@@ -9134,18 +9127,18 @@ lazy_static! {
         map.insert("bacteria_p_stuartii_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1  ); // classes: none (currently zeroed)
         map.insert("bacteria_p_stuartii_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_02 ); // classes: poly
-        map.insert("bacteria_p_stuartii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.05 ); // classes: sulf
+        map.insert("bacteria_p_stuartii_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003 ); // classes: sulf
         map.insert("bacteria_p_stuartii_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_05 ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_p_stuartii_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_05 ); // classes: other (fosfomycin)
         map.insert("bacteria_p_stuartii_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_005  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_p_stuartii_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_p_stuartii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_5 ); // classes: tet
-        map.insert("bacteria_p_stuartii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01   ); // classes: ag
+        map.insert("bacteria_p_stuartii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001   ); // classes: tet
+        map.insert("bacteria_p_stuartii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001  ); // classes: ag
         map.insert("bacteria_p_stuartii_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_p_stuartii_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_5     ); // classes: tet
+        map.insert("bacteria_p_stuartii_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.001       ); // classes: tet
         map.insert("bacteria_p_stuartii_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
@@ -9238,43 +9231,43 @@ lazy_static! {
 
         // iNTS — Gram-negative, Enterobacterales
         // Band 8 (x37.5)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_02  ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_02   ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.02   ); // classes: chl
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.15    ); // classes: ag
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_015  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_015  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_015  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_015 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_015 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_015 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_015  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_015  ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_cat_emergence_rate".to_string(), 0.015  ); // classes: chl
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.12    ); // classes: ag
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.25   ); // classes: fq
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.25    ); // classes: fq
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.25     ); // classes: fq
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.25   ); // classes: fq, tet, chl
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.2    ); // classes: fq
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.2     ); // classes: fq
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_qnr_emergence_rate".to_string(), 0.2      ); // classes: fq
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.2    ); // classes: fq, tet, chl
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0  ); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.25       ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_efflux_pump_emergence_rate".to_string(), 0.2        ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_03      ); // classes: none (currently zeroed)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_modification_mcr_1_emergence_rate".to_string(), 0.2     ); // classes: poly
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.7      ); // classes: sulf
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.6      ); // classes: sulf
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.005        ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.003       ); // classes: other (fosfomycin)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.05    ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.1    ); // classes: tet
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.15      ); // classes: ag
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_protection_tet_m_emergence_rate".to_string(), 0.05   ); // classes: tet
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.12      ); // classes: ag
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.1     ); // classes: tet
+        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.05    ); // classes: tet
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0          ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
@@ -9324,45 +9317,45 @@ lazy_static! {
 
         // Y. enterocolitica — Gram-negative, Enterobacterales
         // Band 8 (x300)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.01           ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.01           ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.01            ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.01           ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.01           ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.01 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.01 ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.01 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01           ); // classes: chl
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01 ); // classes: ag
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_000_1  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_000_03 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_000_000_03 ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_000_03 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: chl
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_000_03 ); // classes: ag
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.01           ); // classes: fq
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.01           ); // classes: fq
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_qnr_emergence_rate".to_string(), 0.01           ); // classes: fq
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.01           ); // classes: fq, tet, chl
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: fq
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: fq
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: fq
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: fq, tet, chl
         map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.01           ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_global_porin_loss_emergence_rate".to_string(), 0.01           ); // classes: none (currently zeroed)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.01            ); // classes: poly
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01           ); // classes: sulf
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01          ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.01           ); // classes: other (fosfomycin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_000_1 ); // classes: none (currently zeroed)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_000_3  ); // classes: poly
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: sulf
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_001  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: other (fosfomycin)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01            ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_000_03 ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_tet_m_emergence_rate".to_string(), 0.01           ); // classes: tet
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.01           ); // classes: ag
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_000_3 ); // classes: tet
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_000_000_15); // classes: ag
         map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.01           ); // classes: tet
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_000_15); // classes: tet
         map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.01          ); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
+        map.insert("bacteria_yersinia_enterocolitica_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_000_3); // tier 0 by group; this organism is Enterobacterales; EffluxMtrCde group mask is Fastidious+EntericPathogen only ***changed: mechanism cannot fire for this organism (non-zero rate is dead code; and "mls" was also wrong: MtrCDE covers pen+mac+tet+chl, not full MLS)
         map.insert("bacteria_yersinia_enterocolitica_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
@@ -9456,86 +9449,86 @@ lazy_static! {
 
         // S. maltophilia — Gram-negative, NonFermenter
         // Band 9 (x500)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.05        ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.05        ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.05        ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.05   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.05      ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.05        ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_2   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.1   ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.05        ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1   ); // classes: chl; chlor still high, small reduction
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.5    ); // classes: ag
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_02    ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_2); // classes: chl; chlor still high, small reduction
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.01   ); // classes: ag
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0 ); // tier 0 by group; S. maltophilia is NonFermenter; ErmB group mask excludes NonFermenter ***changed: mechanism cannot fire for this organism (non-zero rate is dead code)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_01      ); // classes: fq; FQ 88% vs target 45-55%
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_01       ); // classes: fq; FQ broad reduction
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_01     ); // classes: fq
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_05   ); // classes: fq; FQ 88% vs target 45-55%
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_05    ); // classes: fq; FQ broad reduction
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_000_05  ); // classes: fq
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_1     ); // classes: fq, tet, chl; inflating FQ+tet+chlor ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_02  ); // classes: fq, tet, chl; inflating FQ+tet+chlor ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0  ); // classes: none (currently zeroed)
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.5 ); // classes: poly; colistin 0% vs target 70%
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01    ); // classes: sulf; trim/sulf 34% vs target 15%
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 1.0); // classes: other (metronidazole, nitrofurantoin, furazolidone); nitrofurantoin 0% vs target 90%
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.5       ); // classes: other (fosfomycin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_000_000_1); // classes: none (currently zeroed)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.05); // classes: poly; colistin 0% vs target 70%
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_2  ); // classes: sulf; trim/sulf 34% vs target 15%
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 30.0); // classes: other (metronidazole, nitrofurantoin, furazolidone); nitrofurantoin 0% vs target 90%
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.3       ); // classes: other (fosfomycin)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.002   ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_2   ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_01     ); // classes: tet; tet 68% vs target 30-60%
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.1    ); // classes: ag
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_003 ); // classes: tet; tet 68% vs target 30-60%
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.05   ); // classes: ag
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_01      ); // classes: tet
+        map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_003  ); // classes: tet
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_stenotrophomonas_maltophilia_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // B. cepacia complex — Gram-negative, NonFermenter
         // Band 9 (x750)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.03      ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.03      ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.03      ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.03   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.03    ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.03      ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.03    ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.03      ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_cat_emergence_rate".to_string(), 0.03    ); // classes: chl
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.03      ); // classes: ag
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_007_5); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_007_5); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_007_5); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_38); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_075); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_007_5); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_037); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_007_5); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_037); // classes: chl
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_007_5); // classes: ag
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03   ); // classes: fq
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03    ); // classes: fq
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_qnr_emergence_rate".to_string(), 0.03      ); // classes: fq
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_38); // classes: fq
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_075); // classes: fq
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_007_5); // classes: fq
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.03   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_75); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_porin_loss_emergence_rate".to_string(), 0.03   ); // classes: none (currently zeroed)
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.03      ); // classes: poly
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03    ); // classes: sulf
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_38); // classes: none (currently zeroed)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_007_5); // classes: poly
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_075); // classes: sulf
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.03     ); // classes: other (fosfomycin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_037); // classes: other (fosfomycin)
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.01      ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_007_5); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_tet_m_emergence_rate".to_string(), 0.03    ); // classes: tet
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.03           ); // classes: ag
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_037); // classes: tet
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_000_000_05); // classes: ag
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.03           ); // classes: tet
+        map.insert("bacteria_burkholderia_cepacia_complex_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_000_05); // classes: tet
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholdera_cepacia_complex_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_burkholderia_cepacia_complex_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
@@ -9545,45 +9538,45 @@ lazy_static! {
         // ======================================================================
         // V. cholerae — Gram-negative, EntericPathogen
         // Band 7 (x30)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001    ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001      ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001      ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001      ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.001       ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.001      ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.001       ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.001  ); // classes: chl
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.001     ); // classes: ag
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_003); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_003); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_001  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_001  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_001  ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.000_000_1 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (KPC hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.000_001  ); // classes: pen, flu, bli, ceph, carb (not aztreonam; aztreonam_avibactam covered) ***changed: flu→added; mono→clarified (MBLs do NOT hydrolyze plain aztreonam; aztreonam_avibactam IS a substrate)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.000_000_1 ); // classes: pen, flu, bli, ceph, carb ***changed: flu→added (OXA-48 hydrolyzes all penicillins incl. flucloxacillin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1); // classes: chl
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_03); // classes: ag
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001   ); // classes: fq
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001    ); // classes: fq
-        map.insert("bacteria_vibrio_cholerae_mechanism_protection_qnr_emergence_rate".to_string(), 0.001    ); // classes: fq
-        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001    ); // classes: fq, tet, chl
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_03); // classes: fq
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_015); // classes: fq
+        map.insert("bacteria_vibrio_cholerae_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_003); // classes: fq
+        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_003); // classes: fq, tet, chl
         map.insert("bacteria_vibrio_cholerae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001    ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_vibrio_cholerae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_003); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_vibrio_cholerae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.001      ); // classes: none (currently zeroed)
-        map.insert("bacteria_vibrio_cholerae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.001      ); // classes: poly
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001   ); // classes: sulf
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001      ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.001      ); // classes: other (fosfomycin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_001_5); // classes: none (currently zeroed)
+        map.insert("bacteria_vibrio_cholerae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_3); // classes: poly
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_15); // classes: sulf
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_3); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.000_000_3); // classes: other (fosfomycin)
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001      ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_3); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_vibrio_cholerae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001   ); // classes: tet
-        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.001           ); // classes: ag
+        map.insert("bacteria_vibrio_cholerae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_05); // classes: tet
+        map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_000_000_05); // classes: ag
         map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_vibrio_cholerae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001   ); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
-        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.001    ); // classes: tet
+        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_15); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_000_000_05); // classes: tet
         map.insert("bacteria_vibrio_cholerae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.001        ); // classes: pen, mac, tet, chl; low broad-efflux proxy ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
+        map.insert("bacteria_vibrio_cholerae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_001); // classes: pen, mac, tet, chl; low broad-efflux proxy ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_vibrio_cholerae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // C. jejuni — Gram-negative, Helicobacter group
@@ -9644,31 +9637,31 @@ lazy_static! {
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_1 ); // classes: mls
-        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_1 ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1 ); // classes: fq
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1  ); // classes: fq
+        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_000_000_000_000_1 ); // classes: mls
+        map.insert("bacteria_helicobacter_pylori_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_000_000_01 ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_000_000_01 ); // classes: fq
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_000_000_01  ); // classes: fq
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_1  ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_helicobacter_pylori_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_000_000_005  ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0  ); // classes: none (currently zeroed)
         map.insert("bacteria_helicobacter_pylori_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_1   ); // classes: sulf
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_1  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_000_001  ); // classes: sulf
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_000_1 ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_1  ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_000_05  ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_helicobacter_pylori_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_1  ) ; // classes: tet
+        map.insert("bacteria_helicobacter_pylori_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_000_000_01  ) ; // classes: tet
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_1  ); // classes: pen; PBP1A proxy via blaZ; targets amox/amp only
+        map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_000_000_000_000_001  ); // classes: pen; PBP1A proxy via blaZ; targets amox/amp only
         map.insert("bacteria_helicobacter_pylori_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_1 ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); primary clarithromycin R mechanism ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_000_000_000_01  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); primary clarithromycin R mechanism ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, bli, ceph, mono; low PBP1A-type amoxicillin resistance proxy ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_helicobacter_pylori_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_000_000_000_1 ); // classes: pen, flu, bli, ceph, mono; low PBP1A-type amoxicillin resistance proxy ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_helicobacter_pylori_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_helicobacter_pylori_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
@@ -9716,79 +9709,79 @@ lazy_static! {
 
         // N. meningitidis — Gram-negative, Fastidious
         // Band 8 (x250)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_01 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_01 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_01   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_01   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_01   ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_01 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_01); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_01 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_01 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_01 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_01 ); // classes: chl
-        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_01   ); // classes: ag
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_002); // classes: chl
+        map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_1 ); // classes: ag
         map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_01  ); // classes: mls
-        map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_01  ) ; // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_01 ); // classes: fq
+        map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_000_1); // classes: mls
+        map.insert("bacteria_neisseria_meningitidis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_2) ; // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_03 ); // classes: fq
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_01 ); // classes: fq
-        map.insert("bacteria_neisseria_meningitidis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_01   ); // classes: fq
-        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_01  ); // classes: fq, tet, chl
+        map.insert("bacteria_neisseria_meningitidis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_000_3 ); // classes: fq
+        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_3); // classes: fq, tet, chl
         map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_01   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_002); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_neisseria_meningitidis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_01   ); // classes: none (currently zeroed)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_01   ); // classes: poly
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_01   ); // classes: sulf
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_01   ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_5); // classes: none (currently zeroed)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_3 ); // classes: poly
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_005); // classes: sulf
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_003  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_01    ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_003); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_neisseria_meningitidis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_01   ); // classes: tet
+        map.insert("bacteria_neisseria_meningitidis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_005); // classes: tet
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_neisseria_meningitidis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_01   ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare but not impossible ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_01  ); // classes: tet; low-probability tetracycline efflux
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_01    ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: penA alterations, intermediate penicillin R ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
-        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_1  ); // classes: pen, mac, tet, chl; mtrCDE-like efflux: present but less clinically significant ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_1); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare but not impossible ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.000_005); // classes: tet; low-probability tetracycline efflux
+        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_001); // classes: pen, flu, bli, ceph, mono; PBP mosaic: penA alterations, intermediate penicillin R ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_neisseria_meningitidis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_001); // classes: pen, mac, tet, chl; mtrCDE-like efflux: present but less clinically significant ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_neisseria_meningitidis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; 
 
-       // M. catarrhalis — Gram-negative, Fastidious
+        // M. catarrhalis — Gram-negative, Fastidious
         // Band 7 (x18.8)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_1   ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_1  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_001  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_001 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_001 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_2 ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_2); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_2  ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_2 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_2 ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_03 ); // classes: chl
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_1 ); // classes: ag
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_001 ); // classes: chl
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_1 ); // classes: ag
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_3   ); // classes: mls
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_1     ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1  ); // classes: fq
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1   ); // classes: fq
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_1   ); // classes: fq
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_3   ); // classes: fq, tet, chl
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_05  ); // classes: mls
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_1 ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_05  ); // classes: fq
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_05 ); // classes: fq
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.000_05 ); // classes: fq
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_05 ); // classes: fq, tet, chl
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_05  ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_1   ); // classes: none (currently zeroed)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_1     ); // classes: poly
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_1    ); // classes: sulf
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_1  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_002 ); // classes: none (currently zeroed)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_000_2 ); // classes: poly
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_01   ); // classes: sulf
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_002); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_1   ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_002 ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_3   ); // classes: tet
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
@@ -9796,8 +9789,8 @@ lazy_static! {
         map.insert("bacteria_moraxella_catarrhalis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_001   ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: some PBP modifications reported ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_02    ); // classes: pen, mac, tet, chl; mtrCDE-like efflux: contributes to macrolide/pen R ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_2); // classes: pen, flu, bli, ceph, mono; PBP mosaic: some PBP modifications reported ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_moraxella_catarrhalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_2); // classes: pen, mac, tet, chl; mtrCDE-like efflux: contributes to macrolide/pen R ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_moraxella_catarrhalis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
                // H. influenzae — Gram-negative, Fastidious
@@ -9890,7 +9883,7 @@ lazy_static! {
         // ======================================================================
         // Gram-Positive Bacteria — Staphylococci
         // ======================================================================
-       // S. aureus — Gram-positive, Staphylococcus
+         // S. aureus — Gram-positive, Staphylococcus
         // Band 6 (x1.5)
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.0  ); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.0  ); // tier 0
@@ -9902,30 +9895,30 @@ lazy_static! {
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_cat_emergence_rate".to_string(), 0.002        ); // classes: chl; chlor target 30%
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0             ); // tier 0 by group; S. aureus is GramPositive; 16sRrmt group mask excludes GramPositive ***changed: aminoglycoside resistance in Staphylococci is modelled via EnzymeAacAph, not 16sRrmt
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_005 ) ; // classes: pen, flu, bli, ceph, carb, mono; driving penicillins ~35-60% ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_004   ); // classes: glyc; targets ~10% for vanco/teico
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_004   ); // classes: glyc
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.2    ); // classes: mls; macrolides ~40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 0.6      ); // classes: oxa, lin, chl, pleuro; Linezolid 1% ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 50.0     ); // classes: fq; FQ target ~40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 50.0     ); // classes: fq; FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_01  ) ; // classes: pen, flu, bli, ceph, carb, mono; driving penicillins ~35-60% ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_003   ); // classes: glyc; targets ~10% for vanco/teico
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_003   ); // classes: glyc
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.4    ); // classes: mls; macrolides ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_target_site_cfr_emergence_rate".to_string(), 0.4      ); // classes: oxa, lin, chl, pleuro; Linezolid 1% ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 20.0     ); // classes: fq; FQ target ~40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 20.0     ); // classes: fq; FQ target ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_qnr_emergence_rate".to_string(), 0.0   ); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 50.0          ); // classes: fq, tet, chl; bumps FQs, Tet ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_staphylococcus_aureus_mechanism_global_efflux_pump_emergence_rate".to_string(), 20.0          ); // classes: fq, tet, chl; bumps FQs, Tet ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0; Gram-positive, no outer membrane — porin loss not applicable
         map.insert("bacteria_staphylococcus_aureus_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03      ); // classes: sulf; trim/sulf target 35%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.01      ); // classes: sulf; trim/sulf target 35%
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.01         ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.01        ); // classes: other (fosfomycin)
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.01         ); // classes: other (daptomycin)
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003        ); // classes: other (rifampicin, fidaxomicin); Rifampicin ~40%
         map.insert("bacteria_staphylococcus_aureus_mechanism_protection_fus_b_emergence_rate".to_string(), 0.03       ); // classes: other (fusidic acid); Fusidic acid ~20%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_protection_tet_m_emergence_rate".to_string(), 10.0       ); // classes: tet; tet target 20-30%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 50.0     ); // classes: ag; AG 40%
-        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_01  ); // classes: pen; blaZ
+        map.insert("bacteria_staphylococcus_aureus_mechanism_protection_tet_m_emergence_rate".to_string(), 3.0       ); // classes: tet; tet target 20-30%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 10.0     ); // classes: ag; AG 40%
+        map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_02  ); // classes: pen; blaZ
         map.insert("bacteria_staphylococcus_aureus_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_staphylococcus_aureus_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled here; 23S-mediated resistance is possible ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_staphylococcus_aureus_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
@@ -9985,32 +9978,32 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.01         ); // classes: chl
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_003   ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_001   ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_1        ); // classes: mls
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_03       ); // classes: mls
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.005        ); // classes: fq
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.005        ); // classes: fq
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001        ); // classes: fq
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001        ); // classes: fq
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001        ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_3      ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_001      ); // classes: none (currently zeroed)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.2            ); // classes: sulf
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.1            ); // classes: sulf
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03    ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.02      ); // classes: tet
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.01      ); // classes: tet
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_01     ); // classes: pen
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.000_003    ); // classes: pen
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001        ); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_01     ); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_003       ); // classes: pen, flu, bli, ceph, mono; PBP mosaic remains the primary pen-R lever, but was strongly overcalled ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_streptococcus_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0; mtrCDE is a Neisseria-specific efflux system, not present in Gram-positives
@@ -10026,34 +10019,34 @@ lazy_static! {
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_cat_emergence_rate".to_string(), 0.001       ); // classes: chl
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_38); // classes: chl
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001      ); // classes: mls
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001          ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001       ); // classes: fq
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001      ); // classes: fq
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_007_5); // classes: mls
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_007_5); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_38); // classes: fq
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_075); // classes: fq
         map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001      ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_75); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001   ); // classes: sulf
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_003_8); // classes: sulf
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.001        ); // classes: other (daptomycin)
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001        ); // classes: other (rifampicin, fidaxomicin)
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_fus_b_emergence_rate".to_string(), 0.001         ); // classes: other (fusidic acid)
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001     ); // classes: tet
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.000_000_007_5); // classes: other (daptomycin)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_007_5); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_fus_b_emergence_rate".to_string(), 0.000_000_007_5); // classes: other (fusidic acid)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_007_5); // classes: tet
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001      ); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_000_05); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_pyogenes_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -10069,43 +10062,43 @@ lazy_static! {
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.001      ); // classes: chl
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_3); // classes: chl
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_001     ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.005       ); // classes: glyc
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.005       ); // classes: glyc
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.005   ); // classes: mls
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.005       ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001    ); // classes: fq
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001      ); // classes: fq
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_000_01); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_000_01); // classes: glyc
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_000_01); // classes: glyc
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_2 ); // classes: mls
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_01); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_001); // classes: fq
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_001  ); // classes: fq
         map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.003    ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_001); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001    ); // classes: sulf
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_01 ); // classes: sulf
         map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.001      ); // classes: other (daptomycin)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001      ); // classes: other (rifampicin, fidaxomicin)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.001      ); // classes: other (fusidic acid)
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.005   ); // classes: tet
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.000_000_1); // classes: other (daptomycin)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_1); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_fus_b_emergence_rate".to_string(), 0.000_000_1); // classes: other (fusidic acid)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001   ); // classes: tet
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.005           ); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_000_05); // classes: mac (erythro, azithro, clarithro only; not clindamycin) ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_001    ); // classes: pen, flu, bli, ceph, mono; tiny seed for rare reduced beta-lactam susceptibility ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_streptococcus_agalactiae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_2); // classes: pen, flu, bli, ceph, mono; tiny seed for rare reduced beta-lactam susceptibility ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_streptococcus_agalactiae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_streptococcus_agalactiae_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
         // ======================================================================
         // Enterococci
         // ======================================================================
-           // E. faecalis — Gram-positive, Enterococcus
+         // E. faecalis — Gram-positive, Enterococcus
         // Band 8 (x60)
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.0); // tier 0
@@ -10117,17 +10110,17 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.003    ); // classes: chl; chlor 35% vs target 25%
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_005  ); // classes: pen, flu, bli, ceph, carb, mono; pen 29% vs target 10% ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
-        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.02    ); // classes: glyc; vanc 29% vs target 5%
-        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.02    ); // classes: glyc; vanc 29% vs target 5%
+        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.000_1    ); // classes: pen, flu, bli, ceph, carb, mono; pen 29% vs target 10% ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
+        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.015   ); // classes: glyc; vanc 29% vs target 5%
+        map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.015   ); // classes: glyc; vanc 29% vs target 5%
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.02      ); // classes: mls; macrolide 47% vs target 35%
         map.insert("bacteria_enterococcus_faecalis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.005    ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.05    ); // classes: fq; FQ 74% vs target 35%
-        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.05    ); // classes: fq; FQ broad reduction
+        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.1     ); // classes: fq; FQ 74% vs target 35%
+        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.1     ); // classes: fq; FQ broad reduction
         map.insert("bacteria_enterococcus_faecalis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.05       ); // classes: fq, tet, chl; cuts FQ+tet+chlor ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_enterococcus_faecalis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.1        ); // classes: fq, tet, chl; cuts FQ+tet+chlor ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_enterococcus_faecalis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_3  ); // classes: none (currently zeroed); low-probability background permeability effect
@@ -10138,16 +10131,15 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.03  ); // classes: other (daptomycin)
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003 ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_enterococcus_faecalis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.001    ); // classes: other (fusidic acid)
-        map.insert("bacteria_enterococcus_faecalis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.015    ); // classes: tet; tet 70% vs target 15%
+        map.insert("bacteria_enterococcus_faecalis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.03     ); // classes: tet; tet 70% vs target 15%
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_05    ); // classes: ag; HLAR in enterococci is well-documented
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.02      ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare but not impossible ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_3     ); // classes: pen, flu, bli, ceph, mono; low-level PBP contribution, much weaker than E. faecium ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_enterococcus_faecalis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_1     ); // classes: pen, flu, bli, ceph, mono; low-level PBP contribution, much weaker than E. faecium ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
         map.insert("bacteria_enterococcus_faecalis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecalis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; 
-
 
         // E. faecium — Gram-positive, Enterococcus
         // Band 8 (x100)
@@ -10159,37 +10151,37 @@ lazy_static! {
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_cat_emergence_rate".to_string(),  0.000_000_02 ); // classes: chl
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_cat_emergence_rate".to_string(),  0.000_001 ); // classes: chl
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0      ); // tier 0 by group; E. faecium is GramPositive; 16sRrmt group mask excludes GramPositive ***changed: mechanism cannot fire for this organism
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(),  0.000_000_000_3 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   0.000_000_000_02 ); // classes: glyc
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.000_000_000_02 ); // classes: glyc
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   0.000_000_000_05); // classes: mls
-        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.000_000_000_000_05); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.000_000_002); // classes: fq
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.000_000_000_3  ) ; // classes: fq
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(),  0.000_000_005 ); // classes: pen, flu, bli, ceph, carb, mono ***changed: flu→added (mecA/PBP2a confers resistance to ALL β-lactams incl. flucloxacillin — defining feature of MRSA); mono→added (aztreonam also covered per code)
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_a_emergence_rate".to_string(),   0.000_000_000_3 ); // classes: glyc
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_van_b_emergence_rate".to_string(),   0.000_000_000_3 ); // classes: glyc
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_erm_b_emergence_rate".to_string(),   0.000_000_001 ); // classes: mls
+        map.insert("bacteria_enterococcus_faecium_mechanism_target_site_cfr_emergence_rate".to_string(),  0.000_000_000_001 ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_primary_emergence_rate".to_string(),   0.000_000_03); // classes: fq
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(),   0.000_000_005  ) ; // classes: fq
         map.insert("bacteria_enterococcus_faecium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_000_1   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_enterococcus_faecium_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_001_5  ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_01 ); // classes: sulf
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_2 ); // classes: sulf
         map.insert("bacteria_enterococcus_faecium_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 1.0     ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_fos_a_emergence_rate".to_string(), 1.0     ); // classes: other (fosfomycin)
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.000_005); // classes: other (daptomycin)
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_rpo_b_emergence_rate".to_string(),   0.000_05 ); // classes: other (rifampicin, fidaxomicin)
-        map.insert("bacteria_enterococcus_faecium_mechanism_protection_fus_b_emergence_rate".to_string(),  0.000_005); // classes: other (fusidic acid)
-        map.insert("bacteria_enterococcus_faecium_mechanism_protection_tet_m_emergence_rate".to_string(),  0.000_000_000_2  ); // classes: tet
-        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_000_005    ); // classes: ag
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_fos_a_emergence_rate".to_string(), 100.0     ); // classes: other (fosfomycin)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.000_01 ); // classes: other (daptomycin)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_rpo_b_emergence_rate".to_string(),   0.000_1  ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_enterococcus_faecium_mechanism_protection_fus_b_emergence_rate".to_string(),  0.000_01 ); // classes: other (fusidic acid)
+        map.insert("bacteria_enterococcus_faecium_mechanism_protection_tet_m_emergence_rate".to_string(),  0.000_000_003  ); // classes: tet
+        map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.000_000_01     ); // classes: ag
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_enterococcus_faecium_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_000_3      ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare but not impossible ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_005      ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare but not impossible ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_enterococcus_faecium_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_000_3    ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: PBP5 mutations → intrinsic ampicillin R ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
-        map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_003  ); // classes: pen, mac, tet, chl; mtrCDE: not relevant (GramPositive group excluded) ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
+        map.insert("bacteria_enterococcus_faecium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.000_000_005    ); // classes: pen, flu, bli, ceph, mono; PBP mosaic: PBP5 mutations → intrinsic ampicillin R ***changed: flu→added (PBP mosaic mutations affect all penicillins incl. flucloxacillin, but NOT carbapenems)
+        map.insert("bacteria_enterococcus_faecium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_005  ); // classes: pen, mac, tet, chl; mtrCDE: not relevant (GramPositive group excluded) ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_enterococcus_faecium_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // classes: broad placeholder; deactivated
 
         // ======================================================================
@@ -10205,30 +10197,30 @@ lazy_static! {
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_cat_emergence_rate".to_string(), 0.005   ); // classes: chl
+        map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_19); // classes: chl
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_van_a_emergence_rate".to_string(), 0.03      ); // classes: glyc
-        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_van_b_emergence_rate".to_string(), 0.03      ); // classes: glyc
-        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.03   ); // classes: mls
-        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 0.03      ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.03   ); // classes: fq
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.03    ); // classes: fq
+        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_van_a_emergence_rate".to_string(), 0.000_003_8); // classes: glyc
+        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_van_b_emergence_rate".to_string(), 0.000_003_8); // classes: glyc
+        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_38); // classes: mls
+        map.insert("bacteria_listeria_monocytogenes_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_003_8); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_19); // classes: fq
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_038); // classes: fq
         map.insert("bacteria_listeria_monocytogenes_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_listeria_monocytogenes_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.03   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_listeria_monocytogenes_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_19); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_listeria_monocytogenes_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.03   ); // classes: sulf
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_38); // classes: sulf
         map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.03    ); // classes: other (daptomycin)
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.03    ); // classes: other (rifampicin, fidaxomicin)
-        map.insert("bacteria_listeria_monocytogenes_mechanism_protection_fus_b_emergence_rate".to_string(), 0.03    ); // classes: other (fusidic acid)
-        map.insert("bacteria_listeria_monocytogenes_mechanism_protection_tet_m_emergence_rate".to_string(), 0.03  ); // classes: tet
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.000_038); // classes: other (daptomycin)
+        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_038); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_listeria_monocytogenes_mechanism_protection_fus_b_emergence_rate".to_string(), 0.000_038); // classes: other (fusidic acid)
+        map.insert("bacteria_listeria_monocytogenes_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001_9); // classes: tet
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_listeria_monocytogenes_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
@@ -10248,34 +10240,34 @@ lazy_static! {
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_cat_emergence_rate".to_string(), 0.003 ); // classes: chl
-        map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.003     ); // classes: ag
+        map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_006); // classes: chl
+        map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_1 ); // classes: ag
         map.insert("bacteria_clostridioides_difficile_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_1 ); // classes: mls
-        map.insert("bacteria_clostridioides_difficile_mechanism_target_site_cfr_emergence_rate".to_string(), 0.005    ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.003   ); // classes: fq
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.003   ); // classes: fq
+        map.insert("bacteria_clostridioides_difficile_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_06); // classes: mls
+        map.insert("bacteria_clostridioides_difficile_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_001  ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_06); // classes: fq
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_01 ); // classes: fq
         map.insert("bacteria_clostridioides_difficile_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_clostridioides_difficile_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_01 ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_clostridioides_difficile_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.003    ); // classes: sulf
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.003   ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_006); // classes: sulf
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_12); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.003   ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_06); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_clostridioides_difficile_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_3 ); // classes: tet
+        map.insert("bacteria_clostridioides_difficile_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_06); // classes: tet
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_1  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled; 23S mutations documented in linezolid/macrolide-resistant C. difficile ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_clostridioides_difficile_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled; 23S mutations documented in linezolid/macrolide-resistant C. difficile ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_clostridioides_difficile_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_clostridioides_difficile_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -10308,7 +10300,7 @@ lazy_static! {
         map.insert("bacteria_bacteroides_fragilis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0 ); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_005  ); // classes: none (currently zeroed)
         map.insert("bacteria_bacteroides_fragilis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.000_5   ); // classes: poly
-        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 30.0        ); // classes: sulf
+        map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 10.0        ); // classes: sulf
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_4  ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_bacteroides_fragilis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bacteroides_fragilis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
@@ -10330,45 +10322,45 @@ lazy_static! {
         // ======================================================================
         // B. pertussis — Gram-negative, Fastidious
         // Band 7 (x7.5)
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.001          ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.001          ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.001          ); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.001          ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.001          ); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_esbl_ctx_m_emergence_rate".to_string(), 0.000_000_000_1); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_esbl_tem_emergence_rate".to_string(), 0.000_000_000_1); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_esbl_shv_emergence_rate".to_string(), 0.000_000_000_1); // classes: pen, flu, ceph, mono ***changed: bli→removed (BLI combos inhibit ESBLs — not substrates); flu→added (ESBLs hydrolyze flucloxacillin)
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_ampc_cmy_emergence_rate".to_string(), 0.000_000_000_1); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_ampc_dha_emergence_rate".to_string(), 0.000_000_000_1); // classes: pen, flu, bli, ceph, mono ***changed: flu→added (AmpC β-lactamases hydrolyze flucloxacillin and are NOT inhibited by BLI combos)
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.001              ); // classes: chl
-        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.001          ); // classes: ag
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_000_003_8); // classes: chl
+        map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.000_000_000_1); // classes: ag
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // classes: mls; disabled; ErmB macrolide resistance documented in B. pertussis
-        map.insert("bacteria_bordetella_pertussis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001           ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001            ); // classes: fq
-        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001   ); // classes: fq
+        map.insert("bacteria_bordetella_pertussis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_000_05); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_000_002); // classes: fq
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_000_001); // classes: fq
         map.insert("bacteria_bordetella_pertussis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // classes: fq; disabled; Qnr-mediated FQ resistance uncommon but possible in B. pertussis
-        map.insert("bacteria_bordetella_pertussis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.001      ); // classes: fq, tet, chl
+        map.insert("bacteria_bordetella_pertussis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.000_000_000_001); // classes: fq, tet, chl
         map.insert("bacteria_bordetella_pertussis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001    ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_bordetella_pertussis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_000_005); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_bordetella_pertussis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.001   ); // classes: none (currently zeroed)
+        map.insert("bacteria_bordetella_pertussis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.000_000_000_001); // classes: none (currently zeroed)
         map.insert("bacteria_bordetella_pertussis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001    ); // classes: sulf
-        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001    ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_000_01); // classes: sulf
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_000_1); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001     ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_bordetella_pertussis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_000_001); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_bordetella_pertussis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001); // classes: tet
+        map.insert("bacteria_bordetella_pertussis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_000_01); // classes: tet
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled; 23S rRNA mutations are a primary macrolide-R mechanism in B. pertussis ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_bordetella_pertussis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_bordetella_pertussis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_bordetella_pertussis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.001      ); // classes: pen, mac, tet, chl ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
+        map.insert("bacteria_bordetella_pertussis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.000_000_000_002); // classes: pen, mac, tet, chl ***changed: mls→mac (MtrCDE efflux covers macrolides [erythro/azithro/clarithro], NOT clindamycin or streptogramins)
         map.insert("bacteria_bordetella_pertussis_mechanism_as_yet_unknown_emergence_rate".to_string(), 0.0); // tier 0
 
            // M. genitalium — Atypical (no cell wall), Fastidious
@@ -10386,14 +10378,14 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 1.0        ); // classes: mls; lower clindamycin/macrolides without collapsing them completely
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_cfr_emergence_rate".to_string(), 1.0        ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 1.0       ); // classes: fq; raise cipro/ofloxacin directly without using broad efflux
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 1.0       ); // classes: fq; primary FQ lever for levo/moxi in this panel
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_erm_b_emergence_rate".to_string(), 100.0        ); // classes: mls; lower clindamycin/macrolides without collapsing them completely
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_target_site_cfr_emergence_rate".to_string(), 100.0        ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 1000.0       ); // classes: fq; raise cipro/ofloxacin directly without using broad efflux
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 1000.0       ); // classes: fq; primary FQ lever for levo/moxi in this panel
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_global_efflux_pump_emergence_rate".to_string(), 1.0           ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_global_efflux_pump_emergence_rate".to_string(), 1000.0           ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
@@ -10402,13 +10394,13 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.5     ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.0   ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_rpo_b_emergence_rate".to_string(), 3.0   ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_tet_m_emergence_rate".to_string(), 1.0       ); // classes: tet  
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_protection_tet_m_emergence_rate".to_string(), 1000.0       ); // classes: tet  
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 1.0      ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); keep macrolides elevated, but closer to the target band ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 1000.0      ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); keep macrolides elevated, but closer to the target band ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_genitalium_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -10429,7 +10421,7 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001    ); // classes: mls
+        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_015); // classes: mls
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_003); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_3); // classes: fq
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_15); // classes: fq
@@ -10451,7 +10443,7 @@ lazy_static! {
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001        ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); increasingly common ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_005); // classes: mac (erythro, azithro, clarithro only; not clindamycin); increasingly common ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_mycoplasma_pneumoniae_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -10470,34 +10462,34 @@ lazy_static! {
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.001           ); // classes: chl
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_001_3 ); // classes: chl
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.001        ); // classes: mls
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.001           ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.001        ); // classes: fq
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.001        ); // classes: fq
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.000_000_1  ); // classes: mls
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_target_site_cfr_emergence_rate".to_string(), 0.000_000_002   ); // classes: oxa, lin, chl, pleuro ***changed: mls→lin+pleuro (Cfr covers oxazolidinones [oxa], lincosamides [lin = clindamycin], chloramphenicol [chl], and pleuromutilins [pleuro = retapamulin]; does NOT cover macrolides or streptogramins)
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_000_2  ); // classes: fq
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_2  ); // classes: fq
         map.insert("bacteria_chlamydia_trachomatis_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.001          ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_02   ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_chlamydia_trachomatis_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.001           ); // classes: sulf
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.001           ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_002   ); // classes: sulf
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.000_000_002   ); // classes: other (metronidazole, nitrofurantoin, furazolidone)
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.001          ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_02   ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_chlamydia_trachomatis_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.001        ); // classes: tet
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_000_2  ); // classes: tet
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.001         ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.000_000_000_1 ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); rare ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_chlamydia_trachomatis_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -10513,34 +10505,34 @@ lazy_static! {
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_kpc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_ndm_vim_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_oxa_48_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_1     ); // classes: chl
+        map.insert("bacteria_treponema_pallidum_mechanism_enzyme_cat_emergence_rate".to_string(), 0.000_000_15); // classes: chl
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_16s_rrmt_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_pbp2a_meca_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_van_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_van_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_1    ); // classes: fq
-        map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_1     ); // classes: fq
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 0.000_001_5); // classes: fq
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.000_000_75); // classes: fq
         map.insert("bacteria_treponema_pallidum_mechanism_protection_qnr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_1     ); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
+        map.insert("bacteria_treponema_pallidum_mechanism_global_efflux_pump_emergence_rate".to_string(), 0.000_000_15); // classes: fq, tet, chl ***changed: mls→removed (GlobalEffluxPump does not cover macrolides/lincosamides/streptogramins; covers FQ + all tetracyclines + chloramphenicol)
         map.insert("bacteria_treponema_pallidum_mechanism_porin_loss_ompk35_36_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_porin_loss_oprd_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_global_porin_loss_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_modification_mcr_1_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_1     ); // classes: sulf
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_folate_pathway_emergence_rate".to_string(), 0.000_000_15); // classes: sulf
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_nitroreductase_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_fos_a_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_1     ); // classes: other (rifampicin, fidaxomicin)
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_000_15); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_treponema_pallidum_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_1    ); // classes: tet
+        map.insert("bacteria_treponema_pallidum_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_001_5); // classes: tet
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_bla_z_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_enzyme_oxa_acinetobacter_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_treponema_pallidum_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.005  ); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled here; macrolide resistance can be 23S-mediated ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
+        map.insert("bacteria_treponema_pallidum_mechanism_mutation_23s_rrna_emergence_rate".to_string(), 0.0); // classes: mac (erythro, azithro, clarithro only; not clindamycin); disabled here; macrolide resistance can be 23S-mediated ***changed: mls→mac (23S rRNA point mutations affect macrolides only, NOT lincosamides or streptogramins)
         map.insert("bacteria_treponema_pallidum_mechanism_efflux_tet_abc_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_mutation_pbp_mosaic_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_treponema_pallidum_mechanism_efflux_mtr_cde_emergence_rate".to_string(), 0.0); // tier 0
@@ -13587,46 +13579,17 @@ pub fn calculate_resistance_floor(bacteria_name: &str, drug: &str, current_day: 
 
 
 
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // CALIBRATION AXES — global run-level multipliers sampled during search
-        //
-        // These five axes define the space of calibrated parameter sets for policy
-        // comparisons.  Each axis is mechanistically independent enough that calibration
-        // can land in genuinely different regions of the space, producing sets that agree
-        // on observed 2025 resistance prevalence but diverge in their predictions of how
-        // resistance responds to interventions.
-        //
-        // AXIS 1 — de-novo emergence in infections  (run_pathway_infection_de_novo_multiplier)
-        //   How strongly does antibiotic treatment select for resistance during active infection?
-        //   If this is near-zero, resistance is almost entirely imported into infections from
-        //   the community reservoir; if high, each treated episode is itself a selection event.
-        //   Directly scales the resistance-selection benefit of getting the right drug sooner.
-        //
-        // AXIS 2 — resistance reversion rate  (run_pathway_reversion_rate_multiplier)
-        //   Is acquired resistance ecologically stable or does it drift back when selection
-        //   pressure is removed?  High reversion → prescribing reduction gives a durable
-        //   benefit; low reversion → the community resistance pool is sticky regardless.
-        //
-        // AXIS 3 — horizontal gene transfer  (run_pathway_hgt_multiplier)
-        //   How much does resistance propagate laterally via HGT, independently of treatment
-        //   pressure in the infected individual?  High HGT → resistance spreads regardless
-        //   of prescribing behaviour; low HGT → treatment decisions are the dominant driver.
-        //
-        // AXIS 4 — microbiome reservoir seeding  (run_pathway_microbiome_acquisition_multiplier)
-        //   How readily do new colonisations acquire the resistance profile of the existing
-        //   community microbiome pool?  Sets the background floor that cannot be moved by
-        //   targeting individual infection episodes.  Note: infection_from_microbiome_dampening
-        //   (currently hardcoded at 0.70) is the complementary bridge parameter and is a
-        //   candidate for a future axis 6 in organism-specific sensitivity work.
-        //
-        // AXIS 5 — drug activity efficacy  (run_pathway_drug_activity_multiplier)
-        //   Global uncertainty in how effective antibiotics actually are in the field —
-        //   poorly measured at population scale.  Scales both the clinical benefit of correct
-        //   de-escalation and the selection pressure exerted by inappropriate empirical therapy.
-        //
-        // DROPPED (candidates for targeted post-hoc sensitivity runs):
-        //   microbiome de-novo emergence   — collinear with axis 1 during calibration search
-        //   community resistance dilution  — mechanistic overlap with axis 2 (reversion)
-        //   carrier resistance inheritance — narrow effective range; partially covered by axis 4
-        //   microbiome disruption          — second-order relative to the five above
-        // ═══════════════════════════════════════════════════════════════════════════════
+        // === CALIBRATION AXIS 1: resistance persistence / reversion speed  ===
+        //   should the balancing of emergence and reversion be mechanism (and bacteria ?) specific ?
+
+        // === CALIBRATION AXIS 2: de-novo emergence in infections  ===
+
+        // === CALIBRATION AXIS 3: de-novo emergence in gut carriage  ===
+
+        // === CALIBRATION AXIS 4: microbiome→infection bridge  ===
+         
+        // === CALIBRATION AXIS 5: fraction from human reservoir  ===
+
+        // === CALIBRATION AXIS 7: horizontal gene transfer rate scaling  ===
+
+        // === CALIBRATION AXIS 6: microbiome seeding probability  ===

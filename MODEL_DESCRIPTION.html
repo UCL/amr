@@ -19,7 +19,7 @@
 <li><a href="#6-antibiotic-treatment">Antibiotic Treatment</a></li>
 <li><a href="#7-resistance-dynamics">Resistance Dynamics</a></li>
 <li><a href="#8-microbiome-and-carriage">Microbiome and Carriage</a></li>
-<li><a href="#9-horizontal-gene-transfer">Horizontal Gene Transfer</a></li>
+<li><a href="#9-horizontal-gene-transfer-hgt">Horizontal Gene Transfer</a></li>
 <li><a href="#10-mortality">Mortality</a></li>
 <li><a href="#11-counterfactual-design-and-amr-attributable-burden">Counterfactual Design and AMR-Attributable Burden</a></li>
 <li><a href="#12-limitations">Limitations</a></li>
@@ -48,7 +48,7 @@
 <p>The model tracks <strong>42 bacterial species</strong>, <strong>61 antibiotics</strong> (grouped into <strong>39 internal drug classes</strong>), and <strong>40 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
 <p>We have written this description for readers whom we assume are already familiar with clinical microbiology, infectious diseases, and antimicrobial stewardship. Accordingly, we focus on the biological and clinical distinctions that are most important for interpreting policy experiments, while being explicit where broader host, laboratory, pharmacological, or ecological complexity has been collapsed into a smaller set of model states. That balance is deliberate: at this scope, an attempt to encode every clinically real nuance would make the model difficult to calibrate, difficult to interpret, and ultimately less useful for the policy questions it is intended to address.</p>
 <h3 id="12-model-architecture">1.2 Model architecture</h3>
-<p>This is an <strong>individual-based model</strong> (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 100,000 — and simulates what happens to each of them, day by day, over more than 100 years.</p>
+<p>This is an <strong>individual-based model</strong> (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 1,000,000 — and simulates what happens to each of them, day by day, over more than 100 years.</p>
 <p><strong>Time steps.</strong> The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of <strong>21 mechanistic rules</strong>. These rules govern the events that can happen to a person on any given day:</p>
 <ul>
 <li>Demographic processes (ageing, births, background mortality)</li>
@@ -849,7 +849,7 @@
 <p>If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.</p>
 <p><strong>Counterfactual gating.</strong> Profile sampling is gated by the <code>counterfactual_resistance_multiplier</code>. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below <code>counterfactual_resistance_multiplier</code> (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.</p>
 <p><strong>Step 4 — Resistance floor enforcement</strong></p>
-<p>After profile sampling, for each drug in the model the code evaluates <code>calculate_resistance_floor(bacteria, drug, current_day)</code>. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's <code>ramp_years</code> window (see Section 7.5). For organisms with an active floor (currently <em>H. pylori</em> and <em>S. maltophilia</em>), if a Bernoulli draw with probability <code>floor_level ÷ max_resistance_level</code> succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in <code>mechanism_any</code> and <code>mechanism_majority</code>. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few hundred infections per year in a 100,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.</p>
+<p>After profile sampling, for each drug in the model the code evaluates <code>calculate_resistance_floor(bacteria, drug, current_day)</code>. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's <code>ramp_years</code> window (see Section 7.5). For organisms with an active floor (currently <em>E. faecium</em>), if a Bernoulli draw with probability <code>floor_level ÷ max_resistance_level</code> succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in <code>mechanism_any</code> and <code>mechanism_majority</code>. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few thousand infections per year in a 1,000,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.</p>
 <p><strong>Step 5 — Scalar <code>any_r</code> derivation via mechanism propagation</strong></p>
 <p>After the mechanism bits have been set (by profile sampling, floor enforcement, or both), the model calls <code>propagate_mechanism_resistance()</code> to translate the boolean mechanism flags into the continuous <code>any_r</code> scalar reported in outputs. For every drug, this function computes the <strong>multiplicative susceptibility</strong> across all active mechanisms:</p>
 <p>$$\text{any_r} = 1 - \prod_{m : \text{mechanism_any}_m = \text{true}} (1 - e_m)$$</p>
@@ -2265,6 +2265,22 @@
 </tr>
 <tr>
 <td><em>N. gonorrhoeae</em></td>
+<td>doxycycline</td>
+<td>12.0</td>
+<td>→ 1987</td>
+<td>4.0</td>
+<td>Tetracyclines were a major alternative to penicillin G from the 1950s; doxycycline increasingly dominant from ~1967</td>
+</tr>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>TMP-SMX</td>
+<td>10.0</td>
+<td>→ 1990</td>
+<td>0.5</td>
+<td>Sulfonamides were the dominant GC treatment 1937–~1975 (near-universal resistance developed); TMP-SMX continued the selection pressure into the 1980s; proxy for the entire sulfonamide era</td>
+</tr>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
 <td>ciprofloxacin</td>
 <td>0.5</td>
 <td>→ 1987</td>
@@ -2278,6 +2294,14 @@
 <td>1987–2007</td>
 <td>2.0</td>
 <td>Sole first-line per CDC/WHO; resistance then ended use</td>
+</tr>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>ofloxacin</td>
+<td>8.0</td>
+<td>→ 2007</td>
+<td>1.0</td>
+<td>Co-first-line FQ option in European/Asian guidelines 1990–2007; additional selection pressure alongside ciprofloxacin</td>
 </tr>
 <tr>
 <td><em>N. gonorrhoeae</em></td>
@@ -2710,6 +2734,11 @@
 <td>Nitrofurantoin</td>
 <td><em>S. maltophilia</em></td>
 <td>Intrinsic non-fermenter resistance; nitrofurantoin is never used for <em>Stenotrophomonas</em> infections</td>
+</tr>
+<tr>
+<td>Penicillins, ceph 1–2G, carbapenems, macrolides, clindamycin, aztreonam</td>
+<td><em>S. maltophilia</em></td>
+<td>Chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps render these drug classes intrinsically inactive; <code>potency_when_no_r</code> ≤ 0.05 across all affected classes (see Section 7.5)</td>
 </tr>
 </tbody>
 </table>
@@ -3882,9 +3911,28 @@
 </tbody>
 </table>
 <p>These values ensure that MDR profiles acquired from the hospital pool during brief nosocomial episodes revert to susceptibility within days in the community, so the community profile reservoir for these organisms reflects the genuinely low resistance prevalence documented by surveillance studies of community-acquired infections from these pathogens.</p>
+<p>The multiplier can also be set <strong>below 1.0</strong> to slow community reversion for organisms whose resistance mechanisms are known to be fitness-neutral and stable in the absence of drug pressure. <em>N. gonorrhoeae</em> FQ resistance is the canonical example: surveillance data from multiple countries show no meaningful rebound in ciprofloxacin susceptibility in the decade since FQs were withdrawn from gonorrhoea treatment guidelines in 2007 (Unemo M &amp; Shafer WM, 2014; ECDC GASP). The responsible mutations (<em>gyrA</em> Ser91Phe/Asp95Gly, <em>parC</em>) carry no measurable fitness cost in this organism; they are chromosomally encoded point mutations rather than metabolically burdensome plasmids. A multiplier of 0.05 (20× slower reversion) reflects this biology and is required to prevent the model from reverting accumulated GC FQ resistance on unrealistically short timescales.</p>
+<table>
+<thead>
+<tr>
+<th>Organism</th>
+<th>Multiplier</th>
+<th>Effective gyrA reversion</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>N. gonorrhoeae</em></td>
+<td>0.05</td>
+<td>~0.000005/day (half-life ~380 years)</td>
+<td>GC FQ resistance (gyrA/parC point mutations, AcrAB-TolC efflux) is fitness-neutral; surveillance shows no susceptibility rebound after FQ withdrawal</td>
+</tr>
+</tbody>
+</table>
 <p><em>Note: The system reserves one remaining placeholder variable (<code>as_yet_unknown</code>, baseline rate <code>0.001</code>) designated for future empirical calibration. <code>mutation_pbp_mosaic</code> has been activated as </em><em>PBP mosaic mutations</em><em> (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and <code>efflux_mtr_cde</code> as </em><em>mtrCDE-type broad efflux</em><em> (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.</em></p>
 <h3 id="75-resistance-floors">7.5 Resistance floors</h3>
-<p>In a simulation of 100,000 individuals, rare pathogens like <em>S. maltophilia</em> produce so few infections that their resistance levels can randomly drift to zero — a modelling artefact, not real biology. To prevent this, the model enforces <strong>resistance floors</strong>: minimum resistance levels that certain organisms cannot drop below.</p>
+<p>For certain organisms at 1,000,000-person population scale, the finite-number stochastic process can drive acquired resistance to zero between treatment events — an artefact of sparse sampling, not biology. The model provides an optional <strong>resistance floor</strong> mechanism to enforce minimum resistance prevalences where this matters.</p>
 <table>
 <thead>
 <tr>
@@ -3906,118 +3954,20 @@
 </tr>
 <tr>
 <td><code>bacteria_{name}_resistance_floor_ramp_years</code></td>
-<td>10.0</td>
-<td>Years to reach full floor level after drug introduction</td>
+<td>—</td>
+<td>Years to ramp from 0 to full floor after drug introduction</td>
 </tr>
 <tr>
 <td><code>bacteria_{name}_{drug_class}_resistance_floor</code></td>
 <td>0.0–1.0</td>
-<td>The minimum resistance prevalence enforced</td>
+<td>Minimum resistance prevalence enforced</td>
 </tr>
 </tbody>
 </table>
-<p>Configured resistance floors:</p>
-<ul>
-<li><strong><em>S. maltophilia</em></strong>: <strong>Enabled</strong> (ramp: 5 years) — preserves the near-universal intrinsic non-susceptibility of this organism driven by its chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and constitutively expressed SmeABC/SmeDEF efflux systems (Brooke JS, 2012; Crossman LC et al., 2008):</li>
-</ul>
-<table>
-<thead>
-<tr>
-<th>Drug class</th>
-<th>Floor</th>
-<th>Biological basis</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Carbapenems</td>
-<td>0.98</td>
-<td>L1 metallo-β-lactamase hydrolyses all carbapenems; near-complete intrinsic resistance</td>
-</tr>
-<tr>
-<td>Penicillins</td>
-<td>0.95</td>
-<td>Both L1 and L2 β-lactamases active; unprotected penicillins essentially inactive</td>
-</tr>
-<tr>
-<td>Cephalosporins 1–2G</td>
-<td>0.95</td>
-<td>L1/L2 readily hydrolyse first- and second-generation cephalosporins</td>
-</tr>
-<tr>
-<td>Cephalosporins 3–4G</td>
-<td>0.75</td>
-<td>Partial hydrolysis — activity variable with L2 substrate spectrum</td>
-</tr>
-<tr>
-<td>Macrolides</td>
-<td>0.95</td>
-<td>SmeABC-mediated efflux confers high-level macrolide non-susceptibility</td>
-</tr>
-<tr>
-<td>Aminoglycosides</td>
-<td>0.80</td>
-<td>Efflux and aminoglycoside-modifying enzymes; high rates reported globally</td>
-</tr>
-<tr>
-<td>Fluoroquinolones</td>
-<td>0.45</td>
-<td>Moderate intrinsic efflux; Smqnr plasmid gene adds acquired component</td>
-</tr>
-<tr>
-<td>Tetracyclines</td>
-<td>0.40</td>
-<td>Variable — doxycycline and minocycline retain limited activity</td>
-</tr>
-<tr>
-<td>Polymyxins</td>
-<td>0.70</td>
-<td>Moderate colistin resistance via LPS modification</td>
-</tr>
-<tr>
-<td>Folate antagonists</td>
-<td>0.15</td>
-<td>TMP-SMX is the preferred first-line therapy; resistance exists but lower</td>
-</tr>
-</tbody>
-</table>
-<p>These floors reflect the well-documented finding that <em>S. maltophilia</em> is intrinsically resistant to most drug classes and that non-susceptibility rates of &gt;90% to carbapenems and β-lactams are consistently reported in global surveillance (Wang H et al., 2014; SENTRY programme data).
-- <strong><em>H. pylori</em></strong>: <strong>Enabled</strong> (ramp: 10 years) — prevents population noise from erasing the well-documented high background prevalence of primary resistance in this organism (Savoldi A et al., 2018):</p>
-<table>
-<thead>
-<tr>
-<th>Drug class</th>
-<th>Floor</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Macrolides</td>
-<td>0.50</td>
-</tr>
-<tr>
-<td>Nitroimidazoles</td>
-<td>0.50</td>
-</tr>
-<tr>
-<td>Penicillins</td>
-<td>0.35</td>
-</tr>
-<tr>
-<td>Fluoroquinolones</td>
-<td>0.30</td>
-</tr>
-<tr>
-<td>Tetracyclines</td>
-<td>0.15</td>
-</tr>
-</tbody>
-</table>
-<p>The macrolide and nitroimidazole floors are anchored to global pooled resistance estimates: clarithromycin resistance averages ~30–50% in many regions, and metronidazole resistance exceeds 50% in parts of Africa and Asia (Savoldi A et al., 2018; Hooi JKY et al., 2017).</p>
-<ul>
-<li><strong><em>E. faecium</em></strong>: <strong>Disabled</strong></li>
-</ul>
-<p>These floors are structural guardrails, not claims about immutable global prevalence minima. They are used only where the model would otherwise erase well-established intrinsic or near-intrinsic non-susceptibility because of finite population noise.</p>
+<p><strong>Design principle.</strong> Resistance floors are appropriate only for <em>acquired</em> resistance that is known to be near-universally present in circulating strains and which the treatment-selection pathway cannot bootstrap from the model's population size — for example, glycopeptide resistance in <em>E. faecium</em> where sparse counts mean VRE can stochastically disappear between hospitalisation events. They are <strong>not</strong> appropriate for <em>intrinsic</em> resistance: phenotypes that every member of a species carries by virtue of chromosomally encoded enzymes or efflux systems (e.g. L1/L2 β-lactamases in <em>S. maltophilia</em>, outer-membrane exclusion in Gram-negatives) should instead be represented as near-zero <code>potency_when_no_r</code> values, because the organism is never susceptible to those drugs in the first place and "resistance" in the acquired sense is not a meaningful quantity.</p>
+<p><strong>Stenotrophomonas maltophilia — no floor.</strong> An earlier version of the model enforced floors for the L1/L2- and SmeDEF-driven intrinsic non-susceptibilities of this organism. These have been removed. <em>S. maltophilia</em> is constitutively non-susceptible to carbapenems, unprotected penicillins, 1st/2nd-generation cephalosporins, macrolides, and most aminoglycosides because every isolate encodes the L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps chromosomally (Brooke JS, 2012; Crossman LC et al., 2008). This phenotype is now encoded directly as near-zero potency values (<code>potency_when_no_r</code> ≤ 0.05) for those drug classes, meaning clinicians in the simulation do not initiate those drugs for <em>Stenotrophomonas</em> infections, no treatment-selection pressure accumulates in the EWMA cache, and the output correctly shows these classes as simply not used — rather than artificially "resistant". Acquired resistance to TMP-SMX, fluoroquinolones, and tetracyclines (the drugs that are actually used) continues to emerge through the standard treatment-selection pathway.</p>
+<p><strong>Helicobacter pylori — no floor.</strong> <em>H. pylori</em> resistance to clarithromycin, metronidazole, fluoroquinolones, and amoxicillin is driven primarily by chromosomal mutation during treatment courses, not by circulating pre-resistant strains that seed infections independently of treatment history. Accordingly, the floor mechanism has been disabled for this organism. Resistance now accumulates entirely through treatment-course selection: each H. pylori treatment course (triple or quadruple therapy) carries a per-course de-novo emergence probability, and the EWMA cache propagates resistance prevalence as it does for other organisms. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other indications (e.g. azithromycin for respiratory infections) also contributes, matching the well-documented link between community macrolide use and clarithromycin-resistant <em>H. pylori</em> prevalence (Savoldi A et al., 2018).</p>
+<p><strong>Enterococcus faecium — enabled</strong> (ramp: 10 years). VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. At 1,000,000-person scale, the low total infection burden means the glycopeptide-resistance EWMA signal can stochastically collapse to zero between hospitalisation episodes. A moderate floor for glycopeptides (and related acquired drug-class resistances) prevents this artefact while still allowing acquired fluoroquinolone and macrolide resistance to fluctuate freely via treatment selection.</p>
 <h3 id="76-cross-resistance-groups">7.6 Cross-resistance groups</h3>
 <p>Since resistance to one agent in a class typically confers resistance to related agents — as when an ESBL in <em>E. coli</em> hydrolysing ceftriaxone also destroys cefazolin, cefuroxime, and unprotected penicillins through the same β-lactam ring cleavage — the model captures this by defining <strong>cross-resistance groups</strong>: bacteria-specific phenotype bundles applied at the level of the scalar resistance metric <code>any_r</code>. In practice, once one drug in a configured group has a non-zero <code>any_r</code>, the model raises the other drugs in that group to the same group-maximum <code>any_r</code> for that bacterium. This layer therefore equalises the phenotype across related agents, but it does not force the underlying mechanism flags themselves to be acquired or lost in lockstep.</p>
 <p>These groups should not be read as one-to-one copies of the <strong>Explicit Drugs Affected</strong> column in Section 7.1. Section 7.1 describes the direct applicability map for an individual mechanism. Section 7.6 describes a separate bacterium-level phenotype-bundling layer that smooths <code>any_r</code> across related agents after mechanism effects have been calculated.</p>

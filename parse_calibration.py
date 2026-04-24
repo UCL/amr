@@ -82,6 +82,7 @@ def _read(path: Union[str, Path]) -> list[str]:
 _SECTION_PATTERNS: list[tuple[str, str]] = [
     ("Bacteria Burden Benchmarks — Infections",   "bacteria_infections"),
     ("Bacteria Burden Benchmarks — Mortality",    "bacteria_mortality"),
+    ("Serious Resistance Locus",                 "serious_resistance_locus"),
     ("Resistance Incidence Locus",                "resistance_incidence_locus"),
     ("Overall Resistance Fit",                    "overall_resistance_fit"),
     ("Per-Bacteria Mean",                         "resistance_per_bacteria"),
@@ -139,7 +140,10 @@ def _table_from_section(section_lines: list[str]) -> pd.DataFrame:
         s = line.strip()
         if not s:
             continue
-        if "  " in line:
+        # Must contain a 2+-space gap AND produce multiple columns when split;
+        # this skips multi-line section-title continuation lines that happen to
+        # start with indentation (e.g. the "Overall Resistance Fit" preamble).
+        if "  " in line and len(_split_row(line)) > 1:
             header_idx = idx
             break
     if header_idx is None:
@@ -301,6 +305,7 @@ def parse_file(path: Union[str, Path]) -> dict:
         "bacteria_infections":        ["Bacteria"],
         "bacteria_mortality":         ["Bacteria"],
         "resistance_incidence_locus": ["Bacteria"],
+        "serious_resistance_locus":   ["Bacteria"],
         "syndrome_incidence":         ["Syndrome"],
         "block_scores":               ["Block"],
         "largest_contributors":       ["Block"],
@@ -446,6 +451,7 @@ def aggregate(parsed_list: list[dict]) -> dict:
         "bacteria_infections":        ["Bacteria"],
         "bacteria_mortality":         ["Bacteria"],
         "resistance_incidence_locus": ["Bacteria"],
+        "serious_resistance_locus":   ["Bacteria"],
         "syndrome_incidence":         ["Syndrome"],
         "block_scores":               ["Block"],
         "largest_contributors":       ["Block"],

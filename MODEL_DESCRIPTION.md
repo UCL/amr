@@ -12,7 +12,7 @@
 6. [Antibiotic Treatment](#6-antibiotic-treatment)
 7. [Resistance Dynamics](#7-resistance-dynamics)
 8. [Microbiome and Carriage](#8-microbiome-and-carriage)
-9. [Horizontal Gene Transfer](#9-horizontal-gene-transfer)
+9. [Horizontal Gene Transfer](#9-horizontal-gene-transfer-hgt)
 10. [Mortality](#10-mortality)
 11. [Counterfactual Design and AMR-Attributable Burden](#11-counterfactual-design-and-amr-attributable-burden)
 12. [Limitations](#12-limitations)
@@ -51,7 +51,7 @@ We have written this description for readers whom we assume are already familiar
 
 ### 1.2 Model architecture
 
-This is an **individual-based model** (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 100,000 — and simulates what happens to each of them, day by day, over more than 100 years.
+This is an **individual-based model** (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 1,000,000 — and simulates what happens to each of them, day by day, over more than 100 years.
 
 **Time steps.** The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of **21 mechanistic rules**. These rules govern the events that can happen to a person on any given day:
 
@@ -455,7 +455,7 @@ If the profile reservoir is empty for a given region × care setting × bacteria
 
 **Step 4 — Resistance floor enforcement**
 
-After profile sampling, for each drug in the model the code evaluates `calculate_resistance_floor(bacteria, drug, current_day)`. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's `ramp_years` window (see Section 7.5). For organisms with an active floor (currently *H. pylori* and *S. maltophilia*), if a Bernoulli draw with probability `floor_level ÷ max_resistance_level` succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in `mechanism_any` and `mechanism_majority`. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few hundred infections per year in a 100,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.
+After profile sampling, for each drug in the model the code evaluates `calculate_resistance_floor(bacteria, drug, current_day)`. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's `ramp_years` window (see Section 7.5). For organisms with an active floor (currently *E. faecium*), if a Bernoulli draw with probability `floor_level ÷ max_resistance_level` succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in `mechanism_any` and `mechanism_majority`. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few thousand infections per year in a 1,000,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.
 
 **Step 5 — Scalar `any_r` derivation via mechanism propagation**
 
@@ -1007,8 +1007,11 @@ The species-guideline shifts currently encoded are:
 | Organism | Drug | Pre-era multiplier | Era | Base (post) multiplier | Historical rationale |
 |---|---|---|---|---|---|
 | *N. gonorrhoeae* | penicillin G | 14.0 | → 1987 | 2.0 | Penicillin sole first-line before FQs licenced |
+| *N. gonorrhoeae* | doxycycline | 12.0 | → 1987 | 4.0 | Tetracyclines were a major alternative to penicillin G from the 1950s; doxycycline increasingly dominant from ~1967 |
+| *N. gonorrhoeae* | TMP-SMX | 10.0 | → 1990 | 0.5 | Sulfonamides were the dominant GC treatment 1937–~1975 (near-universal resistance developed); TMP-SMX continued the selection pressure into the 1980s; proxy for the entire sulfonamide era |
 | *N. gonorrhoeae* | ciprofloxacin | 0.5 | → 1987 | — | FQ not yet in gonorrhoea guidelines |
 | *N. gonorrhoeae* | ciprofloxacin | 14.0 | 1987–2007 | 2.0 | Sole first-line per CDC/WHO; resistance then ended use |
+| *N. gonorrhoeae* | ofloxacin | 8.0 | → 2007 | 1.0 | Co-first-line FQ option in European/Asian guidelines 1990–2007; additional selection pressure alongside ciprofloxacin |
 | *N. gonorrhoeae* | ceftriaxone | 2.0 | → 2007 | 12.0 | Adopted as first-line following FQ resistance |
 | *S.* Typhi / *S.* Paratyphi A | chloramphenicol | 14.0 | → 1990 | 2.0 | Dominant first-line until FQ era |
 | *S.* Typhi / *S.* Paratyphi A | ciprofloxacin | 0.5 → 14.0 | → 1990 / 1990–2010 | 2.0 | FQ first-line 1990–2010; declining after XDR emergence |
@@ -1135,6 +1138,7 @@ Values range from 0.0 (no activity) to values above 1.0 for a small number of ag
 | Aminoglycosides | *C. difficile*, *B. fragilis* | Obligate anaerobes — AG uptake depends on oxygen-dependent active transport, which is completely abolished anaerobically |
 | TMP-SMX | *B. fragilis* | Constitutively encoded insensitivity to sulfonamides (chromosomal folate pathway) |
 | Nitrofurantoin | *S. maltophilia* | Intrinsic non-fermenter resistance; nitrofurantoin is never used for *Stenotrophomonas* infections |
+| Penicillins, ceph 1–2G, carbapenems, macrolides, clindamycin, aztreonam | *S. maltophilia* | Chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps render these drug classes intrinsically inactive; `potency_when_no_r` ≤ 0.05 across all affected classes (see Section 7.5) |
 
 For the aminoglycoside/aztreonam/vancomycin/metronidazole cases, the zeroing is applied via group loops covering all organisms in the relevant anatomical or Gram-stain group, so it applies consistently to any organism added to those groups in future.
 
@@ -1529,56 +1533,34 @@ The following organisms are assigned a community multiplier of **200×**:
 
 These values ensure that MDR profiles acquired from the hospital pool during brief nosocomial episodes revert to susceptibility within days in the community, so the community profile reservoir for these organisms reflects the genuinely low resistance prevalence documented by surveillance studies of community-acquired infections from these pathogens.
 
+The multiplier can also be set **below 1.0** to slow community reversion for organisms whose resistance mechanisms are known to be fitness-neutral and stable in the absence of drug pressure. *N. gonorrhoeae* FQ resistance is the canonical example: surveillance data from multiple countries show no meaningful rebound in ciprofloxacin susceptibility in the decade since FQs were withdrawn from gonorrhoea treatment guidelines in 2007 (Unemo M & Shafer WM, 2014; ECDC GASP). The responsible mutations (*gyrA* Ser91Phe/Asp95Gly, *parC*) carry no measurable fitness cost in this organism; they are chromosomally encoded point mutations rather than metabolically burdensome plasmids. A multiplier of 0.05 (20× slower reversion) reflects this biology and is required to prevent the model from reverting accumulated GC FQ resistance on unrealistically short timescales.
+
+| Organism | Multiplier | Effective gyrA reversion | Rationale |
+|---|---|---|---|
+| *N. gonorrhoeae* | 0.05 | ~0.000005/day (half-life ~380 years) | GC FQ resistance (gyrA/parC point mutations, AcrAB-TolC efflux) is fitness-neutral; surveillance shows no susceptibility rebound after FQ withdrawal |
+
 
 
 *Note: The system reserves one remaining placeholder variable (`as_yet_unknown`, baseline rate `0.001`) designated for future empirical calibration. `mutation_pbp_mosaic` has been activated as **PBP mosaic mutations** (chromosomal target modification affecting penicillins, cephalosporins, and aztreonam — NOT carbapenems), and `efflux_mtr_cde` as **mtrCDE-type broad efflux** (chromosomal efflux affecting macrolides, penicillins, tetracyclines, and chloramphenicol). Neither is HGT-transferable.*
 
 ### 7.5 Resistance floors
 
-In a simulation of 100,000 individuals, rare pathogens like *S. maltophilia* produce so few infections that their resistance levels can randomly drift to zero — a modelling artefact, not real biology. To prevent this, the model enforces **resistance floors**: minimum resistance levels that certain organisms cannot drop below.
+For certain organisms at 1,000,000-person population scale, the finite-number stochastic process can drive acquired resistance to zero between treatment events — an artefact of sparse sampling, not biology. The model provides an optional **resistance floor** mechanism to enforce minimum resistance prevalences where this matters.
 
 | Parameter | Value | Function |
 |-----------|-------|----------|
 | `resistance_floor_feature_enabled` | 1.0 (on) | Master switch for the floor system |
 | `bacteria_{name}_resistance_floor_enabled` | Per-organism | Turns floors on for specific species |
-| `bacteria_{name}_resistance_floor_ramp_years` | 10.0 | Years to reach full floor level after drug introduction |
-| `bacteria_{name}_{drug_class}_resistance_floor` | 0.0–1.0 | The minimum resistance prevalence enforced |
+| `bacteria_{name}_resistance_floor_ramp_years` | — | Years to ramp from 0 to full floor after drug introduction |
+| `bacteria_{name}_{drug_class}_resistance_floor` | 0.0–1.0 | Minimum resistance prevalence enforced |
 
+**Design principle.** Resistance floors are appropriate only for *acquired* resistance that is known to be near-universally present in circulating strains and which the treatment-selection pathway cannot bootstrap from the model's population size — for example, glycopeptide resistance in *E. faecium* where sparse counts mean VRE can stochastically disappear between hospitalisation events. They are **not** appropriate for *intrinsic* resistance: phenotypes that every member of a species carries by virtue of chromosomally encoded enzymes or efflux systems (e.g. L1/L2 β-lactamases in *S. maltophilia*, outer-membrane exclusion in Gram-negatives) should instead be represented as near-zero `potency_when_no_r` values, because the organism is never susceptible to those drugs in the first place and "resistance" in the acquired sense is not a meaningful quantity.
 
+**Stenotrophomonas maltophilia — no floor.** An earlier version of the model enforced floors for the L1/L2- and SmeDEF-driven intrinsic non-susceptibilities of this organism. These have been removed. *S. maltophilia* is constitutively non-susceptible to carbapenems, unprotected penicillins, 1st/2nd-generation cephalosporins, macrolides, and most aminoglycosides because every isolate encodes the L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps chromosomally (Brooke JS, 2012; Crossman LC et al., 2008). This phenotype is now encoded directly as near-zero potency values (`potency_when_no_r` ≤ 0.05) for those drug classes, meaning clinicians in the simulation do not initiate those drugs for *Stenotrophomonas* infections, no treatment-selection pressure accumulates in the EWMA cache, and the output correctly shows these classes as simply not used — rather than artificially "resistant". Acquired resistance to TMP-SMX, fluoroquinolones, and tetracyclines (the drugs that are actually used) continues to emerge through the standard treatment-selection pathway.
 
-Configured resistance floors:
+**Helicobacter pylori — no floor.** *H. pylori* resistance to clarithromycin, metronidazole, fluoroquinolones, and amoxicillin is driven primarily by chromosomal mutation during treatment courses, not by circulating pre-resistant strains that seed infections independently of treatment history. Accordingly, the floor mechanism has been disabled for this organism. Resistance now accumulates entirely through treatment-course selection: each H. pylori treatment course (triple or quadruple therapy) carries a per-course de-novo emergence probability, and the EWMA cache propagates resistance prevalence as it does for other organisms. Incidental macrolide and fluoroquinolone exposure from courses prescribed for other indications (e.g. azithromycin for respiratory infections) also contributes, matching the well-documented link between community macrolide use and clarithromycin-resistant *H. pylori* prevalence (Savoldi A et al., 2018).
 
-- ***S. maltophilia***: **Enabled** (ramp: 5 years) — preserves the near-universal intrinsic non-susceptibility of this organism driven by its chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and constitutively expressed SmeABC/SmeDEF efflux systems (Brooke JS, 2012; Crossman LC et al., 2008):
-
-  | Drug class | Floor | Biological basis |
-  |------------|-------|------------------|
-  | Carbapenems | 0.98 | L1 metallo-β-lactamase hydrolyses all carbapenems; near-complete intrinsic resistance |
-  | Penicillins | 0.95 | Both L1 and L2 β-lactamases active; unprotected penicillins essentially inactive |
-  | Cephalosporins 1–2G | 0.95 | L1/L2 readily hydrolyse first- and second-generation cephalosporins |
-  | Cephalosporins 3–4G | 0.75 | Partial hydrolysis — activity variable with L2 substrate spectrum |
-  | Macrolides | 0.95 | SmeABC-mediated efflux confers high-level macrolide non-susceptibility |
-  | Aminoglycosides | 0.80 | Efflux and aminoglycoside-modifying enzymes; high rates reported globally |
-  | Fluoroquinolones | 0.45 | Moderate intrinsic efflux; Smqnr plasmid gene adds acquired component |
-  | Tetracyclines | 0.40 | Variable — doxycycline and minocycline retain limited activity |
-  | Polymyxins | 0.70 | Moderate colistin resistance via LPS modification |
-  | Folate antagonists | 0.15 | TMP-SMX is the preferred first-line therapy; resistance exists but lower |
-
-  These floors reflect the well-documented finding that *S. maltophilia* is intrinsically resistant to most drug classes and that non-susceptibility rates of >90% to carbapenems and β-lactams are consistently reported in global surveillance (Wang H et al., 2014; SENTRY programme data).
-- ***H. pylori***: **Enabled** (ramp: 10 years) — prevents population noise from erasing the well-documented high background prevalence of primary resistance in this organism (Savoldi A et al., 2018):
-
-  | Drug class | Floor |
-  |------------|-------|
-  | Macrolides | 0.50 |
-  | Nitroimidazoles | 0.50 |
-  | Penicillins | 0.35 |
-  | Fluoroquinolones | 0.30 |
-  | Tetracyclines | 0.15 |
-
-  The macrolide and nitroimidazole floors are anchored to global pooled resistance estimates: clarithromycin resistance averages ~30–50% in many regions, and metronidazole resistance exceeds 50% in parts of Africa and Asia (Savoldi A et al., 2018; Hooi JKY et al., 2017).
-
-- ***E. faecium***: **Disabled**
-
-These floors are structural guardrails, not claims about immutable global prevalence minima. They are used only where the model would otherwise erase well-established intrinsic or near-intrinsic non-susceptibility because of finite population noise.
+**Enterococcus faecium — enabled** (ramp: 10 years). VRE clonal lineages (CC17) are globally disseminated hospital-adapted strains. At 1,000,000-person scale, the low total infection burden means the glycopeptide-resistance EWMA signal can stochastically collapse to zero between hospitalisation episodes. A moderate floor for glycopeptides (and related acquired drug-class resistances) prevents this artefact while still allowing acquired fluoroquinolone and macrolide resistance to fluctuate freely via treatment selection.
 
 
 

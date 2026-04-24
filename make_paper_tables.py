@@ -34,6 +34,7 @@ from __future__ import annotations
 import glob
 import io
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -354,9 +355,10 @@ _T1_ROWS: list[tuple[str, str, str]] = [
      "carriage and hospital-acquired infection rates (published HAI epidemiology)."),
 
     ("Calibration", "Acceptance criteria",
-     "Runs are scored against a composite of block-level gates. A run is accepted when "
-     "all mandatory gates are passed and the total calibration score exceeds the "
-     "acceptance threshold. Multiple accepted runs form the uncertainty ensemble."),
+     "There is an established set of criteria for a calibration being considered adequate — "
+     "in initial work we generate 5 diverse sets of parameter values each leading to adequate "
+     "calibration and evaluate policy comparisons in the context of each — in this way we begin "
+     "to take account of parameter uncertainty in the answer to the policy question."),
 
     ("Calibration", "Uncertainty quantification",
      "Accepted runs differ in their random-number seeds, capturing stochastic variability. "
@@ -654,38 +656,37 @@ def make_t4(agg: dict, out_dir: Path) -> None:
         return
     bi = _clean_df(bi)
 
-    # Attach hospital-acquired % target column from static lookup (matched on bacteria name)
-    def _ha_target(name: str) -> str:
-        key = str(name).strip().lower()
-        v = _HA_PCT_TARGETS.get(key)
-        return f"{v:.0f}" if v is not None else "—"
-    bi.insert(
-        bi.columns.get_loc("Hospital Acquired (%)") + 1,
-        "Hospital Acquired target (%)",
-        bi["Bacteria"].apply(_ha_target) if "Bacteria" in bi.columns else "—",
-    )
-
     display_cols = [
         "Bacteria",
         "Infection observed estimate (%)", "Infection simulation (%)",
-        "Hospital Acquired (%)", "Hospital Acquired target (%)",
         "Carriage observed estimate (%)", "Carriage simulation (%)",
     ]
     present = [c for c in display_cols if c in bi.columns]
     table_df = bi[present] if present else bi
 
+    # Summary row: sum each numeric column across all bacteria.
+    # Because each prevalence figure is an independent % of the world population
+    # (a person can carry multiple organisms simultaneously), the sum gives the
+    # pooled cross-organism burden, not a probability — hence the label "pooled sum".
+    numeric_cols = [c for c in table_df.columns if c != "Bacteria"]
+    summary: dict = {"Bacteria": "All organisms (pooled sum)"}
+    for col in numeric_cols:
+        vals = pd.to_numeric(table_df[col], errors="coerce")
+        summary[col] = round(float(vals.sum()), 2)
+    summary_row = pd.DataFrame([summary], columns=table_df.columns)
+    table_df = pd.concat([table_df, summary_row], ignore_index=True)
+
     footnotes = [
         _window_note(n),
         "Infection prevalence is the percentage of the global population with an active "
         "bacterial infection from the specified organism on an average day.",
-        "Hospital-acquired (%) is the proportion of simulated new infections where "
-        "acquisition occurred during hospitalisation. The adjacent target column gives "
-        "literature-based central estimates (range: ±10–15 pp) derived from ECDC EARS-Net, "
-        "WHO HAI surveillance, INICC, and organism-specific published epidemiology (~2015–2024); "
-        "these serve as calibration checks rather than hard targets.",
         "Carriage estimates represent the percentage of the global population colonised "
         "asymptomatically in the gut or upper respiratory microbiome. Sources are given in "
         "the model description (Section 8).",
+        "The bottom row pools across all 42 organisms by summing each column. Because a "
+        "single person may carry or be infected by multiple organisms simultaneously, the "
+        "pooled sum can exceed 100% and should be read as a total burden figure rather "
+        "than a population prevalence.",
     ]
 
     body  = _html_head("Table 4 — Bacterial Infection and Carriage Prevalence")
@@ -694,42 +695,128 @@ def make_t4(agg: dict, out_dir: Path) -> None:
         "<h1>Table 4. Bacterial infection prevalence and microbiome carriage "
         "(% world population), 2025</h1>\n"
     )
-    body += _html_table(table_df)
+    body += _html_table(table_df, total_marker="all organisms")
     body += _html_footnotes(footnotes)
     body += "</body></html>"
     _save(out_dir / "main" / "T4_bacteria_burden.html", body)
 
 
 # ---------------------------------------------------------------------------
-# Table T5 — Resistance Calibration Fit by Organism
+# Table T5 — Hospital vs. Community Resistance by Organism
 # ---------------------------------------------------------------------------
 
 def make_t5(agg: dict, out_dir: Path) -> None:
-    rb  = agg.get("resistance_per_bacteria", pd.DataFrame()).copy()
+    srl = agg.get("serious_resistance_locus", pd.DataFrame())
+    ril = agg.get("resistance_incidence_locus", pd.DataFrame())
+    bi  = agg.get("bacteria_infections", pd.DataFrame())
     n   = agg.get("n_runs", 1)
-    if rb is None or rb.empty:
+
+    if srl is None or srl.empty:
         return
-    rb = _clean_df(rb)
+
+    # Filter on the H:C target BEFORE _clean_df, because _clean_df renames every
+    # column containing "target" → "observed estimate", which would break the lookup.
+    target_col = "Target H:C ratio"
+    hc_col_present = target_col in srl.columns
+    if hc_col_present:
+        # Drop summary-stat rows (non-bacteria text in first column)
+        first_col = srl.columns[0]
+        summary_mask = srl[first_col].astype(str).str.match(
+            r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False
+        )
+        srl = srl[~summary_mask].copy()
+
+        srl[target_col] = pd.to_numeric(srl[target_col], errors="coerce")
+        included_raw = srl[srl[target_col] > 1.0].copy()
+        excluded_raw = srl[srl[target_col].notna() & (srl[target_col] <= 1.0)].copy()
+    else:
+        included_raw = srl.copy()
+        excluded_raw = pd.DataFrame()
+
+    srl = _clean_df(included_raw)
+    ril = _clean_df(ril.copy()) if ril is not None and not ril.empty else pd.DataFrame()
+    bi  = _clean_df(bi.copy())  if bi  is not None and not bi.empty  else pd.DataFrame()
+
+    # `excluded` only needed for the footnote — keep the Bacteria column from the raw slice.
+    excluded = _clean_df(excluded_raw) if not excluded_raw.empty else pd.DataFrame()
+    included = srl  # already filtered and cleaned
+
+    # Build output table — start from serious-R columns
+    keep_srl = ["Bacteria", "Hospital Serious-R (%)", "Community Serious-R (%)"]
+    out = included[[c for c in keep_srl if c in included.columns]].copy()
+
+    # Merge any-R columns from resistance_incidence_locus
+    if not ril.empty and "Bacteria" in ril.columns:
+        any_r_cols = ["Bacteria", "Hospital any-R (%)", "Community any-R (%)"]
+        ril_sub = ril[[c for c in any_r_cols if c in ril.columns]].copy()
+        out = out.merge(ril_sub, on="Bacteria", how="left")
+
+    # Merge hospital-acquired % from bacteria_infections
+    if not bi.empty and "Bacteria" in bi.columns:
+        ha_col = "Hospital Acquired (%)"
+        if ha_col in bi.columns:
+            out = out.merge(bi[["Bacteria", ha_col]], on="Bacteria", how="left")
+
+    # Reorder columns: Bacteria | HA% | H any-R | C any-R | H serious-R | C serious-R
+    desired_order = [
+        "Bacteria",
+        "Hospital Acquired (%)",
+        "Hospital any-R (%)",
+        "Community any-R (%)",
+        "Hospital Serious-R (%)",
+        "Community Serious-R (%)",
+    ]
+    out = out[[c for c in desired_order if c in out.columns]]
+
+    # Summary row: unweighted mean across all included organisms for each % column.
+    # A plain sum would be meaningless here because columns are percentages on different
+    # denominators (hospital-acquired vs community-acquired sub-populations).
+    # An unweighted mean gives a single-number cross-organism comparison consistent with
+    # how multi-organism resistance summaries are reported in surveillance literature.
+    numeric_cols = [c for c in out.columns if c != "Bacteria"]
+    summary: dict = {"Bacteria": "All included organisms (mean)"}
+    for col in numeric_cols:
+        vals = pd.to_numeric(out[col], errors="coerce")
+        summary[col] = round(float(vals.mean()), 1)
+    summary_row = pd.DataFrame([summary], columns=out.columns)
+    out = pd.concat([out, summary_row], ignore_index=True)
+
+    # Footnote: list the excluded organisms (target H:C = 1.0)
+    if not excluded.empty and "Bacteria" in excluded.columns:
+        excl_names = sorted(str(v) for v in excluded["Bacteria"].dropna().unique())
+        excl_list = "; ".join(excl_names)
+    else:
+        excl_list = "none"
 
     footnotes = [
         _window_note(n),
-        "Mean |Δ| (pp) is the mean absolute deviation between the simulated percentage of "
-        "infections with any resistance to each drug and the corresponding surveillance estimate, "
-        "in percentage points, averaged over all drug combinations with non-negligible potency "
-        "for that organism.",
-        "Resistance surveillance estimates are derived from ECDC EARS-Net, WHO GLASS, ATLAS, "
-        "TESSY, and organism-specific published literature (approximately 2020–2025).",
-        "<em>Mycobacterium tuberculosis</em> (MDR) and <em>Listeria monocytogenes</em> are "
-        "excluded from the summary.",
-        "A planned revision will replace mean |Δ| with a per-drug resistance prevalence "
-        "summary once the calibration output format is extended to include per-drug weighted "
-        "resistance rates by organism.",
+        "This table includes only organisms for which there is at least some empirical suggestion "
+        "that hospital-acquired cases carry higher resistance levels than community-acquired cases. "
+        "Operationally, inclusion requires a literature-based target hospital:community (H:C) "
+        "resistance ratio greater than 1.0 for the organism's marker drug. "
+        f"Organisms with target H:C&nbsp;=&nbsp;1.0 are excluded ({excl_list}).",
+        "Hospital-acquired (%) is the simulated proportion of new infections acquired during "
+        "hospitalisation.",
+        "Hospital any-R (%) and Community any-R (%) are the percentages of new hospital- and "
+        "community-acquired infections, respectively, carrying any resistance mechanism, "
+        "averaged across all drugs with non-negligible potency for that organism.",
+        "Hospital serious-R (%) and Community serious-R (%) use a single clinically important "
+        "marker drug per organism (e.g. meropenem for Gram-negatives, flucloxacillin for "
+        "<em>S. aureus</em>, vancomycin for enterococci) to give a focused hospital vs. "
+        "community resistance comparison.",
+        "The bottom row gives the unweighted mean across all included organisms. Because each "
+        "column is a percentage on a different denominator (hospital-acquired vs. community-acquired "
+        "infections for that specific organism), summation is not meaningful; the unweighted mean "
+        "is consistent with multi-organism summaries in AMR surveillance literature.",
     ]
 
-    body  = _html_head("Table 5 — Resistance Calibration Fit")
+    body  = _html_head("Table 5 — Hospital vs. Community Resistance by Organism")
     body += _back_link()
-    body += "<h1>Table 5. Resistance calibration fit by organism, 2025</h1>\n"
-    body += _html_table(rb)
+    body += (
+        "<h1>Table 5. Hospital- vs. community-acquired infection resistance "
+        "by organism, 2025</h1>\n"
+    )
+    body += _html_table(out, total_marker="all included organisms")
     body += _html_footnotes(footnotes)
     body += "</body></html>"
     _save(out_dir / "main" / "T5_resistance_fit.html", body)
@@ -1129,11 +1216,13 @@ def make_f1_resistance_trend(csv_paths: list[Path], out_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Figure F2 — Resistance calibration fit by organism (12-panel bar chart)
+# Figure F2 — Resistance calibration fit by organism (all organisms, dynamic grid)
 # ---------------------------------------------------------------------------
 
-# 12 IHME-priority / WHO-ESKAPE organisms to feature in the figure.
-_F2_ORGANISMS: list[str] = [
+# Preferred display order: IHME/WHO-ESKAPE priority organisms first, then the
+# remainder alphabetically.  Any organism present in the data but not listed
+# here will be appended alphabetically at the end.
+_F2_ORGANISM_ORDER: list[str] = [
     "Escherichia coli",
     "Klebsiella pneumoniae",
     "Staphylococcus aureus",
@@ -1282,8 +1371,8 @@ def _class_summary(
 
 def make_f2_resistance_barplot(agg: dict, out_dir: Path) -> None:
     """
-    Create Figure F2: 12-panel bar chart (4×3 grid) showing infection resistance
-    calibration fit for IHME-priority organisms.
+    Create Figure F2: dynamic grid showing infection resistance calibration fit
+    for all organisms present in the resistance_benchmarks data.
 
     Each panel:
       x-axis — drug classes present for that organism
@@ -1293,18 +1382,25 @@ def make_f2_resistance_barplot(agg: dict, out_dir: Path) -> None:
     """
     rb = agg.get("resistance_benchmarks", pd.DataFrame())
     if rb is None or rb.empty:
-        print("  F1: no resistance_benchmarks data — skipping figure.")
+        print("  F2: no resistance_benchmarks data — skipping figure.")
         return
 
     n_runs = agg.get("n_runs", 1)
     sim_col = "Inf sim (%)"
     tgt_col = "Inf target (%)"
 
-    nrows, ncols = 4, 3
-    fig, axes = plt.subplots(nrows, ncols, figsize=(18, 14))
+    # Build full organism list: priority order first, then remaining alphabetically.
+    all_organisms_in_data = sorted(rb["Bacteria"].dropna().unique().tolist())
+    ordered = [o for o in _F2_ORGANISM_ORDER if o in all_organisms_in_data]
+    ordered += sorted(o for o in all_organisms_in_data if o not in ordered)
+
+    ncols = 4
+    nrows = math.ceil(len(ordered) / ncols)
+    fig_height = max(14, 3.8 * nrows)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(22, fig_height))
     axes_flat = axes.flatten()
 
-    for panel_idx, organism in enumerate(_F2_ORGANISMS):
+    for panel_idx, organism in enumerate(ordered):
         ax = axes_flat[panel_idx]
         org_rows = rb[rb["Bacteria"] == organism].copy()
 
@@ -1383,8 +1479,8 @@ def make_f2_resistance_barplot(agg: dict, out_dir: Path) -> None:
         title_str = organism
         ax.set_title(title_str, fontsize=8.5, fontstyle="italic", pad=3)
 
-    # Hide any unused panels (if _F1_ORGANISMS < nrows*ncols)
-    for idx in range(len(_F2_ORGANISMS), nrows * ncols):
+    # Hide any unused panels
+    for idx in range(len(ordered), nrows * ncols):
         axes_flat[idx].axis("off")
 
     # Figure-level legend and title
@@ -1440,8 +1536,8 @@ def make_f2_resistance_barplot(agg: dict, out_dir: Path) -> None:
     body += _html_footnotes([
         "Drug class resistance within a panel is averaged across all specific drugs in that class.",
         "Drugs marked 'negligible potency' in the simulation are excluded from class averages.",
-        "Organisms included are selected based on the IHME 2019 Global Burden of Antimicrobial "
-        "Resistance priority pathogen list.",
+        "All organisms with resistance benchmark data in the simulation output are included. "
+        "IHME/WHO-ESKAPE priority organisms are shown first, remainder alphabetically.",
     ])
     body += "</body></html>"
     html_path = out_dir / "main" / "F2_resistance_fit.html"
@@ -1474,10 +1570,10 @@ def make_index(agg: dict, out_dir: Path) -> None:
          "28 antibiotic classes: simulation vs. global use targets"),
         ("main/T4_bacteria_burden.html",
          "Table 4 — Bacterial infection &amp; carriage prevalence",
-         "42 organisms: infection%, hospital-acquired%, carriage%"),
+         "42 organisms: infection%, carriage%"),
         ("main/T5_resistance_fit.html",
-         "Table 5 — Resistance calibration fit by organism",
-         "42 organisms: mean |Δ| pp from surveillance targets"),
+         "Table 5 — Hospital vs. community resistance by organism",
+         "Organisms with H:C target &gt; 1: hospital-acquired%, any-R%, serious-R% by locus"),
         ("main/T6_amr_attributable_deaths_PLACEHOLDER.html",
          "Table 6 — AMR-attributable deaths",
          "Placeholder — requires completed counterfactual runs"),
