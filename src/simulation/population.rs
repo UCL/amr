@@ -98,7 +98,7 @@ pub enum ResistanceMechanism {
     // --- New mechanisms added to cover previously unmapped drugs ---
     MutationFolatePathway,   // sul1/2/3 + dfrA: sulfanilamide, trim_sulf
     MutationNitroreductase,  // nim genes, nfsA/B loss: metronidazole, nitrofurantoin, furazolidone
-    EnzymeFosA,              // fosA/B/C metalloenzymes: fosfomycin
+    EnzymeFos,              // fosA/B/C metalloenzymes: fosfomycin
     MutationMprF,            // mprF/liaFSR membrane modification: daptomycin
     MutationRpoB,            // RNA polymerase β-subunit mutation: fidaxomicin (rifampicin resistance modeled via MDR TB bacteria parameters)
     ProtectionFusB,          // fusB/fusC protection proteins: fusidic_a
@@ -145,7 +145,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::GlobalPorinLoss,
             ResistanceMechanism::MutationFolatePathway,
             ResistanceMechanism::MutationNitroreductase,
-            ResistanceMechanism::EnzymeFosA,
+            ResistanceMechanism::EnzymeFos,
             ResistanceMechanism::MutationMprF,
             ResistanceMechanism::MutationRpoB,
             ResistanceMechanism::ProtectionFusB,
@@ -197,7 +197,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::GlobalPorinLoss => "global_porin_loss",
             ResistanceMechanism::MutationFolatePathway => "mutation_folate_pathway",
             ResistanceMechanism::MutationNitroreductase => "mutation_nitroreductase",
-            ResistanceMechanism::EnzymeFosA => "enzyme_fos_a",
+            ResistanceMechanism::EnzymeFos => "enzyme_fos",
             ResistanceMechanism::MutationMprF => "mutation_mpr_f",
             ResistanceMechanism::MutationRpoB => "mutation_rpo_b",
             ResistanceMechanism::ProtectionFusB => "protection_fus_b",
@@ -665,8 +665,10 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // Folate pathway mutations: primarily Enterobacterales, but also Staph, Strep, others
         MutationFolatePathway => mask_for_groups(BacteriaGroup::all()),
 
-        // Nitroreductase loss: anaerobes (metronidazole), Enterobacterales (nitrofurans)
+        // Nitroreductase loss: anaerobes (metronidazole), Enterobacterales (nitrofurans),
+        // and Gram-positives (nfsA/B homologs in Enterococcus, Staphylococcus — nitrofurans)
         MutationNitroreductase => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Anaerobe,
@@ -674,8 +676,10 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Helicobacter, // Added for H. pylori Metronidazole resistance
         ]),
 
-        // FosA: primarily Gram-negative (plasmid-mediated)
-        EnzymeFosA => mask_for_groups(&[
+        // FosA (Gram-negative) and FosB (Gram-positive): both plasmid-mediated fosfomycin
+        // modifying enzymes with equivalent model behaviour — grouped as EnzymeFos
+        EnzymeFos => mask_for_groups(&[
+            BacteriaGroup::GramPositive,
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
             BacteriaGroup::EntericPathogen,
@@ -765,7 +769,7 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         TargetSiteCfr => true,                 // cfr on plasmids
         EnzymeCat => true,                     // cat genes on plasmids / transposons
         ModificationMcr1 => true,              // mcr-1 on plasmids
-        EnzymeFosA => true,                    // fosA on plasmids
+        EnzymeFos => true,                    // fosA/B on plasmids
         ProtectionFusB => true,                // fusB/fusC on SCC elements
         ProtectionTetM => true,                // tetM on Tn916 conjugative transposons
         MutationFolatePathway => true,         // sul1/2/3, dfrA on integrons / plasmids

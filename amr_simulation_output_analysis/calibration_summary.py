@@ -16,6 +16,10 @@ from .data_loader import DataCache
 from .utils import extract_simulation_run_id
 
 LOG_RATIO_FLOOR_VALUE = 1e-3  # floor simulation values to 0.001 units before log ratios
+REPO_ROOT = Path(__file__).resolve().parents[1]
+POTENCY_AUDIT_MATRIX_PATH = REPO_ROOT / "potency_audit_matrix.csv"
+NON_NEGLIGIBLE_POTENCY_CUTOFF = 0.15
+_BASELINE_POTENCY_LOOKUP_CACHE: Optional[Dict[Tuple[str, str], float]] = None
 
 DEFAULT_CALIBRATION_SCORE_CONFIG: Dict[str, object] = {
     "enabled": True,
@@ -896,6 +900,41 @@ def _normalize_drug_slug(name: str) -> str:
     return DRUG_SLUG_NORMALIZATION_OVERRIDES.get(slug, slug)
 
 
+def _load_baseline_potency_lookup() -> Dict[Tuple[str, str], float]:
+    global _BASELINE_POTENCY_LOOKUP_CACHE
+
+    if _BASELINE_POTENCY_LOOKUP_CACHE is not None:
+        return _BASELINE_POTENCY_LOOKUP_CACHE
+
+    if not POTENCY_AUDIT_MATRIX_PATH.exists():
+        _BASELINE_POTENCY_LOOKUP_CACHE = {}
+        return _BASELINE_POTENCY_LOOKUP_CACHE
+
+    audit_df = pd.read_csv(POTENCY_AUDIT_MATRIX_PATH)
+    required_columns = {"bacteria", "drug", "potency_no_r"}
+    if audit_df.empty or not required_columns.issubset(audit_df.columns):
+        _BASELINE_POTENCY_LOOKUP_CACHE = {}
+        return _BASELINE_POTENCY_LOOKUP_CACHE
+
+    lookup: Dict[Tuple[str, str], float] = {}
+    for _, row in audit_df.iterrows():
+        bacteria_value = row.get("bacteria")
+        drug_value = row.get("drug")
+        potency_value = row.get("potency_no_r")
+        if pd.isna(bacteria_value) or pd.isna(drug_value) or pd.isna(potency_value):
+            continue
+        lookup[
+            (_slugify_bacteria_value(str(bacteria_value)), _normalize_drug_slug(str(drug_value)))
+        ] = float(potency_value)
+
+    _BASELINE_POTENCY_LOOKUP_CACHE = lookup
+    return _BASELINE_POTENCY_LOOKUP_CACHE
+
+
+def _baseline_potency_for_pair(bacteria_slug: str, drug_slug: str) -> Optional[float]:
+    return _load_baseline_potency_lookup().get((bacteria_slug, _normalize_drug_slug(drug_slug)))
+
+
 def _compute_population_scale(year_df: pd.DataFrame, world_population: Optional[float]) -> float:
     if world_population is None or world_population <= 0:
         return 1.0
@@ -1279,6 +1318,11 @@ def _calculate_resistance_table(
         bacteria_name, drug_name = combo_display.get((b_slug, d_slug), (b_slug.replace("_", " "), d_slug.replace("_", " ")))
 
         note_parts = []
+        baseline_potency = _baseline_potency_for_pair(b_slug, d_slug)
+        if baseline_potency is not None and baseline_potency < NON_NEGLIGIBLE_POTENCY_CUTOFF:
+            note_parts.append(
+                f"negligible potency (baseline potency < {NON_NEGLIGIBLE_POTENCY_CUTOFF:.2f})"
+            )
 
         prevalence_target_raw, prevalence_reason = prevalence_lookup.get((b_slug, d_slug), (np.nan, ""))
         if prevalence_reason:
@@ -1674,6 +1718,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
         "Bacteria",
         "Marker drug(s)",
         "Total New Infections",
+        "Overall Serious-R (%)",
         "Hospital Serious-R (%)",
         "Community Serious-R (%)",
         "Sim H:C ratio",
@@ -1763,14 +1808,21 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
 
         hosp_r_vals = []
         comm_r_vals = []
+        overall_r_vals = []
         for d_slug, (h_sum, c_sum) in drug_totals.items():
             if hosp_n > 0:
                 hosp_r_vals.append(h_sum / hosp_n * 100.0)
             if comm_n > 0:
                 comm_r_vals.append(c_sum / comm_n * 100.0)
+            total_n = hosp_n + comm_n
+            if total_n > 0:
+                overall_r_vals.append((h_sum + c_sum) / total_n * 100.0)
 
         hosp_r_pct = float(np.mean(hosp_r_vals)) if hosp_r_vals else np.nan
         comm_r_pct = float(np.mean(comm_r_vals)) if comm_r_vals else np.nan
+        overall_r_pct = float(np.mean(overall_r_vals)) if overall_r_vals else np.nan
+        if np.isfinite(overall_r_pct):
+            overall_r_pct = float(np.clip(overall_r_pct, 0.0, 100.0))
         if np.isfinite(hosp_r_pct):
             hosp_r_pct = float(np.clip(hosp_r_pct, 0.0, 100.0))
         if np.isfinite(comm_r_pct):
@@ -1787,6 +1839,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
             "Bacteria": display_name,
             "Marker drug(s)": ", ".join(serious_drugs),
             "Total New Infections": total_newly_infected,
+            "Overall Serious-R (%)": overall_r_pct,
             "Hospital Serious-R (%)": hosp_r_pct,
             "Community Serious-R (%)": comm_r_pct,
             "Sim H:C ratio": sim_ratio,
@@ -3698,6 +3751,7 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
 
         serious_locus_df = context.get("serious_resistance_locus_df")
         if serious_locus_df is not None and not serious_locus_df.empty:
+            s_overall_col = "Overall Serious-R (%)"
             s_hosp_col = "Hospital Serious-R (%)"
             s_comm_col = "Community Serious-R (%)"
             s_sim_col = "Sim H:C ratio"
@@ -3706,6 +3760,11 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             s_valid_mask = serious_locus_df[s_hosp_col].notna() & serious_locus_df[s_comm_col].notna()
             s_valid = serious_locus_df.loc[s_valid_mask]
             if not s_valid.empty:
+                s_mean_overall = (
+                    s_valid[s_overall_col].mean()
+                    if s_overall_col in serious_locus_df.columns
+                    else np.nan
+                )
                 s_mean_hosp = s_valid[s_hosp_col].mean()
                 s_mean_comm = s_valid[s_comm_col].mean()
                 s_hc_valid = []
@@ -3720,6 +3779,8 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     if s_hc_valid else np.nan
                 )
                 handle.write("Serious Resistance Locus Summary (hospital vs community)\n")
+                if np.isfinite(s_mean_overall):
+                    handle.write(f"- Mean overall serious-R: {s_mean_overall:.2f}%\n")
                 handle.write(f"- Mean hospital serious-R: {s_mean_hosp:.2f}%\n")
                 handle.write(f"- Mean community serious-R: {s_mean_comm:.2f}%\n")
                 if np.isfinite(s_weighted_log):

@@ -249,6 +249,12 @@ DETAIL_PLOT_PATTERNS = {
         r'.*_resistance_source_.*',
         #r'.*_new_resistance_.*',
     ],
+    # global_antibiotic_activity: needs _currently_infected and _sum_any_r_ columns
+    # (~1820 columns — same footprint as mean_any_r plots)
+    'global_antibiotic_activity': [
+        r'.*_currently_infected$',
+        r'.*_sum_any_r_(?!hospital).*',   # exclude hospital split variants
+    ],
 }
 
 

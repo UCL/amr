@@ -86,7 +86,7 @@ use crate::config::{
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
     parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
     RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
-    RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY, RUN_PATHWAY_HGT_MULTIPLIER_KEY,
+    RUN_PATHWAY_HGT_MULTIPLIER_KEY,
     RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_ACQUISITION_MULTIPLIER_KEY,
     RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY,
@@ -615,7 +615,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         ),
 
         // FosA metalloenzyme: fosfomycin-modifying enzyme
-        EnzymeFosA => matches!(drug, "fosfomycin"),
+        EnzymeFos => matches!(drug, "fosfomycin"),
 
         // MprF membrane charge modification: daptomycin resistance
         MutationMprF => matches!(drug, "daptomycin"),
@@ -971,13 +971,10 @@ fn sample_antibiotic_response_multiplier(rng: &mut impl Rng) -> f64 {
     let slow_probability = globals
         .drug_activity_slow_clearance_probability
         .clamp(0.0, 1.0);
-    let drug_activity_sampling_multiplier =
-        get_global_param(RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY).unwrap_or(1.0);
-
     if slow_probability > 0.0 && rng.gen_bool(slow_probability) {
-        globals.drug_activity_slow_clearance_multiplier * drug_activity_sampling_multiplier
+        globals.drug_activity_slow_clearance_multiplier
     } else {
-        globals.drug_activity_to_bacteria_level_multiplier * drug_activity_sampling_multiplier
+        globals.drug_activity_to_bacteria_level_multiplier
     }
 }
 
@@ -999,8 +996,7 @@ fn mark_new_treatment_course(
 fn clear_treatment_tracking(individual: &mut Individual, bacteria_idx: usize) {
     let base_multiplier = parameter_store()
         .globals
-        .drug_activity_to_bacteria_level_multiplier
-        * get_global_param(RUN_PATHWAY_DRUG_ACTIVITY_MULTIPLIER_KEY).unwrap_or(1.0);
+        .drug_activity_to_bacteria_level_multiplier;
     individual.bacteria_level_at_drug_start[bacteria_idx] = None;
     individual.days_on_current_treatment[bacteria_idx] = -1;
     individual.treatment_failure_assessed[bacteria_idx] = false;
@@ -1347,11 +1343,17 @@ impl ParameterKeyCache {
                     };
 
                     // Prevent acquired mechanisms from applying if the bacteria is intrinsically
-                    // resistant (negligible potency: <= 0.1), but preserve explicit overrides and
-                    // any bacterium-drug pairs that intentionally carry a configured resistance floor.
+                    // resistant (baseline potency below the global non-negligible threshold), but
+                    // preserve explicit overrides and any bacterium-drug pairs that intentionally
+                    // carry a configured resistance floor.
                     let potency = store.drug_bacteria.potency(b_idx, d_idx);
+                    let negligible_potency_threshold =
+                        store.globals.minimal_potency_threshold_for_drug_selection;
                     let has_floor_target = get_resistance_floor_target(bacteria_name, drug_name) > 0.0;
-                    if potency <= 0.1 && !has_explicit_override && !has_floor_target {
+                    if potency < negligible_potency_threshold
+                        && !has_explicit_override
+                        && !has_floor_target
+                    {
                         applies = false;
                     }
 
@@ -1487,14 +1489,14 @@ pub(crate) fn apply_rules(
         .minimal_potency_threshold_for_drug_selection
         .unwrap_or(store.globals.minimal_potency_threshold_for_drug_selection);
     let counterfactual_resistance_multiplier = policy.counterfactual_resistance_multiplier.unwrap_or(1.0);
+    // Four-axis calibration mode: each retained axis is a single pathway-specific
+    // multiplier (no extra global compounding term).
     let infection_de_novo_multiplier =
-        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0)
-        * store.globals.infection_de_novo_multiplier;
+        get_global_param(RUN_PATHWAY_INFECTION_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0);
     let microbiome_de_novo_multiplier =
         get_global_param(RUN_PATHWAY_MICROBIOME_DE_NOVO_MULTIPLIER_KEY).unwrap_or(1.0)
         * store.globals.microbiome_de_novo_multiplier;
-    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0)
-        * store.globals.hgt_multiplier;
+    let hgt_multiplier = get_global_param(RUN_PATHWAY_HGT_MULTIPLIER_KEY).unwrap_or(1.0);
     let reversion_rate_sampling_multiplier =
         get_global_param(RUN_PATHWAY_REVERSION_RATE_MULTIPLIER_KEY).unwrap_or(1.0);
     let carrier_inheritance_sampling_multiplier =
@@ -4375,8 +4377,7 @@ pub(crate) fn apply_rules(
                         } else {
                             1.0
                         };
-                        let microbiome_r_multiplier = store.globals.microbiome_resistance_multiplier_on_acquisition
-                            * microbiome_acquisition_sampling_multiplier
+                        let microbiome_r_multiplier = microbiome_acquisition_sampling_multiplier
                             * hospital_r_boost
                             * community_microbiome_dilution;
 
@@ -4553,7 +4554,6 @@ pub(crate) fn apply_rules(
                                     };
                                     let mechanism_reversion_rate =
                                         store.resistance_mechanism.reversion_rate(mechanism_idx)
-                                        * store.globals.mechanism_reversion_rate_global_multiplier
                                         * reversion_rate_sampling_multiplier
                                         * community_reversion_mult;
                                     if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
@@ -5451,7 +5451,6 @@ pub(crate) fn apply_rules(
                             };
                             let mechanism_reversion_rate =
                                 store.resistance_mechanism.reversion_rate(mechanism_idx)
-                                * store.globals.mechanism_reversion_rate_global_multiplier
                                 * reversion_rate_sampling_multiplier
                                 * community_reversion_mult;
 

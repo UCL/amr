@@ -608,6 +608,9 @@ def create_detail_plots(data: pd.DataFrame, config: PlotConfig) -> None:
     # Additional plots can be added here as they are implemented
     if config.death_rate_by_bacteria:
         create_death_rate_by_bacteria_plots(config, data_cache)
+
+    if config.global_antibiotic_activity:
+        create_global_antibiotic_activity_plots(data, config)
     
     logger.info("Detail plots creation completed")
 
@@ -6806,3 +6809,192 @@ def create_proportion_of_people_with_any_resistance_by_drug_for_each_bacteria_pl
         logger.warning("No proportion resistance plots created")
     else:
         logger.info(f"Created {plots_created} proportion resistance by drug plots")
+
+
+@safe_plot_creation
+def create_global_antibiotic_activity_plots(df: pd.DataFrame, config: PlotConfig) -> None:
+    """
+    Plot Global Antibiotic Activity (GAA) over time for each bacterium.
+
+    GAA(b, t) = Σ_{drugs d introduced by t}  potency(b,d) × (1 − mean_any_r(b,d,t))
+
+    where mean_any_r(b,d,t) = sum_any_r(b,d,t) / currently_infected(b,t).
+
+    Produces:
+    - One PNG per bacterium saved under output_dir/global_antibiotic_activity/
+    - A summary panel figure showing all bacteria together.
+    - A CSV of the computed GAA time series.
+    """
+    print("\n=== CREATING GLOBAL ANTIBIOTIC ACTIVITY PLOTS ===")
+
+    # ------------------------------------------------------------------ #
+    # 1. Load static tables from config.rs                               #
+    # ------------------------------------------------------------------ #
+    project_root = Path(__file__).resolve().parents[2]
+    config_rs_path = project_root / "src" / "config.rs"
+
+    try:
+        import sys as _sys
+        if str(project_root) not in _sys.path:
+            _sys.path.insert(0, str(project_root))
+        from compute_global_antibiotic_activity import (
+            parse_potency_matrix,
+            parse_drug_intro_dates,
+            DRUG_NAMES,
+        )
+        potency_matrix = parse_potency_matrix(config_rs_path)
+        drug_intro_dates = parse_drug_intro_dates(config_rs_path)
+    except Exception as exc:
+        print(f"  [ERROR] Could not load static tables from config.rs: {exc}")
+        return
+
+    # ------------------------------------------------------------------ #
+    # 2. Identify bacteria present in this df                            #
+    # ------------------------------------------------------------------ #
+    bacteria_names = []
+    for col in df.columns:
+        if col.endswith("_currently_infected") and col != "total_currently_infected":
+            bacteria_names.append(col[: -len("_currently_infected")])
+
+    if not bacteria_names:
+        print("  [WARNING] No _currently_infected columns found; skipping GAA plots.")
+        return
+
+    # Apply include_bacteria filter
+    allowed_filter = _build_normalized_filter(config.include_bacteria)
+    if allowed_filter is not None:
+        bacteria_names = [
+            b for b in bacteria_names
+            if _normalize_identifier(b) in allowed_filter
+        ]
+
+    intro_ts = np.array(
+        [drug_intro_dates.get(d, 10**9) for d in DRUG_NAMES], dtype=np.int64
+    )
+    time_steps = df["time_step"].to_numpy(dtype=np.int64)
+    drug_available = (time_steps[:, None] >= intro_ts[None, :]).astype(np.float64)
+
+    smoothing = getattr(config, "smoothing_window_days", 365)
+
+    # ------------------------------------------------------------------ #
+    # 3. Compute GAA per bacterium                                       #
+    # ------------------------------------------------------------------ #
+    gaa_records: dict[str, np.ndarray] = {}
+
+    for bact in bacteria_names:
+        if bact not in potency_matrix:
+            print(f"  [SKIP] {bact} — not in potency table")
+            continue
+
+        potency = potency_matrix[bact]
+        count = df[f"{bact}_currently_infected"].to_numpy(dtype=np.float64)
+        safe_count = np.where(count > 0, count, np.nan)
+
+        gaa = np.zeros(len(df), dtype=np.float64)
+        for d_idx, drug in enumerate(DRUG_NAMES):
+            pot = potency[d_idx]
+            if pot == 0.0:
+                continue
+            col = f"{bact}_sum_any_r_{drug}"
+            if col in df.columns:
+                sum_r = df[col].to_numpy(dtype=np.float64)
+                mean_r = np.where(count > 0, sum_r / safe_count, 0.0).clip(0.0, 1.0)
+            else:
+                mean_r = np.zeros(len(df))
+            gaa += pot * (1.0 - mean_r) * drug_available[:, d_idx]
+
+        gaa_records[bact] = gaa
+
+    if not gaa_records:
+        print("  [WARNING] GAA could not be computed for any bacterium.")
+        return
+
+    # ------------------------------------------------------------------ #
+    # 4. Output directory and CSV                                        #
+    # ------------------------------------------------------------------ #
+    output_dir = config.output_dir / "global_antibiotic_activity"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    id_cols = [c for c in ["time_step", "policy_option", "run_id", "time_in_years"] if c in df.columns]
+    gaa_df = df[id_cols].copy()
+    for bact, arr in gaa_records.items():
+        gaa_df[f"{bact}_gaa"] = arr
+
+    csv_path = output_dir / "global_antibiotic_activity.csv"
+    gaa_df.to_csv(csv_path, index=False)
+    print(f"  [CSV] GAA time series written to {csv_path}")
+
+    time_axis = df["time_in_years"] if "time_in_years" in df.columns else df["time_step"] / 365.0
+
+    # ------------------------------------------------------------------ #
+    # 5. One plot per bacterium                                          #
+    # ------------------------------------------------------------------ #
+    plots_created = 0
+    for bact, gaa in gaa_records.items():
+        gaa_series = pd.Series(gaa, index=df.index)
+        if smoothing > 1 and len(gaa_series.dropna()) > smoothing:
+            gaa_smooth = gaa_series.rolling(window=smoothing, min_periods=1, center=True).mean()
+        else:
+            gaa_smooth = gaa_series
+
+        # Max possible (all drugs, no resistance)
+        max_gaa = float(potency_matrix[bact].sum())
+
+        fig, ax = plt.subplots(figsize=(14, 5))
+        ax.plot(time_axis, gaa_smooth, linewidth=2, color="steelblue", label="GAA")
+        ax.axhline(max_gaa, color="grey", linewidth=1, linestyle="--", alpha=0.7,
+                   label=f"Max possible ({max_gaa:.1f})")
+
+        title = bact.replace("_", " ").title()
+        ax.set_title(f"Global Antibiotic Activity — {title}", fontsize=13, fontweight="bold")
+        ax.set_xlabel("Time (years)")
+        ax.set_ylabel("GAA (sum of potency × susceptible fraction)")
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        filename = f"gaa_{bact}.png"
+        plt.savefig(output_dir / filename, dpi=config.dpi, bbox_inches="tight")
+        plt.close()
+        plots_created += 1
+
+    print(f"  [DONE] Saved {plots_created} per-bacterium GAA plots.")
+
+    # ------------------------------------------------------------------ #
+    # 6. Summary panel — all bacteria on one figure                     #
+    # ------------------------------------------------------------------ #
+    n = len(gaa_records)
+    ncols = 4
+    nrows = math.ceil(n / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 5, nrows * 3.5),
+                              squeeze=False, constrained_layout=True)
+
+    for ax_idx, (bact, gaa) in enumerate(sorted(gaa_records.items())):
+        row, col = divmod(ax_idx, ncols)
+        ax = axes[row][col]
+
+        gaa_series = pd.Series(gaa, index=df.index)
+        if smoothing > 1 and len(gaa_series.dropna()) > smoothing:
+            gaa_smooth = gaa_series.rolling(window=smoothing, min_periods=1, center=True).mean()
+        else:
+            gaa_smooth = gaa_series
+
+        max_gaa = float(potency_matrix[bact].sum())
+        ax.plot(time_axis, gaa_smooth, linewidth=1.5, color="steelblue")
+        ax.axhline(max_gaa, color="grey", linewidth=0.8, linestyle="--", alpha=0.6)
+        ax.set_title(bact.replace("_", " ").title(), fontsize=8, fontweight="bold")
+        ax.set_xlabel("Year", fontsize=7)
+        ax.set_ylabel("GAA", fontsize=7)
+        ax.tick_params(labelsize=7)
+        ax.grid(True, alpha=0.2)
+
+    # Remove unused axes so constrained_layout isn't confused by empty subplots
+    for empty_idx in range(n, nrows * ncols):
+        row, col = divmod(empty_idx, ncols)
+        fig.delaxes(axes[row][col])
+
+    fig.suptitle("Global Antibiotic Activity by Bacterium", fontsize=14, fontweight="bold")
+    summary_path = output_dir / "gaa_summary_panel.png"
+    plt.savefig(summary_path, dpi=config.dpi)
+    plt.close()
+    print(f"  [DONE] Summary panel saved to {summary_path}")

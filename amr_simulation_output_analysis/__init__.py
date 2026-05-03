@@ -62,6 +62,7 @@ def create_all_plots(config=None):
         'drug_score_summary',
         'basic_plots',
         'source_of_new_resistance_by_drug_bacteria',
+        'global_antibiotic_activity',
     ]
     # Collect names of enabled detail plots for selective column loading
     enabled_detail_plots = [attr for attr in detail_plot_attrs if getattr(config, attr, False)]
@@ -167,6 +168,7 @@ def create_all_plots(config=None):
         config.sepsis_among_infected,
         config.death_causes,
         config.resistance_among_infected,
+        config.global_antibiotic_activity,
         # Add more as needed
     ])
     

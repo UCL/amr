@@ -1,26 +1,37 @@
 
-// TEMPORARY NOTES _ DURING DEVELOPMENT
 //
-// -- additional outputs / thoughts on calibration  ---------------------------------------------------------------------------------
 //
-// maybe publish online results from 1 run with fixed seed and also results using the same fixed seed but changing
-// one parameter value only ?  Can refer to this in supplementary material.
 //
-// case fatality by infection if untreated
+//  ----  plan for paper -----------------------------------------------------------------------------------------
 //
-// look at data on effects of stewardship policies on resistance and see if model can re-produce
+//  get first calibration - for multiple parameters vary randomly from 0.67x to 1.5x - from 2026 three "scenarios"
+//  (i) continue status quo (ii) amr disappears (iii) immediate ast 
 //
-// consider whether can replicate recent antibiotic use as associated with resistance presence
 //
-// add mechanisms present by day to infection journeys
 //
-// need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
-// multiple mechansims
 //
-// relative chance of drug start by infection site
 //
-// need targets for (i) % infections started in hospital by bacteria (ii) % of hospital infections with resistance by bacteria
-// add to calibration summary: death rate from infection by bacteria
+// -- thoughts 1 (needed for paper) ---------------------------------------------------------------------------------
+//  
+// present a global antibiotic activity for each bacteria over time
+// - sum across drugs existing at the time of mean potency x (1 - any_r) amongst those infected with the bacteria
+//
+//  double-check on potency values - another take on resistance by bacteria / drug
+//
+//
+//
+//
+//
+//
+// -- thoughts 2 (consider for paper) ------------------------------------------------------------------------------
+//  
+// separate age categories of 70-80 and 80+ throughout ?
+//
+// have increased risk of strep b, e coli and listeria in women of childbearing age ?
+//
+// additional calibration output - show case fatality by infection if untreated (based )
+//
+// ? drug start distribution by infection site (or is seeing the drug choice rules enough ?)
 //
 // death within 30 days by bacteria, syndrome, age and region ? - make a formal part of calibration 
 // score or just present as an fyi ?
@@ -28,36 +39,28 @@
 // infections with test_r done by x days (by region ?)
 // or proportion of drug treatment days which is empiric (by region and hospital status ?)
 //
-// present a global antibiotic activity for each bacteria over time
-// - sum across drugs existing at the time of 
-//   mean potency x (1 - any_r) amongst those infected with the bacteria
-//
-//
-//
-// -- calibration approach:  
-//
-// maybe come up with ~ 10 different configs that lead to a resonable fit in different ways and run the 
-// policy comparison several times on each 
-//
-// need to check back on drug share in earlier periods as certain drugs might have been used a lot in the 
-// past for a bacteria and now used less due to resistance development
+// https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
 //
 //
 //
 //
-// -- model structure developments to consider ------------------------------------------------------------
 //
-//  should we be reducing the hospital microbiome resistance acquisition as this
-//  must be a mechanism for hospital resistance getting into community ?  (I think we are now making it disappear faster)
 //
-//  separate age categories of 70-80 and 80+ throughout ?
+// -- thoughts 3 (am thinking not needed for paper, but re-review before submission) ------------------------------------------------------------------
+//  
+// ? maybe publish online results from one run with fixed seed and also results using the same fixed seed but changing
+// one parameter value only - so all can see influence of each parameter - could refer to this in supplementary material.
 //
-//  have increased risk of strep b, e coli and listeria in women of childbearing age ?
+// look at data on effects of stewardship policies on resistance and see if model can re-produce
 //
-//  ? add an immunodeficiency-specific empiric broad-spectrum bonus ?
+// ? consider whether can replicate recent antibiotic use as associated with resistance presence
 //
-//  could we do it so that for each bacteria we have 3-5 different calibrations and then for each run
-//  we randomly select which of the parameter sets for each bacteria
+// ? add mechanisms present by day to infection journeys
+//
+// ? need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
+// multiple mechansims
+//
+//
 //
 //
 //
@@ -89,50 +92,18 @@
 // consider more granular breakdown of regions
 // consider adding tb, consider adding fungi
 //
-//
-// calibration data: approx drug usage per 100_000 per calendar year
-//                   incidence of infection with each bacteria by age and calendar year
-//                   deaths from each bacteria per 100_000 by region and calendar year
-//                   resistance distribution for each used drug for each bacteria by calendar year
-//
-// https://ourworldindata.org/antibiotics#:~:text=The%20map%20below%20shows%20the%20data%20collected%20by%20the%20World,(DDDs)%20per%201%2C000%20people.
-//
 // add age and region-specific all cause death rates from wpp/who and try to subtract bacterial
 // infection rates so they are background death rates
 //
-//
-//
-//
-// set up automated testing for the simulation (?) (probably not yet though)
-//
-//
-// comparisons:
-//
-// default combination therapy from (i) 1950 (ii) 1975 (iii) 2000 (iv) 2000 (v) 2025
-// - consider modelling of lower replication capacity of resistant virus in absence of drug
-// - consider if raise this what effect has on emergence rates 
-// - consider effect of having the floor for some bacteria
-// - consider various approaches to choice of the two drugs 
-//
-// other counterfactuals to include in first paper:
-// - stop all antibiotic use  
-// - drug can be started from infection
-// - test_r known at infection and drug can be started
-// - no further existence of resistance (already in)
-//
 // decide on time zero for mda azithromycin project
-//
-// work on initial age distribution to reflect start year and end year and population growth - decide on start and end year
-// for azithromycin mda project
 //
 // ? need poc test for drug level at infection site
 //
 // consider case for real time infection site drug level monitoring 
 //
-// mda with azithromycin is to reduce community incidence as well as treat existing
-// infection
+// mda with azithromycin is to reduce community incidence as well as treat existing infection
 //
-// for mda project can base in africa with an "other" region all groued together
+// for mda project can base in africa with an "other" region all grouped together
 //
 
 
@@ -154,7 +125,6 @@
 //
 //
 
-use amr_project::config;
 use amr_project::config::get_global_param;
 use amr_project::simulation::population::BACTERIA_LIST;
 use amr_project::simulation::simulation::CalibrationMode;
@@ -186,7 +156,6 @@ fn main() {
     let infection_journey_sample_rate = 1.00; // Fraction of eligible infections to log when journey logging is enabled.
     let use_fixed_seed = false; // Toggle to enable deterministic RNG seeding
     let fixed_seed_value: u64 = 1_234_567_890; // Seed used when use_fixed_seed is true
-    let enable_run_parameter_sampling = false; // Run-start latent-pathway sampling for counterfactual/calibration sweeps.
     let infection_journey_bacteria_filter: Option<&str> = None; // Set to Some("escherichia_coli") to log only specific bacteria
 
     // Examples of bacteria filter values (use lowercase with underscores):
@@ -198,18 +167,12 @@ fn main() {
     // None - logs all bacteria types
 
     let seed_override = use_fixed_seed.then_some(fixed_seed_value);
-    let run_parameter_sampling = if enable_run_parameter_sampling {
-        config::RunParameterSamplingConfig::enabled()
-    } else {
-        config::RunParameterSamplingConfig::disabled()
-    };
     let mut simulation = Simulation::new(
         population_size,
         time_steps,
         log_individuals,
         seed_override,
         calibration_mode,
-        run_parameter_sampling,
     );
     let use_disk_branch_checkpointing = false; // Set to keep the branch checkpoint in memory
     let disk_checkpoint_directory: Option<PathBuf> = None; // Override with Some(path) to specify a custom folder

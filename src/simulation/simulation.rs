@@ -11,7 +11,7 @@
 // search below for "printing of variable values for individual 0"
 // when want to print variable values for individual 0 for de-bugging
 
-use crate::config::{self, get_global_param, RunParameterSamplingConfig, SampledParameterRecord}; // Import the config module and get_global_param function
+use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
@@ -50,7 +50,7 @@ const REGION_COUNT: usize = 6;
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const DAYS_PER_YEAR: f64 = 365.0;
-const RUN_PARAMETER_SAMPLING_SALT: u64 = 0x53F1_C9A4_27B6_18DD;
+
 
 /// Controls how much output the simulation writes to `summary_log`.
 ///
@@ -1214,8 +1214,6 @@ pub struct Simulation {
     pub journey_logger: JourneyLogger,
     /// Optional fixed RNG seed for deterministic runs
     pub rng_seed: Option<u64>,
-    /// Sampled run-start parameter values written out for downstream inspection.
-    sampled_parameter_records: Vec<SampledParameterRecord>,
     /// Identifier assigned at the start of each run for downstream joins
     pub run_id: u32,
     /// Flag to suppress side-effects (logging, etc.) when running alternate policy branch.
@@ -1246,14 +1244,7 @@ impl Simulation {
         log_individuals: bool,
         seed: Option<u64>,
         calibration_mode: CalibrationMode,
-        run_parameter_sampling: RunParameterSamplingConfig,
     ) -> Self {
-        let mut sampling_rng = seed
-            .map(|seed_value| SmallRng::seed_from_u64(seed_value ^ RUN_PARAMETER_SAMPLING_SALT))
-            .unwrap_or_else(SmallRng::from_entropy);
-        let sampled_parameter_records =
-            config::activate_run_parameter_sampling(&mut sampling_rng, run_parameter_sampling);
-
         let mut initialization_rng = seed
             .map(SmallRng::seed_from_u64)
             .unwrap_or_else(SmallRng::from_entropy);
@@ -1372,7 +1363,6 @@ impl Simulation {
             mic_lt2_majority_r_thresholds,
             journey_logger: JourneyLogger::new(Some(journey_logger_seed)),
             rng_seed: seed,
-            sampled_parameter_records,
             run_id: 0,
             branch_active: false,
             baseline_policy_adjustments: baseline_policy,
@@ -1383,70 +1373,6 @@ impl Simulation {
             relevant_drugs_by_bacteria,
             calibration_mode,
         }
-    }
-
-    fn write_sampled_parameter_trace(&self) {
-        if self.sampled_parameter_records.is_empty() || self.branch_active {
-            return;
-        }
-
-        let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
-        if let Err(err) = std::fs::create_dir_all(output_dir) {
-            eprintln!(
-                "Warning: unable to create sampled-parameter output directory {:?}: {}",
-                output_dir, err
-            );
-            return;
-        }
-
-        let output_path = output_dir.join(format!("sampled_parameters_{:06}.csv", self.run_id));
-        let mut output_file = match std::fs::File::create(&output_path) {
-            Ok(file) => file,
-            Err(err) => {
-                eprintln!(
-                    "Warning: unable to create sampled-parameter trace {}: {}",
-                    output_path.display(),
-                    err
-                );
-                return;
-            }
-        };
-
-        if let Err(err) = writeln!(
-            output_file,
-            "run_id,record_kind,sampled_quantity,applies_to,baseline_value,sampled_value,transform,draw_value"
-        ) {
-            eprintln!(
-                "Warning: unable to write sampled-parameter header {}: {}",
-                output_path.display(),
-                err
-            );
-            return;
-        }
-
-        for record in &self.sampled_parameter_records {
-            if let Err(err) = writeln!(
-                output_file,
-                "{},{},{},{},{:.12e},{:.12e},{},{:.12e}",
-                self.run_id,
-                record.record_kind,
-                record.sampled_quantity,
-                record.applies_to,
-                record.baseline_value,
-                record.sampled_value,
-                record.transform,
-                record.draw_value
-            ) {
-                eprintln!(
-                    "Warning: unable to finish sampled-parameter trace {}: {}",
-                    output_path.display(),
-                    err
-                );
-                return;
-            }
-        }
-
-        println!("Sampled parameter trace exported to {}", output_path.display());
     }
 
     /// Enable infection journey logging with specified sample rate
@@ -3948,7 +3874,6 @@ impl Simulation {
         }
         self.run_id = new_run_id;
         println!("Simulation run ID: {}", self.run_id);
-        self.write_sampled_parameter_trace();
 
         self.policy_branch_summary_log.clear();
         self.branch_active = false;

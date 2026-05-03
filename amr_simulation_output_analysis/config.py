@@ -110,7 +110,8 @@ class PlotConfig:
     resistance_mechanism_by_bacteria: bool = False
     source_of_new_resistance_by_drug_bacteria: bool = False
     proportion_of_people_with_any_resistance_by_drug_for_each_bacteria: bool = False
-    
+    global_antibiotic_activity: bool = False  # GAA = Σ_drugs potency×(1−mean_any_r) for each bacterium over time
+
     # --- OTHER DETAIL PLOTS ---
     clinical_guideline_analysis: bool = False  # Clinical appropriateness analysis
     resistance_benchmark_bar_charts: bool = False
@@ -252,7 +253,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_307069.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_779565.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity 

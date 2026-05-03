@@ -996,7 +996,7 @@ def make_s4(agg: dict, out_dir: Path) -> None:
     footnotes = [
         _window_note(n),
         "Only organism–drug combinations where the drug has non-negligible potency "
-        "(baseline potency > 0.1) are shown.",
+        "(baseline potency >= 0.15) are shown.",
         "<em>Percent of infections with resistance</em>: percentage of active infections "
         "carrying any resistance to this drug at a point in time "
         "(simulated vs. surveillance estimate).",
@@ -1535,7 +1535,7 @@ def make_f2_resistance_barplot(agg: dict, out_dir: Path) -> None:
     )
     body += _html_footnotes([
         "Drug class resistance within a panel is averaged across all specific drugs in that class.",
-        "Drugs marked 'negligible potency' in the simulation are excluded from class averages.",
+        "Drugs flagged as negligible potency (baseline potency < 0.15) are excluded from class averages.",
         "All organisms with resistance benchmark data in the simulation output are included. "
         "IHME/WHO-ESKAPE priority organisms are shown first, remainder alphabetically.",
     ])

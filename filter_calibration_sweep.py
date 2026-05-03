@@ -1,7 +1,221 @@
 """
 filter_calibration_sweep.py
 
-Batch filter for the multi-stage calibration parameter sweep.
+Calibration metric reporter for the manual 4-world calibration workflow.
+
+For each simulation_summary_{run_id}.csv in the output directory, computes:
+  - The infection resistance simulation mean (%) over the 2022-2025 calibration
+    window, restricted to (bacteria, drug) pairs that have a calibration target.
+  - The overall calibration score, if a matching calibration_summary_{run_id}.txt
+    exists in the summary-txt directory.
+
+Results are printed and written to  calibration_scores.csv  for downstream review.
+No stage thresholds are applied; all runs found are reported.
+
+Usage
+-----
+python filter_calibration_sweep.py
+python filter_calibration_sweep.py --input-dir amr_simulation_output_analysis_outputs
+python filter_calibration_sweep.py --run-ids 123456,789012   # restrict to specific IDs
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+
+# Simulation start year (must match src/config.rs SIMULATION_START_YEAR = 1930).
+SIMULATION_START_YEAR = 1930
+
+# Path to the resistance prevalence targets file.
+RESISTANCE_TARGETS_PATH = Path("data") / "resistance_prevalence_values.csv"
+
+# Calibration window: rows with calendar_year in [2022, 2026).
+CALIBRATION_WINDOW_START = 2022
+CALIBRATION_WINDOW_END = 2026  # exclusive
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _load_valid_bd_pairs(targets_path: Path) -> frozenset:
+    """
+    Parse resistance_prevalence_values.csv and return a frozenset of
+    (b_slug, d_slug) pairs that have a non-missing resistance target.
+    """
+    _B_SLUG_OVERRIDES = {"providencia_stuartii": "p_stuartii"}
+    try:
+        df = pd.read_csv(targets_path)
+    except Exception as exc:
+        print(f"WARNING: could not load resistance targets {targets_path}: {exc}", file=sys.stderr)
+        return frozenset()
+    drug_cols = [c for c in df.columns if c not in ("Bacteria", "notes")]
+    pairs: set = set()
+    for _, row in df.iterrows():
+        b_name = str(row.get("Bacteria", "")).strip()
+        if not b_name:
+            continue
+        b_slug = b_name.strip().lower().replace(" ", "_")
+        b_slug = _B_SLUG_OVERRIDES.get(b_slug, b_slug)
+        for d_col in drug_cols:
+            val = str(row.get(d_col, ".")).strip()
+            if val and val not in (".", "nan"):
+                pairs.add((b_slug, d_col))
+    return frozenset(pairs)
+
+
+def _compute_inf_res_mean(csv_path: Path, valid_bd_pairs: frozenset) -> Optional[float]:
+    """
+    Load a simulation_summary CSV and return the mean infection resistance (%)
+    over the calibration window, restricted to target-defined (bacteria, drug) pairs.
+
+    Mirrors the "Overall Infection Resistance" block in calibration_summary.py.
+    MDR-TB (rifampicin on tuberculosis) and Listeria monocytogenes are excluded.
+    """
+    try:
+        df = pd.read_csv(csv_path, low_memory=False).copy()
+    except Exception as exc:
+        print(f"  WARNING: could not read {csv_path.name}: {exc}", file=sys.stderr)
+        return None
+
+    if "time_in_years" not in df.columns:
+        if "time_step" in df.columns:
+            df["time_in_years"] = pd.to_numeric(df["time_step"], errors="coerce") / 365.0
+        else:
+            print(f"  WARNING: {csv_path.name} has no time_in_years or time_step column", file=sys.stderr)
+            return None
+
+    df["calendar_year"] = SIMULATION_START_YEAR + pd.to_numeric(df["time_in_years"], errors="coerce")
+    mask = (df["calendar_year"] >= CALIBRATION_WINDOW_START) & (df["calendar_year"] < CALIBRATION_WINDOW_END)
+    year_df = df.loc[mask]
+
+    if year_df.empty:
+        available = df["calendar_year"].dropna().unique()
+        if available.size == 0:
+            return None
+        nearest = float(min(available, key=lambda v: abs(v - (CALIBRATION_WINDOW_START + CALIBRATION_WINDOW_END) / 2)))
+        mask = (df["calendar_year"] >= np.floor(nearest)) & (df["calendar_year"] < np.floor(nearest) + 1.0)
+        year_df = df.loc[mask]
+
+    if year_df.empty:
+        return None
+
+    prevalences: list[float] = []
+    for b_slug, d_slug in valid_bd_pairs:
+        if "listeria" in b_slug:
+            continue
+        if "tuberculosis" in b_slug and d_slug == "rifampicin":
+            continue
+        infected_col = f"{b_slug}_currently_infected"
+        if infected_col not in year_df.columns:
+            continue
+        total_infected = float(pd.to_numeric(year_df[infected_col], errors="coerce").fillna(0.0).sum())
+        if total_infected <= 0.0:
+            continue
+        pos_col = f"{b_slug}_infected_with_any_r_positive_{d_slug}"
+        if pos_col not in year_df.columns:
+            continue
+        total_positive = float(pd.to_numeric(year_df[pos_col], errors="coerce").fillna(0.0).sum())
+        prevalences.append(float(np.clip(total_positive / total_infected, 0.0, 1.0) * 100.0))
+
+    return float(np.mean(prevalences)) if prevalences else None
+
+
+def _load_score_from_summary_txt(txt_path: Path) -> Optional[float]:
+    """Extract the overall calibration score from a calibration_summary_*.txt file."""
+    if not txt_path.exists():
+        return None
+    try:
+        text = txt_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
+    match = re.search(r"Overall score:\s*([\d.]+)", text)
+    return float(match.group(1)) if match else None
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Report calibration metrics for all simulation runs in the output directory."
+    )
+    parser.add_argument("--input-dir", type=Path,
+                        default=Path("amr_simulation_output_analysis_outputs"),
+                        help="Directory containing simulation_summary_*.csv files.")
+    parser.add_argument("--run-ids", type=str, default=None,
+                        help="Comma-separated run IDs to process (e.g. 123456,789012). "
+                             "If omitted, all simulation_summary_*.csv files are processed.")
+    parser.add_argument("--output-dir", type=Path, default=Path("."),
+                        help="Directory to write calibration_scores.csv (default: current directory).")
+    parser.add_argument("--summary-txt-dir", type=Path, default=Path("output_graphs"),
+                        help="Directory to search for calibration_summary_*.txt files.")
+    args = parser.parse_args()
+
+    input_dir: Path = args.input_dir
+    output_dir: Path = args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    valid_bd_pairs = _load_valid_bd_pairs(RESISTANCE_TARGETS_PATH)
+    if not valid_bd_pairs:
+        print("ERROR: resistance targets file not found or empty — cannot compute inf_res_mean.", file=sys.stderr)
+        sys.exit(1)
+
+    all_summary_csvs = sorted(input_dir.glob("simulation_summary_*.csv"))
+    if not all_summary_csvs:
+        print(f"No simulation_summary_*.csv files found in {input_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    allowed_ids: Optional[set[str]] = None
+    if args.run_ids is not None:
+        allowed_ids = {rid.strip() for rid in args.run_ids.split(",") if rid.strip()}
+
+    candidate_csvs = [
+        p for p in all_summary_csvs
+        if allowed_ids is None or p.stem.replace("simulation_summary_", "") in allowed_ids
+    ]
+
+    print(f"Processing {len(candidate_csvs)} run(s)...\n")
+
+    rows: list[dict] = []
+    for csv_path in candidate_csvs:
+        run_id_str = csv_path.stem.replace("simulation_summary_", "")
+
+        inf_res_mean = _compute_inf_res_mean(csv_path, valid_bd_pairs)
+
+        txt_path = args.summary_txt_dir / f"calibration_summary_{run_id_str}.txt"
+        score = _load_score_from_summary_txt(txt_path)
+
+        score_str = f"{score:.3f}" if score is not None else "n/a"
+        mean_str = f"{inf_res_mean:.2f}%" if inf_res_mean is not None else "n/a"
+        print(f"  run {run_id_str:>8}  inf_res_mean={mean_str:>8}  overall_score={score_str}")
+
+        rows.append({
+            "run_id": run_id_str,
+            "inf_res_mean_pct": round(inf_res_mean, 3) if inf_res_mean is not None else None,
+            "overall_score": score,
+        })
+
+    if not rows:
+        print("No runs processed.")
+        sys.exit(0)
+
+    out_path = output_dir / "calibration_scores.csv"
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+    print(f"\n{len(rows)} run(s) scored → {out_path}")
+
+
+if __name__ == "__main__":
+    main()
+
 
 For each simulation_summary_{run_id}.csv in the output directory, computes the
 infection resistance simulation mean (%) over the 2022-2025 calibration window
