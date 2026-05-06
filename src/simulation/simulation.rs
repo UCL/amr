@@ -1095,14 +1095,6 @@ pub struct TimeStepSummary {
     // infected_with_bacteria_and_mechanism[bacteria_idx * num_mechanisms + mechanism_idx] = count
     pub infected_with_bacteria_and_mechanism: Vec<usize>,
 
-    // counts of newly acquired resistance by acquisition type this timestep per bacteria-drug combination
-    // Each Vec has length = num_bacteria * num_drugs, indexed as [bacteria_idx * num_drugs + drug_idx]
-    pub new_resistance_at_infection_community_by_bacteria_drug: Vec<usize>,
-    pub new_resistance_hgt_by_bacteria_drug: Vec<usize>,
-    pub new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
-    pub new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
-                pub asymptomatic_microbiome_hgt_events_by_bacteria_drug: Vec<usize>,
-
     // infection resolution tracking: counts by bacteria and resolution type
     // Each Vec has length = num_bacteria * num_resolution_types, indexed as [bacteria_idx * num_resolution_types + resolution_type_idx]
     pub infection_resolution_immune_clearance_by_bacteria: Vec<usize>,
@@ -1604,12 +1596,6 @@ impl Simulation {
                 infected_count_by_region: Vec<usize>,
                 /// per-bacteria, per-resistance-mechanism counts (flat, len = bacteria * mechanisms)
                 infected_with_bacteria_and_mechanism: Vec<usize>,
-                /// counts of newly acquired resistance by acquisition type this timestep per bacteria-drug combination
-                new_resistance_at_infection_community_by_bacteria_drug: Vec<usize>,
-                new_resistance_hgt_by_bacteria_drug: Vec<usize>,
-                new_resistance_from_microbiome_r_by_bacteria_drug: Vec<usize>,
-                new_resistance_de_novo_infection_by_bacteria_drug: Vec<usize>,
-                asymptomatic_microbiome_hgt_events_by_bacteria_drug: Vec<usize>,
                 /// infection resolution tracking: counts by bacteria and resolution type
                 infection_resolution_immune_clearance_by_bacteria: Vec<usize>,
                 infection_resolution_drug_assisted_clearance_by_bacteria: Vec<usize>,
@@ -1772,27 +1758,6 @@ impl Simulation {
                             num_bacteria
                                 * ResistanceMechanism::all()
                                     .len()
-                        ],
-                        new_resistance_at_infection_community_by_bacteria_drug: vec![
-                            0;
-                            num_bacteria
-                                * num_drugs
-                        ],
-                        new_resistance_hgt_by_bacteria_drug: vec![0; num_bacteria * num_drugs],
-                        new_resistance_from_microbiome_r_by_bacteria_drug: vec![
-                            0;
-                            num_bacteria
-                                * num_drugs
-                        ],
-                        new_resistance_de_novo_infection_by_bacteria_drug: vec![
-                            0;
-                            num_bacteria
-                                * num_drugs
-                        ],
-                        asymptomatic_microbiome_hgt_events_by_bacteria_drug: vec![
-                            0;
-                            num_bacteria
-                                * num_drugs
                         ],
                         infection_resolution_immune_clearance_by_bacteria: vec![0; num_bacteria],
                         infection_resolution_drug_assisted_clearance_by_bacteria: vec![
@@ -2232,34 +2197,6 @@ impl Simulation {
                         *a += b;
                     }
                     for (a, b) in self
-                        .new_resistance_at_infection_community_by_bacteria_drug
-                        .iter_mut()
-                        .zip(other.new_resistance_at_infection_community_by_bacteria_drug)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
-                        .new_resistance_hgt_by_bacteria_drug
-                        .iter_mut()
-                        .zip(other.new_resistance_hgt_by_bacteria_drug)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
-                        .new_resistance_from_microbiome_r_by_bacteria_drug
-                        .iter_mut()
-                        .zip(other.new_resistance_from_microbiome_r_by_bacteria_drug)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
-                        .new_resistance_de_novo_infection_by_bacteria_drug
-                        .iter_mut()
-                        .zip(other.new_resistance_de_novo_infection_by_bacteria_drug)
-                    {
-                        *a += b;
-                    }
-                    for (a, b) in self
                         .infection_resolution_immune_clearance_by_bacteria
                         .iter_mut()
                         .zip(other.infection_resolution_immune_clearance_by_bacteria)
@@ -2441,11 +2378,6 @@ impl Simulation {
                             };
 
                             for b_idx in 0..num_bacteria {
-                                if need_full_summary {
-                                    for d_idx in 0..num_drugs {
-                                        lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
-                                    }
-                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     if need_full_summary {
                                         let base = b_idx * num_drugs;
@@ -2684,9 +2616,6 @@ impl Simulation {
                             // Count deaths by bacteria and home region for currently infected individuals
                             let home_region_idx = region_to_index(individual.region_living);
                             for b_idx in 0..num_bacteria {
-                                for d_idx in 0..num_drugs {
-                                    lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
-                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     lt.deaths_infected_by_bacteria_region[b_idx * 6 + home_region_idx] += 1;
                                 }
@@ -2889,11 +2818,6 @@ impl Simulation {
                         let mut individual_has_any_non_h_pylori_infection = false; // Exclude H. pylori for clinical statistics
                         {
                             for b_idx in 0..num_bacteria {
-                                if need_full_summary {
-                                    for d_idx in 0..num_drugs {
-                                        lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
-                                    }
-                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     // Track non-H. pylori infections separately (exclude H. pylori at index 32)
                                     if !is_microbiome_excluded(b_idx) {
@@ -2915,11 +2839,6 @@ impl Simulation {
                                 }
                             }
                             for b_idx in 0..num_bacteria {
-                                if need_full_summary {
-                                    for d_idx in 0..num_drugs {
-                                        lt.asymptomatic_microbiome_hgt_events_by_bacteria_drug[b_idx * num_drugs + d_idx] += individual.asymptomatic_microbiome_hgt_events_today[b_idx][d_idx];
-                                    }
-                                }
                                 if individual.level[b_idx] > INFECTION_EPS {
                                     let is_carrier = individual.presence_microbiome[b_idx];
                                     let mut infection_any_r_positive = false;
@@ -3019,52 +2938,6 @@ impl Simulation {
                                                 lt.newly_infected_with_resistance_count += 1;
                                                 was_newly_infected_with_resistance = true;
                                             }
-                                            // Count resistance by acquisition channel per bacteria-drug combination.
-                                            //
-                                            // TODO: These four channels (+ Asympt HGT) are currently broken and
-                                            // produce 100/0/0/0 for every row. Three issues must be fixed before
-                                            // they become useful:
-                                            //
-                                            // 1. FIRST-WRITER-WINS BIAS — Community sampling (rules/mod.rs ~L4611)
-                                            //    sets how_resistance_acquired for ALL drugs with any mechanism,
-                                            //    unconditionally. The Micro and HGT channels only write where
-                                            //    .is_none(), so they never get credit when community prevalence
-                                            //    is non-zero. Fix: only set AtInfectionCommunity for drugs that
-                                            //    did NOT subsequently gain resistance from microbiome/HGT, or
-                                            //    allow later channels to overwrite.
-                                            //
-                                            // 2. DE NOVO NEVER TAGGED — The de novo mechanism emergence block
-                                            //    (rules/mod.rs ~L4860-4890) sets mechanism_any but never writes
-                                            //    how_resistance_acquired = DeNovoInfection. The archived code
-                                            //    (archive/src/rules/mod.rs L3617) did set it; lost in the
-                                            //    mechanism-centric refactor.
-                                            //
-                                            // 3. COUNTING SEMANTICS — The provenance tag persists for the
-                                            //    infection lifetime, but this counter fires every timestep,
-                                            //    so it accumulates resistant-person-days-by-source rather than
-                                            //    acquisition events. This is potentially fine but the column
-                                            //    header says "newly acquired" which is misleading.
-                                            //
-                                            // Until fixed, skip this aggregation during calibration to save
-                                            // CPU and avoid 5 × B × D = 12,810 zero-valued CSV columns per
-                                            // row. Per-individual how_resistance_acquired tags are still set
-                                            // in rules/mod.rs; we just skip counting them across all
-                                            // individuals every timestep.
-                                            if calibration_mode == CalibrationMode::None {
-                                            if let Some(acq_type) = individual.how_resistance_acquired[b_idx][d_idx] {
-                                                use crate::simulation::population::ResistanceAcquisitionType;
-                                                let index = b_idx * num_drugs + d_idx;
-                                                match acq_type {
-                                                    ResistanceAcquisitionType::AtInfectionCommunity => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1,
-                                                    ResistanceAcquisitionType::AtInfectionTB => lt.new_resistance_at_infection_community_by_bacteria_drug[index] += 1, // Count TB-specific resistance with community
-                                                    ResistanceAcquisitionType::Hgt => lt.new_resistance_hgt_by_bacteria_drug[index] += 1,
-                                                    ResistanceAcquisitionType::FromMicrobiomeR => lt.new_resistance_from_microbiome_r_by_bacteria_drug[index] += 1,
-                                                    ResistanceAcquisitionType::DeNovoInfection => {
-                                                        lt.new_resistance_de_novo_infection_by_bacteria_drug[index] += 1;
-                                                    }
-                                                }
-                                            }
-                                            } // end calibration_mode gate for resistance channel counting
                                         }
                                     }
                                     } // end need_full_summary for post-rules full B×D iteration
@@ -3314,11 +3187,6 @@ impl Simulation {
                 any_r_sum_by_region,
                 infected_count_by_region,
                 infected_with_bacteria_and_mechanism,
-                new_resistance_at_infection_community_by_bacteria_drug,
-                new_resistance_hgt_by_bacteria_drug,
-                new_resistance_from_microbiome_r_by_bacteria_drug,
-                new_resistance_de_novo_infection_by_bacteria_drug,
-                asymptomatic_microbiome_hgt_events_by_bacteria_drug,
                 infection_resolution_immune_clearance_by_bacteria: _,
                 infection_resolution_drug_assisted_clearance_by_bacteria: _,
                 infection_resolution_death_from_sepsis_by_bacteria: _,
@@ -3499,11 +3367,6 @@ impl Simulation {
                 currently_infected_and_on_drug_count: currently_infected_and_on_drug_count,
                 activity_r_sum_by_bacteria,
                 infected_with_bacteria_and_mechanism,
-                new_resistance_at_infection_community_by_bacteria_drug,
-                new_resistance_hgt_by_bacteria_drug,
-                new_resistance_from_microbiome_r_by_bacteria_drug,
-                new_resistance_de_novo_infection_by_bacteria_drug,
-                asymptomatic_microbiome_hgt_events_by_bacteria_drug,
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
                 infection_resolution_death_from_sepsis_by_bacteria,
@@ -4548,44 +4411,6 @@ impl Simulation {
                 header.push_str(mechanism.as_str());
             }
         }
-        // Add per-bacteria, per-drug resistance acquisition columns to header
-        for bacteria in BACTERIA_LIST.iter() {
-            for drug in DRUG_SHORT_NAMES.iter() {
-                header.push(',');
-                header.push_str(&bacteria.replace(" ", "_"));
-                header.push('_');
-                header.push_str(drug);
-                header.push_str("_new_resistance_at_infection_community");
-            }
-        }
-        for bacteria in BACTERIA_LIST.iter() {
-            for drug in DRUG_SHORT_NAMES.iter() {
-                header.push(',');
-                header.push_str(&bacteria.replace(" ", "_"));
-                header.push('_');
-                header.push_str(drug);
-                header.push_str("_new_resistance_hgt");
-            }
-        }
-        for bacteria in BACTERIA_LIST.iter() {
-            for drug in DRUG_SHORT_NAMES.iter() {
-                header.push(',');
-                header.push_str(&bacteria.replace(" ", "_"));
-                header.push('_');
-                header.push_str(drug);
-                header.push_str("_new_resistance_from_microbiome_r");
-            }
-        }
-        for bacteria in BACTERIA_LIST.iter() {
-            for drug in DRUG_SHORT_NAMES.iter() {
-                header.push(',');
-                header.push_str(&bacteria.replace(" ", "_"));
-                header.push('_');
-                header.push_str(drug);
-                header.push_str("_new_resistance_de_novo_infection");
-            }
-        }
-
         // Add per-bacteria infection resolution columns to header
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -5117,22 +4942,6 @@ impl Simulation {
                 row.push_str(&value.to_string());
             }
             for value in &summary.infected_with_bacteria_and_mechanism {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.new_resistance_at_infection_community_by_bacteria_drug {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.new_resistance_hgt_by_bacteria_drug {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.new_resistance_from_microbiome_r_by_bacteria_drug {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.new_resistance_de_novo_infection_by_bacteria_drug {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

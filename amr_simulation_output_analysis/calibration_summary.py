@@ -1254,11 +1254,6 @@ def _calculate_resistance_table(
         "Average resistant target",
         "Average resistant delta",
         "Microbiome simulation",
-        "Infection resistance simulation source: Community (%)",
-        "Infection resistance simulation source: HGT (%)",
-        "Infection resistance simulation source: Microbiome (%)",
-        "Infection resistance simulation source: De Novo (%)",
-        "Microbiome HGT Events (Asymptomatic)",
         "Infected person-days",
         "Resistant person-days",
         "Microbiome carrier-days",
@@ -1361,11 +1356,6 @@ def _calculate_resistance_table(
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
                 "Microbiome simulation": np.nan,
-                "Infection resistance simulation source: Community (%)": np.nan,
-                "Infection resistance simulation source: HGT (%)": np.nan,
-                "Infection resistance simulation source: Microbiome (%)": np.nan,
-                "Infection resistance simulation source: De Novo (%)": np.nan,
-                "Microbiome HGT Events (Asymptomatic)": np.nan,
                 "Infected person-days": np.nan,
                 "Resistant person-days": np.nan,
                 "Microbiome carrier-days": np.nan,
@@ -1393,11 +1383,6 @@ def _calculate_resistance_table(
                 "Average resistant target": average_target,
                 "Average resistant delta": np.nan,
                 "Microbiome simulation": np.nan,
-                "Infection resistance simulation source: Community (%)": np.nan,
-                "Infection resistance simulation source: HGT (%)": np.nan,
-                "Infection resistance simulation source: Microbiome (%)": np.nan,
-                "Infection resistance simulation source: De Novo (%)": np.nan,
-                "Microbiome HGT Events (Asymptomatic)": np.nan,
                 "Infected person-days": np.nan,
                 "Resistant person-days": np.nan,
                 "Microbiome carrier-days": np.nan,
@@ -1515,29 +1500,6 @@ def _calculate_resistance_table(
                 return np.nan
             return float(np.rint(value))
 
-        src_community = year_df[f"{col_slug}_{d_slug}_new_resistance_at_infection_community"].sum() if f"{col_slug}_{d_slug}_new_resistance_at_infection_community" in year_df.columns else 0.0
-        src_hgt = year_df[f"{col_slug}_{d_slug}_new_resistance_hgt"].sum() if f"{col_slug}_{d_slug}_new_resistance_hgt" in year_df.columns else 0.0
-        src_microbiome = year_df[f"{col_slug}_{d_slug}_new_resistance_from_microbiome_r"].sum() if f"{col_slug}_{d_slug}_new_resistance_from_microbiome_r" in year_df.columns else 0.0
-        src_de_novo = year_df[f"{col_slug}_{d_slug}_new_resistance_de_novo_infection"].sum() if f"{col_slug}_{d_slug}_new_resistance_de_novo_infection" in year_df.columns else 0.0
-        
-        total_sources = src_community + src_hgt + src_microbiome + src_de_novo
-        
-        if total_sources > 0:
-            src_community = round((src_community / total_sources) * 100, 2)
-            src_hgt = round((src_hgt / total_sources) * 100, 2)
-            src_microbiome = round((src_microbiome / total_sources) * 100, 2)
-            src_de_novo = round((src_de_novo / total_sources) * 100, 2)
-        else:
-            src_community = np.nan
-            src_hgt = np.nan
-            src_microbiome = np.nan
-            src_de_novo = np.nan
-        asymptomatic_hgt = year_df[f"{col_slug}_{d_slug}_asymptomatic_microbiome_hgt_events"].sum() if f"{col_slug}_{d_slug}_asymptomatic_microbiome_hgt_events" in year_df.columns else 0.0
-        if not np.isfinite(asymptomatic_hgt) or asymptomatic_hgt == 0.0:
-            asymptomatic_hgt = np.nan
-        else:
-            asymptomatic_hgt = float(np.rint(asymptomatic_hgt))
-
         infected_person_days = _rounded_person_days(total_infected)
         resistant_person_days = _rounded_person_days(total_resistant)
         microbiome_carrier_days = _rounded_person_days(total_carriers)
@@ -1552,11 +1514,6 @@ def _calculate_resistance_table(
             "Average resistant target": average_target,
             "Average resistant delta": average_delta,
             "Microbiome simulation": microbiome_simulation,
-            "Infection resistance simulation source: Community (%)": src_community,
-            "Infection resistance simulation source: HGT (%)": src_hgt,
-            "Infection resistance simulation source: Microbiome (%)": src_microbiome,
-            "Infection resistance simulation source: De Novo (%)": src_de_novo,
-            "Microbiome HGT Events (Asymptomatic)": asymptomatic_hgt,
             "Infected person-days": infected_person_days,
             "Resistant person-days": resistant_person_days,
             "Microbiome carrier-days": microbiome_carrier_days,
@@ -3957,13 +3914,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
         if not resistance_df.empty:
             resistance_display_df = resistance_df.copy()
             resistance_display_df["Note"] = resistance_display_df["Note"].fillna("")
-            source_columns = [
-                "Infection resistance simulation source: Community (%)",
-                "Infection resistance simulation source: HGT (%)",
-                "Infection resistance simulation source: Microbiome (%)",
-                "Infection resistance simulation source: De Novo (%)",
-                "Microbiome HGT Events (Asymptomatic)",
-            ]
             resistance_display_df.drop(
                 columns=[
                     RESISTANCE_DELTA_COL,
@@ -4047,11 +3997,6 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
                     "Average resistant simulation": "Avg sim (%)",
                     "Average resistant target": "Avg target (%)",
                     "Microbiome simulation": "Micro sim (%)",
-                    "Infection resistance simulation source: Community (%)": "Comm (%)",
-                    "Infection resistance simulation source: HGT (%)": "HGT (%)",
-                    "Infection resistance simulation source: Microbiome (%)": "Micro (%)",
-                    "Infection resistance simulation source: De Novo (%)": "De novo (%)",
-                    "Microbiome HGT Events (Asymptomatic)": "Asympt HGT",
                     "Infected person-days": "Inf days",
                     "Resistant person-days": "Res days",
                     "Microbiome carrier-days": "Carrier days",
