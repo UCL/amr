@@ -217,7 +217,7 @@ impl ResistanceMechanism {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BacteriaGroup {
-    GramPositive,
+    Staphylococci,      // bit 0 — S. aureus, S. epidermidis (mecA/blaZ capable)
     Enterobacterales,
     NonFermenter,
     EntericPathogen,
@@ -226,10 +226,11 @@ pub enum BacteriaGroup {
     Spirochete,
     Helicobacter,
     Mycobacteria,
+    Streptococci,       // bit 9 — Streptococcus spp., Enterococcus spp., Listeria
 }
 
-const ALL_BACTERIA_GROUPS: [BacteriaGroup; 9] = [
-    BacteriaGroup::GramPositive,
+const ALL_BACTERIA_GROUPS: [BacteriaGroup; 10] = [
+    BacteriaGroup::Staphylococci,
     BacteriaGroup::Enterobacterales,
     BacteriaGroup::NonFermenter,
     BacteriaGroup::EntericPathogen,
@@ -238,6 +239,7 @@ const ALL_BACTERIA_GROUPS: [BacteriaGroup; 9] = [
     BacteriaGroup::Spirochete,
     BacteriaGroup::Helicobacter,
     BacteriaGroup::Mycobacteria,
+    BacteriaGroup::Streptococci,
 ];
 
 impl BacteriaGroup {
@@ -508,48 +510,48 @@ pub const BACTERIA_LIST: [&str; 42] = [
 pub const BACTERIA_COUNT: usize = BACTERIA_LIST.len();
 
 pub const BACTERIA_GROUPS: [BacteriaGroup; BACTERIA_COUNT] = [
-    BacteriaGroup::NonFermenter,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::NonFermenter,
-    BacteriaGroup::NonFermenter,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::EntericPathogen,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::GramPositive,
-    BacteriaGroup::Anaerobe,
-    BacteriaGroup::Anaerobe,
-    BacteriaGroup::Helicobacter,  // campylobacter_jejuni - Campylobacterota, excluded from Enterobacterales HGT
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Enterobacterales,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::Spirochete,
-    BacteriaGroup::Fastidious,
-    BacteriaGroup::Helicobacter,
-    BacteriaGroup::Mycobacteria,
-    BacteriaGroup::Fastidious, // mycoplasma_pneumoniae
-    BacteriaGroup::Fastidious, // legionella_pneumophila
-    BacteriaGroup::NonFermenter, // burkholderia_cepacia_complex
+    BacteriaGroup::NonFermenter,    // acinetobacter_baumannii
+    BacteriaGroup::Enterobacterales, // citrobacter_spp.
+    BacteriaGroup::Enterobacterales, // enterobacter_spp.
+    BacteriaGroup::Streptococci,    // enterococcus_faecalis
+    BacteriaGroup::Streptococci,    // enterococcus_faecium
+    BacteriaGroup::Enterobacterales, // escherichia_coli
+    BacteriaGroup::Enterobacterales, // klebsiella_pneumoniae
+    BacteriaGroup::Enterobacterales, // morganella_spp.
+    BacteriaGroup::Enterobacterales, // proteus_spp.
+    BacteriaGroup::Enterobacterales, // serratia_spp.
+    BacteriaGroup::Enterobacterales, // p_stuartii
+    BacteriaGroup::NonFermenter,    // pseudomonas_aeruginosa
+    BacteriaGroup::NonFermenter,    // stenotrophomonas_maltophilia
+    BacteriaGroup::Staphylococci,   // staphylococcus_aureus
+    BacteriaGroup::Staphylococci,   // staphylococcus_epidermidis
+    BacteriaGroup::Streptococci,    // streptococcus_pneumoniae
+    BacteriaGroup::Enterobacterales, // salmonella_enterica_serovar_typhi
+    BacteriaGroup::Enterobacterales, // salmonella_enterica_serovar_paratyphi_a
+    BacteriaGroup::Enterobacterales, // invasive_non-typhoidal_salmonella_spp.
+    BacteriaGroup::Enterobacterales, // shigella_spp.
+    BacteriaGroup::Fastidious,      // neisseria_gonorrhoeae
+    BacteriaGroup::Streptococci,    // streptococcus_pyogenes
+    BacteriaGroup::Streptococci,    // streptococcus_agalactiae
+    BacteriaGroup::Fastidious,      // haemophilus_influenzae
+    BacteriaGroup::Fastidious,      // chlamydia_trachomatis
+    BacteriaGroup::Fastidious,      // mycoplasma_genitalium
+    BacteriaGroup::EntericPathogen, // vibrio_cholerae
+    BacteriaGroup::Fastidious,      // neisseria_meningitidis
+    BacteriaGroup::Streptococci,    // listeria_monocytogenes (Firmicutes Bacilli; no mecA)
+    BacteriaGroup::Anaerobe,        // clostridioides_difficile
+    BacteriaGroup::Anaerobe,        // bacteroides_fragilis
+    BacteriaGroup::Helicobacter,    // campylobacter_jejuni - Campylobacterota, excluded from Enterobacterales HGT
+    BacteriaGroup::Enterobacterales, // enterobacter_cloacae
+    BacteriaGroup::Enterobacterales, // yersinia_enterocolitica
+    BacteriaGroup::Fastidious,      // moraxella_catarrhalis
+    BacteriaGroup::Spirochete,      // treponema_pallidum
+    BacteriaGroup::Fastidious,      // bordetella_pertussis
+    BacteriaGroup::Helicobacter,    // helicobacter_pylori
+    BacteriaGroup::Mycobacteria,    // mdr_mycobacterium_tuberculosis
+    BacteriaGroup::Fastidious,      // mycoplasma_pneumoniae
+    BacteriaGroup::Fastidious,      // legionella_pneumophila
+    BacteriaGroup::NonFermenter,    // burkholderia_cepacia_complex
 ];
 
 pub const BACTERIA_CARRIAGE_COMPARTMENTS: [CarriageCompartment; BACTERIA_COUNT] = [
@@ -640,17 +642,24 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Anaerobe, // Allowed for Bacteroides (Gram-Neg Anaerobe)
         ]),
 
-        // Gram-Positive Specific (Cell Wall / Vancomycin)
-        TargetSitePbp2aMecA |
-        TargetSiteVanA | TargetSiteVanB => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+        // mecA/PBP2a: staphylococci only — S. pyogenes/Streptococci do NOT carry mecA
+        TargetSitePbp2aMecA => mask_for_groups(&[
+            BacteriaGroup::Staphylococci,
             BacteriaGroup::Helicobacter, // Added for H. pylori Amoxicillin resistance
+        ]),
+
+        // VanA/VanB glycopeptide resistance: Enterococcus (Streptococci group) + rarely VRSA (Staphylococci)
+        TargetSiteVanA | TargetSiteVanB => mask_for_groups(&[
+            BacteriaGroup::Staphylococci,
+            BacteriaGroup::Streptococci,
+            BacteriaGroup::Helicobacter,
         ]),
 
         // Macrolide/Lincosamide/Streptogramin (MLS) & Phenicol Resistance
         // Broader host range including Anaerobes and Fastidious/Atypicals (Mycoplasma)
         TargetSiteErmB | TargetSiteCfr => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
+            BacteriaGroup::Streptococci,
             BacteriaGroup::Anaerobe,
             BacteriaGroup::Fastidious,
             BacteriaGroup::Helicobacter, // Added for H. pylori Clarithromycin resistance
@@ -668,7 +677,8 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // Nitroreductase loss: anaerobes (metronidazole), Enterobacterales (nitrofurans),
         // and Gram-positives (nfsA/B homologs in Enterococcus, Staphylococcus — nitrofurans)
         MutationNitroreductase => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
+            BacteriaGroup::Streptococci,
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Anaerobe,
@@ -679,23 +689,24 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // FosA (Gram-negative) and FosB (Gram-positive): both plasmid-mediated fosfomycin
         // modifying enzymes with equivalent model behaviour — grouped as EnzymeFos
         EnzymeFos => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
+            BacteriaGroup::Streptococci,
             BacteriaGroup::Enterobacterales,
             BacteriaGroup::NonFermenter,
             BacteriaGroup::EntericPathogen,
         ]),
 
-        // MprF membrane modification: Gram-positive (daptomycin resistance)
+        // MprF membrane modification: daptomycin resistance — staphylococci primarily
         MutationMprF => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
         ]),
 
         // RpoB mutation: universal (TB, but also Staph for rifampicin, C. diff for fidaxomicin)
         MutationRpoB => mask_for_groups(BacteriaGroup::all()),
 
-        // FusB protection: Gram-positive (Staphylococci primarily)
+        // FusB protection: fusidic acid resistance — staphylococci only
         ProtectionFusB => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
         ]),
 
         // TetM/TetO ribosomal protection: universal — Tn916 conjugative transposons found across all phyla
@@ -707,12 +718,14 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::NonFermenter,
             BacteriaGroup::EntericPathogen,
             BacteriaGroup::Fastidious,
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
+            BacteriaGroup::Streptococci,
         ]),
 
-        // blaZ penicillinase: Staphylococci + H. pylori (PBP1A proxy) + GC (TEM-1 proxy)
+        // blaZ penicillinase: staphylococci + H. pylori (PBP1A proxy) + GC (TEM-1 proxy)
+        // NOT Streptococci — Strep remain penicillin-susceptible without blaZ
         EnzymeBlaZ => mask_for_groups(&[
-            BacteriaGroup::GramPositive,
+            BacteriaGroup::Staphylococci,
             BacteriaGroup::Helicobacter,
             BacteriaGroup::Fastidious,
         ]),
@@ -727,7 +740,7 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Helicobacter,
             BacteriaGroup::EntericPathogen, // Campylobacter
             BacteriaGroup::Fastidious,      // Mycoplasma, Chlamydia, Legionella, Bordetella
-            BacteriaGroup::GramPositive,    // S. pneumoniae, S. pyogenes, S. agalactiae
+            BacteriaGroup::Streptococci,    // S. pneumoniae, S. pyogenes, S. agalactiae
         ]),
 
         // TetA/B/C efflux pumps: Gram-negative only (Gram-positives use ribosomal protection TetM)

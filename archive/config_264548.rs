@@ -6118,128 +6118,6 @@ lazy_static! {
                     map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 1.10);
                     }
                 }
-
-                // Clindamycin - good for most gram-positives; Enterococcus intrinsically resistant (lsa gene)
-                if DRUG_SHORT_NAMES.contains(&"clindamycin") {
-                    let potency = if bacteria.contains("enterococcus") {
-                        0.05 // Intrinsic resistance
-                    } else if bacteria == "streptococcus_pyogenes" {
-                        0.75 // Excellent — key alternative for pharyngitis/cellulitis
-                    } else if bacteria == "streptococcus_pneumoniae" {
-                        0.70
-                    } else if bacteria == "staphylococcus_aureus" {
-                        0.65
-                    } else if bacteria == "staphylococcus_epidermidis" {
-                        0.60
-                    } else {
-                        0.65 // S. agalactiae and others
-                    };
-                    map.insert(format!("drug_clindamycin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Daptomycin - excellent for gram-positive; note pulmonary surfactant inactivation limits S. pneumoniae use
-                if DRUG_SHORT_NAMES.contains(&"daptomycin") {
-                    let potency = if bacteria == "staphylococcus_aureus" {
-                        0.95
-                    } else if bacteria == "staphylococcus_epidermidis" {
-                        0.90
-                    } else if bacteria == "streptococcus_pneumoniae" {
-                        0.30 // Inactivated by lung surfactant; poor for pneumonia
-                    } else if bacteria.contains("enterococcus") {
-                        0.80 // Good for VRE bacteraemia
-                    } else {
-                        0.85 // Other Streptococcus spp.
-                    };
-                    map.insert(format!("drug_daptomycin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Quinupristin/dalfopristin - E. faecalis intrinsically resistant (lsa efflux); E. faecium active
-                if DRUG_SHORT_NAMES.contains(&"quinu_dalfo") {
-                    let potency = if bacteria == "enterococcus_faecalis" {
-                        0.05 // Intrinsic lsa-mediated resistance
-                    } else if bacteria == "enterococcus_faecium" {
-                        0.75
-                    } else {
-                        0.80
-                    };
-                    map.insert(format!("drug_quinu_dalfo_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // TMP-SMX - good for S. aureus SSTI; streptococci/enterococci scavenge exogenous folate (resistant)
-                if DRUG_SHORT_NAMES.contains(&"trim_sulf") {
-                    let potency = if bacteria == "staphylococcus_aureus" {
-                        0.65
-                    } else if bacteria == "staphylococcus_epidermidis" {
-                        0.55
-                    } else {
-                        0.05 // Strep and Enterococcus: folate scavenging renders TMP-SMX ineffective
-                    };
-                    map.insert(format!("drug_trim_sulf_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Fusidic acid - excellent anti-staphylococcal; poor activity against strep and enterococcus
-                if DRUG_SHORT_NAMES.contains(&"fusidic_a") {
-                    let potency = if bacteria == "staphylococcus_aureus" {
-                        0.85
-                    } else if bacteria == "staphylococcus_epidermidis" {
-                        0.75
-                    } else {
-                        0.05
-                    };
-                    map.insert(format!("drug_fusidic_a_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Retapamulin - topical pleuromutilin; good for staph/strep skin infections
-                if DRUG_SHORT_NAMES.contains(&"retapamulin") {
-                    let potency = if bacteria.contains("enterococcus") {
-                        0.10
-                    } else if bacteria == "staphylococcus_aureus" || bacteria == "streptococcus_pyogenes" {
-                        0.70
-                    } else {
-                        0.55
-                    };
-                    map.insert(format!("drug_retapamulin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Chloramphenicol - broad-spectrum; moderate gram-positive activity
-                if DRUG_SHORT_NAMES.contains(&"chloramphenicol") {
-                    let potency = if bacteria == "streptococcus_pneumoniae" {
-                        0.70
-                    } else if bacteria.contains("enterococcus") {
-                        0.50
-                    } else {
-                        0.55
-                    };
-                    map.insert(format!("drug_chloramphenicol_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Nitrofurantoin - UTI drug; good for Enterococcus UTI; moderate for Staph UTI
-                if DRUG_SHORT_NAMES.contains(&"nitrofurantoin") {
-                    let potency = if bacteria == "enterococcus_faecalis" {
-                        0.75
-                    } else if bacteria == "enterococcus_faecium" {
-                        0.60
-                    } else if bacteria == "staphylococcus_aureus" || bacteria == "staphylococcus_epidermidis" {
-                        0.55
-                    } else {
-                        0.30 // Streptococcus spp.: limited clinical use
-                    };
-                    map.insert(format!("drug_nitrofurantoin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Fosfomycin - moderate gram-positive activity (primarily UTI use)
-                if DRUG_SHORT_NAMES.contains(&"fosfomycin") {
-                    let potency = if bacteria == "staphylococcus_aureus" {
-                        0.65
-                    } else if bacteria == "staphylococcus_epidermidis" {
-                        0.55
-                    } else if bacteria.contains("enterococcus") {
-                        0.60
-                    } else {
-                        0.30 // Streptococcus spp.: variable
-                    };
-                    map.insert(format!("drug_fosfomycin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
             }
         }
 
@@ -6340,28 +6218,6 @@ lazy_static! {
                 if DRUG_SHORT_NAMES.contains(&"trim_sulf") {
                     map.insert(format!("drug_trim_sulf_for_bacteria_{}_potency_when_no_r", bacteria), 0.25);
                 }
-
-                // Aztreonam - active against Enterobacteriaceae (stable to many chromosomal beta-lactamases)
-                if DRUG_SHORT_NAMES.contains(&"aztreonam") {
-                    map.insert(format!("drug_aztreonam_for_bacteria_{}_potency_when_no_r", bacteria), 0.75);
-                }
-
-                // Fosfomycin - primarily oral UTI use; excellent for E. coli, moderate for others
-                if DRUG_SHORT_NAMES.contains(&"fosfomycin") {
-                    let potency = match bacteria {
-                        "escherichia_coli" => 0.90,
-                        "klebsiella_pneumoniae" => 0.55,
-                        "proteus_spp." => 0.60,
-                        "enterobacter_spp." | "enterobacter_cloacae" => 0.50,
-                        _ => 0.40, // Serratia, Citrobacter, Morganella, P. stuartii: variable
-                    };
-                    map.insert(format!("drug_fosfomycin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Chloramphenicol - moderate broad-spectrum activity against Enterobacteriaceae
-                if DRUG_SHORT_NAMES.contains(&"chloramphenicol") {
-                    map.insert(format!("drug_chloramphenicol_for_bacteria_{}_potency_when_no_r", bacteria), 0.55);
-                }
             }
         }
 
@@ -6461,27 +6317,6 @@ lazy_static! {
                     map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
                     }
                 }
-
-                // Aztreonam - active against Pseudomonas; poor against Acinetobacter; Steno intrinsically resistant
-                if DRUG_SHORT_NAMES.contains(&"aztreonam") {
-                    let potency = match bacteria {
-                        "pseudomonas_aeruginosa" => 0.75,
-                        "stenotrophomonas_maltophilia" => 0.05, // Intrinsic L2 beta-lactamase
-                        "burkholderia_cepacia_complex" => 0.20,
-                        _ => 0.10, // Acinetobacter: poor
-                    };
-                    map.insert(format!("drug_aztreonam_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
-
-                // Fosfomycin - variable for non-fermenters; primarily Pseudomonas combination use
-                if DRUG_SHORT_NAMES.contains(&"fosfomycin") {
-                    let potency = match bacteria {
-                        "pseudomonas_aeruginosa" => 0.60,
-                        "acinetobacter_baumannii" => 0.40,
-                        _ => 0.20,
-                    };
-                    map.insert(format!("drug_fosfomycin_for_bacteria_{}_potency_when_no_r", bacteria), potency);
-                }
             }
         }
 
@@ -6526,11 +6361,6 @@ lazy_static! {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                     map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.70);
                     }
-                }
-
-                // Aztreonam - active against fastidious gram-negatives (similar spectrum to 3rd-gen ceph)
-                if DRUG_SHORT_NAMES.contains(&"aztreonam") {
-                    map.insert(format!("drug_aztreonam_for_bacteria_{}_potency_when_no_r", bacteria), 0.70);
                 }
             }
         }
@@ -6688,16 +6518,6 @@ lazy_static! {
                     map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.30);
                     }
                 }
-
-                // Aztreonam - active against enteric gram-negatives
-                if DRUG_SHORT_NAMES.contains(&"aztreonam") {
-                    map.insert(format!("drug_aztreonam_for_bacteria_{}_potency_when_no_r", bacteria), 0.70);
-                }
-
-                // Chloramphenicol - historically critical for typhoid; broadly effective for enteric pathogens
-                if DRUG_SHORT_NAMES.contains(&"chloramphenicol") {
-                    map.insert(format!("drug_chloramphenicol_for_bacteria_{}_potency_when_no_r", bacteria), 0.65);
-                }
             }
         }
 
@@ -6760,11 +6580,6 @@ lazy_static! {
                 // Metronidazole - good for anaerobes
                 if DRUG_SHORT_NAMES.contains(&"metronidazole") {
                 map.insert(format!("drug_metronidazole_for_bacteria_{}_potency_when_no_r", bacteria), 0.80);
-                }
-
-                // Fidaxomicin - narrow-spectrum RNA polymerase inhibitor; first-line C. difficile therapy
-                if DRUG_SHORT_NAMES.contains(&"fidaxomicin") {
-                map.insert(format!("drug_fidaxomicin_for_bacteria_{}_potency_when_no_r", bacteria), 1.05);
                 }
             }
         }
@@ -6903,23 +6718,6 @@ lazy_static! {
                     if DRUG_SHORT_NAMES.contains(&drug) {
                     map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.80);
                     }
-                }
-
-                // TMP-SMX - good alternative to ampicillin for Listeria (penicillin-allergic patients)
-                if DRUG_SHORT_NAMES.contains(&"trim_sulf") {
-                    map.insert(format!("drug_trim_sulf_for_bacteria_{}_potency_when_no_r", bacteria), 0.75);
-                }
-
-                // Aminoglycosides - moderate; used synergistically with ampicillin
-                for &drug in aminoglycosides.iter() {
-                    if DRUG_SHORT_NAMES.contains(&drug) {
-                    map.insert(format!("drug_{}_for_bacteria_{}_potency_when_no_r", drug, bacteria), 0.30);
-                    }
-                }
-
-                // Clindamycin - poor; Listeria intrinsically resistant
-                if DRUG_SHORT_NAMES.contains(&"clindamycin") {
-                    map.insert(format!("drug_clindamycin_for_bacteria_{}_potency_when_no_r", bacteria), 0.05);
                 }
             }
         }

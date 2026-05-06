@@ -4,8 +4,11 @@
 //
 //  ----  plan for paper -----------------------------------------------------------------------------------------
 //
-//  get first calibration - for multiple parameters vary randomly from 0.67x to 1.5x - from 2026 three "scenarios"
-//  (i) continue status quo (ii) amr disappears (iii) immediate ast 
+//  get at least three calibration parameter sets - from 2026 three "scenarios" to 2035
+//  (i) continue status quo (ii) amr disappears (iii) immediate ast - or as a minimum find 3 distinct parameter sets
+//  that calibrate
+//
+//
 //
 //
 //
@@ -16,8 +19,7 @@
 // present a global antibiotic activity for each bacteria over time
 // - sum across drugs existing at the time of mean potency x (1 - any_r) amongst those infected with the bacteria
 //
-//  double-check on potency values - another take on resistance by bacteria / drug
-//
+//  ? need to include temporal trends in incidence and drug choice for some bacteria ?
 //
 //
 //

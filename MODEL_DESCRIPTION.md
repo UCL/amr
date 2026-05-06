@@ -1286,18 +1286,18 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
    | NDM/VIM | `ndm_vim` | Metallo-β-lactamases | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | OXA-Acinetob. | `oxa_acinetobacter` | OXA-23/40/58 carbapenemases (A. baumannii) | `meropenem`, `imipenem_c`, `ertapenem`, `ceftazidime`, `cefepime`, `ceftazidime_avibactam` | Nonfermenters |
-  | blaZ | `blaz` | Staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin` | Gram-Positives |
-  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Gram-Positives, Helicobacter |
-  | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Gram-Positives, Helicobacter |
-  | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Gram-Positives, Helicobacter |
+  | blaZ | `blaz` | Staphylococcal penicillinase | `penicillin_g`, `ampicillin`, `amoxicillin` | Staphylococci |
+  | PBP2a/MecA | `pbp2a_meca` | PBP alteration (MRSA) | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `cefiderocol`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Staphylococci, Helicobacter |
+  | VanA | `vana` | High-level vancomycin resistance | `vancomycin`, `teicoplanin`, `dalbavancin` | Staphylococci, Streptococci, Helicobacter |
+  | VanB | `vanb` | Variable-level vancomycin resistance | `vancomycin` | Staphylococci, Streptococci, Helicobacter |
   | GyrA (pri.) | `gyra_primary` | DNA gyrase mutation (step 1) | `ciprofloxacin`, `ofloxacin` | All |
   | GyrA + ParC | `gyra_parc` | Additional topoisomerase mutation | `ciprofloxacin`, `ofloxacin`, `levofloxacin`, `moxifloxacin` | All |
   | Qnr | `qnr` | Quinolone resistance protein | `ciprofloxacin`, `ofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | 16S rRMT | `16s_rrmt` | 16S rRNA methyltransferase | `gentamicin`, `tobramycin`, `amikacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
-  | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Gram-Positives |
-  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Gram-Positives, Anaerobes, Fastidious, Helicobacter |
-  | 23S rRNA | `23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Gram-Positives |
-  | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Gram-Positives, Anaerobes, Fastidious, Helicobacter |
+  | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
+  | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Staphylococci, Streptococci, Anaerobes, Fastidious, Helicobacter |
+  | 23S rRNA | `23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Streptococci |
+  | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Staphylococci, Streptococci, Anaerobes, Fastidious, Helicobacter |
   | CAT | `cat` | Chloramphenicol acetyltransferase | `chloramphenicol` | All |
   | MCR-1 | `mcr_1` | Mobilised colistin resistance | `colistin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | AcrAB-TolC | `acrab_tolc` | Gram-negative efflux pump | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
@@ -1309,11 +1309,11 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | OprD | `oprd` | Outer membrane porin loss (Pseudomonas) | `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | Global por. | `global_porin_loss` | Non-specific porin downregulation | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `ceftriaxone`, `ceftazidime`, `cefepime`, `ceftolozane_tazobactam`, `ceftaroline`, `cefiderocol`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem`, `ciprofloxacin`, `levofloxacin`, `moxifloxacin`, `ofloxacin`, `gentamicin`, `tobramycin`, `amikacin` | All |
   | Folate path | `folate_pathway` | Altered dihydrofolate reductase | `sulfanilamide`, `trim_sulf` | All |
-  | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
-  | FosA | `fosa` | Fosfomycin-modifying enzyme | `fosfomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens |
-  | MprF | `mprf` | Membrane charge modification | `daptomycin` | Gram-Positives |
+  | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
+  | FosA/FosB | `fosa` | Fosfomycin-modifying enzyme (FosA: Gram-negative; FosB: Gram-positive) | `fosfomycin` | Staphylococci, Streptococci, Enterobacterales, Nonfermenters, Enteric Pathogens |
+  | MprF | `mprf` | Membrane charge modification | `daptomycin` | Staphylococci |
   | RpoB | `rpob` | RNA polymerase mutation | `fidaxomicin` | All |
-  | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Gram-Positives |
+  | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Staphylococci |
   | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam` | All |
   | mtrCDE efflux | `efflux_mtr_cde` | mtrCDE-type broad efflux pump (Neisseria, Haemophilus, Campylobacter CmeABC) | `erythromycin`, `azithromycin`, `clarithromycin`, `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `tetracycline`, `doxycycline`, `minocycline`, `chloramphenicol` | Fastidious, Enteric Pathogens |
    | Unknown | `as_yet_unknown` | Placeholder mechanism (dormant) | Evaluates `true` dynamically for all applied overrides | All (Calibration Placeholder) |
@@ -1760,7 +1760,7 @@ Not all bacteria can exchange genes equally. Transfer compatibility is not repre
 
 The pool mapping is:
 
-- **GramPositive pool**: Gram-positive bacteria
+- **GramPositive pool**: Staphylococci and Streptococci — both gram-positive groups share this pool; cross-group (Staph↔Strep) HGT operates at the lower cross-group rate (10× below within-group), and `TargetSitePbp2aMecA`/`EnzymeBlaZ` are restricted to Staphylococci so mecA cannot transfer into Streptococci regardless of HGT rate
 - **EntericGramNegative pool**: Enterobacterales, non-fermenters, and enteric pathogens
 - **RespiratoryGramNegative pool**: fastidious respiratory/genitourinary organisms
 - **Anaerobe pool**: anaerobes
@@ -2014,8 +2014,8 @@ The appendix is implementation-facing. Names, groupings, and enum labels are the
 | 0 | Acinetobacter baumannii | NonFermenter | Respiratory |
 | 1 | Citrobacter spp. | Enterobacterales | Gut |
 | 2 | Enterobacter spp. | Enterobacterales | Gut |
-| 3 | Enterococcus faecalis | GramPositive | Gut |
-| 4 | Enterococcus faecium | GramPositive | Gut |
+| 3 | Enterococcus faecalis | Streptococci | Gut |
+| 4 | Enterococcus faecium | Streptococci | Gut |
 | 5 | Escherichia coli | Enterobacterales | Gut |
 | 6 | Klebsiella pneumoniae | Enterobacterales | Gut |
 | 7 | Morganella spp. | Enterobacterales | Gut |
@@ -2024,22 +2024,22 @@ The appendix is implementation-facing. Names, groupings, and enum labels are the
 | 10 | Providencia stuartii | Enterobacterales | Genitourinary |
 | 11 | Pseudomonas aeruginosa | NonFermenter | Respiratory |
 | 12 | Stenotrophomonas maltophilia | NonFermenter | Respiratory |
-| 13 | Staphylococcus aureus | GramPositive | Skin/Soft Tissue |
-| 14 | Staphylococcus epidermidis | GramPositive | Skin/Soft Tissue |
-| 15 | Streptococcus pneumoniae | GramPositive | Respiratory |
+| 13 | Staphylococcus aureus | Staphylococci | Skin/Soft Tissue |
+| 14 | Staphylococcus epidermidis | Staphylococci | Skin/Soft Tissue |
+| 15 | Streptococcus pneumoniae | Streptococci | Respiratory |
 | 16 | Salmonella enterica serovar Typhi | Enterobacterales | Gut |
 | 17 | Salmonella enterica serovar Paratyphi A | Enterobacterales | Gut |
 | 18 | Invasive non-typhoidal Salmonella spp. | Enterobacterales | Gut |
 | 19 | Shigella spp. | Enterobacterales | Gut |
 | 20 | Neisseria gonorrhoeae | Fastidious | Genitourinary |
-| 21 | Streptococcus pyogenes | GramPositive | Respiratory |
-| 22 | Streptococcus agalactiae | GramPositive | Genitourinary |
+| 21 | Streptococcus pyogenes | Streptococci | Respiratory |
+| 22 | Streptococcus agalactiae | Streptococci | Genitourinary |
 | 23 | Haemophilus influenzae | Fastidious | Respiratory |
 | 24 | Chlamydia trachomatis | Fastidious | Genitourinary |
 | 25 | Mycoplasma genitalium | Fastidious | Genitourinary |
 | 26 | Vibrio cholerae | EntericPathogen | Gut |
 | 27 | Neisseria meningitidis | Fastidious | Respiratory |
-| 28 | Listeria monocytogenes | GramPositive | Gut |
+| 28 | Listeria monocytogenes | Streptococci | Gut |
 | 29 | Clostridioides difficile | Anaerobe | Gut |
 | 30 | Bacteroides fragilis | Anaerobe | Gut |
 | 31 | Campylobacter jejuni | Helicobacter | Gut |
