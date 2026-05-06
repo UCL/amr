@@ -1126,7 +1126,7 @@ These penetration values directly affect treatment outcomes in the model: a drug
 
 Since intrinsic susceptibility differs by organism, the model encodes a **potency matrix** — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.
 
-Values range from 0.0 (no activity) to values above 1.0 for a small number of agents (e.g., glycopeptides and oxazolidinones against susceptible Gram-positives, where the model allows slightly supra-maximal values to reflect the exceptional clinical reliability of these agents). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $\le 0.1$), the model strictly prevents any *acquired* resistance mechanisms from being assigned to that organism-drug pair — for example, *Mycoplasma*, which lacks a cell wall, cannot acquire PBP mutations against penicillins.
+Values range from 0.0 (no activity) to 1.0 (maximum activity; excellent first-line agents). No values above 1.0 are used. Prescribing preference signals previously encoded through supra-maximal potency are now represented through the `initiation_multiplier` parameter instead (e.g., fidaxomicin for *C. difficile* receives `initiation_multiplier = 1.05`). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $< 0.15$, the `minimal_potency_threshold_for_drug_selection` parameter), the model strictly prevents any *acquired* resistance mechanisms from being assigned to that organism-drug pair — for example, *Mycoplasma*, which lacks a cell wall, cannot acquire PBP mutations against penicillins.
 
 **A key modelling principle is that intrinsic resistance must be represented exclusively through potency = 0, not through artificially inflated mechanism emergence rates.** A non-zero potency for a drug-organism pair that is intrinsically resistant creates spurious drug pressure and can drive calibration artefacts. Several such miscalibrations were identified and corrected:
 
@@ -1140,16 +1140,16 @@ Values range from 0.0 (no activity) to values above 1.0 for a small number of ag
 | Nitrofurantoin | *S. maltophilia* | Intrinsic non-fermenter resistance; nitrofurantoin is never used for *Stenotrophomonas* infections |
 | Penicillins, ceph 1–2G, carbapenems, macrolides, clindamycin, aztreonam | *S. maltophilia* | Chromosomally encoded L1 metallo-β-lactamase, L2 serine-β-lactamase, and SmeABC/SmeDEF efflux pumps render these drug classes intrinsically inactive; `potency_when_no_r` ≤ 0.05 across all affected classes (see Section 7.5) |
 
-For the aminoglycoside/aztreonam/vancomycin/metronidazole cases, the zeroing is applied via group loops covering all organisms in the relevant anatomical or Gram-stain group, so it applies consistently to any organism added to those groups in future.
+These zeroing values are encoded directly in the flat potency table as `potency_when_no_r = 0.0` entries, covering every affected organism-drug pair explicitly.
 
 Key examples:
 - Meropenem vs *E. coli*: 0.95 (very high potency — carbapenem against susceptible Gram-negative)
-- Vancomycin vs *S. aureus*: 1.00 (first-line MRSA therapy)
+- Vancomycin vs *S. aureus*: 0.95 (first-line MRSA therapy)
 - Vancomycin vs *E. coli*: 0.0 (outer membrane blocks access — intrinsic, not acquired)
 - Metronidazole vs *C. difficile*: 0.90 (obligate anaerobe — activated drug reaches target)
 - Metronidazole vs *S. aureus*: 0.0 (aerobe — drug cannot be activated)
-- Ceftriaxone vs *S. pneumoniae*: 0.90 (standard treatment for pneumococcal meningitis)
-- Aztreonam vs *P. aeruginosa*: 0.90 (monobactam active against Gram-negatives including Pseudomonas)
+- Ceftriaxone vs *S. pneumoniae*: 0.95 (standard treatment for pneumococcal meningitis)
+- Aztreonam vs *P. aeruginosa*: 0.80 (monobactam active against Gram-negatives including Pseudomonas)
 - Aztreonam vs *S. aureus*: 0.0 (Gram-positive — outer-membrane route absent)
 
 

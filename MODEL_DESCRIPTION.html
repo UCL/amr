@@ -2694,7 +2694,7 @@
 <p>These penetration values directly affect treatment outcomes in the model: a drug with 0.05 penetration to the CNS will be nearly ineffective for meningitis even if the bacterium is fully susceptible.</p>
 <h3 id="65-drug-potency-matrix">6.5 Drug potency matrix</h3>
 <p>Since intrinsic susceptibility differs by organism, the model encodes a <strong>potency matrix</strong> — a 42×61 table (42 bacteria × 61 named drugs) where each cell represents the baseline activity of that drug against that bacterium when no acquired resistance is present. Resistance mechanisms are then applied on top of that baseline through the separate 39-class enhancement system described in Section 7.2.</p>
-<p>Values range from 0.0 (no activity) to values above 1.0 for a small number of agents (e.g., glycopeptides and oxazolidinones against susceptible Gram-positives, where the model allows slightly supra-maximal values to reflect the exceptional clinical reliability of these agents). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $\le 0.1$), the model strictly prevents any <em>acquired</em> resistance mechanisms from being assigned to that organism-drug pair — for example, <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins.</p>
+<p>Values range from 0.0 (no activity) to 1.0 (maximum activity; excellent first-line agents). No values above 1.0 are used. Prescribing preference signals previously encoded through supra-maximal potency are now represented through the <code>initiation_multiplier</code> parameter instead (e.g., fidaxomicin for <em>C. difficile</em> receives <code>initiation_multiplier = 1.05</code>). These potency values are based on published MIC data and clinical breakpoints. If an organism is intrinsically resistant to a drug (baseline potency $&lt; 0.15$, the <code>minimal_potency_threshold_for_drug_selection</code> parameter), the model strictly prevents any <em>acquired</em> resistance mechanisms from being assigned to that organism-drug pair — for example, <em>Mycoplasma</em>, which lacks a cell wall, cannot acquire PBP mutations against penicillins.</p>
 <p><strong>A key modelling principle is that intrinsic resistance must be represented exclusively through potency = 0, not through artificially inflated mechanism emergence rates.</strong> A non-zero potency for a drug-organism pair that is intrinsically resistant creates spurious drug pressure and can drive calibration artefacts. Several such miscalibrations were identified and corrected:</p>
 <table>
 <thead>
@@ -2742,15 +2742,15 @@
 </tr>
 </tbody>
 </table>
-<p>For the aminoglycoside/aztreonam/vancomycin/metronidazole cases, the zeroing is applied via group loops covering all organisms in the relevant anatomical or Gram-stain group, so it applies consistently to any organism added to those groups in future.</p>
+<p>These zeroing values are encoded directly in the flat potency table as <code>potency_when_no_r = 0.0</code> entries, covering every affected organism-drug pair explicitly.</p>
 <p>Key examples:
 - Meropenem vs <em>E. coli</em>: 0.95 (very high potency — carbapenem against susceptible Gram-negative)
-- Vancomycin vs <em>S. aureus</em>: 1.00 (first-line MRSA therapy)
+- Vancomycin vs <em>S. aureus</em>: 0.95 (first-line MRSA therapy)
 - Vancomycin vs <em>E. coli</em>: 0.0 (outer membrane blocks access — intrinsic, not acquired)
 - Metronidazole vs <em>C. difficile</em>: 0.90 (obligate anaerobe — activated drug reaches target)
 - Metronidazole vs <em>S. aureus</em>: 0.0 (aerobe — drug cannot be activated)
-- Ceftriaxone vs <em>S. pneumoniae</em>: 0.90 (standard treatment for pneumococcal meningitis)
-- Aztreonam vs <em>P. aeruginosa</em>: 0.90 (monobactam active against Gram-negatives including Pseudomonas)
+- Ceftriaxone vs <em>S. pneumoniae</em>: 0.95 (standard treatment for pneumococcal meningitis)
+- Aztreonam vs <em>P. aeruginosa</em>: 0.80 (monobactam active against Gram-negatives including Pseudomonas)
 - Aztreonam vs <em>S. aureus</em>: 0.0 (Gram-positive — outer-membrane route absent)</p>
 <h3 id="66-drug-availability-by-region-and-era">6.6 Drug availability by region and era</h3>
 <p>The model simulates antibiotics becoming available at their historical introduction dates. Before sulfanilamide was introduced in 1937, there were no antibiotics in the model. Before penicillin G was introduced in 1942, the <code>pen</code> era had not yet begun. Before ciprofloxacin was introduced in 1987, the model had no <code>fq</code> agents. This historical layering is essential for reproducing the sequential emergence of resistance over the 20th century.</p>
@@ -4711,7 +4711,7 @@
 <p>Not all bacteria can exchange genes equally. Transfer compatibility is not represented as a single species-to-species lookup table. Instead, each bacterium group is assigned to a <strong>plasmid pool</strong>, and the baseline pairwise HGT hazard is generated from that pool structure before the Section 9.2 multipliers are applied.</p>
 <p>The pool mapping is:</p>
 <ul>
-<li><strong>GramPositive pool</strong>: Staphylococci and Streptococci &#8212; both gram-positive groups share this pool; cross-group (Staph&#8596;Strep) HGT operates at the lower cross-group rate (10&times; below within-group), and <code>TargetSitePbp2aMecA</code>/<code>EnzymeBlaZ</code> are restricted to Staphylococci so mecA cannot transfer into Streptococci regardless of HGT rate</li>
+<li><strong>GramPositive pool</strong>: Staphylococci and Streptococci — both gram-positive groups share this pool; cross-group (Staph↔Strep) HGT operates at the lower cross-group rate (10× below within-group), and <code>TargetSitePbp2aMecA</code>/<code>EnzymeBlaZ</code> are restricted to Staphylococci so mecA cannot transfer into Streptococci regardless of HGT rate</li>
 <li><strong>EntericGramNegative pool</strong>: Enterobacterales, non-fermenters, and enteric pathogens</li>
 <li><strong>RespiratoryGramNegative pool</strong>: fastidious respiratory/genitourinary organisms</li>
 <li><strong>Anaerobe pool</strong>: anaerobes</li>

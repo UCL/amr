@@ -12419,9 +12419,9 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
         // Cephalosporins 1st/2nd gen
         "cephalexin" | "cefazolin" | "cefuroxime" => Some("cephalosporins_1_2"),
         
-        // Cephalosporins 3rd/4th gen (including BL/BLI combos)
+        // Cephalosporins 3rd/4th gen (including BL/BLI combos, siderophore cephems)
         "ceftriaxone" | "ceftazidime" | "cefixime" | "cefepime" | "ceftaroline" | 
-        "ceftazidime_avibactam" | "ceftolozane_tazobactam" => Some("cephalosporins_3_4"),
+        "cefiderocol" | "ceftazidime_avibactam" | "ceftolozane_tazobactam" => Some("cephalosporins_3_4"),
         
         // Carbapenems (including BL/BLI)
         "meropenem" | "imipenem_c" | "ertapenem" | "meropenem_vaborbactam" => Some("carbapenems"),
@@ -12443,7 +12443,7 @@ pub fn get_drug_class(drug: &str) -> Option<&'static str> {
         "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin" => Some("fluoroquinolones"),
         
         // Tetracyclines
-        "tetracycline" | "doxycycline" | "minocycline" => Some("tetracyclines"),
+        "tetracycline" | "doxycycline" | "minocycline" | "tigecycline" => Some("tetracyclines"),
         
         // Glycopeptides (vancomycin only — evades VanB)
         "vancomycin" => Some("glycopeptides"),
@@ -12484,11 +12484,12 @@ pub fn get_drug_class_introduction_day(drug_class: &str) -> Option<i32> {
     // Map drug class to its constituent drugs and find earliest introduction
     let drugs: &[&str] = match drug_class {
         "penicillins" => &["penicillin_g", "ampicillin", "amoxicillin", "piperacillin", "ticarcillin",
-                          "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", 
+                          "flucloxacillin", "amoxicillin_clavulanate", "piperacillin_tazobactam", "ampicillin_sulbactam", 
                           "ticarcillin_clavulanate"],
         "cephalosporins_1_2" => &["cephalexin", "cefazolin", "cefuroxime"],
         "cephalosporins_3_4" => &["ceftriaxone", "ceftazidime", "cefepime", "ceftaroline", "cefixime", 
-                                  "ceftazidime_avibactam", "aztreonam"],
+                                  "cefiderocol", "ceftazidime_avibactam", "ceftolozane_tazobactam",
+                                  "aztreonam", "aztreonam_avibactam"],
         "carbapenems" => &["meropenem", "imipenem_c", "ertapenem", "meropenem_vaborbactam"],
         "macrolides" => &["erythromycin", "azithromycin", "clarithromycin", "clindamycin"],
         "aminoglycosides" => &["gentamicin", "tobramycin", "amikacin"],
