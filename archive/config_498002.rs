@@ -3329,7 +3329,11 @@ lazy_static! {
         map.insert("debug_seed_hospital_cache_resistant_profiles".to_string(), 0.0);
 
         // --- Stenotrophomonas maltophilia resistance floors ---
-
+        // DISABLED: intrinsic resistance is modelled via near-zero potency_when_no_r for the
+        // relevant drug classes (penicillins, ceph 1/2, carbapenems, aminoglycosides, macrolides).
+        // Resistance floors conflate intrinsic phenotype with acquired/selected resistance and
+        // prevent the model correctly tracking zero acquired-R in a drug class where the organism
+        // is simply not treated.  See per-drug potency entries in the Steno potency block below.
         map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_enabled".to_string(), 0.0);
         map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_ramp_years".to_string(), 5.0); 
         // Drug class floors (using drug class names from potency section)

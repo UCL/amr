@@ -4873,6 +4873,14 @@ pub(crate) fn apply_rules(
                                 if !param_cache.mechanism_applicable(mech_idx, b_idx, d_idx) {
                                     continue;
                                 }
+                                // Causal correctness: only assign mechanisms that have already
+                                // emerged somewhere in the simulation (i.e. present in the
+                                // circulating strain pool). Prevents the floor from introducing
+                                // a resistance mechanism before any de novo emergence has
+                                // occurred anywhere in the world.
+                                if !mechanism_cache.mechanism_has_ever_emerged_globally(b_idx, mech_idx) {
+                                    continue;
+                                }
                                 if rng.gen_bool(mechanism_prob) {
                                     individual.mechanism_any[b_idx][mech_idx] = true;
                                     individual.mechanism_majority[b_idx][mech_idx] = true;

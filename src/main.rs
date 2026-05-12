@@ -5,8 +5,8 @@
 //  ----  plan for paper -----------------------------------------------------------------------------------------
 //
 //  get at least three calibration parameter sets - from 2026 three "scenarios" to 2035
-//  (i) continue status quo (ii) amr disappears (iii) immediate ast - or as a minimum find 3 distinct parameter sets
-//  that calibrate
+//  (i) continue status quo (ii) amr disappears (iii) immediate ast (? with full drug access, if not the case currently
+//  in african region)
 //
 //
 //
@@ -18,10 +18,17 @@
 //  
 // present a global antibiotic activity for each bacteria over time
 // - sum across drugs existing at the time of mean potency x (1 - any_r) amongst those infected with the bacteria
+// (do this by region ?)
 //
-//  ? need to include temporal trends in incidence and drug choice for some bacteria ?
+//  need to incorporate major time trends in past bacteria specific incidence 
 //
+//  present bacteria-specific numbers of deaths for status quo and amr disappears (ie attributable) to compare with gbd
+//  (for age > 5 the highest attributable in gbd are s aureus, a baumannii, and e coli.)
 //
+//  may need to consider re-into of resistance floors for some bacteria if there are 
+//  clear animal/environmental sources
+//
+// 3rd calibration could be having a resistance floor for all bacteria
 //
 //
 //

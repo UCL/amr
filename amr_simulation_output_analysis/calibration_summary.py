@@ -503,10 +503,12 @@ def _gather_calibration_context(
     bacteria_burden_df = _calculate_bacteria_burden_table(year_df, targets, scale_factor, window_years)
     resistance_incidence_locus_df = _calculate_resistance_incidence_locus_table(year_df)
     serious_resistance_locus_df = _calculate_serious_resistance_locus_table(year_df)
+    age_region_death_rate_df = _calculate_age_region_death_rate_table(year_df, window_years)
 
     return {
         "resistance_incidence_locus_df": resistance_incidence_locus_df,
         "serious_resistance_locus_df": serious_resistance_locus_df,
+        "age_region_death_rate_df": age_region_death_rate_df,
         "config": config,
         "targets": targets,
         "df": df,
@@ -3415,6 +3417,56 @@ def _calculate_syndrome_incidence_table(
         
     return pd.DataFrame(records, columns=columns)
 
+def _calculate_age_region_death_rate_table(
+    year_df: pd.DataFrame,
+    window_years: float,
+) -> pd.DataFrame:
+    """Infection death rates (sepsis + infection_non_sepsis) per 100,000 per year by age group and region."""
+
+    region_names = ['north_america', 'south_america', 'africa', 'asia', 'europe', 'oceania']
+    region_labels = ['N. America', 'S. America', 'Africa', 'Asia', 'Europe', 'Oceania']
+    age_groups = ['0_5', '6_14', '15_49', '50_79', '80plus']
+    age_labels = ['0-5yr', '6-14yr', '15-49yr', '50-79yr', '80+yr']
+
+    if year_df.empty or not (np.isfinite(window_years) and window_years > 0):
+        return pd.DataFrame()
+
+    records = []
+    for age_group, age_label in zip(age_groups, age_labels):
+        row: Dict[str, object] = {'Age Group': age_label}
+        for region, region_label in zip(region_names, region_labels):
+            prop_col = f"{region}_prop_age_{age_group}"
+            sepsis_col = f"{region}_prop_age_{age_group}_deaths_sepsis"
+            non_sepsis_col = f"{region}_prop_age_{age_group}_deaths_infection_non_sepsis"
+            pop_col = f"{region}_population"
+
+            missing = [c for c in (prop_col, sepsis_col, non_sepsis_col, pop_col) if c not in year_df.columns]
+            if missing:
+                row[region_label] = np.nan
+                continue
+
+            total_deaths = float(
+                year_df[sepsis_col].sum(skipna=True) + year_df[non_sepsis_col].sum(skipna=True)
+            )
+            avg_pop = float(year_df[pop_col].mean(skipna=True))
+            avg_prop = float(year_df[prop_col].mean(skipna=True))
+            avg_age_pop = avg_pop * avg_prop
+
+            if avg_age_pop > 0 and np.isfinite(avg_age_pop):
+                annual_deaths = total_deaths / window_years
+                row[region_label] = annual_deaths / avg_age_pop * 100_000.0
+            else:
+                row[region_label] = np.nan
+
+        records.append(row)
+
+    if not records:
+        return pd.DataFrame()
+
+    cols = ['Age Group'] + region_labels
+    return pd.DataFrame(records, columns=cols)
+
+
 def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optional[Path]:
     """Generate calibration summary file and return its path."""
 
@@ -3752,6 +3804,21 @@ def generate_calibration_summary(config: Optional[PlotConfig] = None) -> Optiona
             handle.write(syndrome_df.to_string(index=False, float_format=lambda x: f"{x:,.2f}"))
             handle.write("\n\n")
 
+        age_region_death_rate_df = context.get("age_region_death_rate_df")
+        if isinstance(age_region_death_rate_df, pd.DataFrame) and not age_region_death_rate_df.empty:
+            handle.write(
+                "Infection Death Rates by Age Group and Region"
+                " (deaths per 100,000 alive in age group per year;"
+                " sepsis + infection_non_sepsis combined)\n"
+            )
+            handle.write(
+                age_region_death_rate_df.to_string(
+                    index=False,
+                    float_format=lambda x: f"{x:,.1f}",
+                    na_rep="---",
+                )
+            )
+            handle.write("\n\n")
 
         _write_metric_fit_summary(
             handle,

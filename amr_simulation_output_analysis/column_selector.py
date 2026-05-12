@@ -158,6 +158,14 @@ CALIBRATION_PATTERNS = [
     r'.*_resistant_infected_hospital_count$',
     r'.*_resistant_infected_community_count$',
     r'.*_presence_microbiome_resistant$',
+
+    # Age-specific infection death rates by region (sepsis + infection_non_sepsis, 60 columns)
+    r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)_deaths_sepsis$',
+    r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)_deaths_infection_non_sepsis$',
+    # Age proportion denominators for computing per-age-group rates (30 columns)
+    r'^.*_prop_age_(0_5|6_14|15_49|50_79|80plus)$',
+    # Regional population totals (denominator fallback; also in GROUPED_PLOT_PATTERNS)
+    r'^(north_america|south_america|africa|asia|europe|oceania)_population$',
 ]
 
 

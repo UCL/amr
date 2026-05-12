@@ -3329,7 +3329,11 @@ lazy_static! {
         map.insert("debug_seed_hospital_cache_resistant_profiles".to_string(), 0.0);
 
         // --- Stenotrophomonas maltophilia resistance floors ---
-
+        // DISABLED: intrinsic resistance is modelled via near-zero potency_when_no_r for the
+        // relevant drug classes (penicillins, ceph 1/2, carbapenems, aminoglycosides, macrolides).
+        // Resistance floors conflate intrinsic phenotype with acquired/selected resistance and
+        // prevent the model correctly tracking zero acquired-R in a drug class where the organism
+        // is simply not treated.  See per-drug potency entries in the Steno potency block below.
         map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_enabled".to_string(), 0.0);
         map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_ramp_years".to_string(), 5.0); 
         // Drug class floors (using drug class names from potency section)
@@ -6108,23 +6112,9 @@ lazy_static! {
             map.insert(format!("drug_trim_sulf_for_bacteria_{}_initiation_multiplier_before_2000", bact), 7.0);          // 1968-2000: widely used for typhoid
 
             // Additional historical drug pressure to seed co-selected MDR mechanisms in profile cache.
-            // IncHI1 plasmid carries tet+dhfr+sul+blaTEM+aac_aph+16s_rrmt all co-selected by chloramphenicol/ampicillin/TMP-SMX pressure.
-            // Tetracyclines: use extended to _before_2000 (LMIC fallback throughout 1980s-90s); doxycycline added.
-            map.insert(format!("drug_tetracycline_for_bacteria_{}_initiation_multiplier_before_2000", bact), 6.0);       // 1948-1999: tetracycline used for mild/moderate typhoid throughout first 5 decades of antibiotic era; tet_m/tet_abc co-selected on IncHI1 MDR plasmid from 1960s
-            map.insert(format!("drug_doxycycline_for_bacteria_{}_initiation_multiplier_before_2000", bact), 5.0);        // 1967-1999: doxycycline preferred tetracycline in adults for enteric fever in LMIC; co-selects same tet_m/efflux_tet_abc plasmid genes
-            // Chloramphenicol: add a pre-1975 high-pressure epoch — MDR Typhi plasmid (IncHI1) was globally disseminated
-            // by the early 1970s epidemic clone; chloramphenicol pressure from 1948 is the primary driver of MDR spread.
-            map.insert(format!("drug_chloramphenicol_for_bacteria_{}_initiation_multiplier_before_1975", bact), 20.0);   // 1948-1974: chloramphenicol sole effective therapy; extreme pressure drove IncHI1 MDR plasmid emergence and global dissemination
-            // Aminoglycosides: raise gentamicin and add amikacin — AAC-APH/16S-RRMT plasmid co-carriage means AG
-            // resistance accumulates independently of direct AG treatment; higher seeding multipliers reflect MDR plasmid density.
-            map.insert(format!("drug_gentamicin_for_bacteria_{}_initiation_multiplier_before_1990", bact), 8.0);         // 1963-1989: raised 4→8; IV gentamicin for severe typhoid + proxy for streptomycin era; seeds AAC-APH/16S-RRMT cache density
-            map.insert(format!("drug_amikacin_for_bacteria_{}_initiation_multiplier_before_2000", bact), 5.0);           // 1972-1999: amikacin for gentamicin-resistant severe cases; additional 16S-RRMT seeding
-            // FQ co-selection: ofloxacin/levofloxacin widely used in South/SE Asia for enteric fever alongside ciprofloxacin.
-            // GyrA/ParC mutations are shared — additional FQ drug pressure expands resistant cache fraction.
-            map.insert(format!("drug_ofloxacin_for_bacteria_{}_initiation_multiplier_before_2010", bact), 7.0);          // 1990-2010: widely used in India/Bangladesh/Pakistan as ciprofloxacin equivalent; seeds GyrA cache
-            map.insert(format!("drug_ofloxacin_for_bacteria_{}_initiation_multiplier", bact), 2.0);                      // 2010+: continued use in LMIC
-            map.insert(format!("drug_levofloxacin_for_bacteria_{}_initiation_multiplier_before_2010", bact), 4.0);       // 1997-2010: levofloxacin used in South/SE Asia as oral FQ for typhoid
-            map.insert(format!("drug_levofloxacin_for_bacteria_{}_initiation_multiplier", bact), 2.0);                   // 2010+: residual use
+            // IncHI1 plasmid carries tet+dhfr+sul+blaTEM all co-selected by chloramphenicol/ampicillin/TMP-SMX pressure.
+            map.insert(format!("drug_tetracycline_for_bacteria_{}_initiation_multiplier_before_1980", bact), 5.0);       // 1948-1979: early-era enteric fever treatment before chloramphenicol dominance; tet genes co-carried on emergent MDR plasmid
+            map.insert(format!("drug_gentamicin_for_bacteria_{}_initiation_multiplier_before_1990", bact), 4.0);         // 1963-1989: IV alternative for severe/complicated typhoid before FQs; seeds 16S-RRMT and AAC-APH mechanisms
         }
 
         // Shigella spp.
@@ -7079,7 +7069,6 @@ lazy_static! {
 
         // --- 17. Fluoroquinolones: sim 7.70% vs 10.0% target (534713) — expand UTI + respiratory use.
         map.insert("drug_ciprofloxacin_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 5.0);         // UTI second/third-line
-        map.insert("drug_ciprofloxacin_for_bacteria_escherichia_coli_initiation_multiplier_before_1990".to_string(), 7.0); // pre-1990: proxy for nalidixic acid (first-line UTI/GI from 1963); GyrA mutations seeded in E. coli cache for ~24 years before ciprofloxacin was licensed, explaining rapid FQ resistance emergence post-1987
         map.insert("drug_ciprofloxacin_for_bacteria_klebsiella_pneumoniae_initiation_multiplier".to_string(), 4.0);
         map.insert("drug_ciprofloxacin_for_bacteria_pseudomonas_aeruginosa_initiation_multiplier".to_string(), 5.0);   // Anti-pseudomonal FQ
         map.insert("drug_ciprofloxacin_for_bacteria_proteus_spp._initiation_multiplier".to_string(), 4.0);
@@ -7103,10 +7092,6 @@ lazy_static! {
         map.insert("drug_moxifloxacin_for_bacteria_mycoplasma_pneumoniae_initiation_multiplier".to_string(), 4.0);
         map.insert("drug_ofloxacin_for_bacteria_chlamydia_trachomatis_initiation_multiplier".to_string(), 3.0);        // Chlamydia alternative
         map.insert("drug_ofloxacin_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 3.0);
-        map.insert("drug_levofloxacin_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 2.5);           // Co-selection from respiratory FQ prescriptions; levofloxacin is used for CAP/LRTI and co-selects gut E. coli via sub-MIC enteric exposure
-        map.insert("drug_doxycycline_for_bacteria_escherichia_coli_initiation_multiplier".to_string(), 2.5);            // Doxycycline widely used for RTI/STI/traveller's diarrhoea; gut co-selection drives tet resistance in commensal E. coli
-        map.insert("drug_doxycycline_for_bacteria_escherichia_coli_initiation_multiplier_before_2000".to_string(), 6.0); // pre-2000: tetracycline/doxycycline were dominant broad-spectrum agents from 1950; decades of agricultural + human use seeded tet_m / tet_abc profiles in E. coli before modern use patterns established
-        map.insert("drug_tetracycline_for_bacteria_escherichia_coli_initiation_multiplier_before_2000".to_string(), 6.0); // pre-2000: tetracycline (parent compound) heavy use 1950-2000 in humans and livestock; seeds tet_m / tet_abc / efflux cache
         map.insert("drug_ofloxacin_for_bacteria_neisseria_gonorrhoeae_initiation_multiplier".to_string(), 2.0);
 
         // for each drug-bacteria combination will need a specific multiplier for initiation rate
@@ -7858,7 +7843,7 @@ lazy_static! {
         map.insert("bacteria_escherichia_coli_mechanism_target_site_erm_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_target_site_cfr_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_primary_emergence_rate".to_string(), 1.0                ); // classes: fq
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 1.0      ); // classes: fq  // raised 0.3→1.0: secondary GyrA/ParC step-up mutation is common in high-use settings and is needed to reach observed high-level FQ resistance prevalences
+        map.insert("bacteria_escherichia_coli_mechanism_mutation_gyra_parc_secondary_emergence_rate".to_string(), 0.3      ); // classes: fq
         map.insert("bacteria_escherichia_coli_mechanism_protection_qnr_emergence_rate".to_string(), 1.0               ); // classes: fq
         map.insert("bacteria_escherichia_coli_mechanism_efflux_acrab_tolc_emergence_rate".to_string(), 1.0        ); // classes: fq, tet, chl
         map.insert("bacteria_escherichia_coli_mechanism_efflux_mexxy_oprm_emergence_rate".to_string(), 0.0); // tier 0

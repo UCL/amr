@@ -335,6 +335,28 @@ impl MechanismProfileCache {
         self.total_seen[region_idx][h][bacteria_idx] = slot.len() as u64;
     }
 
+    /// Returns true if the given mechanism bit has appeared in any stored profile across all
+    /// regions and both strata for the given bacterium.
+    ///
+    /// Used to enforce causal correctness in the resistance floor: a floor can only assign
+    /// a mechanism to a newly-infected individual if that mechanism has already emerged
+    /// somewhere in the simulation (i.e. it is present in the circulating strain pool).
+    pub fn mechanism_has_emerged_globally(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
+        if bacteria_idx >= self.num_bacteria {
+            return false;
+        }
+        let bit = 1u64 << mechanism_idx;
+        for region_idx in 0..self.num_regions {
+            for h in 0..2 {
+                let slot = &self.profiles[region_idx][h][bacteria_idx];
+                if slot.iter().any(|&mask| mask & bit != 0) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Sample a complete mechanism profile uniformly at random from the hospital or community pool.
     /// Falls back to the combined pool when the requested stratum is empty (e.g. early warm-up).
     /// Returns `None` if no profiles are stored at all for this region×bacteria.
@@ -762,6 +784,16 @@ impl MechanismCache {
             }
         }
         true
+    }
+
+    /// Returns true if the given mechanism has appeared in any stored profile across all
+    /// regions and both strata for the given bacterium.
+    ///
+    /// Delegates to `MechanismProfileCache::mechanism_has_emerged_globally`.
+    /// Used by the resistance floor to enforce causal correctness: the floor can only assign
+    /// a mechanism that has actually emerged somewhere in the simulation.
+    pub fn mechanism_has_ever_emerged_globally(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
+        self.profiles.mechanism_has_emerged_globally(bacteria_idx, mechanism_idx)
     }
 }
 
