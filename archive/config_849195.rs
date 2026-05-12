@@ -3323,19 +3323,56 @@ lazy_static! {
         // touching each per-organism flag.  Per-organism flags still take effect when this is 0.0.
         map.insert("resistance_floor_all_bacteria_enabled".to_string(), 1.0);
 
-        // Universal extinction guard: probability that a new infection acquires a resistance
-        // mechanism for a given drug class, provided:
-        //   (a) that drug class was introduced before the current simulation day, and
-        //   (b) that mechanism has already emerged somewhere in the simulation (causal guard).
-        // 1% is a minimal floor — not a calibration target. Resistance prevalences above
-        // this level arise entirely from de novo emergence, HGT, carriage, and profile-cache
-        // sampling. No per-organism or per-drug-class overrides are required or supported.
-        map.insert("resistance_floor_default_level".to_string(), 0.01);
-
         // Debug-only helper: seed each hospital cache slot with one resistant profile so
         // hospital prune experiments can prove the cache logic can reach 100% any-R when
         // susceptible entries are fully removed from the candidate pool.
         map.insert("debug_seed_hospital_cache_resistant_profiles".to_string(), 0.0);
+
+        // --- Stenotrophomonas maltophilia resistance floors ---
+
+        map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_enabled".to_string(), 0.0);
+        map.insert("bacteria_stenotrophomonas_maltophilia_resistance_floor_ramp_years".to_string(), 5.0); 
+        // Drug class floors (using drug class names from potency section)
+        map.insert("bacteria_stenotrophomonas_maltophilia_penicillins_resistance_floor".to_string(), 0.95); // Intrinsic L1/L2
+        map.insert("bacteria_stenotrophomonas_maltophilia_cephalosporins_1_2_resistance_floor".to_string(), 0.95); // Intrinsic L1
+        map.insert("bacteria_stenotrophomonas_maltophilia_cephalosporins_3_4_resistance_floor".to_string(), 0.75); // Partial L1/L2 coverage
+        map.insert("bacteria_stenotrophomonas_maltophilia_carbapenems_resistance_floor".to_string(), 0.98); // Intrinsic L1 (metalloenzyme)
+        map.insert("bacteria_stenotrophomonas_maltophilia_aminoglycosides_resistance_floor".to_string(), 0.80); // Efflux + modifying enzymes
+        map.insert("bacteria_stenotrophomonas_maltophilia_fluoroquinolones_resistance_floor".to_string(), 0.45); // Moderate - acquired Smqnr
+        map.insert("bacteria_stenotrophomonas_maltophilia_macrolides_resistance_floor".to_string(), 0.95); // Intrinsic efflux
+        map.insert("bacteria_stenotrophomonas_maltophilia_tetracyclines_resistance_floor".to_string(), 0.40); // Variable - doxycycline/minocycline active
+        map.insert("bacteria_stenotrophomonas_maltophilia_folate_antagonists_resistance_floor".to_string(), 0.15); // TMP-SMX is preferred therapy
+        map.insert("bacteria_stenotrophomonas_maltophilia_polymyxins_resistance_floor".to_string(), 0.70); // Moderate colistin resistance
+
+        // --- Helicobacter pylori resistance floors ---
+        // DISABLED: resistance should emerge entirely from treatment-course selection pressure
+        // (including incidental exposure from drugs used for other organisms).
+        // A hard floor saturates the pool and makes resistance insensitive to treatment rate;
+        // per-treatment-course emergence via the standard mechanism is the correct approach.
+        map.insert("bacteria_helicobacter_pylori_resistance_floor_enabled".to_string(), 0.0);
+        map.insert("bacteria_helicobacter_pylori_resistance_floor_ramp_years".to_string(), 10.0); // 1990-2000 ramp
+            map.insert("bacteria_helicobacter_pylori_macrolides_resistance_floor".to_string(), 0.45);       // clarithromycin: keep high, but back off persistent overshoot slightly
+            map.insert("bacteria_helicobacter_pylori_nitroimidazoles_resistance_floor".to_string(), 0.43);   // metronidazole: similar small trim
+            map.insert("bacteria_helicobacter_pylori_penicillins_resistance_floor".to_string(), 0.28);       // amoxicillin: still elevated, slightly less aggressive
+            map.insert("bacteria_helicobacter_pylori_fluoroquinolones_resistance_floor".to_string(), 0.28);  // ciprofloxacin/levofloxacin: small pullback
+            map.insert("bacteria_helicobacter_pylori_tetracyclines_resistance_floor".to_string(), 0.14);     // tetracycline: preserve non-zero floor with less saturation
+
+        // --- Enterococcus faecium resistance floors ---
+        // E. faecium: intrinsically resistant to cephalosporins, low-level aminoglycosides, clindamycin
+        // VRE (vancomycin-resistant) is a major concern globally
+        // At 100k population: very low infection counts, resistance not sustained
+        map.insert("bacteria_enterococcus_faecium_resistance_floor_enabled".to_string(), 0.0);
+        map.insert("bacteria_enterococcus_faecium_resistance_floor_ramp_years".to_string(), 10.0); // Slower ramp - VRE emerged gradually
+        // Drug class floors
+        map.insert("bacteria_enterococcus_faecium_penicillins_resistance_floor".to_string(), 0.0); // Ampicillin resistance acquired, start at 0
+        map.insert("bacteria_enterococcus_faecium_carbapenems_resistance_floor".to_string(), 0.0); // Not intrinsic
+        map.insert("bacteria_enterococcus_faecium_aminoglycosides_resistance_floor".to_string(), 0.0); // High-level resistance acquired
+        map.insert("bacteria_enterococcus_faecium_fluoroquinolones_resistance_floor".to_string(), 0.35); // sustain high ciprofloxacin resistance in sparse counts
+        map.insert("bacteria_enterococcus_faecium_macrolides_resistance_floor".to_string(), 0.30); // sustain common MLS resistance in sparse counts
+        map.insert("bacteria_enterococcus_faecium_glycopeptides_resistance_floor".to_string(), 0.18); // VRE - moderate stabilizing floor
+        map.insert("bacteria_enterococcus_faecium_oxazolidinones_resistance_floor".to_string(), 0.01); // Low linezolid resistance
+        map.insert("bacteria_enterococcus_faecium_tetracyclines_resistance_floor".to_string(), 0.25); // sustain observed tetracycline resistance
+        map.insert("bacteria_enterococcus_faecium_folate_antagonists_resistance_floor".to_string(), 0.20); // High TMP-SMX resistance
 
         // === [E] Drug-bacteria potency & emergence settings ===
         // Qualitative potency buckets, initiation multipliers, and baseline resistance emergence
@@ -7256,9 +7293,9 @@ lazy_static! {
         // 2. Foodborne / animal-reservoir organisms (dilution 0.05–0.15):
         //    Majority of community acquisitions come from animal / food chain where resistance
         //    reflects agricultural antibiotic use, not human clinical resistance ecology.
-        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.90); // Poultry reservoir drives resistance: EU/US broiler flocks carry 50-70% FQ-resistant Campylobacter; the pre-selected resistance in the food-chain pool IS the community reservoir — raising 0.70→0.90 because the "environmental" fraction carries near-identical mechanisms to the human circulation pool
-        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.95); // Strict obligate human pathogen: H58/4.3.1 clade circulates exclusively in humans with no animal reservoir; contaminated water sources are human-waste-derived and mirror the circulating human resistance pool; raised 0.80→0.95
-        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.75); // Also obligate human pathogen (no animal reservoir); transmission exclusively faecal-oral human-to-human; previous value of 0.25 was significantly under-set — raised to 0.75 to match Typhi-class epidemiology
+        map.insert("campylobacter_jejuni_community_resistance_dilution_factor".to_string(), 0.70); // Poultry reservoir drives resistance: EU/US broiler flocks carry 50-60% FQ-resistant Campylobacter; human infection pool reflects this pre-seeded resistant stock; raising 0.35→0.70 because the "community reservoir" is the poultry-to-human pipeline, which at equilibrium has near-majority resistance for FQs and tetracyclines
+        map.insert("salmonella_enterica_serovar_typhi_community_resistance_dilution_factor".to_string(), 0.80); // Strict obligate human pathogen: H58/4.3.1 clade circulates exclusively in humans with no animal reservoir; classic MDR Typhi (ACSSuT plasmid) was present in >70% of South Asian isolates by 1990, showing near-complete clonal sweeps; raised 0.50→0.80 because resistance in Typhi propagates through continuous human-to-human transmission chains without environmental dilution
+        map.insert("salmonella_enterica_serovar_paratyphi_a_community_resistance_dilution_factor".to_string(), 0.25);
         map.insert("invasive_non-typhoidal_salmonella_spp._community_resistance_dilution_factor".to_string(), 0.07);
         map.insert("yersinia_enterocolitica_community_resistance_dilution_factor".to_string(), 0.07);
         map.insert("listeria_monocytogenes_community_resistance_dilution_factor".to_string(), 0.07);
@@ -7267,31 +7304,31 @@ lazy_static! {
         // 3. Healthcare-associated organisms that also colonise community (dilution 0.10–0.25):
         //    Significant community carriage but community reservoir considerably less resistant
         //    than the hospital pool.  Includes Enterobacterales with environmental reservoirs.
-        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.18); // Spore-former with environmental persistence, but metronidazole/FQ resistance tracks human antibiotic use almost exclusively; raised 0.10→0.18
-        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.15); // Gut commensal; community wastewater Enterobacter carries AmpC/ESBL resistance at non-trivial levels; raised 0.08→0.15
-        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.15); // Same reasoning as enterobacter_spp.; raised 0.08→0.15
-        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.22); // Gut commensal; community resistance non-trivial; raised 0.15→0.22
-        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut/environment commensal; wastewater resistance non-negligible; raised 0.15→0.20
-        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut commensal; raised 0.15→0.20
-        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.20); // Gut commensal; raised 0.15→0.20
-        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.20); // Gut commensal; raised 0.15→0.20
-        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.30); // Wastewater Klebsiella ESBL prevalence 10–20% in treated effluent; community pool is not purely susceptible; raised 0.12→0.30
-        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.35); // Community wastewater E. faecium carries amp/high-level aminoglycoside resistance; human gut commensal tracking human antibiotic use; raised 0.12→0.35
-        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.40); // More environmentally widespread than faecium but resistance still tracks human antibiotic use; raised 0.25→0.40
-        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.25); // Skin commensal; resistance almost entirely from human healthcare/antibiotic contact; raised 0.15→0.25
+        map.insert("clostridioides_difficile_community_resistance_dilution_factor".to_string(), 0.10);
+        map.insert("enterobacter_spp._community_resistance_dilution_factor".to_string(), 0.08);
+        map.insert("enterobacter_cloacae_community_resistance_dilution_factor".to_string(), 0.08);
+        map.insert("citrobacter_spp._community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("serratia_spp._community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("morganella_spp._community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("proteus_spp._community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("p_stuartii_community_resistance_dilution_factor".to_string(), 0.15);
+        map.insert("klebsiella_pneumoniae_community_resistance_dilution_factor".to_string(), 0.12);
+        map.insert("enterococcus_faecium_community_resistance_dilution_factor".to_string(), 0.12);
+        map.insert("enterococcus_faecalis_community_resistance_dilution_factor".to_string(), 0.25);
+        map.insert("staphylococcus_epidermidis_community_resistance_dilution_factor".to_string(), 0.15);
         //
         // 4. Endogenous flora / high-carriage human commensals (dilution 0.5      ):
         //    Majority of community infections arise from the person's own flora or close
         //    human-to-human contact; community resistance reflects recent human ecology.
-        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.75); // Wastewater E. coli: ampicillin R 50–70%, trimethoprim 20–40%, tetracycline 30–60%; food-chain carries pre-selected resistance; raised 0.50→0.75
-        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.65); // Skin carriage and healthcare-worker transmission; LA-MRSA from livestock limits upward adjustment; raised 0.50→0.65
-        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.65); // Obligate gut anaerobe; resistance tracks human GI antibiotic use almost directly; no meaningful animal/environmental wild-type pool; raised 0.50→0.65
-        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.65); // Human nasopharyngeal commensal, direct respiratory transmission; beta-lactamase rates track human paediatric antibiotic use; raised 0.50→0.65
-        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.60); // Human nasopharyngeal commensal; >90% beta-lactamase in circulating strains tracks human use; raised 0.50→0.60
-        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.70); // Human nasopharyngeal carriage; resistance clones spread person-to-person; no environmental reservoir; raised 0.50→0.70
-        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.75); // Exclusively human pathogen with no animal or environmental reservoir; resistance (macrolide/tetracycline) circulates entirely within human transmission chain; raised 0.50→0.75
-        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.60); // Predominantly human carriage; some bovine reservoir but resistance driven by human treatment; raised 0.50→0.60
-        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.80); // Exclusively person-to-person gastric transmission (oral-oral/faecal-oral); no environmental or animal reservoir; clarithromycin/metronidazole resistance circulates entirely within human host population; raised 0.50→0.80
+        map.insert("escherichia_coli_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("staphylococcus_aureus_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("bacteroides_fragilis_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("haemophilus_influenzae_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("moraxella_catarrhalis_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("streptococcus_pneumoniae_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("streptococcus_pyogenes_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("streptococcus_agalactiae_community_resistance_dilution_factor".to_string(), 0.5 );
+        map.insert("helicobacter_pylori_community_resistance_dilution_factor".to_string(), 0.5 );
         //
         // 5. Obligate human pathogens / STIs (dilution 1.0):
         //    Exclusively human-to-human transmission; community resistance pool IS human ecology.
@@ -10173,7 +10210,7 @@ lazy_static! {
         map.insert("resistance_mechanism_as_yet_unknown_enhancement_other".to_string(), 0.5);
 
         map.insert("mechanism_assignment_probability_on_any_r_gain".to_string(), 0.8); // Default 80%
-        map.insert("community_profile_cache_retention".to_string(), 0.999); // Community profile cache retention (~693-day half-life; raised from 0.99 — environmental resistance in wastewater/food-chain is not wild-type; longer retention better reflects multi-decade persistence of historically-selected resistance)
+        map.insert("community_profile_cache_retention".to_string(), 0.99); // Community profile cache retention (~69-day half-life; raised from 0.9 to prevent stochastic loss of resistant profiles for rare bacteria)
 
         // Mechanism-specific fitness costs (reversion rates per day when drug absent)   !!!reversion
         
@@ -10978,7 +11015,7 @@ lazy_static! {
         map.insert("carrier_resistance_inheritance_probability".to_string(), 0.50);  // !!!micro
         // Not one of the four sampled axes: structural community reservoir dilution parameter.
         map.insert("community_resistance_dilution_factor".to_string(), 0.30); 
-        map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Hospital ecology retention raised from 0.995 (~139-day half-life) to 0.999 (~693-day half-life); endemic MRSA/VRE/CRE on wards persists for years, not months
+        map.insert("hospital_profile_cache_retention".to_string(), 0.995); // Hospital ecology persists ~139-day half-life (endemic MRSA/VRE/CRE on wards)
 
         // Baseline global multipliers retained for compatibility. In four-axis calibration,
         // run_pathway_* multipliers are the sampled axis knobs and these stay at 1.0.
@@ -12562,35 +12599,77 @@ pub fn bacteria_resistance_floor_enabled(bacteria_name: &str) -> bool {
     get_global_param(&key).unwrap_or(0.0) > 0.5
 }
 
-/// Calculate the effective resistance floor for a bacteria-drug pair at a given simulation day.
-///
-/// Returns `resistance_floor_default_level` (default 0.01) if:
-/// - Resistance floors are enabled for this bacteria
-/// - The drug class has been introduced before `current_day`
-///
-/// Returns 0.0 otherwise. The causal correctness guard in the calling code (rules/mod.rs)
-/// ensures the floor can only fire when a relevant mechanism has already emerged somewhere
-/// in the simulation — no per-organism or per-drug-class floor values are needed.
-pub fn calculate_resistance_floor(bacteria_name: &str, drug: &str, current_day: i32) -> f64 {
-    if !bacteria_resistance_floor_enabled(bacteria_name) {
-        return 0.0;
-    }
+/// Get the resistance floor ramp period for a bacteria (in years)
+pub fn get_resistance_floor_ramp_years(bacteria_name: &str) -> f64 {
+    let canonical = canonicalize_bacteria_slug(bacteria_name);
+    let key = format!("bacteria_{}_resistance_floor_ramp_years", canonical.as_ref());
+    get_global_param(&key).unwrap_or(10.0) // Default 10 year ramp
+}
 
+/// Get the target resistance floor for a bacteria-drug combination
+/// Returns 0.0 if no floor is configured
+pub fn get_resistance_floor_target(bacteria_name: &str, drug: &str) -> f64 {
     let drug_class = match get_drug_class(drug) {
         Some(class) => class,
         None => return 0.0,
     };
+    
+    let canonical = canonicalize_bacteria_slug(bacteria_name);
+    let key = format!("bacteria_{}_{}_resistance_floor", canonical.as_ref(), drug_class);
+    get_global_param(&key).unwrap_or(0.0)
+}
 
+/// Calculate the effective resistance floor for a bacteria-drug pair at a given simulation day
+/// 
+/// The floor ramps linearly from 0 at drug class introduction to the target floor
+/// over the configured ramp period.
+/// 
+/// Returns 0.0 if:
+/// - Resistance floors are disabled
+/// - The bacteria doesn't have floors enabled  
+/// - The simulation day is before the drug class was introduced
+/// - No floor is configured for this bacteria-drug combination
+pub fn calculate_resistance_floor(bacteria_name: &str, drug: &str, current_day: i32) -> f64 {
+    // Check if floors are enabled for this bacteria
+    if !bacteria_resistance_floor_enabled(bacteria_name) {
+        return 0.0;
+    }
+    
+    // Get drug class
+    let drug_class = match get_drug_class(drug) {
+        Some(class) => class,
+        None => return 0.0,
+    };
+    
+    // Get drug class introduction day
     let intro_day = match get_drug_class_introduction_day(drug_class) {
         Some(day) => day,
         None => return 0.0,
     };
-
+    
+    // If before drug introduction, no floor
     if current_day < intro_day {
         return 0.0;
     }
-
-    get_global_param("resistance_floor_default_level").unwrap_or(0.01)
+    
+    // Get target floor
+    let target_floor = get_resistance_floor_target(bacteria_name, drug);
+    if target_floor <= 0.0 {
+        return 0.0;
+    }
+    
+    // Calculate ramp fraction
+    let ramp_years = get_resistance_floor_ramp_years(bacteria_name);
+    let ramp_days = (ramp_years * 365.0) as i32;
+    let days_since_intro = current_day - intro_day;
+    
+    let ramp_fraction = if ramp_days <= 0 {
+        1.0
+    } else {
+        (days_since_intro as f64 / ramp_days as f64).min(1.0)
+    };
+    
+    target_floor * ramp_fraction
 }
 
 

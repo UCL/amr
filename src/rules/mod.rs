@@ -82,7 +82,6 @@
 
 use crate::config::{
     calculate_resistance_floor, get_age_dependent_bacteria_sepsis_risk_log_odds,
-    get_resistance_floor_target,
     get_drug_availability_time_aware, get_drug_introduction_time_step, get_global_param,
     parameter_store, RUN_PATHWAY_CARRIER_INHERITANCE_MULTIPLIER_KEY,
     RUN_PATHWAY_COMMUNITY_DILUTION_MULTIPLIER_KEY,
@@ -1349,10 +1348,8 @@ impl ParameterKeyCache {
                     let potency = store.drug_bacteria.potency(b_idx, d_idx);
                     let negligible_potency_threshold =
                         store.globals.minimal_potency_threshold_for_drug_selection;
-                    let has_floor_target = get_resistance_floor_target(bacteria_name, drug_name) > 0.0;
                     if potency < negligible_potency_threshold
                         && !has_explicit_override
-                        && !has_floor_target
                     {
                         applies = false;
                     }

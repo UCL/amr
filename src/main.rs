@@ -20,15 +20,15 @@
 // - sum across drugs existing at the time of mean potency x (1 - any_r) amongst those infected with the bacteria
 // (do this by region ?)
 //
-//  need to incorporate major time trends in past bacteria specific incidence 
+//  need to incorporate major time trends in past bacteria-specific incidence 
 //
 //  present bacteria-specific numbers of deaths for status quo and amr disappears (ie attributable) to compare with gbd
 //  (for age > 5 the highest attributable in gbd are s aureus, a baumannii, and e coli.)
 //
 //  may need to consider re-into of resistance floors for some bacteria if there are 
-//  clear animal/environmental sources
+//  clear animal/environmental sources - 3rd calibration could be having a resistance floor for all bacteria
+//  and even higher hgt rates
 //
-// 3rd calibration could be having a resistance floor for all bacteria
 //
 //
 //

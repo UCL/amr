@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Figure F2 — Resistance Calibration Fit</title><style>
+<head><meta charset="UTF-8"><title>Figure FA1 — Infection vs. Carriage Ecology Across 42 Organisms</title><style>
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5; max-width: 1500px; margin: 0 auto;
@@ -33,11 +33,11 @@ a { color: #2980b9; }
 </style></head>
 <body>
 <p class='back-link'><a href='../index.html'>← Back to index</a></p>
-<h1>Figure F2 — Infection Resistance Calibration Fit by Organism</h1>
+<h1>Figure FA1 — Infection vs. Carriage Ecology Across 42 Organisms</h1>
 <div class='meta-box'><strong>Target year:</strong> 2025 &nbsp;|&nbsp; <strong>Window:</strong> 4.00 simulated years (totals annualized to yearly equivalents) &nbsp;|&nbsp; <strong>Simulated population (mean):</strong> 61,992 &nbsp;|&nbsp; <strong>Population scale factor:</strong> 132,275.3003 &nbsp;|&nbsp; <strong>Runs:</strong> 1 accepted calibration run</div>
-<p class='note'>Each panel shows the simulated (blue) and surveillance-target (orange) infection resistance percentage by drug class for one priority organism. Simulation bars show the mean across all drugs in the class; error bars span the 5th–95th percentile range across 1 accepted run. Classes without data for a given organism are omitted.</p>
-<p><a href='../figures/F2_resistance_fit.svg' target='_blank'>[Download SVG]</a></p>
-<img src='../figures/F2_resistance_fit.png' alt='Figure F2' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
+<p class='note'>Each point is one organism; bubble area is proportional to simulated annual infection deaths. Colour: red = infection >> carriage (obligate/invasive pathogens); green = carriage >> infection (mainly commensals). Both axes are symmetric log scale.</p>
+<p><a href='../figures/FA1_infection_carriage.svg' target='_blank'>[Download SVG]</a></p>
+<img src='../figures/FA1_infection_carriage.png' alt='FA1_infection_carriage' style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>
 <ol class='footnotes'>
-<li>Drug class resistance within a panel is averaged across all specific drugs in that class.</li><li>Drugs flagged as negligible potency (baseline potency < 0.15) are excluded from class averages.</li><li>All organisms with resistance benchmark data in the simulation output are included. IHME/WHO-ESKAPE priority organisms are shown first, remainder alphabetically.</li>
+<li>Points above the dashed diagonal have higher infection than carriage prevalence, characteristic of invasive obligate pathogens (e.g. Neisseria gonorrhoeae, Neisseria meningitidis, Mycobacterium tuberculosis).</li><li>Points below the diagonal have higher carriage than infection prevalence, characteristic of opportunistic commensals (e.g. E. coli, S. epidermidis, Bacteroides fragilis).</li><li>Bubble area is proportional to simulated infection deaths. Organisms with zero deaths are shown at a fixed minimum size.</li><li>This figure is not derived from an existing table; it provides a cross-organism ecological overview of the simulated pathogen landscape.</li>
 </ol></body></html>

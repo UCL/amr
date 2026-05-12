@@ -44,6 +44,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 
@@ -145,6 +146,45 @@ def _save(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     print(f"  Saved: {path}")
+
+
+def _save_figure(
+    fig: "plt.Figure",
+    out_dir: Path,
+    stem: str,
+    title: str,
+    note: str,
+    footnotes: list[str],
+    subfolder: str = "main",
+    agg: dict | None = None,
+) -> None:
+    """Save a matplotlib figure as PNG + SVG and write an HTML wrapper page."""
+    fig_dir = out_dir / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    png_path = fig_dir / f"{stem}.png"
+    svg_path = fig_dir / f"{stem}.svg"
+    fig.savefig(png_path, dpi=150, bbox_inches="tight")
+    fig.savefig(svg_path, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {png_path}")
+    html_rel     = f"../figures/{stem}.png"
+    html_rel_svg = f"../figures/{stem}.svg"
+    body  = _html_head(title)
+    body += _back_link()
+    body += f"<h1>{title}</h1>\n"
+    if agg is not None:
+        body += _meta_box(agg)
+    if note:
+        body += f"<p class='note'>{note}</p>\n"
+    body += (
+        f"<p><a href='{html_rel_svg}' target='_blank'>[Download SVG]</a></p>\n"
+        f"<img src='{html_rel}' alt='{stem}' "
+        f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
+    )
+    body += _html_footnotes(footnotes)
+    body += "</body></html>"
+    html_path = out_dir / subfolder / f"{stem}.html"
+    _save(html_path, body)
 
 
 # Best-estimate targets for % of new infections that are hospital-acquired.
@@ -1545,6 +1585,789 @@ def make_f2_resistance_barplot(agg: dict, out_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Figure F3 — Calibration block scores
+# ---------------------------------------------------------------------------
+
+def make_f3_calibration_scores(agg: dict, out_dir: Path) -> None:
+    """
+    Figure F3: horizontal bar chart of calibration block scores.
+    Score ≤ 1.0 = accepted; > 1.0 = failed.
+    """
+    bs = agg.get("block_scores", pd.DataFrame())
+    n  = agg.get("n_runs", 1)
+    if bs is None or bs.empty:
+        print("  F3: no block_scores data — skipping.")
+        return
+    block_col = bs.columns[0]
+    score_col = next((c for c in bs.columns if c.lower() == "score"), None)
+    if score_col is None:
+        print("  F3: no 'Score' column — skipping.")
+        return
+    bs = bs[[block_col, score_col]].copy()
+    bs[score_col] = pd.to_numeric(bs[score_col], errors="coerce")
+    bs = bs.dropna(subset=[score_col]).sort_values(score_col, ascending=True)
+    colors = ["#EF5350" if v > 1.0 else "#42A5F5" for v in bs[score_col]]
+    fig, ax = plt.subplots(figsize=(8, max(2.5, 0.7 * len(bs))))
+    bars = ax.barh(range(len(bs)), bs[score_col].values,
+                   color=colors, edgecolor="none", height=0.6)
+    ax.set_yticks(range(len(bs)))
+    ax.set_yticklabels(bs[block_col].values, fontsize=10)
+    ax.axvline(1.0, color="#333", linewidth=1.2, linestyle="--", alpha=0.8)
+    ax.set_xlabel("Block score (lower = better fit)", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.5)
+    for bar, val in zip(bars, bs[score_col]):
+        ax.text(val + 0.02, bar.get_y() + bar.get_height() / 2,
+                f"{val:.3f}", va="center", ha="left", fontsize=9)
+    accepted = mpatches.Patch(color="#42A5F5", label="Score \u2264 1.0 (accepted)")
+    failed   = mpatches.Patch(color="#EF5350", label="Score > 1.0 (failed)")
+    thresh   = plt.Line2D([0], [0], color="#333", linewidth=1.2,
+                          linestyle="--", label="Acceptance threshold (1.0)")
+    ax.legend(handles=[accepted, failed, thresh], fontsize=8, frameon=False)
+    fig.suptitle("Figure F3 \u2014 Calibration block scores",
+                 fontsize=11, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "F3_calibration_scores",
+        "Figure F3 \u2014 Calibration Block Scores",
+        f"Normalised block scores for the accepted calibration run{'s' if n > 1 else ''} "
+        f"(n\u2009=\u2009{n}). Scores \u2264 1.0 (dashed line) indicate all targets within "
+        f"the block are within tolerance. Blue = accepted; red = failed.",
+        [
+            "Block scores are normalised so that 1.0 represents the acceptance boundary. "
+            "A score below 1.0 means all targets in that calibration block are within the "
+            "specified absolute or relative tolerance.",
+            "The overall calibration score is the weighted sum across blocks. Calibration "
+            "is considered accepted when the overall weighted score \u2264 1.0.",
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure F4 — Headline metrics (figure version of T2)
+# ---------------------------------------------------------------------------
+
+def make_f4_headline_metrics(agg: dict, out_dir: Path) -> None:
+    """
+    Figure F4: 4-panel grouped bar chart for headline calibration metrics
+    (figure version of Table T2).
+    """
+    hm = agg.get("headline_metrics", pd.DataFrame()).copy()
+    n  = agg.get("n_runs", 1)
+    if hm is None or hm.empty:
+        print("  F4: no headline_metrics data — skipping.")
+        return
+    metric_col = hm.columns[0]
+    sim_col    = next((c for c in hm.columns if "simulation" in c.lower()), None)
+    tgt_col    = next((c for c in hm.columns
+                       if "target" in c.lower() or "observed estimate" in c.lower()
+                       or "observed data" in c.lower()), None)
+    if sim_col is None:
+        return
+
+    def _short(raw: str) -> str:
+        lo = re.sub(r'\s*\(\d+\)\s*$', '', str(raw).strip()).lower()
+        if 'infection deaths'    in lo: return 'Infection\ndeaths (M/yr)'
+        if 'antibiotics'         in lo: return 'People on\nantibiotics (M)'
+        if 'incidence'           in lo: return 'Infection\nincidence (%/yr)'
+        if 'sepsis'              in lo: return 'Sepsis\ncases (M/yr)'
+        return re.sub(r'\s*\(\d+\)\s*$', '', str(raw).strip())
+
+    hm[metric_col] = hm[metric_col].apply(_short)
+    ncols = len(hm)
+    fig, axes = plt.subplots(1, ncols, figsize=(3.8 * ncols, 4.5))
+    if ncols == 1:
+        axes = [axes]
+
+    for idx, (_, row) in enumerate(hm.iterrows()):
+        ax   = axes[idx]
+        name = row[metric_col]
+        sim_p = _parse_resistance_val(row.get(sim_col))
+        tgt_p = _parse_resistance_val(row.get(tgt_col)) if tgt_col else None
+
+        vals, labels, colors, err_lo, err_hi = [], [], [], [], []
+        if sim_p:
+            vals.append(sim_p[0]); labels.append("Simulation"); colors.append("#2196F3")
+            err_lo.append(max(0, sim_p[0] - sim_p[1]))
+            err_hi.append(max(0, sim_p[2] - sim_p[0]))
+        if tgt_p:
+            vals.append(tgt_p[0]); labels.append("Target"); colors.append("#FF7043")
+            err_lo.append(0.0); err_hi.append(0.0)
+        if not vals:
+            ax.axis("off"); continue
+
+        x = np.arange(len(vals))
+        ax.bar(x, vals, color=colors, width=0.55, edgecolor="none", alpha=0.88)
+        if sim_p and err_lo[0] + err_hi[0] > 0:
+            ax.errorbar([0], [vals[0]], yerr=[[err_lo[0]], [err_hi[0]]],
+                        fmt="none", color="#0D47A1", capsize=5, linewidth=1.5)
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=9)
+        for i, v in enumerate(vals):
+            ax.text(i, v * 1.04, f"{v:.1f}", ha="center", va="bottom", fontsize=9)
+        ax.set_title(name, fontsize=9.5, pad=5)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.grid(axis="y", linewidth=0.4, alpha=0.5)
+        ax.set_ylabel("Value", fontsize=8)
+
+    fig.suptitle("Figure F4 \u2014 Headline calibration metrics: simulation vs. target",
+                 fontsize=11, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "F4_headline_metrics",
+        "Figure F4 \u2014 Headline Calibration Metrics: Simulation vs. Target",
+        f"Figure version of Table T2. Error bars show 5th\u201395th percentile range "
+        f"across {n} accepted run{'s' if n > 1 else ''}.",
+        ["See Table T2 footnotes for data sources and target justifications."],
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure F5 — Drug class share (figure version of T3)
+# ---------------------------------------------------------------------------
+
+_F5_AWARE: dict[str, str] = {
+    "Penicillins (J01C)":                      "#4CAF50",   # Access
+    "Beta-lactamase combinations (J01CR)":      "#4CAF50",
+    "Cephalosporins 1-2G":                      "#4CAF50",
+    "Sulfonamides (J01E)":                      "#4CAF50",
+    "Nitrofurans (J01XE)":                      "#4CAF50",
+    "Fosfomycin (J01XX01)":                     "#4CAF50",
+    "Chloramphenicol (J01BA)":                  "#4CAF50",
+    "Cephalosporins 3G":                        "#FF9800",   # Watch
+    "Cephalosporins 3G/BLI":                    "#FF9800",
+    "Cephalosporins 4G":                        "#FF9800",
+    "Fluoroquinolones (J01M)":                  "#FF9800",
+    "Macrolides (J01F)":                        "#FF9800",
+    "Glycopeptides (J01XA)":                    "#FF9800",
+    "Aminoglycosides (J01G)":                   "#FF9800",
+    "Tetracyclines (J01A)":                     "#FF9800",
+    "Carbapenems (J01DH)":                      "#FF9800",
+    "Rifamycins (J04AB)":                       "#FF9800",
+    "Nitroimidazoles":                          "#FF9800",
+    "Lincosamides (J01FF)":                     "#FF9800",
+    "Anti-MRSA Cephalosporins (5G)":            "#F44336",   # Reserve
+    "Siderophore Cephalosporins":               "#F44336",
+    "Novel BL/BLI":                             "#F44336",
+    "Monobactams":                              "#F44336",
+    "Polymyxins (J01XB)":                       "#F44336",
+    "Lipopeptides (J01XX09)":                   "#F44336",
+    "Oxazolidinones (J01XX)":                   "#F44336",
+    "Streptogramins (J01FG)":                   "#F44336",
+    "Lipoglycopeptides":                        "#F44336",
+    "Pleuromutilins":                           "#F44336",
+    "Fidaxomicin":                              "#F44336",
+    "Fusidic acid (J01XC)":                     "#9E9E9E",   # Not classified
+}
+
+
+def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
+    """
+    Figure F5: paired horizontal bars of drug-class share (figure version of T3).
+    Bars coloured by WHO AWaRe category.
+    """
+    dc = agg.get("drug_class_share", pd.DataFrame()).copy()
+    n  = agg.get("n_runs", 1)
+    if dc is None or dc.empty:
+        print("  F5: no drug_class_share data — skipping.")
+        return
+    class_col = dc.columns[0]
+    sim_col   = next((c for c in dc.columns
+                      if "share" in c.lower() and "%" in c
+                      and "target" not in c.lower()), None)
+    tgt_col   = next((c for c in dc.columns
+                      if "target" in c.lower() and "%" in c), None)
+    if sim_col is None:
+        return
+    dc[sim_col] = pd.to_numeric(dc[sim_col], errors="coerce")
+    if tgt_col:
+        dc[tgt_col] = pd.to_numeric(dc[tgt_col], errors="coerce")
+    sort_col = tgt_col if tgt_col else sim_col
+    dc = dc.sort_values(sort_col, ascending=True, na_position="first")
+    n_cls = len(dc)
+    fig, ax = plt.subplots(figsize=(9, max(4, 0.45 * n_cls)))
+    y     = np.arange(n_cls)
+    bar_h = 0.36
+    sim_colors = [_F5_AWARE.get(str(c), "#78909C") for c in dc[class_col]]
+    ax.barh(y + bar_h / 2, dc[sim_col].fillna(0), bar_h,
+            color=sim_colors, alpha=0.85, label="Simulation")
+    if tgt_col:
+        ax.barh(y - bar_h / 2, dc[tgt_col].fillna(0), bar_h,
+                color="none", edgecolor="#444", linewidth=0.9, hatch="///",
+                label="Target (estimate)")
+    ax.set_yticks(y)
+    ax.set_yticklabels(dc[class_col].values, fontsize=7.5)
+    ax.set_xlabel("Share of antibiotic use (%)", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.5)
+    access_p  = mpatches.Patch(color="#4CAF50", alpha=0.85, label="Access")
+    watch_p   = mpatches.Patch(color="#FF9800", alpha=0.85, label="Watch")
+    reserve_p = mpatches.Patch(color="#F44336", alpha=0.85, label="Reserve")
+    other_p   = mpatches.Patch(color="#9E9E9E", alpha=0.85, label="Not classified")
+    tgt_p     = mpatches.Patch(facecolor="none", edgecolor="#444",
+                                hatch="///", label="Target (estimate)")
+    ax.legend(handles=[access_p, watch_p, reserve_p, other_p, tgt_p],
+              fontsize=7.5, frameon=False, loc="lower right")
+    fig.suptitle(
+        "Figure F5 \u2014 Antibiotic use by drug class: simulation vs. global estimates",
+        fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "F5_drug_class_share",
+        "Figure F5 \u2014 Antibiotic Use by Drug Class: Simulation vs. Global Estimates",
+        f"Figure version of Table T3. Bars coloured by WHO AWaRe category "
+        f"(green = Access, orange = Watch, red = Reserve). "
+        f"Hatched outlines = global target estimates. n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        ["WHO AWaRe classification: Access, Watch, Reserve (WHO 2023 AWaRe antibiotic book).",
+         "See Table T3 footnotes for target data sources and uncertainty notes."],
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure F6 — Bacteria infection calibration scatter (figure version of T4)
+# ---------------------------------------------------------------------------
+
+def make_f6_bacteria_scatter(agg: dict, out_dir: Path) -> None:
+    """
+    Figure F6: scatter of simulated vs. target infection prevalence for all 42
+    organisms (calibration fit overview — figure version of Table T4).
+    """
+    bi = agg.get("bacteria_infections", pd.DataFrame()).copy()
+    n  = agg.get("n_runs", 1)
+    if bi is None or bi.empty:
+        print("  F6: no bacteria_infections data — skipping.")
+        return
+    bact_col = bi.columns[0]
+    tgt_col  = next((c for c in bi.columns
+                     if "infection" in c.lower()
+                     and ("target" in c.lower() or "observed" in c.lower())), None)
+    sim_col  = next((c for c in bi.columns
+                     if "infection simulation" in c.lower()
+                     or "infection sim" in c.lower()), None)
+    if tgt_col is None or sim_col is None:
+        print("  F6: cannot identify infection target/simulation columns — skipping.")
+        return
+    bi["_tgt"] = pd.to_numeric(bi[tgt_col], errors="coerce")
+    bi["_sim"] = pd.to_numeric(bi[sim_col], errors="coerce")
+    bi = bi.dropna(subset=["_tgt", "_sim"])
+    bi = bi[bi["_tgt"] > 0].copy()
+    bi["_ratio"] = bi["_sim"] / bi["_tgt"]
+    max_val = max(bi["_tgt"].max(), bi["_sim"].max()) * 1.15
+    colors  = ["#EF5350" if r > 2.0
+               else "#FFA726" if r > 1.25
+               else "#42A5F5" if r < 0.5
+               else "#66BB6A"
+               for r in bi["_ratio"]]
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.scatter(bi["_tgt"], bi["_sim"], c=colors, s=50,
+               edgecolors="white", linewidths=0.4, zorder=3)
+    ax.plot([0, max_val], [0, max_val], color="#555", linewidth=1.0,
+            linestyle="--", label="Perfect fit (y = x)", zorder=2)
+    ax.plot([0, max_val], [0, 2 * max_val], color="#FF9800", linewidth=0.7,
+            linestyle=":", alpha=0.7, label="\xd72 / \xf70.5 tolerance")
+    ax.plot([0, max_val / 2], [0, max_val], color="#FF9800", linewidth=0.7,
+            linestyle=":", alpha=0.7)
+    # Label outliers
+    for _, row in bi[(bi["_ratio"] > 2.0) | (bi["_ratio"] < 0.5)].iterrows():
+        parts = str(row[bact_col]).split()
+        abbr  = (parts[0][0] + ". " + " ".join(parts[1:])) if len(parts) > 1 else str(row[bact_col])
+        ax.annotate(abbr, (row["_tgt"], row["_sim"]),
+                    fontsize=6, xytext=(4, 2), textcoords="offset points",
+                    color="#333", clip_on=True)
+    ax.set_xlim(0, max_val)
+    ax.set_ylim(0, max_val)
+    ax.set_xlabel("Infection prevalence — target (% world population)", fontsize=10)
+    ax.set_ylabel("Infection prevalence — simulation (% world population)", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(linewidth=0.35, alpha=0.5)
+    good_p   = mpatches.Patch(color="#66BB6A", label="0.5\xd7 \u2013 1.25\xd7 target")
+    over_p   = mpatches.Patch(color="#FFA726", label="1.25\xd7 \u2013 2\xd7 target")
+    way_over = mpatches.Patch(color="#EF5350", label=">2\xd7 target")
+    under_p  = mpatches.Patch(color="#42A5F5", label="<0.5\xd7 target")
+    ax.legend(handles=[good_p, over_p, way_over, under_p], fontsize=8, frameon=False)
+    fig.suptitle(
+        "Figure F6 \u2014 Bacterial infection prevalence: simulation vs. calibration target",
+        fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "F6_bacteria_scatter",
+        "Figure F6 \u2014 Bacterial Infection Prevalence: Simulation vs. Calibration Target",
+        f"Each point represents one of 42 organisms. Dashed diagonal = perfect fit. "
+        f"Orange dotted lines = \xd72/\xf70.5 tolerance. "
+        f"Outliers (>2\xd7 or <0.5\xd7 target) labelled with abbreviated names. "
+        f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        ["Infection prevalence is the percentage of the world population with an active "
+         "infection from the specified organism on an average day during the "
+         "2022\u20132025 calibration window.",
+         "Figure version of Table T4."],
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure F7 — Hospital vs. community resistance heatmap (figure version of T5)
+# ---------------------------------------------------------------------------
+
+def make_f7_hc_resistance_heatmap(agg: dict, out_dir: Path) -> None:
+    """
+    Figure F7: heatmap of hospital vs. community acquisition and resistance rates
+    (figure version of Table T5).
+    """
+    srl = agg.get("serious_resistance_locus", pd.DataFrame())
+    ril = agg.get("resistance_incidence_locus", pd.DataFrame())
+    bi  = agg.get("bacteria_infections",       pd.DataFrame())
+    n   = agg.get("n_runs", 1)
+    if srl is None or srl.empty:
+        print("  F7: no serious_resistance_locus data — skipping.")
+        return
+    # Filter H:C > 1 (same as T5)
+    first_col = srl.columns[0]
+    summary_mask = srl[first_col].astype(str).str.match(
+        r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False)
+    srl = srl[~summary_mask].copy()
+    target_col = "Target H:C ratio"
+    if target_col in srl.columns:
+        srl[target_col] = pd.to_numeric(srl[target_col], errors="coerce")
+        srl = srl[srl[target_col] > 1.0].copy()
+    # Build merged matrix
+    keep_srl = ["Bacteria"] + [c for c in ["Hospital Serious-R (%)", "Community Serious-R (%)"]
+                                if c in srl.columns]
+    out = srl[keep_srl].copy()
+    if ril is not None and not ril.empty:
+        ril_mask = ril[ril.columns[0]].astype(str).str.match(
+            r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False)
+        ril_c = ril[~ril_mask].copy()
+        any_cols = ["Bacteria"] + [c for c in [
+            "Hospital Infections with Any Resistance (%)",
+            "Community Infections with Any Resistance (%)"] if c in ril_c.columns]
+        out = out.merge(ril_c[any_cols], on="Bacteria", how="left")
+    if bi is not None and not bi.empty and "Hospital Acquired (%)" in bi.columns:
+        out = out.merge(bi[["Bacteria", "Hospital Acquired (%)"]], on="Bacteria", how="left")
+    col_renames = {
+        "Hospital Acquired (%)":                        "Hosp\nacquired",
+        "Hospital Infections with Any Resistance (%)":  "Hosp\nany-R",
+        "Community Infections with Any Resistance (%)": "Comm\nany-R",
+        "Hospital Serious-R (%)":                       "Hosp\nserious-R",
+        "Community Serious-R (%)":                      "Comm\nserious-R",
+    }
+    out = out.rename(columns=col_renames)
+    value_cols = [v for v in col_renames.values() if v in out.columns]
+    for c in value_cols:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    matrix  = out[value_cols].values.astype(float)
+    yticks  = out["Bacteria"].values
+    fig_h   = max(5, 0.40 * len(yticks))
+    fig_w   = max(6, 1.85 * len(value_cols))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    norm    = mcolors.Normalize(vmin=0, vmax=100)
+    im      = ax.imshow(matrix, cmap=plt.cm.YlOrRd, norm=norm, aspect="auto")
+    ax.set_xticks(range(len(value_cols)))
+    ax.set_xticklabels(value_cols, fontsize=9)
+    ax.set_yticks(range(len(yticks)))
+    ax.set_yticklabels(yticks, fontsize=7.5, fontstyle="italic")
+    ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False)
+    for i in range(len(yticks)):
+        for j in range(len(value_cols)):
+            v = matrix[i, j]
+            if not np.isnan(v):
+                ax.text(j, i, f"{v:.0f}", ha="center", va="center",
+                        fontsize=6.5, color="white" if v > 55 else "black")
+    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+    cbar.set_label("Percentage (%)", fontsize=8)
+    fig.suptitle(
+        "Figure F7 \u2014 Hospital vs. community resistance and acquisition rates",
+        fontsize=10, fontweight="bold", y=1.02)
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "F7_hc_resistance_heatmap",
+        "Figure F7 \u2014 Hospital vs. Community Resistance and Acquisition Rates",
+        "Figure version of Table T5. Colour scale: 0\u2013100%. "
+        "Only organisms with a literature-based target H:C resistance ratio > 1.0 are shown.",
+        ["Hosp/Comm any-R: percentage of new hospital/community-acquired infections "
+         "carrying any resistance mechanism.",
+         "Hosp/Comm serious-R: percentage with resistance to the marker drug for that organism "
+         "(e.g. meropenem for Gram-negatives, flucloxacillin for S. aureus).",
+         "Hosp acquired: percentage of new infections acquired during hospitalisation.",
+         "Figure version of Table T5."],
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Supplementary Figure FS1 — Infection deaths per organism (figure version of S1)
+# ---------------------------------------------------------------------------
+
+def make_fs1_mortality_bars(agg: dict, out_dir: Path) -> None:
+    """
+    Figure FS1: horizontal bar chart of infection deaths per organism,
+    simulation vs. observed estimate (figure version of Supplementary Table S1).
+    """
+    bm = agg.get("bacteria_mortality", pd.DataFrame()).copy()
+    n  = agg.get("n_runs", 1)
+    if bm is None or bm.empty:
+        print("  FS1: no bacteria_mortality data — skipping.")
+        return
+    bact_col = bm.columns[0]
+    tgt_col  = next((c for c in bm.columns
+                     if "target" in c.lower() and "death" in c.lower()), None)
+    sim_col  = next((c for c in bm.columns
+                     if "simulation" in c.lower() and "death" in c.lower()), None)
+    if sim_col is None:
+        return
+    bm["_tgt"] = pd.to_numeric(bm[tgt_col], errors="coerce") if tgt_col else np.nan
+    bm["_sim"] = pd.to_numeric(bm[sim_col], errors="coerce")
+    bm = bm.dropna(subset=["_sim"])
+    bm = bm[(bm["_tgt"].fillna(0) > 0) | (bm["_sim"].fillna(0) > 0)].copy()
+    sort_key = "_tgt" if bm["_tgt"].notna().any() else "_sim"
+    bm = bm.sort_values(sort_key, ascending=True, na_position="first")
+    n_orgs = len(bm)
+    fig, ax = plt.subplots(figsize=(9, max(4, 0.42 * n_orgs)))
+    y = np.arange(n_orgs)
+    bar_h = 0.38
+    ax.barh(y + bar_h / 2, bm["_sim"].fillna(0), bar_h,
+            color="#2196F3", alpha=0.85, label="Simulation")
+    if bm["_tgt"].notna().any():
+        ax.barh(y - bar_h / 2, bm["_tgt"].fillna(0), bar_h,
+                color="#FF7043", alpha=0.85, label="Observed estimate")
+    ax.set_yticks(y)
+    ax.set_yticklabels(bm[bact_col].values, fontsize=7.5, fontstyle="italic")
+    ax.set_xlabel("Deaths (millions per year)", fontsize=10)
+    ax.legend(fontsize=9, frameon=False)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.5)
+    fig.suptitle(
+        "Figure FS1 \u2014 Infection deaths per organism: simulation vs. observed estimate",
+        fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "FS1_mortality_bars",
+        "Figure FS1 \u2014 Infection Deaths per Organism: Simulation vs. Observed Estimate",
+        f"Figure version of Supplementary Table S1. Organisms with zero modelled deaths "
+        f"are omitted. Sorted by observed estimate. n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        ["Deaths scaled to global population using the run-specific population scale factor "
+         "and annualised to yearly equivalents.",
+         "Figure version of Supplementary Table S1."],
+        subfolder="supplementary",
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Supplementary Figure FS2 — Syndrome incidence (figure version of S2)
+# ---------------------------------------------------------------------------
+
+def make_fs2_syndrome_bars(agg: dict, out_dir: Path) -> None:
+    """
+    Figure FS2: horizontal bar chart of syndrome incidence per 100,000
+    (figure version of Supplementary Table S2).
+    """
+    si = agg.get("syndrome_incidence", pd.DataFrame()).copy()
+    n  = agg.get("n_runs", 1)
+    if si is None or si.empty:
+        print("  FS2: no syndrome_incidence data — skipping.")
+        return
+    first_col = si.columns[0]
+    si = si[si[first_col].astype(str).str.upper() != "TOTAL"].copy()
+    inc_col = next((c for c in si.columns if "incidence" in c.lower()), None)
+    if inc_col is None:
+        return
+    si[inc_col] = pd.to_numeric(si[inc_col], errors="coerce")
+    si = si.dropna(subset=[inc_col]).sort_values(inc_col, ascending=True)
+    share_col = next((c for c in si.columns if "share" in c.lower()), None)
+    if share_col:
+        si[share_col] = pd.to_numeric(si[share_col], errors="coerce")
+    tab_colors = plt.cm.tab10(np.linspace(0, 0.9, len(si)))
+    fig, ax = plt.subplots(figsize=(8, max(3, 0.55 * len(si))))
+    ax.barh(range(len(si)), si[inc_col].values,
+            color=tab_colors, edgecolor="none", height=0.6)
+    ax.set_yticks(range(len(si)))
+    ax.set_yticklabels(si[first_col].values, fontsize=9)
+    ax.set_xlabel("Incidence per 100,000 population per year", fontsize=10)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="x", linewidth=0.4, alpha=0.5)
+    for i, v in enumerate(si[inc_col].values):
+        ax.text(v + max(si[inc_col].max() * 0.01, 5),
+                i, f"{v:.0f}", va="center", ha="left", fontsize=8)
+    fig.suptitle("Figure FS2 \u2014 Syndrome incidence: simulated annual rates",
+                 fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "FS2_syndrome_bars",
+        "Figure FS2 \u2014 Syndrome Incidence: Simulated Annual Rates",
+        f"Figure version of Supplementary Table S2. "
+        f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        ["Syndrome incidence is the simulated annual rate per 100,000 population during "
+         "the 2022\u20132025 calibration window.",
+         "No external calibration targets are defined for individual syndromes; the "
+         "distribution is an emergent product of organism-specific infection rates and "
+         "syndrome-assignment probabilities.",
+         "Figure version of Supplementary Table S2."],
+        subfolder="supplementary",
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Supplementary Figure FS3 — Resistance by acquisition route (figure version of S3)
+# ---------------------------------------------------------------------------
+
+def make_fs3_resistance_scatter(agg: dict, out_dir: Path) -> None:
+    """
+    Figure FS3: scatter of hospital any-R% vs. community any-R% per organism
+    (figure version of Supplementary Table S3).
+    """
+    ril = agg.get("resistance_incidence_locus", pd.DataFrame())
+    n   = agg.get("n_runs", 1)
+    if ril is None or ril.empty:
+        print("  FS3: no resistance_incidence_locus data — skipping.")
+        return
+    first_col = ril.columns[0]
+    summary_mask = ril[first_col].astype(str).str.match(
+        r"^\s*(-|Resistance Locus|Serious Resistance|Mean |H:C)", na=False)
+    ril = ril[~summary_mask].copy()
+    hosp_col = next((c for c in ril.columns
+                     if "hospital" in c.lower() and "%" in c
+                     and "total" not in c.lower()), None)
+    comm_col = next((c for c in ril.columns
+                     if "community" in c.lower() and "%" in c
+                     and "total" not in c.lower()), None)
+    if hosp_col is None or comm_col is None:
+        print("  FS3: cannot find hospital/community resistance columns — skipping.")
+        return
+    ril[hosp_col] = pd.to_numeric(ril[hosp_col], errors="coerce")
+    ril[comm_col] = pd.to_numeric(ril[comm_col], errors="coerce")
+    ril = ril.dropna(subset=[hosp_col, comm_col])
+    max_val = max(ril[hosp_col].max(), ril[comm_col].max()) * 1.12
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.fill_between([0, max_val], [0, max_val], [max_val, max_val],
+                    alpha=0.05, color="#5C6BC0")
+    ax.scatter(ril[comm_col], ril[hosp_col], s=52,
+               color="#5C6BC0", edgecolors="white", linewidths=0.4, zorder=3, alpha=0.85)
+    ax.plot([0, max_val], [0, max_val], color="#555", linewidth=1.0, linestyle="--",
+            label="Hospital = community", zorder=2)
+    for _, row in ril.iterrows():
+        parts = str(row[first_col]).split()
+        abbr  = (parts[0][0] + ". " + " ".join(parts[1:])) if len(parts) > 1 else str(row[first_col])
+        ax.annotate(abbr, (row[comm_col], row[hosp_col]),
+                    fontsize=6, xytext=(3, 2), textcoords="offset points",
+                    color="#333", clip_on=True)
+    ax.set_xlim(0, max_val)
+    ax.set_ylim(0, max_val)
+    ax.set_xlabel("Community-acquired new infections with any resistance (%)", fontsize=10)
+    ax.set_ylabel("Hospital-acquired new infections with any resistance (%)", fontsize=10)
+    ax.legend(fontsize=9, frameon=False)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(linewidth=0.35, alpha=0.5)
+    ax.text(max_val * 0.55, max_val * 0.88,
+            "Higher hospital\nresistance \u2191", fontsize=8.5,
+            color="#5C6BC0", alpha=0.7, ha="center")
+    fig.suptitle(
+        "Figure FS3 \u2014 Resistance by acquisition route: hospital vs. community",
+        fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "FS3_resistance_scatter",
+        "Figure FS3 \u2014 Resistance by Acquisition Route: Hospital vs. Community",
+        f"Each point is one organism. Points above the dashed diagonal carry higher resistance "
+        f"in hospital-acquired than community-acquired infections (blue shaded region). "
+        f"n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        ["Each axis shows the percentage of new infections of that organism carrying any "
+         "resistance mechanism, averaged across all drugs with non-negligible potency for "
+         "that organism.",
+         "Figure version of Supplementary Table S3."],
+        subfolder="supplementary",
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Additional Figure FA1 — Infection vs. carriage ecology (42 organisms)
+# ---------------------------------------------------------------------------
+
+def make_fa1_infection_carriage(agg: dict, out_dir: Path) -> None:
+    """
+    Figure FA1 (additional): scatter/bubble of simulated infection prevalence vs.
+    carriage prevalence for all 42 organisms, bubble-sized by infection deaths.
+    Shows the pathogen ecology spectrum from obligate invaders to pure colonisers.
+    """
+    bi  = agg.get("bacteria_infections", pd.DataFrame()).copy()
+    bm  = agg.get("bacteria_mortality",  pd.DataFrame()).copy()
+    n   = agg.get("n_runs", 1)
+    if bi is None or bi.empty:
+        return
+    bact_col = bi.columns[0]
+    inf_col  = next((c for c in bi.columns if "infection simulation" in c.lower()), None)
+    carr_col = next((c for c in bi.columns if "carriage simulation" in c.lower()), None)
+    if inf_col is None or carr_col is None:
+        print("  FA1: infection/carriage simulation columns not found — skipping.")
+        return
+    bi[inf_col]  = pd.to_numeric(bi[inf_col],  errors="coerce")
+    bi[carr_col] = pd.to_numeric(bi[carr_col], errors="coerce")
+    df = bi[[bact_col, inf_col, carr_col]].dropna(subset=[inf_col, carr_col]).copy()
+    if not bm.empty:
+        death_col = next((c for c in bm.columns
+                          if "simulation" in c.lower() and "death" in c.lower()), None)
+        if death_col:
+            bm[death_col] = pd.to_numeric(bm[death_col], errors="coerce")
+            df = df.merge(bm[[bm.columns[0], death_col]],
+                          left_on=bact_col, right_on=bm.columns[0], how="left")
+            df["_deaths"] = df[death_col].fillna(0)
+        else:
+            df["_deaths"] = 0.0
+    else:
+        df["_deaths"] = 0.0
+    max_d = df["_deaths"].max()
+    df["_size"] = 20 + (df["_deaths"] / max_d * 600 if max_d > 0 else 0)
+    # Colour by infection:carriage ratio (capped to finite range)
+    df["_ratio"] = np.where(df[carr_col] > 0, df[inf_col] / df[carr_col], 100.0)
+    log_ratio = np.clip(np.log10(df["_ratio"].clip(lower=1e-4)), -2, 2)
+    max_v = max(df[inf_col].max(), df[carr_col].max()) * 1.2
+    fig, ax = plt.subplots(figsize=(9.5, 8))
+    sc = ax.scatter(
+        df[carr_col], df[inf_col],
+        s=df["_size"], c=log_ratio,
+        cmap="RdYlGn_r", vmin=-2, vmax=2,
+        alpha=0.82, edgecolors="white", linewidths=0.5, zorder=3,
+    )
+    cbar = fig.colorbar(sc, ax=ax, fraction=0.030, pad=0.02)
+    cbar.set_label("log\u2081\u2080(infection / carriage ratio)", fontsize=8)
+    cbar.set_ticks([-2, -1, 0, 1, 2])
+    cbar.set_ticklabels(["0.01\xd7", "0.1\xd7", "1\xd7", "10\xd7", "100\xd7"])
+    ax.plot([0, max_v], [0, max_v], color="#888", linewidth=0.8, linestyle="--",
+            label="Infection = carriage prevalence", zorder=2)
+    for _, row in df.iterrows():
+        parts = str(row[bact_col]).split()
+        abbr  = (parts[0][0] + ". " + " ".join(parts[1:])) if len(parts) > 1 else str(row[bact_col])
+        ax.annotate(abbr, (row[carr_col], row[inf_col]),
+                    fontsize=5.5, xytext=(3, 2), textcoords="offset points",
+                    color="#333", clip_on=True)
+    ax.set_xlim(0, max_v)
+    ax.set_ylim(0, max_v)
+    ax.set_xscale("symlog", linthresh=0.005)
+    ax.set_yscale("symlog", linthresh=0.005)
+    ax.set_xlabel("Carriage prevalence — simulation (% world population)", fontsize=10)
+    ax.set_ylabel("Infection prevalence — simulation (% world population)", fontsize=10)
+    ax.legend(fontsize=9, frameon=False)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(linewidth=0.35, alpha=0.4)
+    # Size legend
+    if max_d > 0:
+        for deaths_val, label in [(0.1, "0.1 M"), (0.5, "0.5 M"), (2.0, "2 M")]:
+            size = 20 + deaths_val / max_d * 600
+            ax.scatter([], [], s=size, color="#888", alpha=0.5, label=f"Deaths: {label}/yr")
+        ax.legend(fontsize=7.5, frameon=False, loc="upper left")
+    fig.suptitle(
+        "Figure FA1 \u2014 Infection vs. carriage ecology across 42 organisms",
+        fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "FA1_infection_carriage",
+        "Figure FA1 \u2014 Infection vs. Carriage Ecology Across 42 Organisms",
+        "Each point is one organism; bubble area is proportional to simulated annual "
+        "infection deaths. Colour: red = infection >> carriage (obligate/invasive pathogens); "
+        "green = carriage >> infection (mainly commensals). Both axes are symmetric log scale.",
+        ["Points above the dashed diagonal have higher infection than carriage prevalence, "
+         "characteristic of invasive obligate pathogens (e.g. Neisseria gonorrhoeae, "
+         "Neisseria meningitidis, Mycobacterium tuberculosis).",
+         "Points below the diagonal have higher carriage than infection prevalence, "
+         "characteristic of opportunistic commensals (e.g. E. coli, S. epidermidis, "
+         "Bacteroides fragilis).",
+         "Bubble area is proportional to simulated infection deaths. Organisms with zero "
+         "deaths are shown at a fixed minimum size.",
+         "This figure is not derived from an existing table; it provides a cross-organism "
+         "ecological overview of the simulated pathogen landscape."],
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Additional Figure FA2 — Age distribution of infections and deaths
+# ---------------------------------------------------------------------------
+
+def make_fa2_age_distribution(agg: dict, out_dir: Path) -> None:
+    """
+    Figure FA2 (additional): stacked horizontal bars showing the simulated
+    age distribution (<5 yr, 5–64 yr, ≥65 yr) of infections and deaths
+    for all 42 organisms.
+    """
+    bi  = agg.get("bacteria_infections", pd.DataFrame()).copy()
+    bm  = agg.get("bacteria_mortality",  pd.DataFrame()).copy()
+    n   = agg.get("n_runs", 1)
+
+    bact_inf  = bi.columns[0]  if not bi.empty else None
+    u5_inf    = next((c for c in bi.columns if "<5"   in c and "infection" in c.lower()), None) \
+                if not bi.empty else None
+    o65_inf   = next((c for c in bi.columns if "65+"  in c and "infection" in c.lower()
+                      or "65" in c and "infection" in c.lower()), None) \
+                if not bi.empty else None
+    bact_mort = bm.columns[0]  if not bm.empty else None
+    u5_mort   = next((c for c in bm.columns if "<5"   in c and "mortalit" in c.lower()), None) \
+                if not bm.empty else None
+    o65_mort  = next((c for c in bm.columns if "65+"  in c and "mortalit" in c.lower()
+                      or "65" in c and "mortalit" in c.lower()), None) \
+                if not bm.empty else None
+
+    if u5_inf is None and u5_mort is None:
+        print("  FA2: no age-distribution columns found — skipping.")
+        return
+
+    def _plot_age(ax, df, bc, u5c, o65c, title, xlabel):
+        if df is None or df.empty or u5c is None or o65c is None:
+            ax.text(0.5, 0.5, "No data", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=11, color="#888")
+            ax.set_title(title, fontsize=10); return
+        df = df.copy()
+        df[u5c]  = pd.to_numeric(df[u5c],  errors="coerce").fillna(0)
+        df[o65c] = pd.to_numeric(df[o65c], errors="coerce").fillna(0)
+        df["_mid"] = (100 - df[u5c] - df[o65c]).clip(lower=0)
+        df = df.sort_values(u5c, ascending=True)
+        y = np.arange(len(df))
+        ax.barh(y, df[u5c].values,   0.6, color="#42A5F5", label="<5 years")
+        ax.barh(y, df["_mid"].values, 0.6, left=df[u5c].values,
+                color="#66BB6A", label="5\u201364 years")
+        ax.barh(y, df[o65c].values,  0.6,
+                left=(df[u5c] + df["_mid"]).values,
+                color="#FF7043", label="\u226565 years")
+        ax.set_yticks(y)
+        ax.set_yticklabels(df[bc].values, fontsize=6.5, fontstyle="italic")
+        ax.set_xlabel(xlabel, fontsize=9)
+        ax.axvline(100, color="#aaa", linewidth=0.5, linestyle="--")
+        ax.set_xlim(0, 105)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.set_title(title, fontsize=10, fontweight="bold")
+        ax.legend(fontsize=8, frameon=False, loc="lower right")
+
+    n_orgs = max(len(bi) if not bi.empty else 0,
+                 len(bm) if not bm.empty else 0)
+    fig, axes = plt.subplots(1, 2, figsize=(14, max(5, 0.33 * n_orgs)))
+    _plot_age(axes[0], bi, bact_inf,  u5_inf,  o65_inf,
+              "(A) Age distribution of infections",
+              "Share of infections in age group (%)")
+    _plot_age(axes[1], bm, bact_mort, u5_mort, o65_mort,
+              "(B) Age distribution of deaths",
+              "Share of deaths in age group (%)")
+    fig.suptitle(
+        "Figure FA2 \u2014 Age distribution of bacterial infections and deaths by organism",
+        fontsize=10, fontweight="bold")
+    fig.tight_layout()
+    _save_figure(
+        fig, out_dir, "FA2_age_distribution",
+        "Figure FA2 \u2014 Age Distribution of Bacterial Infections and Deaths",
+        f"Stacked bars showing the simulated proportion of infections (left panel) and deaths "
+        f"(right panel) in the <5, 5\u201364, and \u226565 age groups, for each of 42 organisms. "
+        f"Sorted by percentage in the under-5 age group. n\u2009=\u2009{n} run{'s' if n > 1 else ''}.",
+        ["Values are percentages of that organism\u2019s total infections or deaths "
+         "attributable to each age group, during the 2022\u20132025 calibration window.",
+         "The \u20185\u201364 years\u2019 bar is derived as 100% minus the <5 and \u226565 shares.",
+         "This figure is not derived from an existing table; it provides an age-structured "
+         "overview of infection and mortality burden across all modelled organisms."],
+        agg=agg,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Index page
 # ---------------------------------------------------------------------------
 
@@ -1588,10 +2411,25 @@ def make_index(agg: dict, out_dir: Path) -> None:
          "Historical resistance trend: mean + 90% interval across accepted runs"),
         ("main/F2_resistance_fit.html",
          "Figure F2 \u2014 Resistance calibration fit by organism",
-         "12-panel bar chart: simulated vs. surveillance-target infection resistance "
+         "Multi-panel bar chart: simulated vs. surveillance-target infection resistance "
          "by drug class for IHME-priority pathogens"),
+        ("main/F3_calibration_scores.html",
+         "Figure F3 \u2014 Calibration block scores",
+         "Horizontal bar chart: normalised block scores vs. acceptance threshold (1.0)"),
+        ("main/F4_headline_metrics.html",
+         "Figure F4 \u2014 Headline calibration metrics: simulation vs. target",
+         "4-panel grouped bars (simulation vs. target) for headline calibration metrics; figure version of T2"),
+        ("main/F5_drug_class_share.html",
+         "Figure F5 \u2014 Antibiotic use by drug class: simulation vs. global estimates",
+         "Horizontal paired bars coloured by WHO AWaRe category; figure version of T3"),
+        ("main/F6_bacteria_scatter.html",
+         "Figure F6 \u2014 Bacterial infection prevalence: simulation vs. calibration target",
+         "Scatter plot of simulated vs. target infection % for all 42 organisms; figure version of T4"),
+        ("main/F7_hc_resistance_heatmap.html",
+         "Figure F7 \u2014 Hospital vs. community resistance and acquisition rates",
+         "Heatmap of hospital/community resistance and acquisition rates; figure version of T5"),
     ]:
-        body += f"<li><a href='{fname}'><strong>{label}</strong></a> — {desc}</li>\n"
+        body += f"<li><a href='{fname}'><strong>{label}</strong></a> \u2014 {desc}</li>\n"
     body += "</ul>\n"
 
     body += "<h2>Supplementary tables</h2>\n<ul>\n"
@@ -1609,7 +2447,34 @@ def make_index(agg: dict, out_dir: Path) -> None:
          "S4 — Full resistance benchmarks per organism",
          "All non-negligible organism × drug combinations: infection and carriage resistance"),
     ]:
-        body += f"<li><a href='{fname}'><strong>{label}</strong></a> — {desc}</li>\n"
+        body += f"<li><a href='{fname}'><strong>{label}</strong></a> \u2014 {desc}</li>\n"
+    body += "</ul>\n"
+
+    body += "<h2>Supplementary figures</h2>\n<ul>\n"
+    for fname, label, desc in [
+        ("supplementary/FS1_mortality_bars.html",
+         "Figure FS1 \u2014 Infection deaths per organism: simulation vs. observed estimate",
+         "Horizontal paired bars sorted by burden; figure version of S1"),
+        ("supplementary/FS2_syndrome_bars.html",
+         "Figure FS2 \u2014 Syndrome incidence: simulated annual rates",
+         "Horizontal bar chart of syndrome incidence per 100,000; figure version of S2"),
+        ("supplementary/FS3_resistance_scatter.html",
+         "Figure FS3 \u2014 Resistance by acquisition route: hospital vs. community",
+         "Scatter of hospital any-R% vs. community any-R% per organism; figure version of S3"),
+    ]:
+        body += f"<li><a href='{fname}'><strong>{label}</strong></a> \u2014 {desc}</li>\n"
+    body += "</ul>\n"
+
+    body += "<h2>Additional figures</h2>\n<ul>\n"
+    for fname, label, desc in [
+        ("main/FA1_infection_carriage.html",
+         "Figure FA1 \u2014 Infection vs. carriage ecology across 42 organisms",
+         "Bubble chart: infection% vs. carriage%, sized by deaths, coloured by infection:carriage ratio"),
+        ("main/FA2_age_distribution.html",
+         "Figure FA2 \u2014 Age distribution of bacterial infections and deaths",
+         "Stacked bars: <5, 5\u201364, \u226565 age-group shares of infections and deaths for all 42 organisms"),
+    ]:
+        body += f"<li><a href='{fname}'><strong>{label}</strong></a> \u2014 {desc}</li>\n"
     body += "</ul>\n"
     body += "</body></html>"
     _save(out_dir / "index.html", body)
@@ -1675,6 +2540,16 @@ def main(input_args: list[str]) -> None:
     make_s4(agg, out)
     make_f1_resistance_trend(csv_paths, out)
     make_f2_resistance_barplot(agg, out)
+    make_f3_calibration_scores(agg, out)
+    make_f4_headline_metrics(agg, out)
+    make_f5_drug_class_share(agg, out)
+    make_f6_bacteria_scatter(agg, out)
+    make_f7_hc_resistance_heatmap(agg, out)
+    make_fs1_mortality_bars(agg, out)
+    make_fs2_syndrome_bars(agg, out)
+    make_fs3_resistance_scatter(agg, out)
+    make_fa1_infection_carriage(agg, out)
+    make_fa2_age_distribution(agg, out)
     make_index(agg, out)
 
     print(f"\nDone. Open {out / 'index.html'} to browse all tables.")
