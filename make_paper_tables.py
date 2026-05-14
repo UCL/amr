@@ -1853,8 +1853,15 @@ def make_f6_bacteria_scatter(agg: dict, out_dir: Path) -> None:
     bi["_sim"] = pd.to_numeric(bi[sim_col], errors="coerce")
     bi = bi.dropna(subset=["_tgt", "_sim"])
     bi = bi[bi["_tgt"] > 0].copy()
+    if bi.empty:
+        print("  F6: no valid bacteria_infections rows after filtering — skipping.")
+        return
     bi["_ratio"] = bi["_sim"] / bi["_tgt"]
-    max_val = max(bi["_tgt"].max(), bi["_sim"].max()) * 1.15
+    raw_max = max(bi["_tgt"].max(), bi["_sim"].max())
+    if not np.isfinite(raw_max) or raw_max <= 0:
+        print("  F6: bacteria_infections values are NaN/Inf/zero — skipping.")
+        return
+    max_val = raw_max * 1.15
     colors  = ["#EF5350" if r > 2.0
                else "#FFA726" if r > 1.25
                else "#42A5F5" if r < 0.5
@@ -2139,7 +2146,14 @@ def make_fs3_resistance_scatter(agg: dict, out_dir: Path) -> None:
     ril[hosp_col] = pd.to_numeric(ril[hosp_col], errors="coerce")
     ril[comm_col] = pd.to_numeric(ril[comm_col], errors="coerce")
     ril = ril.dropna(subset=[hosp_col, comm_col])
-    max_val = max(ril[hosp_col].max(), ril[comm_col].max()) * 1.12
+    if ril.empty:
+        print("  FS3: no valid resistance rows after filtering — skipping.")
+        return
+    raw_max = max(ril[hosp_col].max(), ril[comm_col].max())
+    if not np.isfinite(raw_max) or raw_max <= 0:
+        print("  FS3: resistance values are NaN/Inf/zero — skipping.")
+        return
+    max_val = raw_max * 1.12
     fig, ax = plt.subplots(figsize=(8, 7))
     ax.fill_between([0, max_val], [0, max_val], [max_val, max_val],
                     alpha=0.05, color="#5C6BC0")
@@ -2206,6 +2220,9 @@ def make_fa1_infection_carriage(agg: dict, out_dir: Path) -> None:
     bi[inf_col]  = pd.to_numeric(bi[inf_col],  errors="coerce")
     bi[carr_col] = pd.to_numeric(bi[carr_col], errors="coerce")
     df = bi[[bact_col, inf_col, carr_col]].dropna(subset=[inf_col, carr_col]).copy()
+    if df.empty:
+        print("  FA1: no valid infection/carriage rows after filtering — skipping.")
+        return
     if not bm.empty:
         death_col = next((c for c in bm.columns
                           if "simulation" in c.lower() and "death" in c.lower()), None)
@@ -2224,6 +2241,9 @@ def make_fa1_infection_carriage(agg: dict, out_dir: Path) -> None:
     df["_ratio"] = np.where(df[carr_col] > 0, df[inf_col] / df[carr_col], 100.0)
     log_ratio = np.clip(np.log10(df["_ratio"].clip(lower=1e-4)), -2, 2)
     max_v = max(df[inf_col].max(), df[carr_col].max()) * 1.2
+    if not np.isfinite(max_v) or max_v <= 0:
+        print("  FA1: infection/carriage values are NaN/Inf/zero — skipping.")
+        return
     fig, ax = plt.subplots(figsize=(9.5, 8))
     sc = ax.scatter(
         df[carr_col], df[inf_col],

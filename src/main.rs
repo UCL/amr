@@ -5,8 +5,7 @@
 //  ----  plan for paper -----------------------------------------------------------------------------------------
 //
 //  get at least three calibration parameter sets - from 2026 three "scenarios" to 2035
-//  (i) continue status quo (ii) amr disappears (iii) immediate ast (? with full drug access, if not the case currently
-//  in african region)
+//  (i) continue status quo (ii) amr disappears (iii) immediate ast (+/- full drug access)
 //
 //
 //
@@ -25,9 +24,12 @@
 //  present bacteria-specific numbers of deaths for status quo and amr disappears (ie attributable) to compare with gbd
 //  (for age > 5 the highest attributable in gbd are s aureus, a baumannii, and e coli.)
 //
-//  may need to consider re-into of resistance floors for some bacteria if there are 
-//  clear animal/environmental sources - 3rd calibration could be having a resistance floor for all bacteria
-//  and even higher hgt rates
+//  4th calibration could be having even higher hgt rates
+//
+//  check for completely implausible infection journeys
+//
+//  check on drug choice logic once ast done
+//
 //
 //
 //
@@ -38,7 +40,8 @@
 //
 // have increased risk of strep b, e coli and listeria in women of childbearing age ?
 //
-// additional calibration output - show case fatality by infection if untreated (based )
+// additional calibration output - show case fatality by infection if untreated
+// from pre 1937 outputs 
 //
 // ? drug start distribution by infection site (or is seeing the drug choice rules enough ?)
 //

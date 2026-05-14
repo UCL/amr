@@ -839,6 +839,23 @@ fn assess_treatment_failure(
         return false; // No current drugs to switch from
     }
 
+    // Per-organism "no second-line" pathway: models patients who do not receive rescue
+    // therapy after first-line failure (loss to follow-up, access barriers, side-effect
+    // burden).  When this fires the current (failed) drugs are stopped but no substitute
+    // is started, leaving the patient chronically infected with a resistant profile that
+    // continuously feeds the community mechanism cache.  The dominant use-case is
+    // H. pylori, where bismuth quadruple uptake after clarithromycin-triple failure is
+    // substantially incomplete in most regions.
+    let no_second_line_prob =
+        store.bacteria.treatment_failure_no_second_line_probability[bacteria_idx];
+    if no_second_line_prob > 0.0 && rng.gen_bool(no_second_line_prob.clamp(0.0, 1.0)) {
+        for &current_drug_idx in &current_drugs {
+            individual.cur_use_drug[current_drug_idx] = false;
+            individual.date_drug_initiated[current_drug_idx] = i32::MIN;
+        }
+        return false; // Persistent-carrier pathway: no drug switch
+    }
+
     // Try to find an alternative drug using the same selection logic as initial prescription
     // but excluding recently failed drugs
     let failure_memory_days = store.globals.drug_failure_memory_days;
