@@ -93,6 +93,7 @@ DRUG_NAMES = [
     "ceftazidime_avibactam",    # 49
     "meropenem_vaborbactam",    # 50
     "colistin",                 # 51
+    "nalidixic_acid",           # 52  (first-generation quinolone; historical UTI/GI use 1963–~1990)
 ]
 
 N_DRUGS = len(DRUG_NAMES)

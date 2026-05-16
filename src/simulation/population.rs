@@ -872,6 +872,7 @@ pub const DRUG_SHORT_NAMES: &[&str] = &[
     "flucloxacillin",
     "aztreonam_avibactam",
     "cefixime",
+    "nalidixic_acid", // First-generation quinolone (1963); proxy for nalidixic acid era GyrA selection (1963–~1990)
 ];
 
 /// Drug classes for mechanism-drug-class specific enhancement multipliers.
@@ -1048,7 +1049,7 @@ pub fn drug_class_for_drug(drug_idx: usize) -> DrugClass {
         "aztreonam"
             => DrugClass::Monobactams,
         // Fluoroquinolones
-        "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin"
+        "ciprofloxacin" | "levofloxacin" | "moxifloxacin" | "ofloxacin" | "nalidixic_acid"
             => DrugClass::Fluoroquinolones,
         // Aminoglycosides
         "gentamicin" | "tobramycin" => DrugClass::AminoglycosidesGroup1,

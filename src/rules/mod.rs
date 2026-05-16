@@ -4839,6 +4839,33 @@ pub(crate) fn apply_rules(
                         false
                     };
 
+                    // --- Environmental / agricultural floor (exogenous draw only) ---
+                    // When the infection was drawn from the non-cache reservoir (from_human_reservoir
+                    // == false), apply per-mechanism floor probabilities representing resistance
+                    // maintained in the agricultural/food-chain pool independently of local human
+                    // prescribing.  Each mechanism is independently rolled so co-resistance patterns
+                    // reflect the actual plasmid linkage encoded in the floor values rather than
+                    // synthetic correlation from profile sampling.
+                    // Organisms with no floor parameters (floor = 0.0 for all mechanisms) are
+                    // unaffected; the loop is cheap for them.
+                    if !from_human_reservoir {
+                        use crate::simulation::population::ResistanceMechanism;
+                        for (m_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
+                            if mechanism.is_as_yet_unknown() {
+                                continue;
+                            }
+                            let floor = store.environmental_floors.floor_at_year(
+                                b_idx,
+                                m_idx,
+                                simulation_year,
+                            );
+                            if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
+                                individual.mechanism_any[b_idx][m_idx] = true;
+                                individual.mechanism_majority[b_idx][m_idx] = true;
+                            }
+                        }
+                    }
+
                     // In the new mechanism-centric architecture, any_r is derived exclusively
                     // from mechanism state via propagate_mechanism_resistance below.
                     // We only set how_resistance_acquired based on whether a mechanism was sampled.

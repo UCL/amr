@@ -1035,6 +1035,10 @@ The species-guideline shifts currently encoded are:
 | *C. difficile* | vancomycin (oral) | 4.0 | 1977–2017 | 10.0 | Severe/refractory only before 2017; universal first-line after |
 | *S. aureus* | ciprofloxacin | 10.0 | → 2000 | 2.0 | 1988–2000: heavily used empirically for MRSA before FQ resistance precluded guideline use; modern era restricted to MSSA indications |
 | *M. genitalium* | doxycycline | 8.0 | → 1991 | 1.5 | Pre-PCR diagnosis era (before 1991): doxycycline was sole empiric first-line for all non-gonococcal urethritis; now used only for debulking |
+| *E. coli* | **nalidixic_acid** | 7.0 | **1963–1990** | 0.0 | First-line uncomplicated UTI 1963–1990; GyrA mutations seeded in *E. coli* reservoir for 24 years before ciprofloxacin was licensed |
+| *Shigella* spp. | **nalidixic_acid** | 12.0 | **1963–1990** | 0.0 | First-line dysentery in LMIC 1963–1990; pre-existing GyrA profiles explain rapid FQ resistance emergence post-1990 |
+| *Campylobacter jejuni* | **nalidixic_acid** | 8.0 | **1963–1990** | 0.0 | Gastroenteritis treatment; GyrA Thr86Ile selected before veterinary fluoroquinolone era |
+| *S.* Typhi / Paratyphi A / iNTS | **nalidixic_acid** | 8.0 | **1963–1990** | 0.0 | First-line enteric fever in South/SE Asia and sub-Saharan Africa 1963–1990 |
 
 *C. difficile* also has a `treatment_recognition_year` of 1977 — before the Bartlett et al. description of antibiotic-associated colitis, no antibiotic pressure is applied to this organism regardless of multiplier values.
 
@@ -1062,6 +1066,7 @@ Half-lives vary enormously — from penicillin G (cleared within an hour, needin
 | meropenem | 0.042 (~1 hour) | Short — given as IV infusion TDS | Brunton LL et al., 2018 |
 | cefiderocol | 0.10 (~2.4 hours) | Short-acting novel siderophore cephalosporin | Wunderink RG et al., 2021 |
 | ciprofloxacin | 0.17 (~4 hours) | Moderate — allows twice-daily oral dosing | Brunton LL et al., 2018 |
+| nalidixic_acid | 0.08 (~2 hours) | Short — first-generation quinolone; rapid renal elimination; only renally/GI concentrated | Brunton LL et al., 2018 |
 | linezolid | 0.21 (~5 hours) | Moderate | Brunton LL et al., 2018 |
 | vancomycin | 0.25 (~6 hours) | Requires therapeutic drug monitoring | Rybak MJ et al., 2020 |
 | sulfanilamide | 0.29 (~7 hours) | Historical agent | Brunton LL et al., 2018 |
@@ -1727,6 +1732,49 @@ The table below summarises the currently configured cross-resistance groups used
 
 ---
 
+### 7.7 Environmental and Agricultural Resistance Floors
+
+For three organisms whose resistance epidemiology is primarily driven by agricultural antibiotic use — *Escherichia coli*, *Campylobacter jejuni*, and invasive non-typhoidal *Salmonella* spp. (NTS) — the model incorporates a dedicated *environmental resistance floor* mechanism. This is distinct from the de-novo emergence and clone-acquisition pathways that govern resistance for ESKAPE organisms and other hospital-associated pathogens.
+
+**Motivation.** The model has no explicit animal population. Livestock and poultry carry enormous loads of antibiotic-resistant commensal bacteria — particularly tetracycline-resistant and ampicillin-resistant *E. coli* — that enter the human food chain through meat, produce, water, and environmental contamination. Approximately 70–80% of global tetracycline consumption and 50–60% of global ampicillin/penicillin consumption is veterinary and agricultural in origin (Van Boeckel TP et al., 2014; Van Boeckel TP et al., 2019). For *E. coli*, community tetracycline resistance rates of 35–45% globally, and ampicillin resistance rates of 40–60%, cannot be reproduced by human clinical selection pressure alone: even at saturation of clinical tetracycline prescribing, the model's human-only selection loop would reach only a fraction of observed resistance levels. Enrofloxacin (licensed for poultry in the EU ~1994, US 1995–2004) drove *Campylobacter* fluoroquinolone resistance from <1% to 40–50% within a decade in high-income countries — a trajectory that is unintelligible without an agricultural-reservoir term. Similarly, *Salmonella* multidrug resistance (DT104-type) emerged from livestock and reached humans through the food chain, not primarily through hospital transmission.
+
+**Mechanism.** Each community infection acquisition is partitioned into two fractions by `community_resistance_dilution_factor` (see §7.1). The *diluted fraction* (`community_resistance_dilution_factor`) draws a resistance profile from the cached human population profile, representing human-to-human transmission and healthcare exposure. The *environmental fraction* (`1 − community_resistance_dilution_factor`) previously always returned a fully-susceptible profile, implicitly assuming all community-source acquisition comes from a pristine wild-type reservoir. The environmental floor replaces this assumption for the three relevant organisms: instead of unconditionally returning susceptible, the model rolls each resistance mechanism independently against a per-mechanism probability that represents the background prevalence of that mechanism in the livestock/food-chain/water reservoir.
+
+The same floor is also applied to the community microbiome acquisition pathway: when a non-hospitalised individual's microbiome is updated and the random draw falls in the environmental fraction, each mechanism is again rolled against its floor probability.
+
+The floor probabilities are parameterised by a new family of configuration keys:
+
+```
+bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor
+bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
+```
+
+The `_before_{YYYY}` variants support time-varying floors, allowing the model to reproduce the historical trajectory of resistance in the agricultural reservoir. For example, fluoroquinolone resistance in *Campylobacter* is zero before enrofloxacin licensing (~1993–1994) and rises rapidly thereafter; tetracycline resistance in *E. coli* builds gradually from 1950 as agricultural tetracycline use expanded.
+
+**Equilibrium relationship.** At steady state, the resistance cache for a given bacteria × mechanism pair satisfies approximately:
+
+$$f_\text{cache} \approx f_\text{floor} + \frac{\varepsilon_\text{human}}{1 - D}$$
+
+where $D$ is the community dilution factor, $\varepsilon_\text{human}$ is the net human-clinical selection contribution per day, and $f_\text{floor}$ is the environmental floor probability. The floor therefore acts as the primary equilibrium attractor for agricultural-reservoir organisms; human clinical selection adds a smaller increment on top. Floor values are deliberately set slightly below the calibration target to leave room for this human-clinical contribution.
+
+**Covered organism × mechanism combinations.** The following table lists all bacteria × mechanism pairs for which a non-zero environmental floor is currently configured, together with the evidence basis for each assignment.
+
+| Organism | Mechanism | Modern floor | Basis |
+|---|---|---|---|
+| *E. coli* | TetM/O ribosomal protection | 0.30 | ~35–40% community tet-R globally; dominated by livestock tet use; tet(M) on Tn916-family conjugative transposons spread widely in agricultural *E. coli* |
+| *E. coli* | TetA/B/C efflux | 0.22 | ~25–30% community *E. coli* carry plasmid efflux genes; co-selected with tet(M) in Gram-negatives |
+| *E. coli* | TEM-1 β-lactamase (enzyme_bla_z) | 0.38 | ~40–50% community ampicillin-R in *E. coli*; TEM-1 spread via conjugative plasmids through poultry/livestock pool; de-novo emergence rate is 0 so floor is the only source |
+| *E. coli* | GyrA primary mutation | 0.10 | ~10–15% agricultural-reservoir FQ-R; enrofloxacin use in livestock post-1994 selected commensal *E. coli* gyrA mutants that enter the food chain |
+| *C. jejuni* | GyrA primary mutation | 0.42 | ~40–50% FQ-R in EU/UK community *Campylobacter*; almost entirely from poultry enrofloxacin; floor rises from 0 before 1993 to 10% by 2005 to 42% modern |
+| *C. jejuni* | GyrA+ParC secondary mutation | 0.15 | ~15% high-level FQ-R (dual gyrA or gyrA+parC); subset of the primary FQ-R pool |
+| *C. jejuni* | TetO ribosomal protection | 0.45 | ~50–60% tet-R in poultry *Campylobacter*; tet(O) on conjugative plasmids; driven by decades of livestock tetracycline prophylaxis |
+| *NTS Salmonella* | TetM/TetB ribosomal protection | 0.22 | ~25–30% tet-R in NTS globally; DT104 pentaresistant clone carried tet-R genes from the livestock reservoir |
+| *NTS Salmonella* | TEM-1 β-lactamase | 0.18 | ~15–25% amp-R in invasive NTS; plasmid-borne TEM-1 from livestock β-lactam use |
+
+No environmental floor is applied to hospital-associated pathogens (ESKAPE organisms, *Klebsiella*, *Pseudomonas*, *Acinetobacter*, *Enterococcus*), to mechanisms for which there is no agricultural-use pathway (vancomycin, carbapenems, linezolid), or to organisms whose resistance epidemiology is primarily nosocomial or human-to-human (typhoidal *Salmonella*, *Shigella*, *N. gonorrhoeae*).
+
+---
+
 ## 8. Microbiome and Carriage
 
 Since the commensal microbiome is the principal reservoir in which resistance is stored, selected by bystander antibiotic exposure, and exchanged between species (Werner G et al., 2008; van Schaik W, 2015; McInnes RS et al., 2020), the model tracks microbiome carriage as a distinct compartment from active infection. A patient treated with ciprofloxacin weeks earlier may still carry fluoroquinolone-resistant *E. coli* in the gut; if that strain subsequently causes a UTI, empiric therapy may fail.
@@ -2016,6 +2064,12 @@ Several of the appendices that follow list exact configuration values and enum d
 5. **Broad regional groupings**: The model uses continental-level regions (e.g., "Europe", "Africa") rather than country-level or hospital-level variation. Antibiotic consumption patterns, testing capacity, pathogen mix, and resistance rates can vary dramatically between countries and institutions within the same region. The regional layer should therefore be read as a coarse structuring device for global comparisons, not as a substitute for country-specific or centre-specific epidemiology.
 
 6. **No person-to-person transmission network**: Community infection rates are driven by organism-specific log-odds parameters calibrated to match observed incidence, not by direct contacts between simulated individuals. There is no explicit transmission network, no basic reproduction number (R₀), and no herd-immunity dynamic. Hospital acquisition is the one partial exception: nosocomial infection rates scale with the current hospital census, creating an implicit density-dependence within the inpatient population. The absence of a transmission model means the simulation cannot reproduce epidemic waves, outbreak amplification, or the impact of interventions — such as isolation, contact tracing, or infection-control procedures — that primarily work through blocking transmission chains. It also means community resistance prevalence is driven by selection, reversion, HGT, and calibrated acquisition rates rather than by strain spread from person to person. This is a deliberate trade-off: adding a full population-transmission layer for 42 organisms would require extensive additional parameterisation and would substantially increase runtime, while the primary policy questions addressed here (prescribing, stewardship, diagnostics, and access) are primarily mediated through selection pressure rather than transmission dynamics.
+
+7. **Constant infection acquisition rates for most organisms**: With the exception of a global sanitation-improvement adjustment that raises all community-acquisition log-odds by approximately +1 in 1930 and declines to zero by 1950, bacterial infection acquisition rates are treated as constant over the simulation period. This is defensible for most of the 42 modelled organisms, where secular incidence trends have been small relative to the magnitude of resistance-selection effects. Two organisms are worth noting as caveats. First, *Helicobacter pylori*: birth-cohort prevalence in high-income countries was substantially higher in populations that grew up before 1960 (approximately 70–80%) than in those born after 1970 (approximately 30%), a consequence of improved sanitation and reduced intrafamilial transmission. Since clarithromycin-based triple therapy was introduced in the 1990s and most patients treated in that era were adults who had acquired *H. pylori* in childhood, the model's constant acquisition rate may underestimate the size of the treated pool that generated early clarithromycin and metronidazole resistance. Second, *Campylobacter jejuni*: community incidence in high-income countries rose approximately 4–6-fold between 1960 and 1990 as a consequence of intensification of industrial poultry farming (Blaser MJ, 1997). The model therefore applies nalidixic acid selection pressure to a *Campylobacter* population that is implicitly larger than it would have been in reality during the 1963–1975 period, which may slightly overestimate early quinolone-driven GyrA selection for this organism. Neither effect is expected to alter the model's resistance trajectories in a clinically meaningful way given the logarithmic relationship between drug-pressure volume and equilibrium resistance prevalence, but both are limitations to bear in mind when interpreting *H. pylori* clarithromycin resistance trends and the early phase of *Campylobacter* fluoroquinolone resistance.
+
+8. **No explicit modelling of Neisseria gonorrhoeae incidence decline**: Gonorrhoea incidence in high-income countries was approximately 3-fold higher in the 1960s–1970s than in the present day, before sexual health programmes, contact tracing, and partner notification services substantially reduced transmission. The model uses current-era acquisition rates throughout the simulation for *N. gonorrhoeae*, which means the absolute volume of penicillin and tetracycline treatment in the 1960s–1970s — the era that seeded the early resistance layers — is underestimated. The large `before_1987` era-override initiation multipliers applied to penicillin and tetracycline for gonorrhoea provide partial compensation by amplifying drug-pressure intensity during that period, but they do not fully reconstruct the higher treated-patient volume of the earlier era. Resistance trajectories for *N. gonorrhoeae* should therefore be interpreted as reflecting the qualitative direction and timing of resistance emergence rather than an exact quantitative reconstruction of historical gonorrhoea epidemiology.
+
+9. **Agricultural co-selection modelled as a calibration surrogate, not a mechanistic animal model**: The environmental resistance floor (§7.7) approximates the contribution of livestock and food-chain reservoirs to community resistance in *E. coli*, *Campylobacter jejuni*, and non-typhoidal *Salmonella*. It does so by applying a background probability to the environmental fraction of community acquisitions, rather than by explicitly modelling an animal population, zoonotic transmission pathways, or food-chain contamination dynamics. The floor values are calibrated approximations derived from surveillance data on community resistance prevalence, not direct measurements of animal-reservoir resistance levels. In particular: (a) the model uses globally averaged floor values and does not capture regional variation in agricultural antibiotic consumption (e.g., the US enrofloxacin ban in poultry from 2004 vs. continued use in other countries); (b) the floor does not respond to interventions targeting veterinary antibiotic use within the simulation — a policy that reduces agricultural tetracycline consumption would not reduce the *E. coli* tet floor without manual parameter adjustment; and (c) the temporal trajectories of the floors are modelled as step-function era overrides rather than continuous functions of agricultural use intensity. These are deliberate simplifications to avoid adding an explicit animal population sub-model, which would require extensive additional parameterisation and calibration while being peripheral to the policy questions (prescribing, diagnostics, stewardship, access) that this model is designed to address.
 
 ---
 
@@ -2532,7 +2586,7 @@ For organisms where rescue therapy following first-line failure is incomplete in
 
 ### B.2 Drug Properties
 
-Pharmacokinetic and clinical properties for each of the 61 modelled antimicrobial agents. The introduction time step is measured in days from 1 January 1930.
+Pharmacokinetic and clinical properties for each of the 62 modelled antimicrobial agents. The introduction time step is measured in days from 1 January 1930.
 
 See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.6 Drug availability](#66-drug-availability-by-region-and-era), [§6.7 Drug toxicity](#67-drug-toxicity), [§6.8 Antibiotic infection prevention](#68-antibiotic-infection-prevention).
 
@@ -2599,6 +2653,7 @@ See: [§6.3 Drug pharmacokinetics](#63-drug-pharmacokinetics), [§6.5 Drug poten
 | flucloxacillin | penicillins | 14600 | 10 | 0.04 | 2 | 1.6 | 1e-8 | 1.5 | 0.3 |
 | aztreonam_avibactam | cephalosporins_3_4 | 34675 | 10 | 0.08 | 2 | 3 | 0 | 1.5 | 0.3 |
 | cefixime | cephalosporins_3_4 | 21535 | 10 | 0.125 | 2 | 2.8 | 5e-10 | 1.5 | 0.3 |
+| nalidixic_acid | fluoroquinolones | 12045 | 10 | 0.08 | 2 | 2 | 4e-9 | 1.5 | 0.3 |
 
 ### B.3 Bacteria Properties
 
@@ -2653,7 +2708,7 @@ See: [§3.1 Community acquisition](#31-community-acquisition), [§4.2 Infection 
 
 ### B.4 Drug–Bacteria Potency Matrix
 
-Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 61 drugs = 2562 entries.
+Baseline potency (MIC-derived effectiveness when no resistance is present) and initiation multiplier (stewardship weighting for drug selection) for each drug–bacteria pair. 42 bacteria × 62 drugs = 2604 entries.
 
 See: [§6.5 Drug potency matrix](#65-drug-potency-matrix), [§6.2 Drug selection](#62-drug-selection-choosing-which-antibiotic-to-use).
 

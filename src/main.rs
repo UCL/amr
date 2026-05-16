@@ -19,8 +19,6 @@
 // - sum across drugs existing at the time of mean potency x (1 - any_r) amongst those infected with the bacteria
 // (do this by region ?)
 //
-//  need to incorporate major time trends in past bacteria-specific incidence 
-//
 //  present bacteria-specific numbers of deaths for status quo and amr disappears (ie attributable) to compare with gbd
 //  (for age > 5 the highest attributable in gbd are s aureus, a baumannii, and e coli.)
 //
@@ -28,7 +26,6 @@
 //
 //  check for completely implausible infection journeys
 //
-//  check on drug choice logic once ast done
 //
 //
 //

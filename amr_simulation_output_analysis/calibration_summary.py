@@ -187,7 +187,7 @@ CROSS_RESISTANCE_CLASS_OVERRIDES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ),
     (
         "Fluoroquinolones (J01M)",
-        ("ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin"),
+        ("ciprofloxacin", "levofloxacin", "moxifloxacin", "ofloxacin", "nalidixic_acid"),
     ),
     ("Aminoglycosides (J01G)", ("gentamicin", "tobramycin", "amikacin")),
     ("Tetracyclines (J01A)", ("tetracycline", "doxycycline", "minocycline", "tigecycline")),
