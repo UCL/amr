@@ -136,12 +136,12 @@ const PENICILLIN_CLASS_DRUGS: &[&str] = &[
 /// Models improvement in sanitation over time, reducing community-acquired infections.
 /// Format: (year, log_odds_adjustment). Linear interpolation between anchors.
 const COMMUNITY_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
-    &[(1930.0, 1.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
+    &[(1930.0, 0.2), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
 /// Hospital sanitation adjustment factors (log-odds scale).
 /// Models improvement in infection control practices over time.
 const HOSPITAL_SANITATION_LOG_ODDS_ANCHORS: &[(f64, f64)] =
-    &[(1930.0, 1.0), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
+    &[(1930.0, 0.2), (1950.0, 0.0), (1970.0, 0.0), (1990.0, 0.0)];
 
 /// Minimum antibiotic effect (per time step) required to classify a clearance as drug-assisted.
 /// Values below this threshold are treated as numerical noise and counted as immune clearance.
@@ -172,39 +172,54 @@ fn is_drug_available(drug_idx: usize, drug_name: &str, region_cur_in: &str, regi
 }
 
 #[inline]
-fn is_hospital_administered_drug(drug_name: &str) -> bool {
+/// Tier 1 — Always inpatient: continuous/frequent infusion or ICU-context drugs.
+/// These both force admission and block discharge while active.
+fn is_always_inpatient_drug(drug_name: &str) -> bool {
     matches!(
         drug_name,
-        "penicillin_g"
-            | "piperacillin_tazobactam"
+        "piperacillin_tazobactam"
             | "ampicillin_sulbactam"
             | "ticarcillin_clavulanate"
-            | "cefazolin"
-            | "cefuroxime"
-            | "ceftriaxone"
             | "ceftazidime"
-            | "cefepime"
-            | "ceftaroline"
             | "ceftolozane_tazobactam"
             | "cefiderocol"
             | "meropenem"
             | "meropenem_vaborbactam"
             | "imipenem_c"
-            | "ertapenem"
             | "aztreonam"
             | "aztreonam_avibactam"
             | "ceftazidime_avibactam"
-            | "gentamicin"
             | "tobramycin"
             | "amikacin"
             | "tigecycline"
-            | "vancomycin"
             | "teicoplanin"
-            | "dalbavancin"
             | "daptomycin"
             | "quinu_dalfo"
             | "colistin"
     )
+}
+
+/// Tier 2 — OPAT-eligible: once-daily or long-interval IV drugs commonly given outside hospital.
+/// Probabilistically triggers admission (default 70%) but does NOT block discharge while active.
+fn is_opat_eligible_drug(drug_name: &str) -> bool {
+    matches!(
+        drug_name,
+        "ceftriaxone"
+            | "cefazolin"
+            | "cefuroxime"
+            | "cefepime"
+            | "ceftaroline"
+            | "ertapenem"
+            | "vancomycin"
+            | "dalbavancin"
+    )
+}
+
+/// Tier 3 — Historical/light IV: historically given IM/short-course; no forced admission.
+/// penicillin_g was mostly IM injection (1942–1970s); gentamicin often a single ED stat dose.
+#[allow(dead_code)]
+fn is_light_iv_drug(drug_name: &str) -> bool {
+    matches!(drug_name, "penicillin_g" | "gentamicin")
 }
 
 #[inline]
@@ -212,9 +227,11 @@ fn is_hospital_restricted_reserve_drug(drug_name: &str) -> bool {
     matches!(drug_name, "linezolid" | "tedizolid")
 }
 
+/// Returns true for any drug that *may* trigger inpatient management (Tier 1 or 2 or reserve).
+/// Used only for the discharge blocker — only Tier 1 and reserve block discharge.
 #[inline]
 fn requires_hospital_management(drug_name: &str) -> bool {
-    is_hospital_administered_drug(drug_name) || is_hospital_restricted_reserve_drug(drug_name)
+    is_always_inpatient_drug(drug_name) || is_hospital_restricted_reserve_drug(drug_name)
 }
 
 #[inline]
@@ -455,7 +472,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             | "aztreonam"
         ),
 
-        EnzymeAmpcCmy | EnzymeAmpcDha => matches!(
+        EnzymeAmpcCmy | EnzymeAmpcDha | MutationAmpCDerepression => matches!(
             drug,
             "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
              | "amoxicillin_clavulanate" | "ampicillin_sulbactam" | "piperacillin_tazobactam"
@@ -547,7 +564,7 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
 
         TargetSiteVanB => matches!(drug, "vancomycin"),
 
-        ModificationMcr1 => matches!(drug, "colistin"),
+        ModificationMcr1 | MutationPolymyxinRegulatory => matches!(drug, "colistin"),
 
         EffluxAcrabTolc => matches!(
            drug, "tetracycline" | "doxycycline" | "minocycline"  // All classical tetracyclines affected by RND efflux
@@ -619,6 +636,14 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // MprF membrane charge modification: daptomycin resistance
         MutationMprF => matches!(drug, "daptomycin"),
 
+        // Enterococcal daptomycin resistance: liaFSR / cls remodeling
+        MutationLiafsrCls => {
+            if !matches!(bacteria, "enterococcus_faecalis" | "enterococcus_faecium") {
+                return false;
+            }
+            matches!(drug, "daptomycin")
+        },
+
         // RpoB mutation: fidaxomicin resistance (C. difficile) + rifampicin resistance (all bacteria)
         MutationRpoB => matches!(drug, "fidaxomicin" | "rifampicin"),
 
@@ -652,6 +677,11 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
         // 23S rRNA point mutation: macrolides (NOT lincosamides/streptogramins — distinct binding site)
         Mutation23sRrna => matches!(
             drug, "erythromycin" | "azithromycin" | "clarithromycin"
+        ),
+
+        // 23S rRNA domain V mutation: oxazolidinones
+        Mutation23sRrnaOxazolidinone => matches!(
+            drug, "linezolid" | "tedizolid"
         ),
 
         // TetA/B/C efflux: classical tetracyclines — tigecycline and minocycline excluded
@@ -1701,8 +1731,8 @@ pub(crate) fn apply_rules(
         individual.days_hospitalized += 1; // Increment days hospitalized
 
         // Determine if discharge is allowed
-        // Check if patient is currently on any IV-only drug
-           let is_on_iv_drug = individual.cur_use_drug.iter().enumerate().any(|(idx, &on)| {
+        // Only Tier 1 (always-inpatient) and reserve drugs block discharge; Tier 2 (OPAT) does not.
+           let is_on_discharge_blocking_drug = individual.cur_use_drug.iter().enumerate().any(|(idx, &on)| {
                if !on { return false; }
                requires_hospital_management(DRUG_SHORT_NAMES[idx])
            });
@@ -1711,10 +1741,10 @@ pub(crate) fn apply_rules(
             false // Cannot discharge if patient has sepsis
         } else if has_active_infection {
             false // Cannot discharge while any active infection remains above the model threshold
-        } else if is_on_iv_drug {
-            false // Cannot discharge if on IV drugs
+        } else if is_on_discharge_blocking_drug {
+            false // Cannot discharge if on Tier 1 / reserve IV drug
         } else {
-            true // Can otherwise discharge
+            true // Can otherwise discharge (includes OPAT-eligible Tier 2 drugs)
         };
 
         // Potentially recover from hospitalization (only if discharge is allowed)
@@ -3541,10 +3571,20 @@ pub(crate) fn apply_rules(
                     // Initiate the selected drug
                     let drug_name = DRUG_SHORT_NAMES[chosen_drug_idx];
 
-                    // Force hospitalization if this is an IV-only drug
-                    // This captures nosocomial risk for patients receiving parenteral therapy
-                    if requires_hospital_management(drug_name) {
-                        if !individual.hospital_status.is_hospitalized() {
+                    // Hospitalization trigger based on IV drug tier:
+                    // Tier 1 (always inpatient) and reserve drugs: force admission unconditionally.
+                    // Tier 2 (OPAT-eligible): probabilistic admission (opat_admission_probability, default 0.70).
+                    // Tier 3 (light IV / historical IM): no forced admission.
+                    if !individual.hospital_status.is_hospitalized() {
+                        let should_admit = if requires_hospital_management(drug_name) {
+                            true
+                        } else if is_opat_eligible_drug(drug_name) {
+                            let opat_admit_p = get_global_param("opat_admission_probability").unwrap_or(0.70);
+                            rng.gen::<f64>() < opat_admit_p
+                        } else {
+                            false
+                        };
+                        if should_admit {
                             individual.hospital_status = HospitalStatus::InHospital;
                             individual.days_hospitalized = 0;
                         }

@@ -44,7 +44,7 @@ Antimicrobial resistance (AMR) — the ability of bacteria to survive antibiotic
 
 This model simulates the emergence and dynamics of AMR across a synthetic human population from **1930 to 2035**. The simulation starts in 1930 because that is before antibiotics were widely available; by beginning at that point, the model can reproduce the entire historical arc of antibiotic introduction, rising consumption, and the gradual accumulation of resistance that followed.
 
-The model tracks **42 bacterial species**, **61 antibiotics** (grouped into **39 internal drug classes**), and **40 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
+The model tracks **42 bacterial species**, **61 antibiotics** (grouped into **39 internal drug classes**), and **44 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
 We have written this description for readers whom we assume are already familiar with clinical microbiology, infectious diseases, and antimicrobial stewardship. Accordingly, we focus on the biological and clinical distinctions that are most important for interpreting policy experiments, while being explicit where broader host, laboratory, pharmacological, or ecological complexity has been collapsed into a smaller set of model states. That balance is deliberate: at this scope, an attempt to encode every clinically real nuance would make the model difficult to calibrate, difficult to interpret, and ultimately less useful for the policy questions it is intended to address.
 
@@ -1281,7 +1281,7 @@ The model tracks resistance at the level of individual **mechanisms** — the sp
 
 ### 7.1 Resistance mechanisms
 
-The model explicitly tracks **40** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
+The model explicitly tracks **44** distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.
 
 The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) hit `pen`, `c1_2g`, `c3g`, `c4g`, and related monobactam-active entries but not `carb_group1`/`carb_group2`, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well.
 
@@ -1293,6 +1293,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
    | ESBL SHV | `esbl_shv` | Extended-spectrum β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | AmpC CMY | `ampc_cmy` | Plasmid-mediated AmpC β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | AmpC DHA | `ampc_dha` | Plasmid-mediated AmpC β-lactamase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+  | AmpC derepression | `mutation_ampc_derepression` | Chromosomal AmpC derepression (*ampC* regulatory mutations in SPACE organisms: *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Providencia*) — chromosomal, non-transferable | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `aztreonam` | Enterobacterales |
    | KPC | `kpc` | *K. pneumoniae* carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `aztreonam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | NDM/VIM | `ndm_vim` | Metallo-β-lactamases | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `meropenem_vaborbactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
    | OXA-48 | `oxa_48` | Oxacillinase-type carbapenemase | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `piperacillin_tazobactam`, `ampicillin_sulbactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftazidime_avibactam`, `aztreonam_avibactam`, `meropenem`, `imipenem_c`, `ertapenem`, `meropenem_vaborbactam` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
@@ -1308,9 +1309,11 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | AAC/APH/ANT | `aac_aph` | Aminoglycoside-modifying enzymes | `gentamicin`, `tobramycin`, `amikacin`, `streptomycin`, `neomycin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Staphylococci, Streptococci |
   | ErmB | `ermb` | Erythromycin ribosome methylase | `erythromycin`, `azithromycin`, `clarithromycin`, `clindamycin`, `quinu_dalfo` | Staphylococci, Streptococci, Anaerobes, Fastidious, Helicobacter |
   | 23S rRNA | `23s_rrna` | 23S rRNA point mutation | `erythromycin`, `azithromycin`, `clarithromycin` | Helicobacter, Enteric Pathogens, Fastidious, Streptococci |
+  | 23S rRNA (oxa) | `mutation_23s_rrna_oxazolidinone` | 23S rRNA domain V mutation conferring linezolid/tedizolid resistance — chromosomal, non-transferable | `linezolid`, `tedizolid` | Staphylococci, Streptococci |
   | Cfr | `cfr` | 23S rRNA methyltransferase | `linezolid`, `tedizolid`, `chloramphenicol`, `clindamycin`, `retapamulin` | Staphylococci, Streptococci, Anaerobes, Fastidious, Helicobacter |
   | CAT | `cat` | Chloramphenicol acetyltransferase | `chloramphenicol` | All |
   | MCR-1 | `mcr_1` | Mobilised colistin resistance | `colistin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
+  | Polymyxin regulatory | `mutation_polymyxin_regulatory` | Chromosomal polymyxin resistance (*mgrB*, *pmrAB*, *phoPQ*, *lpx* mutations) — chromosomal, non-transferable | `colistin` | Enterobacterales, Nonfermenters |
   | AcrAB-TolC | `acrab_tolc` | Gram-negative efflux pump | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | MexXY-OprM | `mexxy_oprm` | Pseudomonas-specific efflux pump | `tetracycline`, `doxycycline`, `minocycline`, `gentamicin`, `tobramycin`, `amikacin`, `chloramphenicol`, `ciprofloxacin` | Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes |
   | Global eff. | `global_efflux` | Non-specific efflux upregulation | `tetracycline`, `doxycycline`, `minocycline`, `tigecycline`, `chloramphenicol`, `ciprofloxacin` | All |
@@ -1323,6 +1326,7 @@ The table below lists every mechanism, the drugs it affects, and which bacterial
   | Nitroreduct | `nitroreductase` | Nitroreductase loss | `metronidazole`, `nitrofurantoin`, `furazolidone` | Staphylococci, Streptococci, Enterobacterales, Enteric Pathogens, Anaerobes, Fastidious, Helicobacter |
   | FosA/FosB | `fosa` | Fosfomycin-modifying enzyme (FosA: Gram-negative; FosB: Gram-positive) | `fosfomycin` | Staphylococci, Streptococci, Enterobacterales, Nonfermenters, Enteric Pathogens |
   | MprF | `mprf` | Membrane charge modification | `daptomycin` | Staphylococci |
+  | LiaFSR/Cls | `mutation_liafsr_cls` | Enterococcal daptomycin resistance via *liaFSR/cls* cell-envelope remodeling — chromosomal, non-transferable | `daptomycin` | Streptococci |
   | RpoB | `rpob` | RNA polymerase mutation | `fidaxomicin` | All |
   | FusB | `fusb` | Fusidic acid resistance determinant | `fusidic_a` | Staphylococci |
   | PBP mosaic | `mutation_pbp_mosaic` | Penicillin-binding protein mosaic mutations (PBP2x/2b/1a in pneumococcus, penA in gonococci, PBP3 in *H. influenzae*) — reduced β-lactam affinity | `penicillin_g`, `ampicillin`, `amoxicillin`, `piperacillin`, `ticarcillin`, `flucloxacillin`, `amoxicillin_clavulanate`, `ampicillin_sulbactam`, `piperacillin_tazobactam`, `ticarcillin_clavulanate`, `cephalexin`, `cefazolin`, `cefuroxime`, `ceftriaxone`, `ceftazidime`, `cefixime`, `cefepime`, `ceftaroline`, `ceftolozane_tazobactam`, `ceftazidime_avibactam`, `aztreonam` | All |
@@ -1378,6 +1382,10 @@ These enhancement multipliers should be interpreted as qualitative within-model 
 | AcrAB-TolC | 0.30 | Gram-negative efflux — modest broad-spectrum resistance |
 | Global efflux | 0.20 | Non-specific efflux — weakest single mechanism |
 | As-yet-unknown | 0.50 | Calibration placeholder |
+| AmpC derepression | 0.75 | Derepressed chromosomal AmpC — β-lactamase inhibitor combinations show reduced activity compared to plasmid AmpC |
+| Polymyxin regulatory | 0.90 | Chromosomal colistin resistance (*mgrB*, *pmrAB*, *phoPQ*, *lpx*) — high-level, comparable to MCR-1 |
+| LiaFSR/Cls | 0.75 | Enterococcal daptomycin resistance via *liaFSR/cls* cell-envelope remodeling |
+| 23S rRNA (oxa) | 0.85 | Domain V 23S rRNA mutation conferring linezolid/tedizolid resistance in staphylococci and enterococci |
 
 
 
@@ -1474,6 +1482,7 @@ The full reversion rates by mechanism category:
 | **ESBL CTX-M / TEM / SHV** | `0.0006` | Standard extended-spectrum β-lactamases. |
 | **AmpC DHA** | `0.0006` | Plasmid-mediated AmpC; typical cost profile. |
 | **AmpC CMY** | `0.0001` | Often native gene upregulation; minimal fitness loss to maintain. |
+| **AmpC derepression** | `0.0002` | Chromosomal *ampC* regulatory mutation (SPACE organisms); low-moderate maintenance cost. |
 | **FosA** | `0.0005` | Plasmid-mediated fosfomycin resistance; moderate cost. |
 | **CAT** | `0.0005` | Chloramphenicol acetyltransferase. |
 | **16S rRMTase** | `0.0005` | Ribosomal RNA methyltransferases conferring high-level aminoglycoside resistance. |
@@ -1487,6 +1496,8 @@ The full reversion rates by mechanism category:
 | ***erm(B)*** | `0.002` | High reversion rate; target methylation for macrolide-lincosamide-streptogramin B (MLS-B) resistance. |
 | **VanA / VanB** | `0.002` | Highly complex target reprograming (D-Ala-D-Ala to D-Ala-D-Lac); significant energetic drain in the absence of glycopeptide exposure. |
 | **CFR** | `0.0005` | RNA methyltransferase (oxazolidinone/phenicol cross-resistance). |
+| **LiaFSR/Cls** | `0.0015` | Enterococcal *liaFSR/cls* cell-envelope remodeling for daptomycin resistance; significant metabolic burden without daptomycin pressure. |
+| **23S rRNA (oxazolidinone)** | `0.001` | Domain V target-site mutation conferring linezolid/tedizolid resistance; measurable fitness cost. |
 
 
 
@@ -1506,6 +1517,7 @@ The full reversion rates by mechanism category:
 | Mechanism | Reversion Rate (per day) | Clinical Notes |
 | :--- | :--- | :--- |
 | ***mcr-1*** | `0.0015` | Plasmid-mediated phosphoethanolamine transferase (colistin resistance); substantial lipid A modification burden. |
+| **Polymyxin regulatory** | `0.0015` | *mgrB/pmrAB/phoPQ/lpx* mutations; chromosomal cell-envelope modification imposes fitness cost similar to MCR-1 plasmid burden. |
 | **Tet(M)** | `0.0005` | Ribosomal protection protein; moderate cost to maintain on transposons (e.g., Tn*916*). |
 | **Qnr** | `0.0001` | Plasmid-mediated quinolone resistance protein; relatively stable. |
 | **FusB** | `0.0005` | Target protection mechanism for fusidic acid resistance. |
@@ -6325,7 +6337,7 @@ Under the default parameter map below, vaccination is active. Coverage ramps lin
 
 ### B.10 Resistance Mechanisms
 
-Parameters for the 40 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
+Parameters for the 44 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
 
 See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
@@ -6369,6 +6381,10 @@ See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism�
 | enzyme_bla_z | 1e-4 |
 | enzyme_oxa_acinetobacter | 1e-4 |
 | mutation_23s_rrna | 1e-4 |
+| mutation_ampc_derepression | 2e-4 |
+| mutation_polymyxin_regulatory | 0.0015 |
+| mutation_liafsr_cls | 0.0015 |
+| mutation_23s_rrna_oxazolidinone | 0.001 |
 | efflux_tet_abc | 1e-4 |
 | mutation_pbp_mosaic | 0.001 |
 | efflux_mtr_cde | 0.001 |

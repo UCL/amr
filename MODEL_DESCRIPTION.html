@@ -45,7 +45,7 @@
 <h3 id="11-model-overview">1.1 Model overview</h3>
 <p>Antimicrobial resistance (AMR) — the ability of bacteria to survive antibiotic treatment — is one of the most serious threats to global health. Understanding how resistance emerges, spreads, and responds to policy changes requires a model that captures the interplay between antibiotic use, bacterial biology, and healthcare systems.</p>
 <p>This model simulates the emergence and dynamics of AMR across a synthetic human population from <strong>1930 to 2035</strong>. The simulation starts in 1930 because that is before antibiotics were widely available; by beginning at that point, the model can reproduce the entire historical arc of antibiotic introduction, rising consumption, and the gradual accumulation of resistance that followed.</p>
-<p>The model tracks <strong>42 bacterial species</strong>, <strong>61 antibiotics</strong> (grouped into <strong>39 internal drug classes</strong>), and <strong>40 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
+<p>The model tracks <strong>42 bacterial species</strong>, <strong>61 antibiotics</strong> (grouped into <strong>39 internal drug classes</strong>), and <strong>44 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
 <p>We have written this description for readers whom we assume are already familiar with clinical microbiology, infectious diseases, and antimicrobial stewardship. Accordingly, we focus on the biological and clinical distinctions that are most important for interpreting policy experiments, while being explicit where broader host, laboratory, pharmacological, or ecological complexity has been collapsed into a smaller set of model states. That balance is deliberate: at this scope, an attempt to encode every clinically real nuance would make the model difficult to calibrate, difficult to interpret, and ultimately less useful for the policy questions it is intended to address.</p>
 <h3 id="12-model-architecture">1.2 Model architecture</h3>
 <p>This is an <strong>individual-based model</strong> (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 1,000,000 — and simulates what happens to each of them, day by day, over more than 100 years.</p>
@@ -3119,7 +3119,7 @@
 <p>The model tracks resistance at the level of individual <strong>mechanisms</strong> — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant <em>K. pneumoniae</em>") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.</p>
 <p><strong>Mechanism-centric architecture.</strong> All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (<code>mechanism_any</code>), majority strain (<code>mechanism_majority</code>), and microbiome carriage (<code>mechanism_microbiome</code>). The scalar resistance metrics (<code>any_r</code>, <code>activity_r</code>) reported in outputs are <strong>derived</strong> from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified <code>MechanismCache</code> maintains the population-level picture as a reservoir of up to 1000 complete clinical resistance genotypes per region × care setting × bacterium (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with asymmetric profile retention (hospital profiles persist ~139-day half-life; community profiles ~69-day half-life — see Section 3.4), preserves a resistant exemplar in slots with resistant history during refresh, derives prevalence directly from the stored profiles, and applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology.</p>
 <h3 id="71-resistance-mechanisms">7.1 Resistance mechanisms</h3>
-<p>The model explicitly tracks <strong>40</strong> distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.</p>
+<p>The model explicitly tracks <strong>44</strong> distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.</p>
 <p>The table below lists every mechanism, the drugs it affects, and which bacterial groups can acquire it. It is intended as a reference table. The key point is that each mechanism has a defined scope: ESBL enzymes (rows 1–3) hit <code>pen</code>, <code>c1_2g</code>, <code>c3g</code>, <code>c4g</code>, and related monobactam-active entries but not <code>carb_group1</code>/<code>carb_group2</code>, while KPC and NDM/VIM (rows 6–7) compromise the carbapenem classes as well.</p>
 <table>
 <thead>
@@ -3166,6 +3166,13 @@
 <td>Plasmid-mediated AmpC β-lactamase</td>
 <td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>aztreonam</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+</tr>
+<tr>
+<td>AmpC derepression</td>
+<td><code>mutation_ampc_derepression</code></td>
+<td>Chromosomal AmpC derepression (<em>ampC</em> regulatory mutations in SPACE organisms: <em>Enterobacter</em>, <em>Citrobacter</em>, <em>Serratia</em>, <em>Morganella</em>, <em>Providencia</em>) — chromosomal, non-transferable</td>
+<td><code>penicillin_g</code>, <code>ampicillin</code>, <code>amoxicillin</code>, <code>piperacillin</code>, <code>ticarcillin</code>, <code>flucloxacillin</code>, <code>amoxicillin_clavulanate</code>, <code>ampicillin_sulbactam</code>, <code>piperacillin_tazobactam</code>, <code>ticarcillin_clavulanate</code>, <code>cephalexin</code>, <code>cefazolin</code>, <code>cefuroxime</code>, <code>ceftriaxone</code>, <code>ceftazidime</code>, <code>cefixime</code>, <code>cefepime</code>, <code>ceftaroline</code>, <code>ceftolozane_tazobactam</code>, <code>aztreonam</code></td>
+<td>Enterobacterales</td>
 </tr>
 <tr>
 <td>KPC</td>
@@ -3273,6 +3280,13 @@
 <td>Helicobacter, Enteric Pathogens, Fastidious, Streptococci</td>
 </tr>
 <tr>
+<td>23S rRNA (oxa)</td>
+<td><code>mutation_23s_rrna_oxazolidinone</code></td>
+<td>23S rRNA domain V mutation conferring linezolid/tedizolid resistance — chromosomal, non-transferable</td>
+<td><code>linezolid</code>, <code>tedizolid</code></td>
+<td>Staphylococci, Streptococci</td>
+</tr>
+<tr>
 <td>Cfr</td>
 <td><code>cfr</code></td>
 <td>23S rRNA methyltransferase</td>
@@ -3292,6 +3306,13 @@
 <td>Mobilised colistin resistance</td>
 <td><code>colistin</code></td>
 <td>Enterobacterales, Nonfermenters, Enteric Pathogens, Fastidious, Anaerobes</td>
+</tr>
+<tr>
+<td>Polymyxin regulatory</td>
+<td><code>mutation_polymyxin_regulatory</code></td>
+<td>Chromosomal polymyxin resistance (<em>mgrB</em>, <em>pmrAB</em>, <em>phoPQ</em>, <em>lpx</em> mutations) — chromosomal, non-transferable</td>
+<td><code>colistin</code></td>
+<td>Enterobacterales, Nonfermenters</td>
 </tr>
 <tr>
 <td>AcrAB-TolC</td>
@@ -3376,6 +3397,13 @@
 <td>Membrane charge modification</td>
 <td><code>daptomycin</code></td>
 <td>Staphylococci</td>
+</tr>
+<tr>
+<td>LiaFSR/Cls</td>
+<td><code>mutation_liafsr_cls</code></td>
+<td>Enterococcal daptomycin resistance via <em>liaFSR/cls</em> cell-envelope remodeling — chromosomal, non-transferable</td>
+<td><code>daptomycin</code></td>
+<td>Streptococci</td>
 </tr>
 <tr>
 <td>RpoB</td>
@@ -3588,6 +3616,26 @@
 <td>0.50</td>
 <td>Calibration placeholder</td>
 </tr>
+<tr>
+<td>AmpC derepression</td>
+<td>0.75</td>
+<td>Derepressed chromosomal AmpC — β-lactamase inhibitor combinations show reduced activity compared to plasmid AmpC</td>
+</tr>
+<tr>
+<td>Polymyxin regulatory</td>
+<td>0.90</td>
+<td>Chromosomal colistin resistance (<em>mgrB</em>, <em>pmrAB</em>, <em>phoPQ</em>, <em>lpx</em>) — high-level, comparable to MCR-1</td>
+</tr>
+<tr>
+<td>LiaFSR/Cls</td>
+<td>0.75</td>
+<td>Enterococcal daptomycin resistance via <em>liaFSR/cls</em> cell-envelope remodeling</td>
+</tr>
+<tr>
+<td>23S rRNA (oxa)</td>
+<td>0.85</td>
+<td>Domain V 23S rRNA mutation conferring linezolid/tedizolid resistance in staphylococci and enterococci</td>
+</tr>
 </tbody>
 </table>
 <h3 id="73-resistance-emergence">7.3 Resistance emergence</h3>
@@ -3738,6 +3786,11 @@
 <td style="text-align: left;">Often native gene upregulation; minimal fitness loss to maintain.</td>
 </tr>
 <tr>
+<td style="text-align: left;"><strong>AmpC derepression</strong></td>
+<td style="text-align: left;"><code>0.0002</code></td>
+<td style="text-align: left;">Chromosomal <em>ampC</em> regulatory mutation (SPACE organisms); low-moderate maintenance cost.</td>
+</tr>
+<tr>
 <td style="text-align: left;"><strong>FosA</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
 <td style="text-align: left;">Plasmid-mediated fosfomycin resistance; moderate cost.</td>
@@ -3783,6 +3836,16 @@
 <td style="text-align: left;"><strong>CFR</strong></td>
 <td style="text-align: left;"><code>0.0005</code></td>
 <td style="text-align: left;">RNA methyltransferase (oxazolidinone/phenicol cross-resistance).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>LiaFSR/Cls</strong></td>
+<td style="text-align: left;"><code>0.0015</code></td>
+<td style="text-align: left;">Enterococcal <em>liaFSR/cls</em> cell-envelope remodeling for daptomycin resistance; significant metabolic burden without daptomycin pressure.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>23S rRNA (oxazolidinone)</strong></td>
+<td style="text-align: left;"><code>0.001</code></td>
+<td style="text-align: left;">Domain V target-site mutation conferring linezolid/tedizolid resistance; measurable fitness cost.</td>
 </tr>
 </tbody>
 </table>
@@ -3842,6 +3905,11 @@
 <td style="text-align: left;"><strong><em>mcr-1</em></strong></td>
 <td style="text-align: left;"><code>0.0015</code></td>
 <td style="text-align: left;">Plasmid-mediated phosphoethanolamine transferase (colistin resistance); substantial lipid A modification burden.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Polymyxin regulatory</strong></td>
+<td style="text-align: left;"><code>0.0015</code></td>
+<td style="text-align: left;"><em>mgrB/pmrAB/phoPQ/lpx</em> mutations; chromosomal cell-envelope modification imposes fitness cost similar to MCR-1 plasmid burden.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Tet(M)</strong></td>
@@ -28680,7 +28748,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tbody>
 </table>
 <h3 id="b10-resistance-mechanisms">B.10 Resistance Mechanisms</h3>
-<p>Parameters for the 40 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.</p>
+<p>Parameters for the 44 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.</p>
 <p>See: <a href="#71-resistance-mechanisms">§7.1 Resistance mechanisms</a>, <a href="#72-mechanismdrug-class-enhancement-multipliers">§7.2 Mechanism–drug-class enhancement</a>, <a href="#73-resistance-emergence">§7.3 Resistance emergence</a>, <a href="#74-resistance-reversion-and-fitness-costs">§7.4 Resistance reversion</a>.</p>
 <h4 id="mechanism-reversion-rates">Mechanism Reversion Rates</h4>
 <table>
@@ -28834,6 +28902,22 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tr>
 <td>mutation_23s_rrna</td>
 <td style="text-align: right;">1e-4</td>
+</tr>
+<tr>
+<td>mutation_ampc_derepression</td>
+<td style="text-align: right;">2e-4</td>
+</tr>
+<tr>
+<td>mutation_polymyxin_regulatory</td>
+<td style="text-align: right;">0.0015</td>
+</tr>
+<tr>
+<td>mutation_liafsr_cls</td>
+<td style="text-align: right;">0.0015</td>
+</tr>
+<tr>
+<td>mutation_23s_rrna_oxazolidinone</td>
+<td style="text-align: right;">0.001</td>
 </tr>
 <tr>
 <td>efflux_tet_abc</td>

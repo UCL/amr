@@ -498,7 +498,8 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes2[3].set_xlabel('Time (Years)')
                 axes2[3].set_ylabel('Deaths in Past Year / Current Population')
                 axes2[3].set_xlim(left=0)
-                axes2[3].set_ylim(0, 0.03)
+                # here here
+                axes2[3].set_ylim(0, 0.005)   
                 axes2[3].legend()
                 axes2[3].grid(True, alpha=0.3)
             else:

@@ -78,6 +78,7 @@ pub enum ResistanceMechanism {
     EnzymeOxa48,
     EnzymeAmpcCmy,
     EnzymeAmpcDha,
+    MutationAmpCDerepression,
     TargetSitePbp2aMecA,
     TargetSiteVanA,
     TargetSiteVanB,
@@ -93,6 +94,7 @@ pub enum ResistanceMechanism {
     PorinLossOmpk35_36,
     PorinLossOprd,
     ModificationMcr1,
+    MutationPolymyxinRegulatory,
     GlobalEffluxPump,
     GlobalPorinLoss,
     // --- New mechanisms added to cover previously unmapped drugs ---
@@ -100,6 +102,7 @@ pub enum ResistanceMechanism {
     MutationNitroreductase,  // nim genes, nfsA/B loss: metronidazole, nitrofurantoin, furazolidone
     EnzymeFos,              // fosA/B/C metalloenzymes: fosfomycin
     MutationMprF,            // mprF/liaFSR membrane modification: daptomycin
+    MutationLiafsrCls,       // Enterococcal cell-envelope remodeling: daptomycin
     MutationRpoB,            // RNA polymerase β-subunit mutation: fidaxomicin (rifampicin resistance modeled via MDR TB bacteria parameters)
     ProtectionFusB,          // fusB/fusC protection proteins: fusidic_a
     ProtectionTetM,          // tet(M)/tet(O) ribosomal protection: tetracycline, doxycycline, minocycline (NOT tigecycline)
@@ -108,6 +111,7 @@ pub enum ResistanceMechanism {
     EnzymeBlaZ,              // blaZ staphylococcal penicillinase (plasmid-borne)
     EnzymeOxaAcinetobacter,  // OXA-23/40/58 carbapenemases (A. baumannii, plasmid/Tn2006)
     Mutation23sRrna,         // 23S rRNA point mutation: clarithromycin/macrolide resistance (chromosomal)
+    Mutation23sRrnaOxazolidinone, // 23S rRNA domain V mutation: linezolid/tedizolid resistance
     EffluxTetAbc,            // TetA/B/C efflux pumps: Gram-negative tetracycline efflux (Tn10 / plasmids)
     MutationPbpMosaic,           // PBP mosaic mutations: reduced β-lactam affinity (penicillins, cephalosporins, aztreonam)
     EffluxMtrCde,           // mtrCDE-type broad efflux: macrolides, penicillins, tetracyclines, chloramphenicol
@@ -126,6 +130,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::EnzymeOxa48,
             ResistanceMechanism::EnzymeAmpcCmy,
             ResistanceMechanism::EnzymeAmpcDha,
+            ResistanceMechanism::MutationAmpCDerepression,
             ResistanceMechanism::TargetSitePbp2aMecA,
             ResistanceMechanism::TargetSiteVanA,
             ResistanceMechanism::TargetSiteVanB,
@@ -141,12 +146,14 @@ impl ResistanceMechanism {
             ResistanceMechanism::PorinLossOmpk35_36,
             ResistanceMechanism::PorinLossOprd,
             ResistanceMechanism::ModificationMcr1,
+            ResistanceMechanism::MutationPolymyxinRegulatory,
             ResistanceMechanism::GlobalEffluxPump,
             ResistanceMechanism::GlobalPorinLoss,
             ResistanceMechanism::MutationFolatePathway,
             ResistanceMechanism::MutationNitroreductase,
             ResistanceMechanism::EnzymeFos,
             ResistanceMechanism::MutationMprF,
+            ResistanceMechanism::MutationLiafsrCls,
             ResistanceMechanism::MutationRpoB,
             ResistanceMechanism::ProtectionFusB,
             ResistanceMechanism::ProtectionTetM,
@@ -154,6 +161,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::EnzymeBlaZ,
             ResistanceMechanism::EnzymeOxaAcinetobacter,
             ResistanceMechanism::Mutation23sRrna,
+            ResistanceMechanism::Mutation23sRrnaOxazolidinone,
             ResistanceMechanism::EffluxTetAbc,
             ResistanceMechanism::MutationPbpMosaic,
             ResistanceMechanism::EffluxMtrCde,
@@ -178,6 +186,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::EnzymeOxa48 => "enzyme_oxa_48",
             ResistanceMechanism::EnzymeAmpcCmy => "enzyme_ampc_cmy",
             ResistanceMechanism::EnzymeAmpcDha => "enzyme_ampc_dha",
+            ResistanceMechanism::MutationAmpCDerepression => "mutation_ampc_derepression",
             ResistanceMechanism::TargetSitePbp2aMecA => "target_site_pbp2a_meca",
             ResistanceMechanism::TargetSiteVanA => "target_site_van_a",
             ResistanceMechanism::TargetSiteVanB => "target_site_van_b",
@@ -193,12 +202,14 @@ impl ResistanceMechanism {
             ResistanceMechanism::PorinLossOmpk35_36 => "porin_loss_ompk35_36",
             ResistanceMechanism::PorinLossOprd => "porin_loss_oprd",
             ResistanceMechanism::ModificationMcr1 => "modification_mcr_1",
+            ResistanceMechanism::MutationPolymyxinRegulatory => "mutation_polymyxin_regulatory",
             ResistanceMechanism::GlobalEffluxPump => "global_efflux_pump",
             ResistanceMechanism::GlobalPorinLoss => "global_porin_loss",
             ResistanceMechanism::MutationFolatePathway => "mutation_folate_pathway",
             ResistanceMechanism::MutationNitroreductase => "mutation_nitroreductase",
             ResistanceMechanism::EnzymeFos => "enzyme_fos",
             ResistanceMechanism::MutationMprF => "mutation_mpr_f",
+            ResistanceMechanism::MutationLiafsrCls => "mutation_liafsr_cls",
             ResistanceMechanism::MutationRpoB => "mutation_rpo_b",
             ResistanceMechanism::ProtectionFusB => "protection_fus_b",
             ResistanceMechanism::ProtectionTetM => "protection_tet_m",
@@ -206,6 +217,7 @@ impl ResistanceMechanism {
             ResistanceMechanism::EnzymeBlaZ => "enzyme_bla_z",
             ResistanceMechanism::EnzymeOxaAcinetobacter => "enzyme_oxa_acinetobacter",
             ResistanceMechanism::Mutation23sRrna => "mutation_23s_rrna",
+            ResistanceMechanism::Mutation23sRrnaOxazolidinone => "mutation_23s_rrna_oxazolidinone",
             ResistanceMechanism::EffluxTetAbc => "efflux_tet_abc",
             ResistanceMechanism::MutationPbpMosaic => "mutation_pbp_mosaic",
             ResistanceMechanism::EffluxMtrCde => "efflux_mtr_cde",
@@ -630,8 +642,8 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
         // Gram-Negative Focused Mechanisms
         EnzymeEsblCtxM | EnzymeEsblTem | EnzymeEsblShv |
         EnzymeKpc | EnzymeNdmVim | EnzymeOxa48 |
-        EnzymeAmpcCmy | EnzymeAmpcDha |
-        ModificationMcr1 |
+        EnzymeAmpcCmy | EnzymeAmpcDha | MutationAmpCDerepression |
+        ModificationMcr1 | MutationPolymyxinRegulatory |
         EffluxAcrabTolc | EffluxMexxyOprm |
         PorinLossOmpk35_36 | PorinLossOprd |
         ProtectionQnr | Enzyme16sRrmt => mask_for_groups(&[
@@ -701,6 +713,11 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::Staphylococci,
         ]),
 
+        // Enterococcal daptomycin resistance: liaFSR / cls remodeling
+        MutationLiafsrCls => mask_for_groups(&[
+            BacteriaGroup::Streptococci,
+        ]),
+
         // RpoB mutation: universal (TB, but also Staph for rifampicin, C. diff for fidaxomicin)
         MutationRpoB => mask_for_groups(BacteriaGroup::all()),
 
@@ -741,6 +758,12 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
             BacteriaGroup::EntericPathogen, // Campylobacter
             BacteriaGroup::Fastidious,      // Mycoplasma, Chlamydia, Legionella, Bordetella
             BacteriaGroup::Streptococci,    // S. pneumoniae, S. pyogenes, S. agalactiae
+        ]),
+
+        // Oxazolidinone target-site mutations: staphylococci + enterococci
+        Mutation23sRrnaOxazolidinone => mask_for_groups(&[
+            BacteriaGroup::Staphylococci,
+            BacteriaGroup::Streptococci,
         ]),
 
         // TetA/B/C efflux pumps: Gram-negative only (Gram-positives use ribosomal protection TetM)
@@ -796,16 +819,20 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
 
         // --- Chromosomal mutations / regulatory changes → NOT transferable ---
         Mutation23sRrna => false,          // chromosomal 23S rRNA point mutation
+        Mutation23sRrnaOxazolidinone => false, // chromosomal 23S rRNA domain V mutation
         MutationGyrAPrimary => false,          // point mutation in gyrA
         MutationGyrAParCSecondary => false,    // point mutation in parC
         EffluxAcrabTolc => false,              // chromosomal efflux up-regulation
         EffluxMexxyOprm => false,              // chromosomal efflux up-regulation
         PorinLossOmpk35_36 => false,           // chromosomal porin loss
         PorinLossOprd => false,                // chromosomal porin loss
+        MutationAmpCDerepression => false,     // chromosomal regulatory derepression of intrinsic AmpC
+        MutationPolymyxinRegulatory => false,  // chromosomal mgrB/pmrAB/phoPQ/lpx pathways
         GlobalEffluxPump => false,             // chromosomal global efflux
         GlobalPorinLoss => false,              // chromosomal global porin loss
         MutationNitroreductase => false,       // chromosomal gene inactivation
         MutationMprF => false,                 // chromosomal membrane modification
+        MutationLiafsrCls => false,            // chromosomal cell-envelope remodeling
         MutationRpoB => false,                 // chromosomal RNA polymerase mutation
     }
 }
