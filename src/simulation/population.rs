@@ -109,6 +109,8 @@ pub enum ResistanceMechanism {
     // --- Additional mechanisms for improved coverage ---
     EnzymeAacAph,            // AAC/APH/ANT family aminoglycoside-modifying enzymes (integrons/plasmids)
     EnzymeBlaZ,              // blaZ staphylococcal penicillinase (plasmid-borne)
+    EnzymeTem1,              // TEM-1 narrow-spectrum penicillinase (Enterobacterales, plasmid-borne; inhibitor-resistant)
+    EnzymeMphA,              // mphA macrolide phosphotransferase (Enterobacterales/EntericPathogen, plasmid-borne; azithromycin/macrolide resistance)
     EnzymeOxaAcinetobacter,  // OXA-23/40/58 carbapenemases (A. baumannii, plasmid/Tn2006)
     Mutation23sRrna,         // 23S rRNA point mutation: clarithromycin/macrolide resistance (chromosomal)
     Mutation23sRrnaOxazolidinone, // 23S rRNA domain V mutation: linezolid/tedizolid resistance
@@ -159,6 +161,8 @@ impl ResistanceMechanism {
             ResistanceMechanism::ProtectionTetM,
             ResistanceMechanism::EnzymeAacAph,
             ResistanceMechanism::EnzymeBlaZ,
+            ResistanceMechanism::EnzymeTem1,
+            ResistanceMechanism::EnzymeMphA,
             ResistanceMechanism::EnzymeOxaAcinetobacter,
             ResistanceMechanism::Mutation23sRrna,
             ResistanceMechanism::Mutation23sRrnaOxazolidinone,
@@ -215,6 +219,8 @@ impl ResistanceMechanism {
             ResistanceMechanism::ProtectionTetM => "protection_tet_m",
             ResistanceMechanism::EnzymeAacAph => "enzyme_aac_aph",
             ResistanceMechanism::EnzymeBlaZ => "enzyme_bla_z",
+            ResistanceMechanism::EnzymeTem1 => "enzyme_tem_1",
+            ResistanceMechanism::EnzymeMphA => "enzyme_mph_a",
             ResistanceMechanism::EnzymeOxaAcinetobacter => "enzyme_oxa_acinetobacter",
             ResistanceMechanism::Mutation23sRrna => "mutation_23s_rrna",
             ResistanceMechanism::Mutation23sRrnaOxazolidinone => "mutation_23s_rrna_oxazolidinone",
@@ -741,10 +747,26 @@ pub fn mechanism_allowed_group_mask(mechanism: ResistanceMechanism) -> u32 {
 
         // blaZ penicillinase: staphylococci + H. pylori (PBP1A proxy) + GC (TEM-1 proxy)
         // NOT Streptococci — Strep remain penicillin-susceptible without blaZ
+        // NOT Enterobacterales — those use EnzymeTem1 instead
         EnzymeBlaZ => mask_for_groups(&[
             BacteriaGroup::Staphylococci,
             BacteriaGroup::Helicobacter,
             BacteriaGroup::Fastidious,
+        ]),
+
+        // TEM-1 narrow-spectrum penicillinase: Enterobacterales only.
+        // Inhibitor-resistant (clavulanate does NOT inhibit TEM-1), so covers BLI combinations.
+        // Does NOT confer cephalosporin resistance (that requires ESBL mutations — TEM-3+).
+        EnzymeTem1 => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::EntericPathogen,  // E. coli-like enteric pathogens (e.g. Shigella relatives)
+        ]),
+
+        // mphA macrolide phosphotransferase: Enterobacterales + EntericPathogen
+        // Plasmid-borne (IncF/IncB/IncFII); co-selected on MDR R-plasmids with beta-lactam + FQ resistance genes
+        EnzymeMphA => mask_for_groups(&[
+            BacteriaGroup::Enterobacterales,
+            BacteriaGroup::EntericPathogen,
         ]),
 
         // OXA-23/40/58 carbapenemases: A. baumannii (NonFermenter) only
@@ -814,6 +836,8 @@ pub fn mechanism_is_hgt_transferable(mechanism: ResistanceMechanism) -> bool {
         AsYetUnknown => true,  // conservative default for remaining placeholder
         EnzymeAacAph => true,              // AAC/APH/ANT on integrons / plasmids
         EnzymeBlaZ => true,                // blaZ on plasmids in Staphylococci
+        EnzymeTem1 => true,                // TEM-1 on IncF/IncI plasmids / Tn3 transposons
+        EnzymeMphA => true,                // mphA on IncF/IncB/IncFII plasmids (co-selected on MDR R-plasmids)
         EnzymeOxaAcinetobacter => true,    // OXA-23/40/58 on plasmids / Tn2006
         EffluxTetAbc => true,              // tetA/B/C on Tn10 and related plasmid transposons
 
@@ -1239,6 +1263,19 @@ pub struct Resistance {
     /// Effective resistance for drug activity calculations. Range: 0.0-1.0.
     /// Takes into account mechanism-specific effects on drug binding/activity.
     pub activity_r: f64,
+
+    /// Maximum possible activity_r for this drug (= base_potency × effective_drug_level).
+    /// Equals activity_r when resistance is zero.  The ratio activity_r / max_possible_activity_r
+    /// gives (1 − normalized_any_r), a clean resistance-effect metric bounded [0,1].
+    pub max_possible_activity_r: f64,
+
+    /// Potency-only activity_r: base_potency × (1 − normalized_any_r), no drug-level or penetration.
+    /// Used for the summary resistance metric so it reflects pure resistance, not PK/site effects.
+    pub activity_r_pure: f64,
+
+    /// Potency-only denominator: base_potency, no drug-level or penetration.
+    /// Ratio activity_r_pure / max_possible_activity_r_pure gives mean(1 − any_r) weighted by potency.
+    pub max_possible_activity_r_pure: f64,
     
     /// Primary resistance level - resistance present in ANY infected bacteria. Range: 0.0-1.0.
     /// Derived from mechanism_any via the multiplicative product formula:
@@ -1695,6 +1732,9 @@ impl Individual {
                     microbiome_r: 0.0,
                     test_r: 0.0,
                     activity_r: 0.0,
+                    max_possible_activity_r: 0.0,
+                    activity_r_pure: 0.0,
+                    max_possible_activity_r_pure: 0.0,
                     any_r: 0.0,
                 });
             }

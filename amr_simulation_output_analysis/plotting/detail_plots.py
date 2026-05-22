@@ -135,13 +135,13 @@ def create_infection_duration_plot(df: pd.DataFrame, config: PlotConfig) -> None
     ax1.grid(True, alpha=0.3)
     
     # Duration-based proportions
-    if 'infected_10_days_proportion' in df.columns and 'infected_30_days_proportion' in df.columns:
+    if 'infected_10_days_proportion' in df.columns and 'infected_21_days_proportion' in df.columns:
         ax2.plot(df['time_in_years'], pd.Series(df['infected_10_days_proportion']).rolling(
             window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
             label='Infected >10 Days', linewidth=2, color='green')
-        ax2.plot(df['time_in_years'], pd.Series(df['infected_30_days_proportion']).rolling(
+        ax2.plot(df['time_in_years'], pd.Series(df['infected_21_days_proportion']).rolling(
             window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True).mean(), 
-            label='Infected >30 Days', linewidth=2, color='brown')
+            label='Infected >21 Days', linewidth=2, color='brown')
         ax2.legend()
     else:
         ax2.text(0.5, 0.5, 'Duration data not available', ha='center', va='center')
@@ -1779,7 +1779,7 @@ def create_mean_any_r_by_drug_for_each_bacteria_plots(df: pd.DataFrame, config: 
         plt.ylabel('Proportion with Resistance', fontsize=12)
         
         # Set proper axis limits
-        plt.xlim(0, 105)  # Limit to actual simulation time (105 years)
+        plt.xlim(0, max(105, df['time_in_years'].max()) if 'time_in_years' in df.columns else 105)  # Extend to actual simulation length
         plt.ylim(0, 1)    # Resistance is a proportion (0-1)
         
         # Add grid
@@ -2162,7 +2162,7 @@ def create_mean_mic_by_drug_plots(df: pd.DataFrame, config: PlotConfig) -> None:
         plt.ylabel('Mean MIC (mg/L)', fontsize=12)
         
         # [TOOL] FIX: Set proper axis limits
-        plt.xlim(0, 105)  # Limit to actual simulation time (105 years)
+        plt.xlim(0, max(105, df['time_in_years'].max()) if 'time_in_years' in df.columns else 105)  # Extend to actual simulation length
         plt.ylim(0, 50)   # Expand to fit empirical MIC data range
         
         # Add grid
@@ -5372,7 +5372,7 @@ def create_infection_duration_plot(
     df = data_cache.get_preprocessed_data()
     
     # Check if required columns exist
-    required_cols = ['infection_proportion', 'infected_10_days_proportion', 'infected_30_days_proportion']
+    required_cols = ['infection_proportion', 'infected_10_days_proportion', 'infected_21_days_proportion']
     missing_cols = [col for col in required_cols if col not in df.columns]
     
     if missing_cols:
@@ -5399,10 +5399,10 @@ def create_infection_duration_plot(
              ).mean(), 
              label='Infected >10 Days', linewidth=2, color='green')
     ax2.plot(df['time_in_years'], 
-             pd.Series(df['infected_30_days_proportion']).rolling(
+             pd.Series(df['infected_21_days_proportion']).rolling(
                  window=config.smoothing_window, min_periods=1, center=True
              ).mean(), 
-             label='Infected >30 Days', linewidth=2, color='brown')
+             label='Infected >21 Days', linewidth=2, color='brown')
     ax2.set_xlabel('Time (Years)')
     ax2.set_ylabel('Proportion of Currently Infected')
     ax2.set_title('Duration-Based Infection Proportions\n(Denominator: Currently Infected, excl. H. pylori)')

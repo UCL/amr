@@ -410,7 +410,7 @@ Rather than sampling each drug-resistance pair independently (which would produc
 
 After every simulated day, the model refreshes a **profile reservoir** (`MechanismCache`) of up to 1000 complete resistance genotypes per combination of region × care setting (community / hospital) × bacteria. Each genotype is stored as a compact 64-bit bitmask (one bit per mechanism). The reservoir is built by **reservoir sampling** from all currently infected individuals, so every infected person has an equal probability of contributing a profile — including fully susceptible individuals (bitmask = 0). Infected individuals contribute to the pool corresponding to their **current location** (hospital or community) at the time of the daily cache update.
 
-The reservoir uses **asymmetric retention** when refreshing its contents each day. Community profiles are retained with a fraction `community_profile_cache_retention` = 0.99 (~69-day half-life), reflecting slower decay than in earlier versions so rare resistant profiles are not stochastically lost too easily. Hospital profiles are retained with a fraction `hospital_profile_cache_retention` = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistant genotype, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.
+The reservoir uses **asymmetric retention** when refreshing its contents each day. Community profiles are retained with a fraction `community_profile_cache_retention` = 0.9 (~6.6-day half-life), so the community pool tracks currently circulating strains rather than accumulating historical profiles. Hospital profiles are retained with a fraction `hospital_profile_cache_retention` = 0.995 (~139-day half-life), modelling the persistence of endemic resistant clones on hospital wards through device biofilms, healthcare worker colonisation, and environmental contamination. If a reservoir slot previously contained any resistant genotype, the refresh step also preserves one resistant exemplar rather than allowing that slot to become fully susceptible purely because of stochastic retention and refill. This asymmetry ensures that the hospital pool reflects the slower, more persistent resistance ecology of healthcare settings while the community pool remains responsive to current circulating strains.
 
 Because the reservoir includes both resistant and susceptible profiles, the **prevalence** of resistance to any given drug can be computed directly by scanning the reservoir: for each profile, the model checks whether any mechanism applicable to that drug is set, and the resistant fraction across all stored profiles gives the current prevalence estimate. In the current architecture there is no separate EWMA fallback layer; the profile reservoir itself is the source of both sampling and derived prevalence. This prevalence is used downstream by antibiotic prescribing logic (Section 6) and calibration scoring.
 
@@ -1276,7 +1276,7 @@ This section describes how the model represents the biology of resistance emerge
 
 The model tracks resistance at the level of individual **mechanisms** — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant *K. pneumoniae*") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.
 
-**Mechanism-centric architecture.** All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (`mechanism_any`), majority strain (`mechanism_majority`), and microbiome carriage (`mechanism_microbiome`). The scalar resistance metrics (`any_r`, `activity_r`) reported in outputs are **derived** from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified `MechanismCache` maintains the population-level picture as a reservoir of up to 1000 complete clinical resistance genotypes per region × care setting × bacterium (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with asymmetric profile retention (hospital profiles persist ~139-day half-life; community profiles ~69-day half-life — see Section 3.4), preserves a resistant exemplar in slots with resistant history during refresh, derives prevalence directly from the stored profiles, and applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology.
+**Mechanism-centric architecture.** All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (`mechanism_any`), majority strain (`mechanism_majority`), and microbiome carriage (`mechanism_microbiome`). The scalar resistance metrics (`any_r`, `activity_r`) reported in outputs are **derived** from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified `MechanismCache` maintains the population-level picture as a reservoir of up to 1000 complete clinical resistance genotypes per region × care setting × bacterium (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with asymmetric profile retention (hospital profiles persist ~139-day half-life; community profiles ~6.6-day half-life — see Section 3.4), preserves a resistant exemplar in slots with resistant history during refresh, derives prevalence directly from the stored profiles, applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology, and maintains a `peak_mechanism_prevalence` table (see Section 7.8) that records the highest marginal prevalence ever achieved for each (bacteria, mechanism) pair — used by the dynamic ratchet floor to prevent reversion of low-fitness-cost mechanisms.
 
 
 ### 7.1 Resistance mechanisms
@@ -1386,6 +1386,7 @@ These enhancement multipliers should be interpreted as qualitative within-model 
 | Polymyxin regulatory | 0.90 | Chromosomal colistin resistance (*mgrB*, *pmrAB*, *phoPQ*, *lpx*) — high-level, comparable to MCR-1 |
 | LiaFSR/Cls | 0.75 | Enterococcal daptomycin resistance via *liaFSR/cls* cell-envelope remodeling |
 | 23S rRNA (oxa) | 0.85 | Domain V 23S rRNA mutation conferring linezolid/tedizolid resistance in staphylococci and enterococci |
+| MphA | 0.85 | Macrolide phosphotransferase (MphA) — confers high-level resistance (8–32× MIC increase) to azithromycin, erythromycin, and clarithromycin in *Shigella* and other Enterobacterales; was previously configured with a zero multiplier (effectively a no-op) and has been corrected to 0.85 to reflect the clinically observed near-complete loss of macrolide efficacy against mphA-positive isolates |
 
 
 
@@ -1782,8 +1783,60 @@ where $D$ is the community dilution factor, $\varepsilon_\text{human}$ is the ne
 | *C. jejuni* | TetO ribosomal protection | 0.45 | ~50–60% tet-R in poultry *Campylobacter*; tet(O) on conjugative plasmids; driven by decades of livestock tetracycline prophylaxis |
 | *NTS Salmonella* | TetM/TetB ribosomal protection | 0.22 | ~25–30% tet-R in NTS globally; DT104 pentaresistant clone carried tet-R genes from the livestock reservoir |
 | *NTS Salmonella* | TEM-1 β-lactamase | 0.18 | ~15–25% amp-R in invasive NTS; plasmid-borne TEM-1 from livestock β-lactam use |
+| *Shigella* spp. | GyrA primary mutation | 0.45 (2025); 0.30 (2000–2010); 0.10 (1990–2000); 0.02 (1963–1990); 0 pre-1963 | FQ resistance acquired from IncFII/IncI R-plasmid backgrounds seeded by nalidixic acid use 1963–1990; ciprofloxacin first-line 1990–2010 drove further selection; post-2010 de-listing has not reduced prevalence due to globally circulating resistant clones |
+| *Shigella* spp. | TetM/TetO ribosomal protection | 0.22 (modern); 0.15 (pre-1995); 0.06 (pre-1975); 0 pre-1955 | Tet-R characteristic of the 1970s–1990s IncFII MDR plasmid (SHI-1 and related elements); selects in livestock and persists in circulating Shigella clones |
+| *Shigella* spp. | TetA/B/C efflux | 0.22 (modern); 0.15 (pre-1995); 0.06 (pre-1975); 0 pre-1955 | Gram-negative tet efflux genes co-located on the same plasmid backbones as TetM |
+| *Shigella* spp. | Folate pathway (sul/dfrA) | 0.26 (modern); 0.18 (pre-1995); 0.08 (pre-1975); 0 pre-1938 | Sulfonamides were the dominant dysentery treatment 1938–1965; resistance accumulated globally and persists due to co-selection by other agents on MDR plasmids |
+| *Shigella* spp. | AAC/APH aminoglycoside-modifying enzymes | 0.22 (modern); 0.14 (pre-1995); 0.04 (pre-1975); 0 pre-1943 | AG-modifying enzymes encoded on IncFII resistance cassettes; streptomycin use from 1943 onward selected and co-propagated these genes |
+| *Shigella* spp. | CAT (chloramphenicol acetyltransferase) | 0.28 (modern); 0.20 (pre-1995); 0.08 (pre-1975); 0 pre-1950 | Chloramphenicol was used for dysentery in LMIC from ~1950; CAT genes became characteristic components of the DT-104–analogous Shigella MDR plasmid |
+| *Shigella* spp. | ErmB | 0.20 (modern); 0.10 (pre-2015); 0.03 (pre-2005); 0 pre-1952 | Macrolide resistance emerging more recently in azithromycin-treated Shigella; erm(B) on conjugative transposons |
+| *Shigella* spp. | MphA macrolide phosphotransferase | 0.22 (modern); 0.10 (pre-2015); 0.02 (pre-2005); 0 pre-1991 | mphA plasmid-borne; expanding in azithromycin-first-line era post-2010; independently confers high-level azithromycin resistance (distinct mechanism from ErmB) |
+| *Shigella* spp. | Polymyxin regulatory | 0.16 (modern); 0.06 (pre-2010); 0.01 (pre-1990); 0 pre-1945 | Chromosomal colistin resistance emerging in XDR Shigella; lower floor reflects recent emergence rather than classical plasmid background |
 
-No environmental floor is applied to hospital-associated pathogens (ESKAPE organisms, *Klebsiella*, *Pseudomonas*, *Acinetobacter*, *Enterococcus*), to mechanisms for which there is no agricultural-use pathway (vancomycin, carbapenems, linezolid), or to organisms whose resistance epidemiology is primarily nosocomial or human-to-human (typhoidal *Salmonella*, *Shigella*, *N. gonorrhoeae*).
+No environmental floor is applied to hospital-associated pathogens (ESKAPE organisms, *Klebsiella*, *Pseudomonas*, *Acinetobacter*, *Enterococcus*), to mechanisms for which there is no agricultural-use pathway (vancomycin, carbapenems, linezolid), or to organisms whose resistance epidemiology is primarily nosocomial or human-to-human (typhoidal *Salmonella*, *N. gonorrhoeae*).
+
+---
+
+### 7.8 Dynamic ratchet floor
+
+**Motivation.** The community profile cache has a ~6.6-day half-life, which means resistance patterns built up over decades of antibiotic selection are continuously replaced by profiles circulating right now. When drug selection pressure is removed — for example, ciprofloxacin was de-listed as first-line Shigella therapy after ~2010 — the cache-based prevalence of fluoroquinolone resistance would decline toward zero within days, even though real-world surveillance shows no meaningful susceptibility rebound. The static environmental floors (Section 7.7) provide one mechanism to prevent this collapse, but they require manually calibrating floor values to match current-era surveillance targets, creating a circular dependency: the floor does calibration work that should belong to the emergence and selection mechanisms.
+
+**Design principle.** A dynamic ratchet applies a floor that is *self-calibrating from the simulation's own history*: for any mechanism that has reached threshold prevalence X% in the circulating pool and that has negligible fitness cost (low reversion rate), the model prevents prevalence from falling below X%. The biological justification is well-established: once a low-fitness-cost resistance gene has spread to X%, co-selection pressure from other drugs on the same plasmid, ecological persistence in wastewater and soil, and ongoing HGT ensure it cannot decline below X% in the globally circulating strain pool — regardless of whether the originally selecting drug is still prescribed. The canonical examples are integron-borne *sul1* genes (which have not declined despite 60 years of reduced sulfonamide use) and chromosomal *gyrA* mutations in *N. gonorrhoeae* (no susceptibility rebound in 15 years since FQ withdrawal from GC guidelines).
+
+**Implementation.** Each simulated day, after updating the profile reservoir, `MechanismCache::update_peak_marginal_prevalences()` scans all stored profiles across all regions and both community and hospital strata to compute the current marginal prevalence of each (bacteria, mechanism) pair. The `peak_mechanism_prevalence[bacteria][mechanism]` table is then updated upward-only (it is a true ratchet — peaks never decrease).
+
+In the exogenous acquisition path (`!from_human_reservoir`), the effective floor for each mechanism is:
+
+$$\text{effective\_floor} = \max(\text{static\_floor}, \text{ratchet\_floor})$$
+
+where:
+
+$$\text{ratchet\_floor} = \begin{cases} 0 & \text{if reversion\_rate} > 0.001 \text{ /day} \\ \lfloor \text{peak\_prev} / 0.10 \rfloor \times 0.10 & \text{otherwise} \end{cases}$$
+
+capped at 0.50. The step-function (rounding peak down to the nearest 10%) means the ratchet only engages at defined thresholds: a peak of 12% yields a 10% floor, a peak of 23% yields a 20% floor, and so on. This prevents the floor from locking to a noisy transient spike; the floor can only advance in 10% increments as the peak passes each threshold.
+
+**Eligibility gate — reversion rate ≤ 0.001/day.** The ratchet only applies to mechanisms whose fitness cost is low enough that no real-world force is driving them back below their peak. Table 7.4 shows that most chromosomal point mutations (gyrA, folate pathway), plasmid-borne efflux genes (TetA/B/C, AcrAB-TolC), and enzymes like MphA and AAC/APH have reversion rates at or below 0.001/day and are therefore ratchet-eligible. High-fitness-cost mechanisms like VanA/VanB (0.002/day), ErmB (0.002/day), and RpoB (0.002/day) are ineligible — for these, genuine susceptibility recovery is plausible when selection pressure is removed, and the ratchet should not prevent it.
+
+| Mechanism | Reversion rate | Ratchet-eligible? |
+|-----------|---------------|-------------------|
+| GyrA primary (*gyrA*) | 0.0001/day | ✓ |
+| GyrA+ParC secondary | 0.0002/day | ✓ |
+| Qnr | 0.0001/day | ✓ |
+| AcrAB-TolC | 0.0005/day | ✓ |
+| Global efflux | 0.0005/day | ✓ |
+| CAT | 0.0005/day | ✓ |
+| 16S rRMT | 0.0005/day | ✓ |
+| TetM/TetO | 0.0005/day | ✓ |
+| TetA/B/C efflux | ~0.0001/day | ✓ |
+| Folate pathway (sul/dfrA) | 0.0001/day | ✓ |
+| AAC/APH | ~0.0001/day | ✓ |
+| MphA | ~0.0001/day | ✓ |
+| Polymyxin regulatory | 0.0015/day | ✗ (borderline) |
+| ErmB | 0.002/day | ✗ |
+| VanA/VanB | 0.002/day | ✗ |
+| RpoB | 0.002/day | ✗ |
+
+**Relationship to static floors.** The static environmental floors (Section 7.7) serve as *historical warm-up seeds* for the 1938–1980 period when MDR plasmids were being assembled and disseminated globally — a phase when the 6.6-day community cache would never retain those profiles long enough to accumulate a realistic reservoir from scratch within the simulation's first-principles pathway. The ratchet then takes over from ~1985 onward: once nalidixic acid and first-generation FQ selection have built the relevant mechanism prevalences to 10%+ in the profile cache (which the era-appropriate drug pressure ensures), the ratchet prevents reversion after drug class de-listing. In practice the `max()` combination means whichever is higher governs; for the current-era Shigella FQ floor (0.45), the ratchet will sustain a 40% floor once the cache reaches 40%+ peak, while the static 0.45 component bridges the remaining gap if that peak has not yet been achieved.
 
 ---
 

@@ -23,7 +23,7 @@ CORE_COLUMNS = {
     'number_with_sepsis',
     'total_currently_infected',
     'infected_10_days_count',
-    'infected_30_days_count',
+    'infected_21_days_count',
     'total_with_resistance',
     'currently_taking_drug_count',
     'currently_infected_and_on_drug_count',
@@ -90,6 +90,7 @@ GROUPED_PLOT_PATTERNS = [
     
     # Activity R sums (aggregated, not per drug)
     r'.*_activity_r_sum$',
+    r'.*_max_possible_activity_r_sum$',
     r'.*_infected_and_on_any_drug$',
     
     # Microbiome (aggregated)

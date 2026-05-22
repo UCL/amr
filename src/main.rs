@@ -25,8 +25,8 @@
 //  4th calibration could be having even higher hgt rates
 //
 //  check for completely implausible infection journeys
-//
-//  environmental floor for shigella not justified ? 
+//  investigate effects of changes in immune clearance along with other simgle parameter value changes
+//  mdr tb deaths too low ?
 //
 //
 //
@@ -152,7 +152,7 @@ fn main() {
     // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
     // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
-    let calibration_mode = CalibrationMode::Partial;
+    let calibration_mode = CalibrationMode::None;
     // Calibration runs only need rows through the end of 2025.
     // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
     // Full run (policy branches to 2035) needs 38_325.
@@ -202,6 +202,26 @@ fn main() {
             None => simulation.enable_infection_journey_logging(infection_journey_sample_rate),
         }
     }
+
+    // ── Policy branch selection ────────────────────────────────────────────────
+    // Only active when calibration_mode == CalibrationMode::None (full run).
+    // List the policy IDs you want to run; comment out any you don't need.
+    //
+    //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
+    //   2 = AMR Counterfactual         (resistance cleared; models a world without AMR)
+    //   3 = Perfect Diagnostics        (implausibly complete & immediate testing)
+    //   4 = Equal Global Access        (all regions get North America–level access)
+    //
+    // Policies are independent branches starting from POLICY_BRANCH_YEAR (2027);
+    // they do not interact with each other.
+    let active_policies: &[u8] = &[
+        1, // Stewardship
+        2, // AMR counterfactual
+        3, // Perfect diagnostics
+        4, // Equal global access
+    ];
+    simulation.set_active_policy_branches(active_policies);
+    // ──────────────────────────────────────────────────────────────────────────
 
     use std::time::Instant;
     let start = Instant::now();

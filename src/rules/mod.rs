@@ -536,8 +536,9 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug, "ciprofloxacin" | "ofloxacin" | "levofloxacin" | "moxifloxacin"
         ),
 
+        // QNR target protection is class-wide — all FQs displaced from gyrase/topoisomerase IV
         ProtectionQnr => matches!(
-            drug, "ciprofloxacin" | "ofloxacin"
+            drug, "ciprofloxacin" | "ofloxacin" | "levofloxacin" | "moxifloxacin"
         ),
 
         Enzyme16sRrmt => matches!(
@@ -661,10 +662,44 @@ fn mechanism_applies_to_drug(mechanism: ResistanceMechanism, bacteria: &str, dru
             drug, "gentamicin" | "tobramycin" | "amikacin" | "streptomycin" | "neomycin"
         ),
 
-        // blaZ staphylococcal penicillinase / TEM-1 gram-negative penicillinase: penicillins only
-        // (does NOT confer resistance to BL/BLI combinations or cephalosporins)
-        EnzymeBlaZ => matches!(
-            drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+        // blaZ staphylococcal penicillinase: penicillins only (inhibitor-susceptible — clavulanate works).
+        // Exception: Moraxella catarrhalis BRO-1/BRO-2 are inhibitor-RESISTANT — also covers BLI combos.
+        // Does NOT cover BLI combinations for other organisms (amox-clav restores activity) or cephalosporins.
+        EnzymeBlaZ => {
+            // N. meningitidis does NOT carry TEM-1/BlaZ penicillinase.
+            // Penicillin reduced susceptibility in N. meningitidis is exclusively via PBP2
+            // mosaic mutations (penA), modelled by MutationPbpMosaic. Without this guard,
+            // BlaZ HGT-transfers from H. influenzae via the shared Fastidious respiratory
+            // compartment, producing spurious ~90% penicillin resistance.
+            if bacteria == "neisseria_meningitidis" { return false; }
+            if bacteria == "moraxella_catarrhalis" {
+                matches!(
+                    drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+                    | "amoxicillin_clavulanate" | "ampicillin_sulbactam"
+                    | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+                )
+            } else {
+                matches!(
+                    drug, "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin"
+                )
+            }
+        },
+
+        // TEM-1 narrow-spectrum Enterobacterales penicillinase: penicillins + BLI combinations.
+        // Inhibitor-RESISTANT — clavulanate/sulbactam/tazobactam do NOT inhibit TEM-1 at clinical
+        // concentrations, so amoxicillin-clavulanate and piperacillin-tazobactam resistance follows.
+        // Does NOT confer cephalosporin resistance (requires ESBL point mutations: TEM-3, TEM-10+).
+        EnzymeTem1 => matches!(
+            drug,
+            "penicillin_g" | "ampicillin" | "amoxicillin" | "piperacillin" | "ticarcillin" | "flucloxacillin"
+            | "amoxicillin_clavulanate" | "ampicillin_sulbactam"
+            | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+        ),
+
+        // mphA macrolide 2'-phosphotransferase: inactivates macrolides by phosphorylation of 2'-OH
+        // Covers all three macrolides; does NOT cover lincosamides (clindamycin) or streptogramins
+        EnzymeMphA => matches!(
+            drug, "azithromycin" | "erythromycin" | "clarithromycin"
         ),
 
         // OXA-23/40/58: A. baumannii carbapenemases — carbapenems; variable cephalosporin activity
@@ -1558,6 +1593,8 @@ pub(crate) fn apply_rules(
     let reserve_drug_penalty_multiplier = policy.reserve_drug_penalty_multiplier.unwrap_or(1.0);
     let drug_initiation_rate_multiplier = policy.drug_initiation_rate_multiplier.unwrap_or(1.0);
     let drug_cessation_rate_multiplier = policy.drug_cessation_rate_multiplier.unwrap_or(1.0);
+    // Policy 4: equal global access — override per-region multipliers with high-income (NA) reference values
+    let equalize_regional_access = policy.equalize_regional_access;
 
     if individual.age < 0 {
         individual.age += 1; // Only advance age by 1 day
@@ -2100,7 +2137,12 @@ pub(crate) fn apply_rules(
                     .unwrap_or(random_drug_cessation_prob);
 
                 // Apply regional multiplier based on individual's current region
-                let region_multiplier = store.region.cessation_multiplier(individual.region_cur_in);
+                // Policy 4: equal access → use North America reference (0.85) for all regions
+                let region_multiplier = if equalize_regional_access {
+                    0.85 // North America high-income cessation reference
+                } else {
+                    store.region.cessation_multiplier(individual.region_cur_in)
+                };
 
                 // Apply Syndrome-Specific Duration Modifiers (Crucial for Site Penetration Logic)
                 // Low penetration sites (Bone, CNS) require much longer treatment courses.
@@ -2262,7 +2304,11 @@ pub(crate) fn apply_rules(
         
         // Regional healthcare access adjustment
         // Reflects disparities in access to prescribers and antibiotic availability
-        log_odds += store.region.antibiotic_initiation_log_odds(individual.region_living);
+        // Policy 4: equal access → use North America reference (0.0) for all regions
+        if !equalize_regional_access {
+            log_odds += store.region.antibiotic_initiation_log_odds(individual.region_living);
+        }
+        // (North America reference value is 0.0, so no adjustment needed when equalizing)
         
         // Apply policy adjustment for drug initiation rate (stewardship intervention)
         // Multiplier < 1.0 reduces initiation (less unnecessary prescribing)
@@ -2905,6 +2951,63 @@ pub(crate) fn apply_rules(
                                 "gentamicin" | "tobramycin" | "amikacin",
                             ) => score *= 0.05, // Reserve status - do not use as primary empiric
 
+                            // --- neisseria_gonorrhoeae ---
+                            // Single-dose STI treatment. Initiation_multipliers handle era-specific
+                            // preferences (penicillin_g pre-1987; cipro 1987-2007; ceftriaxone 2007+).
+                            // Here: explicitly block drugs with no legitimate role in GC management,
+                            // preventing them from competing even when potency > 0 or resistance is high.
+                            (
+                                "neisseria_gonorrhoeae",
+                                // Glycopeptides: GC is gram-negative; wall synthesis target absent
+                                "vancomycin" | "teicoplanin" | "dalbavancin"
+                                // Oxazolidinones: no clinically meaningful GC activity
+                                | "linezolid" | "tedizolid"
+                                // Lipopeptide / streptogramin: no GC spectrum
+                                | "daptomycin" | "quinu_dalfo"
+                                // Topical / staphylococcal-only agents
+                                | "retapamulin" | "fusidic_a"
+                                // C. diff-only narrow-spectrum agents
+                                | "fidaxomicin"
+                                // Carbapenems: not indicated for uncomplicated GC (reserved as last resort
+                                // for XDR; first_second_line penalty handles residual score suppression)
+                                | "meropenem" | "imipenem_c" | "ertapenem",
+                            ) => {
+                                score = 0.0; // No clinical role in gonorrhea treatment
+                            }
+
+                            // --- MDR-TB (mdr_mycobacterium_tuberculosis) ---
+                            // WHO MDR-TB treatment: Group A (levo/moxi + linezolid) always used;
+                            // Group B (clofazimine, cycloserine) not modelled; Group C (amikacin) for XDR.
+                            // This model includes MDR-TB to capture prolonged FQ/linezolid/aminoglycoside
+                            // consumption and its selection pressure on other bacteria.
+                            // Strongly boost the real MDR-TB backbone drugs; penalise all non-TB antibiotics.
+                            ("mdr_mycobacterium_tuberculosis", "levofloxacin" | "moxifloxacin") => score *= 30.0, // Group A — core MDR-TB drugs
+                            ("mdr_mycobacterium_tuberculosis", "linezolid") => score *= 25.0, // Group B — always included in modern regimens
+                            ("mdr_mycobacterium_tuberculosis", "ciprofloxacin" | "ofloxacin") => score *= 8.0, // Older FQs — used where levo/moxi unavailable
+                            ("mdr_mycobacterium_tuberculosis", "amikacin") => score *= 10.0, // Group C injectable — XDR/pre-XDR
+                            ("mdr_mycobacterium_tuberculosis", "gentamicin" | "tobramycin") => score *= 0.05, // Wrong aminoglycosides for TB
+                            ("mdr_mycobacterium_tuberculosis", "rifampicin") => score *= 0.01, // MDR = rifampicin-resistant by definition
+                            // Drugs with zero TB potency — completely block from targeted TB selection
+                            (
+                                "mdr_mycobacterium_tuberculosis",
+                                "erythromycin" | "azithromycin" | "clarithromycin"
+                                | "clindamycin" | "tetracycline" | "doxycycline" | "minocycline"
+                                | "trim_sulf" | "chloramphenicol" | "nitrofurantoin" | "fosfomycin"
+                                | "metronidazole" | "fidaxomicin" | "furazolidone"
+                                | "retapamulin" | "fusidic_a" | "vancomycin" | "teicoplanin"
+                                | "dalbavancin" | "daptomycin" | "quinu_dalfo" | "colistin"
+                                | "aztreonam_avibactam" | "penicillin_g" | "ampicillin"
+                                | "amoxicillin" | "piperacillin" | "ticarcillin"
+                                | "cephalexin" | "cefazolin" | "cefuroxime" | "ceftriaxone"
+                                | "ceftazidime" | "cefepime" | "ceftaroline" | "cefiderocol"
+                                | "amoxicillin_clavulanate" | "ampicillin_sulbactam"
+                                | "piperacillin_tazobactam" | "ticarcillin_clavulanate"
+                                | "ceftazidime_avibactam" | "ceftolozane_tazobactam"
+                                | "flucloxacillin" | "cefixime",
+                            ) => {
+                                score = 0.0; // No TB activity — block entirely from targeted selection
+                            }
+
                             _ => {} // No specific guideline
                         }
 
@@ -2999,6 +3102,7 @@ pub(crate) fn apply_rules(
                                 "linezolid",
                                 "tedizolid",
                                 "clindamycin",
+                                "rifampicin", // combination partner for MRSA prosthetic joint, biofilm, decolonisation (DAIR protocols)
                             ],
                             "staphylococcus_epidermidis" => vec![
                                 "vancomycin",
@@ -3081,6 +3185,7 @@ pub(crate) fn apply_rules(
                                 "colistin",
                                 "ampicillin_sulbactam",
                                 "minocycline",
+                                "rifampicin", // MDR/XDR combination regimens (colistin+rifampicin, sulbactam+rifampicin)
                             ],
                             "enterobacter_spp."
                             | "enterobacter_cloacae"
@@ -3100,6 +3205,54 @@ pub(crate) fn apply_rules(
                                 "ceftriaxone",
                                 "ciprofloxacin",
                                 "trim_sulf",
+                            ],
+                            "mdr_mycobacterium_tuberculosis" => vec![
+                                "levofloxacin",
+                                "moxifloxacin",
+                                "linezolid",
+                                "ciprofloxacin",
+                                "ofloxacin",
+                                "amikacin",
+                            ],
+                            // N. gonorrhoeae — all guideline-appropriate drugs across all eras.
+                            // Initiation_multipliers handle era-specific preferences (cipro 1987-2007,
+                            // ceftriaxone post-2007). Listing all legitimate options ensures only
+                            // truly inappropriate drugs (carbapenems, glycopeptides, etc.) receive
+                            // the off-guideline ×0.15 penalty during targeted GC selection.
+                            "neisseria_gonorrhoeae" => vec![
+                                "ceftriaxone",     // 2007+: WHO/CDC sole first-line (500 mg IM)
+                                "cefixime",        // Oral 3GC alternative (some guidelines)
+                                "azithromycin",    // Dual-therapy partner / single-dose (until 2020s)
+                                "doxycycline",     // Chlamydia co-treatment; pre-1987 alternative
+                                "tetracycline",    // Historical (1950s–1987)
+                                "ciprofloxacin",   // 1987–2007: sole first-line in high-income settings
+                                "ofloxacin",       // 1990–2007: co-first-line FQ option
+                                "penicillin_g",    // pre-1987: dominant first-line
+                                "amoxicillin",     // Oral penicillin alternative
+                                "gentamicin",      // WHO-recommended single-dose alternative
+                                "trim_sulf",       // 1968–1990: TMP-SMX
+                                "chloramphenicol", // Historical pre-penicillin era
+                                "sulfanilamide",   // 1937–1965: original sulfonamide era
+                            ],
+                            // Shigella spp. — all era-appropriate guideline drugs across eras.
+                            // Initiation_multipliers drive era-specific preferences; listing all
+                            // legitimate options prevents truly inappropriate drugs (carbapenems,
+                            // vancomycin, daptomycin, etc.) from getting the ×0.15 off-guideline penalty.
+                            "shigella_spp." => vec![
+                                "ciprofloxacin",         // 1990–2010: dominant first-line
+                                "ofloxacin",             // 1990+: widely used in Asia/Africa
+                                "levofloxacin",          // 1997+: alternative FQ
+                                "azithromycin",          // 2010+: preferred for FQ-resistant strains
+                                "ceftriaxone",           // 2010+: hospital second-line
+                                "ampicillin",            // 1961–2000: historical first-line
+                                "trim_sulf",             // 1968–2000: historical first-line (TMP-SMX)
+                                "tetracycline",          // 1948–1990: historical first-line
+                                "doxycycline",           // 1967–2010: preferred tetracycline alternative
+                                "chloramphenicol",       // 1949–1975: historical dominant first-line
+                                "nalidixic_acid",        // 1963–1990: first LMIC FQ-class; drove gyrA mutations
+                                "sulfanilamide",         // 1938–1968: sole pre-antibiotic-era first-line
+                                "gentamicin",            // Severe/hospital cases (IV)
+                                "pivmecillinam",         // Some European/LMIC guidelines
                             ],
                             _ => vec![], // For other bacteria, no specific restriction
                         };
@@ -4886,7 +5039,22 @@ pub(crate) fn apply_rules(
                     // prescribing.  Each mechanism is independently rolled so co-resistance patterns
                     // reflect the actual plasmid linkage encoded in the floor values rather than
                     // synthetic correlation from profile sampling.
-                    // Organisms with no floor parameters (floor = 0.0 for all mechanisms) are
+                    //
+                    // Two sources of floor probability are combined with max():
+                    // 1. Static environmental floor (hardcoded in config; represents agricultural
+                    //    reservoirs, food-chain contamination, and early-era warm-up seeding).
+                    // 2. Ratchet floor (dynamic; computed from the simulation's own peak achieved
+                    //    prevalence for mechanisms with low reversion rates).  Mechanistic basis:
+                    //    once a low-fitness-cost resistance gene has reached threshold X% prevalence
+                    //    in the circulating pool, co-selection, ecological persistence in
+                    //    wastewater/soil, and HGT ensure it cannot fall below X% — this is
+                    //    independent of whether the selecting drug is still prescribed locally.
+                    //    The ratchet prevents the simulation from "forgetting" historically-built-up
+                    //    resistance when drug selection pressure is later removed (e.g. post-2010
+                    //    ciprofloxacin de-listing for Shigella: without the ratchet, gyrA prevalence
+                    //    would decay toward zero in the community pool despite real-world persistence).
+                    //
+                    // Organisms with no static floor and no peak prevalence above threshold are
                     // unaffected; the loop is cheap for them.
                     if !from_human_reservoir {
                         use crate::simulation::population::ResistanceMechanism;
@@ -4894,11 +5062,28 @@ pub(crate) fn apply_rules(
                             if mechanism.is_as_yet_unknown() {
                                 continue;
                             }
-                            let floor = store.environmental_floors.floor_at_year(
+                            let static_floor = store.environmental_floors.floor_at_year(
                                 b_idx,
                                 m_idx,
                                 simulation_year,
                             );
+                            // Ratchet floor: applies only to low-fitness-cost mechanisms
+                            // (reversion_rate <= 0.003/day ≈ fitness cost low relative to
+                            // selection benefits). Gate raised from 0.001 to 0.003 to include
+                            // MutationRpoB (reversion=0.002), whose fitness cost is modest
+                            // rather than negligible but still insufficient to erode population-
+                            // level prevalence once a resistant clone is established.
+                            // Stepped at 10% intervals: >10%→10%, >20%→20%, etc.
+                            let reversion_rate = store.resistance_mechanism.reversion_rate(m_idx);
+                            let ratchet_floor = if reversion_rate <= 0.003 {
+                                let peak = mechanism_cache.peak_mechanism_prevalence[b_idx][m_idx];
+                                // Round down to nearest 10% step — once a mechanism has reached
+                                // the next threshold it cannot decay below the previous step.
+                                ((peak / 0.10).floor() * 0.10).min(0.50)
+                            } else {
+                                0.0
+                            };
+                            let floor = static_floor.max(ratchet_floor);
                             if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
                                 individual.mechanism_any[b_idx][m_idx] = true;
                                 individual.mechanism_majority[b_idx][m_idx] = true;
@@ -5325,8 +5510,13 @@ pub(crate) fn apply_rules(
                         
                         resistance_data.activity_r =
                             base_potency * effective_drug_level * (1.0 - normalized_any_r);
+                        resistance_data.max_possible_activity_r =
+                            base_potency * effective_drug_level;
+                        resistance_data.activity_r_pure = base_potency * (1.0 - normalized_any_r);
+                        resistance_data.max_possible_activity_r_pure = base_potency;
                     } else {
                         resistance_data.activity_r = 0.0;
+                        resistance_data.activity_r_pure = 0.0;
                     }
                 }
             }
@@ -5582,6 +5772,9 @@ pub(crate) fn apply_rules(
                                 resistance_data.microbiome_r = 0.0;
                                 resistance_data.test_r = 0.0;
                                 resistance_data.activity_r = 0.0;
+                                resistance_data.max_possible_activity_r = 0.0;
+                                resistance_data.activity_r_pure = 0.0;
+                                resistance_data.max_possible_activity_r_pure = 0.0;
                                 resistance_data.any_r = 0.0;
                                 individual.how_resistance_acquired[b_idx][drug_index] = None;
                             }
@@ -5752,6 +5945,7 @@ pub(crate) fn apply_rules(
                     let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
                     resistance_data.any_r = 0.0;
                     resistance_data.activity_r = 0.0;
+                    resistance_data.activity_r_pure = 0.0;
                     individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
                 }
                 // Clear mechanism booleans on infection clearance
@@ -6149,7 +6343,12 @@ fn calculate_testing_probability(
     };
 
     // Regional resource multiplier
-    let region_multiplier = store.region.testing_multiplier(individual.region_cur_in);
+    // Policy 4: equal access → use North America reference (1.1) for all regions
+    let region_multiplier = if policy.equalize_regional_access {
+        1.1 // North America high-income testing reference
+    } else {
+        store.region.testing_multiplier(individual.region_cur_in)
+    };
 
     // Immunosuppression multiplier
     let immunosuppression_multiplier = if individual.immunodeficiency_type.is_some() {

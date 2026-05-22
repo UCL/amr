@@ -197,7 +197,7 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
         )
     
     # Infection duration proportions
-    if 'infected_10_days_count' in df.columns and 'total_currently_infected' in df.columns:
+    if 'infected_10_days_count' in df.columns and 'infected_21_days_count' in df.columns and 'total_currently_infected' in df.columns:
         lf = lf.with_columns([
             pl.when(pl.col('total_currently_infected') != 0)
             .then(pl.col('infected_10_days_count') / pl.col('total_currently_infected'))
@@ -205,9 +205,9 @@ def preprocess_with_polars(df: "pl.DataFrame", enable_microbiome_aggregates: boo
             .alias('infected_10_days_proportion'),
             
             pl.when(pl.col('total_currently_infected') != 0)
-            .then(pl.col('infected_30_days_count') / pl.col('total_currently_infected'))
+            .then(pl.col('infected_21_days_count') / pl.col('total_currently_infected'))
             .otherwise(pl.lit(float('nan')))
-            .alias('infected_30_days_proportion'),
+            .alias('infected_21_days_proportion'),
         ])
     
     # Sepsis proportion

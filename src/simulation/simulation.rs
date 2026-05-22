@@ -87,6 +87,10 @@ pub(crate) struct PolicyAdjustments {
     pub(crate) reserve_drug_penalty_multiplier: Option<f64>,     // Multiplier for reserve drug score penalty (>1 = stricter)
     pub(crate) drug_initiation_rate_multiplier: Option<f64>,     // Multiplier for antibiotic initiation (<1 = less prescribing)
     pub(crate) drug_cessation_rate_multiplier: Option<f64>,      // Multiplier for treatment duration (<1 = longer, >1 = shorter courses)
+    /// When true, all regional healthcare-access multipliers (testing, cessation, initiation)
+    /// are overridden to their North America (high-income) reference values, modelling a
+    /// world in which every region has equal antibiotic access.
+    pub(crate) equalize_regional_access: bool,
 }
 
 impl PolicyAdjustments {
@@ -102,6 +106,7 @@ impl PolicyAdjustments {
             reserve_drug_penalty_multiplier: None,
             drug_initiation_rate_multiplier: None,
             drug_cessation_rate_multiplier: None,
+            equalize_regional_access: false,
         }
     }
 
@@ -126,6 +131,7 @@ impl PolicyAdjustments {
             reserve_drug_penalty_multiplier: Some(2.0),      // 2× penalty for reserve drugs
             drug_initiation_rate_multiplier: Some(0.85),     // 15% reduction in unnecessary Rx
             drug_cessation_rate_multiplier: Some(1.2),       // Shorter courses (20% faster)
+            equalize_regional_access: false,
         }
     }
 
@@ -141,6 +147,58 @@ impl PolicyAdjustments {
             reserve_drug_penalty_multiplier: None,
             drug_initiation_rate_multiplier: None,
             drug_cessation_rate_multiplier: None,
+            equalize_regional_access: false,
+        }
+    }
+
+    /// Policy 3: Perfect / implausibly complete diagnostics
+    ///
+    /// Models a world where every infected patient is immediately and accurately
+    /// identified (bacterially and by AST), and the prescriber always selects the
+    /// most effective agent.  The testing multiplier of 20 is deliberately
+    /// implausible, allowing the simulation to bound the potential benefit of
+    /// perfect diagnostics.
+    fn perfect_diagnostics(globals: &config::GlobalScalars) -> Self {
+        // Drive temperature down to near-deterministic best-drug selection
+        let adjusted_temperature = (globals.drug_selection_temperature * 0.25).max(0.001);
+        Self {
+            policy_option: 3,
+            drug_selection_temperature: Some(adjusted_temperature),
+            minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: Some(20.0),   // Implausibly complete bacterial ID
+            resistance_testing_rate_multiplier: Some(20.0),  // Matched AST coverage
+            counterfactual_resistance_multiplier: None,
+            clear_all_resistance_on_branch_start: false,
+            reserve_drug_penalty_multiplier: None,
+            drug_initiation_rate_multiplier: None,
+            drug_cessation_rate_multiplier: None,
+            equalize_regional_access: false,
+        }
+    }
+
+    /// Policy 4: Equal global antibiotic access
+    ///
+    /// Models a world where every region gains the same healthcare-access
+    /// parameters as North America (the reference high-income region):
+    ///   - Testing multiplier → 1.1 (NA reference)
+    ///   - Cessation multiplier → 0.85 (NA reference)
+    ///   - Antibiotic initiation log-odds offset → 0.0 (NA reference)
+    ///
+    /// No other levers are changed; the experiment isolates the effect of
+    /// equalising access rather than improving clinical quality.
+    fn equal_global_access() -> Self {
+        Self {
+            policy_option: 4,
+            drug_selection_temperature: None,
+            minimal_potency_threshold_for_drug_selection: None,
+            bacterial_testing_rate_multiplier: None,
+            resistance_testing_rate_multiplier: None,
+            counterfactual_resistance_multiplier: None,
+            clear_all_resistance_on_branch_start: false,
+            reserve_drug_penalty_multiplier: None,
+            drug_initiation_rate_multiplier: None,
+            drug_cessation_rate_multiplier: None,
+            equalize_regional_access: true,
         }
     }
 }
@@ -475,6 +533,9 @@ impl MechanismProfileCache {
 /// - `profiles`: reservoir of up to 1000 complete mechanism genotypes (u64 bitmasks)
 ///   per `[region × hospital/community × bacteria]` slot, maintained via reservoir
 ///   sampling and asymmetric retention (community vs hospital).
+/// - `peak_mechanism_prevalence`: global peak marginal prevalence ever achieved for each
+///   (bacteria, mechanism) pair across all regions and both strata.  Used by the
+///   ratchet-floor mechanism to prevent reversion of low-fitness-cost resistance.
 ///
 /// Resistance prevalence for prescribing decisions is computed on-the-fly from the
 /// profile reservoir rather than maintained as a separate EWMA.
@@ -482,6 +543,12 @@ impl MechanismProfileCache {
 pub struct MechanismCache {
     /// Profile reservoir for profile-based acquisition sampling.
     pub profiles: MechanismProfileCache,
+    /// Global peak marginal mechanism prevalence ever achieved in the simulation.
+    /// Indexed as `peak_mechanism_prevalence[bacteria_idx][mechanism_idx]`.
+    /// Updated each timestep via `update_peak_marginal_prevalences()`.
+    /// Used by the ratchet floor: low-fitness-cost mechanisms that have reached X%
+    /// are prevented from falling below X% in the exogenous acquisition pool.
+    pub peak_mechanism_prevalence: Vec<Vec<f64>>,
     pub num_regions: usize,
     pub num_bacteria: usize,
     pub num_mechanisms: usize,
@@ -491,6 +558,7 @@ impl MechanismCache {
     pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
         Self {
             profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
+            peak_mechanism_prevalence: vec![vec![0.0_f64; num_mechanisms]; num_bacteria],
             num_regions,
             num_bacteria,
             num_mechanisms,
@@ -544,6 +612,39 @@ impl MechanismCache {
         merged_profiles: MechanismProfileCache,
     ) {
         self.profiles.blend_with_new(merged_profiles, community_retention, hospital_retention);
+    }
+
+    /// Compute the current marginal mechanism prevalence from the profile cache and update
+    /// `peak_mechanism_prevalence` wherever the current level exceeds the stored peak.
+    ///
+    /// For each (bacteria, mechanism) pair, prevalence is computed across all regions and
+    /// both community+hospital strata (pooled), measuring the fraction of stored profiles
+    /// that carry that mechanism bit.  This is O(regions × bacteria × mechanisms × profiles_per_slot)
+    /// but with typical values (~6 regions, 45 bacteria, 50 mechanisms, ~200 profiles each)
+    /// this is ~2.7 million bitwise ops — fast enough to run every timestep.
+    ///
+    /// Called automatically after `update_profiles()` each simulation day.
+    pub fn update_peak_marginal_prevalences(&mut self) {
+        for b_idx in 0..self.num_bacteria {
+            for m_idx in 0..self.num_mechanisms {
+                let bit = 1u64 << m_idx;
+                let mut total_profiles = 0usize;
+                let mut profiles_with_mechanism = 0usize;
+                for r_idx in 0..self.num_regions {
+                    for h in 0..2 {
+                        let slot = &self.profiles.profiles[r_idx][h][b_idx];
+                        total_profiles += slot.len();
+                        profiles_with_mechanism += slot.iter().filter(|&&mask| mask & bit != 0).count();
+                    }
+                }
+                if total_profiles > 0 {
+                    let current_prev = profiles_with_mechanism as f64 / total_profiles as f64;
+                    if current_prev > self.peak_mechanism_prevalence[b_idx][m_idx] {
+                        self.peak_mechanism_prevalence[b_idx][m_idx] = current_prev;
+                    }
+                }
+            }
+        }
     }
 
     /// Sample a complete mechanism profile bitmask from the hospital or community profile reservoir.
@@ -1026,7 +1127,7 @@ pub struct TimeStepSummary {
     pub total_currently_infected: usize, // Number of living people currently infected with bacteria (excl. H. pylori)
     pub currently_taking_drug_count: usize,
     pub infected_10_days_count: usize, // People infected >10 days with bacteria (excl. H. pylori)
-    pub infected_30_days_count: usize, // People infected >30 days with bacteria (excl. H. pylori)
+    pub infected_21_days_count: usize, // People infected >21 days with bacteria (excl. H. pylori)
     pub taking_two_drugs_count: usize,
     pub number_in_hospital: usize,
     pub number_severely_immunosuppressed: usize,
@@ -1045,6 +1146,14 @@ pub struct TimeStepSummary {
     pub resistance_by_bacteria_drug: Vec<Vec<usize>>,         // [bacteria][drug] counts
     /// per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
     pub activity_r_sum_by_bacteria: Vec<f64>,
+    /// per-bacteria sum of max-possible activity_r (potency × effective_drug_level, no resistance term)
+    /// for all individuals currently on each drug.  Dividing activity_r_sum by this gives the
+    /// mean (1 − any_r) weighted by drug use — a clean resistance-effect metric bounded [0,1].
+    pub max_possible_activity_r_sum_by_bacteria: Vec<f64>,
+    /// Pure resistance metric: activity_r_pure = potency × (1 - any_r), no drug level or penetration.
+    pub activity_r_pure_sum_by_bacteria: Vec<f64>,
+    /// Denominator for pure resistance metric: max_possible_activity_r_pure = potency.
+    pub max_possible_activity_r_pure_sum_by_bacteria: Vec<f64>,
     pub newly_infected_count: usize, // Number of people newly infected this time step
     pub newly_infected_with_resistance_count: usize, // Number of newly infected people who acquired resistance
     pub new_drug_initiations_count: usize, // Number of people who started any new drug this time step
@@ -1366,9 +1475,13 @@ impl Simulation {
         }
 
         let baseline_policy = PolicyAdjustments::baseline();
+        // Default branch policies: all four scenarios.
+        // Call `set_active_policy_branches` after construction to run a specific subset.
         let branch_policies = vec![
             PolicyAdjustments::alternate_example(globals),
             PolicyAdjustments::amr_counterfactual(),
+            PolicyAdjustments::perfect_diagnostics(globals),
+            PolicyAdjustments::equal_global_access(),
         ];
 
         Simulation {
@@ -1397,6 +1510,36 @@ impl Simulation {
             relevant_drugs_by_bacteria,
             calibration_mode,
         }
+    }
+
+    /// Replace the set of policy branches that will be run from the 2027 branch point.
+    ///
+    /// Pass a slice of policy IDs (1–4).  Invalid IDs are silently ignored.
+    /// Call this after `Simulation::new()` and before `run()`.
+    ///
+    /// # Examples
+    /// ```ignore
+    /// // Run only the stewardship (1) and equal-access (4) branches:
+    /// simulation.set_active_policy_branches(&[1, 4]);
+    ///
+    /// // Run all four branches (default):
+    /// simulation.set_active_policy_branches(&[1, 2, 3, 4]);
+    /// ```
+    pub fn set_active_policy_branches(&mut self, policy_ids: &[u8]) {
+        let globals = &config::parameter_store().globals;
+        self.branch_policy_adjustments = policy_ids
+            .iter()
+            .filter_map(|&id| match id {
+                1 => Some(PolicyAdjustments::alternate_example(globals)),
+                2 => Some(PolicyAdjustments::amr_counterfactual()),
+                3 => Some(PolicyAdjustments::perfect_diagnostics(globals)),
+                4 => Some(PolicyAdjustments::equal_global_access()),
+                _ => {
+                    eprintln!("Warning: unknown policy id {} — ignored", id);
+                    None
+                }
+            })
+            .collect();
     }
 
     /// Enable infection journey logging with specified sample rate
@@ -1553,7 +1696,7 @@ impl Simulation {
                 drug_stops_due_to_toxicity: usize,
                 currently_taking_drug_count: usize,
                 infected_10_days_count: usize,
-                infected_30_days_count: usize,
+                infected_21_days_count: usize,
                 taking_two_drugs_count: usize,
                 number_in_hospital: usize,
                 number_severely_immunosuppressed: usize,
@@ -1610,6 +1753,13 @@ impl Simulation {
                 num_age_80plus: usize,
                 /// per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
                 activity_r_sum_by_bacteria: Vec<f64>,
+                /// per-bacteria sum of max-possible activity_r (no resistance term) — denominator for the
+                /// resistance-effect metric.  Ratio = activity_r_sum / max_possible gives mean (1-any_r).
+                max_possible_activity_r_sum_by_bacteria: Vec<f64>,
+                /// Pure resistance metric: potency × (1 - any_r), no drug level or penetration.
+                activity_r_pure_sum_by_bacteria: Vec<f64>,
+                /// Denominator for pure metric.
+                max_possible_activity_r_pure_sum_by_bacteria: Vec<f64>,
                 /// per-bacteria, per-drug sum of any_r values for infected individuals (float, indexed by bacteria * drugs)
                 any_r_sum_by_bacteria_drug: Vec<f64>,
                 /// per-bacteria, per-drug sum of any_r values for hospital-acquired infected individuals (float, indexed by bacteria * drugs)
@@ -1700,7 +1850,7 @@ impl Simulation {
                         drug_stops_due_to_toxicity: 0,
                         currently_taking_drug_count: 0,
                         infected_10_days_count: 0,
-                        infected_30_days_count: 0,
+                        infected_21_days_count: 0,
                         taking_two_drugs_count: 0,
                         number_in_hospital: 0,
                         number_severely_immunosuppressed: 0,
@@ -1768,6 +1918,9 @@ impl Simulation {
                         num_age_50_79: 0,
                         num_age_80plus: 0,
                         activity_r_sum_by_bacteria: vec![0.0; num_bacteria],
+                        max_possible_activity_r_sum_by_bacteria: vec![0.0; num_bacteria],
+                        activity_r_pure_sum_by_bacteria: vec![0.0; num_bacteria],
+                        max_possible_activity_r_pure_sum_by_bacteria: vec![0.0; num_bacteria],
                         any_r_sum_by_bacteria_drug: vec![0.0; num_bacteria * num_drugs],
                         any_r_sum_by_bacteria_drug_hospital: vec![0.0; num_bacteria * num_drugs],
                         infected_with_any_r_positive_by_bacteria_drug: vec![
@@ -1967,7 +2120,7 @@ impl Simulation {
                     self.drug_stops_due_to_toxicity += other.drug_stops_due_to_toxicity;
                     self.currently_taking_drug_count += other.currently_taking_drug_count;
                     self.infected_10_days_count += other.infected_10_days_count;
-                    self.infected_30_days_count += other.infected_30_days_count;
+                    self.infected_21_days_count += other.infected_21_days_count;
                     self.taking_two_drugs_count += other.taking_two_drugs_count;
                     self.number_in_hospital += other.number_in_hospital;
                     self.number_severely_immunosuppressed += other.number_severely_immunosuppressed;
@@ -2162,6 +2315,27 @@ impl Simulation {
                         .activity_r_sum_by_bacteria
                         .iter_mut()
                         .zip(other.activity_r_sum_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .max_possible_activity_r_sum_by_bacteria
+                        .iter_mut()
+                        .zip(other.max_possible_activity_r_sum_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .activity_r_pure_sum_by_bacteria
+                        .iter_mut()
+                        .zip(other.activity_r_pure_sum_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .max_possible_activity_r_pure_sum_by_bacteria
+                        .iter_mut()
+                        .zip(other.max_possible_activity_r_pure_sum_by_bacteria)
                     {
                         *a += b;
                     }
@@ -2892,6 +3066,7 @@ impl Simulation {
 
                                     // sum activity_r for this bacteria, ONLY for individuals on drug
                                     let mut activity_r_sum = 0.0;
+                                    let mut max_possible_activity_r_sum = 0.0;
                                     let days_since_infection = t as i32 - individual.date_last_infected[b_idx];
                                     // Only count infection duration for non-H. pylori pathogens (exclude H. pylori at index 32)
                                     if !is_microbiome_excluded(b_idx)
@@ -2958,6 +3133,9 @@ impl Simulation {
                                         // Only sum activity_r if individual is currently on this drug
                                         if individual.cur_use_drug[d_idx] {
                                             activity_r_sum += resistance_data.activity_r;
+                                            max_possible_activity_r_sum += resistance_data.max_possible_activity_r;
+                                            lt.activity_r_pure_sum_by_bacteria[b_idx] += resistance_data.activity_r_pure;
+                                            lt.max_possible_activity_r_pure_sum_by_bacteria[b_idx] += resistance_data.max_possible_activity_r_pure;
                                         }
                                         if resistance_data.any_r > 0.0 {
                                             lt.resistance_by_bacteria_drug[base + d_idx] += 1;
@@ -3012,6 +3190,7 @@ impl Simulation {
                                     // Only include individuals who are on any drug for this bacteria
                                     if on_any_drug_current {
                                         lt.activity_r_sum_by_bacteria[b_idx] += activity_r_sum;
+                                        lt.max_possible_activity_r_sum_by_bacteria[b_idx] += max_possible_activity_r_sum;
                                     }
                                 }
                             }
@@ -3029,8 +3208,8 @@ impl Simulation {
                         if individual_max_infection_duration > 10 {
                             lt.infected_10_days_count += 1;
                         }
-                        if individual_max_infection_duration > 30 {
-                            lt.infected_30_days_count += 1;
+                        if individual_max_infection_duration > 21 {
+                            lt.infected_21_days_count += 1;
                         }
                         if was_newly_infected {
                             lt.newly_infected_count += 1;
@@ -3156,7 +3335,7 @@ impl Simulation {
                 drug_stops_due_to_toxicity,
                 currently_taking_drug_count,
                 infected_10_days_count,
-                infected_30_days_count,
+                infected_21_days_count,
                 taking_two_drugs_count,
                 number_in_hospital,
                 number_severely_immunosuppressed,
@@ -3210,6 +3389,9 @@ impl Simulation {
                 num_age_50_79,
                 num_age_80plus,
                 activity_r_sum_by_bacteria,
+                max_possible_activity_r_sum_by_bacteria,
+                activity_r_pure_sum_by_bacteria,
+                max_possible_activity_r_pure_sum_by_bacteria,
                 any_r_sum_by_bacteria_drug,
                 any_r_sum_by_bacteria_drug_hospital,
                 infected_with_any_r_positive_by_bacteria_drug,
@@ -3256,11 +3438,15 @@ impl Simulation {
                     hospital_retention,
                     mechanism_profiles,
                 );
+                // Update peak marginal prevalences for the ratchet floor mechanism.
+                // Low-fitness-cost mechanisms that have historically reached threshold X%
+                // are prevented from decaying below X% in the exogenous acquisition pool.
+                self.mechanism_cache.update_peak_marginal_prevalences();
             }
 
             // Create summary for this time step
             let infected_10_count = infected_10_days_count;
-            let infected_30_count = infected_30_days_count;
+            let infected_21_count = infected_21_days_count;
 
             // Build HashMap for TimeStepSummary from the flat parallel-loop vector
             let newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize> = {
@@ -3341,7 +3527,7 @@ impl Simulation {
                 total_currently_infected,
                 total_with_resistance,
                 infected_10_days_count: infected_10_count,
-                infected_30_days_count: infected_30_count,
+                infected_21_days_count: infected_21_count,
                 currently_taking_drug_count,
                 taking_two_drugs_count,
                 infections_by_bacteria: infections_by_bacteria_vec,
@@ -3398,6 +3584,9 @@ impl Simulation {
                 ),
                 currently_infected_and_on_drug_count: currently_infected_and_on_drug_count,
                 activity_r_sum_by_bacteria,
+                max_possible_activity_r_sum_by_bacteria,
+                activity_r_pure_sum_by_bacteria,
+                max_possible_activity_r_pure_sum_by_bacteria,
                 infected_with_bacteria_and_mechanism,
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
@@ -4043,7 +4232,7 @@ impl Simulation {
 
         // Pre-build header string once
         let mut header = String::with_capacity(50000); // Pre-allocate large capacity
-        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_30_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
+        header.push_str("time_step,policy_option,run_id,time_in_years,total_population,number_in_hospital,number_severely_immunosuppressed,number_with_sepsis,total_currently_infected,infected_10_days_count,infected_21_days_count,total_with_resistance,currently_taking_drug_count,currently_infected_and_on_drug_count,taking_two_drugs_count,newly_infected_count,newly_infected_with_resistance_count,new_drug_initiations_count,new_drug_initiations_count_infected,newly_infected_past_year,total_deaths,deaths_background,deaths_sepsis,deaths_infection_non_sepsis,deaths_drug_toxicity,drug_stops_due_to_toxicity,deaths_past_year,deaths_background_past_year,deaths_sepsis_past_year,deaths_infection_non_sepsis_past_year,deaths_drug_toxicity_past_year,num_age_0_5,num_age_6_14,num_age_15_49,num_age_50_79,num_age_80plus,num_with_any_bacteria_microbiome,people_on_1_drug,people_on_2_drugs,people_on_3plus_drugs,infected_on_drug_with_previous_failure");
 
         // Add per-bacteria infection columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -4100,6 +4289,24 @@ impl Simulation {
             header.push(',');
             header.push_str(&bacteria.replace(" ", "_"));
             header.push_str("_activity_r_sum");
+        }
+        // Add per-bacteria max_possible_activity_r sum columns
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_max_possible_activity_r_sum");
+        }
+        // Add per-bacteria pure activity_r sum columns (no drug level, no penetration)
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_activity_r_pure_sum");
+        }
+        // Add per-bacteria max_possible pure activity_r sum columns
+        for bacteria in BACTERIA_LIST.iter() {
+            header.push(',');
+            header.push_str(&bacteria.replace(" ", "_"));
+            header.push_str("_max_possible_activity_r_pure_sum");
         }
         // Add per-bacteria presence_microbiome columns
         for bacteria in BACTERIA_LIST.iter() {
@@ -4701,7 +4908,7 @@ impl Simulation {
             append_scalar(format_args!("{}", summary.number_with_sepsis))?;
             append_scalar(format_args!("{}", summary.total_currently_infected))?;
             append_scalar(format_args!("{}", summary.infected_10_days_count))?;
-            append_scalar(format_args!("{}", summary.infected_30_days_count))?;
+            append_scalar(format_args!("{}", summary.infected_21_days_count))?;
             append_scalar(format_args!("{}", summary.total_with_resistance))?;
             append_scalar(format_args!("{}", summary.currently_taking_drug_count))?;
             append_scalar(format_args!(
@@ -4789,6 +4996,18 @@ impl Simulation {
                 row.push_str(&value.to_string());
             }
             for value in &summary.activity_r_sum_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.max_possible_activity_r_sum_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.activity_r_pure_sum_by_bacteria {
+                row.push(',');
+                row.push_str(&value.to_string());
+            }
+            for value in &summary.max_possible_activity_r_pure_sum_by_bacteria {
                 row.push(',');
                 row.push_str(&value.to_string());
             }

@@ -671,7 +671,7 @@ def preprocess_data(
     
     # Calculate infection duration proportions
     df['infected_10_days_proportion'] = safe_divide(df['infected_10_days_count'], df['total_currently_infected'])
-    df['infected_30_days_proportion'] = safe_divide(df['infected_30_days_count'], df['total_currently_infected'])
+    df['infected_21_days_proportion'] = safe_divide(df['infected_21_days_count'], df['total_currently_infected'])
     
     # Calculate sepsis proportion among infected
     if 'number_with_sepsis' in df.columns:

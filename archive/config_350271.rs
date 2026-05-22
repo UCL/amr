@@ -1357,7 +1357,7 @@ impl SyndromeParameters {
         let penicillins = [1, 2, 3, 4, 5, 58]; // penicillin_g through flucloxacillin
         let oral_cephalosporins = [6]; // cephalexin
         let iv_cephalosporins = [7, 8, 9, 10, 11, 12, 13, 14]; // cefazolin through cefiderocol
-        let carbapenems = [15, 16, 17, 56]; // meropenem, imipenem, ertapenem, meropenem_vaborbactam
+        let carbapenems = [15, 16, 17]; // meropenem, imipenem, ertapenem
         let aztreonam_idx = 18;
         let ceftriaxone_idx = 9;
         let meropenem_idx = 15;
@@ -1380,7 +1380,7 @@ impl SyndromeParameters {
         let fidaxomicin_idx = 48;
         let furazolidone_idx = 49;
         let rifampicin_idx = 50;
-        let blbli_combinations = [51, 52, 53, 54, 55]; // beta-lactam/beta-lactamase inhibitor combos (excl. meropenem_vaborbactam which follows carbapenem PK)
+        let blbli_combinations = [51, 52, 53, 54, 55, 56]; // beta-lactam/beta-lactamase inhibitor combos
         let colistin_idx = 57;
         let aztreonam_avibactam_idx = 59;
         let cefixime_idx = 60;
@@ -1392,7 +1392,6 @@ impl SyndromeParameters {
         drug_penetration[6][ceftriaxone_idx] = 0.35; // Ceftriaxone - best CSF penetration among cephalosporins
         for &d in &carbapenems { drug_penetration[6][d] = 0.25; } // Meropenem preferred for CNS
         drug_penetration[6][meropenem_idx] = 0.35; // Meropenem - good CNS penetration
-        drug_penetration[6][56] = 0.35; // meropenem_vaborbactam - identical CNS distribution to meropenem
         drug_penetration[6][aztreonam_idx] = 0.10; // Poor
         drug_penetration[6][aztreonam_avibactam_idx] = 0.10; // Similar tissue distribution to aztreonam
         drug_penetration[6][cefixime_idx] = 0.10; // Oral 3G cephalosporin - poor CNS penetration
@@ -8534,7 +8533,7 @@ lazy_static! {
         map.insert("bacteria_p_stuartii_mechanism_enzyme_fos_emergence_rate".to_string(), 1.0      ); // classes: other (fosfomycin)
         map.insert("bacteria_p_stuartii_mechanism_mutation_mpr_f_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_mutation_liafsr_cls_emergence_rate".to_string(), 0.0); // tier 0
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 30.0      ); // classes: other (rifampicin, fidaxomicin); corrected from 0.000_03 — P. stuartii has documented ~45% rifampicin resistance (nosocomial MDR strains)
+        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_emergence_rate".to_string(), 0.000_03    ); // classes: other (rifampicin, fidaxomicin)
         map.insert("bacteria_p_stuartii_mechanism_protection_fus_b_emergence_rate".to_string(), 0.0); // tier 0
         map.insert("bacteria_p_stuartii_mechanism_protection_tet_m_emergence_rate".to_string(), 0.000_01   ); // classes: tet (tetracycline, doxycycline, minocycline; NOT tigecycline — 9-substituent sterically blocks TetM displacement)
         map.insert("bacteria_p_stuartii_mechanism_enzyme_aac_aph_emergence_rate".to_string(), 0.1     ); // classes: ag
@@ -10439,94 +10438,7 @@ lazy_static! {
         map.insert("bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_environmental_floor_before_1990".to_string(), 0.01);
         map.insert("bacteria_shigella_spp._mechanism_mutation_polymyxin_regulatory_environmental_floor_before_1945".to_string(), 0.0);
 
-        // --- RpoB (rifampicin) environmental floors -------------------------------------------
-        // Mechanistic basis: TB patients on rifampicin (6-month courses) shed large loads of
-        // commensals (E. coli, Klebsiella, Enterobacter etc.) with RpoB-selected mutations
-        // into sewage, creating a community reservoir that persists independently of local
-        // clinical rifampicin prescribing. This "TB bystander" selection is absent from the
-        // simulation but produces the 18-30% global RpoB-R prevalence seen in gut Gram-
-        // negatives (WHO surveillance).  Static floors represent this un-modelled pathway.
-        // For S. aureus and Acinetobacter the floor is handled via first_second_line inclusion
-        // + the ratchet; floors here cover organisms that never receive direct prescribing.
-        // Floors are intentionally conservative (~40-50% of target) so ratchet accumulation
-        // can contribute the rest.  All values start from 0 before rifampicin was introduced
-        // (~1968) and rise through the 1970s as TB treatment programmes scaled up globally.
 
-        // Gut Gram-negatives (primary TB bystander pool)
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.08); // target 0.18
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.03);
-        map.insert("bacteria_escherichia_coli_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.03);
-        map.insert("bacteria_klebsiella_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.08); // target 0.20
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.02);
-        map.insert("bacteria_citrobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_enterobacter_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_enterobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.03);
-        map.insert("bacteria_enterobacter_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.03);
-        map.insert("bacteria_enterobacter_cloacae_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_morganella_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_morganella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.02);
-        map.insert("bacteria_morganella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_proteus_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.08); // target 0.20
-        map.insert("bacteria_proteus_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.02);
-        map.insert("bacteria_proteus_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.03);
-        map.insert("bacteria_serratia_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.20); // target 0.45; nosocomial MDR selection + TB bystander
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.05);
-        map.insert("bacteria_p_stuartii_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.12); // target 0.30
-        map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.04);
-        map.insert("bacteria_shigella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.02);
-        map.insert("bacteria_salmonella_enterica_serovar_typhi_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.02);
-        map.insert("bacteria_salmonella_enterica_serovar_paratyphi_a_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.10); // target 0.25
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1985".to_string(),  0.02);
-        map.insert("bacteria_invasive_non-typhoidal_salmonella_spp._mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        // Lower targets / partial mechanistic link
-        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.05); // target 0.15; some meningitis + NTHi rifampicin exposure
-        map.insert("bacteria_haemophilus_influenzae_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.04); // target 0.15; ratchet from prophylaxis prescribing should drive most; small floor for contacts of TB patients
-        map.insert("bacteria_neisseria_meningitidis_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.06); // target 0.20; occasional add-on therapy for resistant pneumococcal meningitis
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1975".to_string(), 0.01);
-        map.insert("bacteria_streptococcus_pneumoniae_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(), 0.0);
-
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.04); // target 0.10
-        map.insert("bacteria_vibrio_cholerae_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.04); // target 0.10
-        map.insert("bacteria_listeria_monocytogenes_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.04); // target 0.10
-        map.insert("bacteria_yersinia_enterocolitica_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
-
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_environmental_floor".to_string(),              0.04); // target 0.10
-        map.insert("bacteria_moraxella_catarrhalis_mechanism_mutation_rpo_b_environmental_floor_before_1968".to_string(),  0.0);
 
 
         // Resistance enhancement multipliers: how much each mechanism increases resistance level
