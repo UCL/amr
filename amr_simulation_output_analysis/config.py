@@ -140,7 +140,7 @@ class PlotConfig:
     # None => plot all policies that exist in the dataset (default behavior)
     # Provide a list like [0] to restrict plots to baseline only.
     ## here here
-    policies_to_plot: Optional[List[int]] = field(default_factory=lambda: [0, 2])
+    policies_to_plot: Optional[List[int]] = field(default_factory=lambda: [0, 1, 2, 3, 4])
 
     # Output settings
     output_dir: Path = field(default_factory=lambda: Path("output_graphs"))
@@ -184,6 +184,7 @@ class PlotConfig:
     create_grouped_figure_8: bool = True
     create_grouped_figure_9: bool = True
     create_grouped_figure_10: bool = True
+    create_grouped_figure_11: bool = True
     
     # Convenience properties
     @property
@@ -254,7 +255,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_350271.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_759189.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity 

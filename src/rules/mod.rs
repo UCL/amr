@@ -5516,7 +5516,9 @@ pub(crate) fn apply_rules(
                         resistance_data.max_possible_activity_r_pure = base_potency;
                     } else {
                         resistance_data.activity_r = 0.0;
+                        resistance_data.max_possible_activity_r = 0.0;
                         resistance_data.activity_r_pure = 0.0;
+                        resistance_data.max_possible_activity_r_pure = 0.0;
                     }
                 }
             }
@@ -5945,7 +5947,9 @@ pub(crate) fn apply_rules(
                     let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
                     resistance_data.any_r = 0.0;
                     resistance_data.activity_r = 0.0;
+                    resistance_data.max_possible_activity_r = 0.0;
                     resistance_data.activity_r_pure = 0.0;
+                    resistance_data.max_possible_activity_r_pure = 0.0;
                     individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
                 }
                 // Clear mechanism booleans on infection clearance

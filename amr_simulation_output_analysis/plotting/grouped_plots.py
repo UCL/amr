@@ -1900,4 +1900,135 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         gc.collect()
         print(f"[OK] Grouped figure 10 saved as '{figure_path.name}'")
 
-    print("[OK] Grouped plots (1-10) creation completed")
+    # --- Grouped Figure 11: Policy Comparison — Infection Deaths from 2024 Onwards ---
+    if config.create_grouped_figure_11:
+        MIN_YEAR_POLICY = 2024 - config.start_year  # simulation years elapsed at 2024
+        TABLE_YEAR_LO = 2025 - config.start_year
+        TABLE_YEAR_HI = 2035 - config.start_year
+        POLICY_COMPARE_COLORS = [
+            'tab:blue', 'tab:orange', 'tab:green', 'tab:red',
+            'tab:purple', 'tab:brown', 'tab:pink', 'tab:cyan',
+        ]
+        SEPSIS_COL         = 'deaths_sepsis_past_year'
+        NON_SEPSIS_COL     = 'deaths_infection_non_sepsis_past_year'
+        SEPSIS_PROP_COL    = 'deaths_sepsis_past_year_proportion'
+        NON_SEPSIS_PROP_COL = 'deaths_infection_non_sepsis_past_year_proportion'
+
+        fig11, (ax_plot11, ax_table11) = plt.subplots(1, 2, figsize=(FIG_W, FIG_H))
+        fig11.suptitle(
+            'Figure 11: Infection Deaths by Policy — Post-2024 Comparison',
+            fontsize=16, fontweight='bold',
+        )
+
+        have_data = (
+            'policy_option' in df.columns
+            and 'time_in_years' in df.columns
+            and SEPSIS_COL in df.columns
+            and NON_SEPSIS_COL in df.columns
+        )
+
+        if have_data:
+            available_policies = sorted(
+                df['policy_option'].dropna().unique().tolist(),
+                key=_policy_sort_key,
+            )
+
+            # --- Line plot: combined proportion from 2024 ---
+            plotted_any = False
+            have_prop = SEPSIS_PROP_COL in df.columns and NON_SEPSIS_PROP_COL in df.columns
+            for idx, policy_value in enumerate(available_policies):
+                mask = (
+                    (df['policy_option'] == policy_value)
+                    & (df['time_in_years'] >= MIN_YEAR_POLICY)
+                )
+                needed_cols = ['time_in_years']
+                if have_prop:
+                    needed_cols += [SEPSIS_PROP_COL, NON_SEPSIS_PROP_COL]
+                else:
+                    needed_cols += [SEPSIS_COL, NON_SEPSIS_COL]
+                seg = df.loc[mask, needed_cols].sort_values('time_in_years')
+                if seg.empty:
+                    continue
+                if have_prop:
+                    combined = seg[SEPSIS_PROP_COL].fillna(0) + seg[NON_SEPSIS_PROP_COL].fillna(0)
+                    y_label = 'Infection Deaths / Current Population'
+                else:
+                    combined = seg[SEPSIS_COL].fillna(0) + seg[NON_SEPSIS_COL].fillna(0)
+                    y_label = 'Infection Deaths (Past Year)'
+                if combined.dropna().empty:
+                    continue
+                x = seg['time_in_years'] + config.start_year
+                y_smooth = (
+                    pd.Series(combined.values)
+                    .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
+                    .mean()
+                )
+                ax_plot11.plot(
+                    x.values,
+                    y_smooth.values,
+                    color=POLICY_COMPARE_COLORS[idx % len(POLICY_COMPARE_COLORS)],
+                    linewidth=2,
+                    label=_policy_label(policy_value),
+                )
+                plotted_any = True
+
+            if plotted_any:
+                ax_plot11.set_title('Sepsis + Infection (Non-Sepsis) Deaths\n(Proportion of Current Population)')
+                ax_plot11.set_xlabel('Calendar Year')
+                ax_plot11.set_ylabel(y_label)
+                ax_plot11.set_xlim(left=2024)
+                ax_plot11.set_ylim(bottom=0)
+                ax_plot11.legend()
+                ax_plot11.grid(True, alpha=0.3)
+            else:
+                ax_plot11.text(0.5, 0.5, 'No valid data for 2024+', ha='center', va='center')
+                ax_plot11.set_title('Infection Deaths by Policy')
+                ax_plot11.set_axis_off()
+
+            # --- Table: mean annual infection death COUNT 2025-2035 ---
+            table_mask_base = (
+                (df['time_in_years'] >= TABLE_YEAR_LO)
+                & (df['time_in_years'] < TABLE_YEAR_HI)
+                & df[SEPSIS_COL].notna()
+                & df[NON_SEPSIS_COL].notna()
+            )
+            table_rows = []
+            for policy_value in available_policies:
+                pmask = table_mask_base & (df['policy_option'] == policy_value)
+                seg = df.loc[pmask, [SEPSIS_COL, NON_SEPSIS_COL]]
+                if seg.empty:
+                    mean_val = float('nan')
+                else:
+                    combined_counts = seg[SEPSIS_COL] + seg[NON_SEPSIS_COL]
+                    mean_val = combined_counts.mean()
+                table_rows.append([_policy_label(policy_value), f"{mean_val:,.1f}" if not np.isnan(mean_val) else 'N/A'])
+
+            ax_table11.axis('off')
+            if table_rows:
+                tbl = ax_table11.table(
+                    cellText=table_rows,
+                    colLabels=['Policy', 'Mean Annual Infection Deaths\n(2025–2035)'],
+                    loc='center',
+                    cellLoc='center',
+                )
+                tbl.auto_set_font_size(False)
+                tbl.set_fontsize(11)
+                tbl.scale(1.2, 2.0)
+                ax_table11.set_title('Mean Annual Infection Deaths by Policy\n(2025–2035)', pad=20)
+            else:
+                ax_table11.text(0.5, 0.5, 'Insufficient data for 2025–2035', ha='center', va='center')
+        else:
+            ax_plot11.text(0.5, 0.5, 'Policy or death data not available', ha='center', va='center')
+            ax_plot11.set_axis_off()
+            ax_table11.text(0.5, 0.5, 'Policy or death data not available', ha='center', va='center')
+            ax_table11.set_axis_off()
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        figure_path = _grouped_figure_path(11, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close('all')
+        del fig11, ax_plot11, ax_table11
+        gc.collect()
+        print(f"[OK] Grouped figure 11 saved as '{figure_path.name}'")
+
+    print("[OK] Grouped plots (1-11) creation completed")
