@@ -148,11 +148,11 @@ fn main() {
 
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
-    let population_size =  30_000;
+    let population_size = 1_000_000;
     // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
     // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
-    let calibration_mode = CalibrationMode::None;
+    let calibration_mode = CalibrationMode::Full;
     // Calibration runs only need rows through the end of 2025.
     // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
     // Full run (policy branches to 2035) needs 38_325.

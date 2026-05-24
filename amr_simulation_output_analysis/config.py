@@ -185,7 +185,8 @@ class PlotConfig:
     create_grouped_figure_9: bool = True
     create_grouped_figure_10: bool = True
     create_grouped_figure_11: bool = True
-    
+    create_grouped_figure_12: bool = True
+
     # Convenience properties
     @property
     def plot_dpi(self) -> int:
@@ -255,7 +256,7 @@ class DataConfig:
     """Configuration for data loading and processing."""
     
     simulation_file: Path = field(
-        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_759189.csv")
+        default_factory=lambda: Path("amr_simulation_output_analysis_outputs/simulation_summary_375673.csv")
     )
     cache_data: bool = True  # Whether to cache loaded data
     validate_data: bool = True  # Whether to validate data integrity 

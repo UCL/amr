@@ -69,6 +69,116 @@ pub enum CalibrationMode {
     Full,
 }
 
+/// Controls which groups of fields are stored in each [`TimeStepSummary`] row.
+/// Fields in a disabled group are replaced with empty vecs, reducing `summary_log` memory.
+///
+/// Use [`SummaryContentFlags::all()`] for full output (default),
+/// [`SummaryContentFlags::none()`] for scalar-only output (death/infection totals),
+/// or [`SummaryContentFlags::for_figures`] for the minimal set needed by specific figures.
+///
+/// # Example
+/// ```ignore
+/// sim.summary_content_flags = SummaryContentFlags::for_figures(&[2, 12]);
+/// sim.run();
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SummaryContentFlags {
+    /// Per-bacteria infection, death, sepsis, activity_r, and carrier/community split arrays.
+    /// Required by most figures; also the infected denominator for Fig 12.
+    pub per_bacteria: bool,
+    /// Microbiome carriage presence, resistance, acquisition, clearance, and duration-bin arrays.
+    /// Required by Figs 6, 7.
+    pub microbiome: bool,
+    /// Regional population, hospital, age-distribution, and drug-usage breakdowns.
+    /// Required by Figs 8, 9, 10.
+    pub regional: bool,
+    /// Syndrome-level infection counts (by syndrome and bacteria×syndrome).
+    /// Required by syndrome-specific panels.
+    pub syndrome: bool,
+    /// Infection resolution pathway counts (immune clearance, drug-assisted, and death types by bacteria).
+    /// Required by Fig 5.
+    pub resolution: bool,
+    /// Diagnostic testing coverage (test_identified and test_for_resistance by bacteria).
+    /// Required by Fig 4.
+    pub testing: bool,
+    /// Day-N drug initiation tracking (evaluations and drug use by bacteria).
+    /// Required by Fig 3 treatment panel.
+    pub day7: bool,
+}
+
+impl SummaryContentFlags {
+    /// All groups enabled — full output (default behaviour).
+    pub const fn all() -> Self {
+        SummaryContentFlags {
+            per_bacteria: true,
+            microbiome: true,
+            regional: true,
+            syndrome: true,
+            resolution: true,
+            testing: true,
+            day7: true,
+        }
+    }
+
+    /// All groups disabled — only core scalars are stored (death totals, population, rolling
+    /// past-year counts, etc.).  Sufficient for Fig 2d and similar scalar-only figures.
+    pub const fn none() -> Self {
+        SummaryContentFlags {
+            per_bacteria: false,
+            microbiome: false,
+            regional: false,
+            syndrome: false,
+            resolution: false,
+            testing: false,
+            day7: false,
+        }
+    }
+
+    /// Returns the minimal flags needed to produce the given figure numbers.
+    ///
+    /// Fig 2d uses only scalar death fields — pass `&[]` for scalar-only.
+    /// Fig 12 needs `per_bacteria` (infected denominator) plus B×D arrays (automatically
+    /// enabled from 2022 by `need_full_summary`); pass `&[12]`.
+    pub fn for_figures(figs: &[u8]) -> Self {
+        let mut flags = Self::none();
+        for &fig in figs {
+            match fig {
+                1 | 2 | 11 => {
+                    flags.per_bacteria = true;
+                }
+                3 => {
+                    flags.per_bacteria = true;
+                    flags.syndrome = true;
+                    flags.day7 = true;
+                }
+                4 => {
+                    flags.per_bacteria = true;
+                    flags.testing = true;
+                }
+                5 => {
+                    flags.per_bacteria = true;
+                    flags.resolution = true;
+                }
+                6 | 7 => {
+                    flags.per_bacteria = true;
+                    flags.microbiome = true;
+                }
+                8 | 9 | 10 => {
+                    flags.per_bacteria = true;
+                    flags.regional = true;
+                }
+                12 => {
+                    // infections_by_bacteria (part of per_bacteria) serves as the denominator.
+                    // B×D arrays are automatically enabled from 2022 via need_full_summary.
+                    flags.per_bacteria = true;
+                }
+                _ => {} // Unknown figure number — no extra flags. Fig 2d uses scalar fields only.
+            }
+        }
+        flags
+    }
+}
+
 /// First year of the calibration summary window (inclusive).
 /// This keeps the full 2022–2025 calibration window used by the summary.
 const CALIBRATION_SUMMARY_WINDOW_START: f64 = 2022.0;
@@ -210,19 +320,8 @@ struct BranchSnapshot {
     summary_log: Vec<TimeStepSummary>,
 }
 
-#[derive(Clone)]
-struct CoreState {
-    population: Population,
-    mechanism_cache: MechanismCache,
-}
-
 enum StoredBranchSnapshot {
     InMemory(BranchSnapshot),
-    OnDisk(PathBuf),
-}
-
-enum StoredCoreState {
-    InMemory(CoreState),
     OnDisk(PathBuf),
 }
 
@@ -1287,6 +1386,98 @@ pub struct TimeStepSummary {
     pub people_by_drug_count: Vec<usize>, // [0] = people on 0 drugs, [1] = people on 1 drug, etc.
 }
 
+impl TimeStepSummary {
+    /// Replace disabled field groups with empty vecs, reducing `summary_log` memory.
+    /// Called after the row is fully constructed, just before it is pushed to `summary_log`.
+    pub fn apply_content_flags(&mut self, flags: SummaryContentFlags) {
+        if flags == SummaryContentFlags::all() {
+            return; // fast path: nothing to strip
+        }
+        if !flags.per_bacteria {
+            self.infected_and_on_any_drug_by_bacteria = Vec::new();
+            self.number_with_sepsis_by_bacteria = Vec::new();
+            self.new_sepsis_cases_by_bacteria = Vec::new();
+            self.infections_prevented_by_drug_by_bacteria = Vec::new();
+            self.infections_by_bacteria = Vec::new();
+            self.infections_by_bacteria_under_5 = Vec::new();
+            self.infections_by_bacteria_over_65 = Vec::new();
+            self.deaths_by_bacteria = Vec::new();
+            self.deaths_by_bacteria_under_5 = Vec::new();
+            self.deaths_by_bacteria_over_65 = Vec::new();
+            self.deaths_by_bacteria_hospital_acquired = Vec::new();
+            self.deaths_by_bacteria_community_acquired = Vec::new();
+            self.newly_infected_by_bacteria_region = Vec::new();
+            self.newly_infected_carrier_by_bacteria = Vec::new();
+            self.newly_infected_non_carrier_by_bacteria = Vec::new();
+            self.newly_infected_by_bacteria_under_5 = Vec::new();
+            self.newly_infected_by_bacteria_over_65 = Vec::new();
+            self.deaths_infected_by_bacteria_region = Vec::new();
+            self.activity_r_sum_by_bacteria = Vec::new();
+            self.max_possible_activity_r_sum_by_bacteria = Vec::new();
+            self.activity_r_pure_sum_by_bacteria = Vec::new();
+            self.max_possible_activity_r_pure_sum_by_bacteria = Vec::new();
+            self.infected_carrier_count_by_bacteria = Vec::new();
+            self.infected_non_carrier_count_by_bacteria = Vec::new();
+            self.resistant_infected_carrier_count_by_bacteria = Vec::new();
+            self.resistant_infected_non_carrier_count_by_bacteria = Vec::new();
+            self.currently_infected_hospital_count_by_bacteria = Vec::new();
+            self.currently_infected_community_count_by_bacteria = Vec::new();
+            self.resistant_infected_hospital_count_by_bacteria = Vec::new();
+            self.resistant_infected_community_count_by_bacteria = Vec::new();
+            self.newly_infected_any_r_hospital_by_bacteria = Vec::new();
+            self.newly_infected_any_r_community_by_bacteria = Vec::new();
+            self.drug_failure_events_by_bacteria_region = Vec::new();
+            self.drug_treatment_day5_events_by_bacteria_region = Vec::new();
+        }
+        if !flags.microbiome {
+            self.presence_microbiome_by_bacteria = Vec::new();
+            self.presence_microbiome_resistant_by_bacteria = Vec::new();
+            self.living_microbiome_minority_by_bacteria = Vec::new();
+            self.living_microbiome_majority_by_bacteria = Vec::new();
+            self.cleared_any_r_microbiome_categories = Vec::new();
+            self.presence_microbiome_by_bacteria_by_region = Vec::new();
+            self.carriage_duration_bins_by_bacteria = Vec::new();
+            self.microbiome_acquisitions_on_drug_by_bacteria = Vec::new();
+            self.microbiome_acquisitions_off_drug_by_bacteria = Vec::new();
+            self.microbiome_clearances_on_drug_by_bacteria = Vec::new();
+            self.microbiome_clearances_off_drug_by_bacteria = Vec::new();
+        }
+        if !flags.regional {
+            self.living_population_by_region = Vec::new();
+            self.hospital_population_by_region = Vec::new();
+            self.age_distribution_by_region = Vec::new();
+            self.deaths_by_region = Vec::new();
+            self.deaths_by_region_age = Vec::new();
+            self.currently_on_drug_by_region_drug = Vec::new();
+            self.newly_infected_hospital_by_bacteria_region = std::collections::HashMap::new();
+        }
+        if !flags.syndrome {
+            self.infected_by_syndrome = Vec::new();
+            self.infected_by_syndrome_by_bacteria = Vec::new();
+            self.newly_infected_by_syndrome = Vec::new();
+            self.syndrome_population_by_region = Vec::new();
+            self.syndrome_deaths_sepsis_by_region = Vec::new();
+            self.syndrome_deaths_infection_non_sepsis_by_region = Vec::new();
+        }
+        if !flags.resolution {
+            self.infection_resolution_immune_clearance_by_bacteria = Vec::new();
+            self.infection_resolution_drug_assisted_clearance_by_bacteria = Vec::new();
+            self.infection_resolution_death_from_sepsis_by_bacteria = Vec::new();
+            self.infection_resolution_death_from_infection_non_sepsis_by_bacteria = Vec::new();
+            self.infection_resolution_death_from_background_by_bacteria = Vec::new();
+            self.infection_resolution_death_from_toxicity_by_bacteria = Vec::new();
+        }
+        if !flags.testing {
+            self.infected_with_test_identified_by_bacteria = Vec::new();
+            self.infected_with_test_for_resistance_by_bacteria = Vec::new();
+        }
+        if !flags.day7 {
+            self.day_7_evaluations_by_bacteria = Vec::new();
+            self.day_7_drug_used_by_bacteria = Vec::new();
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PolicyBranchSummary {
     pub policy_option: u8,
@@ -1341,6 +1532,10 @@ pub struct Simulation {
     pub relevant_drugs_by_bacteria: Vec<Vec<usize>>,
     /// Controls output density and which summary statistics are computed each timestep.
     pub calibration_mode: CalibrationMode,
+    /// Controls which summary field groups are stored per row. Defaults to [`SummaryContentFlags::all()`].
+    /// Set to [`SummaryContentFlags::for_figures`] or [`SummaryContentFlags::none()`] before calling `run()`
+    /// to reduce `summary_log` memory for targeted output.
+    pub summary_content_flags: SummaryContentFlags,
 }
 
 impl Simulation {
@@ -1485,6 +1680,7 @@ impl Simulation {
             branch_checkpoint_dir: PathBuf::from("amr_branch_checkpoints"),
             relevant_drugs_by_bacteria,
             calibration_mode,
+            summary_content_flags: SummaryContentFlags::all(),
         }
     }
 
@@ -1586,20 +1782,10 @@ impl Simulation {
         Err(std::io::Error::new(std::io::ErrorKind::Other, message))
     }
 
-    fn persist_core_state_to_disk(&self, _state: &CoreState) -> std::io::Result<PathBuf> {
-        let message = "Disk checkpointing disabled: serde support not available";
-        Err(std::io::Error::new(std::io::ErrorKind::Other, message))
-    }
-
     fn load_branch_snapshot_from_disk(
         &self,
         _path: &std::path::Path,
     ) -> std::io::Result<BranchSnapshot> {
-        let message = "Disk checkpointing disabled: serde support not available";
-        Err(std::io::Error::new(std::io::ErrorKind::Other, message))
-    }
-
-    fn load_core_state_from_disk(&self, _path: &std::path::Path) -> std::io::Result<CoreState> {
         let message = "Disk checkpointing disabled: serde support not available";
         Err(std::io::Error::new(std::io::ErrorKind::Other, message))
     }
@@ -2537,16 +2723,20 @@ impl Simulation {
             let calibration_mode = self.calibration_mode;
             let evaluation_days: i32 =
                 get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
-            // In CalibrationMode::Full only the 2022-2025 window is kept (keep_row).
-            // Skip the expensive B×D inner loops (42×60 iters per individual) for the
-            // ~96% of pre-window steps whose rows will be discarded anyway.
+            // Before CALIBRATION_SUMMARY_WINDOW_START (2022) the expensive B×D inner loops
+            // are skipped for all calibration modes: per-individual bacteria×drug accumulation
+            // is omitted and the corresponding Vec fields are stored as Vec::new(), saving
+            // ~200 KB per pre-2022 row. 1930–2022 is treated identically in all modes.
+            // CalibrationMode::Full additionally has an end bound (2022–2025 only).
+            let sim_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
             let need_full_summary = match calibration_mode {
                 CalibrationMode::Full => {
-                    let sim_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
                     sim_year >= CALIBRATION_SUMMARY_WINDOW_START
                         && sim_year < CALIBRATION_SUMMARY_WINDOW_END
                 }
-                CalibrationMode::Partial | CalibrationMode::None => true,
+                CalibrationMode::Partial | CalibrationMode::None => {
+                    sim_year >= CALIBRATION_SUMMARY_WINDOW_START
+                }
             };
             let totals = self.population.individuals.par_iter_mut()
             .fold(
@@ -3540,15 +3730,16 @@ impl Simulation {
             let mut summary = TimeStepSummary {
                 policy_option: policy.policy_option,
                 infected_and_on_any_drug_by_bacteria,
-                infected_and_standardized_mic_lt2_by_bacteria_drug,
-                currently_on_drug_by_bacteria_drug,
-                microbiome_r_positive_by_bacteria_drug,
-                any_r_sum_by_bacteria_drug,
-                any_r_sum_by_bacteria_drug_hospital,
-                infected_with_any_r_positive_by_bacteria_drug,
-                infected_with_any_r_positive_hospital_by_bacteria_drug,
-                infected_with_any_r_positive_community_by_bacteria_drug,
-                mic_sum_by_bacteria_drug,
+                // Pre-2022 rows store Vec::new() for all B×D arrays to keep summary_log small.
+                infected_and_standardized_mic_lt2_by_bacteria_drug: if need_full_summary { infected_and_standardized_mic_lt2_by_bacteria_drug } else { Vec::new() },
+                currently_on_drug_by_bacteria_drug: if need_full_summary { currently_on_drug_by_bacteria_drug } else { Vec::new() },
+                microbiome_r_positive_by_bacteria_drug: if need_full_summary { microbiome_r_positive_by_bacteria_drug } else { Vec::new() },
+                any_r_sum_by_bacteria_drug: if need_full_summary { any_r_sum_by_bacteria_drug } else { Vec::new() },
+                any_r_sum_by_bacteria_drug_hospital: if need_full_summary { any_r_sum_by_bacteria_drug_hospital } else { Vec::new() },
+                infected_with_any_r_positive_by_bacteria_drug: if need_full_summary { infected_with_any_r_positive_by_bacteria_drug } else { Vec::new() },
+                infected_with_any_r_positive_hospital_by_bacteria_drug: if need_full_summary { infected_with_any_r_positive_hospital_by_bacteria_drug } else { Vec::new() },
+                infected_with_any_r_positive_community_by_bacteria_drug: if need_full_summary { infected_with_any_r_positive_community_by_bacteria_drug } else { Vec::new() },
+                mic_sum_by_bacteria_drug: if need_full_summary { mic_sum_by_bacteria_drug } else { Vec::new() },
                 any_r_sum_by_region,
                 infected_count_by_region,
                 currently_on_drug_by_drug,
@@ -3613,7 +3804,7 @@ impl Simulation {
                 deaths_by_bacteria_over_65,
                 deaths_by_bacteria_hospital_acquired,
                 deaths_by_bacteria_community_acquired,
-                resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
+                resistance_by_bacteria_drug: if need_full_summary { resistance_by_bacteria_drug_flat } else { Vec::new() },
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
@@ -3632,7 +3823,7 @@ impl Simulation {
                 max_possible_activity_r_sum_by_bacteria,
                 activity_r_pure_sum_by_bacteria,
                 max_possible_activity_r_pure_sum_by_bacteria,
-                infected_with_bacteria_and_mechanism,
+                infected_with_bacteria_and_mechanism: if need_full_summary { infected_with_bacteria_and_mechanism } else { Vec::new() },
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
                 infection_resolution_death_from_sepsis_by_bacteria,
@@ -3670,10 +3861,20 @@ impl Simulation {
                 people_on_2_drugs: 0,
                 people_on_3plus_drugs: 0,
 
-                // These are now collected in the parallel fold (CalibrationMode::None only)
+                // These are now collected in the parallel fold (CalibrationMode::None only).
+                // In Partial/Full modes use Vec::new() to avoid accumulating ~20 KB per stored
+                // row across the full 95-year summary_log (~711 MB wasted at 1 M pop).
                 infected_on_drug_with_previous_failure,
-                drug_selection_count_by_bacteria,
-                drug_score_sums_by_bacteria_drug,
+                drug_selection_count_by_bacteria: if need_full_summary && self.calibration_mode == CalibrationMode::None {
+                    drug_selection_count_by_bacteria
+                } else {
+                    Vec::new()
+                },
+                drug_score_sums_by_bacteria_drug: if need_full_summary && self.calibration_mode == CalibrationMode::None {
+                    drug_score_sums_by_bacteria_drug
+                } else {
+                    Vec::new()
+                },
 
                 people_by_drug_count: vec![0; 4],
             };
@@ -3758,6 +3959,12 @@ impl Simulation {
                 CalibrationMode::Partial | CalibrationMode::None => true,
             };
             if keep_row {
+                // Content flags are only applied to pre-2022 rows.
+                // From 2022 onward (need_full_summary = true) every row is kept intact
+                // so the calibration window always contains the full field set.
+                if !need_full_summary {
+                    summary.apply_content_flags(self.summary_content_flags);
+                }
                 self.summary_log.push(summary);
             }
 
@@ -3863,30 +4070,12 @@ impl Simulation {
                     }
                 };
 
-            let baseline_summary = self.summary_log.clone();
-            let (baseline_state, baseline_state_cleanup) = match self
-                .capture_core_state()
-                .and_then(|state| self.materialize_core_state(state))
-            {
-                Ok(result) => result,
-                Err(err) => {
-                    eprintln!(
-                        "Error capturing baseline state for policy branches: {}",
-                        err
-                    );
-                    if let Some(path) = snapshot_cleanup {
-                        self.cleanup_checkpoint_file(&path);
-                    }
-                    return;
-                }
-            };
-
             let branch_policies = self.branch_policy_adjustments.clone();
             for policy in branch_policies {
+                // run_policy_branch restores self.summary_log from branch_snapshot.summary_log
+                // at its start, so no baseline_summary clone is needed here.
                 let branch_result = self.run_policy_branch(&branch_snapshot, step, policy);
 
-                self.summary_log = baseline_summary.clone();
-                self.apply_core_state(baseline_state.clone());
                 self.current_policy_adjustments = self.baseline_policy_adjustments;
 
                 if let Err(err) = branch_result {
@@ -3899,9 +4088,6 @@ impl Simulation {
             }
 
             if let Some(path) = snapshot_cleanup {
-                self.cleanup_checkpoint_file(&path);
-            }
-            if let Some(path) = baseline_state_cleanup {
                 self.cleanup_checkpoint_file(&path);
             }
         }
@@ -3940,38 +4126,6 @@ impl Simulation {
                 Ok((data, Some(path)))
             }
         }
-    }
-
-    fn capture_core_state(&self) -> std::io::Result<StoredCoreState> {
-        let state = CoreState {
-            population: self.population.clone(),
-            mechanism_cache: self.mechanism_cache.clone(),
-        };
-
-        if self.use_disk_branch_checkpoint {
-            let path = self.persist_core_state_to_disk(&state)?;
-            Ok(StoredCoreState::OnDisk(path))
-        } else {
-            Ok(StoredCoreState::InMemory(state))
-        }
-    }
-
-    fn materialize_core_state(
-        &self,
-        state: StoredCoreState,
-    ) -> std::io::Result<(CoreState, Option<PathBuf>)> {
-        match state {
-            StoredCoreState::InMemory(core) => Ok((core, None)),
-            StoredCoreState::OnDisk(path) => {
-                let core = self.load_core_state_from_disk(&path)?;
-                Ok((core, Some(path)))
-            }
-        }
-    }
-
-    fn apply_core_state(&mut self, state: CoreState) {
-        self.population = state.population;
-        self.mechanism_cache = state.mechanism_cache;
     }
 
     fn run_policy_branch(

@@ -2031,4 +2031,127 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         gc.collect()
         print(f"[OK] Grouped figure 11 saved as '{figure_path.name}'")
 
-    print("[OK] Grouped plots (1-11) creation completed")
+    # --- Grouped Figure 12: Rise of Global Drug Resistance Over Time ---
+    if config.create_grouped_figure_12:
+        # Identify all per-bacteria-drug infected-with-any-r-positive columns
+        # Column naming: {bacteria_slug}_infected_with_any_r_positive_{drug_slug}
+        # Matching infected denominator: {bacteria_slug}_currently_infected
+        import re as _re
+        anyr_cols = [c for c in df.columns if _re.search(r'_infected_with_any_r_positive_', c)]
+
+        fig12, (ax12_vol, ax12_unw) = plt.subplots(1, 2, figsize=(FIG_W, FIG_H // 2 + 2))
+        fig12.suptitle(
+            'Figure 12: Rise of Global Infection Drug Resistance Over Time',
+            fontsize=14, fontweight='bold',
+        )
+
+        if anyr_cols and 'time_in_years' in df.columns:
+            # Match each any_r_positive column with its infected denominator column.
+            numerator_cols = []
+            denominator_cols = []
+            for col in anyr_cols:
+                bact_slug = col.split('_infected_with_any_r_positive_')[0]
+                denom_col = f'{bact_slug}_currently_infected'
+                if denom_col in df.columns:
+                    numerator_cols.append(col)
+                    denominator_cols.append(denom_col)
+
+            if numerator_cols:
+                # --- Volume-weighted metric ---
+                # Σ(resistant person-days) / Σ(infected person-days) across all pairs.
+                # Bacteria/drugs with many infections dominate — epidemiologically natural.
+                total_resistant = sum_rows(numerator_cols)
+                total_infected  = sum_rows(denominator_cols)
+                vol_weighted_pct = safe_divide(total_resistant, total_infected) * 100.0
+
+                # --- Unweighted (pair-mean) metric ---
+                # For each bacteria–drug pair compute resistance % independently, then
+                # average across pairs. Every pair counts equally regardless of infection
+                # volume — highlights pairs where resistance is high even if infections are rare.
+                pair_pct_series = [
+                    safe_divide(df[n_col], df[d_col]) * 100.0
+                    for n_col, d_col in zip(numerator_cols, denominator_cols)
+                ]
+                # Stack into a frame and take the row-wise mean (NaN-safe)
+                pair_pct_frame = pd.concat(pair_pct_series, axis=1)
+                unweighted_pct = pair_pct_frame.mean(axis=1, skipna=True)
+
+                cal_year_fmt = plt.FuncFormatter(
+                    lambda v, _: str(int(round(v + config.start_year)))
+                )
+
+                # -- Left panel: volume-weighted --
+                plotted_vol = plot_segmented_series(
+                    ax12_vol,
+                    series=vol_weighted_pct,
+                    color='darkred',
+                    label='Volume-weighted %',
+                    min_year=1.0,
+                    separate_policy_labels=True,
+                )
+                if plotted_vol:
+                    ax12_vol.xaxis.set_major_formatter(cal_year_fmt)
+                    ax12_vol.set_xlabel('Calendar Year')
+                    ax12_vol.set_ylabel('Infection Resistance (%)')
+                    ax12_vol.set_title('Volume-weighted\n(Σ resistant / Σ infected person-days)')
+                    ax12_vol.set_ylim(bottom=0)
+                    ax12_vol.legend()
+                    ax12_vol.grid(True, alpha=0.3)
+                    ax12_vol.text(
+                        0.01, 0.97,
+                        'High-burden pathogens dominate the average',
+                        transform=ax12_vol.transAxes,
+                        fontsize=8, va='top', color='gray',
+                    )
+                else:
+                    ax12_vol.text(0.5, 0.5, 'No valid data', ha='center', va='center')
+                    ax12_vol.set_axis_off()
+
+                # -- Right panel: unweighted pair mean --
+                plotted_unw = plot_segmented_series(
+                    ax12_unw,
+                    series=unweighted_pct,
+                    color='steelblue',
+                    label='Unweighted pair mean %',
+                    min_year=1.0,
+                    separate_policy_labels=True,
+                )
+                if plotted_unw:
+                    ax12_unw.xaxis.set_major_formatter(cal_year_fmt)
+                    ax12_unw.set_xlabel('Calendar Year')
+                    ax12_unw.set_ylabel('Infection Resistance (%)')
+                    ax12_unw.set_title('Unweighted pair mean\n(mean of per-pair resistance %, all pairs equal weight)')
+                    ax12_unw.set_ylim(bottom=0)
+                    ax12_unw.legend()
+                    ax12_unw.grid(True, alpha=0.3)
+                    ax12_unw.text(
+                        0.01, 0.97,
+                        'Rare-pathogen / low-use-drug pairs weighted equally to common ones',
+                        transform=ax12_unw.transAxes,
+                        fontsize=8, va='top', color='gray',
+                    )
+                else:
+                    ax12_unw.text(0.5, 0.5, 'No valid data', ha='center', va='center')
+                    ax12_unw.set_axis_off()
+            else:
+                for ax in (ax12_vol, ax12_unw):
+                    ax.text(0.5, 0.5,
+                        'No matching infected columns found\n'
+                        '(need {bacteria}_infected_with_any_r_positive_{drug}\n'
+                        'and {bacteria}_currently_infected columns)',
+                        ha='center', va='center')
+                    ax.set_axis_off()
+        else:
+            for ax in (ax12_vol, ax12_unw):
+                ax.text(0.5, 0.5, 'Resistance or time data not available', ha='center', va='center')
+                ax.set_axis_off()
+
+        plt.tight_layout(rect=[0, 0, 1, 0.92])
+        figure_path = _grouped_figure_path(12, config, run_identifier)
+        plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
+        plt.close('all')
+        del fig12, ax12_vol, ax12_unw
+        gc.collect()
+        print(f"[OK] Grouped figure 12 saved as '{figure_path.name}'")
+
+    print("[OK] Grouped plots (1-12) creation completed")
