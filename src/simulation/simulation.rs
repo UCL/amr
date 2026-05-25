@@ -1686,22 +1686,23 @@ impl Simulation {
 
     /// Replace the set of policy branches that will be run from the 2027 branch point.
     ///
-    /// Pass a slice of policy IDs (1–4).  Invalid IDs are silently ignored.
+    /// Pass a slice of policy IDs (0–4).  Invalid IDs are silently ignored.
     /// Call this after `Simulation::new()` and before `run()`.
     ///
     /// # Examples
     /// ```ignore
-    /// // Run only the stewardship (1) and equal-access (4) branches:
-    /// simulation.set_active_policy_branches(&[1, 4]);
+    /// // Run the baseline continuation (0) and stewardship (1) branches:
+    /// simulation.set_active_policy_branches(&[0, 1]);
     ///
-    /// // Run all four branches (default):
-    /// simulation.set_active_policy_branches(&[1, 2, 3, 4]);
+    /// // Run the baseline plus all four alternate branches:
+    /// simulation.set_active_policy_branches(&[0, 1, 2, 3, 4]);
     /// ```
     pub fn set_active_policy_branches(&mut self, policy_ids: &[u8]) {
         let globals = &config::parameter_store().globals;
         self.branch_policy_adjustments = policy_ids
             .iter()
             .filter_map(|&id| match id {
+                0 => Some(PolicyAdjustments::baseline()),
                 1 => Some(PolicyAdjustments::alternate_example(globals)),
                 2 => Some(PolicyAdjustments::amr_counterfactual()),
                 3 => Some(PolicyAdjustments::perfect_diagnostics(globals)),
@@ -2723,20 +2724,18 @@ impl Simulation {
             let calibration_mode = self.calibration_mode;
             let evaluation_days: i32 =
                 get_global_param("drug_evaluation_days_post_infection").unwrap_or(7.0) as i32;
-            // Before CALIBRATION_SUMMARY_WINDOW_START (2022) the expensive B×D inner loops
-            // are skipped for all calibration modes: per-individual bacteria×drug accumulation
-            // is omitted and the corresponding Vec fields are stored as Vec::new(), saving
-            // ~200 KB per pre-2022 row. 1930–2022 is treated identically in all modes.
-            // CalibrationMode::Full additionally has an end bound (2022–2025 only).
+            // Grouped figures and downstream Python analysis expect a fixed-width CSV row for
+            // every stored timestep. Keep the full summary field set for CalibrationMode::None
+            // and Partial across the whole simulation horizon. CalibrationMode::Full still
+            // limits collection to the calibration window because it intentionally drops the
+            // rest of the timeline entirely.
             let sim_year = SIMULATION_START_YEAR + t as f64 / DAYS_PER_YEAR;
             let need_full_summary = match calibration_mode {
                 CalibrationMode::Full => {
                     sim_year >= CALIBRATION_SUMMARY_WINDOW_START
                         && sim_year < CALIBRATION_SUMMARY_WINDOW_END
                 }
-                CalibrationMode::Partial | CalibrationMode::None => {
-                    sim_year >= CALIBRATION_SUMMARY_WINDOW_START
-                }
+                CalibrationMode::Partial | CalibrationMode::None => true,
             };
             let totals = self.population.individuals.par_iter_mut()
             .fold(
@@ -2781,43 +2780,41 @@ impl Simulation {
 
                             for b_idx in 0..num_bacteria {
                                 if individual.level[b_idx] > INFECTION_EPS {
-                                    if need_full_summary {
-                                        let base = b_idx * num_drugs;
-                                        if on_any_drug_current {
-                                            lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
+                                    let base = b_idx * num_drugs;
+                                    if on_any_drug_current {
+                                        lt.infected_and_on_any_drug_by_bacteria[b_idx] += 1;
+                                    }
+                                    for d_idx in 0..num_drugs {
+                                        let resistance_data = &individual.resistances[b_idx][d_idx];
+                                        let threshold = mic_lt2_thresholds[base + d_idx];
+                                        if resistance_data.any_r < threshold {
+                                            lt.mic_lt2_counts[base + d_idx] += 1;
                                         }
-                                        for d_idx in 0..num_drugs {
-                                            let resistance_data = &individual.resistances[b_idx][d_idx];
-                                            let threshold = mic_lt2_thresholds[base + d_idx];
-                                            if resistance_data.any_r < threshold {
-                                                lt.mic_lt2_counts[base + d_idx] += 1;
-                                            }
-                                            lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
-                                            let potency = potency_matrix[base + d_idx];
-                                            let mic = if potency <= 1e-9 {
-                                                1e12
+                                        lt.any_r_sum_by_bacteria_drug[base + d_idx] += resistance_data.any_r;
+                                        let potency = potency_matrix[base + d_idx];
+                                        let mic = if potency <= 1e-9 {
+                                            1e12
+                                        } else {
+                                            let susceptible_fraction =
+                                                (1.0 - resistance_data.any_r).clamp(1e-6, 1.0);
+                                            1.0 / (susceptible_fraction * potency)
+                                        };
+                                        lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
+                                        if resistance_data.any_r > 0.0 {
+                                            lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
+                                            if individual.hospital_status.is_hospitalized() {
+                                                lt.infected_with_any_r_positive_hospital_by_bacteria_drug[base + d_idx] += 1;
                                             } else {
-                                                let susceptible_fraction =
-                                                    (1.0 - resistance_data.any_r).clamp(1e-6, 1.0);
-                                                1.0 / (susceptible_fraction * potency)
-                                            };
-                                            lt.mic_sum_by_bacteria_drug[base + d_idx] += mic;
-                                            if resistance_data.any_r > 0.0 {
-                                                lt.infected_with_any_r_positive_by_bacteria_drug[base + d_idx] += 1;
-                                                if individual.hospital_status.is_hospitalized() {
-                                                    lt.infected_with_any_r_positive_hospital_by_bacteria_drug[base + d_idx] += 1;
-                                                } else {
-                                                    lt.infected_with_any_r_positive_community_by_bacteria_drug[base + d_idx] += 1;
-                                                }
-                                            }
-                                            if individual.infection_hospital_acquired[b_idx] {
-                                                lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
-                                            }
-                                            if let Some(region_idx) = effective_region_idx_for_any_r {
-                                                lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
+                                                lt.infected_with_any_r_positive_community_by_bacteria_drug[base + d_idx] += 1;
                                             }
                                         }
-                                    } // end need_full_summary for pre-rules B×D
+                                        if individual.infection_hospital_acquired[b_idx] {
+                                            lt.any_r_sum_by_bacteria_drug_hospital[base + d_idx] += resistance_data.any_r;
+                                        }
+                                        if let Some(region_idx) = effective_region_idx_for_any_r {
+                                            lt.any_r_sum_by_region[region_idx] += resistance_data.any_r;
+                                        }
+                                    }
 
                                     let num_mechanisms = ResistanceMechanism::all().len();
                                     // Record into hospital vs community pool based on current
@@ -3321,9 +3318,7 @@ impl Simulation {
                                     }
                                     let base = b_idx * num_drugs;
                                     
-                                    // Full iteration for stats that need all drugs
-                                    // (skipped for pre-calibration steps when need_full_summary is false)
-                                    if need_full_summary {
+                                    // Full iteration for stats that need all drugs.
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
                                         // Only sum activity_r if individual is currently on this drug
@@ -3346,7 +3341,6 @@ impl Simulation {
                                             }
                                         }
                                     }
-                                    } // end need_full_summary for post-rules full B×D iteration
 
                                     if is_carrier {
                                         lt.infected_carrier_count_by_bacteria[b_idx] += 1;
@@ -3730,16 +3724,15 @@ impl Simulation {
             let mut summary = TimeStepSummary {
                 policy_option: policy.policy_option,
                 infected_and_on_any_drug_by_bacteria,
-                // Pre-2022 rows store Vec::new() for all B×D arrays to keep summary_log small.
-                infected_and_standardized_mic_lt2_by_bacteria_drug: if need_full_summary { infected_and_standardized_mic_lt2_by_bacteria_drug } else { Vec::new() },
-                currently_on_drug_by_bacteria_drug: if need_full_summary { currently_on_drug_by_bacteria_drug } else { Vec::new() },
-                microbiome_r_positive_by_bacteria_drug: if need_full_summary { microbiome_r_positive_by_bacteria_drug } else { Vec::new() },
-                any_r_sum_by_bacteria_drug: if need_full_summary { any_r_sum_by_bacteria_drug } else { Vec::new() },
-                any_r_sum_by_bacteria_drug_hospital: if need_full_summary { any_r_sum_by_bacteria_drug_hospital } else { Vec::new() },
-                infected_with_any_r_positive_by_bacteria_drug: if need_full_summary { infected_with_any_r_positive_by_bacteria_drug } else { Vec::new() },
-                infected_with_any_r_positive_hospital_by_bacteria_drug: if need_full_summary { infected_with_any_r_positive_hospital_by_bacteria_drug } else { Vec::new() },
-                infected_with_any_r_positive_community_by_bacteria_drug: if need_full_summary { infected_with_any_r_positive_community_by_bacteria_drug } else { Vec::new() },
-                mic_sum_by_bacteria_drug: if need_full_summary { mic_sum_by_bacteria_drug } else { Vec::new() },
+                infected_and_standardized_mic_lt2_by_bacteria_drug,
+                currently_on_drug_by_bacteria_drug,
+                microbiome_r_positive_by_bacteria_drug,
+                any_r_sum_by_bacteria_drug,
+                any_r_sum_by_bacteria_drug_hospital,
+                infected_with_any_r_positive_by_bacteria_drug,
+                infected_with_any_r_positive_hospital_by_bacteria_drug,
+                infected_with_any_r_positive_community_by_bacteria_drug,
+                mic_sum_by_bacteria_drug,
                 any_r_sum_by_region,
                 infected_count_by_region,
                 currently_on_drug_by_drug,
@@ -3804,7 +3797,7 @@ impl Simulation {
                 deaths_by_bacteria_over_65,
                 deaths_by_bacteria_hospital_acquired,
                 deaths_by_bacteria_community_acquired,
-                resistance_by_bacteria_drug: if need_full_summary { resistance_by_bacteria_drug_flat } else { Vec::new() },
+                resistance_by_bacteria_drug: resistance_by_bacteria_drug_flat,
                 total_deaths,
                 deaths_background,
                 deaths_sepsis,
@@ -3823,7 +3816,7 @@ impl Simulation {
                 max_possible_activity_r_sum_by_bacteria,
                 activity_r_pure_sum_by_bacteria,
                 max_possible_activity_r_pure_sum_by_bacteria,
-                infected_with_bacteria_and_mechanism: if need_full_summary { infected_with_bacteria_and_mechanism } else { Vec::new() },
+                infected_with_bacteria_and_mechanism,
                 infection_resolution_immune_clearance_by_bacteria,
                 infection_resolution_drug_assisted_clearance_by_bacteria,
                 infection_resolution_death_from_sepsis_by_bacteria,
@@ -3959,12 +3952,6 @@ impl Simulation {
                 CalibrationMode::Partial | CalibrationMode::None => true,
             };
             if keep_row {
-                // Content flags are only applied to pre-2022 rows.
-                // From 2022 onward (need_full_summary = true) every row is kept intact
-                // so the calibration window always contains the full field set.
-                if !need_full_summary {
-                    summary.apply_content_flags(self.summary_content_flags);
-                }
                 self.summary_log.push(summary);
             }
 
@@ -4156,7 +4143,10 @@ impl Simulation {
             .summary_log
             .iter()
             .cloned()
-            .filter(|entry| entry.policy_option == policy.policy_option)
+            .filter(|entry| {
+                entry.policy_option == policy.policy_option
+                    && (policy.policy_option != 0 || entry.time_step >= branch_step)
+            })
             .collect();
         if !branch_summaries.is_empty() {
             self.policy_branch_summary_log.push(PolicyBranchSummary {

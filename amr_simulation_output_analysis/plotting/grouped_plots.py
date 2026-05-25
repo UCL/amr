@@ -20,6 +20,13 @@ from typing import Optional
 # Import from the modular system
 from ..utils import safe_divide, setup_logging, normalize_policy_identifier_list, coerce_policy_identifier
 from ..config import PlotConfig
+from ..calibration_summary import (
+    get_resistance_benchmark_table,
+    _filter_resistance_rows_for_fit,
+    _canonicalize_bacteria_slug,
+    _normalize_drug_slug,
+    _slugify_value,
+)
 
 
 def _grouped_figure_path(fig_number: int, config: PlotConfig, run_identifier: Optional[str]) -> Path:
@@ -457,41 +464,22 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         ]
         if all(col in df.columns for col in required_cols):
             plotted_any = False
-            plotted_any |= plot_segmented_series(
-                axes2[3],
-                'deaths_past_year_proportion',
-                color='black',
-                label='All-cause',
-                min_year=1.0,
-            )
-            plotted_any |= plot_segmented_series(
-                axes2[3],
-                'deaths_background_past_year_proportion',
-                color='gray',
-                label='Background',
-                min_year=1.0,
-            )
-            plotted_any |= plot_segmented_series(
-                axes2[3],
-                'deaths_sepsis_past_year_proportion',
-                color='red',
-                label='Sepsis',
-                min_year=1.0,
-            )
-            plotted_any |= plot_segmented_series(
-                axes2[3],
-                'deaths_infection_non_sepsis_past_year_proportion',
-                color='#ff1493',
-                label='Infection (non-sepsis)',
-                min_year=1.0,
-            )
-            plotted_any |= plot_segmented_series(
-                axes2[3],
-                'deaths_drug_toxicity_past_year_proportion',
-                color='orange',
-                label='Drug Toxicity',
-                min_year=1.0,
-            )
+            death_cause_styles = [
+                ('deaths_past_year_proportion', 'black', 'All-cause'),
+                ('deaths_background_past_year_proportion', 'gray', 'Background'),
+                ('deaths_sepsis_past_year_proportion', 'red', 'Sepsis'),
+                ('deaths_infection_non_sepsis_past_year_proportion', '#ff1493', 'Infection (non-sepsis)'),
+                ('deaths_drug_toxicity_past_year_proportion', 'orange', 'Drug Toxicity'),
+            ]
+            for value_col, color, label in death_cause_styles:
+                plotted_any |= plot_segmented_series(
+                    axes2[3],
+                    value_col,
+                    color=color,
+                    label=label,
+                    min_year=1.0,
+                    separate_policy_labels=False,
+                )
 
             if plotted_any:
                 axes2[3].set_title('Deaths in the Past Year (as Proportion of Current Population)')
@@ -500,7 +488,43 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes2[3].set_xlim(left=0)
                 # here here
                 axes2[3].set_ylim(0, 0.005)   
-                axes2[3].legend()
+                cause_handles = [
+                    Line2D([0], [0], color=color, linewidth=2, linestyle='-', label=label)
+                    for _, color, label in death_cause_styles
+                ]
+                cause_legend = axes2[3].legend(
+                    handles=cause_handles,
+                    title='Cause of Death',
+                    loc='upper left',
+                )
+                axes2[3].add_artist(cause_legend)
+
+                if 'policy_option' in df.columns:
+                    available_policies = [
+                        policy_value
+                        for policy_value in POLICIES_TO_PLOT
+                        if policy_value in df['policy_option'].dropna().unique().tolist()
+                    ]
+                else:
+                    available_policies = [None]
+
+                policy_handles = [
+                    Line2D(
+                        [0],
+                        [0],
+                        color='black',
+                        linewidth=2,
+                        linestyle=_policy_linestyle(policy_value),
+                        label=_policy_label(policy_value),
+                    )
+                    for policy_value in available_policies
+                ]
+                if policy_handles:
+                    axes2[3].legend(
+                        handles=policy_handles,
+                        title='Policy',
+                        loc='upper right',
+                    )
                 axes2[3].grid(True, alpha=0.3)
             else:
                 axes2[3].text(0.5, 0.5, 'No valid data to plot', ha='center', va='center')
@@ -929,7 +953,6 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 axes5[1].set_ylabel('Resolution Events per Day')
                 axes5[1].set_ylim(bottom=0)
                 # Add policy line style key manually
-                from matplotlib.lines import Line2D
                 custom_lines = [
                     Line2D([0], [0], color='gray', lw=2, linestyle='-'),
                     Line2D([0], [0], color='gray', lw=2, linestyle=':'),
@@ -1932,6 +1955,20 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 df['policy_option'].dropna().unique().tolist(),
                 key=_policy_sort_key,
             )
+            policy_year_ranges = {}
+            for policy_value in available_policies:
+                policy_years = pd.to_numeric(
+                    df.loc[df['policy_option'] == policy_value, 'time_in_years'],
+                    errors='coerce',
+                ).dropna()
+                if policy_years.empty:
+                    continue
+                min_calendar_year = config.start_year + float(policy_years.min())
+                max_calendar_year = config.start_year + float(policy_years.max())
+                policy_year_ranges[policy_value] = (
+                    int(np.floor(min_calendar_year)),
+                    int(np.floor(max_calendar_year)),
+                )
 
             # --- Line plot: combined proportion from 2024 ---
             plotted_any = False
@@ -1963,12 +2000,20 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     .rolling(window=SMOOTHING_WINDOW_DAYS, min_periods=1, center=True)
                     .mean()
                 )
+                policy_label = _policy_label(policy_value)
+                year_range = policy_year_ranges.get(policy_value)
+                if year_range is not None:
+                    start_year, end_year = year_range
+                    if start_year != end_year:
+                        policy_label = f"{policy_label} ({start_year}-{end_year})"
+                    else:
+                        policy_label = f"{policy_label} ({start_year})"
                 ax_plot11.plot(
                     x.values,
                     y_smooth.values,
                     color=POLICY_COMPARE_COLORS[idx % len(POLICY_COMPARE_COLORS)],
                     linewidth=2,
-                    label=_policy_label(policy_value),
+                    label=policy_label,
                 )
                 plotted_any = True
 
@@ -1980,43 +2025,62 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 ax_plot11.set_ylim(bottom=0)
                 ax_plot11.legend()
                 ax_plot11.grid(True, alpha=0.3)
+                if any(policy_year_ranges.get(policy_value, (None, None))[0] >= 2027 for policy_value in available_policies if policy_value != 0):
+                    ax_plot11.axvline(2027, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+                    ax_plot11.text(
+                        2027.05,
+                        ax_plot11.get_ylim()[1] * 0.98,
+                        'policy comparison period starts',
+                        color='gray',
+                        fontsize=8,
+                        va='top',
+                    )
             else:
                 ax_plot11.text(0.5, 0.5, 'No valid data for 2024+', ha='center', va='center')
                 ax_plot11.set_title('Infection Deaths by Policy')
                 ax_plot11.set_axis_off()
 
-            # --- Table: mean annual infection death COUNT 2025-2035 ---
-            table_mask_base = (
-                (df['time_in_years'] >= TABLE_YEAR_LO)
-                & (df['time_in_years'] < TABLE_YEAR_HI)
-                & df[SEPSIS_COL].notna()
-                & df[NON_SEPSIS_COL].notna()
-            )
+            # --- Table: mean annual infection death COUNT over each policy's available post-2024 window ---
             table_rows = []
             for policy_value in available_policies:
-                pmask = table_mask_base & (df['policy_option'] == policy_value)
+                pmask = (
+                    (df['policy_option'] == policy_value)
+                    & (df['time_in_years'] >= MIN_YEAR_POLICY)
+                    & df[SEPSIS_COL].notna()
+                    & df[NON_SEPSIS_COL].notna()
+                )
                 seg = df.loc[pmask, [SEPSIS_COL, NON_SEPSIS_COL]]
                 if seg.empty:
                     mean_val = float('nan')
                 else:
                     combined_counts = seg[SEPSIS_COL] + seg[NON_SEPSIS_COL]
                     mean_val = combined_counts.mean()
-                table_rows.append([_policy_label(policy_value), f"{mean_val:,.1f}" if not np.isnan(mean_val) else 'N/A'])
+                year_range = policy_year_ranges.get(policy_value)
+                if year_range is not None:
+                    start_year, end_year = year_range
+                    window_label = f"{max(start_year, 2024)}-{end_year}"
+                else:
+                    window_label = 'N/A'
+                table_rows.append([
+                    _policy_label(policy_value),
+                    window_label,
+                    f"{mean_val:,.1f}" if not np.isnan(mean_val) else 'N/A',
+                ])
 
             ax_table11.axis('off')
             if table_rows:
                 tbl = ax_table11.table(
                     cellText=table_rows,
-                    colLabels=['Policy', 'Mean Annual Infection Deaths\n(2025–2035)'],
+                    colLabels=['Policy', 'Available Years', 'Mean Annual Infection Deaths'],
                     loc='center',
                     cellLoc='center',
                 )
                 tbl.auto_set_font_size(False)
                 tbl.set_fontsize(11)
                 tbl.scale(1.2, 2.0)
-                ax_table11.set_title('Mean Annual Infection Deaths by Policy\n(2025–2035)', pad=20)
+                ax_table11.set_title('Mean Annual Infection Deaths by Policy\n(available post-2024 years)', pad=20)
             else:
-                ax_table11.text(0.5, 0.5, 'Insufficient data for 2025–2035', ha='center', va='center')
+                ax_table11.text(0.5, 0.5, 'Insufficient data for post-2024 comparison', ha='center', va='center')
         else:
             ax_plot11.text(0.5, 0.5, 'Policy or death data not available', ha='center', va='center')
             ax_plot11.set_axis_off()
@@ -2039,7 +2103,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         import re as _re
         anyr_cols = [c for c in df.columns if _re.search(r'_infected_with_any_r_positive_', c)]
 
-        fig12, (ax12_vol, ax12_unw) = plt.subplots(1, 2, figsize=(FIG_W, FIG_H // 2 + 2))
+        fig12, (ax12_vol, ax12_unw, ax12_cal) = plt.subplots(1, 3, figsize=(FIG_W + 8, FIG_H // 2 + 2))
         fig12.suptitle(
             'Figure 12: Rise of Global Infection Drug Resistance Over Time',
             fontsize=14, fontweight='bold',
@@ -2047,16 +2111,24 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
 
         if anyr_cols and 'time_in_years' in df.columns:
             # Match each any_r_positive column with its infected denominator column.
-            numerator_cols = []
-            denominator_cols = []
+            pair_entries = []
             for col in anyr_cols:
-                bact_slug = col.split('_infected_with_any_r_positive_')[0]
+                bact_slug, drug_slug = col.split('_infected_with_any_r_positive_', 1)
                 denom_col = f'{bact_slug}_currently_infected'
                 if denom_col in df.columns:
-                    numerator_cols.append(col)
-                    denominator_cols.append(denom_col)
+                    pair_entries.append({
+                        'numerator_col': col,
+                        'denominator_col': denom_col,
+                        'bacteria_slug': bact_slug,
+                        'drug_slug': drug_slug,
+                        'canonical_bacteria_slug': _canonicalize_bacteria_slug(bact_slug),
+                        'normalized_drug_slug': _normalize_drug_slug(drug_slug),
+                    })
 
-            if numerator_cols:
+            if pair_entries:
+                numerator_cols = [entry['numerator_col'] for entry in pair_entries]
+                denominator_cols = [entry['denominator_col'] for entry in pair_entries]
+
                 # --- Volume-weighted metric ---
                 # Σ(resistant person-days) / Σ(infected person-days) across all pairs.
                 # Bacteria/drugs with many infections dominate — epidemiologically natural.
@@ -2064,17 +2136,99 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 total_infected  = sum_rows(denominator_cols)
                 vol_weighted_pct = safe_divide(total_resistant, total_infected) * 100.0
 
-                # --- Unweighted (pair-mean) metric ---
+                # --- Unweighted (pair-mean) metric over all modelled pairs ---
                 # For each bacteria–drug pair compute resistance % independently, then
                 # average across pairs. Every pair counts equally regardless of infection
                 # volume — highlights pairs where resistance is high even if infections are rare.
-                pair_pct_series = [
-                    safe_divide(df[n_col], df[d_col]) * 100.0
-                    for n_col, d_col in zip(numerator_cols, denominator_cols)
-                ]
-                # Stack into a frame and take the row-wise mean (NaN-safe)
-                pair_pct_frame = pd.concat(pair_pct_series, axis=1)
-                unweighted_pct = pair_pct_frame.mean(axis=1, skipna=True)
+                pair_pct_sum = pd.Series(0.0, index=df.index, dtype=float)
+                pair_pct_count = pd.Series(0.0, index=df.index, dtype=float)
+                for entry in pair_entries:
+                    pair_pct = pd.Series(
+                        safe_divide(df[entry['numerator_col']], df[entry['denominator_col']]) * 100.0,
+                        index=df.index,
+                    )
+                    valid_mask = pair_pct.notna()
+                    pair_pct_sum = pair_pct_sum.add(pair_pct.where(valid_mask, 0.0), fill_value=0.0)
+                    pair_pct_count = pair_pct_count.add(valid_mask.astype(float), fill_value=0.0)
+                unweighted_pct = pair_pct_sum.div(pair_pct_count.where(pair_pct_count > 0.0))
+
+                # --- Calibration-aligned unweighted metric ---
+                # Restrict to the same bacteria-drug combinations included in the calibration
+                # summary headline resistance metric so the time series can be compared directly
+                # to the snapshot value reported in calibration_summary.txt.
+                calibration_pair_entries = []
+                resistance_benchmark = get_resistance_benchmark_table(config)
+                if resistance_benchmark is not None:
+                    resistance_table = resistance_benchmark.get('data')
+                    if isinstance(resistance_table, pd.DataFrame) and not resistance_table.empty:
+                        eligible_rows = _filter_resistance_rows_for_fit(resistance_table)
+                        eligible_pairs = {
+                            (
+                                _canonicalize_bacteria_slug(_slugify_value(str(row.get('Bacteria', '')))),
+                                _normalize_drug_slug(str(row.get('Drug', ''))),
+                            )
+                            for _, row in eligible_rows.iterrows()
+                        }
+                        calibration_pair_entries = [
+                            entry
+                            for entry in pair_entries
+                            if (entry['canonical_bacteria_slug'], entry['normalized_drug_slug']) in eligible_pairs
+                        ]
+
+                calibration_summary_equivalent_pct = None
+                if calibration_pair_entries:
+                    # Mirror calibration_summary.py: use a primary one-year window for each
+                    # pair, but fall back to the expanded multi-year window when the primary
+                    # sample is missing or too sparse to be stable.
+                    primary_window_days = 365
+                    expanded_window_days = 365 * (
+                        max(0, int(getattr(config, 'calibration_window_years_before', 0)))
+                        + max(0, int(getattr(config, 'calibration_window_years_after', 0)))
+                        + 1
+                    )
+                    low_sample_threshold = 50.0
+                    calibration_sum = pd.Series(0.0, index=df.index, dtype=float)
+                    calibration_count = pd.Series(0.0, index=df.index, dtype=float)
+
+                    for entry in calibration_pair_entries:
+                        numerator_series = pd.to_numeric(df[entry['numerator_col']], errors='coerce')
+                        denominator_series = pd.to_numeric(df[entry['denominator_col']], errors='coerce')
+
+                        primary_num = numerator_series.rolling(
+                            window=primary_window_days,
+                            min_periods=1,
+                        ).sum()
+                        primary_den = denominator_series.rolling(
+                            window=primary_window_days,
+                            min_periods=1,
+                        ).sum()
+                        selected_pct = primary_num.div(primary_den.where(primary_den > 0.0)) * 100.0
+                        selected_den = primary_den
+
+                        if expanded_window_days > primary_window_days:
+                            expanded_num = numerator_series.rolling(
+                                window=expanded_window_days,
+                                min_periods=1,
+                            ).sum()
+                            expanded_den = denominator_series.rolling(
+                                window=expanded_window_days,
+                                min_periods=1,
+                            ).sum()
+                            expanded_pct = expanded_num.div(expanded_den.where(expanded_den > 0.0)) * 100.0
+
+                            needs_expanded = selected_pct.isna() | (selected_den < low_sample_threshold)
+                            use_expanded = needs_expanded & expanded_pct.notna() & (
+                                expanded_den > selected_den.fillna(0.0)
+                            )
+                            selected_pct = selected_pct.where(~use_expanded, expanded_pct)
+
+                        valid_mask = selected_pct.notna()
+                        calibration_sum = calibration_sum.add(selected_pct.where(valid_mask, 0.0), fill_value=0.0)
+                        calibration_count = calibration_count.add(valid_mask.astype(float), fill_value=0.0)
+
+                    calibration_summary_equivalent_pct = calibration_sum.div(
+                        calibration_count.where(calibration_count > 0.0)
+                    )
 
                 cal_year_fmt = plt.FuncFormatter(
                     lambda v, _: str(int(round(v + config.start_year)))
@@ -2107,12 +2261,12 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     ax12_vol.text(0.5, 0.5, 'No valid data', ha='center', va='center')
                     ax12_vol.set_axis_off()
 
-                # -- Right panel: unweighted pair mean --
+                # -- Middle panel: unweighted pair mean across all modelled pairs --
                 plotted_unw = plot_segmented_series(
                     ax12_unw,
                     series=unweighted_pct,
                     color='steelblue',
-                    label='Unweighted pair mean %',
+                    label='All-pair mean %',
                     min_year=1.0,
                     separate_policy_labels=True,
                 )
@@ -2120,7 +2274,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                     ax12_unw.xaxis.set_major_formatter(cal_year_fmt)
                     ax12_unw.set_xlabel('Calendar Year')
                     ax12_unw.set_ylabel('Infection Resistance (%)')
-                    ax12_unw.set_title('Unweighted pair mean\n(mean of per-pair resistance %, all pairs equal weight)')
+                    ax12_unw.set_title('Unweighted pair mean\n(all modelled bacteria-drug pairs)')
                     ax12_unw.set_ylim(bottom=0)
                     ax12_unw.legend()
                     ax12_unw.grid(True, alpha=0.3)
@@ -2133,8 +2287,46 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                 else:
                     ax12_unw.text(0.5, 0.5, 'No valid data', ha='center', va='center')
                     ax12_unw.set_axis_off()
+
+                # -- Right panel: calibration-aligned unweighted pair mean --
+                if calibration_summary_equivalent_pct is not None:
+                    plotted_cal = plot_segmented_series(
+                        ax12_cal,
+                        series=calibration_summary_equivalent_pct,
+                        color='seagreen',
+                        label='Calibration-summary equivalent %',
+                        min_year=1.0,
+                        already_smoothed=True,
+                        separate_policy_labels=True,
+                    )
+                    if plotted_cal:
+                        ax12_cal.xaxis.set_major_formatter(cal_year_fmt)
+                        ax12_cal.set_xlabel('Calendar Year')
+                        ax12_cal.set_ylabel('Infection Resistance (%)')
+                        ax12_cal.set_title('Calibration-summary equivalent\n(1y primary window, 4y fallback for sparse pairs)')
+                        ax12_cal.set_ylim(bottom=0)
+                        ax12_cal.legend()
+                        ax12_cal.grid(True, alpha=0.3)
+                        ax12_cal.text(
+                            0.01, 0.97,
+                            'Same pair filter and fallback logic as the calibration-summary headline metric',
+                            transform=ax12_cal.transAxes,
+                            fontsize=8, va='top', color='gray',
+                        )
+                    else:
+                        ax12_cal.text(0.5, 0.5, 'No valid data', ha='center', va='center')
+                        ax12_cal.set_axis_off()
+                else:
+                    ax12_cal.text(
+                        0.5,
+                        0.5,
+                        'Calibration benchmark pairs\nnot available',
+                        ha='center',
+                        va='center',
+                    )
+                    ax12_cal.set_axis_off()
             else:
-                for ax in (ax12_vol, ax12_unw):
+                for ax in (ax12_vol, ax12_unw, ax12_cal):
                     ax.text(0.5, 0.5,
                         'No matching infected columns found\n'
                         '(need {bacteria}_infected_with_any_r_positive_{drug}\n'
@@ -2142,7 +2334,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
                         ha='center', va='center')
                     ax.set_axis_off()
         else:
-            for ax in (ax12_vol, ax12_unw):
+            for ax in (ax12_vol, ax12_unw, ax12_cal):
                 ax.text(0.5, 0.5, 'Resistance or time data not available', ha='center', va='center')
                 ax.set_axis_off()
 
@@ -2150,7 +2342,7 @@ def create_grouped_plots(df, config=None, run_identifier: Optional[str] = None):
         figure_path = _grouped_figure_path(12, config, run_identifier)
         plt.savefig(figure_path, dpi=PLOT_DPI, bbox_inches=PLOT_BBOX)
         plt.close('all')
-        del fig12, ax12_vol, ax12_unw
+        del fig12, ax12_vol, ax12_unw, ax12_cal
         gc.collect()
         print(f"[OK] Grouped figure 12 saved as '{figure_path.name}'")
 

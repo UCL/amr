@@ -207,6 +207,7 @@ fn main() {
     // Only active when calibration_mode == CalibrationMode::None (full run).
     // List the policy IDs you want to run; comment out any you don't need.
     //
+    //   0 = Baseline continuation      (status quo carried forward to 2035)
     //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
     //   2 = AMR Counterfactual         (resistance cleared; models a world without AMR)
     //   3 = Perfect Diagnostics        (implausibly complete & immediate testing)
@@ -215,6 +216,7 @@ fn main() {
     // Policies are independent branches starting from POLICY_BRANCH_YEAR (2027);
     // they do not interact with each other.
     let active_policies: &[u8] = &[
+        0, // Baseline continuation
         1, // Stewardship
         2, // AMR counterfactual
         3, // Perfect diagnostics
