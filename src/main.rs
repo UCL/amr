@@ -15,6 +15,8 @@
 //
 // -- thoughts 1 (needed for paper) ---------------------------------------------------------------------------------
 //  
+// strep epidermidis + ?
+//
 // present a global antibiotic activity for each bacteria over time
 // - sum across drugs existing at the time of mean potency x (1 - any_r) amongst those infected with the bacteria
 // (do this by region ?)
@@ -148,11 +150,11 @@ fn main() {
 
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
-    let population_size = 1_000_000;
+    let population_size =    30_000;
     // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
     // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
-    let calibration_mode = CalibrationMode::Full;
+    let calibration_mode = CalibrationMode::None;
     // Calibration runs only need rows through the end of 2025.
     // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
     // Full run (policy branches to 2035) needs 38_325.
@@ -183,7 +185,7 @@ fn main() {
         seed_override,
         calibration_mode,
     );
-    let use_disk_branch_checkpointing = false; // Set to keep the branch checkpoint in memory
+    let use_disk_branch_checkpointing = calibration_mode == CalibrationMode::None;
     let disk_checkpoint_directory: Option<PathBuf> = None; // Override with Some(path) to specify a custom folder
 
     if use_disk_branch_checkpointing {

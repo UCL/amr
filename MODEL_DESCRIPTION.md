@@ -44,7 +44,7 @@ Antimicrobial resistance (AMR) — the ability of bacteria to survive antibiotic
 
 This model simulates the emergence and dynamics of AMR across a synthetic human population from **1930 to 2035**. The simulation starts in 1930 because that is before antibiotics were widely available; by beginning at that point, the model can reproduce the entire historical arc of antibiotic introduction, rising consumption, and the gradual accumulation of resistance that followed.
 
-The model tracks **42 bacterial species**, **61 antibiotics** (grouped into **39 internal drug classes**), and **44 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
+The model tracks **42 bacterial species**, **61 antibiotics** (grouped into **39 internal drug classes**), and **46 resistance mechanisms**. The population is distributed across **6 world regions** (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.
 
 We have written this description for readers whom we assume are already familiar with clinical microbiology, infectious diseases, and antimicrobial stewardship. Accordingly, we focus on the biological and clinical distinctions that are most important for interpreting policy experiments, while being explicit where broader host, laboratory, pharmacological, or ecological complexity has been collapsed into a smaller set of model states. That balance is deliberate: at this scope, an attempt to encode every clinically real nuance would make the model difficult to calibrate, difficult to interpret, and ultimately less useful for the policy questions it is intended to address.
 
@@ -431,11 +431,11 @@ The dilution factor is assigned by ecological category, reflecting the strength 
 
 | Category | Dilution range | Example bacteria | Rationale |
 |----------|---------------:|------------------|-----------|
-| Environmental / waterborne | 0.12–0.15 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition mostly from environmental sources, not circulating human strains |
-| Foodborne / animal-reservoir | 0.18–0.30 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | Zoonotic or food-chain origin; human-to-human resistance transfer is rare |
-| Healthcare-associated | 0.30–0.45 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance primarily amplified in hospitals; community strains are much more susceptible |
-| Endogenous flora / commensal | 0.40–0.50 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Commensal carriage means community strains partially reflect clinical resistance |
-| Obligate human pathogen / STI | 0.60–0.80 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission; community resistance closely tracks clinical observation |
+| Environmental / waterborne | 0.03 | *A. baumannii*, *Pseudomonas*, *Stenotrophomonas*, *Burkholderia*, *Legionella*, *V. cholerae* | Community acquisition is dominated by environmental exposure rather than the local human circulating pool |
+| Foodborne / mixed exogenous reservoir | 0.07–0.95 | *Campylobacter*, iNTS, *Yersinia*, *Listeria*, *S. Typhi*, *S. Paratyphi*, *Shigella* | The non-human or broad exogenous fraction remains important, but some organisms in this group are still largely human-maintained |
+| Healthcare-associated | 0.05–0.40 | *C. difficile*, *Enterobacter*, *Citrobacter*, *Serratia*, *Morganella*, *Proteus*, *P. stuartii*, *S. epidermidis*, *K. pneumoniae*, *E. faecium*, *E. faecalis* | Resistance is amplified in hospitals, so the community pool is materially more susceptible |
+| Endogenous flora / commensal | 0.60–0.80 | *E. coli*, *S. aureus*, *S. pneumoniae*, *B. fragilis*, *H. influenzae*, *H. pylori* | Community strains substantially reflect recent human ecology and carriage |
+| Obligate human pathogen / STI | 1.00 | *N. gonorrhoeae*, *Chlamydia*, *Mycoplasma*, *Treponema*, MDR-TB, *Bordetella* | Human-only transmission means the community pool is the human circulating pool |
 
 Per-bacteria values are calibrated within these ecological bands in the live configuration.
 
@@ -453,15 +453,21 @@ If the profile reservoir is empty for a given region × care setting × bacteria
 
 **Counterfactual gating.** Profile sampling is gated by the `counterfactual_resistance_multiplier`. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below `counterfactual_resistance_multiplier` (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.
 
-**Step 4 — Resistance floor enforcement**
+**Step 4 — Exogenous reseeding and extinction-guard floors**
 
-After profile sampling, for each drug in the model the code evaluates `calculate_resistance_floor(bacteria, drug, current_day)`. This function returns an effective floor level that ramps linearly from zero at drug-class introduction to the configured target over the organism's `ramp_years` window (see Section 7.5). If a Bernoulli draw with probability `floor_level ÷ max_resistance_level` succeeds, the model selects one applicable, non-placeholder resistance mechanism and sets it in `mechanism_any` and `mechanism_majority`. This ensures that even when the profile cache contains too few entries to sustain realistic prevalence (e.g., because the organism causes only a few thousand infections per year in a 1,000,000-person simulation), the newly acquired infection can still carry resistance at empirically grounded levels. The floor step is applied independently of the profile-cache step: if a profile was successfully sampled but happened not to contain a mechanism for a floored drug class, the floor can still fill that gap. Conversely, if the profile already set a mechanism for a drug class, the floor draw simply becomes redundant.
+After profile sampling, the model applies two distinct floor-style preservation mechanisms.
 
-**Floors only operate when a drug-class floor value is explicitly configured.** For any organism–drug-class combination where no `bacteria_{name}_{drug_class}_resistance_floor` parameter has been set, `calculate_resistance_floor` returns 0.0 and the step has no effect. Enabling the all-bacteria switch (`resistance_floor_all_bacteria_enabled = 1.0`) for an organism with no floor values configured is therefore completely safe — it activates the floor machinery but the effective floor is always zero. Only three organisms currently carry non-zero floor values in the default parameter map: *S. maltophilia*, *H. pylori*, and *E. faecium* (see Section 7.5). All other organisms are unaffected even when the all-bacteria switch is on.
+First, when a community acquisition falls into the **non-human / exogenous fraction** (`!from_human_reservoir`), the code rolls each mechanism against an effective floor equal to:
 
-**Causal correctness guard — the mechanism must already exist somewhere in the world.** Before the floor can assign a mechanism to a newly-infected individual, the model enforces a strict biological precondition: the mechanism must already have emerged at least once in the simulation. Concretely, the code checks that at least one currently stored resistance profile in the global `MechanismCache` (across all regions and both community and hospital strata) carries that mechanism's bitmask bit. If no such profile exists, the floor draw is skipped and no mechanism is assigned. This guard prevents the floor from conjuring a resistance mechanism into existence before any de novo evolutionary event has produced it — a scenario that would be causally impossible in the real world. The floor is therefore strictly a *propagation amplifier*: it sustains and stabilises the prevalence of a mechanism that is already circulating, it does not create one that has never been seen. In practice, for organisms with non-zero floor values, de novo emergence will have seeded the relevant mechanisms into the cache within the first years of the drug-class era, after which the guard permanently passes for that organism–mechanism pair for the remainder of the simulation.
+$$\text{effective floor} = \max(\text{environmental floor}, \text{ratchet floor})$$
 
-**Current status.** Both the master switch `resistance_floor_feature_enabled` and the convenience switch `resistance_floor_all_bacteria_enabled` are set to 1.0. The universal floor level `resistance_floor_default_level` is 0.01. Resistance floors are therefore active for all organisms at 1%, requiring no per-organism or per-drug-class parameters. Only those organisms for which a relevant mechanism has already emerged (causal guard) and whose drug class has been introduced will receive floor draws; all others are unaffected even with the switch on (see Section 7.5).
+The **environmental floor** is configured only for selected bacteria-mechanism pairs and represents resistance maintained outside the local human circulating pool, for example in agricultural, food-chain, wastewater, or other exogenous reservoirs (see Section 7.7). The parser also recognises `_coselection_floor` keys, intended for cross-organism gut co-selection, but no such keys are currently active in the default configuration. The **ratchet floor** is dynamic: once a low-cost mechanism has reached a threshold prevalence in the circulating pool, the exogenous pathway will not let it collapse below that threshold merely because current local prescribing has fallen (see Section 7.8).
+
+Second, independently of the exogenous floor path, the model evaluates `calculate_resistance_floor(bacteria, drug, current_day)`. In the current code this is a **universal 1% extinction guard**, not a per-organism ramped floor. If floors are enabled for the organism and the drug class has already been introduced, the function returns `resistance_floor_default_level` (currently 0.01). A successful Bernoulli draw then assigns one applicable non-placeholder mechanism and derives `any_r` from that mechanism. This guard exists to stop sparse organisms or rarely used drug classes from stochastically disappearing once they have genuinely entered global circulation.
+
+**Causal correctness guard — the mechanism must already exist somewhere in the world.** The 1% extinction guard can only assign a mechanism if that mechanism has already emerged somewhere in the simulation. Concretely, the code checks the global `MechanismCache` across all regions and both community and hospital strata. If the mechanism has never been seen, the floor draw is skipped. The guard therefore preserves circulating mechanisms; it does not create novel resistance before any de novo emergence has occurred.
+
+**Current status.** Both `resistance_floor_feature_enabled` and `resistance_floor_all_bacteria_enabled` are on, so the 1% extinction guard is active for all organisms once the relevant drug class exists and the mechanism has appeared somewhere in the world. On top of that universal guard, selected bacteria-mechanism pairs also receive explicit environmental floors, and low-reversion mechanisms can receive ratchet support through the exogenous pathway.
 
 **Step 5 — Scalar `any_r` derivation via mechanism propagation**
 
@@ -1569,30 +1575,30 @@ The multiplier can also be set **below 1.0** to slow community reversion for org
 
 ### 7.5 Resistance floors
 
-For certain organisms at 1,000,000-person population scale, the finite-number stochastic process can drive acquired resistance to zero between treatment events — an artefact of sparse sampling, not biology. The model provides an optional **resistance floor** mechanism to enforce a universal minimum resistance prevalence.
+At 1,000,000-person population scale, the finite-number stochastic process can occasionally drive a genuinely circulating mechanism to zero between treatment events simply because too few resistant infections happened to be sampled. The current model therefore keeps a small **universal extinction guard** separate from the larger environmental and ratchet persistence mechanisms described in Sections 7.7 and 7.8.
 
 | Parameter | Value | Function |
 |-----------|-------|----------|
 | `resistance_floor_feature_enabled` | 1.0 (on) | Master switch for the floor system |
 | `resistance_floor_all_bacteria_enabled` | 1.0 (on) | Enable floors for all bacteria simultaneously |
-| `resistance_floor_default_level` | 0.01 | Universal 1% extinction guard (see below) |
+| `resistance_floor_default_level` | 0.01 | Universal 1% extinction guard |
 | `bacteria_{name}_resistance_floor_enabled` | Per-organism | Per-species override when all-bacteria switch is 0.0 |
 
-**How the floor works — step by step.** Every time a person acquires an infection, the model runs the floor logic for each drug in sequence:
+**How the extinction guard works.** Every time a person acquires an infection, the model runs a simple four-step guard for each drug:
 
-1. **Compute effective floor.** `calculate_resistance_floor(bacteria, drug, current_day)` checks that (a) floors are enabled for this organism, and (b) the drug class was introduced before `current_day`. If both conditions are met it returns `resistance_floor_default_level` (0.01). No per-organism or per-drug-class values are involved.
+1. **Check whether the guard is live.** `calculate_resistance_floor(bacteria, drug, current_day)` checks that (a) floors are enabled for this organism, and (b) the drug class has already been introduced. If both conditions are met it returns `resistance_floor_default_level` (0.01).
 
-2. **Bernoulli draw — does this acquisition carry resistance?** `gen_bool(0.01 / max_resistance_level)` — with `max_resistance_level = 1.0`, this is simply `gen_bool(0.01)`. **1% of new acquisitions** for any organism pass this draw and enter the mechanism-assignment path.
+2. **Bernoulli draw — does this acquisition receive the guard?** With `max_resistance_level = 1.0`, the current implementation is simply `gen_bool(0.01)`. Around 1% of acquisitions enter the mechanism-assignment path.
 
-3. **Select a mechanism — subject to the causal correctness guard.** The code iterates through all resistance mechanisms applicable to that drug class for that organism. Each candidate must pass: **has it already emerged at least once somewhere in the simulation** (present in the global `MechanismCache` across all regions and both community and hospital strata)? If the mechanism has never appeared anywhere in the world, it is skipped. This is the causal correctness guard: the floor cannot conjure a resistance mechanism into existence before any de novo evolutionary event has produced it. The first mechanism that passes is then assigned with probability `mechanism_assignment_probability_on_any_r_gain = 0.8`; a single mechanism is sufficient and the loop breaks.
+3. **Select a mechanism — subject to the causal correctness guard.** The code iterates through applicable resistance mechanisms for that drug class and organism. A candidate is only eligible if it has already emerged somewhere in the global `MechanismCache`; otherwise it is skipped. Eligible candidates are then assigned with probability `mechanism_assignment_probability_on_any_r_gain = 0.8`, and one mechanism is sufficient.
 
-4. **Derive `any_r` from the mechanism.** The floor does **not** inject a resistance level directly. Instead, `propagate_mechanism_resistance()` computes `any_r` multiplicatively from the set mechanism bits using the mechanism's enhancement multipliers. So the 1% is a **prevalence probability** — the fraction of incoming infections that will carry *any* applicable resistance mechanism — not a resistance level. An infection that passes the floor draw will typically have a high `any_r` (reflecting the mechanism's enhancement multiplier, typically 0.8–0.95), while the 99% that fail the draw have whatever `any_r` emerged from profile-cache sampling via normal pathways.
+4. **Derive `any_r` from the mechanism.** The extinction guard does not inject a float resistance level directly. Instead, `propagate_mechanism_resistance()` converts the assigned mechanism into per-drug `any_r` using the same enhancement multipliers as every other resistance pathway.
 
-**Design principle — the floor is purely an extinction guard, not a calibration substitute.** The 1% value is chosen to be the smallest meaningful signal: enough to prevent stochastic extinction of a mechanism that genuinely circulates globally, but far too small to drive observed resistance prevalences on its own. All resistance above 1% must arise from de novo emergence, HGT, carriage, and profile-cache propagation. Setting the floor higher than ~1–2% would allow the floor to do calibration work that belongs to the emergence and selection mechanisms, which would compromise the interpretability of policy scenarios (particularly stewardship interventions, where the floor would pin resistance regardless of prescribing changes). Resistance floors are appropriate only for *acquired* resistance; intrinsic non-susceptibilities are encoded as near-zero `potency_when_no_r` values and are never eligible for floor assignment — the negligible-potency check in the mechanism-applicability precomputation prevents this.
+**Design principle — the guard is deliberately weak.** The 1% value is intended only to prevent stochastic extinction of a mechanism that already circulates globally. It is far too small to reproduce the observed prevalences of common resistance phenotypes by itself. Larger persistence effects are handled elsewhere: through profile-cache propagation, explicit environmental floors, and the ratchet.
 
-**Default configuration — all floors enabled at 1%.** With `resistance_floor_all_bacteria_enabled = 1.0` and `resistance_floor_default_level = 0.01`, every organism receives the 1% extinction guard for every drug class whose introduction date has passed. No per-organism parameters are needed.
+**Default configuration — all organisms receive the extinction guard.** With `resistance_floor_all_bacteria_enabled = 1.0` and `resistance_floor_default_level = 0.01`, every organism receives the 1% guard for each introduced drug class, subject to the causal correctness check.
 
-**Alternative configuration — floors disabled.** Setting `resistance_floor_all_bacteria_enabled` to 0.0 removes all floor enforcement. Resistance is then generated entirely bottom-up. This is the appropriate configuration for sensitivity analysis to isolate the contribution of the floor and to measure the upper bound on stewardship intervention efficacy.
+**Alternative configuration — guard disabled.** Setting `resistance_floor_all_bacteria_enabled` to 0.0 removes this universal extinction guard. Resistance is then generated and preserved entirely through bottom-up emergence, cache propagation, environmental floors, ratchet support, and microbiome pathways.
 
 **Stenotrophomonas maltophilia.** Intrinsic non-susceptibility to carbapenems, unprotected penicillins, 1st/2nd-generation cephalosporins, macrolides, and most aminoglycosides is encoded directly as near-zero potency values (`potency_when_no_r` ≤ 0.05). Those drug classes never qualify for floor assignment (negligible potency → mechanism not applicable). Acquired resistance to TMP-SMX, fluoroquinolones, and tetracyclines emerges through the standard treatment-selection pathway and receives the universal 1% floor like any other organism.
 
@@ -1745,61 +1751,36 @@ The table below summarises the currently configured cross-resistance groups used
 
 ---
 
-### 7.7 Environmental and Agricultural Resistance Floors
+### 7.7 Environmental and Exogenous Mechanism Floors
 
-For three organisms whose resistance epidemiology is primarily driven by agricultural antibiotic use — *Escherichia coli*, *Campylobacter jejuni*, and invasive non-typhoidal *Salmonella* spp. (NTS) — the model incorporates a dedicated *environmental resistance floor* mechanism. This is distinct from the de-novo emergence and clone-acquisition pathways that govern resistance for ESKAPE organisms and other hospital-associated pathogens.
+The model includes a dedicated family of **environmental / exogenous mechanism floors** that apply only to the non-human fraction of community acquisition. These are distinct from the universal 1% extinction guard in Section 7.5.
 
-**Motivation.** The model has no explicit animal population. Livestock and poultry carry enormous loads of antibiotic-resistant commensal bacteria — particularly tetracycline-resistant and ampicillin-resistant *E. coli* — that enter the human food chain through meat, produce, water, and environmental contamination. Approximately 70–80% of global tetracycline consumption and 50–60% of global ampicillin/penicillin consumption is veterinary and agricultural in origin (Van Boeckel TP et al., 2014; Van Boeckel TP et al., 2019). For *E. coli*, community tetracycline resistance rates of 35–45% globally, and ampicillin resistance rates of 40–60%, cannot be reproduced by human clinical selection pressure alone: even at saturation of clinical tetracycline prescribing, the model's human-only selection loop would reach only a fraction of observed resistance levels. Enrofloxacin (licensed for poultry in the EU ~1994, US 1995–2004) drove *Campylobacter* fluoroquinolone resistance from <1% to 40–50% within a decade in high-income countries — a trajectory that is unintelligible without an agricultural-reservoir term. Similarly, *Salmonella* multidrug resistance (DT104-type) emerged from livestock and reached humans through the food chain, not primarily through hospital transmission.
+**What they represent.** The environmental floors are used when resistance can be maintained outside the local human circulating pool. In the classic case, this means agricultural, food-chain, wastewater, or other exogenous reservoirs that keep resistance present even when direct human treatment of that bacterium is weak. In the current configuration they also cover a small number of explicitly modelled non-agricultural exogenous pathways, most notably the rifampicin `rpoB` floors discussed below.
 
-**Mechanism.** Each community infection acquisition is partitioned into two fractions by `community_resistance_dilution_factor` (see §7.1). The *diluted fraction* (`community_resistance_dilution_factor`) draws a resistance profile from the cached human population profile, representing human-to-human transmission and healthcare exposure. The *environmental fraction* (`1 − community_resistance_dilution_factor`) previously always returned a fully-susceptible profile, implicitly assuming all community-source acquisition comes from a pristine wild-type reservoir. The environmental floor replaces this assumption for the three relevant organisms: instead of unconditionally returning susceptible, the model rolls each resistance mechanism independently against a per-mechanism probability that represents the background prevalence of that mechanism in the livestock/food-chain/water reservoir.
+**Where they act.** Each community acquisition is split by `community_resistance_dilution_factor` into a human-circulating fraction and an exogenous fraction. If the infection is drawn from the exogenous fraction, the model rolls each mechanism independently against the configured floor probability for that bacteria-mechanism pair. The same logic also operates when non-hospital community carriage is acquired.
 
-The same floor is also applied to the community microbiome acquisition pathway: when a non-hospitalised individual's microbiome is updated and the random draw falls in the environmental fraction, each mechanism is again rolled against its floor probability.
-
-The floor probabilities are parameterised by a new family of configuration keys:
+**How they are configured.** These floors use the keys:
 
 ```
 bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor
 bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 ```
 
-The `_before_{YYYY}` variants support time-varying floors, allowing the model to reproduce the historical trajectory of resistance in the agricultural reservoir. For example, fluoroquinolone resistance in *Campylobacter* is zero before enrofloxacin licensing (~1993–1994) and rises rapidly thereafter; tetracycline resistance in *E. coli* builds gradually from 1950 as agricultural tetracycline use expanded.
+Era-specific `_before_{YYYY}` overrides allow the exogenous reservoir to change through time. The parser also recognises `_coselection_floor` and `_coselection_floor_before_{YYYY}` keys for potential cross-organism gut co-selection, but there are no active entries with those suffixes in the default configuration.
 
-**Equilibrium relationship.** At steady state, the resistance cache for a given bacteria × mechanism pair satisfies approximately:
+**Which organisms currently use them.** The live configuration now contains explicit environmental-floor entries for:
 
-$$f_\text{cache} \approx f_\text{floor} + \frac{\varepsilon_\text{human}}{1 - D}$$
+1. Agricultural or food-chain dominated organisms: *Escherichia coli*, *Campylobacter jejuni*, and invasive non-typhoidal *Salmonella* spp.
+2. Globally circulating MDR-plasmid support in *Shigella* spp., where the exogenous fraction helps preserve historically established resistant clone backbones.
+3. A broader `rpoB` block representing rifampicin-associated bystander or exogenous maintenance pathways for a wider set of organisms, including several Enterobacterales and selected respiratory or enteric pathogens.
 
-where $D$ is the community dilution factor, $\varepsilon_\text{human}$ is the net human-clinical selection contribution per day, and $f_\text{floor}$ is the environmental floor probability. The floor therefore acts as the primary equilibrium attractor for agricultural-reservoir organisms; human clinical selection adds a smaller increment on top. Floor values are deliberately set slightly below the calibration target to leave room for this human-clinical contribution.
-
-**Covered organism × mechanism combinations.** The following table lists all bacteria × mechanism pairs for which a non-zero environmental floor is currently configured, together with the evidence basis for each assignment.
-
-| Organism | Mechanism | Modern floor | Basis |
-|---|---|---|---|
-| *E. coli* | TetM/O ribosomal protection | 0.30 | ~35–40% community tet-R globally; dominated by livestock tet use; tet(M) on Tn916-family conjugative transposons spread widely in agricultural *E. coli* |
-| *E. coli* | TetA/B/C efflux | 0.22 | ~25–30% community *E. coli* carry plasmid efflux genes; co-selected with tet(M) in Gram-negatives |
-| *E. coli* | TEM-1 β-lactamase (enzyme_bla_z) | 0.38 | ~40–50% community ampicillin-R in *E. coli*; TEM-1 spread via conjugative plasmids through poultry/livestock pool; de-novo emergence rate is 0 so floor is the only source |
-| *E. coli* | GyrA primary mutation | 0.10 | ~10–15% agricultural-reservoir FQ-R; enrofloxacin use in livestock post-1994 selected commensal *E. coli* gyrA mutants that enter the food chain |
-| *C. jejuni* | GyrA primary mutation | 0.42 | ~40–50% FQ-R in EU/UK community *Campylobacter*; almost entirely from poultry enrofloxacin; floor rises from 0 before 1993 to 10% by 2005 to 42% modern |
-| *C. jejuni* | GyrA+ParC secondary mutation | 0.15 | ~15% high-level FQ-R (dual gyrA or gyrA+parC); subset of the primary FQ-R pool |
-| *C. jejuni* | TetO ribosomal protection | 0.45 | ~50–60% tet-R in poultry *Campylobacter*; tet(O) on conjugative plasmids; driven by decades of livestock tetracycline prophylaxis |
-| *NTS Salmonella* | TetM/TetB ribosomal protection | 0.22 | ~25–30% tet-R in NTS globally; DT104 pentaresistant clone carried tet-R genes from the livestock reservoir |
-| *NTS Salmonella* | TEM-1 β-lactamase | 0.18 | ~15–25% amp-R in invasive NTS; plasmid-borne TEM-1 from livestock β-lactam use |
-| *Shigella* spp. | GyrA primary mutation | 0.45 (2025); 0.30 (2000–2010); 0.10 (1990–2000); 0.02 (1963–1990); 0 pre-1963 | FQ resistance acquired from IncFII/IncI R-plasmid backgrounds seeded by nalidixic acid use 1963–1990; ciprofloxacin first-line 1990–2010 drove further selection; post-2010 de-listing has not reduced prevalence due to globally circulating resistant clones |
-| *Shigella* spp. | TetM/TetO ribosomal protection | 0.22 (modern); 0.15 (pre-1995); 0.06 (pre-1975); 0 pre-1955 | Tet-R characteristic of the 1970s–1990s IncFII MDR plasmid (SHI-1 and related elements); selects in livestock and persists in circulating Shigella clones |
-| *Shigella* spp. | TetA/B/C efflux | 0.22 (modern); 0.15 (pre-1995); 0.06 (pre-1975); 0 pre-1955 | Gram-negative tet efflux genes co-located on the same plasmid backbones as TetM |
-| *Shigella* spp. | Folate pathway (sul/dfrA) | 0.26 (modern); 0.18 (pre-1995); 0.08 (pre-1975); 0 pre-1938 | Sulfonamides were the dominant dysentery treatment 1938–1965; resistance accumulated globally and persists due to co-selection by other agents on MDR plasmids |
-| *Shigella* spp. | AAC/APH aminoglycoside-modifying enzymes | 0.22 (modern); 0.14 (pre-1995); 0.04 (pre-1975); 0 pre-1943 | AG-modifying enzymes encoded on IncFII resistance cassettes; streptomycin use from 1943 onward selected and co-propagated these genes |
-| *Shigella* spp. | CAT (chloramphenicol acetyltransferase) | 0.28 (modern); 0.20 (pre-1995); 0.08 (pre-1975); 0 pre-1950 | Chloramphenicol was used for dysentery in LMIC from ~1950; CAT genes became characteristic components of the DT-104–analogous Shigella MDR plasmid |
-| *Shigella* spp. | ErmB | 0.20 (modern); 0.10 (pre-2015); 0.03 (pre-2005); 0 pre-1952 | Macrolide resistance emerging more recently in azithromycin-treated Shigella; erm(B) on conjugative transposons |
-| *Shigella* spp. | MphA macrolide phosphotransferase | 0.22 (modern); 0.10 (pre-2015); 0.02 (pre-2005); 0 pre-1991 | mphA plasmid-borne; expanding in azithromycin-first-line era post-2010; independently confers high-level azithromycin resistance (distinct mechanism from ErmB) |
-| *Shigella* spp. | Polymyxin regulatory | 0.16 (modern); 0.06 (pre-2010); 0.01 (pre-1990); 0 pre-1945 | Chromosomal colistin resistance emerging in XDR Shigella; lower floor reflects recent emergence rather than classical plasmid background |
-
-No environmental floor is applied to hospital-associated pathogens (ESKAPE organisms, *Klebsiella*, *Pseudomonas*, *Acinetobacter*, *Enterococcus*), to mechanisms for which there is no agricultural-use pathway (vancomycin, carbapenems, linezolid), or to organisms whose resistance epidemiology is primarily nosocomial or human-to-human (typhoidal *Salmonella*, *N. gonorrhoeae*).
+So while the original motivation was agricultural resistance ecology, the live implementation is broader: it now represents any explicitly parameterised exogenous pathway that should continue to reseed resistance even when the local human profile cache alone would be insufficient.
 
 ---
 
 ### 7.8 Dynamic ratchet floor
 
-**Motivation.** The community profile cache has a ~6.6-day half-life, which means resistance patterns built up over decades of antibiotic selection are continuously replaced by profiles circulating right now. When drug selection pressure is removed — for example, ciprofloxacin was de-listed as first-line Shigella therapy after ~2010 — the cache-based prevalence of fluoroquinolone resistance would decline toward zero within days, even though real-world surveillance shows no meaningful susceptibility rebound. The static environmental floors (Section 7.7) provide one mechanism to prevent this collapse, but they require manually calibrating floor values to match current-era surveillance targets, creating a circular dependency: the floor does calibration work that should belong to the emergence and selection mechanisms.
+**Motivation.** The community profile cache has a short half-life, so without an additional persistence mechanism the model would tend to "forget" historically established resistance once current selection pressure fell. The ratchet addresses a different problem from the environmental floor: it represents mechanisms that have already become established in the human circulating pool and remain there because the biological cost of carrying them is low, or because effective reversion is very weak.
 
 **Design principle.** A dynamic ratchet applies a floor that is *self-calibrating from the simulation's own history*: for any mechanism that has reached threshold prevalence X% in the circulating pool and that has negligible fitness cost (low reversion rate), the model prevents prevalence from falling below X%. The biological justification is well-established: once a low-fitness-cost resistance gene has spread to X%, co-selection pressure from other drugs on the same plasmid, ecological persistence in wastewater and soil, and ongoing HGT ensure it cannot decline below X% in the globally circulating strain pool — regardless of whether the originally selecting drug is still prescribed. The canonical examples are integron-borne *sul1* genes (which have not declined despite 60 years of reduced sulfonamide use) and chromosomal *gyrA* mutations in *N. gonorrhoeae* (no susceptibility rebound in 15 years since FQ withdrawal from GC guidelines).
 
@@ -1811,14 +1792,14 @@ $$\text{effective\_floor} = \max(\text{static\_floor}, \text{ratchet\_floor})$$
 
 where:
 
-$$\text{ratchet\_floor} = \begin{cases} 0 & \text{if reversion\_rate} > 0.001 \text{ /day} \\ \lfloor \text{peak\_prev} / 0.10 \rfloor \times 0.10 & \text{otherwise} \end{cases}$$
+$$\text{ratchet\_floor} = \begin{cases} 0 & \text{if reversion\_rate} > 0.003 \text{ /day} \\ \lfloor \text{peak\_prev} / 0.10 \rfloor \times 0.10 & \text{otherwise} \end{cases}$$
 
 capped at 0.50. The step-function (rounding peak down to the nearest 10%) means the ratchet only engages at defined thresholds: a peak of 12% yields a 10% floor, a peak of 23% yields a 20% floor, and so on. This prevents the floor from locking to a noisy transient spike; the floor can only advance in 10% increments as the peak passes each threshold.
 
-**Eligibility gate — reversion rate ≤ 0.001/day.** The ratchet only applies to mechanisms whose fitness cost is low enough that no real-world force is driving them back below their peak. Table 7.4 shows that most chromosomal point mutations (gyrA, folate pathway), plasmid-borne efflux genes (TetA/B/C, AcrAB-TolC), and enzymes like MphA and AAC/APH have reversion rates at or below 0.001/day and are therefore ratchet-eligible. High-fitness-cost mechanisms like VanA/VanB (0.002/day), ErmB (0.002/day), and RpoB (0.002/day) are ineligible — for these, genuine susceptibility recovery is plausible when selection pressure is removed, and the ratchet should not prevent it.
+**Eligibility gate — reversion rate ≤ 0.003/day.** In the current code the ratchet applies to mechanisms with reversion rates up to 0.003/day. This still restricts the ratchet to mechanisms whose persistence is biologically plausible, but it is broader than the earlier ultra-conservative ≤0.001/day rule and now includes some modest-cost mechanisms such as `rpoB` when the model is asked to represent historically entrenched persistence.
 
-| Mechanism | Reversion rate | Ratchet-eligible? |
-|-----------|---------------|-------------------|
+| Mechanism | Reversion rate | Ratchet-eligible in current code? |
+|-----------|---------------|-----------------------------------|
 | GyrA primary (*gyrA*) | 0.0001/day | ✓ |
 | GyrA+ParC secondary | 0.0002/day | ✓ |
 | Qnr | 0.0001/day | ✓ |
@@ -1831,10 +1812,12 @@ capped at 0.50. The step-function (rounding peak down to the nearest 10%) means 
 | Folate pathway (sul/dfrA) | 0.0001/day | ✓ |
 | AAC/APH | ~0.0001/day | ✓ |
 | MphA | ~0.0001/day | ✓ |
-| Polymyxin regulatory | 0.0015/day | ✗ (borderline) |
-| ErmB | 0.002/day | ✗ |
-| VanA/VanB | 0.002/day | ✗ |
-| RpoB | 0.002/day | ✗ |
+| Polymyxin regulatory | 0.0015/day | ✓ |
+| ErmB | 0.002/day | ✓ |
+| VanA/VanB | 0.002/day | ✓ |
+| RpoB | 0.002/day | ✓ |
+
+In conceptual terms, the environmental floor is the model's way of saying "resistance keeps being fed in from outside the local human reservoir," whereas the ratchet is the model's way of saying "earlier human-era build-up has become hard to unwind because the mechanism is now effectively persistent."
 
 **Relationship to static floors.** The static environmental floors (Section 7.7) serve as *historical warm-up seeds* for the 1938–1980 period when MDR plasmids were being assembled and disseminated globally — a phase when the 6.6-day community cache would never retain those profiles long enough to accumulate a realistic reservoir from scratch within the simulation's first-principles pathway. The ratchet then takes over from ~1985 onward: once nalidixic acid and first-generation FQ selection have built the relevant mechanism prevalences to 10%+ in the profile cache (which the era-appropriate drug pressure ensures), the ratchet prevents reversion after drug class de-listing. In practice the `max()` combination means whichever is higher governs; for the current-era Shigella FQ floor (0.45), the ratchet will sustain a 40% floor once the cache reaches 40%+ peak, while the static 0.45 component bridges the remaining gap if that peak has not yet been achieved.
 
@@ -2134,7 +2117,7 @@ Several of the appendices that follow list exact configuration values and enum d
 
 8. **No explicit modelling of Neisseria gonorrhoeae incidence decline**: Gonorrhoea incidence in high-income countries was approximately 3-fold higher in the 1960s–1970s than in the present day, before sexual health programmes, contact tracing, and partner notification services substantially reduced transmission. The model uses current-era acquisition rates throughout the simulation for *N. gonorrhoeae*, which means the absolute volume of penicillin and tetracycline treatment in the 1960s–1970s — the era that seeded the early resistance layers — is underestimated. The large `before_1987` era-override initiation multipliers applied to penicillin and tetracycline for gonorrhoea provide partial compensation by amplifying drug-pressure intensity during that period, but they do not fully reconstruct the higher treated-patient volume of the earlier era. Resistance trajectories for *N. gonorrhoeae* should therefore be interpreted as reflecting the qualitative direction and timing of resistance emergence rather than an exact quantitative reconstruction of historical gonorrhoea epidemiology.
 
-9. **Agricultural co-selection modelled as a calibration surrogate, not a mechanistic animal model**: The environmental resistance floor (§7.7) approximates the contribution of livestock and food-chain reservoirs to community resistance in *E. coli*, *Campylobacter jejuni*, and non-typhoidal *Salmonella*. It does so by applying a background probability to the environmental fraction of community acquisitions, rather than by explicitly modelling an animal population, zoonotic transmission pathways, or food-chain contamination dynamics. The floor values are calibrated approximations derived from surveillance data on community resistance prevalence, not direct measurements of animal-reservoir resistance levels. In particular: (a) the model uses globally averaged floor values and does not capture regional variation in agricultural antibiotic consumption (e.g., the US enrofloxacin ban in poultry from 2004 vs. continued use in other countries); (b) the floor does not respond to interventions targeting veterinary antibiotic use within the simulation — a policy that reduces agricultural tetracycline consumption would not reduce the *E. coli* tet floor without manual parameter adjustment; and (c) the temporal trajectories of the floors are modelled as step-function era overrides rather than continuous functions of agricultural use intensity. These are deliberate simplifications to avoid adding an explicit animal population sub-model, which would require extensive additional parameterisation and calibration while being peripheral to the policy questions (prescribing, diagnostics, stewardship, access) that this model is designed to address.
+9. **Exogenous resistance reservoirs are approximated rather than explicitly modelled**: The environmental/exogenous floor system (§7.7) applies background mechanism probabilities to the non-human fraction of community acquisition instead of explicitly simulating livestock populations, wastewater ecology, food-chain contamination, or other external reservoirs. In the current configuration this includes both classic agricultural pathways and a few explicitly parameterised non-agricultural exogenous pathways such as the rifampicin `rpoB` block. The floor values are therefore calibrated surrogates rather than direct measurements of source-reservoir prevalence. They can encode historically realistic persistence, but they do not respond endogenously to interventions targeted at those outside-human reservoirs unless the corresponding parameters are changed.
 
 ---
 
@@ -6390,7 +6373,7 @@ Under the default parameter map below, vaccination is active. Coverage ramps lin
 
 ### B.10 Resistance Mechanisms
 
-Parameters for the 44 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
+Parameters for the 46 resistance mechanisms modelled. Each mechanism has a per-day reversion rate, per-drug-class enhancement multipliers, and per-bacteria emergence rates.
 
 See: [§7.1 Resistance mechanisms](#71-resistance-mechanisms), [§7.2 Mechanism–drug-class enhancement](#72-mechanismdrug-class-enhancement-multipliers), [§7.3 Resistance emergence](#73-resistance-emergence), [§7.4 Resistance reversion](#74-resistance-reversion-and-fitness-costs).
 
