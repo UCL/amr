@@ -819,19 +819,25 @@ impl JourneyLogger {
             .collect();
 
         // Collect resistance sources for primary bacteria
-        let resistance_sources: Vec<(String, String)> = DRUG_SHORT_NAMES
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, &drug_name)| {
-                if let Some(acquisition_type) =
-                    &individual.how_resistance_acquired[primary_bacteria_idx][idx]
-                {
-                    Some((drug_name.to_string(), acquisition_type.as_str().to_string()))
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let resistance_sources: Vec<(String, String)> = if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+            DRUG_SHORT_NAMES
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, &drug_name)| {
+                    if let Some(acquisition_type) =
+                        &individual.how_resistance_acquired[primary_bacteria_idx][idx]
+                    {
+                        Some((drug_name.to_string(), acquisition_type.as_str().to_string()))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            // Provenance tracking is disabled for memory-saving calibration runs, so
+            // journey logs intentionally emit no resistance source labels.
+            Vec::new()
+        };
 
         // Collect drug selection information if available
         let (drug_selection_bacteria, drug_selection_scores, selected_drug) = if individual
@@ -1214,6 +1220,12 @@ impl JourneyLogger {
         };
 
         const RESISTANCE_EPSILON: f64 = 1e-6;
+
+        if !crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+            // Provenance tracking is disabled for memory-saving calibration runs, so
+            // journey logs cannot classify de novo/HGT source labels.
+            return false;
+        }
 
         // Focus on the primary bacteria
         for (drug_idx, acquisition_type_opt) in individual.how_resistance_acquired

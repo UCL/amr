@@ -314,6 +314,12 @@ impl ResistanceAcquisitionType {
     }
 }
 
+// Memory-saving switch: disable dense per-person provenance tracking for resistance
+// acquisition. This bookkeeping is mainly explanatory/journey metadata rather than a
+// core driver of resistance biology, so we keep the types in place but leave the data
+// unallocated until we decide to restore it.
+pub const TRACK_RESISTANCE_ACQUISITION_PROVENANCE: bool = false;
+
 /// Tracks how an infection was resolved (why it ended)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InfectionResolutionType {
@@ -1804,11 +1810,17 @@ impl Individual {
         let mechanism_any = vec![0u64; num_bacteria];
         let mechanism_majority = vec![0u64; num_bacteria];
         let mechanism_microbiome = vec![0u64; num_bacteria];
-        // Initialize how_resistance_acquired (all None initially)
-        let mut how_resistance_acquired = Vec::with_capacity(num_bacteria);
-        for _ in 0..num_bacteria {
-            how_resistance_acquired.push(vec![None; num_drugs]);
-        }
+        // Memory-saving mode: keep the field for reversibility, but do not allocate the
+        // dense [bacteria][drug] provenance matrix while provenance tracking is disabled.
+        let how_resistance_acquired = if TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+            let mut how_resistance_acquired = Vec::with_capacity(num_bacteria);
+            for _ in 0..num_bacteria {
+                how_resistance_acquired.push(vec![None; num_drugs]);
+            }
+            how_resistance_acquired
+        } else {
+            Vec::new()
+        };
 
         // Initialize infection_resolution_this_timestep (all zeros initially)
         let mut infection_resolution_this_timestep = Vec::with_capacity(num_bacteria);

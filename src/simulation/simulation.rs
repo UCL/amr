@@ -143,7 +143,10 @@ impl SummaryContentFlags {
         SummaryContentFlags {
             per_bacteria: true,
             microbiome: true,
-            regional: true,
+            // Calibration runs keep the infection-focused summaries but drop regional
+            // breakdowns to reduce resident summary memory. Non-calibration modes still
+            // retain the full regional outputs.
+            regional: false,
             syndrome: false,
             resolution: false,
             testing: true,
@@ -4267,7 +4270,11 @@ impl Simulation {
                     resistance.activity_r = 0.0;
                     resistance.microbiome_r = 0.0;
                     resistance.test_r = 0.0;
-                    individual.how_resistance_acquired[b_idx][d_idx] = None;
+                    // Provenance bookkeeping is disabled for memory-saving calibration
+                    // runs, so there may be no dense provenance matrix to clear here.
+                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                        individual.how_resistance_acquired[b_idx][d_idx] = None;
+                    }
                 }
 
                 if b_idx < individual.mechanism_any.len() {

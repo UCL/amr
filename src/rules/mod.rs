@@ -5238,21 +5238,24 @@ pub(crate) fn apply_rules(
                     // mechanism enhancement multipliers.
                     let _ = profile_sampled; // used for documentation; propagation handles everything
 
-                    // For each drug, record acquisition provenance if mechanisms were set
-                    for drug_name_static in DRUG_SHORT_NAMES.iter() {
-                        let d_idx = *drug_indices.get(drug_name_static).unwrap();
-                        // Check if any mechanism applicable to this drug is now set
-                        let has_any_relevant_mechanism = ResistanceMechanism::all()
-                            .iter()
-                            .enumerate()
-                            .any(|(m, _)| {
-                                individual.has_any_mechanism(b_idx, m)
-                                    && param_cache.mechanism_applicable(m, b_idx, d_idx)
-                            });
-                        if has_any_relevant_mechanism {
-                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
-                            );
+                    // Provenance bookkeeping disabled for memory-saving runs: keep the
+                    // underlying biology, but do not store dense per-drug source labels.
+                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                        for drug_name_static in DRUG_SHORT_NAMES.iter() {
+                            let d_idx = *drug_indices.get(drug_name_static).unwrap();
+                            // Check if any mechanism applicable to this drug is now set
+                            let has_any_relevant_mechanism = ResistanceMechanism::all()
+                                .iter()
+                                .enumerate()
+                                .any(|(m, _)| {
+                                    individual.has_any_mechanism(b_idx, m)
+                                        && param_cache.mechanism_applicable(m, b_idx, d_idx)
+                                });
+                            if has_any_relevant_mechanism {
+                                individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                    crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
+                                );
+                            }
                         }
                     }
 
@@ -5291,9 +5294,12 @@ pub(crate) fn apply_rules(
                                 if rng.gen_bool(mechanism_prob) {
                                     individual.set_any_mechanism(b_idx, mech_idx);
                                     individual.set_majority_mechanism(b_idx, mech_idx);
-                                    individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                        crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
-                                    );
+                                    // Provenance bookkeeping disabled for memory-saving runs.
+                                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                                        individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                            crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
+                                        );
+                                    }
                                     break; // one mechanism sufficient for floor
                                 }
                             }
@@ -5337,7 +5343,10 @@ pub(crate) fn apply_rules(
                                 individual.set_any_mechanism(b_idx, mech_idx);
                                 individual.set_majority_mechanism(b_idx, mech_idx);
                             }
-                            individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
+                            // Provenance bookkeeping disabled for memory-saving runs.
+                            if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                                individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
+                            }
                             // Re-derive any_r from the newly set mechanisms
                             propagate_mechanism_resistance(
                                 individual,
@@ -5383,14 +5392,16 @@ pub(crate) fn apply_rules(
                                     true,  // raise_only: don't lower existing resistance
                                     false, // propagate_microbiome_r: this is infection context
                                 );
-                                // Track provenance for drugs that now have resistance
-                                for d_idx in 0..DRUG_SHORT_NAMES.len() {
-                                    if individual.resistances[b_idx][d_idx].any_r > 0.0
-                                        && individual.how_resistance_acquired[b_idx][d_idx].is_none()
-                                    {
-                                        individual.how_resistance_acquired[b_idx][d_idx] = Some(
-                                            crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR,
-                                        );
+                                // Provenance bookkeeping disabled for memory-saving runs.
+                                if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                                    for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                                        if individual.resistances[b_idx][d_idx].any_r > 0.0
+                                            && individual.how_resistance_acquired[b_idx][d_idx].is_none()
+                                        {
+                                            individual.how_resistance_acquired[b_idx][d_idx] = Some(
+                                                crate::simulation::population::ResistanceAcquisitionType::FromMicrobiomeR,
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -5855,7 +5866,10 @@ pub(crate) fn apply_rules(
                                 resistance_data.test_r = 0.0;
                                 resistance_data.activity_r = 0.0;
                                 resistance_data.any_r = 0.0;
-                                individual.how_resistance_acquired[b_idx][drug_index] = None;
+                                // Provenance bookkeeping disabled for memory-saving runs.
+                                if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                                    individual.how_resistance_acquired[b_idx][drug_index] = None;
+                                }
                             }
                         }
                     }
@@ -6022,7 +6036,10 @@ pub(crate) fn apply_rules(
                     let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
                     resistance_data.any_r = 0.0;
                     resistance_data.activity_r = 0.0;
-                    individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
+                    // Provenance bookkeeping disabled for memory-saving runs.
+                    if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                        individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
+                    }
                 }
                 // Clear mechanism booleans on infection clearance
                 individual.clear_infection_mechanisms(b_idx);
@@ -6264,14 +6281,16 @@ pub(crate) fn apply_rules(
                             true,  // propagate_microbiome_r — update microbiome too
                         );
 
-                        // Record HGT acquisition for drugs that gained new any_r
-                        for drug_idx in 0..DRUG_SHORT_NAMES.len() {
-                            if individual.resistances[recipient_idx][drug_idx].any_r > 0.0
-                                && individual.how_resistance_acquired[recipient_idx][drug_idx]
-                                    .is_none()
-                            {
-                                individual.how_resistance_acquired[recipient_idx][drug_idx] =
-                                    Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
+                        // Provenance bookkeeping disabled for memory-saving runs.
+                        if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
+                            for drug_idx in 0..DRUG_SHORT_NAMES.len() {
+                                if individual.resistances[recipient_idx][drug_idx].any_r > 0.0
+                                    && individual.how_resistance_acquired[recipient_idx][drug_idx]
+                                        .is_none()
+                                {
+                                    individual.how_resistance_acquired[recipient_idx][drug_idx] =
+                                        Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
+                                }
                             }
                         }
                     }
