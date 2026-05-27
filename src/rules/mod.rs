@@ -113,6 +113,25 @@ lazy_static! {
         .collect();
 }
 
+fn sample_weighted_index(weights: &[f64], rng: &mut impl Rng) -> Option<usize> {
+    if weights.is_empty() {
+        return None;
+    }
+
+    let total_weight: f64 = weights.iter().sum();
+    if !(total_weight > 0.0 && total_weight.is_finite()) {
+        return None;
+    }
+
+    match WeightedIndex::new(weights) {
+        Ok(dist) => Some(dist.sample(rng)),
+        Err(err) => {
+            log::warn!("skipping invalid weighted selection: {}", err);
+            None
+        }
+    }
+}
+
 // =====================================================================================
 // CONSTANTS
 // =====================================================================================
@@ -395,8 +414,9 @@ fn propagate_mechanism_resistance(
                 continue;
             }
 
-            let has_any = individual.mechanism_any[b_idx][mechanism_idx];
-            let has_microbiome = propagate_microbiome_r && individual.mechanism_microbiome[b_idx][mechanism_idx];
+            let has_any = individual.has_any_mechanism(b_idx, mechanism_idx);
+            let has_microbiome =
+                propagate_microbiome_r && individual.has_microbiome_mechanism(b_idx, mechanism_idx);
 
             if !has_any && !has_microbiome {
                 continue;
@@ -445,6 +465,126 @@ fn propagate_mechanism_resistance(
             }
         }
     }
+}
+
+#[inline]
+fn mechanism_idx(target: ResistanceMechanism) -> usize {
+    ResistanceMechanism::all()
+        .iter()
+        .position(|&mechanism| mechanism == target)
+        .expect("mechanism must exist in ResistanceMechanism::all()")
+}
+
+fn apply_staph_aureus_lineage_enrichment<R: Rng + ?Sized>(
+    individual: &mut Individual,
+    b_idx: usize,
+    mechanism_cache: &MechanismCache,
+    is_hospital_acquired: bool,
+    rng: &mut R,
+) -> bool {
+    let store = parameter_store();
+    if !store.globals.staph_aureus_lineage_enrichment_enabled {
+        return false;
+    }
+    if BACTERIA_LIST[b_idx] != "staphylococcus_aureus" {
+        return false;
+    }
+
+    let mec_a_idx = mechanism_idx(ResistanceMechanism::TargetSitePbp2aMecA);
+    if !individual.has_any_mechanism(b_idx, mec_a_idx) {
+        return false;
+    }
+
+    let hospital_multiplier = if is_hospital_acquired {
+        store
+            .globals
+            .staph_aureus_lineage_enrichment_hospital_multiplier
+            .max(0.0)
+    } else {
+        1.0
+    };
+
+    let maybe_add = |individual: &mut Individual,
+                     mechanism_cache: &MechanismCache,
+                     mechanism: ResistanceMechanism,
+                     base_probability: f64,
+                     rng: &mut R|
+     -> bool {
+        let mech_idx = mechanism_idx(mechanism);
+        if individual.has_any_mechanism(b_idx, mech_idx) {
+            return false;
+        }
+        if !mechanism_cache.mechanism_has_ever_emerged_globally(b_idx, mech_idx) {
+            return false;
+        }
+        let probability = (base_probability * hospital_multiplier).clamp(0.0, 1.0);
+        if probability <= 0.0 || !rng.gen_bool(probability) {
+            return false;
+        }
+        individual.set_any_mechanism(b_idx, mech_idx);
+        individual.set_majority_mechanism(b_idx, mech_idx);
+        true
+    };
+
+    let mut enriched = false;
+    enriched |= maybe_add(
+        individual,
+        mechanism_cache,
+        ResistanceMechanism::EnzymeBlaZ,
+        store.globals.staph_aureus_lineage_enrichment_bla_z_probability,
+        rng,
+    );
+    enriched |= maybe_add(
+        individual,
+        mechanism_cache,
+        ResistanceMechanism::TargetSiteErmB,
+        store.globals.staph_aureus_lineage_enrichment_erm_b_probability,
+        rng,
+    );
+    enriched |= maybe_add(
+        individual,
+        mechanism_cache,
+        ResistanceMechanism::EnzymeAacAph,
+        store.globals.staph_aureus_lineage_enrichment_aac_aph_probability,
+        rng,
+    );
+    enriched |= maybe_add(
+        individual,
+        mechanism_cache,
+        ResistanceMechanism::MutationGyrAPrimary,
+        store.globals.staph_aureus_lineage_enrichment_gyra_primary_probability,
+        rng,
+    );
+    if individual.has_any_mechanism(
+        b_idx,
+        mechanism_idx(ResistanceMechanism::MutationGyrAPrimary),
+    ) {
+        enriched |= maybe_add(
+            individual,
+            mechanism_cache,
+            ResistanceMechanism::MutationGyrAParCSecondary,
+            store
+                .globals
+                .staph_aureus_lineage_enrichment_gyra_secondary_if_primary_probability,
+            rng,
+        );
+    }
+    enriched |= maybe_add(
+        individual,
+        mechanism_cache,
+        ResistanceMechanism::ProtectionTetM,
+        store.globals.staph_aureus_lineage_enrichment_tet_m_probability,
+        rng,
+    );
+    enriched |= maybe_add(
+        individual,
+        mechanism_cache,
+        ResistanceMechanism::ProtectionFusB,
+        store.globals.staph_aureus_lineage_enrichment_fus_b_probability,
+        rng,
+    );
+
+    enriched
 }
 
 /// Returns true if the resistance mechanism can impact the given bacteria/drug pair
@@ -985,10 +1125,7 @@ fn assess_treatment_failure(
             .map(|(_, score)| score.powf(1.0 / selection_temperature))
             .collect();
 
-        let total_weight: f64 = weights.iter().sum();
-        if total_weight > 0.0 && total_weight.is_finite() {
-            let dist = WeightedIndex::new(weights).unwrap();
-            let chosen_idx = dist.sample(rng);
+        if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
             let new_drug_idx = alternative_scores[chosen_idx].0;
 
             // Stop current drugs
@@ -1287,10 +1424,7 @@ fn start_restart_treatment(
             .map(|(_, score)| score.powf(1.0 / selection_temperature))
             .collect();
 
-        let total_weight: f64 = weights.iter().sum();
-        if total_weight > 0.0 && total_weight.is_finite() {
-            let dist = WeightedIndex::new(weights).unwrap();
-            let chosen_idx = dist.sample(rng);
+        if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
             let new_drug_idx = drug_scores[chosen_idx].0;
 
             // Start restart treatment
@@ -1614,12 +1748,6 @@ pub(crate) fn apply_rules(
     }
     for flag in &mut individual.microbiome_cleared_today {
         *flag = false;
-    }
-
-    for bacteria_arr in &mut individual.asymptomatic_microbiome_hgt_events_today {
-        for event_count in bacteria_arr {
-            *event_count = 0;
-        }
     }
 
     // --- all these parameter lookups at the top so they're in scope everywhere ---
@@ -3715,10 +3843,7 @@ pub(crate) fn apply_rules(
                 let weights = &weights_buf[..drug_scores.len()];
 
                 // Handle edge case where all weights are zero or infinite
-                let total_weight: f64 = weights.iter().sum();
-                if total_weight > 0.0 && total_weight.is_finite() {
-                    let dist = WeightedIndex::new(weights).unwrap();
-                    let chosen_idx = dist.sample(rng);
+                if let Some(chosen_idx) = sample_weighted_index(weights, rng) {
                     let chosen_drug_idx = drug_scores[chosen_idx].0;
 
                     // Initiate the selected drug
@@ -4466,6 +4591,15 @@ pub(crate) fn apply_rules(
                     store.globals.mdr_tb_modern_era_multiplier
                 };
                 acquisition_probability *= mdr_tb_multiplier;
+            } else if bacteria == "neisseria_gonorrhoeae" {
+                let gonorrhoea_multiplier = if simulation_year < 1980.0 {
+                    store.globals.neisseria_gonorrhoeae_pre_1980_acquisition_multiplier
+                } else if simulation_year < 2000.0 {
+                    store.globals.neisseria_gonorrhoeae_pre_2000_acquisition_multiplier
+                } else {
+                    store.globals.neisseria_gonorrhoeae_modern_acquisition_multiplier
+                };
+                acquisition_probability *= gonorrhoea_multiplier;
             }
 
             individual.predicted_infection_risk[b_idx] = acquisition_probability;
@@ -4539,6 +4673,15 @@ pub(crate) fn apply_rules(
                             store.globals.mdr_tb_modern_era_multiplier
                         };
                         microbiome_acquisition_probability *= mdr_tb_multiplier;
+                    } else if bacteria == "neisseria_gonorrhoeae" {
+                        let gonorrhoea_multiplier = if simulation_year < 1980.0 {
+                            store.globals.neisseria_gonorrhoeae_pre_1980_acquisition_multiplier
+                        } else if simulation_year < 2000.0 {
+                            store.globals.neisseria_gonorrhoeae_pre_2000_acquisition_multiplier
+                        } else {
+                            store.globals.neisseria_gonorrhoeae_modern_acquisition_multiplier
+                        };
+                        microbiome_acquisition_probability *= gonorrhoea_multiplier;
                     }
 
                     microbiome_acquisition_probability =
@@ -4609,8 +4752,8 @@ pub(crate) fn apply_rules(
                                         {
                                             continue;
                                         }
-                                        individual.mechanism_microbiome[b_idx][m_idx] = true;
-                                        individual.mechanism_any[b_idx][m_idx] = true;
+                                        individual.set_microbiome_mechanism(b_idx, m_idx);
+                                        individual.set_any_mechanism(b_idx, m_idx);
                                     }
                                 }
                             }
@@ -4636,9 +4779,7 @@ pub(crate) fn apply_rules(
                 for resistance_data in individual.resistances[b_idx].iter_mut() {
                     resistance_data.microbiome_r = 0.0;
                 }
-                for m_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
-                    *m_flag = false;
-                }
+                individual.clear_microbiome_mechanisms(b_idx);
             }
 
             if allows_microbiome && individual.presence_microbiome[b_idx] {
@@ -4723,9 +4864,7 @@ pub(crate) fn apply_rules(
                     individual.presence_microbiome[b_idx] = false;
                     individual.date_microbiome_acquired[b_idx] = 0; // Reset acquisition date for potential re-acquisition
                     individual.microbiome_cleared_today[b_idx] = true;
-                    for m_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
-                        *m_flag = false;
-                    }
+                    individual.clear_microbiome_mechanisms(b_idx);
                 }
 
                 // --- de novo resistance emergence in microbiome when on drug ---
@@ -4743,7 +4882,7 @@ pub(crate) fn apply_rules(
                         if no_selection {
                             let mut any_microbiome_reverted = false;
                             for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                                if !individual.mechanism_microbiome[b_idx][mechanism_idx] {
+                                if !individual.has_microbiome_mechanism(b_idx, mechanism_idx) {
                                     continue;
                                 }
                                 // Check if any active drug selects for this mechanism
@@ -4764,7 +4903,7 @@ pub(crate) fn apply_rules(
                                         * reversion_rate_sampling_multiplier
                                         * community_reversion_mult;
                                     if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
-                                        individual.mechanism_microbiome[b_idx][mechanism_idx] = false;
+                                        individual.clear_microbiome_mechanism(b_idx, mechanism_idx);
                                         any_microbiome_reverted = true;
                                     }
                                 }
@@ -4800,7 +4939,7 @@ pub(crate) fn apply_rules(
                             }
 
                             // Skip if already present in microbiome
-                            if individual.mechanism_microbiome[b_idx][mechanism_idx] {
+                            if individual.has_microbiome_mechanism(b_idx, mechanism_idx) {
                                 continue;
                             }
 
@@ -4817,7 +4956,7 @@ pub(crate) fn apply_rules(
                                     * counterfactual_resistance_multiplier;
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                individual.mechanism_microbiome[b_idx][mechanism_idx] = true;
+                                individual.set_microbiome_mechanism(b_idx, mechanism_idx);
                                 microbiome_mechanism_changed = true;
                             }
                         }
@@ -4843,38 +4982,21 @@ pub(crate) fn apply_rules(
             // ...resistance transfer (each way) between infection site and microbiome ...
             // Mechanism-driven: copy mechanism bits between compartments, then re-derive floats.
             if individual.presence_microbiome[b_idx] && individual.level[b_idx] > 0.0 {
-                let has_infection_only_mechanisms = individual.mechanism_any[b_idx].iter().enumerate().any(
-                    |(m, &active)| active && !individual.mechanism_microbiome[b_idx][m],
-                );
-                let has_microbiome_only_mechanisms = individual.mechanism_microbiome[b_idx].iter().enumerate().any(
-                    |(m, &active)| active && !individual.mechanism_any[b_idx][m],
-                );
+                let infection_mask = individual.any_mechanism_mask(b_idx);
+                let microbiome_mask = individual.microbiome_mechanism_mask(b_idx);
+                let has_infection_only_mechanisms = infection_mask & !microbiome_mask != 0;
+                let has_microbiome_only_mechanisms = microbiome_mask & !infection_mask != 0;
 
                 if (has_infection_only_mechanisms || has_microbiome_only_mechanisms)
                     && rng.gen_bool(transfer_prob)
                 {
                     let mut any_transferred = false;
                     // Transfer infection→microbiome: copy mechanism_any bits to mechanism_microbiome
-                    if has_infection_only_mechanisms {
-                        for m_idx in 0..individual.mechanism_any[b_idx].len() {
-                            if individual.mechanism_any[b_idx][m_idx]
-                                && !individual.mechanism_microbiome[b_idx][m_idx]
-                            {
-                                individual.mechanism_microbiome[b_idx][m_idx] = true;
-                                any_transferred = true;
-                            }
-                        }
-                    }
-                    // Transfer microbiome→infection: copy mechanism_microbiome bits to mechanism_any
-                    if has_microbiome_only_mechanisms {
-                        for m_idx in 0..individual.mechanism_microbiome[b_idx].len() {
-                            if individual.mechanism_microbiome[b_idx][m_idx]
-                                && !individual.mechanism_any[b_idx][m_idx]
-                            {
-                                individual.mechanism_any[b_idx][m_idx] = true;
-                                any_transferred = true;
-                            }
-                        }
+                    if has_infection_only_mechanisms || has_microbiome_only_mechanisms {
+                        let combined_mask = infection_mask | microbiome_mask;
+                        any_transferred = combined_mask != infection_mask || combined_mask != microbiome_mask;
+                        individual.mechanism_any[b_idx] = combined_mask;
+                        individual.mechanism_microbiome[b_idx] = combined_mask;
                     }
                     if any_transferred {
                         propagate_mechanism_resistance(
@@ -5023,8 +5145,8 @@ pub(crate) fn apply_rules(
                                             continue;
                                         }
                                         // Mark as any-strain AND majority-strain (established circulating strain)
-                                        individual.mechanism_any[b_idx][m_idx] = true;
-                                        individual.mechanism_majority[b_idx][m_idx] = true;
+                                        individual.set_any_mechanism(b_idx, m_idx);
+                                        individual.set_majority_mechanism(b_idx, m_idx);
                                     }
                                 }
                             }
@@ -5035,6 +5157,20 @@ pub(crate) fn apply_rules(
                     } else {
                         false
                     };
+
+                    // S. aureus lineage enrichment: if a human-reservoir acquisition already
+                    // sampled mecA, probabilistically complete the rest of an MRSA-like
+                    // co-resistance package. This is cache-gated, so linked mechanisms can only
+                    // be added if they have already emerged somewhere in circulating S. aureus.
+                    if from_human_reservoir && profile_sampled {
+                        apply_staph_aureus_lineage_enrichment(
+                            individual,
+                            b_idx,
+                            mechanism_cache,
+                            is_hospital_acquired,
+                            rng,
+                        );
+                    }
 
                     // --- Environmental / agricultural floor (exogenous draw only) ---
                     // When the infection was drawn from the non-cache reservoir (from_human_reservoir
@@ -5089,8 +5225,8 @@ pub(crate) fn apply_rules(
                             };
                             let floor = static_floor.max(ratchet_floor);
                             if floor > 0.0 && rng.gen_bool(floor.clamp(0.0, 1.0)) {
-                                individual.mechanism_any[b_idx][m_idx] = true;
-                                individual.mechanism_majority[b_idx][m_idx] = true;
+                                individual.set_any_mechanism(b_idx, m_idx);
+                                individual.set_majority_mechanism(b_idx, m_idx);
                             }
                         }
                     }
@@ -5106,11 +5242,12 @@ pub(crate) fn apply_rules(
                     for drug_name_static in DRUG_SHORT_NAMES.iter() {
                         let d_idx = *drug_indices.get(drug_name_static).unwrap();
                         // Check if any mechanism applicable to this drug is now set
-                        let has_any_relevant_mechanism = individual.mechanism_any[b_idx]
+                        let has_any_relevant_mechanism = ResistanceMechanism::all()
                             .iter()
                             .enumerate()
-                            .any(|(m, &active)| {
-                                active && param_cache.mechanism_applicable(m, b_idx, d_idx)
+                            .any(|(m, _)| {
+                                individual.has_any_mechanism(b_idx, m)
+                                    && param_cache.mechanism_applicable(m, b_idx, d_idx)
                             });
                         if has_any_relevant_mechanism {
                             individual.how_resistance_acquired[b_idx][d_idx] = Some(
@@ -5152,8 +5289,8 @@ pub(crate) fn apply_rules(
                                     continue;
                                 }
                                 if rng.gen_bool(mechanism_prob) {
-                                    individual.mechanism_any[b_idx][mech_idx] = true;
-                                    individual.mechanism_majority[b_idx][mech_idx] = true;
+                                    individual.set_any_mechanism(b_idx, mech_idx);
+                                    individual.set_majority_mechanism(b_idx, mech_idx);
                                     individual.how_resistance_acquired[b_idx][d_idx] = Some(
                                         crate::simulation::population::ResistanceAcquisitionType::AtInfectionCommunity,
                                     );
@@ -5197,8 +5334,8 @@ pub(crate) fn apply_rules(
                                 }
 
                                 // At TB acquisition (MDR era), guarantee mechanism is present
-                                individual.mechanism_any[b_idx][mech_idx] = true;
-                                individual.mechanism_majority[b_idx][mech_idx] = true;
+                                individual.set_any_mechanism(b_idx, mech_idx);
+                                individual.set_majority_mechanism(b_idx, mech_idx);
                             }
                             individual.how_resistance_acquired[b_idx][rifampicin_idx] = Some(crate::simulation::population::ResistanceAcquisitionType::AtInfectionTB);
                             // Re-derive any_r from the newly set mechanisms
@@ -5225,13 +5362,14 @@ pub(crate) fn apply_rules(
                         if rng.gen_bool(inheritance_prob) {
                             let dampening = store.globals.infection_from_microbiome_dampening;
                             let mut any_mechanism_inherited = false;
-                            for m_idx in 0..individual.mechanism_microbiome[b_idx].len() {
-                                if individual.mechanism_microbiome[b_idx][m_idx]
-                                    && !individual.mechanism_any[b_idx][m_idx]
+                            let num_mechanisms = ResistanceMechanism::all().len();
+                            for m_idx in 0..num_mechanisms {
+                                if individual.has_microbiome_mechanism(b_idx, m_idx)
+                                    && !individual.has_any_mechanism(b_idx, m_idx)
                                 {
                                     // Per-mechanism transfer probability = dampening parameter
                                     if rng.gen_bool(dampening.clamp(0.0, 1.0)) {
-                                        individual.mechanism_any[b_idx][m_idx] = true;
+                                        individual.set_any_mechanism(b_idx, m_idx);
                                         any_mechanism_inherited = true;
                                     }
                                 }
@@ -5339,7 +5477,7 @@ pub(crate) fn apply_rules(
                             }
 
                             // Skip if mechanism already present
-                            if individual.mechanism_any[bacteria_full_idx][mechanism_idx] {
+                            if individual.has_any_mechanism(bacteria_full_idx, mechanism_idx) {
                                 continue;
                             }
 
@@ -5398,7 +5536,7 @@ pub(crate) fn apply_rules(
                                     * multi_drug_penalty_factor;
 
                             if rng.gen_bool(mechanism_emergence_rate.clamp(0.0, 1.0)) {
-                                individual.mechanism_any[bacteria_full_idx][mechanism_idx] = true;
+                                individual.set_any_mechanism(bacteria_full_idx, mechanism_idx);
                                 infection_mechanism_changed = true;
                             }
                         }
@@ -5419,27 +5557,28 @@ pub(crate) fn apply_rules(
                 }
                 // --- end resistance mechanism emergence logic ---
 
-                for (drug_index, _use_drug) in individual.cur_use_drug.iter().enumerate() {
-                    let resistance_data =
-                        &mut individual.resistances[bacteria_full_idx][drug_index];
-
+                for drug_index in 0..individual.cur_use_drug.len() {
                     let drug_current_level = individual.cur_level_drug[drug_index];
                     let drug_currently_present = drug_current_level > 0.0;
 
                     // mechanism_majority evolution: when drug pressure is present, minority-strain
                     // mechanisms (mechanism_any but not mechanism_majority) can evolve to majority.
                     if drug_currently_present {
-                        for m_idx in 0..individual.mechanism_any[bacteria_full_idx].len() {
-                            if individual.mechanism_any[bacteria_full_idx][m_idx]
-                                && !individual.mechanism_majority[bacteria_full_idx][m_idx]
+                        let num_mechanisms = ResistanceMechanism::all().len();
+                        for m_idx in 0..num_mechanisms {
+                            if individual.has_any_mechanism(bacteria_full_idx, m_idx)
+                                && !individual.has_majority_mechanism(bacteria_full_idx, m_idx)
                                 && param_cache.mechanism_applicable(m_idx, bacteria_full_idx, drug_index)
                             {
                                 if rng.gen_bool(majority_r_evolution_rate) {
-                                    individual.mechanism_majority[bacteria_full_idx][m_idx] = true;
+                                    individual.set_majority_mechanism(bacteria_full_idx, m_idx);
                                 }
                             }
                         }
                     }
+
+                    let resistance_data =
+                        &mut individual.resistances[bacteria_full_idx][drug_index];
 
                     // Clamp any_r to valid range
                     resistance_data.any_r =
@@ -5465,15 +5604,8 @@ pub(crate) fn apply_rules(
                         
                         resistance_data.activity_r =
                             base_potency * effective_drug_level * (1.0 - normalized_any_r);
-                        resistance_data.max_possible_activity_r =
-                            base_potency * effective_drug_level;
-                        resistance_data.activity_r_pure = base_potency * (1.0 - normalized_any_r);
-                        resistance_data.max_possible_activity_r_pure = base_potency;
                     } else {
                         resistance_data.activity_r = 0.0;
-                        resistance_data.max_possible_activity_r = 0.0;
-                        resistance_data.activity_r_pure = 0.0;
-                        resistance_data.max_possible_activity_r_pure = 0.0;
                     }
                 }
             }
@@ -5670,7 +5802,7 @@ pub(crate) fn apply_rules(
                 let bacteria_name = BACTERIA_LIST[b_idx];
 
                 for (mechanism_idx, mechanism) in ResistanceMechanism::all().iter().enumerate() {
-                    if individual.mechanism_majority[b_idx][mechanism_idx] {
+                    if individual.has_majority_mechanism(b_idx, mechanism_idx) {
                         // Check if any active drug is one this mechanism confers resistance to
                         let selecting_drug_present = DRUG_SHORT_NAMES.iter().enumerate().any(
                             |(d_idx, &drug_name)| {
@@ -5691,7 +5823,7 @@ pub(crate) fn apply_rules(
                                 * community_reversion_mult;
 
                             if rng.gen_bool(mechanism_reversion_rate.clamp(0.0, 1.0)) {
-                                individual.mechanism_majority[b_idx][mechanism_idx] = false;
+                                individual.clear_majority_mechanism(b_idx, mechanism_idx);
                             }
                         }
                     }
@@ -5703,8 +5835,8 @@ pub(crate) fn apply_rules(
                 let on_any_drug = individual.cur_level_drug.iter().any(|&lvl| lvl > 0.0);
                 if !on_any_drug {
                     let has_active_mechanism =
-                        individual.mechanism_any[b_idx].iter().any(|&active| active)
-                        || individual.mechanism_microbiome[b_idx].iter().any(|&active| active);
+                        individual.any_mechanism_mask(b_idx) != 0
+                            || individual.microbiome_mechanism_mask(b_idx) != 0;
                     if !has_active_mechanism
                         && individual.resistances[b_idx]
                             .iter()
@@ -5715,23 +5847,13 @@ pub(crate) fn apply_rules(
                             .mechanismless_resistance_reversion_rate(b_idx)
                             .clamp(0.0, 1.0);
                         if reversion_rate > 0.0 && rng.gen_bool(reversion_rate) {
-                            for mechanism_flag in individual.mechanism_any[b_idx].iter_mut() {
-                                *mechanism_flag = false;
-                            }
-                            for mechanism_flag in individual.mechanism_majority[b_idx].iter_mut() {
-                                *mechanism_flag = false;
-                            }
-                            for mechanism_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
-                                *mechanism_flag = false;
-                            }
+                            individual.clear_infection_mechanisms(b_idx);
+                            individual.clear_microbiome_mechanisms(b_idx);
                             for drug_index in 0..DRUG_SHORT_NAMES.len() {
                                 let resistance_data = &mut individual.resistances[b_idx][drug_index];
                                 resistance_data.microbiome_r = 0.0;
                                 resistance_data.test_r = 0.0;
                                 resistance_data.activity_r = 0.0;
-                                resistance_data.max_possible_activity_r = 0.0;
-                                resistance_data.activity_r_pure = 0.0;
-                                resistance_data.max_possible_activity_r_pure = 0.0;
                                 resistance_data.any_r = 0.0;
                                 individual.how_resistance_acquired[b_idx][drug_index] = None;
                             }
@@ -5890,9 +6012,7 @@ pub(crate) fn apply_rules(
                         if rng.gen_bool(cached_microbiome_clearance_on_drug_treatment) {
                             individual.presence_microbiome[b_idx] = false;
                             individual.microbiome_cleared_today[b_idx] = true;
-                            for m_flag in individual.mechanism_microbiome[b_idx].iter_mut() {
-                                *m_flag = false;
-                            }
+                            individual.clear_microbiome_mechanisms(b_idx);
                         }
                     }
                 }
@@ -5902,16 +6022,10 @@ pub(crate) fn apply_rules(
                     let resistance_data = &mut individual.resistances[b_idx][drug_idx_clear];
                     resistance_data.any_r = 0.0;
                     resistance_data.activity_r = 0.0;
-                    resistance_data.max_possible_activity_r = 0.0;
-                    resistance_data.activity_r_pure = 0.0;
-                    resistance_data.max_possible_activity_r_pure = 0.0;
                     individual.how_resistance_acquired[b_idx][drug_idx_clear] = None;
                 }
                 // Clear mechanism booleans on infection clearance
-                for m_idx in 0..individual.mechanism_any[b_idx].len() {
-                    individual.mechanism_any[b_idx][m_idx] = false;
-                    individual.mechanism_majority[b_idx][m_idx] = false;
-                }
+                individual.clear_infection_mechanisms(b_idx);
                 individual.level[b_idx] = 0.0;
                 individual.infectious_syndrome[b_idx] = 0;
                 individual.date_last_infected[b_idx] = 0;
@@ -6092,8 +6206,8 @@ pub(crate) fn apply_rules(
                         }
 
                         // Donor must carry the mechanism in ANY strain (not strictly majority)
-                        let has_majority = individual.mechanism_majority[donor_idx][mech_idx];
-                        let has_any = individual.mechanism_any[donor_idx][mech_idx];
+                        let has_majority = individual.has_majority_mechanism(donor_idx, mech_idx);
+                        let has_any = individual.has_any_mechanism(donor_idx, mech_idx);
 
                         if !has_any {
                            continue;
@@ -6126,15 +6240,15 @@ pub(crate) fn apply_rules(
                         }
 
                         // Recipient already has this mechanism — skip
-                        if individual.mechanism_any[recipient_idx][mech_idx] {
+                        if individual.has_any_mechanism(recipient_idx, mech_idx) {
                             continue;
                         }
 
                         // Transfer the mechanism — recipient gains any-strain presence
-                        individual.mechanism_any[recipient_idx][mech_idx] = true;
+                        individual.set_any_mechanism(recipient_idx, mech_idx);
                         // Also write to mechanism_microbiome if recipient carries this bacterium in gut
                         if individual.presence_microbiome[recipient_idx] {
-                            individual.mechanism_microbiome[recipient_idx][mech_idx] = true;
+                            individual.set_microbiome_mechanism(recipient_idx, mech_idx);
                         }
                         any_mechanism_transferred = true;
                     }
@@ -6158,9 +6272,6 @@ pub(crate) fn apply_rules(
                             {
                                 individual.how_resistance_acquired[recipient_idx][drug_idx] =
                                     Some(crate::simulation::population::ResistanceAcquisitionType::Hgt);
-                                if individual.level[recipient_idx] <= INFECTION_EPS {
-                                    individual.asymptomatic_microbiome_hgt_events_today[recipient_idx][drug_idx] += 1;
-                                }
                             }
                         }
                     }
@@ -6620,8 +6731,11 @@ fn assign_syndrome_for_bacteria<R: Rng>(bacteria: &str, rng: &mut R) -> u32 {
     };
 
     let weights: Vec<f64> = syndrome_probs.iter().map(|&(_, p)| p).collect();
-    let dist = WeightedIndex::new(weights).unwrap();
-    syndrome_probs[dist.sample(rng)].0
+    if let Some(chosen_idx) = sample_weighted_index(&weights, rng) {
+        syndrome_probs[chosen_idx].0
+    } else {
+        syndrome_probs[0].0
+    }
 }
 
 

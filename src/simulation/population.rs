@@ -232,6 +232,11 @@ impl ResistanceMechanism {
     }
 }
 
+#[inline]
+pub const fn mechanism_bit(mechanism_idx: usize) -> u64 {
+    1u64 << mechanism_idx
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BacteriaGroup {
@@ -1263,19 +1268,6 @@ pub struct Resistance {
     /// Effective resistance for drug activity calculations. Range: 0.0-1.0.
     /// Takes into account mechanism-specific effects on drug binding/activity.
     pub activity_r: f64,
-
-    /// Maximum possible activity_r for this drug (= base_potency × effective_drug_level).
-    /// Equals activity_r when resistance is zero.  The ratio activity_r / max_possible_activity_r
-    /// gives (1 − normalized_any_r), a clean resistance-effect metric bounded [0,1].
-    pub max_possible_activity_r: f64,
-
-    /// Potency-only activity_r: base_potency × (1 − normalized_any_r), no drug-level or penetration.
-    /// Used for the summary resistance metric so it reflects pure resistance, not PK/site effects.
-    pub activity_r_pure: f64,
-
-    /// Potency-only denominator: base_potency, no drug-level or penetration.
-    /// Ratio activity_r_pure / max_possible_activity_r_pure gives mean(1 − any_r) weighted by potency.
-    pub max_possible_activity_r_pure: f64,
     
     /// Primary resistance level - resistance present in ANY infected bacteria. Range: 0.0-1.0.
     /// Derived from mechanism_any via the multiplicative product formula:
@@ -1586,26 +1578,25 @@ pub struct Individual {
     /// any_r and microbiome_r are derived from mechanism_any and mechanism_microbiome respectively.
     pub resistances: Vec<Vec<Resistance>>,
     
-    /// Active-infection resistance mechanisms: mechanism_any[bacteria][mechanism] -> bool.
+    /// Active-infection resistance mechanisms packed as one bitmask per bacterium.
     /// True when the mechanism is present in ANY of the bacteria causing infection.
     /// Drives any_r derivation via the multiplicative product formula.
-    pub mechanism_any: Vec<Vec<bool>>,
+    pub mechanism_any: Vec<u64>,
     
-    /// Majority-strain mechanisms: mechanism_majority[bacteria][mechanism] -> bool.
+    /// Majority-strain mechanisms packed as one bitmask per bacterium.
     /// Invariant: mechanism_majority[b][m] => mechanism_any[b][m].
     /// Set at acquisition (established strain) or when de-novo mechanism becomes dominant.
     /// Used as the source for surveillance/acquisition seeding and HGT donor weighting.
-    pub mechanism_majority: Vec<Vec<bool>>,
+    pub mechanism_majority: Vec<u64>,
     
-    /// Microbiome/carriage mechanisms: mechanism_microbiome[bacteria][mechanism] -> bool.
+    /// Microbiome/carriage mechanisms packed as one bitmask per bacterium.
     /// Tracks resistance mechanisms in asymptomatic carriage.
     /// Drives microbiome_r derivation; copied to mechanism_any on carrier→infection.
-    pub mechanism_microbiome: Vec<Vec<bool>>,
+    pub mechanism_microbiome: Vec<u64>,
     
     /// How resistance was acquired for each bacteria-drug combination.
     /// None if never acquired resistance.
     pub how_resistance_acquired: Vec<Vec<Option<ResistanceAcquisitionType>>>,
-    pub asymptomatic_microbiome_hgt_events_today: Vec<Vec<usize>>,
     
     // -------------------------------------------------------------------------
     // INFECTION RESOLUTION TRACKING
@@ -1685,6 +1676,77 @@ pub struct Individual {
 }
 
 impl Individual {
+    #[inline]
+    pub fn has_any_mechanism(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
+        self.mechanism_any[bacteria_idx] & mechanism_bit(mechanism_idx) != 0
+    }
+
+    #[inline]
+    pub fn has_majority_mechanism(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
+        self.mechanism_majority[bacteria_idx] & mechanism_bit(mechanism_idx) != 0
+    }
+
+    #[inline]
+    pub fn has_microbiome_mechanism(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
+        self.mechanism_microbiome[bacteria_idx] & mechanism_bit(mechanism_idx) != 0
+    }
+
+    #[inline]
+    pub fn set_any_mechanism(&mut self, bacteria_idx: usize, mechanism_idx: usize) {
+        self.mechanism_any[bacteria_idx] |= mechanism_bit(mechanism_idx);
+    }
+
+    #[inline]
+    pub fn set_majority_mechanism(&mut self, bacteria_idx: usize, mechanism_idx: usize) {
+        self.mechanism_majority[bacteria_idx] |= mechanism_bit(mechanism_idx);
+    }
+
+    #[inline]
+    pub fn set_microbiome_mechanism(&mut self, bacteria_idx: usize, mechanism_idx: usize) {
+        self.mechanism_microbiome[bacteria_idx] |= mechanism_bit(mechanism_idx);
+    }
+
+    #[inline]
+    pub fn clear_any_mechanism(&mut self, bacteria_idx: usize, mechanism_idx: usize) {
+        self.mechanism_any[bacteria_idx] &= !mechanism_bit(mechanism_idx);
+    }
+
+    #[inline]
+    pub fn clear_majority_mechanism(&mut self, bacteria_idx: usize, mechanism_idx: usize) {
+        self.mechanism_majority[bacteria_idx] &= !mechanism_bit(mechanism_idx);
+    }
+
+    #[inline]
+    pub fn clear_microbiome_mechanism(&mut self, bacteria_idx: usize, mechanism_idx: usize) {
+        self.mechanism_microbiome[bacteria_idx] &= !mechanism_bit(mechanism_idx);
+    }
+
+    #[inline]
+    pub fn clear_infection_mechanisms(&mut self, bacteria_idx: usize) {
+        self.mechanism_any[bacteria_idx] = 0;
+        self.mechanism_majority[bacteria_idx] = 0;
+    }
+
+    #[inline]
+    pub fn clear_microbiome_mechanisms(&mut self, bacteria_idx: usize) {
+        self.mechanism_microbiome[bacteria_idx] = 0;
+    }
+
+    #[inline]
+    pub fn any_mechanism_mask(&self, bacteria_idx: usize) -> u64 {
+        self.mechanism_any[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn majority_mechanism_mask(&self, bacteria_idx: usize) -> u64 {
+        self.mechanism_majority[bacteria_idx]
+    }
+
+    #[inline]
+    pub fn microbiome_mechanism_mask(&self, bacteria_idx: usize) -> u64 {
+        self.mechanism_microbiome[bacteria_idx]
+    }
+
     /// Constructs a new Individual with randomized and default-initialized fields.
     ///
     /// - id: unique identifier
@@ -1732,34 +1794,20 @@ impl Individual {
                     microbiome_r: 0.0,
                     test_r: 0.0,
                     activity_r: 0.0,
-                    max_possible_activity_r: 0.0,
-                    activity_r_pure: 0.0,
-                    max_possible_activity_r_pure: 0.0,
                     any_r: 0.0,
                 });
             }
             resistances.push(drug_resistances);
         }
 
-        // Initialize mechanism arrays (all false initially)
-        let num_mechanisms = ResistanceMechanism::all().len();
-        let mut mechanism_any = Vec::with_capacity(num_bacteria);
-        let mut mechanism_majority = Vec::with_capacity(num_bacteria);
-        let mut mechanism_microbiome = Vec::with_capacity(num_bacteria);
-        for _ in 0..num_bacteria {
-            mechanism_any.push(vec![false; num_mechanisms]);
-            mechanism_majority.push(vec![false; num_mechanisms]);
-            mechanism_microbiome.push(vec![false; num_mechanisms]);
-        }
+        // Initialize mechanism bitmasks (all clear initially)
+        let mechanism_any = vec![0u64; num_bacteria];
+        let mechanism_majority = vec![0u64; num_bacteria];
+        let mechanism_microbiome = vec![0u64; num_bacteria];
         // Initialize how_resistance_acquired (all None initially)
         let mut how_resistance_acquired = Vec::with_capacity(num_bacteria);
         for _ in 0..num_bacteria {
             how_resistance_acquired.push(vec![None; num_drugs]);
-        }
-
-        let mut asymptomatic_microbiome_hgt_events_today = Vec::with_capacity(num_bacteria);
-        for _ in 0..num_bacteria {
-            asymptomatic_microbiome_hgt_events_today.push(vec![0; num_drugs]);
         }
 
         // Initialize infection_resolution_this_timestep (all zeros initially)
@@ -1846,7 +1894,6 @@ impl Individual {
             mechanism_majority,
             mechanism_microbiome,
             how_resistance_acquired,
-            asymptomatic_microbiome_hgt_events_today,
             infection_resolution_this_timestep,
             day_7_since_last_infection_drug_used,
             date_of_death: None,

@@ -811,12 +811,11 @@ impl JourneyLogger {
 
         // Collect active resistance mechanisms
         let all_mechanisms = ResistanceMechanism::all();
-        let resistance_mechanisms: Vec<String> = individual.mechanism_any
-            [primary_bacteria_idx]
+        let resistance_mechanisms: Vec<String> = all_mechanisms
             .iter()
             .enumerate()
-            .filter(|(_, &is_active)| is_active)
-            .map(|(idx, _)| all_mechanisms[idx].as_str().to_string())
+            .filter(|(idx, _)| individual.has_any_mechanism(primary_bacteria_idx, *idx))
+            .map(|(_, mechanism)| mechanism.as_str().to_string())
             .collect();
 
         // Collect resistance sources for primary bacteria

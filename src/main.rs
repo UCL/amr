@@ -140,9 +140,14 @@ use amr_project::config::get_global_param;
 use amr_project::simulation::population::BACTERIA_LIST;
 use amr_project::simulation::simulation::CalibrationMode;
 use amr_project::simulation::simulation::Simulation;
+use chrono::Utc;
+use std::backtrace::Backtrace;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::PathBuf;
 
 fn main() {
+    install_panic_log_hook();
     let _ = env_logger::builder().is_test(false).try_init();
 
     // Fail fast on obviously inconsistent bacteria setups before paying the cost of a full run.
@@ -150,11 +155,11 @@ fn main() {
 
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
-    let population_size =    30_000;
+    let population_size =     300_000;
     // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
     // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
-    let calibration_mode = CalibrationMode::None;
+    let calibration_mode = CalibrationMode::Full;
     // Calibration runs only need rows through the end of 2025.
     // 35_040 = 96 years * 365 days from 1930 to the start of 2026, so it covers 1930-2025 inclusive.
     // Full run (policy branches to 2035) needs 38_325.
@@ -268,6 +273,42 @@ fn main() {
         duration.as_secs_f64()
     );
     println!("                          ");
+}
+
+fn install_panic_log_hook() {
+    std::panic::set_hook(Box::new(|panic_info| {
+        let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+        let location = panic_info
+            .location()
+            .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+            .unwrap_or_else(|| "unknown location".to_string());
+
+        let payload = if let Some(message) = panic_info.payload().downcast_ref::<&str>() {
+            *message
+        } else if let Some(message) = panic_info.payload().downcast_ref::<String>() {
+            message.as_str()
+        } else {
+            "non-string panic payload"
+        };
+
+        let report = format!(
+            "\n===== panic =====\ntimestamp: {}\nlocation: {}\npayload: {}\nbacktrace:\n{}\n",
+            timestamp,
+            location,
+            payload,
+            Backtrace::force_capture()
+        );
+
+        eprintln!("{}", report);
+
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("panic_log.txt")
+        {
+            let _ = file.write_all(report.as_bytes());
+        }
+    }));
 }
 
 /// Append one row to the lightweight run log so wall-clock cost can be compared across runs.
