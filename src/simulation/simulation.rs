@@ -2033,6 +2033,11 @@ impl Simulation {
                     num_mechanisms: usize,
                     seed: Option<u64>,
                     collect_full_bacteria_drug_stats: bool,
+                    collect_regional_stats: bool,
+                    collect_syndrome_stats: bool,
+                    collect_resolution_stats: bool,
+                    collect_testing_stats: bool,
+                    collect_day7_stats: bool,
                     collect_none_only_stats: bool,
                 ) -> Self {
                     let rng = match seed {
@@ -2092,7 +2097,11 @@ impl Simulation {
                         newly_infected_non_carrier_by_bacteria: vec![0; num_bacteria],
                         newly_infected_by_bacteria_under_5: vec![0; num_bacteria],
                         newly_infected_by_bacteria_over_65: vec![0; num_bacteria],
-                        newly_infected_hospital_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
+                        newly_infected_hospital_by_bacteria_region: if collect_regional_stats {
+                            vec![0; num_bacteria * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
                         newly_infected_any_r_hospital_by_bacteria: vec![0; num_bacteria],
                         newly_infected_any_r_community_by_bacteria: vec![0; num_bacteria],
                         deaths_infected_by_bacteria_region: vec![0; num_bacteria * REGION_COUNT],
@@ -2134,8 +2143,16 @@ impl Simulation {
                             num_bacteria
                                 * REGION_COUNT
                         ],
-                        infected_with_test_identified_by_bacteria: vec![0; num_bacteria],
-                        infected_with_test_for_resistance_by_bacteria: vec![0; num_bacteria],
+                        infected_with_test_identified_by_bacteria: if collect_testing_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infected_with_test_for_resistance_by_bacteria: if collect_testing_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
                         mechanism_profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
                         living_population: 0,
                         num_age_0_5: 0,
@@ -2170,38 +2187,97 @@ impl Simulation {
                                 * ResistanceMechanism::all()
                                     .len()
                         ],
-                        infection_resolution_immune_clearance_by_bacteria: vec![0; num_bacteria],
-                        infection_resolution_drug_assisted_clearance_by_bacteria: vec![
-                            0;
-                            num_bacteria
-                        ],
-                        infection_resolution_death_from_sepsis_by_bacteria: vec![0; num_bacteria],
-                        infection_resolution_death_from_infection_non_sepsis_by_bacteria: vec![
-                            0;
-                            num_bacteria
-                        ],
-                        infection_resolution_death_from_background_by_bacteria: vec![
-                            0;
-                            num_bacteria
-                        ],
-                        infection_resolution_death_from_toxicity_by_bacteria: vec![0; num_bacteria],
-                        infected_by_syndrome: vec![0; 10], // Syndromes 1-10
-                        infected_by_syndrome_by_bacteria: vec![0; num_bacteria * 10], // bacteria * syndromes
-                        newly_infected_by_syndrome: vec![0; 10], // Syndromes 1-10
-                        living_population_by_region: vec![0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania
-                        age_distribution_by_region: vec![0; 6 * 5], // 6 regions * 5 age groups = 30 values
-                        deaths_by_region: vec![0; 6 * NUM_DEATH_CAUSES],
-                        deaths_by_region_age: vec![0; 6 * 5 * NUM_DEATH_CAUSES],
-                        currently_on_drug_by_region_drug: vec![0; 6 * num_drugs], // 6 regions * num_drugs
-                        syndrome_deaths_sepsis_by_region: vec![0; 10 * 6], // 10 syndromes * 6 regions = 60 values
-                        syndrome_deaths_infection_non_sepsis_by_region: vec![0; 10 * 6],
-                        hospital_population_by_region: vec![0; 6],
-                        day_7_evaluations_by_bacteria: if collect_none_only_stats {
+                        infection_resolution_immune_clearance_by_bacteria: if collect_resolution_stats {
                             vec![0; num_bacteria]
                         } else {
                             Vec::new()
                         },
-                        day_7_drug_used_by_bacteria: if collect_none_only_stats {
+                        infection_resolution_drug_assisted_clearance_by_bacteria: if collect_resolution_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infection_resolution_death_from_sepsis_by_bacteria: if collect_resolution_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infection_resolution_death_from_infection_non_sepsis_by_bacteria: if collect_resolution_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infection_resolution_death_from_background_by_bacteria: if collect_resolution_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infection_resolution_death_from_toxicity_by_bacteria: if collect_resolution_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infected_by_syndrome: if collect_syndrome_stats {
+                            vec![0; 10]
+                        } else {
+                            Vec::new()
+                        },
+                        infected_by_syndrome_by_bacteria: if collect_syndrome_stats {
+                            vec![0; num_bacteria * 10]
+                        } else {
+                            Vec::new()
+                        },
+                        newly_infected_by_syndrome: if collect_syndrome_stats {
+                            vec![0; 10]
+                        } else {
+                            Vec::new()
+                        },
+                        living_population_by_region: if collect_regional_stats {
+                            vec![0; 6]
+                        } else {
+                            Vec::new()
+                        },
+                        age_distribution_by_region: if collect_regional_stats {
+                            vec![0; 6 * 5]
+                        } else {
+                            Vec::new()
+                        },
+                        deaths_by_region: if collect_regional_stats {
+                            vec![0; 6 * NUM_DEATH_CAUSES]
+                        } else {
+                            Vec::new()
+                        },
+                        deaths_by_region_age: if collect_regional_stats {
+                            vec![0; 6 * 5 * NUM_DEATH_CAUSES]
+                        } else {
+                            Vec::new()
+                        },
+                        currently_on_drug_by_region_drug: if collect_regional_stats {
+                            vec![0; 6 * num_drugs]
+                        } else {
+                            Vec::new()
+                        },
+                        syndrome_deaths_sepsis_by_region: if collect_syndrome_stats {
+                            vec![0; 10 * 6]
+                        } else {
+                            Vec::new()
+                        },
+                        syndrome_deaths_infection_non_sepsis_by_region: if collect_syndrome_stats {
+                            vec![0; 10 * 6]
+                        } else {
+                            Vec::new()
+                        },
+                        hospital_population_by_region: if collect_regional_stats {
+                            vec![0; 6]
+                        } else {
+                            Vec::new()
+                        },
+                        day_7_evaluations_by_bacteria: if collect_day7_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        day_7_drug_used_by_bacteria: if collect_day7_stats {
                             vec![0; num_bacteria]
                         } else {
                             Vec::new()
@@ -2217,7 +2293,7 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        syndrome_population_by_region: if collect_none_only_stats {
+                        syndrome_population_by_region: if collect_none_only_stats && collect_syndrome_stats {
                             vec![0; 60]
                         } else {
                             Vec::new()
@@ -2807,6 +2883,13 @@ impl Simulation {
                 CalibrationMode::Partial | CalibrationMode::None => true,
             };
             let collect_none_only_stats = calibration_mode == CalibrationMode::None;
+            // Avoid allocating and populating summary groups that will be stripped immediately
+            // before storage. This changes bookkeeping only, not model state transitions.
+            let collect_regional_stats = self.summary_content_flags.regional;
+            let collect_syndrome_stats = self.summary_content_flags.syndrome;
+            let collect_resolution_stats = self.summary_content_flags.resolution;
+            let collect_testing_stats = self.summary_content_flags.testing;
+            let collect_day7_stats = collect_none_only_stats && self.summary_content_flags.day7;
             let totals = self.population.individuals.par_iter_mut()
             .fold(
                 || {
@@ -2821,6 +2904,11 @@ impl Simulation {
                         num_mechanisms,
                         thread_seed,
                         need_full_summary,
+                        collect_regional_stats,
+                        collect_syndrome_stats,
+                        collect_resolution_stats,
+                        collect_testing_stats,
+                        collect_day7_stats,
                         collect_none_only_stats,
                     )
                 },
@@ -2915,10 +3003,10 @@ impl Simulation {
                                         );
                                     }
 
-                                    if individual.test_identified_infection[b_idx] {
+                                    if collect_testing_stats && individual.test_identified_infection[b_idx] {
                                         lt.infected_with_test_identified_by_bacteria[b_idx] += 1;
                                     }
-                                    if individual.test_for_resistance[b_idx] {
+                                    if collect_testing_stats && individual.test_for_resistance[b_idx] {
                                         lt.infected_with_test_for_resistance_by_bacteria[b_idx] += 1;
                                     }
                                 }
@@ -2983,84 +3071,100 @@ impl Simulation {
                                 match cause.as_str() {
                                     "background_mortality" => {
                                         lt.deaths_background += 1;
-                                        lt.deaths_by_region
-                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX]
-                                            += 1;
-                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
-                                            + age_group_idx * NUM_DEATH_CAUSES
-                                            + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                        if collect_regional_stats {
+                                            lt.deaths_by_region
+                                                [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX]
+                                                += 1;
+                                            lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                                + age_group_idx * NUM_DEATH_CAUSES
+                                                + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                        }
                                         count_in_deaths_by_bacteria = false;
                                     }
                                     "sepsis_related" => {
                                         lt.deaths_sepsis += 1;
-                                        lt.deaths_by_region
-                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_SEPSIS_IDX]
-                                            += 1;
-                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
-                                            + age_group_idx * NUM_DEATH_CAUSES
-                                            + DEATH_CAUSE_SEPSIS_IDX] += 1;
+                                        if collect_regional_stats {
+                                            lt.deaths_by_region
+                                                [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_SEPSIS_IDX]
+                                                += 1;
+                                            lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                                + age_group_idx * NUM_DEATH_CAUSES
+                                                + DEATH_CAUSE_SEPSIS_IDX] += 1;
+                                        }
 
                                         // Track sepsis deaths by syndrome and region
-                                        for b_idx in 0..BACTERIA_LIST.len() {
-                                            if individual.sepsis[b_idx] {
-                                                let syndrome_id = individual.infectious_syndrome[b_idx];
-                                                if (1..=10).contains(&syndrome_id) {
-                                                    let syndrome_idx = (syndrome_id - 1) as usize;
-                                                    let index = syndrome_idx * 6 + region_idx;
-                                                    lt.syndrome_deaths_sepsis_by_region[index] += 1;
+                                        if collect_syndrome_stats {
+                                            for b_idx in 0..BACTERIA_LIST.len() {
+                                                if individual.sepsis[b_idx] {
+                                                    let syndrome_id = individual.infectious_syndrome[b_idx];
+                                                    if (1..=10).contains(&syndrome_id) {
+                                                        let syndrome_idx = (syndrome_id - 1) as usize;
+                                                        let index = syndrome_idx * 6 + region_idx;
+                                                        lt.syndrome_deaths_sepsis_by_region[index] += 1;
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                     "infection_non_sepsis_related" => {
                                         lt.deaths_infection_non_sepsis += 1;
-                                        lt.deaths_by_region[region_idx * NUM_DEATH_CAUSES
-                                            + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
-                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
-                                            + age_group_idx * NUM_DEATH_CAUSES
-                                            + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
+                                        if collect_regional_stats {
+                                            lt.deaths_by_region[region_idx * NUM_DEATH_CAUSES
+                                                + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
+                                            lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                                + age_group_idx * NUM_DEATH_CAUSES
+                                                + DEATH_CAUSE_INFECTION_NON_SEPSIS_IDX] += 1;
+                                        }
 
                                         // Track non-sepsis infection deaths by syndrome and region
-                                        for b_idx in 0..BACTERIA_LIST.len() {
-                                            if individual.level[b_idx] > INFECTION_EPS
-                                                && !individual.sepsis[b_idx]
-                                            {
-                                                let syndrome_id = individual.infectious_syndrome[b_idx];
-                                                if (1..=10).contains(&syndrome_id) {
-                                                    let syndrome_idx = (syndrome_id - 1) as usize;
-                                                    let index = syndrome_idx * 6 + region_idx;
-                                                    lt.syndrome_deaths_infection_non_sepsis_by_region[index] += 1;
+                                        if collect_syndrome_stats {
+                                            for b_idx in 0..BACTERIA_LIST.len() {
+                                                if individual.level[b_idx] > INFECTION_EPS
+                                                    && !individual.sepsis[b_idx]
+                                                {
+                                                    let syndrome_id = individual.infectious_syndrome[b_idx];
+                                                    if (1..=10).contains(&syndrome_id) {
+                                                        let syndrome_idx = (syndrome_id - 1) as usize;
+                                                        let index = syndrome_idx * 6 + region_idx;
+                                                        lt.syndrome_deaths_infection_non_sepsis_by_region[index] += 1;
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                     "drug_toxicity_related" => {
                                         lt.deaths_drug_toxicity += 1;
-                                        lt.deaths_by_region
-                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_DRUG_TOXICITY_IDX]
-                                            += 1;
-                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
-                                            + age_group_idx * NUM_DEATH_CAUSES
-                                            + DEATH_CAUSE_DRUG_TOXICITY_IDX] += 1;
+                                        if collect_regional_stats {
+                                            lt.deaths_by_region
+                                                [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_DRUG_TOXICITY_IDX]
+                                                += 1;
+                                            lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                                + age_group_idx * NUM_DEATH_CAUSES
+                                                + DEATH_CAUSE_DRUG_TOXICITY_IDX] += 1;
+                                        }
                                     }
                                     _ => {
                                         lt.deaths_background += 1;
-                                        lt.deaths_by_region
-                                            [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX]
-                                            += 1;
-                                        lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
-                                            + age_group_idx * NUM_DEATH_CAUSES
-                                            + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                        if collect_regional_stats {
+                                            lt.deaths_by_region
+                                                [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX]
+                                                += 1;
+                                            lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                                + age_group_idx * NUM_DEATH_CAUSES
+                                                + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                        }
                                         count_in_deaths_by_bacteria = false;
                                     }
                                 }
                             } else {
                                 lt.deaths_background += 1;
-                                lt.deaths_by_region
-                                    [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX] += 1;
-                                lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
-                                    + age_group_idx * NUM_DEATH_CAUSES
-                                    + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                if collect_regional_stats {
+                                    lt.deaths_by_region
+                                        [region_idx * NUM_DEATH_CAUSES + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                    lt.deaths_by_region_age[region_idx * (5 * NUM_DEATH_CAUSES)
+                                        + age_group_idx * NUM_DEATH_CAUSES
+                                        + DEATH_CAUSE_BACKGROUND_IDX] += 1;
+                                }
                                 count_in_deaths_by_bacteria = false;
                             }
                             // Count deaths by bacteria
@@ -3113,24 +3217,36 @@ impl Simulation {
                         // Count living population by region
                         let effective_region = get_effective_region(individual);
                         let region_idx = region_to_index(effective_region);
-                        lt.living_population_by_region[region_idx] += 1;
+                        if collect_regional_stats {
+                            lt.living_population_by_region[region_idx] += 1;
+                        }
 
                         let age_years = individual.age as f64 / 365.0;
                         if (0.0..6.0).contains(&age_years) {
                             lt.num_age_0_5 += 1;
-                            lt.age_distribution_by_region[region_idx * 5 + 0] += 1;
+                            if collect_regional_stats {
+                                lt.age_distribution_by_region[region_idx * 5 + 0] += 1;
+                            }
                         } else if (6.0..15.0).contains(&age_years) {
                             lt.num_age_6_14 += 1;
-                            lt.age_distribution_by_region[region_idx * 5 + 1] += 1;
+                            if collect_regional_stats {
+                                lt.age_distribution_by_region[region_idx * 5 + 1] += 1;
+                            }
                         } else if (15.0..50.0).contains(&age_years) {
                             lt.num_age_15_49 += 1;
-                            lt.age_distribution_by_region[region_idx * 5 + 2] += 1;
+                            if collect_regional_stats {
+                                lt.age_distribution_by_region[region_idx * 5 + 2] += 1;
+                            }
                         } else if (50.0..80.0).contains(&age_years) {
                             lt.num_age_50_79 += 1;
-                            lt.age_distribution_by_region[region_idx * 5 + 3] += 1;
+                            if collect_regional_stats {
+                                lt.age_distribution_by_region[region_idx * 5 + 3] += 1;
+                            }
                         } else if age_years >= 80.0 {
                             lt.num_age_80plus += 1;
-                            lt.age_distribution_by_region[region_idx * 5 + 4] += 1;
+                            if collect_regional_stats {
+                                lt.age_distribution_by_region[region_idx * 5 + 4] += 1;
+                            }
                         }
                         let on_any_drug_current = individual.cur_use_drug.iter().any(|&x| x);
                         let has_any_microbiome = individual.presence_microbiome.iter().any(|&x| x);
@@ -3142,8 +3258,10 @@ impl Simulation {
                             for (d_idx, &is_using) in individual.cur_use_drug.iter().enumerate() {
                                 if is_using {
                                     lt.currently_on_drug_by_drug[d_idx] += 1;
-                                    let idx = region_idx * DRUG_SHORT_NAMES.len() + d_idx;
-                                    lt.currently_on_drug_by_region_drug[idx] += 1;
+                                    if collect_regional_stats {
+                                        let idx = region_idx * DRUG_SHORT_NAMES.len() + d_idx;
+                                        lt.currently_on_drug_by_region_drug[idx] += 1;
+                                    }
                                 }
                             }
                         }
@@ -3319,14 +3437,16 @@ impl Simulation {
                                     if !individual_has_any_infection_counted_for_syndrome {
                                         let syndrome_id = individual.infectious_syndrome[b_idx];
                                         if (1..=10).contains(&syndrome_id) {
-                                            lt.infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
+                                            if collect_syndrome_stats {
+                                                lt.infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
+                                            }
                                             individual_has_any_infection_counted_for_syndrome = true;
                                         }
                                     }
 
                                     // Count syndrome for this bacteria specifically (all infections, not just first)
                                     let syndrome_id = individual.infectious_syndrome[b_idx];
-                                    if (1..=10).contains(&syndrome_id) {
+                                    if collect_syndrome_stats && (1..=10).contains(&syndrome_id) {
                                         let flat_idx = b_idx * 10 + (syndrome_id - 1) as usize;
                                         lt.infected_by_syndrome_by_bacteria[flat_idx] += 1;
                                     }
@@ -3347,7 +3467,7 @@ impl Simulation {
                                         // Count newly infected by syndrome (take first one if multiple infections)
                                         if !individual_has_any_new_infection_counted_for_syndrome {
                                             let syndrome_id = individual.infectious_syndrome[b_idx];
-                                            if (1..=10).contains(&syndrome_id) {
+                                            if collect_syndrome_stats && (1..=10).contains(&syndrome_id) {
                                                 lt.newly_infected_by_syndrome[(syndrome_id - 1) as usize] += 1;
                                                 individual_has_any_new_infection_counted_for_syndrome = true;
                                             }
@@ -3371,7 +3491,7 @@ impl Simulation {
                                             }
                                         }
                                         // Hospital acquisition tracking
-                                        if individual.infection_hospital_acquired[b_idx] {
+                                        if collect_regional_stats && individual.infection_hospital_acquired[b_idx] {
                                             let cur_region_idx = region_to_index(
                                                 match individual.region_cur_in {
                                                     crate::simulation::population::Region::Home => individual.region_living,
@@ -3492,7 +3612,9 @@ impl Simulation {
                         }
                         if individual.hospital_status.is_hospitalized() {
                             lt.number_in_hospital += 1;
-                            lt.hospital_population_by_region[region_idx] += 1;
+                            if collect_regional_stats {
+                                lt.hospital_population_by_region[region_idx] += 1;
+                            }
                         }
                         if individual.immunodeficiency_type.is_some() {
                             lt.number_severely_immunosuppressed += 1;
@@ -3518,22 +3640,24 @@ impl Simulation {
                     }
 
                     // Collect infection resolution data (populated by apply_rules for this individual)
-                    for (b_idx, resolution_counts) in individual
-                        .infection_resolution_this_timestep
-                        .iter()
-                        .enumerate()
-                    {
-                        for (res_idx, &count) in resolution_counts.iter().enumerate() {
-                            if count > 0 {
-                                let n = count as usize;
-                                match res_idx {
-                                    0 => lt.infection_resolution_immune_clearance_by_bacteria[b_idx] += n,
-                                    1 => lt.infection_resolution_drug_assisted_clearance_by_bacteria[b_idx] += n,
-                                    2 => lt.infection_resolution_death_from_sepsis_by_bacteria[b_idx] += n,
-                                    3 => lt.infection_resolution_death_from_infection_non_sepsis_by_bacteria[b_idx] += n,
-                                    4 => lt.infection_resolution_death_from_background_by_bacteria[b_idx] += n,
-                                    5 => lt.infection_resolution_death_from_toxicity_by_bacteria[b_idx] += n,
-                                    _ => {}
+                    if collect_resolution_stats {
+                        for (b_idx, resolution_counts) in individual
+                            .infection_resolution_this_timestep
+                            .iter()
+                            .enumerate()
+                        {
+                            for (res_idx, &count) in resolution_counts.iter().enumerate() {
+                                if count > 0 {
+                                    let n = count as usize;
+                                    match res_idx {
+                                        0 => lt.infection_resolution_immune_clearance_by_bacteria[b_idx] += n,
+                                        1 => lt.infection_resolution_drug_assisted_clearance_by_bacteria[b_idx] += n,
+                                        2 => lt.infection_resolution_death_from_sepsis_by_bacteria[b_idx] += n,
+                                        3 => lt.infection_resolution_death_from_infection_non_sepsis_by_bacteria[b_idx] += n,
+                                        4 => lt.infection_resolution_death_from_background_by_bacteria[b_idx] += n,
+                                        5 => lt.infection_resolution_death_from_toxicity_by_bacteria[b_idx] += n,
+                                        _ => {}
+                                    }
                                 }
                             }
                         }
@@ -3550,7 +3674,9 @@ impl Simulation {
                             if infection_start_day > 0
                                 && (t as i32) == (infection_start_day + evaluation_days)
                             {
-                                lt.day_7_evaluations_by_bacteria[b_idx] += 1;
+                                if collect_day7_stats {
+                                    lt.day_7_evaluations_by_bacteria[b_idx] += 1;
+                                }
                                 let mut drug_used = false;
                                 for d_idx in 0..num_drugs {
                                     let drug_start = individual.date_drug_initiated_keep[d_idx];
@@ -3559,7 +3685,7 @@ impl Simulation {
                                         break;
                                     }
                                 }
-                                if drug_used {
+                                if collect_day7_stats && drug_used {
                                     lt.day_7_drug_used_by_bacteria[b_idx] += 1;
                                 }
                             }
@@ -3600,7 +3726,7 @@ impl Simulation {
                         for b_idx in 0..num_bacteria {
                             if individual.sepsis[b_idx] {
                                 let syndrome_id = individual.infectious_syndrome[b_idx];
-                                if syndrome_id >= 1 && syndrome_id <= 10 {
+                                if collect_syndrome_stats && syndrome_id >= 1 && syndrome_id <= 10 {
                                     let syndrome_idx = (syndrome_id - 1) as usize;
                                     lt.syndrome_population_by_region[syndrome_idx * 6 + region_idx_s] += 1;
                                 }
@@ -3619,6 +3745,11 @@ impl Simulation {
                     num_mechanisms,
                     None,
                     need_full_summary,
+                    collect_regional_stats,
+                    collect_syndrome_stats,
+                    collect_resolution_stats,
+                    collect_testing_stats,
+                    collect_day7_stats,
                     collect_none_only_stats,
                 ),
                 |mut a, b| {
@@ -3772,7 +3903,7 @@ impl Simulation {
             let infected_21_count = infected_21_days_count;
 
             // Build HashMap for TimeStepSummary from the flat parallel-loop vector
-            let newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize> = {
+            let newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize> = if collect_regional_stats {
                 let mut map = HashMap::new();
                 for b_idx in 0..BACTERIA_LIST.len() {
                     for r_idx in 0..6usize {
@@ -3783,6 +3914,8 @@ impl Simulation {
                     }
                 }
                 map
+            } else {
+                HashMap::new()
             };
 
             // Single history pass: compute all 6 rolling-year sums at once
@@ -5308,10 +5441,11 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
-            for value in &summary.currently_on_drug_by_region_drug {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.currently_on_drug_by_region_drug,
+                6 * DRUG_SHORT_NAMES.len(),
+            );
 
             for value in &summary.infected_and_on_any_drug_by_bacteria {
                 row.push(',');
@@ -5379,16 +5513,10 @@ impl Simulation {
             );
 
             // Add region population data
-            for value in &summary.living_population_by_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(&mut row, &summary.living_population_by_region, 6);
 
             // Add regional hospital population data
-            for value in &summary.hospital_population_by_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(&mut row, &summary.hospital_population_by_region, 6);
 
             // Add per-bacteria, per-region hospital newly infected data
             for bacteria_idx in 0..BACTERIA_LIST.len() {
@@ -5414,49 +5542,38 @@ impl Simulation {
             }
 
             // Add regional age distribution data (as proportions)
-            for region_idx in 0..6 {
-                // 6 regions
-                let region_pop = summary.living_population_by_region[region_idx];
-                for age_group_idx in 0..5 {
-                    // 5 age groups
-                    let age_count =
-                        summary.age_distribution_by_region[region_idx * 5 + age_group_idx];
-                    let proportion = if region_pop > 0 {
-                        age_count as f64 / region_pop as f64
-                    } else {
-                        0.0
-                    };
-                    row.push(',');
-                    row.push_str(&format!("{:.6}", proportion));
+            if summary.living_population_by_region.is_empty()
+                || summary.age_distribution_by_region.is_empty()
+            {
+                for _ in 0..(6 * 5) {
+                    row.push_str(",0.000000");
+                }
+            } else {
+                for region_idx in 0..6 {
+                    let region_pop = summary.living_population_by_region[region_idx];
+                    for age_group_idx in 0..5 {
+                        let age_count =
+                            summary.age_distribution_by_region[region_idx * 5 + age_group_idx];
+                        let proportion = if region_pop > 0 {
+                            age_count as f64 / region_pop as f64
+                        } else {
+                            0.0
+                        };
+                        row.push(',');
+                        row.push_str(&format!("{:.6}", proportion));
+                    }
                 }
             }
 
             // Add regional death data (as counts)
-            for region_idx in 0..6 {
-                // 6 regions
-                for death_type_idx in 0..NUM_DEATH_CAUSES {
-                    let death_count =
-                        summary.deaths_by_region[region_idx * NUM_DEATH_CAUSES + death_type_idx];
-                    row.push(',');
-                    row.push_str(&death_count.to_string());
-                }
-            }
+            append_usize_slice_or_zeros(&mut row, &summary.deaths_by_region, 6 * NUM_DEATH_CAUSES);
 
             // Add age-specific death data by region (as counts)
-            for region_idx in 0..6 {
-                // 6 regions
-                for age_group_idx in 0..5 {
-                    // 5 age groups
-                    for death_type_idx in 0..NUM_DEATH_CAUSES {
-                        let death_count = summary.deaths_by_region_age[region_idx
-                            * (5 * NUM_DEATH_CAUSES)
-                            + age_group_idx * NUM_DEATH_CAUSES
-                            + death_type_idx];
-                        row.push(',');
-                        row.push_str(&death_count.to_string());
-                    }
-                }
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.deaths_by_region_age,
+                6 * 5 * NUM_DEATH_CAUSES,
+            );
 
             // Add syndrome population by region data
             append_usize_slice_or_zeros(
