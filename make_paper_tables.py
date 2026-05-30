@@ -157,6 +157,7 @@ def _save_figure(
     footnotes: list[str],
     subfolder: str = "main",
     agg: dict | None = None,
+    extra_html: str = "",
 ) -> None:
     """Save a matplotlib figure as PNG + SVG and write an HTML wrapper page."""
     fig_dir = out_dir / "figures"
@@ -181,6 +182,8 @@ def _save_figure(
         f"<img src='{html_rel}' alt='{stem}' "
         f"style='max-width:100%; border:1px solid #ddd; border-radius:4px;'>\n"
     )
+    if extra_html:
+        body += extra_html
     body += _html_footnotes(footnotes)
     body += "</body></html>"
     html_path = out_dir / subfolder / f"{stem}.html"
@@ -1767,37 +1770,48 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
     Figure F5: paired horizontal bars of drug-class share (figure version of T3).
     Bars coloured by WHO AWaRe category.
     """
-    dc = agg.get("drug_class_share", pd.DataFrame()).copy()
+    dc_raw = agg.get("drug_class_share", pd.DataFrame()).copy()
     n  = agg.get("n_runs", 1)
-    if dc is None or dc.empty:
+    if dc_raw is None or dc_raw.empty:
         print("  F5: no drug_class_share data — skipping.")
         return
+    dc = _clean_df(dc_raw)
     class_col = dc.columns[0]
     sim_col   = next((c for c in dc.columns
                       if "share" in c.lower() and "%" in c
+                      and "observed estimate" not in c.lower()
                       and "target" not in c.lower()), None)
     tgt_col   = next((c for c in dc.columns
-                      if "target" in c.lower() and "%" in c), None)
+                      if ("target" in c.lower() or "observed estimate" in c.lower()) and "%" in c), None)
     if sim_col is None:
         return
-    dc[sim_col] = pd.to_numeric(dc[sim_col], errors="coerce")
+
+    plot_df = dc.copy()
+
+    def _leading_numeric(series: pd.Series) -> pd.Series:
+        extracted = series.astype(str).str.extract(r"([-+]?\d*\.?\d+)", expand=False)
+        return pd.to_numeric(extracted, errors="coerce")
+
+    plot_df[sim_col] = _leading_numeric(plot_df[sim_col])
     if tgt_col:
-        dc[tgt_col] = pd.to_numeric(dc[tgt_col], errors="coerce")
+        plot_df[tgt_col] = _leading_numeric(plot_df[tgt_col])
     sort_col = tgt_col if tgt_col else sim_col
-    dc = dc.sort_values(sort_col, ascending=True, na_position="first")
-    n_cls = len(dc)
+    order = plot_df.sort_values(sort_col, ascending=True, na_position="first").index
+    plot_df = plot_df.loc[order].reset_index(drop=True)
+    dc = dc.loc[order].reset_index(drop=True)
+    n_cls = len(plot_df)
     fig, ax = plt.subplots(figsize=(9, max(4, 0.45 * n_cls)))
     y     = np.arange(n_cls)
     bar_h = 0.36
-    sim_colors = [_F5_AWARE.get(str(c), "#78909C") for c in dc[class_col]]
-    ax.barh(y + bar_h / 2, dc[sim_col].fillna(0), bar_h,
+    sim_colors = [_F5_AWARE.get(str(c), "#78909C") for c in plot_df[class_col]]
+    ax.barh(y + bar_h / 2, plot_df[sim_col].fillna(0), bar_h,
             color=sim_colors, alpha=0.85, label="Simulation")
     if tgt_col:
-        ax.barh(y - bar_h / 2, dc[tgt_col].fillna(0), bar_h,
+        ax.barh(y - bar_h / 2, plot_df[tgt_col].fillna(0), bar_h,
                 color="none", edgecolor="#444", linewidth=0.9, hatch="///",
                 label="Target (estimate)")
     ax.set_yticks(y)
-    ax.set_yticklabels(dc[class_col].values, fontsize=7.5)
+    ax.set_yticklabels(plot_df[class_col].values, fontsize=7.5)
     ax.set_xlabel("Share of antibiotic use (%)", fontsize=10)
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="x", linewidth=0.4, alpha=0.5)
@@ -1813,6 +1827,13 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
         "Figure F5 \u2014 Antibiotic use by drug class: simulation vs. global estimates",
         fontsize=10, fontweight="bold")
     fig.tight_layout()
+    comparison_html = (
+        "<h2>Simulation vs. Observed Estimate</h2>\n"
+        "<p class='note'>"
+        "The figure compares the same drug-class share values shown in the calibration summary and Table T3."
+        "</p>\n"
+        + _html_table(dc)
+    )
     _save_figure(
         fig, out_dir, "F5_drug_class_share",
         "Figure F5 \u2014 Antibiotic Use by Drug Class: Simulation vs. Global Estimates",
@@ -1822,6 +1843,7 @@ def make_f5_drug_class_share(agg: dict, out_dir: Path) -> None:
         ["WHO AWaRe classification: Access, Watch, Reserve (WHO 2023 AWaRe antibiotic book).",
          "See Table T3 footnotes for target data sources and uncertainty notes."],
         agg=agg,
+        extra_html=comparison_html,
     )
 
 

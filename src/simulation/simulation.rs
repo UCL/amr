@@ -91,6 +91,9 @@ pub struct SummaryContentFlags {
     /// Per-bacteria infection, death, sepsis, activity_r, and carrier/community split arrays.
     /// Required by most figures; also the infected denominator for Fig 12.
     pub per_bacteria: bool,
+    /// Additional per-bacteria treatment-prevention and treatment-failure diagnostics.
+    /// These are useful for richer analysis but are not required by lean calibration runs.
+    pub per_bacteria_detail: bool,
     /// Additional per-bacteria split summaries for age and hospital/community subgroups.
     /// These support newer calibration tables but are not required for the older core
     /// burden/resistance outputs, so `CalibrationMode::Full` leaves them off by default.
@@ -99,9 +102,19 @@ pub struct SummaryContentFlags {
     /// before calling `run()`; export will then populate the corresponding CSV fields
     /// instead of writing the placeholder zeros used by lean `Full` mode.
     pub split_burden: bool,
+    /// Minimal hospital/community serious-R calibration outputs.
+    ///
+    /// This restores only the true stock split denominators and hospital/community
+    /// marker-positive counts used by the serious-R calibration summary, without
+    /// re-enabling the broader age-split and burden-split outputs covered by
+    /// `split_burden`.
+    pub serious_r_hc: bool,
     /// Microbiome carriage presence, resistance, acquisition, clearance, and duration-bin arrays.
     /// Required by Figs 6, 7.
     pub microbiome: bool,
+    /// Additional microbiome detail outputs beyond carriage presence/resistance prevalence.
+    /// These support detail plots and diagnostics rather than the core calibration summary.
+    pub microbiome_detail: bool,
     /// Regional population, hospital, age-distribution, and drug-usage breakdowns.
     /// Required by Figs 8, 9, 10.
     pub regional: bool,
@@ -124,8 +137,11 @@ impl SummaryContentFlags {
     pub const fn all() -> Self {
         SummaryContentFlags {
             per_bacteria: true,
+            per_bacteria_detail: true,
             split_burden: true,
+            serious_r_hc: true,
             microbiome: true,
+            microbiome_detail: true,
             regional: true,
             syndrome: true,
             resolution: true,
@@ -139,8 +155,11 @@ impl SummaryContentFlags {
     pub const fn none() -> Self {
         SummaryContentFlags {
             per_bacteria: false,
+            per_bacteria_detail: false,
             split_burden: false,
+            serious_r_hc: false,
             microbiome: false,
+            microbiome_detail: false,
             regional: false,
             syndrome: false,
             resolution: false,
@@ -153,14 +172,16 @@ impl SummaryContentFlags {
     ///
     /// Keeps the groups used by calibration summaries and resistance/burden benchmarking,
     /// while dropping syndrome, infection-resolution, and day-7 tracking from stored rows.
-    /// It also disables `split_burden`, meaning age-split and hospital/community split
-    /// burden summaries are exported as zeros in this mode unless a caller explicitly
-    /// overrides the flag for a run that needs those tables.
+    /// It keeps only the minimal hospital/community serious-R split needed by the
+    /// calibration summary while leaving the broader `split_burden` block disabled.
     pub const fn calibration_full() -> Self {
         SummaryContentFlags {
             per_bacteria: true,
+            per_bacteria_detail: false,
             split_burden: false,
+            serious_r_hc: true,
             microbiome: true,
+            microbiome_detail: false,
             // Calibration runs keep the infection-focused summaries but drop regional
             // breakdowns to reduce resident summary memory. Non-calibration modes still
             // retain the full regional outputs.
@@ -219,6 +240,12 @@ impl SummaryContentFlags {
                 }
                 _ => {} // Unknown figure number — no extra flags. Fig 2d uses scalar fields only.
             }
+        }
+        if flags.per_bacteria {
+            flags.per_bacteria_detail = true;
+        }
+        if flags.microbiome {
+            flags.microbiome_detail = true;
         }
         flags
     }
@@ -1429,6 +1456,7 @@ pub struct TimeStepSummary {
     pub people_by_drug_count: Vec<usize>, // [0] = people on 0 drugs, [1] = people on 1 drug, etc.
 }
 
+// *** 
 impl TimeStepSummary {
     /// Replace disabled field groups with empty vecs, reducing `summary_log` memory.
     /// Called after the row is fully constructed, just before it is pushed to `summary_log`.
@@ -1440,7 +1468,6 @@ impl TimeStepSummary {
             self.infected_and_on_any_drug_by_bacteria = Vec::new();
             self.number_with_sepsis_by_bacteria = Vec::new();
             self.new_sepsis_cases_by_bacteria = Vec::new();
-            self.infections_prevented_by_drug_by_bacteria = Vec::new();
             self.infections_by_bacteria = Vec::new();
             self.deaths_by_bacteria = Vec::new();
             self.newly_infected_by_bacteria_region = Vec::new();
@@ -1455,6 +1482,9 @@ impl TimeStepSummary {
             self.infected_non_carrier_count_by_bacteria = Vec::new();
             self.resistant_infected_carrier_count_by_bacteria = Vec::new();
             self.resistant_infected_non_carrier_count_by_bacteria = Vec::new();
+        }
+        if !flags.per_bacteria || !flags.per_bacteria_detail {
+            self.infections_prevented_by_drug_by_bacteria = Vec::new();
             self.drug_failure_events_by_bacteria_region = Vec::new();
             self.drug_treatment_day5_events_by_bacteria_region = Vec::new();
         }
@@ -1467,18 +1497,22 @@ impl TimeStepSummary {
             self.deaths_by_bacteria_community_acquired = Vec::new();
             self.newly_infected_by_bacteria_under_5 = Vec::new();
             self.newly_infected_by_bacteria_over_65 = Vec::new();
-            self.currently_infected_hospital_count_by_bacteria = Vec::new();
-            self.currently_infected_community_count_by_bacteria = Vec::new();
             self.resistant_infected_hospital_count_by_bacteria = Vec::new();
             self.resistant_infected_community_count_by_bacteria = Vec::new();
             self.newly_infected_any_r_hospital_by_bacteria = Vec::new();
             self.newly_infected_any_r_community_by_bacteria = Vec::new();
+        }
+        if !flags.split_burden && !flags.serious_r_hc {
+            self.currently_infected_hospital_count_by_bacteria = Vec::new();
+            self.currently_infected_community_count_by_bacteria = Vec::new();
             self.infected_with_any_r_positive_hospital_by_bacteria_drug = Vec::new();
             self.infected_with_any_r_positive_community_by_bacteria_drug = Vec::new();
         }
         if !flags.microbiome {
             self.presence_microbiome_by_bacteria = Vec::new();
             self.presence_microbiome_resistant_by_bacteria = Vec::new();
+        }
+        if !flags.microbiome || !flags.microbiome_detail {
             self.living_microbiome_minority_by_bacteria = Vec::new();
             self.living_microbiome_majority_by_bacteria = Vec::new();
             self.cleared_any_r_microbiome_categories = Vec::new();
@@ -2062,7 +2096,10 @@ impl Simulation {
                     num_mechanisms: usize,
                     seed: Option<u64>,
                     collect_full_bacteria_drug_stats: bool,
+                    collect_per_bacteria_detail_stats: bool,
                     collect_split_burden_stats: bool,
+                    collect_serious_r_hc_stats: bool,
+                    collect_microbiome_detail_stats: bool,
                     collect_regional_stats: bool,
                     collect_syndrome_stats: bool,
                     collect_resolution_stats: bool,
@@ -2087,10 +2124,11 @@ impl Simulation {
                         mic_lt2_counts: vec![0; bacteria_drug_len],
                         currently_on_drug_by_bacteria_drug: vec![0; bacteria_drug_len],
                         microbiome_r_positive_by_bacteria_drug: vec![0; bacteria_drug_len],
-                        cleared_any_r_microbiome_categories: vec![
-                            0;
-                            num_bacteria * CLEARANCE_MICROBIOME_CATEGORY_COUNT
-                        ],
+                        cleared_any_r_microbiome_categories: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria * CLEARANCE_MICROBIOME_CATEGORY_COUNT]
+                        } else {
+                            Vec::new()
+                        },
                         infected_and_on_any_drug_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria: vec![0; num_bacteria],
                         infections_by_bacteria_under_5: if collect_split_burden_stats {
@@ -2103,7 +2141,11 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        infections_prevented_by_drug_by_bacteria: vec![0; num_bacteria],
+                        infections_prevented_by_drug_by_bacteria: if collect_per_bacteria_detail_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
                         deaths_by_bacteria: vec![0; num_bacteria],
                         deaths_by_bacteria_under_5: if collect_split_burden_stats {
                             vec![0; num_bacteria]
@@ -2181,31 +2223,56 @@ impl Simulation {
                         num_with_any_bacteria_microbiome: 0,
                         presence_microbiome_by_bacteria: vec![0; num_bacteria],
                         presence_microbiome_resistant_by_bacteria: vec![0; num_bacteria],
-                        living_microbiome_minority_by_bacteria: vec![0; num_bacteria],
-                        living_microbiome_majority_by_bacteria: vec![0; num_bacteria],
-                        presence_microbiome_by_bacteria_by_region: vec![
-                            0;
-                            num_bacteria * REGION_COUNT
-                        ],
-                        carriage_duration_bins_by_bacteria: vec![
-                            0;
-                            num_bacteria
-                                * CARRIAGE_DURATION_BIN_COUNT
-                        ],
-                        microbiome_acquisitions_on_drug_by_bacteria: vec![0; num_bacteria],
-                        microbiome_acquisitions_off_drug_by_bacteria: vec![0; num_bacteria],
-                        microbiome_clearances_on_drug_by_bacteria: vec![0; num_bacteria],
-                        microbiome_clearances_off_drug_by_bacteria: vec![0; num_bacteria],
-                        infected_carrier_count_by_bacteria: vec![0; num_bacteria],
-                        infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
-                        resistant_infected_carrier_count_by_bacteria: vec![0; num_bacteria],
-                        resistant_infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
-                        currently_infected_hospital_count_by_bacteria: if collect_split_burden_stats {
+                        living_microbiome_minority_by_bacteria: if collect_microbiome_detail_stats {
                             vec![0; num_bacteria]
                         } else {
                             Vec::new()
                         },
-                        currently_infected_community_count_by_bacteria: if collect_split_burden_stats {
+                        living_microbiome_majority_by_bacteria: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        presence_microbiome_by_bacteria_by_region: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
+                        carriage_duration_bins_by_bacteria: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria * CARRIAGE_DURATION_BIN_COUNT]
+                        } else {
+                            Vec::new()
+                        },
+                        microbiome_acquisitions_on_drug_by_bacteria: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        microbiome_acquisitions_off_drug_by_bacteria: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        microbiome_clearances_on_drug_by_bacteria: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        microbiome_clearances_off_drug_by_bacteria: if collect_microbiome_detail_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        infected_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        resistant_infected_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        resistant_infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
+                        currently_infected_hospital_count_by_bacteria: if collect_split_burden_stats || collect_serious_r_hc_stats {
+                            vec![0; num_bacteria]
+                        } else {
+                            Vec::new()
+                        },
+                        currently_infected_community_count_by_bacteria: if collect_split_burden_stats || collect_serious_r_hc_stats {
                             vec![0; num_bacteria]
                         } else {
                             Vec::new()
@@ -2220,15 +2287,16 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        drug_failure_events_by_bacteria_region: vec![
-                            0;
-                            num_bacteria * REGION_COUNT
-                        ],
-                        drug_treatment_day5_events_by_bacteria_region: vec![
-                            0;
-                            num_bacteria
-                                * REGION_COUNT
-                        ],
+                        drug_failure_events_by_bacteria_region: if collect_per_bacteria_detail_stats {
+                            vec![0; num_bacteria * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
+                        drug_treatment_day5_events_by_bacteria_region: if collect_per_bacteria_detail_stats {
+                            vec![0; num_bacteria * REGION_COUNT]
+                        } else {
+                            Vec::new()
+                        },
                         infected_with_test_identified_by_bacteria: if collect_testing_stats {
                             vec![0; num_bacteria]
                         } else {
@@ -2256,12 +2324,12 @@ impl Simulation {
                             0;
                             bacteria_drug_len
                         ],
-                        infected_with_any_r_positive_hospital_by_bacteria_drug: if collect_split_burden_stats {
+                        infected_with_any_r_positive_hospital_by_bacteria_drug: if collect_split_burden_stats || collect_serious_r_hc_stats {
                             vec![0; bacteria_drug_len]
                         } else {
                             Vec::new()
                         },
-                        infected_with_any_r_positive_community_by_bacteria_drug: if collect_split_burden_stats {
+                        infected_with_any_r_positive_community_by_bacteria_drug: if collect_split_burden_stats || collect_serious_r_hc_stats {
                             vec![0; bacteria_drug_len]
                         } else {
                             Vec::new()
@@ -2976,7 +3044,10 @@ impl Simulation {
             let collect_regional_stats = self.summary_content_flags.regional;
             let collect_syndrome_stats = self.summary_content_flags.syndrome;
             let collect_resolution_stats = self.summary_content_flags.resolution;
+            let collect_per_bacteria_detail_stats = self.summary_content_flags.per_bacteria_detail;
             let collect_split_burden_stats = self.summary_content_flags.split_burden;
+            let collect_serious_r_hc_stats = self.summary_content_flags.serious_r_hc;
+            let collect_microbiome_detail_stats = self.summary_content_flags.microbiome_detail;
             let collect_testing_stats = self.summary_content_flags.testing;
             let collect_day7_stats = collect_none_only_stats && self.summary_content_flags.day7;
             let totals = self.population.individuals.par_iter_mut()
@@ -2993,7 +3064,10 @@ impl Simulation {
                         num_mechanisms,
                         thread_seed,
                         need_full_summary,
+                        collect_per_bacteria_detail_stats,
                         collect_split_burden_stats,
+                        collect_serious_r_hc_stats,
+                        collect_microbiome_detail_stats,
                         collect_regional_stats,
                         collect_syndrome_stats,
                         collect_resolution_stats,
@@ -3399,20 +3473,24 @@ impl Simulation {
                                 }
                                 if has_bacteria {
                                     lt.presence_microbiome_by_bacteria[b_idx] += 1;
-                                    let region_idx = region_to_index(individual.region_living);
-                                    let idx = b_idx * REGION_COUNT + region_idx;
-                                    lt.presence_microbiome_by_bacteria_by_region[idx] += 1;
-                                    match individual.microbiome_resistance_level(
-                                        b_idx,
-                                        microbiome_majority_threshold,
-                                    ) {
-                                        MicrobiomeResistanceLevel::MicrobiomeMinorityResistance => {
-                                            lt.living_microbiome_minority_by_bacteria[b_idx] += 1;
+                                    if !lt.presence_microbiome_by_bacteria_by_region.is_empty() {
+                                        let region_idx = region_to_index(individual.region_living);
+                                        let idx = b_idx * REGION_COUNT + region_idx;
+                                        lt.presence_microbiome_by_bacteria_by_region[idx] += 1;
+                                    }
+                                    if !lt.living_microbiome_minority_by_bacteria.is_empty() {
+                                        match individual.microbiome_resistance_level(
+                                            b_idx,
+                                            microbiome_majority_threshold,
+                                        ) {
+                                            MicrobiomeResistanceLevel::MicrobiomeMinorityResistance => {
+                                                lt.living_microbiome_minority_by_bacteria[b_idx] += 1;
+                                            }
+                                            MicrobiomeResistanceLevel::MicrobiomeMajorityResistance => {
+                                                lt.living_microbiome_majority_by_bacteria[b_idx] += 1;
+                                            }
+                                            _ => {}
                                         }
-                                        MicrobiomeResistanceLevel::MicrobiomeMajorityResistance => {
-                                            lt.living_microbiome_majority_by_bacteria[b_idx] += 1;
-                                        }
-                                        _ => {}
                                     }
                                     let has_resistant_microbiome = individual.resistances[b_idx]
                                         .iter()
@@ -3420,15 +3498,17 @@ impl Simulation {
                                     if has_resistant_microbiome {
                                         lt.presence_microbiome_resistant_by_bacteria[b_idx] += 1;
                                     }
-                                    let acquisition_day = individual.date_microbiome_acquired[b_idx];
-                                    let duration_days = if acquisition_day > 0 {
-                                        (t as i32 - acquisition_day).max(0)
-                                    } else {
-                                        0
-                                    };
-                                    let bin_idx = carriage_duration_bin(duration_days);
-                                    let idx = b_idx * CARRIAGE_DURATION_BIN_COUNT + bin_idx;
-                                    lt.carriage_duration_bins_by_bacteria[idx] += 1;
+                                    if !lt.carriage_duration_bins_by_bacteria.is_empty() {
+                                        let acquisition_day = individual.date_microbiome_acquired[b_idx];
+                                        let duration_days = if acquisition_day > 0 {
+                                            (t as i32 - acquisition_day).max(0)
+                                        } else {
+                                            0
+                                        };
+                                        let bin_idx = carriage_duration_bin(duration_days);
+                                        let idx = b_idx * CARRIAGE_DURATION_BIN_COUNT + bin_idx;
+                                        lt.carriage_duration_bins_by_bacteria[idx] += 1;
+                                    }
                                 }
                             }
                         }
@@ -3438,10 +3518,12 @@ impl Simulation {
                                 continue;
                             }
                             if acquired {
-                                if individual.microbiome_acquired_on_drug_today[b_idx] {
-                                    lt.microbiome_acquisitions_on_drug_by_bacteria[b_idx] += 1;
-                                } else {
-                                    lt.microbiome_acquisitions_off_drug_by_bacteria[b_idx] += 1;
+                                if !lt.microbiome_acquisitions_on_drug_by_bacteria.is_empty() {
+                                    if individual.microbiome_acquired_on_drug_today[b_idx] {
+                                        lt.microbiome_acquisitions_on_drug_by_bacteria[b_idx] += 1;
+                                    } else {
+                                        lt.microbiome_acquisitions_off_drug_by_bacteria[b_idx] += 1;
+                                    }
                                 }
                             }
                         }
@@ -3451,16 +3533,18 @@ impl Simulation {
                                 continue;
                             }
                             if cleared {
-                                if on_any_drug_current {
-                                    lt.microbiome_clearances_on_drug_by_bacteria[b_idx] += 1;
-                                } else {
-                                    lt.microbiome_clearances_off_drug_by_bacteria[b_idx] += 1;
+                                if !lt.microbiome_clearances_on_drug_by_bacteria.is_empty() {
+                                    if on_any_drug_current {
+                                        lt.microbiome_clearances_on_drug_by_bacteria[b_idx] += 1;
+                                    } else {
+                                        lt.microbiome_clearances_off_drug_by_bacteria[b_idx] += 1;
+                                    }
                                 }
                             }
                         }
 
                         // Track drug failure events: check for day 5 post-drug-initiation
-                        if has_active_drug_course {
+                        if has_active_drug_course && !lt.drug_treatment_day5_events_by_bacteria_region.is_empty() {
                             let home_region_idx = region_to_index(individual.region_living);
                             for (d_idx, &drug_init_day) in individual.date_drug_initiated.iter().enumerate() {
                                 if drug_init_day != i32::MIN && t as i32 - drug_init_day == 5 {
@@ -3484,8 +3568,10 @@ impl Simulation {
                             let base = b_idx * CLEARANCE_MICROBIOME_CATEGORY_COUNT;
                             for (cat_idx, count) in category_counts.iter_mut().enumerate() {
                                 if *count > 0 {
-                                    lt.cleared_any_r_microbiome_categories[base + cat_idx] +=
-                                        *count as usize;
+                                    if !lt.cleared_any_r_microbiome_categories.is_empty() {
+                                        lt.cleared_any_r_microbiome_categories[base + cat_idx] +=
+                                            *count as usize;
+                                    }
                                     *count = 0;
                                 }
                             }
@@ -3517,7 +3603,9 @@ impl Simulation {
                                 }
 
                                 // Count infections prevented by existing therapy (even if not currently infected)
-                                if individual.infection_prevented_by_drug[b_idx] {
+                                if !lt.infections_prevented_by_drug_by_bacteria.is_empty()
+                                    && individual.infection_prevented_by_drug[b_idx]
+                                {
                                     lt.infections_prevented_by_drug_by_bacteria[b_idx] += 1;
                                 }
                             }
@@ -3839,7 +3927,10 @@ impl Simulation {
                     num_mechanisms,
                     None,
                     need_full_summary,
+                    collect_per_bacteria_detail_stats,
                     collect_split_burden_stats,
+                    collect_serious_r_hc_stats,
+                    collect_microbiome_detail_stats,
                     collect_regional_stats,
                     collect_syndrome_stats,
                     collect_resolution_stats,
@@ -5316,10 +5407,11 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
-            for value in &summary.infections_prevented_by_drug_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.infections_prevented_by_drug_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
             for value in &summary.deaths_by_bacteria {
                 row.push(',');
                 row.push_str(&value.to_string());
@@ -5368,47 +5460,64 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
-            for (&minor, &major) in summary
-                .living_microbiome_minority_by_bacteria
-                .iter()
-                .zip(&summary.living_microbiome_majority_by_bacteria)
-            {
+            for b_idx in 0..BACTERIA_LIST.len() {
+                let minor = summary
+                    .living_microbiome_minority_by_bacteria
+                    .get(b_idx)
+                    .copied()
+                    .unwrap_or(0);
+                let major = summary
+                    .living_microbiome_majority_by_bacteria
+                    .get(b_idx)
+                    .copied()
+                    .unwrap_or(0);
                 row.push(',');
                 row.push_str(&minor.to_string());
                 row.push(',');
                 row.push_str(&major.to_string());
             }
             // Add regional presence_microbiome data
-            for value in &summary.presence_microbiome_by_bacteria_by_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.carriage_duration_bins_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.microbiome_acquisitions_on_drug_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.microbiome_acquisitions_off_drug_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.microbiome_clearances_on_drug_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.microbiome_clearances_off_drug_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.presence_microbiome_by_bacteria_by_region,
+                BACTERIA_LIST.len() * REGION_COUNT,
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.carriage_duration_bins_by_bacteria,
+                BACTERIA_LIST.len() * CARRIAGE_DURATION_BIN_COUNT,
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.microbiome_acquisitions_on_drug_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.microbiome_acquisitions_off_drug_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.microbiome_clearances_on_drug_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.microbiome_clearances_off_drug_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
             for b_idx in 0..BACTERIA_LIST.len() {
                 let base = b_idx * CLEARANCE_MICROBIOME_CATEGORY_COUNT;
                 for cat_idx in 0..CLEARANCE_MICROBIOME_CATEGORY_COUNT {
                     row.push(',');
                     row.push_str(
-                        &summary.cleared_any_r_microbiome_categories[base + cat_idx].to_string(),
+                        &summary
+                            .cleared_any_r_microbiome_categories
+                            .get(base + cat_idx)
+                            .copied()
+                            .unwrap_or(0)
+                            .to_string(),
                     );
                 }
             }
@@ -5449,33 +5558,42 @@ impl Simulation {
                 BACTERIA_LIST.len(),
             );
             // Add regional drug failure events data
-            for value in &summary.drug_failure_events_by_bacteria_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.drug_failure_events_by_bacteria_region,
+                BACTERIA_LIST.len() * REGION_COUNT,
+            );
             // Add regional drug treatment day5 events data
-            for value in &summary.drug_treatment_day5_events_by_bacteria_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.infected_with_test_identified_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.infected_with_test_for_resistance_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.newly_infected_by_bacteria_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for b_idx in 0..BACTERIA_LIST.len() {
-                row.push(',');
-                row.push_str(&summary.newly_infected_carrier_by_bacteria[b_idx].to_string());
-                row.push(',');
-                row.push_str(&summary.newly_infected_non_carrier_by_bacteria[b_idx].to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.drug_treatment_day5_events_by_bacteria_region,
+                BACTERIA_LIST.len() * REGION_COUNT,
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.infected_with_test_identified_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.infected_with_test_for_resistance_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.newly_infected_by_bacteria_region,
+                BACTERIA_LIST.len() * REGION_COUNT,
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.newly_infected_carrier_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.newly_infected_non_carrier_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.newly_infected_by_bacteria_under_5,
@@ -5486,10 +5604,11 @@ impl Simulation {
                 &summary.newly_infected_by_bacteria_over_65,
                 BACTERIA_LIST.len(),
             );
-            for value in &summary.deaths_infected_by_bacteria_region {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.deaths_infected_by_bacteria_region,
+                BACTERIA_LIST.len() * REGION_COUNT,
+            );
             for value in &summary.currently_on_drug_by_drug {
                 row.push(',');
                 row.push_str(&value.to_string());
