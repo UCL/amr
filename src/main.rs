@@ -131,13 +131,15 @@
 //
 
 use amr_project::config::get_global_param;
+use amr_project::observability;
 use amr_project::simulation::population::BACTERIA_LIST;
 use amr_project::simulation::simulation::CalibrationMode;
 use amr_project::simulation::simulation::Simulation;
 use chrono::Utc;
+use sha2::{Digest, Sha256};
 use std::backtrace::Backtrace;
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 use std::path::PathBuf;
 
 const RAYON_WORKER_STACK_BYTES: usize = 4 * 1024 * 1024;
@@ -192,9 +194,49 @@ fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunS
     }
 }
 
+fn resolve_source_hash() -> String {
+    observability::resolve_source_hash()
+}
+
+fn hash_file_sha256(path: &std::path::Path) -> std::io::Result<String> {
+    let mut file = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 8192];
+
+    loop {
+        let bytes_read = file.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn classify_panic(payload: &str, location: &str) -> &'static str {
+    let payload_lower = payload.to_ascii_lowercase();
+    let location_lower = location.to_ascii_lowercase();
+
+    if payload_lower.contains("stack overflow") {
+        "stack_overflow"
+    } else if payload_lower.contains("index out of bounds") {
+        "index_out_of_bounds"
+    } else if payload_lower.contains("attempt to divide by zero") {
+        "divide_by_zero"
+    } else if payload_lower.contains("assertion failed")
+        || location_lower.contains("panic_bounds_check")
+    {
+        "assertion_or_bounds_check"
+    } else {
+        "panic"
+    }
+}
+
 fn write_run_metadata(
     path: &std::path::Path,
     status: &str,
+    source_hash: &str,
     seed: ResolvedRunSeed,
     population_size: usize,
     time_steps: usize,
@@ -203,6 +245,9 @@ fn write_run_metadata(
     run_id: Option<u32>,
     csv_path: Option<&std::path::Path>,
     duration_secs: Option<f64>,
+    summary_hash: Option<&str>,
+    failure_class: &str,
+    last_timestep: Option<usize>,
 ) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
         .create(true)
@@ -216,6 +261,7 @@ fn write_run_metadata(
         "updated_utc={}",
         Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
     )?;
+    writeln!(file, "source_hash={}", source_hash)?;
     writeln!(file, "rng_seed={}", seed.value)?;
     writeln!(file, "rng_seed_source={}", seed.source)?;
     writeln!(
@@ -227,6 +273,11 @@ fn write_run_metadata(
     writeln!(file, "time_steps={}", time_steps)?;
     writeln!(file, "calibration_mode={:?}", calibration_mode)?;
     writeln!(file, "active_policies={:?}", active_policies)?;
+    writeln!(
+        file,
+        "last_timestep={}",
+        last_timestep.map_or_else(|| "pending".to_string(), |step| step.to_string())
+    )?;
     let rayon_threads = rayon::current_num_threads();
     writeln!(file, "rayon_threads={}", rayon_threads)?;
     writeln!(
@@ -246,6 +297,8 @@ fn write_run_metadata(
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "pending".to_string())
     )?;
+    writeln!(file, "summary_hash={}", summary_hash.unwrap_or("pending"))?;
+    writeln!(file, "failure_class={}", failure_class)?;
     writeln!(file, "replay_env=AMR_RNG_SEED={}", seed.value)?;
 
     Ok(())
@@ -291,6 +344,8 @@ fn main() {
     let resolved_run_seed = resolve_run_seed(use_fixed_seed, fixed_seed_value);
     std::env::set_var("AMR_RNG_SEED", resolved_run_seed.value.to_string());
     let seed_override = Some(resolved_run_seed.value);
+    let source_hash = resolve_source_hash();
+    eprintln!("[startup] source_hash={}", source_hash);
 
     // ── Policy branch selection ────────────────────────────────────────────────
     // Only active when calibration_mode == CalibrationMode::None (full run).
@@ -328,6 +383,7 @@ fn main() {
     if let Err(err) = write_run_metadata(
         &metadata_path,
         "started",
+        &source_hash,
         resolved_run_seed,
         population_size,
         time_steps,
@@ -335,6 +391,9 @@ fn main() {
         active_policies,
         None,
         None,
+        None,
+        None,
+        "running",
         None,
     ) {
         eprintln!(
@@ -393,15 +452,37 @@ fn main() {
     let csv_path = output_dir.join(&csv_basename);
 
     // The summary CSV is the primary handoff to the Python analysis scripts.
-    if let Err(e) = simulation.export_summary_to_csv(&csv_path) {
-        println!("Error exporting CSV: {}", e);
-    } else {
-        println!("Summary data exported to {}", csv_path.display());
-    }
+    let (summary_hash, final_status, failure_class) =
+        match simulation.export_summary_to_csv(&csv_path) {
+            Ok(()) => {
+                println!("Summary data exported to {}", csv_path.display());
+                match hash_file_sha256(&csv_path) {
+                    Ok(hash) => (Some(hash), "completed", "completed"),
+                    Err(err) => {
+                        eprintln!(
+                            "Warning: unable to hash summary CSV {}: {}",
+                            csv_path.display(),
+                            err
+                        );
+                        (
+                            None,
+                            "completed_with_summary_hash_error",
+                            "summary_hash_failed",
+                        )
+                    }
+                }
+            }
+            Err(err) => {
+                println!("Error exporting CSV: {}", err);
+                (None, "csv_export_failed", "csv_export_failed")
+            }
+        };
+    let last_timestep = Some(time_steps.saturating_sub(1));
 
     if let Err(err) = write_run_metadata(
         &metadata_path,
-        "completed",
+        final_status,
+        &source_hash,
         resolved_run_seed,
         population_size,
         time_steps,
@@ -410,6 +491,9 @@ fn main() {
         Some(run_id),
         Some(&csv_path),
         Some(duration.as_secs_f64()),
+        summary_hash.as_deref(),
+        failure_class,
+        last_timestep,
     ) {
         eprintln!(
             "Warning: unable to update run metadata {}: {}",
@@ -417,6 +501,20 @@ fn main() {
             err
         );
     }
+
+    println!(
+        "[report] status={} run_id={} source_hash={} rng_seed={} last_timestep={} summary_hash={} failure_class={} summary_csv={}",
+        final_status,
+        run_id,
+        source_hash,
+        resolved_run_seed.value,
+        last_timestep
+            .map(|step| step.to_string())
+            .unwrap_or_else(|| "pending".to_string()),
+        summary_hash.as_deref().unwrap_or("pending"),
+        failure_class,
+        csv_path.display()
+    );
 
     // Log the simulation run details
     if let Err(e) = log_simulation_run(population_size, time_steps, duration.as_secs_f64()) {
@@ -435,6 +533,13 @@ fn install_panic_log_hook() {
     std::panic::set_hook(Box::new(|panic_info| {
         let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
         let rng_seed = std::env::var("AMR_RNG_SEED").unwrap_or_else(|_| "unset".to_string());
+        let source_hash = resolve_source_hash();
+        let run_id = observability::current_run_id()
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| "unset".to_string());
+        let last_timestep = observability::current_timestep()
+            .map(|step| step.to_string())
+            .unwrap_or_else(|| "unset".to_string());
         let location = panic_info
             .location()
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
@@ -447,11 +552,16 @@ fn install_panic_log_hook() {
         } else {
             "non-string panic payload"
         };
+        let failure_class = classify_panic(payload, &location);
 
         let report = format!(
-            "\n===== panic =====\ntimestamp: {}\nrng_seed: {}\nlocation: {}\npayload: {}\nbacktrace:\n{}\n",
+            "\n===== panic =====\ntimestamp: {}\nsource_hash: {}\nrng_seed: {}\nrun_id: {}\nlast_timestep: {}\nfailure_class: {}\nlocation: {}\npayload: {}\nbacktrace:\n{}\n",
             timestamp,
+            source_hash,
             rng_seed,
+            run_id,
+            last_timestep,
+            failure_class,
             location,
             payload,
             Backtrace::force_capture()

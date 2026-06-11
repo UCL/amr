@@ -34,6 +34,16 @@ try {
     }
     if ($LASTEXITCODE -ne 0) { throw "[3] remote mkdir failed (exit $LASTEXITCODE)" }
 
+    # 3b. Record the local source hash in the uploaded workspace for provenance
+    Write-Host "[3b] Recording source hash..." -ForegroundColor Cyan
+    $sourceHash = (git rev-parse HEAD 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "[3b] git rev-parse HEAD failed (exit $LASTEXITCODE). Output: $sourceHash"
+    }
+    $sourceHash = $sourceHash.Trim()
+    ssh -o ConnectTimeout=10 -o BatchMode=yes dev@runner "printf '%s\n' '$sourceHash' > '$remoteDir/source_hash.txt'" 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "[3b] remote source_hash.txt write failed (exit $LASTEXITCODE)" }
+
     # 4. Upload workspace-level files
     Write-Host "[4] Uploading workspace files..." -ForegroundColor Cyan
 

@@ -6,5 +6,6 @@
 //! - `simulation`: population data structures, orchestration, summaries, and logging
 
 pub mod config;
+pub mod observability;
 pub mod rules;
 pub mod simulation;
