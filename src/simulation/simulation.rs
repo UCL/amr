@@ -5401,18 +5401,6 @@ impl Simulation {
             }
         }
 
-        // Add regional drug usage columns to header (region x drug)
-        for region_name in &region_names {
-            for drug in DRUG_SHORT_NAMES.iter() {
-                header.push(',');
-                header.push_str(&format!(
-                    "{}_currently_on_drug_{}",
-                    region_name,
-                    drug.replace(" ", "_")
-                ));
-            }
-        }
-
         // Add drug score tracking columns to header
         for bacteria in BACTERIA_LIST.iter() {
             header.push(',');
@@ -5464,6 +5452,19 @@ impl Simulation {
                     }
                 }
             };
+        let append_f64_slice_or_zeros = |row: &mut String, values: &[f64], expected_len: usize| {
+            if values.is_empty() {
+                for _ in 0..expected_len {
+                    row.push_str(",0");
+                }
+            } else {
+                debug_assert_eq!(values.len(), expected_len);
+                for value in values {
+                    row.push(',');
+                    row.push_str(&value.to_string());
+                }
+            }
+        };
 
         for summary in combined_summaries {
             let mut row = String::with_capacity(20000); // Pre-allocate for each row
@@ -5960,14 +5961,16 @@ impl Simulation {
             );
 
             // Add drug score tracking data
-            for value in &summary.drug_selection_count_by_bacteria {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
-            for value in &summary.drug_score_sums_by_bacteria_drug {
-                row.push(',');
-                row.push_str(&value.to_string());
-            }
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.drug_selection_count_by_bacteria,
+                BACTERIA_LIST.len(),
+            );
+            append_f64_slice_or_zeros(
+                &mut row,
+                &summary.drug_score_sums_by_bacteria_drug,
+                BACTERIA_LIST.len() * DRUG_SHORT_NAMES.len(),
+            );
 
             // Add drug count histogram data
             for count in &summary.people_by_drug_count {
