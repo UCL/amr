@@ -53,16 +53,29 @@ pub fn resolve_source_hash() -> String {
         }
     }
 
-    if let Ok(output) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
-        if output.status.success() {
-            if let Ok(text) = String::from_utf8(output.stdout) {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    return trimmed.to_string();
-                }
-            }
+    if let Some(head) = git_output(["rev-parse", "HEAD"]) {
+        let dirty = git_output(["status", "--porcelain"]).is_some_and(|status| !status.is_empty());
+        if dirty {
+            return format!("{head}-dirty");
         }
+
+        return head;
     }
 
     "unknown".to_string()
+}
+
+fn git_output<const N: usize>(args: [&str; N]) -> Option<String> {
+    let output = Command::new("git").args(args).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let text = String::from_utf8(output.stdout).ok()?;
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }

@@ -477,7 +477,7 @@ fn main() {
                 (None, "csv_export_failed", "csv_export_failed")
             }
         };
-    let last_timestep = Some(time_steps.saturating_sub(1));
+    let last_timestep = observability::current_timestep().or_else(|| time_steps.checked_sub(1));
 
     if let Err(err) = write_run_metadata(
         &metadata_path,
