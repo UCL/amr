@@ -1,0 +1,53 @@
+name: Fast Guardrails
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fast-guardrails-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  model-contract-tests:
+    name: Model contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check all targets
+        run: cargo check --all-targets
+
+      - name: Run deterministic and invariant tests
+        run: |
+          cargo test --test determinism -- --nocapture
+          cargo test --test probability_invariants -- --nocapture
+          cargo test --test config_invariants -- --nocapture
+          cargo test --test csv_invariants -- --nocapture
+          cargo test --test dimension_invariants -- --nocapture
+
+      - name: Check formatting for guardrail files
+        run: |
+          rustfmt --check \
+            tests/config_invariants.rs \
+            tests/csv_invariants.rs \
+            tests/determinism.rs \
+            tests/dimension_invariants.rs \
+            tests/probability_invariants.rs
+          rustfmt --check src/main.rs src/observability.rs
