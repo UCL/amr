@@ -11256,6 +11256,7 @@ lazy_static! {
         map.insert("bacterial_testing_available_from_day".to_string(), 5478.0); // 5478.0  1945 (15 years after 1930) - Bacterial culture/identification becomes available
         map.insert("resistance_testing_available_from_day".to_string(), 9131.0); // 9131.0  1955 (25 years after 1930) - Antibiotic susceptibility testing becomes available
         map.insert("test_delay_days".to_string(), 3.0);
+        map.insert("resistance_test_result_delay_days".to_string(), 2.0);
         map.insert("test_rate_per_day".to_string(), 0.2);  // 0.15
 
         // --- Test result and test_r logic parameters ---
@@ -11933,6 +11934,7 @@ lazy_static! {
         map.insert("default_microbiome_clearance_probability_per_day".to_string(), 0.01); // E.g., 1% chance to lose carriage per day
         // Probability of clearing microbiome when drug treatment successfully clears infection
         map.insert("microbiome_clearance_probability_on_drug_treatment".to_string(), 0.8); // 80% chance drugs clear microbiome when they clear infection
+        map.insert("microbiome_majority_threshold".to_string(), 0.5);
 
         // ===========================================================================================
         // --- Enhanced Microbiome/Carriage Model Parameters ---
@@ -12001,6 +12003,7 @@ lazy_static! {
         // Not one of the four sampled axes: structural community reservoir dilution parameter.
         map.insert("community_resistance_dilution_factor".to_string(), 0.30); 
         map.insert("hospital_profile_cache_retention".to_string(), 0.999); // Hospital ecology retention raised from 0.995 (~139-day half-life) to 0.999 (~693-day half-life); endemic MRSA/VRE/CRE on wards persists for years, not months
+        map.insert("opat_admission_probability".to_string(), 0.70);
 
         // Baseline global multipliers retained for compatibility. In four-axis calibration,
         // run_pathway_* multipliers are the sampled axis knobs and these stay at 1.0.
