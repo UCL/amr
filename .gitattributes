@@ -6,6 +6,7 @@
 *.toml text eol=lf
 *.md text eol=lf
 *.txt text eol=lf
+.gitignore text eol=lf
 
 # Ensure certain files always have CRLF line endings
 *.bat text eol=crlf
