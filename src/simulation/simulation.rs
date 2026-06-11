@@ -15,13 +15,14 @@ use crate::config::{self, get_global_param}; // Import the config module and get
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
-    MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism,
-    BACTERIA_LIST, DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
+    MicrobiomeResistanceLevel, Population, Region, ResistanceMechanism, BACTERIA_LIST,
+    DRUG_SHORT_NAMES, INFECTION_EPS, MICROBIOME_MAJORITY_THRESHOLD,
     MICROBIOME_RESISTANCE_LEVEL_COUNT,
 };
-use rand::rngs::SmallRng;
+use crate::simulation::rng::{
+    model_rng, model_rng_from_entropy, model_stream_seed, timestep_stream_id, ModelRng, RngStream,
+};
 use rand::Rng;
-use rand::SeedableRng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -51,7 +52,7 @@ const REGION_COUNT: usize = 6;
 const SIMULATION_START_YEAR: f64 = 1930.0;
 const POLICY_BRANCH_YEAR: f64 = 2027.0;
 const DAYS_PER_YEAR: f64 = 365.0;
-
+const DETERMINISTIC_POPULATION_CHUNK_SIZE: usize = 8_192;
 
 /// Controls how much output the simulation writes to `summary_log`.
 ///
@@ -266,9 +267,9 @@ pub(crate) struct PolicyAdjustments {
     pub(crate) counterfactual_resistance_multiplier: Option<f64>,
     pub(crate) clear_all_resistance_on_branch_start: bool,
     // New stewardship-focused policy levers
-    pub(crate) reserve_drug_penalty_multiplier: Option<f64>,     // Multiplier for reserve drug score penalty (>1 = stricter)
-    pub(crate) drug_initiation_rate_multiplier: Option<f64>,     // Multiplier for antibiotic initiation (<1 = less prescribing)
-    pub(crate) drug_cessation_rate_multiplier: Option<f64>,      // Multiplier for treatment duration (<1 = longer, >1 = shorter courses)
+    pub(crate) reserve_drug_penalty_multiplier: Option<f64>, // Multiplier for reserve drug score penalty (>1 = stricter)
+    pub(crate) drug_initiation_rate_multiplier: Option<f64>, // Multiplier for antibiotic initiation (<1 = less prescribing)
+    pub(crate) drug_cessation_rate_multiplier: Option<f64>, // Multiplier for treatment duration (<1 = longer, >1 = shorter courses)
     /// When true, all regional healthcare-access multipliers (testing, cessation, initiation)
     /// are overridden to their North America (high-income) reference values, modelling a
     /// world in which every region has equal antibiotic access.
@@ -306,13 +307,13 @@ impl PolicyAdjustments {
             policy_option: 1,
             drug_selection_temperature: Some(adjusted_temperature),
             minimal_potency_threshold_for_drug_selection: None,
-            bacterial_testing_rate_multiplier: Some(1.5),    // 50% more bacterial cultures
-            resistance_testing_rate_multiplier: Some(1.5),   // 50% more AST (matched to cultures)
+            bacterial_testing_rate_multiplier: Some(1.5), // 50% more bacterial cultures
+            resistance_testing_rate_multiplier: Some(1.5), // 50% more AST (matched to cultures)
             counterfactual_resistance_multiplier: None,
             clear_all_resistance_on_branch_start: false,
-            reserve_drug_penalty_multiplier: Some(2.0),      // 2× penalty for reserve drugs
-            drug_initiation_rate_multiplier: Some(0.85),     // 15% reduction in unnecessary Rx
-            drug_cessation_rate_multiplier: Some(1.2),       // Shorter courses (20% faster)
+            reserve_drug_penalty_multiplier: Some(2.0), // 2× penalty for reserve drugs
+            drug_initiation_rate_multiplier: Some(0.85), // 15% reduction in unnecessary Rx
+            drug_cessation_rate_multiplier: Some(1.2),  // Shorter courses (20% faster)
             equalize_regional_access: false,
         }
     }
@@ -347,8 +348,8 @@ impl PolicyAdjustments {
             policy_option: 3,
             drug_selection_temperature: Some(adjusted_temperature),
             minimal_potency_threshold_for_drug_selection: None,
-            bacterial_testing_rate_multiplier: Some(20.0),   // Implausibly complete bacterial ID
-            resistance_testing_rate_multiplier: Some(20.0),  // Matched AST coverage
+            bacterial_testing_rate_multiplier: Some(20.0), // Implausibly complete bacterial ID
+            resistance_testing_rate_multiplier: Some(20.0), // Matched AST coverage
             counterfactual_resistance_multiplier: None,
             clear_all_resistance_on_branch_start: false,
             reserve_drug_penalty_multiplier: None,
@@ -467,7 +468,10 @@ pub struct MechanismProfileCache {
 
 impl MechanismProfileCache {
     pub fn new(num_regions: usize, num_bacteria: usize, num_mechanisms: usize) -> Self {
-        assert!(num_mechanisms <= 64, "Mechanism count exceeds 64, cannot use u64 bitmask");
+        assert!(
+            num_mechanisms <= 64,
+            "Mechanism count exceeds 64, cannot use u64 bitmask"
+        );
         Self {
             // Keep slots empty until a profile is actually recorded.
             // Eagerly reserving MAX_MECHANISM_PROFILES for every slot is cheap for the
@@ -542,7 +546,11 @@ impl MechanismProfileCache {
     /// Used to enforce causal correctness in the resistance floor: a floor can only assign
     /// a mechanism to a newly-infected individual if that mechanism has already emerged
     /// somewhere in the simulation (i.e. it is present in the circulating strain pool).
-    pub fn mechanism_has_emerged_globally(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
+    pub fn mechanism_has_emerged_globally(
+        &self,
+        bacteria_idx: usize,
+        mechanism_idx: usize,
+    ) -> bool {
         if bacteria_idx >= self.num_bacteria {
             return false;
         }
@@ -597,10 +605,19 @@ impl MechanismProfileCache {
     /// Uses separate retention rates for hospital (h=1) and community (h=0) pools.
     /// Hospital ecology persists for months (surfaces, devices, HCW colonisation)
     /// while community resistance turns over with acute infections.
-    pub fn blend_with_new(&mut self, new_profiles: Self, community_retention: f64, hospital_retention: f64) {
+    pub fn blend_with_new(
+        &mut self,
+        new_profiles: Self,
+        community_retention: f64,
+        hospital_retention: f64,
+    ) {
         for r in 0..self.num_regions {
             for h in 0..2 {
-                let retention = if h == 1 { hospital_retention } else { community_retention };
+                let retention = if h == 1 {
+                    hospital_retention
+                } else {
+                    community_retention
+                };
                 for b in 0..self.num_bacteria {
                     let old_slot = &mut self.profiles[r][h][b];
                     let new_slot = &new_profiles.profiles[r][h][b];
@@ -668,7 +685,6 @@ impl MechanismProfileCache {
             }
         }
     }
-
 }
 
 /// Unified mechanism resistance cache built entirely on the profile reservoir.
@@ -727,8 +743,9 @@ impl MechanismCache {
                             return None;
                         }
 
-                        let applies_to_any_drug = (0..DRUG_SHORT_NAMES.len())
-                            .any(|drug_idx| param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx));
+                        let applies_to_any_drug = (0..DRUG_SHORT_NAMES.len()).any(|drug_idx| {
+                            param_cache.mechanism_applicable(mechanism_idx, bacteria_idx, drug_idx)
+                        });
                         if applies_to_any_drug {
                             Some(1u64 << mechanism_idx)
                         } else {
@@ -737,7 +754,8 @@ impl MechanismCache {
                     });
 
                 if let Some(mask) = seeded_mask {
-                    self.profiles.seed_mask(region_idx, bacteria_idx, true, mask);
+                    self.profiles
+                        .seed_mask(region_idx, bacteria_idx, true, mask);
                     seeded_slots += 1;
                 }
             }
@@ -754,7 +772,8 @@ impl MechanismCache {
         hospital_retention: f64,
         merged_profiles: MechanismProfileCache,
     ) {
-        self.profiles.blend_with_new(merged_profiles, community_retention, hospital_retention);
+        self.profiles
+            .blend_with_new(merged_profiles, community_retention, hospital_retention);
     }
 
     /// Compute the current marginal mechanism prevalence from the profile cache and update
@@ -777,7 +796,8 @@ impl MechanismCache {
                     for h in 0..2 {
                         let slot = &self.profiles.profiles[r_idx][h][b_idx];
                         total_profiles += slot.len();
-                        profiles_with_mechanism += slot.iter().filter(|&&mask| mask & bit != 0).count();
+                        profiles_with_mechanism +=
+                            slot.iter().filter(|&&mask| mask & bit != 0).count();
                     }
                 }
                 if total_profiles > 0 {
@@ -800,10 +820,16 @@ impl MechanismCache {
         hospital: bool,
         rng: &mut R,
     ) -> Option<u64> {
-        self.profiles.sample(region_idx, bacteria_idx, hospital, rng)
+        self.profiles
+            .sample(region_idx, bacteria_idx, hospital, rng)
     }
 
-    fn selected_slot(&self, region_idx: usize, bacteria_idx: usize, hospital: bool) -> Option<&[u64]> {
+    fn selected_slot(
+        &self,
+        region_idx: usize,
+        bacteria_idx: usize,
+        hospital: bool,
+    ) -> Option<&[u64]> {
         if region_idx >= self.profiles.num_regions || bacteria_idx >= self.profiles.num_bacteria {
             return None;
         }
@@ -825,7 +851,11 @@ impl MechanismCache {
         }
     }
 
-    fn sample_from_slot<R: Rng + ?Sized>(slot: &[u64], weights: Option<&[f64]>, rng: &mut R) -> Option<u64> {
+    fn sample_from_slot<R: Rng + ?Sized>(
+        slot: &[u64],
+        weights: Option<&[f64]>,
+        rng: &mut R,
+    ) -> Option<u64> {
         if slot.is_empty() {
             return None;
         }
@@ -1011,7 +1041,10 @@ impl MechanismCache {
             return 0.0;
         }
 
-        let resistant_count = slot.iter().filter(|&&profile| (profile & applicable_mask) != 0).count();
+        let resistant_count = slot
+            .iter()
+            .filter(|&&profile| (profile & applicable_mask) != 0)
+            .count();
         resistant_count as f64 / slot.len() as f64
     }
 
@@ -1036,8 +1069,13 @@ impl MechanismCache {
     /// Delegates to `MechanismProfileCache::mechanism_has_emerged_globally`.
     /// Used by the resistance floor to enforce causal correctness: the floor can only assign
     /// a mechanism that has actually emerged somewhere in the simulation.
-    pub fn mechanism_has_ever_emerged_globally(&self, bacteria_idx: usize, mechanism_idx: usize) -> bool {
-        self.profiles.mechanism_has_emerged_globally(bacteria_idx, mechanism_idx)
+    pub fn mechanism_has_ever_emerged_globally(
+        &self,
+        bacteria_idx: usize,
+        mechanism_idx: usize,
+    ) -> bool {
+        self.profiles
+            .mechanism_has_emerged_globally(bacteria_idx, mechanism_idx)
     }
 }
 
@@ -1283,12 +1321,12 @@ pub struct TimeStepSummary {
     pub infections_by_bacteria: Vec<usize>,                   // indexed by bacteria
     pub infections_by_bacteria_under_5: Vec<usize>,
     pub infections_by_bacteria_over_65: Vec<usize>,
-    pub deaths_by_bacteria: Vec<usize>,                       // indexed by bacteria
+    pub deaths_by_bacteria: Vec<usize>, // indexed by bacteria
     pub deaths_by_bacteria_under_5: Vec<usize>,
     pub deaths_by_bacteria_over_65: Vec<usize>,
     pub deaths_by_bacteria_hospital_acquired: Vec<usize>,
     pub deaths_by_bacteria_community_acquired: Vec<usize>,
-    pub resistance_by_bacteria_drug: Vec<usize>,             // [bacteria * drugs] flat counts (bacterium-major order)
+    pub resistance_by_bacteria_drug: Vec<usize>, // [bacteria * drugs] flat counts (bacterium-major order)
     /// per-bacteria sum of activity_r values for all individuals (float, indexed by bacteria)
     pub activity_r_sum_by_bacteria: Vec<f64>,
     /// per-bacteria sum of max-possible activity_r (potency × effective_drug_level, no resistance term)
@@ -1456,7 +1494,7 @@ pub struct TimeStepSummary {
     pub people_by_drug_count: Vec<usize>, // [0] = people on 0 drugs, [1] = people on 1 drug, etc.
 }
 
-// *** 
+// ***
 impl TimeStepSummary {
     /// Replace disabled field groups with empty vecs, reducing `summary_log` memory.
     /// Called after the row is fully constructed, just before it is pushed to `summary_log`.
@@ -1631,8 +1669,8 @@ impl Simulation {
         calibration_mode: CalibrationMode,
     ) -> Self {
         let mut initialization_rng = seed
-            .map(SmallRng::seed_from_u64)
-            .unwrap_or_else(SmallRng::from_entropy);
+            .map(|seed_value| model_rng(seed_value, RngStream::Initialization, 0))
+            .unwrap_or_else(model_rng_from_entropy);
 
         let population = Population::new(population_size, &mut initialization_rng);
         // public function named new (rust’s conventional constructor pattern).
@@ -1669,7 +1707,9 @@ impl Simulation {
             }
         }
 
-        let journey_logger_seed = initialization_rng.gen::<u64>();
+        let journey_logger_seed = seed
+            .map(|seed_value| model_stream_seed(seed_value, RngStream::JourneyLogger, 0))
+            .unwrap_or_else(|| initialization_rng.gen::<u64>());
 
         // Initial individual state logging disabled for cleaner output
 
@@ -1717,11 +1757,8 @@ impl Simulation {
         let param_cache = crate::rules::ParameterKeyCache::new();
 
         let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
-        let mut mechanism_cache = MechanismCache::new(
-            num_regions_including_home,
-            num_bacteria,
-            num_mechanisms,
-        );
+        let mut mechanism_cache =
+            MechanismCache::new(num_regions_including_home, num_bacteria, num_mechanisms);
         if globals.debug_seed_hospital_cache_resistant_profiles {
             mechanism_cache.seed_debug_hospital_resistant_profiles(&param_cache);
         }
@@ -1939,7 +1976,7 @@ impl Simulation {
 
             // LocalTotals structure for thread-local aggregation
             struct LocalTotals {
-                rng: SmallRng,
+                rng: ModelRng,
                 infected_and_on_any_drug_by_bacteria: Vec<usize>,
                 mic_lt2_counts: Vec<usize>,
                 currently_on_drug_by_bacteria_drug: Vec<usize>,
@@ -2094,7 +2131,7 @@ impl Simulation {
                     num_bacteria: usize,
                     num_drugs: usize,
                     num_mechanisms: usize,
-                    seed: Option<u64>,
+                    rng: ModelRng,
                     collect_full_bacteria_drug_stats: bool,
                     collect_per_bacteria_detail_stats: bool,
                     collect_split_burden_stats: bool,
@@ -2107,13 +2144,6 @@ impl Simulation {
                     collect_day7_stats: bool,
                     collect_none_only_stats: bool,
                 ) -> Self {
-                    let rng = match seed {
-                        Some(seed_value) => {
-                            // Derive per-thread seeds from base to maintain deterministic replay
-                            SmallRng::seed_from_u64(seed_value)
-                        }
-                        None => SmallRng::from_entropy(),
-                    };
                     let bacteria_drug_len = if collect_full_bacteria_drug_stats {
                         num_bacteria * num_drugs
                     } else {
@@ -2141,11 +2171,12 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        infections_prevented_by_drug_by_bacteria: if collect_per_bacteria_detail_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
+                        infections_prevented_by_drug_by_bacteria:
+                            if collect_per_bacteria_detail_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
                         deaths_by_bacteria: vec![0; num_bacteria],
                         deaths_by_bacteria_under_5: if collect_split_burden_stats {
                             vec![0; num_bacteria]
@@ -2233,70 +2264,82 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        presence_microbiome_by_bacteria_by_region: if collect_microbiome_detail_stats {
-                            vec![0; num_bacteria * REGION_COUNT]
-                        } else {
-                            Vec::new()
-                        },
+                        presence_microbiome_by_bacteria_by_region:
+                            if collect_microbiome_detail_stats {
+                                vec![0; num_bacteria * REGION_COUNT]
+                            } else {
+                                Vec::new()
+                            },
                         carriage_duration_bins_by_bacteria: if collect_microbiome_detail_stats {
                             vec![0; num_bacteria * CARRIAGE_DURATION_BIN_COUNT]
                         } else {
                             Vec::new()
                         },
-                        microbiome_acquisitions_on_drug_by_bacteria: if collect_microbiome_detail_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        microbiome_acquisitions_off_drug_by_bacteria: if collect_microbiome_detail_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        microbiome_clearances_on_drug_by_bacteria: if collect_microbiome_detail_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        microbiome_clearances_off_drug_by_bacteria: if collect_microbiome_detail_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
+                        microbiome_acquisitions_on_drug_by_bacteria:
+                            if collect_microbiome_detail_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        microbiome_acquisitions_off_drug_by_bacteria:
+                            if collect_microbiome_detail_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        microbiome_clearances_on_drug_by_bacteria:
+                            if collect_microbiome_detail_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        microbiome_clearances_off_drug_by_bacteria:
+                            if collect_microbiome_detail_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
                         infected_carrier_count_by_bacteria: vec![0; num_bacteria],
                         infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
                         resistant_infected_carrier_count_by_bacteria: vec![0; num_bacteria],
                         resistant_infected_non_carrier_count_by_bacteria: vec![0; num_bacteria],
-                        currently_infected_hospital_count_by_bacteria: if collect_split_burden_stats || collect_serious_r_hc_stats {
+                        currently_infected_hospital_count_by_bacteria: if collect_split_burden_stats
+                            || collect_serious_r_hc_stats
+                        {
                             vec![0; num_bacteria]
                         } else {
                             Vec::new()
                         },
-                        currently_infected_community_count_by_bacteria: if collect_split_burden_stats || collect_serious_r_hc_stats {
+                        currently_infected_community_count_by_bacteria:
+                            if collect_split_burden_stats || collect_serious_r_hc_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        resistant_infected_hospital_count_by_bacteria: if collect_split_burden_stats
+                        {
                             vec![0; num_bacteria]
                         } else {
                             Vec::new()
                         },
-                        resistant_infected_hospital_count_by_bacteria: if collect_split_burden_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        resistant_infected_community_count_by_bacteria: if collect_split_burden_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        drug_failure_events_by_bacteria_region: if collect_per_bacteria_detail_stats {
+                        resistant_infected_community_count_by_bacteria:
+                            if collect_split_burden_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        drug_failure_events_by_bacteria_region: if collect_per_bacteria_detail_stats
+                        {
                             vec![0; num_bacteria * REGION_COUNT]
                         } else {
                             Vec::new()
                         },
-                        drug_treatment_day5_events_by_bacteria_region: if collect_per_bacteria_detail_stats {
-                            vec![0; num_bacteria * REGION_COUNT]
-                        } else {
-                            Vec::new()
-                        },
+                        drug_treatment_day5_events_by_bacteria_region:
+                            if collect_per_bacteria_detail_stats {
+                                vec![0; num_bacteria * REGION_COUNT]
+                            } else {
+                                Vec::new()
+                            },
                         infected_with_test_identified_by_bacteria: if collect_testing_stats {
                             vec![0; num_bacteria]
                         } else {
@@ -2307,7 +2350,11 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        mechanism_profiles: MechanismProfileCache::new(num_regions, num_bacteria, num_mechanisms),
+                        mechanism_profiles: MechanismProfileCache::new(
+                            num_regions,
+                            num_bacteria,
+                            num_mechanisms,
+                        ),
                         living_population: 0,
                         num_age_0_5: 0,
                         num_age_6_14: 0,
@@ -2320,20 +2367,19 @@ impl Simulation {
                         max_possible_activity_r_pure_sum_by_bacteria: vec![0.0; num_bacteria],
                         any_r_sum_by_bacteria_drug: vec![0.0; bacteria_drug_len],
                         any_r_sum_by_bacteria_drug_hospital: vec![0.0; bacteria_drug_len],
-                        infected_with_any_r_positive_by_bacteria_drug: vec![
-                            0;
-                            bacteria_drug_len
-                        ],
-                        infected_with_any_r_positive_hospital_by_bacteria_drug: if collect_split_burden_stats || collect_serious_r_hc_stats {
-                            vec![0; bacteria_drug_len]
-                        } else {
-                            Vec::new()
-                        },
-                        infected_with_any_r_positive_community_by_bacteria_drug: if collect_split_burden_stats || collect_serious_r_hc_stats {
-                            vec![0; bacteria_drug_len]
-                        } else {
-                            Vec::new()
-                        },
+                        infected_with_any_r_positive_by_bacteria_drug: vec![0; bacteria_drug_len],
+                        infected_with_any_r_positive_hospital_by_bacteria_drug:
+                            if collect_split_burden_stats || collect_serious_r_hc_stats {
+                                vec![0; bacteria_drug_len]
+                            } else {
+                                Vec::new()
+                            },
+                        infected_with_any_r_positive_community_by_bacteria_drug:
+                            if collect_split_burden_stats || collect_serious_r_hc_stats {
+                                vec![0; bacteria_drug_len]
+                            } else {
+                                Vec::new()
+                            },
                         mic_sum_by_bacteria_drug: vec![0.0; bacteria_drug_len],
                         any_r_sum_by_region: vec![0.0; 6], // 6 regions: NorthAmerica, SouthAmerica, Africa, Asia, Europe, Oceania (excluding Home)
                         infected_count_by_region: vec![0; 6], // 6 regions
@@ -2343,36 +2389,42 @@ impl Simulation {
                                 * ResistanceMechanism::all()
                                     .len()
                         ],
-                        infection_resolution_immune_clearance_by_bacteria: if collect_resolution_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        infection_resolution_drug_assisted_clearance_by_bacteria: if collect_resolution_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        infection_resolution_death_from_sepsis_by_bacteria: if collect_resolution_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        infection_resolution_death_from_infection_non_sepsis_by_bacteria: if collect_resolution_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        infection_resolution_death_from_background_by_bacteria: if collect_resolution_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
-                        infection_resolution_death_from_toxicity_by_bacteria: if collect_resolution_stats {
-                            vec![0; num_bacteria]
-                        } else {
-                            Vec::new()
-                        },
+                        infection_resolution_immune_clearance_by_bacteria:
+                            if collect_resolution_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        infection_resolution_drug_assisted_clearance_by_bacteria:
+                            if collect_resolution_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        infection_resolution_death_from_sepsis_by_bacteria:
+                            if collect_resolution_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        infection_resolution_death_from_infection_non_sepsis_by_bacteria:
+                            if collect_resolution_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        infection_resolution_death_from_background_by_bacteria:
+                            if collect_resolution_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
+                        infection_resolution_death_from_toxicity_by_bacteria:
+                            if collect_resolution_stats {
+                                vec![0; num_bacteria]
+                            } else {
+                                Vec::new()
+                            },
                         infected_by_syndrome: if collect_syndrome_stats {
                             vec![0; 10]
                         } else {
@@ -2449,7 +2501,9 @@ impl Simulation {
                         } else {
                             Vec::new()
                         },
-                        syndrome_population_by_region: if collect_none_only_stats && collect_syndrome_stats {
+                        syndrome_population_by_region: if collect_none_only_stats
+                            && collect_syndrome_stats
+                        {
                             vec![0; 60]
                         } else {
                             Vec::new()
@@ -2523,8 +2577,20 @@ impl Simulation {
                     {
                         *a += b;
                     }
-                    for (a, b) in self.resistant_infected_hospital_count_by_bacteria.iter_mut().zip(other.resistant_infected_hospital_count_by_bacteria) { *a += b; }
-                    for (a, b) in self.resistant_infected_community_count_by_bacteria.iter_mut().zip(other.resistant_infected_community_count_by_bacteria) { *a += b; }
+                    for (a, b) in self
+                        .resistant_infected_hospital_count_by_bacteria
+                        .iter_mut()
+                        .zip(other.resistant_infected_hospital_count_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .resistant_infected_community_count_by_bacteria
+                        .iter_mut()
+                        .zip(other.resistant_infected_community_count_by_bacteria)
+                    {
+                        *a += b;
+                    }
                     for (a, b) in self
                         .infected_and_on_any_drug_by_bacteria
                         .iter_mut()
@@ -2581,8 +2647,20 @@ impl Simulation {
                     {
                         *a += b;
                     }
-                    for (a, b) in self.deaths_by_bacteria_hospital_acquired.iter_mut().zip(other.deaths_by_bacteria_hospital_acquired) { *a += b; }
-                    for (a, b) in self.deaths_by_bacteria_community_acquired.iter_mut().zip(other.deaths_by_bacteria_community_acquired) { *a += b; }
+                    for (a, b) in self
+                        .deaths_by_bacteria_hospital_acquired
+                        .iter_mut()
+                        .zip(other.deaths_by_bacteria_hospital_acquired)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .deaths_by_bacteria_community_acquired
+                        .iter_mut()
+                        .zip(other.deaths_by_bacteria_community_acquired)
+                    {
+                        *a += b;
+                    }
                     for (a, b) in self
                         .resistance_by_bacteria_drug
                         .iter_mut()
@@ -2788,7 +2866,8 @@ impl Simulation {
                         *a += b;
                     }
 
-                    self.mechanism_profiles.merge(other.mechanism_profiles, &mut self.rng);
+                    self.mechanism_profiles
+                        .merge(other.mechanism_profiles, &mut self.rng);
 
                     self.living_population += other.living_population;
                     self.num_age_0_5 += other.num_age_0_5;
@@ -2995,13 +3074,50 @@ impl Simulation {
                     {
                         *a += b;
                     }
-                    for (a, b) in self.hospital_population_by_region.iter_mut().zip(other.hospital_population_by_region) { *a += b; }
-                    for (a, b) in self.day_7_evaluations_by_bacteria.iter_mut().zip(other.day_7_evaluations_by_bacteria) { *a += b; }
-                    for (a, b) in self.day_7_drug_used_by_bacteria.iter_mut().zip(other.day_7_drug_used_by_bacteria) { *a += b; }
-                    self.infected_on_drug_with_previous_failure += other.infected_on_drug_with_previous_failure;
-                    for (a, b) in self.drug_selection_count_by_bacteria.iter_mut().zip(other.drug_selection_count_by_bacteria) { *a += b; }
-                    for (a, b) in self.drug_score_sums_by_bacteria_drug.iter_mut().zip(other.drug_score_sums_by_bacteria_drug) { *a += b; }
-                    for (a, b) in self.syndrome_population_by_region.iter_mut().zip(other.syndrome_population_by_region) { *a += b; }
+                    for (a, b) in self
+                        .hospital_population_by_region
+                        .iter_mut()
+                        .zip(other.hospital_population_by_region)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .day_7_evaluations_by_bacteria
+                        .iter_mut()
+                        .zip(other.day_7_evaluations_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .day_7_drug_used_by_bacteria
+                        .iter_mut()
+                        .zip(other.day_7_drug_used_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    self.infected_on_drug_with_previous_failure +=
+                        other.infected_on_drug_with_previous_failure;
+                    for (a, b) in self
+                        .drug_selection_count_by_bacteria
+                        .iter_mut()
+                        .zip(other.drug_selection_count_by_bacteria)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .drug_score_sums_by_bacteria_drug
+                        .iter_mut()
+                        .zip(other.drug_score_sums_by_bacteria_drug)
+                    {
+                        *a += b;
+                    }
+                    for (a, b) in self
+                        .syndrome_population_by_region
+                        .iter_mut()
+                        .zip(other.syndrome_population_by_region)
+                    {
+                        *a += b;
+                    }
                 }
             }
 
@@ -3050,19 +3166,27 @@ impl Simulation {
             let collect_microbiome_detail_stats = self.summary_content_flags.microbiome_detail;
             let collect_testing_stats = self.summary_content_flags.testing;
             let collect_day7_stats = collect_none_only_stats && self.summary_content_flags.day7;
-            let totals = self.population.individuals.par_iter_mut()
-            .fold(
-                || {
-                    let thread_seed = seed_option.map(|base| {
-                        let thread_idx = rayon::current_thread_index().unwrap_or(0) as u64;
-                        base ^ thread_idx.wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                    });
-                    LocalTotals::new(
+            let chunk_totals: Vec<Box<LocalTotals>> = self
+                .population
+                .individuals
+                .par_chunks_mut(DETERMINISTIC_POPULATION_CHUNK_SIZE)
+                .enumerate()
+                .map(|(chunk_idx, chunk)| {
+                    let chunk_rng = seed_option
+                        .map(|base| {
+                            model_rng(
+                                base,
+                                RngStream::TimestepChunk,
+                                timestep_stream_id(t, chunk_idx),
+                            )
+                        })
+                        .unwrap_or_else(model_rng_from_entropy);
+                    let mut lt = Box::new(LocalTotals::new(
                         num_regions,
                         num_bacteria,
                         num_drugs,
                         num_mechanisms,
-                        thread_seed,
+                        chunk_rng,
                         need_full_summary,
                         collect_per_bacteria_detail_stats,
                         collect_split_burden_stats,
@@ -3074,9 +3198,9 @@ impl Simulation {
                         collect_testing_stats,
                         collect_day7_stats,
                         collect_none_only_stats,
-                    )
-                },
-                |mut lt, individual| {
+                    ));
+
+                    for individual in chunk {
                     // Pre-rules MIC snapshot
                     if individual.date_of_death.is_none() && individual.age >= 0 {
                         let has_any_infection =
@@ -3366,9 +3490,9 @@ impl Simulation {
 
                             // Count as new sepsis case if sepsis started today, even if the patient died
                             for b_idx in 0..num_bacteria {
-                                if individual.sepsis[b_idx] 
+                                if individual.sepsis[b_idx]
                                     && individual.level[b_idx] > INFECTION_EPS
-                                    && individual.sepsis_onset_day[b_idx] == t as i32 
+                                    && individual.sepsis_onset_day[b_idx] == t as i32
                                 {
                                     lt.new_sepsis_cases_by_bacteria[b_idx] += 1;
                                 }
@@ -3691,7 +3815,7 @@ impl Simulation {
                                         }
                                     }
                                     let base = b_idx * num_drugs;
-                                    
+
                                     // Full iteration for stats that need all drugs.
                                     for d_idx in 0..num_drugs {
                                         let resistance_data = &individual.resistances[b_idx][d_idx];
@@ -3716,7 +3840,7 @@ impl Simulation {
                                         if resistance_data.any_r > 0.0 {
                                             infection_any_r_positive = true;
                                             individual_has_any_r_positive = true;
-                                            
+
                                             if individual.date_last_infected[b_idx] == t as i32 && !was_newly_infected_with_resistance {
                                                 lt.newly_infected_with_resistance_count += 1;
                                                 was_newly_infected_with_resistance = true;
@@ -3916,16 +4040,22 @@ impl Simulation {
                         }
                     }
 
+                    }
+
                     lt
-                },
-            )
-            .reduce(
-                || LocalTotals::new(
+                })
+                .collect();
+
+            let make_merge_totals = || {
+                let merge_rng = seed_option
+                    .map(|base| model_rng(base, RngStream::TimestepMerge, timestep_stream_id(t, 0)))
+                    .unwrap_or_else(model_rng_from_entropy);
+                LocalTotals::new(
                     num_regions,
                     num_bacteria,
                     num_drugs,
                     num_mechanisms,
-                    None,
+                    merge_rng,
                     need_full_summary,
                     collect_per_bacteria_detail_stats,
                     collect_split_burden_stats,
@@ -3937,12 +4067,13 @@ impl Simulation {
                     collect_testing_stats,
                     collect_day7_stats,
                     collect_none_only_stats,
-                ),
-                |mut a, b| {
-                    a.merge(b);
-                    a
-                },
-            );
+                )
+            };
+
+            let mut totals = make_merge_totals();
+            for chunk_total in chunk_totals {
+                totals.merge(*chunk_total);
+            }
 
             // Destructure to move out (avoid cloning large vectors)
             let LocalTotals {
@@ -4067,8 +4198,12 @@ impl Simulation {
 
             // Update mechanism profile cache with freshly-collected profiles
             {
-                let community_retention = config::parameter_store().globals.community_profile_cache_retention;
-                let hospital_retention = config::parameter_store().globals.hospital_profile_cache_retention;
+                let community_retention = config::parameter_store()
+                    .globals
+                    .community_profile_cache_retention;
+                let hospital_retention = config::parameter_store()
+                    .globals
+                    .hospital_profile_cache_retention;
                 self.mechanism_cache.update_profiles(
                     community_retention,
                     hospital_retention,
@@ -4089,27 +4224,29 @@ impl Simulation {
             let infected_21_count = infected_21_days_count;
 
             // Build HashMap for TimeStepSummary from the flat parallel-loop vector
-            let newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize> = if collect_regional_stats {
-                let mut map = HashMap::new();
-                for b_idx in 0..BACTERIA_LIST.len() {
-                    for r_idx in 0..6usize {
-                        let v = newly_infected_hospital_flat[b_idx * 6 + r_idx];
-                        if v > 0 {
-                            map.insert((b_idx, r_idx), v);
+            let newly_infected_hospital_by_bacteria_region: HashMap<(usize, usize), usize> =
+                if collect_regional_stats {
+                    let mut map = HashMap::new();
+                    for b_idx in 0..BACTERIA_LIST.len() {
+                        for r_idx in 0..6usize {
+                            let v = newly_infected_hospital_flat[b_idx * 6 + r_idx];
+                            if v > 0 {
+                                map.insert((b_idx, r_idx), v);
+                            }
                         }
                     }
-                }
-                map
-            } else {
-                HashMap::new()
-            };
+                    map
+                } else {
+                    HashMap::new()
+                };
 
             // Single history pass: compute all 6 rolling-year sums at once
             let rolling_sum_past_year_deaths: [usize; 6] = {
                 let window = PAST_YEAR_WINDOW_DAYS.saturating_sub(1);
-                let start = self.summary_log.len().saturating_sub(
-                    self.summary_log.len().min(window),
-                );
+                let start = self
+                    .summary_log
+                    .len()
+                    .saturating_sub(self.summary_log.len().min(window));
                 let (mut d, mut dbg, mut dsep, mut dins, mut dtox, mut ni) =
                     (0usize, 0, 0, 0, 0, 0);
                 for s in &self.summary_log[start..] {
@@ -4267,12 +4404,16 @@ impl Simulation {
                 // In Partial/Full modes use Vec::new() to avoid accumulating ~20 KB per stored
                 // row across the full 95-year summary_log (~711 MB wasted at 1 M pop).
                 infected_on_drug_with_previous_failure,
-                drug_selection_count_by_bacteria: if need_full_summary && self.calibration_mode == CalibrationMode::None {
+                drug_selection_count_by_bacteria: if need_full_summary
+                    && self.calibration_mode == CalibrationMode::None
+                {
                     drug_selection_count_by_bacteria
                 } else {
                     Vec::new()
                 },
-                drug_score_sums_by_bacteria_drug: if need_full_summary && self.calibration_mode == CalibrationMode::None {
+                drug_score_sums_by_bacteria_drug: if need_full_summary
+                    && self.calibration_mode == CalibrationMode::None
+                {
                     drug_score_sums_by_bacteria_drug
                 } else {
                     Vec::new()
@@ -4419,18 +4560,10 @@ impl Simulation {
     pub fn run(&mut self) {
         // Assign a fresh identifier for this run so downstream CSV joins can distinguish outputs.
         let previous_run_id = self.run_id;
-        let mut run_id_rng = match self.rng_seed {
-            Some(seed_value) => {
-                let salt = if previous_run_id == 0 {
-                    0x8F83_2E4B_1C4A_55D9u64
-                } else {
-                    (previous_run_id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                        ^ 0xA511_CCEC_1D28_3D4Bu64
-                };
-                SmallRng::seed_from_u64(seed_value ^ salt)
-            }
-            None => SmallRng::from_entropy(),
-        };
+        let mut run_id_rng = self
+            .rng_seed
+            .map(|seed_value| model_rng(seed_value, RngStream::RunId, previous_run_id as u64))
+            .unwrap_or_else(model_rng_from_entropy);
         let mut new_run_id: u32 = run_id_rng.gen_range(1..=1_000_000);
         if previous_run_id != 0 && new_run_id == previous_run_id {
             new_run_id = run_id_rng.gen_range(1..=1_000_000);
@@ -4605,7 +4738,10 @@ impl Simulation {
         let num_regions = self.mechanism_cache.num_regions;
         let num_mechanisms = crate::simulation::population::ResistanceMechanism::all().len();
         self.mechanism_cache = MechanismCache::new(num_regions, num_bacteria, num_mechanisms);
-        if config::parameter_store().globals.debug_seed_hospital_cache_resistant_profiles {
+        if config::parameter_store()
+            .globals
+            .debug_seed_hospital_cache_resistant_profiles
+        {
             self.mechanism_cache
                 .seed_debug_hospital_resistant_profiles(&self.param_cache);
         }
@@ -5314,19 +5450,20 @@ impl Simulation {
             combined_summaries.extend(branch.summaries.iter());
         }
 
-        let append_usize_slice_or_zeros = |row: &mut String, values: &[usize], expected_len: usize| {
-            if values.is_empty() {
-                for _ in 0..expected_len {
-                    row.push_str(",0");
+        let append_usize_slice_or_zeros =
+            |row: &mut String, values: &[usize], expected_len: usize| {
+                if values.is_empty() {
+                    for _ in 0..expected_len {
+                        row.push_str(",0");
+                    }
+                } else {
+                    debug_assert_eq!(values.len(), expected_len);
+                    for value in values {
+                        row.push(',');
+                        row.push_str(&value.to_string());
+                    }
                 }
-            } else {
-                debug_assert_eq!(values.len(), expected_len);
-                for value in values {
-                    row.push(',');
-                    row.push_str(&value.to_string());
-                }
-            }
-        };
+            };
 
         for summary in combined_summaries {
             let mut row = String::with_capacity(20000); // Pre-allocate for each row
@@ -5416,8 +5553,16 @@ impl Simulation {
                 row.push(',');
                 row.push_str(&value.to_string());
             }
-            append_usize_slice_or_zeros(&mut row, &summary.deaths_by_bacteria_under_5, BACTERIA_LIST.len());
-            append_usize_slice_or_zeros(&mut row, &summary.deaths_by_bacteria_over_65, BACTERIA_LIST.len());
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.deaths_by_bacteria_under_5,
+                BACTERIA_LIST.len(),
+            );
+            append_usize_slice_or_zeros(
+                &mut row,
+                &summary.deaths_by_bacteria_over_65,
+                BACTERIA_LIST.len(),
+            );
             append_usize_slice_or_zeros(
                 &mut row,
                 &summary.deaths_by_bacteria_hospital_acquired,
@@ -5798,11 +5943,7 @@ impl Simulation {
             );
 
             // Add syndrome population by region data
-            append_usize_slice_or_zeros(
-                &mut row,
-                &summary.syndrome_population_by_region,
-                10 * 6,
-            );
+            append_usize_slice_or_zeros(&mut row, &summary.syndrome_population_by_region, 10 * 6);
 
             // Add syndrome deaths from sepsis by region data
             append_usize_slice_or_zeros(

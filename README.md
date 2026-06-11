@@ -21,15 +21,27 @@ The executable is named `executable_amr`. All configuration is hardcoded in `src
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `population_size` | 100,000 | Number of simulated individuals |
-| `time_steps` | 38,325 | Days from 1930 to ~2035 |
+| `population_size` | 1,000,000 | Number of simulated individuals |
+| `calibration_mode` | `CalibrationMode::Full` | Output/detail mode for calibration vs full policy runs |
+| `time_steps` | 35,040 for calibration; 38,325 for policy runs | Days simulated by mode |
 | `log_individuals` | `false` | Per-individual logging (very verbose) |
 | `log_infection_journeys` | `false` | Infection lifecycle logging |
 | `infection_journey_sample_rate` | 1.0 | Fraction of journeys to log |
 | `use_fixed_seed` | `false` | Deterministic RNG for reproducibility |
 | `fixed_seed_value` | 1,234,567,890 | Seed when fixed seeding is on |
+| `RAYON_WORKER_STACK_BYTES` | 4 MiB | Rayon worker stack size |
 | `infection_journey_bacteria_filter` | `None` | Filter journeys to one species |
 | `use_disk_branch_checkpointing` | `false` | Serialise branch checkpoints to disk |
+
+### Fixed-Seed Reproducibility
+
+Fixed-seed runs use named ChaCha RNG streams derived from the run seed. Daily population updates are processed in fixed-size deterministic chunks, so a fixed seed is not tied to Rayon worker assignment or thread count. `AMR_RNG_SEED=<u64>` overrides the hardcoded seed setting for replay.
+
+For the same source, configuration, and seed, fixed-seed summary output should be identical across repeated runs and across different `RAYON_NUM_THREADS` values.
+
+### Stack Safety
+
+The checked-in Rayon worker stack default is 4 MiB. Population updates use deterministic chunks and boxed chunk totals so Rayon worker stacks do not carry the large `LocalTotals` accumulator by value.
 
 ### Limiting CPU Cores
 

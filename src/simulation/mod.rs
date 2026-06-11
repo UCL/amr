@@ -5,4 +5,5 @@
 // `journey_logger` is an opt-in diagnostic path for detailed infection narratives.
 pub mod journey_logger;
 pub mod population;
+pub mod rng;
 pub mod simulation;

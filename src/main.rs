@@ -1,4 +1,3 @@
-
 //
 //
 //
@@ -14,7 +13,7 @@
 //
 //
 // -- thoughts 1 (needed for paper) ---------------------------------------------------------------------------------
-//  
+//
 // strep epidermidis + ?
 //
 // present a global antibiotic activity for each bacteria over time
@@ -34,17 +33,17 @@
 //
 //
 // -- thoughts 2 (consider for paper) ------------------------------------------------------------------------------
-//  
+//
 // separate age categories of 70-80 and 80+ throughout ?
 //
 // have increased risk of strep b, e coli and listeria in women of childbearing age ?
 //
 // additional calibration output - show case fatality by infection if untreated
-// from pre 1937 outputs 
+// from pre 1937 outputs
 //
 // ? drug start distribution by infection site (or is seeing the drug choice rules enough ?)
 //
-// death within 30 days by bacteria, syndrome, age and region ? - make a formal part of calibration 
+// death within 30 days by bacteria, syndrome, age and region ? - make a formal part of calibration
 // score or just present as an fyi ?
 //
 // infections with test_r done by x days (by region ?)
@@ -58,7 +57,7 @@
 //
 //
 // -- thoughts 3 (am thinking not needed for paper, but re-review before submission) ------------------------------------------------------------------
-//  
+//
 // ? maybe publish online results from one run with fixed seed and also results using the same fixed seed but changing
 // one parameter value only - so all can see influence of each parameter - could refer to this in supplementary material.
 //
@@ -68,7 +67,7 @@
 //
 // ? add mechanisms present by day to infection journeys
 //
-// ? need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of 
+// ? need outputs showing distributions of mechansims present in infecting bacteria, including co-presence of
 // multiple mechansims
 //
 //
@@ -96,8 +95,8 @@
 // consider whether infection from the environment should also depend on concurrent majority_r - or do we need
 // to somehow model bacteria in the environment and the influences on them such as use of antibiotics..... ?
 // (maybe someone can do this in a future interation.....)
-// add legionella ?  tick-borne bacteria ? 
-// remember that we model use of antibiotics when no modelled bacteria present so in some ways this takes care of bacteria not modelled 
+// add legionella ?  tick-borne bacteria ?
+// remember that we model use of antibiotics when no modelled bacteria present so in some ways this takes care of bacteria not modelled
 // should population majority_r depend (more) on resistance in microbiome/carriage rather than infections ?
 // should we consider some syndromes (from which spread is more likely) more than others for population majority_r ?
 // consider more granular breakdown of regions
@@ -110,17 +109,12 @@
 //
 // ? need poc test for drug level at infection site
 //
-// consider case for real time infection site drug level monitoring 
+// consider case for real time infection site drug level monitoring
 //
 // mda with azithromycin is to reduce community incidence as well as treat existing infection
 //
 // for mda project can base in africa with an "other" region all grouped together
 //
-
-
-
-
-
 
 // src/main.rs
 // Simulation entry point.
@@ -146,8 +140,120 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
+const RAYON_WORKER_STACK_BYTES: usize = 4 * 1024 * 1024;
+
+#[derive(Clone, Copy)]
+struct ResolvedRunSeed {
+    value: u64,
+    source: &'static str,
+}
+
+fn configure_rayon_worker_stack() {
+    rayon::ThreadPoolBuilder::new()
+        .stack_size(RAYON_WORKER_STACK_BYTES)
+        .thread_name(|idx| format!("amr-rayon-{}", idx))
+        .build_global()
+        .expect("failed to configure global Rayon thread pool before first use");
+
+    eprintln!(
+        "[startup] configured global Rayon worker stack: {} bytes",
+        RAYON_WORKER_STACK_BYTES
+    );
+}
+
+fn resolve_run_seed(use_fixed_seed: bool, fixed_seed_value: u64) -> ResolvedRunSeed {
+    if let Ok(value) = std::env::var("AMR_RNG_SEED") {
+        let parsed = value
+            .parse::<u64>()
+            .expect("AMR_RNG_SEED must parse as a u64");
+        eprintln!("[startup] AMR_RNG_SEED={} source=env", parsed);
+        return ResolvedRunSeed {
+            value: parsed,
+            source: "env",
+        };
+    }
+
+    if use_fixed_seed {
+        eprintln!(
+            "[startup] AMR_RNG_SEED={} source=fixed_seed_value",
+            fixed_seed_value
+        );
+        return ResolvedRunSeed {
+            value: fixed_seed_value,
+            source: "fixed_seed_value",
+        };
+    }
+
+    let generated = rand::random::<u64>();
+    eprintln!("[startup] AMR_RNG_SEED={} source=generated", generated);
+    ResolvedRunSeed {
+        value: generated,
+        source: "generated",
+    }
+}
+
+fn write_run_metadata(
+    path: &std::path::Path,
+    status: &str,
+    seed: ResolvedRunSeed,
+    population_size: usize,
+    time_steps: usize,
+    calibration_mode: CalibrationMode,
+    active_policies: &[u8],
+    run_id: Option<u32>,
+    csv_path: Option<&std::path::Path>,
+    duration_secs: Option<f64>,
+) -> std::io::Result<()> {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)?;
+
+    writeln!(file, "status={}", status)?;
+    writeln!(
+        file,
+        "updated_utc={}",
+        Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+    )?;
+    writeln!(file, "rng_seed={}", seed.value)?;
+    writeln!(file, "rng_seed_source={}", seed.source)?;
+    writeln!(
+        file,
+        "run_id={}",
+        run_id.map_or_else(|| "pending".to_string(), |id| id.to_string())
+    )?;
+    writeln!(file, "population_size={}", population_size)?;
+    writeln!(file, "time_steps={}", time_steps)?;
+    writeln!(file, "calibration_mode={:?}", calibration_mode)?;
+    writeln!(file, "active_policies={:?}", active_policies)?;
+    let rayon_threads = rayon::current_num_threads();
+    writeln!(file, "rayon_threads={}", rayon_threads)?;
+    writeln!(
+        file,
+        "rayon_worker_stack_bytes={}",
+        RAYON_WORKER_STACK_BYTES
+    )?;
+    writeln!(
+        file,
+        "duration_seconds={}",
+        duration_secs.map_or_else(|| "pending".to_string(), |secs| format!("{:.3}", secs))
+    )?;
+    writeln!(
+        file,
+        "summary_csv={}",
+        csv_path
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "pending".to_string())
+    )?;
+    writeln!(file, "replay_env=AMR_RNG_SEED={}", seed.value)?;
+
+    Ok(())
+}
+
 fn main() {
     install_panic_log_hook();
+    configure_rayon_worker_stack();
     let _ = env_logger::builder().is_test(false).try_init();
 
     // Fail fast on obviously inconsistent bacteria setups before paying the cost of a full run.
@@ -155,7 +261,7 @@ fn main() {
 
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
-    let population_size =   100_000;
+    let population_size = 1_000_000;
     // CalibrationMode::Full  — sparse CSV (2022-2025 only); fastest calibration runs.
     // CalibrationMode::Partial — all 1930-2025 rows kept; time-series plots still work.
     // CalibrationMode::None  — full run with policy branches to 2035.
@@ -182,7 +288,64 @@ fn main() {
     // Some("enterococcus_faecium")
     // None - logs all bacteria types
 
-    let seed_override = use_fixed_seed.then_some(fixed_seed_value);
+    let resolved_run_seed = resolve_run_seed(use_fixed_seed, fixed_seed_value);
+    std::env::set_var("AMR_RNG_SEED", resolved_run_seed.value.to_string());
+    let seed_override = Some(resolved_run_seed.value);
+
+    // ── Policy branch selection ────────────────────────────────────────────────
+    // Only active when calibration_mode == CalibrationMode::None (full run).
+    // List the policy IDs you want to run; comment out any you don't need.
+    //
+    //   0 = Baseline continuation      (status quo carried forward to 2035)
+    //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
+    //   2 = AMR Counterfactual         (resistance cleared; models a world without AMR)
+    //   3 = Perfect Diagnostics        (implausibly complete & immediate testing)
+    //   4 = Equal Global Access        (all regions get North America–level access)
+    //
+    // Policies are independent branches starting from POLICY_BRANCH_YEAR (2027);
+    // they do not interact with each other.
+    let active_policies: &[u8] = &[
+        0, // Baseline continuation
+        1, // Stewardship
+        2, // AMR counterfactual
+        3, // Perfect diagnostics
+        4, // Equal global access
+    ];
+
+    let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
+    if let Err(err) = std::fs::create_dir_all(output_dir) {
+        eprintln!(
+            "Warning: unable to create output directory {:?}: {}",
+            output_dir, err
+        );
+    }
+
+    let metadata_stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+    let metadata_path = output_dir.join(format!(
+        "run_metadata_{}_seed_{}.txt",
+        metadata_stamp, resolved_run_seed.value
+    ));
+    if let Err(err) = write_run_metadata(
+        &metadata_path,
+        "started",
+        resolved_run_seed,
+        population_size,
+        time_steps,
+        calibration_mode,
+        active_policies,
+        None,
+        None,
+        None,
+    ) {
+        eprintln!(
+            "Warning: unable to write run metadata {}: {}",
+            metadata_path.display(),
+            err
+        );
+    } else {
+        eprintln!("[startup] run metadata: {}", metadata_path.display());
+    }
+
     let mut simulation = Simulation::new(
         population_size,
         time_steps,
@@ -210,25 +373,6 @@ fn main() {
         }
     }
 
-    // ── Policy branch selection ────────────────────────────────────────────────
-    // Only active when calibration_mode == CalibrationMode::None (full run).
-    // List the policy IDs you want to run; comment out any you don't need.
-    //
-    //   0 = Baseline continuation      (status quo carried forward to 2035)
-    //   1 = Antimicrobial Stewardship  (reduced prescribing, better drug selection)
-    //   2 = AMR Counterfactual         (resistance cleared; models a world without AMR)
-    //   3 = Perfect Diagnostics        (implausibly complete & immediate testing)
-    //   4 = Equal Global Access        (all regions get North America–level access)
-    //
-    // Policies are independent branches starting from POLICY_BRANCH_YEAR (2027);
-    // they do not interact with each other.
-    let active_policies: &[u8] = &[
-        0, // Baseline continuation
-        1, // Stewardship
-        2, // AMR counterfactual
-        3, // Perfect diagnostics
-        4, // Equal global access
-    ];
     simulation.set_active_policy_branches(active_policies);
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -244,13 +388,6 @@ fn main() {
 
     // Use the simulation's run_id in the filename so Python post-processing can join one
     // summary CSV to one set of sampled parameters and one run-log entry without collisions.
-    let output_dir = std::path::Path::new("amr_simulation_output_analysis_outputs");
-    if let Err(err) = std::fs::create_dir_all(output_dir) {
-        eprintln!(
-            "Warning: unable to create output directory {:?}: {}",
-            output_dir, err
-        );
-    }
     let run_id = simulation.run_id;
     let csv_basename = format!("simulation_summary_{:06}.csv", run_id);
     let csv_path = output_dir.join(&csv_basename);
@@ -260,6 +397,25 @@ fn main() {
         println!("Error exporting CSV: {}", e);
     } else {
         println!("Summary data exported to {}", csv_path.display());
+    }
+
+    if let Err(err) = write_run_metadata(
+        &metadata_path,
+        "completed",
+        resolved_run_seed,
+        population_size,
+        time_steps,
+        calibration_mode,
+        active_policies,
+        Some(run_id),
+        Some(&csv_path),
+        Some(duration.as_secs_f64()),
+    ) {
+        eprintln!(
+            "Warning: unable to update run metadata {}: {}",
+            metadata_path.display(),
+            err
+        );
     }
 
     // Log the simulation run details
@@ -278,6 +434,7 @@ fn main() {
 fn install_panic_log_hook() {
     std::panic::set_hook(Box::new(|panic_info| {
         let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+        let rng_seed = std::env::var("AMR_RNG_SEED").unwrap_or_else(|_| "unset".to_string());
         let location = panic_info
             .location()
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
@@ -292,8 +449,9 @@ fn install_panic_log_hook() {
         };
 
         let report = format!(
-            "\n===== panic =====\ntimestamp: {}\nlocation: {}\npayload: {}\nbacktrace:\n{}\n",
+            "\n===== panic =====\ntimestamp: {}\nrng_seed: {}\nlocation: {}\npayload: {}\nbacktrace:\n{}\n",
             timestamp,
+            rng_seed,
             location,
             payload,
             Backtrace::force_capture()
@@ -407,4 +565,3 @@ fn validate_bacteria_configuration() {
     }
     println!("=====================================\n");
 }
-
