@@ -31,16 +31,13 @@ These should not be added in future commits unless a PR explicitly documents why
 - `amr_branch_checkpoints/`
 - `simulation_run_log.csv`
 - `run_metadata_*.txt`
+- root-generated documentation and snapshots such as `MODEL_DESCRIPTION.html`, `appendix_b_generated.md`, `model_overview_slides.html`, and `config_working_changes*.patch`
 - large data drops outside the curated `data/` allowlist
 
 ## Deferred Cleanup
 
-Future PRs should decide, one class at a time, whether to move or untrack existing root-level generated files such as:
+Future PRs should decide, one class at a time, whether to move or untrack remaining generated material such as:
 
-- `appendix_b_generated.md`
-- `MODEL_DESCRIPTION.html`
-- `model_overview_slides.html`
-- `config_working_changes*.patch`
 - tracked paper table HTML/SVG outputs
 - historical calibration/config snapshots in `archive/`
 

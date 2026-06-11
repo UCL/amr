@@ -35,6 +35,12 @@ Thumbs.db
 /potency_audit_matrix.csv
 /all_simulation_data.txt
 
+# Generated root-level documentation and patch snapshots
+/MODEL_DESCRIPTION.html
+/appendix_b_generated.md
+/model_overview_slides.html
+/config_working_changes*.patch
+
 # Generated figures/images that are not intentionally tracked
 *.png
 
