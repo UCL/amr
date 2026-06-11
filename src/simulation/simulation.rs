@@ -12,6 +12,7 @@
 // when want to print variable values for individual 0 for de-bugging
 
 use crate::config::{self, get_global_param}; // Import the config module and get_global_param function
+use crate::observability;
 use crate::rules::apply_rules;
 use crate::simulation::journey_logger::JourneyLogger;
 use crate::simulation::population::{
@@ -1951,6 +1952,7 @@ impl Simulation {
         let mut branch_snapshot: Option<StoredBranchSnapshot> = None;
 
         for t in start_step..self.time_steps {
+            observability::set_current_timestep(t);
             if let Some(step) = branch_capture_step {
                 if t == step && branch_snapshot.is_none() {
                     let snapshot = self.create_branch_snapshot();
@@ -4559,6 +4561,7 @@ impl Simulation {
 
     pub fn run(&mut self) {
         // Assign a fresh identifier for this run so downstream CSV joins can distinguish outputs.
+        observability::clear_run_context();
         let previous_run_id = self.run_id;
         let mut run_id_rng = self
             .rng_seed
@@ -4569,6 +4572,7 @@ impl Simulation {
             new_run_id = run_id_rng.gen_range(1..=1_000_000);
         }
         self.run_id = new_run_id;
+        observability::set_current_run_id(self.run_id);
         println!("Simulation run ID: {}", self.run_id);
 
         self.policy_branch_summary_log.clear();
