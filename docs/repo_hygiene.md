@@ -13,7 +13,7 @@ One exception is `panic_log.txt`: it is a runtime crash artifact, so this pass r
 - Rust manifests: `Cargo.toml`, `Cargo.lock`
 - Python analysis package: `amr_simulation_output_analysis/`
 - Curated calibration inputs: selected files under `data/`
-- Paper/documentation sources and currently tracked rendered outputs: `MODEL_DESCRIPTION.md`, `MODEL_DESCRIPTION.html`, `paper_tables/`
+- Paper/documentation sources and shared rendered outputs: `MODEL_DESCRIPTION.md`, `MODEL_DESCRIPTION.html`, `appendix_b_generated.md`, `model_overview_slides.html`, `paper_tables/`
 
 ## Local Or Generated Files
 
@@ -31,8 +31,10 @@ These should not be added in future commits unless a PR explicitly documents why
 - `amr_branch_checkpoints/`
 - `simulation_run_log.csv`
 - `run_metadata_*.txt`
-- root-generated documentation and snapshots such as `MODEL_DESCRIPTION.html`, `appendix_b_generated.md`, `model_overview_slides.html`, and `config_working_changes*.patch`
+- root-generated patch/scratch snapshots such as `config_working_changes*.patch`
 - large data drops outside the curated `data/` allowlist
+
+Generated does not automatically mean disposable. Rendered documentation should remain tracked when it is a shared review, communication, or reproducibility artifact and the PR explicitly treats it as part of the repository contract.
 
 ## Deferred Cleanup
 
