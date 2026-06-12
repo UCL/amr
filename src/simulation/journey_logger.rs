@@ -17,7 +17,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use crate::config::parameter_store;
 
@@ -41,21 +41,27 @@ fn activity_cache() -> &'static Mutex<HashMap<(usize, usize), CachedActivitySnap
     ACTIVITY_SNAPSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn lock_recovering_poison<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Enable snapshot tracking and clear any stale cache entries from prior runs.
 pub(crate) fn enable_activity_snapshots() {
     ACTIVITY_SNAPSHOT_ENABLED.store(true, Ordering::Relaxed);
-    activity_registry().lock().unwrap().clear();
-    activity_cache().lock().unwrap().clear();
+    lock_recovering_poison(activity_registry()).clear();
+    lock_recovering_poison(activity_cache()).clear();
 }
 
 /// Disable snapshot tracking and drop any cached state.
 pub(crate) fn disable_activity_snapshots() {
     ACTIVITY_SNAPSHOT_ENABLED.store(false, Ordering::Relaxed);
     if let Some(registry) = ACTIVITY_SNAPSHOT_REGISTRY.get() {
-        registry.lock().unwrap().clear();
+        lock_recovering_poison(registry).clear();
     }
     if let Some(cache) = ACTIVITY_SNAPSHOT_CACHE.get() {
-        cache.lock().unwrap().clear();
+        lock_recovering_poison(cache).clear();
     }
 }
 
@@ -64,22 +70,16 @@ pub(crate) fn register_activity_snapshot_tracking(individual_id: usize, bacteria
     if !ACTIVITY_SNAPSHOT_ENABLED.load(Ordering::Relaxed) {
         return;
     }
-    activity_registry()
-        .lock()
-        .unwrap()
-        .insert((individual_id, bacteria_idx));
+    lock_recovering_poison(activity_registry()).insert((individual_id, bacteria_idx));
 }
 
 /// Remove tracking metadata when a journey completes or is aborted.
 pub(crate) fn unregister_activity_snapshot_tracking(individual_id: usize, bacteria_idx: usize) {
     if let Some(registry) = ACTIVITY_SNAPSHOT_REGISTRY.get() {
-        registry
-            .lock()
-            .unwrap()
-            .remove(&(individual_id, bacteria_idx));
+        lock_recovering_poison(registry).remove(&(individual_id, bacteria_idx));
     }
     if let Some(cache) = ACTIVITY_SNAPSHOT_CACHE.get() {
-        cache.lock().unwrap().remove(&(individual_id, bacteria_idx));
+        lock_recovering_poison(cache).remove(&(individual_id, bacteria_idx));
     }
 }
 
@@ -94,10 +94,7 @@ pub(crate) fn should_cache_pre_clearance_activity(
     ACTIVITY_SNAPSHOT_REGISTRY
         .get()
         .map(|registry| {
-            registry
-                .lock()
-                .unwrap()
-                .contains(&(individual_id, bacteria_idx))
+            lock_recovering_poison(registry).contains(&(individual_id, bacteria_idx))
         })
         .unwrap_or(false)
 }
@@ -112,7 +109,7 @@ pub(crate) fn cache_pre_clearance_activity(
     if !should_cache_pre_clearance_activity(individual_id, bacteria_idx) {
         return;
     }
-    activity_cache().lock().unwrap().insert(
+    lock_recovering_poison(activity_cache()).insert(
         (individual_id, bacteria_idx),
         CachedActivitySnapshot {
             time_step,
@@ -130,7 +127,7 @@ pub(crate) fn take_cached_activity_snapshot(
     if !ACTIVITY_SNAPSHOT_ENABLED.load(Ordering::Relaxed) {
         return None;
     }
-    let mut cache = activity_cache().lock().unwrap();
+    let mut cache = lock_recovering_poison(activity_cache());
     if let Some(entry) = cache.remove(&(individual_id, bacteria_idx)) {
         if entry.time_step == expected_time_step {
             return Some(entry.values);
@@ -428,17 +425,15 @@ impl JourneyLogger {
 
         // Write initial snapshot to CSV
         if let Some(ref mut writer) = self.csv_writer {
-            if let Some(snapshot) = self
-                .active_journeys
-                .get(&individual.id)
-                .unwrap()
-                .snapshots
-                .last()
-            {
-                if let Err(e) = writeln!(writer, "{}", JourneyLogger::snapshot_to_csv(snapshot)) {
-                    eprintln!("Error writing snapshot: {}", e);
-                } else {
-                    self.total_snapshots_logged += 1;
+            if let Some(journey) = self.active_journeys.get(&individual.id) {
+                if let Some(snapshot) = journey.snapshots.last() {
+                    if let Err(e) =
+                        writeln!(writer, "{}", JourneyLogger::snapshot_to_csv(snapshot))
+                    {
+                        eprintln!("Error writing snapshot: {}", e);
+                    } else {
+                        self.total_snapshots_logged += 1;
+                    }
                 }
             }
         } else {
