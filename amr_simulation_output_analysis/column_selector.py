@@ -145,6 +145,7 @@ CALIBRATION_PATTERNS = [
     r'.*_asymptomatic_microbiome_hgt_events', # Asymptomatic HGT events
     
     # Additional infection locus columns needed for calibration mapping
+    r'.*_newly_infected_(north_america|south_america|africa|asia|europe|oceania)$',
     r'.*_newly_infected_hospital_.*',
     r'.*_newly_infected_any_r_hospital$',
     r'.*_newly_infected_any_r_community$',

@@ -1530,10 +1530,14 @@ def _calculate_resistance_table(
 def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.DataFrame:
     """Per-bacterium mean absolute difference between hospital and community resistance %
     across all applicable drugs.  Uses stock columns already written in full-calibration mode:
-      - {b}_sum_any_r_hospital_{d}  (hospital infections with any_r > 0, per drug)
-      - {b}_sum_any_r_{d}           (total infections with any_r > 0, per drug)
-      - {b}_currently_infected      (total stock denominator)
-    Hospital fraction estimated from newly-infected flow columns.
+            - {b}_infected_with_any_r_positive_hospital_{d}
+            - {b}_infected_with_any_r_positive_community_{d}
+            - {b}_currently_infected_hospital_count / _community_count
+
+        When bounded split-positive columns are unavailable, this falls back to the older
+        sum-any-r columns. Flow-level headline percentages use the per-region newly infected
+        columns as the primary denominator because those remain internally consistent in the
+        full-calibration CSVs.
     """
     columns = [
         "Bacteria",
@@ -1557,6 +1561,7 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
         canonical_sim_map.setdefault(canonical, set()).add(raw_slug)
 
     records = []
+    region_names = ["north_america", "south_america", "europe", "asia", "africa", "oceania"]
 
     for slug in sorted(canonical_sim_map.keys()):
         raw_slugs = canonical_sim_map[slug]
@@ -1566,11 +1571,15 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
         current_hosp_infected = 0.0
         current_comm_infected = 0.0
         total_newly_infected = 0.0
+        total_newly_infected_split = 0.0
         total_newly_infected_hosp = 0.0
         hosp_any_r_flow = 0.0
         comm_any_r_flow = 0.0
+        # {d_slug: (hospital_positive, community_positive)}
+        drug_positive_totals: Dict[str, Tuple[float, float]] = {}
+        # Fallback when split-positive columns are unavailable.
         # {d_slug: (sum_any_r_total, sum_any_r_hospital)}
-        drug_totals: Dict[str, Tuple[float, float]] = {}
+        drug_fraction_totals: Dict[str, Tuple[float, float]] = {}
 
         for raw_slug in raw_slugs:
             inf_col = f"{raw_slug}_currently_infected"
@@ -1587,7 +1596,12 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
 
             for col in (f"{raw_slug}_newly_infected_carrier", f"{raw_slug}_newly_infected_non_carrier"):
                 if col in year_df.columns:
-                    total_newly_infected += float(year_df[col].sum(skipna=True))
+                    total_newly_infected_split += float(year_df[col].sum(skipna=True))
+
+            for region in region_names:
+                total_col = f"{raw_slug}_newly_infected_{region}"
+                if total_col in year_df.columns:
+                    total_newly_infected += float(year_df[total_col].sum(skipna=True))
 
             for region in _HOSP_REGIONS:
                 hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
@@ -1602,13 +1616,25 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
                 comm_any_r_flow += float(year_df[comm_r_col].sum(skipna=True))
 
             for d_slug in drug_set:
+                hosp_positive_col = f"{raw_slug}_infected_with_any_r_positive_hospital_{d_slug}"
+                comm_positive_col = f"{raw_slug}_infected_with_any_r_positive_community_{d_slug}"
+                if hosp_positive_col in year_df.columns and comm_positive_col in year_df.columns:
+                    h = float(year_df[hosp_positive_col].sum(skipna=True))
+                    c = float(year_df[comm_positive_col].sum(skipna=True))
+                    prev = drug_positive_totals.get(d_slug, (0.0, 0.0))
+                    drug_positive_totals[d_slug] = (prev[0] + h, prev[1] + c)
+                    continue
+
                 hosp_d_col = f"{raw_slug}_sum_any_r_hospital_{d_slug}"
                 total_d_col = f"{raw_slug}_sum_any_r_{d_slug}"
                 if hosp_d_col in year_df.columns and total_d_col in year_df.columns:
                     h = float(year_df[hosp_d_col].sum(skipna=True))
                     t = float(year_df[total_d_col].sum(skipna=True))
-                    prev = drug_totals.get(d_slug, (0.0, 0.0))
-                    drug_totals[d_slug] = (prev[0] + t, prev[1] + h)
+                    prev = drug_fraction_totals.get(d_slug, (0.0, 0.0))
+                    drug_fraction_totals[d_slug] = (prev[0] + t, prev[1] + h)
+
+        if total_newly_infected <= 0.0:
+            total_newly_infected = total_newly_infected_split
 
         has_true_stock_split = (current_hosp_infected + current_comm_infected) > 0
         if has_true_stock_split:
@@ -1624,24 +1650,35 @@ def _calculate_resistance_incidence_locus_table(year_df: pd.DataFrame) -> pd.Dat
             comm_n = total_currently_infected * (1.0 - hosp_frac)
 
         abs_diffs = []
-        for d_slug, (t_sum, h_sum) in drug_totals.items():
-            c_sum = t_sum - h_sum
-            if hosp_n > 0 and comm_n > 0:
-                hp = h_sum / hosp_n * 100.0
-                cp = c_sum / comm_n * 100.0
-                if np.isfinite(hp) and np.isfinite(cp):
-                    abs_diffs.append(abs(hp - cp))
+        drug_keys = set(drug_positive_totals.keys()) | set(drug_fraction_totals.keys())
+        for d_slug in drug_keys:
+            if hosp_n <= 0 or comm_n <= 0:
+                continue
+            if d_slug in drug_positive_totals:
+                h_sum, c_sum = drug_positive_totals[d_slug]
+            else:
+                t_sum, h_sum = drug_fraction_totals[d_slug]
+                c_sum = t_sum - h_sum
+            hp = h_sum / hosp_n * 100.0
+            cp = c_sum / comm_n * 100.0
+            if np.isfinite(hp) and np.isfinite(cp):
+                abs_diffs.append(abs(hp - cp))
 
         mean_gap = float(np.mean(abs_diffs)) if abs_diffs else np.nan
 
-        comm_newly_infected = total_newly_infected - total_newly_infected_hosp
+        valid_flow_split = (
+            total_newly_infected > 0
+            and total_newly_infected_hosp >= 0
+            and total_newly_infected_hosp <= total_newly_infected
+        )
+        comm_newly_infected = total_newly_infected - total_newly_infected_hosp if valid_flow_split else np.nan
         hosp_r_pct = (
             hosp_any_r_flow / total_newly_infected_hosp * 100.0
-            if total_newly_infected_hosp > 0 else np.nan
+            if valid_flow_split and total_newly_infected_hosp > 0 else np.nan
         )
         comm_r_pct = (
             comm_any_r_flow / comm_newly_infected * 100.0
-            if comm_newly_infected > 0 else np.nan
+            if valid_flow_split and np.isfinite(comm_newly_infected) and comm_newly_infected > 0 else np.nan
         )
 
         sim_ratio = (
@@ -1695,6 +1732,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
         canonical_sim_map.setdefault(canonical, set()).add(raw_slug)
 
     records = []
+    region_names = ["north_america", "south_america", "europe", "asia", "africa", "oceania"]
 
     for slug in sorted(canonical_sim_map.keys()):
         display_name = BACTERIA_DISPLAY_NAME_OVERRIDES.get(slug, slug.replace("_", " "))
@@ -1708,6 +1746,7 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
         current_hosp_infected = 0.0
         current_comm_infected = 0.0
         total_newly_infected = 0.0
+        total_newly_infected_split = 0.0
         total_newly_infected_hosp = 0.0
         drug_totals: Dict[str, Tuple[float, float]] = {}
 
@@ -1726,7 +1765,12 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
 
             for col in (f"{raw_slug}_newly_infected_carrier", f"{raw_slug}_newly_infected_non_carrier"):
                 if col in year_df.columns:
-                    total_newly_infected += float(year_df[col].sum(skipna=True))
+                    total_newly_infected_split += float(year_df[col].sum(skipna=True))
+
+            for region in region_names:
+                total_col = f"{raw_slug}_newly_infected_{region}"
+                if total_col in year_df.columns:
+                    total_newly_infected += float(year_df[total_col].sum(skipna=True))
 
             for region in _HOSP_REGIONS:
                 hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
@@ -1752,6 +1796,9 @@ def _calculate_serious_resistance_locus_table(year_df: pd.DataFrame) -> pd.DataF
                     t = float(year_df[total_d_col].sum(skipna=True))
                     prev = drug_totals.get(d_slug, (0.0, 0.0))
                     drug_totals[d_slug] = (prev[0] + h, prev[1] + (t - h))
+
+        if total_newly_infected <= 0.0:
+            total_newly_infected = total_newly_infected_split
 
         has_true_stock_split = (current_hosp_infected + current_comm_infected) > 0
         if has_true_stock_split:
@@ -1900,6 +1947,7 @@ def _calculate_bacteria_burden_table(
         return name_map.get(slug, slug.replace("_", " "))
 
     records = []
+    region_names = ["north_america", "south_america", "europe", "asia", "africa", "oceania"]
     for slug in sorted(combo_slugs, key=lambda item: slug_display(item).lower()):
         display_name = slug_display(slug)
 
@@ -1918,6 +1966,7 @@ def _calculate_bacteria_burden_table(
         infection_sim_pct = np.nan
         hospital_acquired_pct = np.nan
         total_infections = 0.0
+        total_infections_split = 0.0
         total_hospital_infections = 0.0
         total_inf_under_5 = 0.0
         total_inf_over_65 = 0.0
@@ -1927,7 +1976,13 @@ def _calculate_bacteria_burden_table(
             non_carrier_col = f"{raw_slug}_newly_infected_non_carrier"
             for col in (carrier_col, non_carrier_col):
                 if col in year_df.columns:
-                    total_infections += float(year_df[col].sum(skipna=True))
+                    total_infections_split += float(year_df[col].sum(skipna=True))
+                    infection_data = True
+
+            for region in region_names:
+                total_col = f"{raw_slug}_newly_infected_{region}"
+                if total_col in year_df.columns:
+                    total_infections += float(year_df[total_col].sum(skipna=True))
                     infection_data = True
             
             under_5_col = f"{raw_slug}_newly_infected_under_5"
@@ -1937,17 +1992,21 @@ def _calculate_bacteria_burden_table(
             over_65_col = f"{raw_slug}_newly_infected_over_65"
             if over_65_col in year_df.columns:
                 total_inf_over_65 += float(year_df[over_65_col].sum(skipna=True))
-            for region in ["north_america", "south_america", "europe", "asia", "africa", "oceania"]:
+            for region in region_names:
                 hosp_col = f"{raw_slug}_newly_infected_hospital_{region}"
                 if hosp_col in year_df.columns:
                     total_hospital_infections += float(year_df[hosp_col].sum(skipna=True))
+
+        if total_infections <= 0.0:
+            total_infections = total_infections_split
                     
         if infection_data and avg_population > 0:
             infection_sim_pct = (total_infections / annualization_factor) / avg_population * 100.0
         inf_under_5_pct = np.nan
         inf_over_65_pct = np.nan
         if total_infections > 0:
-            hospital_acquired_pct = (total_hospital_infections / total_infections) * 100.0
+            if total_hospital_infections <= total_infections:
+                hospital_acquired_pct = (total_hospital_infections / total_infections) * 100.0
             inf_under_5_pct = (total_inf_under_5 / total_infections) * 100.0
             inf_over_65_pct = (total_inf_over_65 / total_infections) * 100.0
 
