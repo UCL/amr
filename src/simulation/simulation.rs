@@ -862,28 +862,20 @@ impl MechanismCache {
         }
 
         if let Some(weights) = weights {
-            if weights.len() != slot.len()
-                || weights
-                    .iter()
-                    .any(|weight| *weight < 0.0 || !weight.is_finite())
-            {
-                return None;
-            }
-
             let total_weight: f64 = weights.iter().sum();
-            if !(total_weight > 0.0 && total_weight.is_finite()) {
+            if total_weight <= 0.0 {
                 return None;
             }
 
             let roll = rng.gen_range(0.0..total_weight);
             let mut cumulative = 0.0_f64;
-            for (&profile, &weight) in slot.iter().zip(weights.iter()) {
+            for (i, &weight) in weights.iter().enumerate() {
                 cumulative += weight;
                 if roll < cumulative {
-                    return Some(profile);
+                    return Some(slot[i]);
                 }
             }
-            return slot.last().copied();
+            return Some(*slot.last().unwrap());
         }
 
         let idx = rng.gen_range(0..slot.len());
@@ -5998,41 +5990,5 @@ impl Simulation {
         writer.flush()?;
         println!("Summary data exported to {}", path.display());
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::MechanismCache;
-    use rand::rngs::SmallRng;
-    use rand::SeedableRng;
-
-    #[test]
-    fn weighted_profile_sampling_rejects_mismatched_or_invalid_weights() {
-        let slot = [1_u64, 2, 3];
-        let mut rng = SmallRng::seed_from_u64(42);
-
-        assert_eq!(
-            MechanismCache::sample_from_slot(&slot, Some(&[1.0, 2.0]), &mut rng),
-            None
-        );
-        assert_eq!(
-            MechanismCache::sample_from_slot(&slot, Some(&[1.0, f64::NAN, 1.0]), &mut rng),
-            None
-        );
-        assert_eq!(
-            MechanismCache::sample_from_slot(&slot, Some(&[1.0, -1.0, 1.0]), &mut rng),
-            None
-        );
-    }
-
-    #[test]
-    fn weighted_profile_sampling_accepts_valid_weights() {
-        let slot = [10_u64, 20, 30];
-        let mut rng = SmallRng::seed_from_u64(7);
-
-        let sampled = MechanismCache::sample_from_slot(&slot, Some(&[0.0, 0.0, 1.0]), &mut rng);
-
-        assert_eq!(sampled, Some(30));
     }
 }

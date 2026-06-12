@@ -1006,12 +1006,13 @@ fn assess_treatment_failure(
     }
 
     // Check if there's a current infection and bacteria level recorded at drug start
-    let Some(bacteria_initial_level) = individual.bacteria_level_at_drug_start[bacteria_idx] else {
-        return false;
-    };
-    if individual.level[bacteria_idx] <= 0.0 {
+    if individual.level[bacteria_idx] <= 0.0
+        || individual.bacteria_level_at_drug_start[bacteria_idx].is_none()
+    {
         return false;
     }
+
+    let bacteria_initial_level = individual.bacteria_level_at_drug_start[bacteria_idx].unwrap();
     let current_level = individual.level[bacteria_idx];
 
     // Get failure threshold (default 0.5 = 50% of initial level)
@@ -2037,7 +2038,8 @@ pub(crate) fn apply_rules(
     // --- end region travel updates ---
 
     // ---  sepsis risk  ---
-    for (b_idx, &bacteria) in BACTERIA_LIST.iter().enumerate() {
+    for &bacteria in BACTERIA_LIST.iter() {
+        let b_idx = *bacteria_indices.get(bacteria).unwrap();
         let current_level = individual.level[b_idx];
 
         if current_level > 0.0 {
@@ -4452,7 +4454,9 @@ pub(crate) fn apply_rules(
 
     // --- sepsis recovery logic (applied after death risk, only if individual is alive) ---
     if individual.date_of_death.is_none() {
-        for b_idx in 0..BACTERIA_LIST.len() {
+        for &bacteria in BACTERIA_LIST.iter() {
+            let b_idx = *bacteria_indices.get(bacteria).unwrap();
+
             // Only consider recovery if individual currently has sepsis from this bacteria
             if individual.sepsis[b_idx] {
                 // Drop lingering sepsis once the triggering infection has cleared
@@ -5237,7 +5241,8 @@ pub(crate) fn apply_rules(
                     // Provenance bookkeeping disabled for memory-saving runs: keep the
                     // underlying biology, but do not store dense per-drug source labels.
                     if crate::simulation::population::TRACK_RESISTANCE_ACQUISITION_PROVENANCE {
-                        for d_idx in 0..DRUG_SHORT_NAMES.len() {
+                        for drug_name_static in DRUG_SHORT_NAMES.iter() {
+                            let d_idx = *drug_indices.get(drug_name_static).unwrap();
                             // Check if any mechanism applicable to this drug is now set
                             let has_any_relevant_mechanism = ResistanceMechanism::all()
                                 .iter()
@@ -5257,7 +5262,8 @@ pub(crate) fn apply_rules(
                     // Resistance floor: apply minimum resistance level for rare bacteria
                     // by ensuring mechanism_any is set where prevalence floor applies.
                     // (This preserves the floor semantics without injecting float values.)
-                    for (d_idx, drug_name_static) in DRUG_SHORT_NAMES.iter().enumerate() {
+                    for drug_name_static in DRUG_SHORT_NAMES.iter() {
+                        let d_idx = *drug_indices.get(drug_name_static).unwrap();
                         let floor_level = calculate_resistance_floor(
                             bacteria,
                             drug_name_static,
@@ -6768,3 +6774,5 @@ impl FastMath for f64 {
         fast_math::log2(self as f32) as f64 * std::f64::consts::LN_2
     }
 }
+
+
