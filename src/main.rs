@@ -130,7 +130,8 @@
 //
 //
 
-use amr_project::config::get_global_param;
+use amr_project::config::{get_global_param, PARAMETERS};
+use amr_project::config_validation::{validate_parameter_map, ConfigValidationMode};
 use amr_project::observability;
 use amr_project::simulation::population::BACTERIA_LIST;
 use amr_project::simulation::simulation::CalibrationMode;
@@ -248,6 +249,11 @@ fn write_run_metadata(
     summary_hash: Option<&str>,
     failure_class: &str,
     last_timestep: Option<usize>,
+    config_validation_mode: &str,
+    config_validation_status: &str,
+    config_validation_errors: usize,
+    config_validation_warnings: usize,
+    config_validation_report_path: Option<&std::path::Path>,
 ) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
         .create(true)
@@ -285,6 +291,29 @@ fn write_run_metadata(
         "rayon_worker_stack_bytes={}",
         RAYON_WORKER_STACK_BYTES
     )?;
+    writeln!(file, "config_validation_mode={}", config_validation_mode)?;
+    writeln!(
+        file,
+        "config_validation_status={}",
+        config_validation_status
+    )?;
+    writeln!(
+        file,
+        "config_validation_errors={}",
+        config_validation_errors
+    )?;
+    writeln!(
+        file,
+        "config_validation_warnings={}",
+        config_validation_warnings
+    )?;
+    writeln!(
+        file,
+        "config_validation_report={}",
+        config_validation_report_path
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "pending".to_string())
+    )?;
     writeln!(
         file,
         "duration_seconds={}",
@@ -308,9 +337,6 @@ fn main() {
     install_panic_log_hook();
     configure_rayon_worker_stack();
     let _ = env_logger::builder().is_test(false).try_init();
-
-    // Fail fast on obviously inconsistent bacteria setups before paying the cost of a full run.
-    validate_bacteria_configuration();
 
     // Main run configuration. This is the quickest place to switch between calibration-sized
     // runs, full policy runs, deterministic debug runs, and journey-logging experiments.
@@ -380,6 +406,75 @@ fn main() {
         "run_metadata_{}_seed_{}.txt",
         metadata_stamp, resolved_run_seed.value
     ));
+
+    let config_validation_mode = match ConfigValidationMode::from_env() {
+        Ok(mode) => mode,
+        Err(err) => {
+            eprintln!("[config-validation] FAILED: {}", err);
+            std::process::exit(2);
+        }
+    };
+    let config_validation_report = validate_parameter_map(&PARAMETERS);
+    let rendered_config_validation = config_validation_report.render(config_validation_mode);
+    eprint!("{}", rendered_config_validation);
+    let config_validation_report_path =
+        output_dir.join(format!("config_validation_{}.txt", metadata_stamp));
+    let config_validation_report_for_metadata = match File::create(&config_validation_report_path)
+        .and_then(|mut file| file.write_all(rendered_config_validation.as_bytes()))
+    {
+        Ok(()) => Some(config_validation_report_path.as_path()),
+        Err(err) => {
+            eprintln!(
+                "Warning: unable to write config validation report {}: {}",
+                config_validation_report_path.display(),
+                err
+            );
+            None
+        }
+    };
+
+    if config_validation_report.has_errors() && config_validation_mode.blocks_on_errors() {
+        if let Err(err) = write_run_metadata(
+            &metadata_path,
+            "config_validation_failed",
+            &source_hash,
+            resolved_run_seed,
+            population_size,
+            time_steps,
+            calibration_mode,
+            active_policies,
+            None,
+            None,
+            None,
+            None,
+            "config_validation_failed",
+            None,
+            &config_validation_mode.to_string(),
+            config_validation_report.status(),
+            config_validation_report.error_count(),
+            config_validation_report.warning_count(),
+            config_validation_report_for_metadata,
+        ) {
+            eprintln!(
+                "Warning: unable to write failed run metadata {}: {}",
+                metadata_path.display(),
+                err
+            );
+        }
+
+        println!(
+            "[report] status=config_validation_failed run_id=pending source_hash={} rng_seed={} last_timestep=pending summary_hash=pending failure_class=config_validation_failed config_validation_status={} config_validation_mode={} summary_csv=pending",
+            source_hash,
+            resolved_run_seed.value,
+            config_validation_report.status(),
+            config_validation_mode
+        );
+        std::process::exit(2);
+    }
+
+    // Fail fast on obviously inconsistent bacteria setups before paying the cost of a full run.
+    validate_bacteria_configuration();
+
     if let Err(err) = write_run_metadata(
         &metadata_path,
         "started",
@@ -395,6 +490,11 @@ fn main() {
         None,
         "running",
         None,
+        &config_validation_mode.to_string(),
+        config_validation_report.status(),
+        config_validation_report.error_count(),
+        config_validation_report.warning_count(),
+        config_validation_report_for_metadata,
     ) {
         eprintln!(
             "Warning: unable to write run metadata {}: {}",
@@ -494,6 +594,11 @@ fn main() {
         summary_hash.as_deref(),
         failure_class,
         last_timestep,
+        &config_validation_mode.to_string(),
+        config_validation_report.status(),
+        config_validation_report.error_count(),
+        config_validation_report.warning_count(),
+        config_validation_report_for_metadata,
     ) {
         eprintln!(
             "Warning: unable to update run metadata {}: {}",
@@ -503,7 +608,7 @@ fn main() {
     }
 
     println!(
-        "[report] status={} run_id={} source_hash={} rng_seed={} last_timestep={} summary_hash={} failure_class={} summary_csv={}",
+        "[report] status={} run_id={} source_hash={} rng_seed={} last_timestep={} summary_hash={} failure_class={} config_validation_status={} config_validation_mode={} summary_csv={}",
         final_status,
         run_id,
         source_hash,
@@ -513,6 +618,8 @@ fn main() {
             .unwrap_or_else(|| "pending".to_string()),
         summary_hash.as_deref().unwrap_or("pending"),
         failure_class,
+        config_validation_report.status(),
+        config_validation_mode,
         csv_path.display()
     );
 

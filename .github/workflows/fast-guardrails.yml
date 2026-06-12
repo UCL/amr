@@ -39,6 +39,7 @@ jobs:
           cargo test --test determinism -- --nocapture
           cargo test --test probability_invariants -- --nocapture
           cargo test --test config_invariants -- --nocapture
+          cargo test --test config_validation -- --nocapture
           cargo test --test csv_invariants -- --nocapture
           cargo test --test dimension_invariants -- --nocapture
 
@@ -46,8 +47,9 @@ jobs:
         run: |
           rustfmt --check \
             tests/config_invariants.rs \
+            tests/config_validation.rs \
             tests/csv_invariants.rs \
             tests/determinism.rs \
             tests/dimension_invariants.rs \
             tests/probability_invariants.rs
-          rustfmt --check src/main.rs src/observability.rs
+          rustfmt --check src/main.rs src/observability.rs src/config_validation.rs

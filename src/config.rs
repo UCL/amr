@@ -3179,6 +3179,55 @@ lazy_static! {
     pub static ref PARAMETERS: HashMap<String, f64> = {
         let mut map = HashMap::new();
 
+        // Explicit defaults consumed by typed parameter stores. These values match the
+        // prior in-code fallbacks; keeping them in PARAMETERS makes them auditable.
+        map.insert("resistance_development_inhibition_single_drug".to_string(), 0.05);
+        map.insert("resistance_development_inhibition_partial_cross".to_string(), 0.3);
+
+        map.insert("toxicity_age_multiplier_infant".to_string(), 1.8);
+        map.insert("toxicity_age_multiplier_child".to_string(), 1.2);
+        map.insert("toxicity_age_multiplier_adult".to_string(), 1.0);
+        map.insert("toxicity_age_multiplier_elderly".to_string(), 2.2);
+        map.insert("toxicity_immunosuppressed_multiplier".to_string(), 2.5);
+        map.insert("toxicity_hospital_multiplier".to_string(), 1.3);
+        map.insert("toxicity_discontinuation_threshold".to_string(), 0.000_01);
+        map.insert("toxicity_discontinuation_avoidance_days".to_string(), 30.0);
+
+        map.insert("infection_non_sepsis_base_log_odds".to_string(), -9.0);
+        map.insert("infection_non_sepsis_log_odds_per_level".to_string(), 0.0);
+        map.insert("infection_non_sepsis_log_odds_age_infant".to_string(), 0.0);
+        map.insert("infection_non_sepsis_log_odds_age_child".to_string(), 0.0);
+        map.insert("infection_non_sepsis_log_odds_age_adult".to_string(), 0.0);
+        map.insert("infection_non_sepsis_log_odds_age_elderly".to_string(), 0.0);
+        map.insert("infection_non_sepsis_log_odds_immunosuppressed".to_string(), 0.0);
+        map.insert("infection_non_sepsis_log_odds_in_hospital".to_string(), 0.0);
+        map.insert("infection_non_sepsis_minimum_bacteria_level".to_string(), 0.5);
+
+        map.insert("bacteria_growth_age_multiplier_infant".to_string(), 1.3);
+        map.insert("bacteria_growth_age_multiplier_child".to_string(), 1.0);
+        map.insert("bacteria_growth_age_multiplier_adult".to_string(), 1.0);
+        map.insert("bacteria_growth_age_multiplier_elderly".to_string(), 1.2);
+        map.insert("bacteria_growth_immunodeficiency_multiplier".to_string(), 1.5);
+
+        map.insert("hgt_hospital_multiplier".to_string(), 4.0);
+        map.insert("hgt_antibiotic_pressure_multiplier".to_string(), 1.5);
+        map.insert("hgt_coinfection_multiplier".to_string(), 1.25);
+        map.insert("hgt_microbiome_only_penalty".to_string(), 0.65);
+        map.insert("hgt_gut_compartment_multiplier".to_string(), 2.0);
+        map.insert("hgt_minority_donor_multiplier".to_string(), 0.20);
+        map.insert("majority_r_memory_retention_per_day".to_string(), 0.93);
+        map.insert("microbiome_majority_decay_half_life_days".to_string(), 60.0);
+        map.insert("microbiome_minority_decay_half_life_days".to_string(), 18.0);
+        map.insert("microbiome_majority_promotion_rate_per_day".to_string(), 0.02);
+        map.insert("mechanismless_resistance_reversion_rate".to_string(), 0.0004);
+        map.insert("hospital_microbiome_r_multiplier".to_string(), 1.0);
+        map.insert("community_mechanism_reversion_multiplier".to_string(), 1.0);
+
+        map.insert("default_clearance_delay_days".to_string(), 3.0);
+        map.insert("default_clearance_base_log_odds".to_string(), -4.2);
+        map.insert("clearance_immunodeficient_log_odds".to_string(), -0.69);
+        map.insert("clearance_level_log_odds_per_unit".to_string(), -0.3);
+
         // === [A] Bacteria baseline defaults & vaccination scaffolding ===
         // Establishes per-bacteria seed levels, symptom behaviour, and age-aware vaccine priors
         // so scenario templates only need to override deviations instead of rebuilding the grid.
