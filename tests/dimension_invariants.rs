@@ -1,8 +1,7 @@
 use amr_project::simulation::population::{
     drug_class_for_drug, DrugClass, Individual, InfectionResolutionType, Population, Region,
-    ResistanceMechanism,
-    BACTERIA_CARRIAGE_COMPARTMENTS, BACTERIA_COUNT, BACTERIA_GROUPS, BACTERIA_LIST,
-    DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, MICROBIOME_RESISTANCE_LEVEL_COUNT,
+    ResistanceMechanism, BACTERIA_CARRIAGE_COMPARTMENTS, BACTERIA_COUNT, BACTERIA_GROUPS,
+    BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, MICROBIOME_RESISTANCE_LEVEL_COUNT,
     TRACK_RESISTANCE_ACQUISITION_PROVENANCE,
 };
 use amr_project::simulation::simulation::{CalibrationMode, Simulation};
@@ -282,7 +281,11 @@ fn static_model_dimensions_are_unique_and_consistent() {
     assert_unique("BACTERIA_LIST", &BACTERIA_LIST);
     assert_unique("DRUG_SHORT_NAMES", DRUG_SHORT_NAMES);
 
-    assert_len("DrugClass::all", DrugClass::all().len(), DrugClass::NUM_CLASSES);
+    assert_len(
+        "DrugClass::all",
+        DrugClass::all().len(),
+        DrugClass::NUM_CLASSES,
+    );
     let drug_class_names: Vec<&str> = DrugClass::all().iter().map(DrugClass::as_str).collect();
     assert_unique("DrugClass::all", &drug_class_names);
     for (expected_idx, drug_class) in DrugClass::all().iter().enumerate() {
@@ -293,7 +296,11 @@ fn static_model_dimensions_are_unique_and_consistent() {
         );
     }
 
-    assert_len("DRUG_CLASS_LOOKUP", DRUG_CLASS_LOOKUP.len(), DRUG_SHORT_NAMES.len());
+    assert_len(
+        "DRUG_CLASS_LOOKUP",
+        DRUG_CLASS_LOOKUP.len(),
+        DRUG_SHORT_NAMES.len(),
+    );
     for (drug_idx, class_idx) in DRUG_CLASS_LOOKUP.iter().enumerate() {
         assert!(
             *class_idx < DrugClass::NUM_CLASSES,
