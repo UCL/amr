@@ -1,7 +1,8 @@
 use amr_project::simulation::population::{
-    Individual, InfectionResolutionType, Population, Region, ResistanceMechanism,
-    BACTERIA_CARRIAGE_COMPARTMENTS, BACTERIA_COUNT, BACTERIA_GROUPS, BACTERIA_LIST,
-    DRUG_SHORT_NAMES, MICROBIOME_RESISTANCE_LEVEL_COUNT, TRACK_RESISTANCE_ACQUISITION_PROVENANCE,
+    drug_class_for_drug, DrugClass, Individual, InfectionResolutionType, Population, Region,
+    ResistanceMechanism, BACTERIA_CARRIAGE_COMPARTMENTS, BACTERIA_COUNT, BACTERIA_GROUPS,
+    BACTERIA_LIST, DRUG_CLASS_LOOKUP, DRUG_SHORT_NAMES, MICROBIOME_RESISTANCE_LEVEL_COUNT,
+    TRACK_RESISTANCE_ACQUISITION_PROVENANCE,
 };
 use amr_project::simulation::simulation::{CalibrationMode, Simulation};
 use rand::rngs::SmallRng;
@@ -279,6 +280,38 @@ fn static_model_dimensions_are_unique_and_consistent() {
     );
     assert_unique("BACTERIA_LIST", &BACTERIA_LIST);
     assert_unique("DRUG_SHORT_NAMES", DRUG_SHORT_NAMES);
+
+    assert_len(
+        "DrugClass::all",
+        DrugClass::all().len(),
+        DrugClass::NUM_CLASSES,
+    );
+    let drug_class_names: Vec<&str> = DrugClass::all().iter().map(DrugClass::as_str).collect();
+    assert_unique("DrugClass::all", &drug_class_names);
+    for (expected_idx, drug_class) in DrugClass::all().iter().enumerate() {
+        assert_eq!(
+            drug_class.index(),
+            expected_idx,
+            "DrugClass::all order should match enum indices"
+        );
+    }
+
+    assert_len(
+        "DRUG_CLASS_LOOKUP",
+        DRUG_CLASS_LOOKUP.len(),
+        DRUG_SHORT_NAMES.len(),
+    );
+    for (drug_idx, class_idx) in DRUG_CLASS_LOOKUP.iter().enumerate() {
+        assert!(
+            *class_idx < DrugClass::NUM_CLASSES,
+            "DRUG_CLASS_LOOKUP[{drug_idx}] contains out-of-range drug class index {class_idx}"
+        );
+        assert_eq!(
+            *class_idx,
+            drug_class_for_drug(drug_idx).index(),
+            "DRUG_CLASS_LOOKUP[{drug_idx}] should match drug_class_for_drug"
+        );
+    }
 
     let mechanism_names: Vec<&str> = ResistanceMechanism::all()
         .iter()
