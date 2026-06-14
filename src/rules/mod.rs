@@ -2499,6 +2499,29 @@ pub(crate) fn apply_rules(
                 }
             }
             let identified_bacteria = &identified_bacteria_buf[..identified_bacteria_len];
+            let severe_hospital_context = individual.hospital_status.is_hospitalized()
+                && (individual.sepsis.iter().any(|&s| s)
+                    || active_syndrome_ids
+                        .iter()
+                        .any(|&sid| matches!(sid, 3 | 4 | 5 | 6 | 10)));
+            let severe_hospital_gram_negative_target = identified_bacteria.iter().any(|&b_idx| {
+                matches!(
+                    BACTERIA_LIST[b_idx],
+                    "escherichia_coli"
+                        | "klebsiella_pneumoniae"
+                        | "enterobacter_spp."
+                        | "enterobacter_cloacae"
+                        | "citrobacter_spp."
+                        | "serratia_spp."
+                        | "morganella_spp."
+                        | "proteus_spp."
+                        | "pseudomonas_aeruginosa"
+                        | "acinetobacter_baumannii"
+                        | "burkholderia_cepacia_complex"
+                )
+            });
+            let severe_hospital_gram_negative_context = severe_hospital_context
+                && (!targeted_selection || severe_hospital_gram_negative_target);
             for &drug_idx in available_drugs {
                 let drug_name = DRUG_SHORT_NAMES[drug_idx];
                 let prophylaxis_score = if prophylaxis_candidate {
@@ -3586,10 +3609,14 @@ pub(crate) fn apply_rules(
                                 break;
                             }
                         }
-                        if !failure_documented {
+                        if !failure_documented && !severe_hospital_gram_negative_context {
                             // Block reserve drugs in targeted therapy without prior failure
                             // Apply heavy penalty rather than complete block to allow rare exceptions
                             score *= 0.02; // 50x penalty - reserve drugs very rarely chosen without failure
+                        } else if !failure_documented {
+                            // Severe hospitalized Gram-negative infections sometimes warrant
+                            // immediate reserve escalation before a formal prior-failure step.
+                            score *= 0.35;
                         }
                     }
 
@@ -3666,7 +3693,7 @@ pub(crate) fn apply_rules(
                                 }
                             }
 
-                            if !failure_documented {
+                            if !failure_documented && !severe_hospital_gram_negative_context {
                                 score = 0.0; // Block escalation to reserve therapy until a prior regimen failed
                             } else {
                                 let mut high_resistance_observed = false;
@@ -3695,8 +3722,12 @@ pub(crate) fn apply_rules(
                                     }
                                 }
 
-                                if !high_resistance_observed {
+                                if !high_resistance_observed && !severe_hospital_gram_negative_context {
                                     score = 0.0; // Without high resistance pressure, reserve agents stay off empirical regimens
+                                } else if severe_hospital_gram_negative_context {
+                                    // Preserve a strong stewardship penalty, but allow empiric
+                                    // reserve use in severe hospitalized Gram-negative scenarios.
+                                    score *= 0.25;
                                 }
                             }
 
