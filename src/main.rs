@@ -1,4 +1,3 @@
-
 // src/main.rs
 // Simulation entry point.
 //
