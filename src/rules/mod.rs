@@ -3206,7 +3206,7 @@ pub(crate) fn apply_rules(
                                 "pseudomonas_aeruginosa"
                                     | "acinetobacter_baumannii"
                                     | "stenotrophomonas_maltophilia"
-                            ) || (time_step >= 10950
+                            ) || (time_step >= 6575
                                 && matches!(
                                     bacteria_name,
                                     "klebsiella_pneumoniae"
@@ -3616,7 +3616,7 @@ pub(crate) fn apply_rules(
                         } else if !failure_documented {
                             // Severe hospitalized Gram-negative infections sometimes warrant
                             // immediate reserve escalation before a formal prior-failure step.
-                            score *= 0.35;
+                                score *= 0.65;
                         }
                     }
 
@@ -3727,7 +3727,7 @@ pub(crate) fn apply_rules(
                                 } else if severe_hospital_gram_negative_context {
                                     // Preserve a strong stewardship penalty, but allow empiric
                                     // reserve use in severe hospitalized Gram-negative scenarios.
-                                    score *= 0.25;
+                                        score *= 0.5;
                                 }
                             }
 

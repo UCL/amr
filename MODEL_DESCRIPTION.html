@@ -64,14 +64,11 @@ a:hover { text-decoration: underline; }
 </ol>
 <hr />
 <h2 id="1-overview">1. Overview</h2>
-<h3 id="11-model-overview">1.1 Model overview</h3>
-<p>Antimicrobial resistance (AMR) — the ability of bacteria to survive antibiotic treatment — is one of the most serious threats to global health. Understanding how resistance emerges, spreads, and responds to policy changes requires a model that captures the interplay between antibiotic use, bacterial biology, and healthcare systems.</p>
-<p>This model simulates the emergence and dynamics of AMR across a synthetic human population from <strong>1930 to 2035</strong>. The simulation starts in 1930 because that is before antibiotics were widely available; by beginning at that point, the model can reproduce the entire historical arc of antibiotic introduction, rising consumption, and the gradual accumulation of resistance that followed.</p>
-<p>The model tracks <strong>42 bacterial species</strong>, <strong>61 antibiotics</strong> (grouped into <strong>39 internal drug classes</strong>), and <strong>46 resistance mechanisms</strong>. The population is distributed across <strong>6 world regions</strong> (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.</p>
-<p>We have written this description for readers whom we assume are already familiar with clinical microbiology, infectious diseases, and antimicrobial stewardship. Accordingly, we focus on the biological and clinical distinctions that are most important for interpreting policy experiments, while being explicit where broader host, laboratory, pharmacological, or ecological complexity has been collapsed into a smaller set of model states. That balance is deliberate: at this scope, an attempt to encode every clinically real nuance would make the model difficult to calibrate, difficult to interpret, and ultimately less useful for the policy questions it is intended to address.</p>
-<h3 id="12-model-architecture">1.2 Model architecture</h3>
-<p>This is an <strong>individual-based model</strong> (sometimes called an agent-based model). Rather than using equations to describe an entire population at once, it creates a virtual population of individual people — typically 1,000,000 — and simulates what happens to each of them, day by day, over more than 100 years.</p>
-<p><strong>Time steps.</strong> The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of <strong>21 mechanistic rules</strong>. These rules govern the events that can happen to a person on any given day:</p>
+<h3 id="11-framework-structure">1.1 Framework structure</h3>
+<p>We present a <strong>framework</strong> in the form of an <strong>individual-based model</strong> which simulates infection incidence, antibacterial usage, resistance emergence and risk of sepsis and death.  In the current configuration / set-up, we <strong>simulate the lives of a repreentative sample of the global population from 1930</strong>, before the use of antibiotics, to the present day in <strong>daily</strong> time steps.  The framework code is open-source and we encourage colleagues to use, and perhaps further develop, the framework to enable them to answer questions around how resistance has emerged over time (including through use of counterfactuals) and, critically, to predict the effect of various potential policies  on antibacterial drug resistance and infection related mortality.  Possible policies could relate to those aimed at minimizing drug resistance emergence and growth but also those that for which future drug resistance is a concern as a negative effect of a policy, such as those involving wider antibiotic use, and the framework should enable these negative effects to be quantified and compared with the positive effects.  </p>
+<p>As currently structured, the framework tracks 42 bacterial species, 61 antibiotics (grouped into 39 internal drug classes), and 46 resistance mechanisms. The population is distributed across 6 world regions (North America, Europe, Asia, Oceania, South America, Africa), each with distinct epidemiological, travel, hospitalisation, and healthcare profiles.  </p>
+<p>The framework aims to capture how bacterial resistance in one individual can affect risk in others in the same region (and accounts for movement between regions).  It does not, however, dynamically model infection spread per se; infection incidence in a given region in a given age, immunodeficiency and hospitalisation status is directly specified. </p>
+<p>The simulation advances in discrete daily steps. Each simulated day, every living person in the population is processed through a sequence of mechanistic rules. These rules govern the events that can happen to a person on any given day and include:</p>
 <ul>
 <li>Demographic processes (ageing, births, background mortality)</li>
 <li>Infection acquisition from community, hospital, or endogenous sources</li>
@@ -81,21 +78,9 @@ a:hover { text-decoration: underline; }
 <li>Resistance emergence via de novo mutation or horizontal gene transfer</li>
 <li>Mortality from infection, sepsis, or drug toxicity</li>
 </ul>
-<p><strong>Stochastic processes.</strong> The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a <em>probability</em> for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories, analogous to the way otherwise similar institutions can still experience materially different case mixes and outcome patterns over time. This stochasticity is intentional: the aim is to characterize a distribution of plausible outcomes rather than a single deterministic path.</p>
-<p><strong>Log-odds — a brief mathematical note.</strong> Many sections of this document describe probabilities using <strong>log-odds</strong> (also called logit values), which is standard in medical statistics:</p>
-<ul>
-<li>A probability of 50% corresponds to log-odds of <strong>0</strong>.</li>
-<li>Negative log-odds mean the event is unlikely (log-odds of −2 ≈ 12% probability; −4 ≈ 2%).</li>
-<li>Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).</li>
-<li>The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.</li>
-</ul>
-<p>For example, the daily probability of starting antibiotics might be calculated as: <em>baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (−0.75) = +5.75</em>, still yielding near-certainty for a septic immunocompromised patient with symptoms because the acute clinical syndrome dominates the decision.</p>
-<p><strong>Calibration.</strong> The model's parameters (the numbers that control how frequently infections occur, how often drugs are prescribed, how quickly resistance emerges, etc.) are adjusted — <em>calibrated</em> — so that the model's outputs match real-world data. For example, the model is calibrated against observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data. Some parameters therefore behave as <strong>effective model parameters</strong> rather than direct one-to-one measurements from surveillance datasets: they are chosen to reproduce the joint behaviour of complex clinical systems that are only partially observed. This is especially true for access modifiers, composite vulnerability states, and behaviourally driven prescribing terms. Accordingly, many quantities here are best read as policy-relevant abstractions of clinical systems rather than as claims that every table entry corresponds to a directly observable microbiological or bedside quantity. Sections 2–10 describe what the model does; Appendix B lists all the parameter values.</p>
-<p>Throughout this document, region- and age-specific parameter tables should generally be interpreted as <strong>qualitatively constrained model structures</strong>: the ordering and rough scale are informed by global demographic, travel, and health-system datasets, but the exact numeric values remain modelling choices that are subsequently checked against calibration targets rather than copied directly from any single source.</p>
-<h3 id="13-scope-and-purpose">1.3 Scope and purpose</h3>
-<p>The model is specifically designed for reconstructing the historical emergence and growth of AMR over time by mechanistically linking antibiotic consumption, biological mutability, and transmission. It evaluates the potential impact of antibiotic stewardship policies by recreating empirical observations of resistance incidence and separating resistance acquisition across different care settings (e.g., community-acquired versus hospital-acquired).</p>
-<p>It is therefore best understood as a policy-facing, mechanism-rich simulation rather than as a full digital twin of clinical microbiology practice. We aim to include detail where omission would materially distort stewardship, diagnostics, access, transmission, or mortality questions, but we do not attempt to reproduce every organism-specific syndrome nuance, laboratory workflow detail, host phenotype, or pharmacokinetic edge case that would matter in a narrower disease-specific model.</p>
-<h3 id="14-document-structure">1.4 Document structure</h3>
+<p><strong>Stochastic processes.</strong> The model does not deterministically assign events such as infection, testing, treatment, or death. Instead, it calculates a <em>probability</em> for each event and then samples whether that event occurs. Repeated runs therefore produce slightly different trajectories.</p>
+<p><strong>Calibration.</strong> As laid out below, the framework contains thousands of parameters.  In the current configuration we have just a single value for each parameter which we argue provides a reasonable calibration to observed antibiotic consumption rates, resistance prevalence reported by surveillance networks (such as ECDC and CDC), and infection incidence data.  Nevertheless, we recognise that there is uncertainty over most of the parameter values, sometimes large uncertainty. Future users of the framework are likely to want to try to identify multiple sets of parameter values that produce an acceptable calibration in order to be able to express uncertainty over parameter values when comparing future policy options.    </p>
+<h3 id="12-document-structure">1.2 Document structure</h3>
 <p>The document is organised to follow the progression of an individual through the simulation:</p>
 <table>
 <thead>
@@ -147,7 +132,7 @@ a:hover { text-decoration: underline; }
 </tr>
 <tr>
 <td><strong>12. Limitations</strong></td>
-<td>What the model does not capture / caveats for interpretation</td>
+<td>What the framework does not capture / caveats for interpretation</td>
 </tr>
 <tr>
 <td><strong>Appendices</strong></td>
@@ -155,15 +140,15 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>Each section describes the modelling choices, their clinical rationale, and the specific rules and parameter values. Parameter tables are included for transparency and reproducibility.</p>
+<p>Each section describes the modelling choices, their rationale, and the specific rules and parameter values. </p>
 <hr />
 <h2 id="2-population-and-demographics">2. Population and Demographics</h2>
-<p>This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immune status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.</p>
+<p>This section describes the virtual people in the model — who they are, where they live, and the health states they can be in. These characteristics determine each individual's risk of infection, treatment probability, and mortality. Since AMR outcomes differ substantially by age, geography, immune status, and care setting, these host attributes are required for realistic policy evaluation. The host layer is deliberately parsimonious: it represents the host differences most likely to matter for policy questions, rather than a full comorbidity-level clinical phenotyping framework.  Future users may wish to add further details (variables) for each individual.</p>
 <h3 id="21-initialisation">2.1 Initialisation</h3>
 <p>The population is created at day 0 (representing the calendar year 1930). Each individual is assigned:</p>
 <ul>
 <li><strong>Age</strong>: Drawn from a continuous demographic distribution that encodes both living individuals and future births. Negative age values at initialisation represent individuals who have not yet been born; they enter the simulation exactly when their age reaches zero. This is how the model handles births over the 105-year simulation period without needing a separate birth process.</li>
-<li><strong>Sex</strong>: Male or female, assigned with equal probability.</li>
+<li><strong>Birth sex</strong>: Male or female, assigned with equal probability.</li>
 <li><strong>Region</strong>: Sampled from demographic weights reflecting the global population distribution.</li>
 </ul>
 <p>The six regions and their approximate population shares determine the starting geographical distribution:</p>
@@ -209,10 +194,10 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations <em>World Population Prospects 2024</em>, which provides official demographic estimates and projections across global regions and countries (UN DESA Population Division, 2024).</p>
-<p>These regions matter because they differ in antibiotic availability (some drugs reach low-income settings decades later), hospital capacity, testing rates, and the prevalence of specific pathogens. A person's region shapes nearly every aspect of their simulated clinical journey.</p>
+<p>These shares are intended as a coarse world-population partition for simulation purposes rather than a literal census reconstruction of any single year. Their ordering and approximate magnitudes are consistent with the United Nations World Population Prospects 2024, which provides official demographic estimates and projections across global regions and countries (UN DESA Population Division, 2024).</p>
+<p>The regions differ in antibiotic availability, hospital capacity, testing rates, and the prevalence of specific pathogens. A person's region shapes nearly every aspect of their simulated clinical journey.</p>
 <h3 id="22-ageing-and-age-categories">2.2 Ageing and age categories</h3>
-<p>Each day, every individual's age increments by one day. The model groups people into age categories that determine their risk profiles, reflecting the familiar clinical reality that risk of infection, presentation, and outcome differ substantially across the age spectrum.</p>
+<p>Each day, every individual's age increments by one day. The model groups people into age categories that determine their risk profiles, reflecting the reality that risk of infection, presentation, and outcome differ substantially across the age spectrum.</p>
 <p><strong>General age categories</strong> (used for most risk calculations):</p>
 <table>
 <thead>
@@ -255,11 +240,10 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>Within this broad 0–1 year category, the neonatal period (0–28 days) carries especially high infection risk and infection-attributable mortality. We keep neonates inside the general infant bucket for most risk calculations to avoid over-fragmenting the main host structure, but treat them separately where that distinction is most clinically important, namely sepsis onset and infection-related mortality.</p>
-<p>Likewise, the broad 70+ category compresses clinically important heterogeneity within later life: the risk of poor infection outcomes rises further in the oldest-old, especially above age 80. We retain a single elderly bucket for most risk calculations to keep the main host structure tractable, while continuous age effects and the separate sepsis/mortality classification capture part of that additional late-life risk.</p>
-<p>These age bands are structural groupings rather than claims about sharply separated biological states. They are meant to preserve widely observed global gradients in infection burden and mortality risk, especially the concentration of severe infectious outcomes at the extremes of age and the relative protection of school-age and younger adult groups in many syndromes (GBD 2019 Lower Respiratory Infections Collaborators, 2022).</p>
-<p><strong>Sepsis/mortality age categories</strong> (a separate, finer grouping):</p>
-<p>Neonates (0–28 days) have dramatically different infection risks and case-fatality rates compared to older infants — since Group B <em>Streptococcus</em> sepsis in a 5-day-old neonate is a fundamentally different clinical entity from a respiratory infection in a 10-month-old, the model uses a separate age classification for sepsis onset and infection-related mortality:</p>
+<p>Within the broad 0–1 year category, the neonatal period (0–28 days) carries especially high infection risk and infection-attributable mortality. We keep neonates inside the general infant category for most risk calculations, but treat them separately where that distinction is most clinically important, namely sepsis onset and infection-related mortality (GBD 2019 Lower Respiratory Infections Collaborators, 2022).</p>
+<p>Likewise, the broad 70+ category compresses clinically important heterogeneity within later life: the risk of poor infection outcomes rises further with increasing age, especially above age 80. We retain a single elderly category, while continuous age effects and the separate sepsis/mortality classification capture part of that additional late-life risk.</p>
+<p><strong>Sepsis/mortality age categories</strong> :</p>
+<p>Neonates (0–28 days) have dramatically different case-fatality rates compared to older infants and the model uses a separate age classification for sepsis onset and infection-related mortality:</p>
 <table>
 <thead>
 <tr>
@@ -287,45 +271,14 @@ a:hover { text-decoration: underline; }
 </tbody>
 </table>
 <h3 id="23-immunodeficiency">2.3 Immunodeficiency</h3>
-<p>Since immunocompromised hosts — from HIV, chemotherapy, transplantation, advanced frailty — face substantially higher infection risk, treatment difficulty, and mortality (Fishman JA, 2007; Taplitz RA et al., 2018), the model captures this through two types of immunosuppression.</p>
-<p>At simulation start, a configurable fraction of the population is seeded into this broader higher-risk host state (<code>immunosuppression_startup_seed_fraction</code>, baseline 5%). This startup seeding is a calibration device to avoid an unrealistically long burn-in before immunocompromised-host effects become visible in the simulated population. Published US NHIS analyses place self-reported immunosuppression among adults in the low-single-digit to mid-single-digit range over the last decade (2.7% in 2013 and 6.6% in 2021), so a 5% startup seed sits within the right order of magnitude for a broadened composite vulnerability construct while still remaining a model initial-condition choice rather than a direct epidemiologic estimate (Martinson ML et al., 2024).</p>
-<p><strong>Temporary immunosuppression</strong> represents medium-duration higher-risk episodes more compatible with prolonged corticosteroid exposure, chemotherapy or radiotherapy-related suppression, or other treatment-associated immunosuppression lasting weeks to months than with a brief viral illness or only a few post-operative days. People enter this state at a rate of <code>0.00005</code> per day and recover at <code>0.01</code> per day (average duration ~100 days).</p>
-<p><strong>Pregnancy is not currently represented as a separate maternal immunologic state within this immunosuppression framework.</strong> Some pregnancy-associated susceptibility is only indirectly proxied in a few organism-specific age-pattern assumptions (for example, young-adult risk comments for <em>E. coli</em> and <em>Listeria monocytogenes</em>), but the model does not currently include an explicit late-pregnancy Th1/Th2 shift or a dedicated pregnancy-related infection-risk modifier.</p>
-<p><strong>Chronic immunosuppression</strong> represents long-term conditions like HIV/AIDS, solid organ transplant, or autoimmune disease requiring ongoing immunosuppressive therapy. It develops at <code>0.00006</code> per day and recovers much more slowly at <code>0.0012</code> per day.</p>
+<p>Since immunocompromised hosts — from HIV, chemotherapy, transplantation, advanced frailty — face substantially higher infection risk, treatment difficulty, and mortality (Fishman JA, 2007; Taplitz RA et al., 2018), the model captures this through two types of immunosuppression.  </p>
+<p><strong>Temporary immunosuppression</strong> represents medium-duration higher-risk episodes more compatible with prolonged corticosteroid exposure, chemotherapy or radiotherapy-related suppression, or other treatment-associated immunosuppression lasting weeks to months than with a brief viral illness or only a few post-operative days.   In the initial set-up we are presenting here people enter this state at a rate of <code>0.00005</code> per day and recover at <code>0.01</code> per day (average duration ~100 days).</p>
+<p>Pregnancy is not currently represented as a separate maternal immunologic state within this immunosuppression framework, but future users of the framework may wish to incorporate this. </p>
+<p><strong>Chronic immunosuppression</strong> represents long-term conditions like HIV/AIDS with low CD4 count, solid organ transplant, or autoimmune disease requiring ongoing immunosuppressive therapy. It develops at <code>0.00006</code> per day and recovers much more slowly at <code>0.0012</code> per day.</p>
+<p>At simulation start, a configurable fraction (currently 5%) of the population are allocated to having immmunodeficiency (e.g. Martinson ML et al., 2024).</p>
 <p>When a new immunodeficiency episode occurs in the model, the following age-band probabilities determine whether that episode is typed as <strong>chronic</strong> rather than <strong>temporary</strong>. They are therefore best read as a structural mapping from age to chronic-vs-temporary assignment, not as literal age-specific prevalence estimates of diagnosed immunodeficiency in the underlying population:</p>
-<table>
-<thead>
-<tr>
-<th>Age group</th>
-<th>Probability of chronic typing</th>
-<th>Interpretation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0–1 year</td>
-<td>30%</td>
-<td>Allows some early-life episodes to map to persistent congenital or neonatal high-risk states</td>
-</tr>
-<tr>
-<td>1–18 years</td>
-<td>20%</td>
-<td>Keeps most childhood episodes temporary while permitting a smaller chronic subgroup</td>
-</tr>
-<tr>
-<td>18–65 years</td>
-<td>40%</td>
-<td>Shifts more episodes into persistent high-risk states compatible with HIV, transplantation, or long-term immunosuppression</td>
-</tr>
-<tr>
-<td>65+ years</td>
-<td>60%</td>
-<td>Makes late-life episodes more likely to persist as a composite frailty/immunosenescence-type vulnerability state</td>
-</tr>
-</tbody>
-</table>
-<p>These probabilities should be read as part of a <strong>composite infection-vulnerability state</strong>, not as literal prevalence estimates of formal immunodeficiency diagnoses. The model therefore aggregates classic immunodeficiency, transplant medicine, chemotherapy-related neutropenia, advanced HIV, frailty, and other clinically important causes of impaired host defence into one tractable state variable (Fishman JA, 2007; Taplitz RA et al., 2018). The seeded starting population uses the configurable startup fraction described above, and the chronic-versus-temporary split follows the same age-stratified mapping shown here. The same age-stratified probabilities also govern the typing of newly arising immunodeficiency episodes during the simulation.</p>
-<p><strong>How immunodeficiency affects the clinical journey:</strong></p>
+<p>These immunodeficiency probabilities should be read as part of a <strong>composite infection-vulnerability state</strong>, not as literal prevalence estimates of formal immunodeficiency diagnoses. The model therefore aggregates classic immunodeficiency, transplant medicine, chemotherapy-related neutropenia, advanced HIV, frailty, and other clinically important causes of impaired host defence into one tractable state variable (Fishman JA, 2007; Taplitz RA et al., 2018). </p>
+<p><strong>How immunodeficiency affects the clinical risks:</strong></p>
 <p>The table below summarises all the ways immunosuppression changes a person's trajectory through the model. Each effect has a real-world clinical rationale:</p>
 <table>
 <thead>
@@ -340,7 +293,7 @@ a:hover { text-decoration: underline; }
 <tr>
 <td>Weaker direct empiric-start trigger in the absence of symptoms</td>
 <td><code>antibiotic_initiation_log_odds_immunodeficiency</code></td>
-<td>−0.75</td>
+<td>+0.2</td>
 <td>Immunodeficiency alone does not usually trigger treatment in the current model; symptoms, sepsis, and test results drive most starts</td>
 </tr>
 <tr>
@@ -353,7 +306,7 @@ a:hover { text-decoration: underline; }
 <td>Higher sepsis risk</td>
 <td><code>log_odds_sepsis_onset_immunosuppressed</code></td>
 <td>+0.7</td>
-<td>~2× higher daily risk of developing sepsis</td>
+<td>~2× higher daily risk of developing sepsis for a given bacteria level</td>
 </tr>
 <tr>
 <td>Harder to recover from sepsis</td>
@@ -381,7 +334,15 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>Clinically, severely immunocompromised patients often also receive broader empiric cover, sometimes extending to agents such as carbapenems or aminoglycosides because of opportunistic pathogens, resistant organisms, repeated prior antibiotic exposure, and heavier healthcare contact. The current model does <strong>not</strong> encode a separate immunodeficiency-specific bonus for broad-spectrum drug selection. Instead, that real-world tendency is only captured indirectly through the model's general empiric preference for broader-spectrum therapy, increased testing, higher sepsis risk, higher hospitalization exposure, and a small constrained prophylaxis pool for some immunocompromised hosts.</p>
+<p>Clinically, severely immunocompromised patients often also receive broader empiric antibiotic cover, sometimes extending to agents such as carbapenems or aminoglycosides because of opportunistic pathogens, resistant organisms, repeated prior antibiotic exposure, and heavier healthcare contact. The current model does not encode a separate immunodeficiency-specific bonus for broad-spectrum drug selection. Instead, that real-world tendency is captured indirectly through the model's general empiric preference for broader-spectrum therapy, increased testing, higher sepsis risk, higher hospitalization exposure, and a small constrained prophylaxis pool for some immunocompromised hosts.</p>
+<p><strong>*Log-odds</strong>.  Many sections of this document describe probabilities using log-odds (also called logit values), which is standard in medical statistics.  With our parameter names we refer to effects of covaraiates as "log_odds" when strictly these are log odds ratios:</p>
+<ul>
+<li>A probability of 50% corresponds to log-odds of 0.</li>
+<li>Negative log-odds mean the event is unlikely (log-odds of −2 ≈ 12% probability; −4 ≈ 2%).</li>
+<li>Positive log-odds mean the event is likely (log-odds of +2 ≈ 88%; +4 ≈ 98%).</li>
+<li>The model adds together multiple log-odds terms (e.g., a baseline term, an age term, a severity term) and then converts the total into a probability using the standard logistic function.</li>
+</ul>
+<p>For example, the daily probability of starting antibiotics might be calculated as: <em>baseline log-odds (−5.5) + symptomatic infection (+6.0) + sepsis (+6.0) + immunodeficiency (+0.2) = +6.7</em>, still yielding near-certainty for a septic immunocompromised patient with symptoms because the acute clinical syndrome dominates the decision.</p>
 <h3 id="24-hospitalisation">2.4 Hospitalisation</h3>
 <p>Given the concentration of resistant organisms, broad-spectrum antibiotic use, and vulnerable patients in hospital settings (Magill SS et al., 2018), the model simulates daily admission decisions, length of stay, and the elevated risks of nosocomial infection.</p>
 <p><strong>Admission criteria.</strong> Each day, the model calculates a probability of hospital admission for every individual using a logistic model. The key factors are:</p>
@@ -397,7 +358,7 @@ a:hover { text-decoration: underline; }
 <tr>
 <td>Baseline (healthy person)</td>
 <td>−10.4</td>
-<td>Very low daily risk (~0.003%) — most people are not admitted on any given day</td>
+<td>Very low daily risk (~0.003%)</td>
 </tr>
 <tr>
 <td>Age</td>
@@ -405,18 +366,18 @@ a:hover { text-decoration: underline; }
 <td>Older patients are progressively more likely to be admitted</td>
 </tr>
 <tr>
-<td>Sepsis</td>
-<td>+13.0</td>
-<td>Sepsis is now an overwhelming driver of admission, producing near-immediate inpatient escalation in most cases</td>
-</tr>
-<tr>
 <td>Symptomatic infection (severity &gt; 3.0)</td>
 <td>+9.5</td>
 <td>Severe symptomatic infection materially increases admission probability even without sepsis</td>
 </tr>
 <tr>
+<td>Sepsis</td>
+<td>+13.0</td>
+<td>Sepsis is a strong driver of admission, producing near-immediate inpatient escalation in most cases</td>
+</tr>
+<tr>
 <td>Regional healthcare access</td>
-<td>varies (see below)</td>
+<td>varies</td>
 <td>Reflects real-world differences in hospital capacity</td>
 </tr>
 </tbody>
@@ -476,7 +437,7 @@ a:hover { text-decoration: underline; }
 <p>These modifiers should be read as a qualitative ordering of effective hospital access rather than literal estimates of admission probabilities. The ranking is consistent with broad cross-country differences in service coverage and infrastructure documented by WHO's universal health coverage monitoring framework and the World Bank's hospital-bed indicator, which show persistent between-country variation in effective access to care and inpatient capacity even as global service coverage has improved over time (WHO, 2025; World Bank, <code>SH.MED.BEDS.ZS</code>).</p>
 <p>Negative values mean patients are <em>less</em> likely to be admitted — not because they are less sick, but because hospital bed capacity is limited. This matters for AMR because patients who cannot access hospital care may not receive appropriate antibiotics or diagnostics, whereas international sepsis-care programmes have associated better structured in-hospital and ICU bundle delivery with lower hospital mortality (Evans L et al., 2021; Levy MM et al., 2010).</p>
 <p><strong>Nosocomial (hospital-acquired) risks:</strong></p>
-<p>Being in hospital dramatically changes a patient's infection risk profile. In practice, an important route is staff-mediated transmission between patients when infection prevention and control (IPC) is inadequate; contaminated devices and the hospital environment are additional contributors rather than the sole or necessarily dominant route. The model captures this with pathogen-specific hospital acquisition modifiers:</p>
+<p>The model captures pathogen-specific increased risk of infection acquisition for hospitalised people:</p>
 <table>
 <thead>
 <tr>
@@ -510,15 +471,14 @@ a:hover { text-decoration: underline; }
 </table>
 <p>Hospital patients also face higher baseline mortality (+0.262 log-odds, ~1.3×) and higher sepsis onset risk (+0.5 log-odds, ~1.6×), but they also have a higher probability of <em>recovering</em> from sepsis (+0.8 log-odds) because of access to intensive care. The background-mortality term here should be read as a residual inpatient case-mix / frailty adjustment, not as a hospital-acquired-infection term; HCAI pressure is modelled separately through the hospital-acquisition modifiers above.</p>
 <h3 id="25-travel">2.5 Travel</h3>
-<p>Since international travel is a well-established vector for AMR importation — as illustrated by ESBL-producing <em>E. coli</em> acquired by European travellers in South and South-East Asia (Arcilla MS et al., 2017) — the model needs a cross-region mixing mechanism.</p>
-<p>The model simulates this by giving each person a small daily probability of travelling to another region (<code>0.00005</code> per day, roughly one trip every 55 years per person). This is intentionally a low <strong>effective cross-region mixing rate</strong>, because the model only needs enough travel to reproduce long-run AMR importation and reseeding; it is not intended to represent literal passenger-trip counts. Travel frequency varies by region of origin, reflecting real-world patterns:</p>
+<p>Since international travel is a well-established vector for AMR importation — as illustrated by ESBL-producing <em>E. coli</em> acquired by European travellers in South and South-East Asia (Arcilla MS et al., 2017) — the framework needs a cross-region mixing mechanism.</p>
+<p>The framework simulates this by giving each person a daily probability of travelling to another region (<code>0.0002</code> per day).  Travel frequency varies by region of origin, reflecting real-world patterns:</p>
 <table>
 <thead>
 <tr>
 <th>Region</th>
 <th>Travel multiplier</th>
 <th>Rationale</th>
-<th>Citation / source</th>
 </tr>
 </thead>
 <tbody>
@@ -526,45 +486,41 @@ a:hover { text-decoration: underline; }
 <td>Europe</td>
 <td>×3.5</td>
 <td>High international travel rates</td>
-<td>UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code></td>
 </tr>
 <tr>
 <td>North America</td>
 <td>×3.0</td>
 <td>High travel, large business travel</td>
-<td>UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code></td>
 </tr>
 <tr>
 <td>Oceania</td>
 <td>×2.5</td>
 <td>Geographic distance drives air travel</td>
-<td>UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code></td>
 </tr>
 <tr>
 <td>Asia</td>
 <td>×1.5</td>
 <td>Rapidly growing travel volumes</td>
-<td>UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code></td>
 </tr>
 <tr>
 <td>South America</td>
 <td>×0.8</td>
 <td>Moderate travel rates</td>
-<td>UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code></td>
 </tr>
 <tr>
 <td>Africa</td>
 <td>×0.3</td>
 <td>Lowest international travel rates</td>
-<td>UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code></td>
 </tr>
 </tbody>
 </table>
-<p>These multipliers are intended as a <strong>qualitative ranking of cross-region mixing intensity</strong>, not as literal estimates of per-capita trip counts. The ordering is supported by broad regional patterns in UN Tourism's global and regional tourism dashboard and World Bank indicators for international tourism departures and air passenger volumes, which collectively show very high international mobility in Europe and North America, strong air-travel dependence in Oceania, rapid growth but substantial heterogeneity across Asia, intermediate volumes in South America, and lower outbound tourism and aviation intensity across much of Africa (UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code>).</p>
-<p>When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of <em>Salmonella enterica</em> serovar Typhi (+0.8 log-odds) and <em>Shigella</em> spp. (+0.5 log-odds), while <em>V. cholerae</em> risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones.</p>
+<p>Source:  UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code> </p>
+<p>These multipliers are intended as a semi-quantitative ranking of cross-region mixing intensity, not as literal estimates of per-capita trip counts. The ordering is supported by broad regional patterns in UN Tourism's global and regional tourism dashboard and World Bank indicators for international tourism departures and air passenger volumes, which collectively show very high international mobility in Europe and North America, strong air-travel dependence in Oceania, rapid growth but substantial heterogeneity across Asia, intermediate volumes in South America, and lower outbound tourism and aviation intensity across much of Africa (UN Tourism, 2025; World Bank, <code>ST.INT.DPRT</code>; World Bank, <code>IS.AIR.PSGR</code>).</p>
+<p>When a person travels, they are temporarily exposed to the infection risks and drug availability of the destination region. This can mean acquiring bacteria with resistance patterns typical of that region. </p>
+<p><strong>Age-specific travel risk.</strong> Age-specific modifiers capture the higher risk of travel-related enteric diseases in younger adults — for example, young European adults travelling to endemic areas face elevated risk of <em>Salmonella enterica</em> serovar Typhi (+0.8 log-odds) and <em>Shigella</em> spp. (+0.5 log-odds), while <em>V. cholerae</em> risk is suppressed (−1.0) for these demographics unless visiting highly endemic zones. These modifiers reflect both behavioural factors (young adults engaging in higher-risk food/water exposure, street food consumption, water sports) and biological factors (previously unexposed immune systems). Older travellers and children show different risk profiles, with older adults generally having lower risk for enteric infections (likely due to prior exposure immunity, more conservative food/water behaviour, and sometimes reduced travel frequency) and very young children having elevated risk for multiple enteric pathogens but no risk for sexually transmitted infections acquired during travel.</p>
 <hr />
 <h2 id="3-infection-acquisition">3. Infection Acquisition</h2>
-<p>This section describes how people in the model catch bacterial infections. In the real world, a person can acquire bacteria from three main sources: the community (e.g., food, water, close contacts), the hospital environment (e.g., ventilators, catheters, other patients), or their own body (bacteria they are already carrying asymptomatically can flare into active infection). The model captures all three pathways, but it does so through a deliberately compressed acquisition architecture that preserves the main epidemiological distinctions needed for long-run AMR policy analysis rather than every route-specific exposure mechanism.</p>
+<p>This section describes how people in the model acquire bacterial infections. A person can acquire bacteria from three main sources: the community (e.g., food, water, close contacts), the hospital environment (e.g., ventilators, catheters, other patients), or their own body (bacteria they are already carrying asymptomatically can flare into active infection). The model captures all three pathways, but it does so through a deliberately compressed acquisition architecture that preserves the main epidemiological distinctions needed for long-run AMR policy analysis rather than every route-specific exposure mechanism.</p>
 <h3 id="31-community-acquisition">3.1 Community acquisition</h3>
 <p>Each day, every person who does not already have an active infection has a chance of acquiring any of the 42 bacterial species. The model calculates a separate probability for each species using a logistic model (see Section 1.2) that combines several risk factors:</p>
 <ul>
@@ -572,9 +528,7 @@ a:hover { text-decoration: underline; }
 <li><strong>Region</strong> — infection rates vary by geography due to climate, sanitation, and population density</li>
 <li><strong>Age</strong> — infants and the elderly are more susceptible to most infections; sexually transmitted infections peak in young adults</li>
 <li><strong>Immune status</strong> — immunosuppressed individuals are at higher risk</li>
-<li><strong>Season</strong> — respiratory pathogens (e.g., <em>S. pneumoniae</em>) follow a sinusoidal seasonal pattern, peaking in winter</li>
 <li><strong>Calendar era</strong> — some infections have become more or less common over the decades</li>
-<li><strong>Circulating resistance landscape</strong> — the current reservoir of complete resistance profiles, together with prevalence derived directly from those stored profiles, shapes the probability that a newly acquired bacterium already carries one or more resistance mechanisms (see Section 3.4)</li>
 </ul>
 <table>
 <thead>
@@ -636,13 +590,13 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p>Vaccination affects acquisition in exactly two places:</p>
+<p>Vaccination affects acquisition in two places:</p>
 <ul>
 <li><strong>Infection acquisition</strong>: if an individual is vaccinated against bacterium <em>b</em>, the model adds <code>log_odds_vaccinated</code> for that bacterium to the infection-acquisition log-odds.</li>
 <li><strong>Microbiome / carriage acquisition</strong>: the same log-odds adjustment is applied when modelling asymptomatic carriage acquisition.</li>
 </ul>
 <p>The default fallback is <code>log_odds_vaccinated = -2.0</code>, corresponding to an odds multiplier of approximately \(e^{-2} \approx 0.135\), so vaccination reduces acquisition odds by about 86.5% for bacteria that use the default. Vaccination does <strong>not</strong> directly modify bacterial growth after infection has started, symptom onset, sepsis progression, mortality, treatment choice, or transmission. It is therefore best interpreted as a static reduction in susceptibility rather than a full immune-history or herd-immunity model.</p>
-<p>Under the current default parameter map, vaccination is active rather than dormant: each vaccine has a non-zero target birth-cohort coverage and a rollout duration. These defaults are intended as a mechanistic starting point rather than a finalized calibration and should be re-tuned against the headline and organism-specific incidence targets once vaccine-sensitive pathogens are brought into the calibration loop.</p>
+<p>Under the current default parameter map, vaccination is active rather than dormant: each vaccine has a non-zero target birth-cohort coverage and a rollout duration. </p>
 <h4 id="age-risk-templates">Age risk templates</h4>
 <p>Since age-specific infection risk varies by organism and syndrome, the model assigns each bacterium a <strong>risk template</strong> — a pattern describing how acquisition probability varies across six age bands. The multipliers below are applied to the baseline acquisition rate:</p>
 <table>
@@ -716,7 +670,7 @@ a:hover { text-decoration: underline; }
 <td>Neonates and elderly at highest risk</td>
 </tr>
 <tr>
-<td><code>sexually_transmitted</code></td>
+<td><code>largely sexually_transmitted</code></td>
 <td><em>N. gonorrhoeae</em>, <em>C. trachomatis</em></td>
 <td>0.1</td>
 <td>0.2</td>
@@ -743,13 +697,13 @@ a:hover { text-decoration: underline; }
 <p>These community-acquisition templates should be read as structured relative-risk shapes rather than literal incidence-rate estimates for each age-region-organism cell. They preserve broad, globally observed patterns — such as the concentration of enteric disease in children (Troeger C et al., 2018), respiratory vulnerability at the extremes of age (GBD 2019 Lower Respiratory Infections Collaborators, 2022), and young-adult concentration of sexually transmitted infections (Rowley J et al., 2019) — while leaving exact organism-level burden to calibration of the bacterium-specific baseline and interaction terms against the model's target outputs.</p>
 <h3 id="32-hospital-acquisition">3.2 Hospital acquisition</h3>
 <p>Since hospitals concentrate nosocomial pathogens — <em>Acinetobacter</em> and <em>Pseudomonas</em> on ventilators, <em>Staphylococcus</em> (including coagulase-negative staphylococci) and <em>Enterococcus</em> on central lines, <em>C. difficile</em> in antibiotic-exposed patients — the model uses separate hospital-specific acquisition parameters (<code>{bacteria}_log_odds_hospital_acquired</code>) for each species.</p>
-<p>These hospital-acquisition terms are best interpreted as qualitative rankings of nosocomial exposure pressure rather than direct ward-level attack-rate measurements. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (WHO GLASS, 2026).</p>
-<p>For pathogens whose transmission is overwhelmingly sexual or foodborne, the live configuration now drives hospital acquisition to effectively zero. In practice, that means organisms such as <em>C. trachomatis</em>, <em>N. gonorrhoeae</em>, <em>M. genitalium</em>, <em>T. pallidum</em>, and <em>Campylobacter</em> can still be diagnosed while a patient is in hospital, but the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.</p>
+<p>These hospital-acquisition terms are best interpreted as semi-quantitative rankings of nosocomial exposure pressure rather than directly sourced empirical estimates. That is consistent with the way global AMR surveillance systems aggregate routine clinical microbiology data: they show that healthcare-associated pathogen mixes differ systematically from community mixes, but with large between-country differences in sampling intensity, bed capacity, case mix, and laboratory coverage (WHO GLASS, 2026).</p>
+<p>For pathogens whose transmission is overwhelmingly sexual or foodborne, the current configuration assumes effectively zero hospital acquisition risk.  So while organisms such as <em>C. trachomatis</em>, <em>N. gonorrhoeae</em>, <em>M. genitalium</em>, <em>T. pallidum</em>, and <em>Campylobacter</em> can still be diagnosed while a patient is in hospital, the model treats those episodes as infections acquired in the community rather than true nosocomial transmission.</p>
 <h3 id="33-carrier-derived-infection">3.3 Carrier-derived infection</h3>
 <p>Asymptomatic carriage (see Section 8) can give rise to endogenous infection when commensal organisms transition to an active infection site. This pathway is important for AMR because:</p>
 <ul>
 <li>The carried bacteria may already be resistant (having been selected by previous antibiotic courses)</li>
-<li>The person's resistance profile passes directly from carriage to infection via <strong>mechanism-bit copying</strong> — each resistance mechanism present in the microbiome compartment (<code>mechanism_microbiome</code>) is independently considered for transfer to the infection compartment (<code>mechanism_any</code>)</li>
+<li>The person's resistance profile passes directly from carriage to infection and each resistance mechanism present in the microbiome compartment (<code>mechanism_microbiome</code>) is independently considered for transfer to the infection compartment (<code>mechanism_any</code>)</li>
 </ul>
 <p>This pathway is governed by two parameters:</p>
 <table>
@@ -869,6 +823,12 @@ a:hover { text-decoration: underline; }
 <p><strong>Hospital-acquired weighted sampling.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model does not draw a uniform profile from the hospital pool. Instead it uses <strong>weighted profile sampling</strong> (<code>sample_profile_weighted</code>): each profile in the reservoir is assigned a sampling weight of \(f^{k}\), where \(k\) is the number of set bits (mechanism count) in that profile's bitmask. Profiles are then drawn with probability proportional to their weight. This means that more-resistant profiles (higher \(k\)) are over-sampled relative to susceptible profiles (\(k = 0\), weight \(= f^0 = 1\)), reflecting the unmodelled ward-level cross-transmission, surface/device reservoirs, and HCW-mediated spread that an individual-based model cannot capture natively. Crucially, every sampled profile is a <strong>real observed genotype</strong> — mechanism correlations (e.g., co-located genes on the same plasmid) are perfectly preserved because no individual bits are synthetically flipped. In practice, a hospital-acquired <em>K. pneumoniae</em> infection with \(f = 1.3\) and 8 mechanism bits, for example, receives a weight of \(1.3^8 \approx 8.2\)× relative to a susceptible profile, substantially increasing its draw probability.</p>
 <p>The same weighted sampling logic is applied to <strong>carriage acquisition</strong> (Section 8.2): when a hospitalized individual acquires gut or nasal colonization, the resistance profile is drawn from the hospital pool with the same \(f^k\) weighting.</p>
 <p>If the profile reservoir is empty for a given region × care setting × bacteria slot (early in the simulation, before enough infections have accumulated), no profile is assigned and the individual remains susceptible.</p>
+<p><strong>Weighted profile sampling formula.</strong> For hospital-acquired infections where the bacterium's <code>hospital_resistance_concentration_factor</code> \(f &gt; 1\), the model employs <strong>weighted profile sampling</strong> rather than uniform sampling. Each profile in the hospital resistance cache is assigned a sampling weight:</p>
+<p>\[\text{Weight} = f^k\]</p>
+<p>where \(k\) is the number of set resistance mechanism bits in that profile's bitmask, and profiles are drawn with probability proportional to their weight. This means:
+- A <strong>susceptible profile</strong> (\(k = 0\)) has weight \(f^0 = 1\)
+- A <strong>moderately resistant profile</strong> (\(k = 8\) mechanisms) with \(f = 1.95\) has weight \(1.95^8 \approx 850×\) compared to the susceptible profile</p>
+<p>For example, a hospital-acquired <em>K. pneumoniae</em> infection with a carbapenem resistance concentration factor of 1.95 and 8 resistance mechanisms would be drawn with weight approximately 850× relative to a susceptible profile, strongly enriching for the resistant minority. This mechanism approximates the selective amplification of resistant strains that occurs in hospital wards through antibiotic pressure, patient-to-patient transmission via healthcare workers, contaminated devices and surfaces, and biofilm persistence—without explicitly modelling individual transmission events. The same \(f^k\) weighting is applied to carriage (microbiome) acquisition for hospitalized individuals, ensuring that resistant colonization is similarly enriched in hospital settings.</p>
 <p><strong>Counterfactual gating.</strong> Profile sampling is gated by the <code>counterfactual_resistance_multiplier</code>. Before writing any mechanism bit from the sampled profile, the model draws a uniform random number and accepts the bit only if it is below <code>counterfactual_resistance_multiplier</code> (default 1.0; set to 0.0 in the counterfactual branch). At 0.0, no profile-sampled mechanisms can be written, so the newly infected individual arrives fully susceptible. This parameter therefore acts as the primary lever for constructing the resistance-free counterfactual branch (Section 11.1) without special-casing individual organisms.</p>
 <p><strong>S. aureus cache-gated lineage enrichment.</strong> One additional completion step is applied only to human-reservoir <em>Staphylococcus aureus</em> acquisitions. If the sampled profile already contains <code>TargetSitePbp2aMecA</code> (that is, the newly acquired infection is already MRSA-like), the model may add a small linked set of co-travelling mechanisms: <code>EnzymeBlaZ</code>, <code>TargetSiteErmB</code>, <code>EnzymeAacAph</code>, <code>MutationGyrAPrimary</code>, <code>MutationGyrAParCSecondary</code> (only if primary gyrA resistance is present), <code>ProtectionTetM</code>, and <code>ProtectionFusB</code>. Each addition is controlled by an explicit probability parameter and is <strong>cache-gated</strong>: the linked mechanism can only be added if it has already emerged somewhere in circulating <em>S. aureus</em> in the global <code>MechanismCache</code>.</p>
 <p>The purpose of this step is not to claim that one newly infected person has spontaneously generated several new resistance determinants at once. Instead, it approximates the epidemiological reality that successful MRSA lineages often circulate as partially linked co-resistance packages, while a sparse genotype cache draw may capture only part of that lineage's resistance content. In other words, the enrichment step is a transmitted-lineage completion rule, not a multi-mutation de novo rule. Hospital-acquired <em>S. aureus</em> infections apply a modest multiplier to these conditional probabilities, reflecting the greater concentration of hospital-adapted MRSA lineages in wards and device-associated care settings. The step does <strong>not</strong> run during the universal 1% extinction guard and does <strong>not</strong> run inside the within-host de novo emergence loop.</p>
@@ -1048,6 +1008,7 @@ a:hover { text-decoration: underline; }
 <p>This mechanism matters for AMR because there is a window between acquiring an infection and becoming symptomatic during which bacteria are replicating without antibiotic pressure — and during which resistance can emerge or be selected.</p>
 <h3 id="43-sepsis">4.3 Sepsis</h3>
 <p>Sepsis — the dysregulated host response to infection carrying high mortality (Singer M et al., 2016; Evans L et al., 2021) — is modelled as a distinct state that dramatically increases both treatment urgency and death risk.</p>
+<p><strong>Special case: H. pylori.</strong> <em>Helicobacter pylori</em> has an unusual biological property in this model: when it is the <strong>sole infecting bacterium</strong> (not polymicrobial), it cannot cause sepsis. If an individual develops sepsis from another organism and then acquires <em>H. pylori</em> as a secondary pathogen, sepsis can continue; but if <em>H. pylori</em> is the only organism, sepsis risk is effectively zero. Any existing sepsis status is cleared if the <em>H. pylori</em> infection is the only remaining active infection. This reflects the clinical reality that while <em>H. pylori</em> causes severe localized disease (peptic ulcer disease, gastric cancer risk), it does not cause invasive septic illness in the classic sense.</p>
 <p>Each day, the model calculates the probability of a person's infection progressing to sepsis using a logistic model that combines:</p>
 <table>
 <thead>
@@ -1095,12 +1056,14 @@ a:hover { text-decoration: underline; }
 - North America, Oceania: −0.5
 - Asia: −0.1 (reference)
 - Africa: +0.1 (least mitigation — patients present later and with fewer resources)</p>
-<h3 id="44-natural-clearance">4.4 Natural clearance</h3>
+<p><strong>Treatment and sepsis.</strong> The model also includes a <strong>"not under care"</strong> penalty: if a patient has an active infection but is not currently under active antibiotic treatment, sepsis risk is elevated compared to a similar patient who has started antibiotics. This reflects the protective effect of early empiric therapy against sepsis progression. The magnitude of this effect is captured in the log-odds term <code>log_odds_sepsis_onset_not_under_care</code>, which is calibrated to make untreated infections incrementally more dangerous than treated ones.</p>
+<h3 id="44-natural-clearance-and-microbiome-dynamics">4.4 Natural clearance and microbiome dynamics</h3>
 <p>This part of the model contains two related but distinct processes:</p>
 <ul>
-<li><strong>Microbiome or carriage clearance</strong>: <code>default_microbiome_clearance_probability_per_day</code> = 0.01 is the default daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific overrides for organisms that are known to persist much longer or clear more quickly.</li>
-<li><strong>Duration penalty on carriage clearance</strong>: <code>carriage_duration_log_odds_coefficient</code> = −0.01 per day, capped by <code>carriage_duration_max_log_odds_effect</code> = −2.0, applies to microbiome carriage rather than directly to symptomatic infection. The rationale is that long-established colonization becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005).</li>
-<li><strong>Drug-assisted carriage clearance</strong>: <code>microbiome_clearance_probability_on_drug_treatment</code> = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves.</li>
+<li><strong>Microbiome or carriage clearance</strong>: <code>default_microbiome_clearance_probability_per_day</code> = 0.01 is the default daily chance of losing asymptomatic carriage from the microbiome reservoir, with bacteria-specific overrides for organisms that are known to persist much longer or clear more quickly. This baseline 1% per-day clearance corresponds to an average carriage duration of ~100 days before spontaneous clearance, though many pathogens are configured with longer duration times.</li>
+<li><strong>Duration penalty on carriage clearance</strong>: <code>carriage_duration_log_odds_coefficient</code> = −0.01 per day, capped by <code>carriage_duration_max_log_odds_effect</code> = −2.0, applies to microbiome carriage rather than directly to symptomatic infection. The rationale is that long-established colonization becomes harder to dislodge because organisms have had time to occupy a stable niche, form biofilms, and adapt to the host environment (Trampuz A et al., 2005). In practical terms, a bacterium that has been carried for 200 days is substantially harder to clear spontaneously than one acquired yesterday.</li>
+<li><strong>Drug-assisted carriage clearance</strong>: <code>microbiome_clearance_probability_on_drug_treatment</code> = 0.80 is the probability that effective treatment also clears carriage once a drug-treated infection resolves. This means 80% of the time, when an infection is successfully treated with an antibiotic, the asymptomatic carriage compartment is also cleared; 20% of the time, the microbiome is not cleared and persists.</li>
+<li><strong>Microbiome acquisition on active drug therapy</strong>: The model tracks a separate flag <code>microbiome_acquired_on_drug_today</code> that identifies when carriage is acquired while the individual is already on antibiotic treatment. This captures "opportunistic overgrowth" — bacteria that would normally be outcompeted but thrive in the antibiotic-disrupted microbiome (a classic example: <em>Clostridioides difficile</em> overgrowth during broad-spectrum therapy). This is distinct from acquisition in the absence of treatment.</li>
 </ul>
 <p><strong>Infection resolution itself is modeled separately.</strong> Infection level changes each day according to bacterial growth, host-driven suppression, and any active antibiotic effect. An infection resolves when the simulated bacterial level is driven down to a near-zero threshold in the rules engine, or when an immune-clearance event is triggered; this is not controlled by <code>default_microbiome_clearance_probability_per_day</code>.</p>
 <p>This distinction matters for AMR because there can be a delay between infection acquisition and symptom-driven treatment. During that untreated interval, bacteria continue replicating, and resistant subclones can emerge or expand within the infecting population before antibiotics are started. Before treatment begins, the dominant process is therefore untreated growth and diversification rather than antibiotic selection.</p>
@@ -1418,8 +1381,25 @@ a:hover { text-decoration: underline; }
 </tr>
 </tbody>
 </table>
-<p><strong>Restricted niche agents:</strong> Some drugs are hard-blocked outside their clinically plausible niche. <strong>Retapamulin</strong> is restricted to <strong>skin/soft-tissue prescribing contexts</strong> and is excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, and non-skin systemic infections. In targeted therapy it is only allowed when the identified pathogen set is consistent with the narrow skin-focused niche (namely <em>Staphylococcus aureus</em> or <em>Streptococcus pyogenes</em>). <strong>Fusidic acid</strong> remains excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts, but in targeted therapy it is also allowed for anti-staphylococcal <strong>bone/joint</strong> infections in addition to skin/soft-tissue use. This is intended to reflect retapamulin's mainly topical niche while allowing fusidic acid to retain its broader anti-staphylococcal role without competing as generic systemic therapy (Stevens DL et al., 2014; Koning S et al., 2012).</p>
-<p>The same site-restriction logic is applied to other compartment-limited agents. <strong>Nitrofurantoin</strong> is limited to genuine lower-UTI contexts. <strong>Fosfomycin</strong> is also kept within lower-UTI prescribing contexts in the current model, including situations where prior cultures or resistance history would make ESBL-active oral cover attractive, and both remain excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts. <strong>Furazolidone</strong> is modeled separately as a <strong>GI-local agent</strong> rather than a urinary drug, so it is only eligible in GI-only syndromes and is likewise excluded from sepsis, bloodstream infection, and non-GI prescribing contexts. This keeps these agents from competing as generic systemic therapy when their clinical role is anatomically narrow (Gupta K et al., 2011).</p>
+<p><strong>Restricted niche agents:</strong> Some drugs are hard-blocked outside their clinically plausible niche, reflecting that real clinicians do not use these agents broadly despite their activity in vitro.</p>
+<ul>
+<li>
+<p><strong>Retapamulin</strong> is restricted to <strong>skin/soft-tissue prescribing contexts only</strong>. It is excluded from undifferentiated prophylaxis, no-syndrome empiric starts, sepsis, bloodstream infections, and all non-skin systemic syndromes. In targeted (organism-identified) therapy, it is only allowed when the pathogen is <em>Staphylococcus aureus</em> or <em>Streptococcus pyogenes</em> and the syndrome is skin/soft-tissue. This reflects retapamulin's approval and clinical use as a topical agent for impetigo and other superficial skin infections (Stevens DL et al., 2014).</p>
+</li>
+<li>
+<p><strong>Fusidic acid</strong> is excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts, but in targeted therapy it is allowed for anti-staphylococcal <strong>skin/soft-tissue infections</strong> and also for <strong>bone/joint infections</strong> (reflecting its use in osteomyelitis when combined with other agents). This gives fusidic acid a somewhat broader niche than retapamulin while still preventing it from competing as a generic systemic therapy (Koning S et al., 2012).</p>
+</li>
+<li>
+<p><strong>Nitrofurantoin</strong> is restricted to genuine lower-UTI (urinary tract infection) contexts. It is excluded from sepsis, bloodstream infection, systemic infections, and non-UTI syndromes. This reflects its renal concentration and low systemic bioavailability (Brunton LL et al., 2018).</p>
+</li>
+<li>
+<p><strong>Fosfomycin</strong> is also kept within lower-UTI prescribing contexts in the current model, including situations where prior cultures or resistance history would make ESBL-active oral cover attractive (e.g., ESBL-producing <em>E. coli</em> UTI where oral options are limited). Both nitrofurantoin and fosfomycin remain excluded from sepsis, bloodstream infection, and undifferentiated/no-syndrome starts (Gupta K et al., 2011).</p>
+</li>
+<li>
+<p><strong>Furazolidone</strong> is modeled as a <strong>GI-local agent</strong> rather than a urinary agent. It is only eligible in gastrointestinal syndromes (Syndrome 7) and is excluded from sepsis, bloodstream infection, and all non-GI prescribing contexts. This keeps compartment-limited agents from competing as generic systemic therapy when their clinical role is anatomically narrow.</p>
+</li>
+</ul>
+<p>These restrictions substantially reduce empiric broad-spectrum therapy by preventing niche agents from out-competing more appropriate choices in syndromes where they are never used clinically.</p>
 <p><strong>Regional resistance surveillance:</strong> If population-level resistance data shows that a drug class is failing frequently in the region, the model penalises empiric use of that drug — mimicking real-world guideline updates when local resistance rates exceed thresholds:</p>
 <table>
 <thead>
@@ -2560,6 +2540,12 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 </thead>
 <tbody>
 <tr>
+<td>colistin</td>
+<td>0.08 (~2 hours)</td>
+<td>Very short — rapidly cleared by kidneys; poor CNS penetration (0.05) except in meningitis; reserved for pan-resistant Gram-negatives; toxicity includes nephrotoxicity and neurotoxicity (rare dosing-related; rare pre-existing)</td>
+<td>Li J et al., 2006</td>
+</tr>
+<tr>
 <td>penicillin_g</td>
 <td>0.042 (~1 hour)</td>
 <td>Very short — needs IV infusion or frequent dosing</td>
@@ -2870,194 +2856,271 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <p>This has major implications for AMR: in Africa, where carbapenems are rarely available, carbapenem resistance may emerge more slowly — but when it does arrive (via travel or HGT), there are no last-resort drugs available to treat it.</p>
 <p>These availability tiers should be interpreted as qualitative access strata rather than audited procurement shares. They summarize broad world patterns in which older essential antibiotics are much more widely available than newer reserve agents, and in which stewardship, financing, regulatory approval, supply-chain reliability, and laboratory support jointly determine whether a drug is realistically usable in practice (WHO GLASS, 2026; WHO, 2025).</p>
 <h4 id="drug-introduction-dates">Drug introduction dates</h4>
-<p>The 61 antibiotics in the model span 88 years of pharmaceutical development:</p>
+<p>The 61 antibiotics in the model span 88 years of pharmaceutical development. The model converts these calendar years into <strong>simulation time steps</strong> (days since 1930) using the formula: <code>day_in_simulation = (year - 1930) × 365.25</code>. Antibiotic availability is gated by these introduction dates: before the date, no clinician can prescribe the drug; from the date forward, it becomes available (though subject to regional access constraints):</p>
 <table>
 <thead>
 <tr>
 <th>Drug</th>
-<th>~Year</th>
+<th>Year</th>
+<th>Day step</th>
 <th>Drug</th>
-<th>~Year</th>
+<th>Year</th>
+<th>Day step</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>sulfanilamide</td>
 <td>1937</td>
+<td>~2,555</td>
 <td>ceftriaxone</td>
 <td>1984</td>
+<td>~19,723</td>
 </tr>
 <tr>
 <td>penicillin_g</td>
 <td>1942</td>
+<td>~4,383</td>
 <td>piperacillin_tazobactam</td>
 <td>1984</td>
+<td>~19,723</td>
 </tr>
 <tr>
 <td>tetracycline</td>
 <td>1948</td>
+<td>~6,575</td>
 <td>ceftazidime</td>
 <td>1985</td>
+<td>~20,088</td>
 </tr>
 <tr>
 <td>chloramphenicol</td>
 <td>1949</td>
+<td>~6,941</td>
 <td>imipenem_c</td>
 <td>1985</td>
+<td>~20,088</td>
 </tr>
 <tr>
 <td>colistin</td>
 <td>1952</td>
+<td>~8,036</td>
 <td>amoxicillin_clavulanate</td>
 <td>1985</td>
+<td>~20,088</td>
 </tr>
 <tr>
 <td>erythromycin</td>
 <td>1952</td>
+<td>~8,036</td>
 <td>aztreonam</td>
 <td>1986</td>
+<td>~20,453</td>
 </tr>
 <tr>
 <td>nitrofurantoin</td>
 <td>1953</td>
+<td>~8,401</td>
 <td>ciprofloxacin</td>
 <td>1987</td>
+<td>~20,818</td>
 </tr>
 <tr>
 <td>furazolidone</td>
 <td>1955</td>
+<td>~9,132</td>
 <td>teicoplanin</td>
 <td>1988</td>
+<td>~21,183</td>
 </tr>
 <tr>
 <td>vancomycin</td>
 <td>1958</td>
+<td>~10,227</td>
 <td>ampicillin_sulbactam</td>
 <td>1990</td>
+<td>~21,913</td>
 </tr>
 <tr>
 <td>fosfomycin</td>
 <td>1959</td>
+<td>~10,592</td>
 <td>clarithromycin</td>
 <td>1990</td>
+<td>~21,913</td>
 </tr>
 <tr>
 <td>metronidazole</td>
 <td>1960</td>
+<td>~10,957</td>
 <td>ofloxacin</td>
 <td>1990</td>
+<td>~21,913</td>
 </tr>
 <tr>
 <td>ampicillin</td>
 <td>1961</td>
+<td>~11,323</td>
 <td>azithromycin</td>
 <td>1991</td>
+<td>~22,278</td>
 </tr>
 <tr>
-<td>fusidic_a</td>
+<td>fusidic_acid</td>
 <td>1962</td>
+<td>~11,688</td>
 <td>cefepime</td>
 <td>1996</td>
+<td>~24,106</td>
 </tr>
 <tr>
 <td>gentamicin</td>
 <td>1963</td>
+<td>~12,053</td>
 <td>meropenem</td>
 <td>1996</td>
+<td>~24,106</td>
 </tr>
 <tr>
 <td>rifampicin</td>
 <td>1966</td>
+<td>~13,149</td>
 <td>levofloxacin</td>
 <td>1996</td>
+<td>~24,106</td>
 </tr>
 <tr>
 <td>doxycycline</td>
 <td>1967</td>
+<td>~13,514</td>
 <td>moxifloxacin</td>
 <td>1999</td>
+<td>~25,201</td>
 </tr>
 <tr>
 <td>clindamycin</td>
 <td>1968</td>
+<td>~13,879</td>
 <td>linezolid</td>
 <td>2000</td>
+<td>~25,566</td>
 </tr>
 <tr>
 <td>trim_sulf</td>
 <td>1968</td>
+<td>~13,879</td>
 <td>ertapenem</td>
 <td>2001</td>
+<td>~25,931</td>
 </tr>
 <tr>
 <td>cephalexin</td>
 <td>1970</td>
+<td>~14,610</td>
 <td>daptomycin</td>
 <td>2005</td>
+<td>~27,394</td>
 </tr>
 <tr>
 <td>minocycline</td>
 <td>1971</td>
+<td>~14,976</td>
 <td>ceftazidime_avibactam</td>
 <td>2006</td>
+<td>~27,759</td>
 </tr>
 <tr>
 <td>amoxicillin</td>
 <td>1972</td>
+<td>~15,341</td>
 <td>tigecycline</td>
 <td>2007</td>
+<td>~28,124</td>
 </tr>
 <tr>
 <td>cefazolin</td>
 <td>1973</td>
-<td>ceftaroline</td>
-<td>2010</td>
+<td>~15,706</td>
+<td>retapamulin</td>
+<td>2007</td>
+<td>~28,124</td>
 </tr>
 <tr>
 <td>tobramycin</td>
 <td>1975</td>
-<td>fidaxomicin</td>
-<td>2011</td>
+<td>~16,441</td>
+<td>ceftaroline</td>
+<td>2010</td>
+<td>~29,219</td>
 </tr>
 <tr>
 <td>amikacin</td>
 <td>1976</td>
-<td>tedizolid</td>
-<td>2014</td>
+<td>~16,806</td>
+<td>fidaxomicin</td>
+<td>2011</td>
+<td>~29,584</td>
 </tr>
 <tr>
 <td>ticarcillin</td>
 <td>1977</td>
-<td>dalbavancin</td>
+<td>~17,172</td>
+<td>tedizolid</td>
 <td>2014</td>
+<td>~30,679</td>
 </tr>
 <tr>
 <td>cefuroxime</td>
 <td>1978</td>
-<td>ceftolozane_tazobactam</td>
+<td>~17,537</td>
+<td>dalbavancin</td>
 <td>2014</td>
+<td>~30,679</td>
 </tr>
 <tr>
 <td>piperacillin</td>
 <td>1981</td>
-<td>meropenem_vaborbactam</td>
-<td>2018</td>
+<td>~18,632</td>
+<td>ceftolozane_tazobactam</td>
+<td>2014</td>
+<td>~30,679</td>
 </tr>
 <tr>
-<td>ticarcillin_clavulanate</td>
-<td>1990</td>
-<td>cefiderocol</td>
-<td>2019</td>
+<td>nalidixic_acid</td>
+<td>1963</td>
+<td>~12,053</td>
+<td>meropenem_vaborbactam</td>
+<td>2018</td>
+<td>~32,142</td>
 </tr>
 <tr>
 <td>quinu_dalfo</td>
 <td>1999</td>
-<td>retapamulin</td>
-<td>2007</td>
+<td>~25,201</td>
+<td>cefiderocol</td>
+<td>2019</td>
+<td>~32,507</td>
+</tr>
+<tr>
+<td>flucloxacillin</td>
+<td>1970</td>
+<td>~14,610</td>
+<td>(aztreonam_avibactam)</td>
+<td>2025</td>
+<td>~34,675</td>
+</tr>
+<tr>
+<td>cefixime</td>
+<td>1989</td>
+<td>~21,548</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
-<p>The canonical list also includes <code>flucloxacillin</code> (~1970), <code>cefixime</code> (~1989), and <code>aztreonam_avibactam</code> (~2025).</p>
+<p>The canonical list also includes reference entries for less-modeled agents.</p>
+<p><strong>Historical special case — colistin withdrawal and reintroduction.</strong> Colistin was introduced in 1952 but experienced a clinical eclipse between approximately 1970 and 1995 due to severe nephrotoxicity and the availability of better-tolerated agents. The model reflects this by reducing colistin availability to <strong>5% of normal</strong> during the withdrawal window (1970–1995 in calendar terms), modelling the situation where colistin was rarely prescribed outside select research and compassionate-use contexts. From 1995 onward, colistin availability returns to its regional baseline, reflecting its reintroduction as a last-resort agent for multi-drug-resistant Gram-negative bacteria (Li J et al., 2006).</p>
 <p><strong>Special case — Colistin:</strong> Colistin was introduced in 1952 but withdrawn from routine use between ~1970 and ~1995 due to severe nephrotoxicity. It was then reintroduced as a last-resort agent for multi-drug-resistant Gram-negative infections (Li J et al., 2006). The model reflects this by dropping colistin availability to 5% during the withdrawal window.</p>
 <h3 id="67-drug-toxicity">6.7 Drug toxicity</h3>
 <p>Antibiotics are not without harm. Some drugs — particularly <code>ag_group1</code>/<code>ag_group2</code> agents (nephrotoxicity, ototoxicity) and <code>poly</code> (<code>colistin</code>, nephrotoxicity) — carry significant toxicity risks. The model simulates drug toxicity as a <strong>reservoir</strong> that accumulates with continued use and decays when the drug is stopped.</p>
@@ -3154,7 +3217,7 @@ The tetracycline side is handled similarly: <code>tet_m</code> is retained only 
 <h2 id="7-resistance-dynamics">7. Resistance Dynamics</h2>
 <p>This section describes how the model represents the biology of resistance emergence and spread. It maps the model's internal representation onto the resistance patterns seen in routine clinical microbiology reports — for example, when a laboratory report reads "ESBL-producing <em>E. coli</em>", the model tracks the specific enzyme class (CTX-M, TEM, or SHV) that produces that phenotype, which drugs it affects, and how it spreads.</p>
 <p>The model tracks resistance at the level of individual <strong>mechanisms</strong> — the specific biological tools bacteria use to evade antibiotics. This matters because the same phenotype (e.g., "carbapenem-resistant <em>K. pneumoniae</em>") can arise from very different mechanisms (KPC, NDM, OXA-48), each with different implications for treatment, spread, and even which novel drugs might still work.</p>
-<p><strong>Mechanism-centric architecture.</strong> All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (<code>mechanism_any</code>), majority strain (<code>mechanism_majority</code>), and microbiome carriage (<code>mechanism_microbiome</code>). The scalar resistance metrics (<code>any_r</code>, <code>activity_r</code>) reported in outputs are <strong>derived</strong> from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. A single unified <code>MechanismCache</code> maintains the population-level picture as a reservoir of up to 1000 complete clinical resistance genotypes per region × care setting × bacterium (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with long profile retention (both currently ~693-day half-life in the live configuration), preserves a resistant exemplar in slots with resistant history during refresh, derives prevalence directly from the stored profiles, applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology, and maintains a <code>peak_mechanism_prevalence</code> table (see Section 7.8) that records the highest marginal prevalence ever achieved for each (bacteria, mechanism) pair — used by the dynamic ratchet floor to prevent reversion of low-fitness-cost mechanisms.</p>
+<p><strong>Mechanism-centric architecture.</strong> All resistance state is stored as a set of boolean flags — one per mechanism — for each individual's active infection (<code>mechanism_any</code>), majority strain (<code>mechanism_majority</code>), and microbiome carriage (<code>mechanism_microbiome</code>). The scalar resistance metric <code>any_r</code> is <strong>derived</strong> from these mechanism flags via the multiplicative susceptibility formula (Section 7.2) rather than being tracked independently. By contrast, <code>activity_r</code> is a per-day treatment-effect quantity computed from potency, current effective drug level (including syndrome penetration), and the current normalized <code>any_r</code>. A single unified <code>MechanismCache</code> maintains the population-level picture as a reservoir of up to 1000 complete clinical resistance genotypes per region × care setting × bacterium (used for profile-based acquisition — see Section 3.4). The cache maintains separate hospital and community pools with long profile retention (both currently ~693-day half-life in the live configuration), preserves a resistant exemplar in slots with resistant history during refresh, derives prevalence directly from the stored profiles, applies per-bacteria hospital resistance concentration factors to amplify the observed hospital resistance signal for organisms with strong nosocomial ecology, and maintains a <code>peak_mechanism_prevalence</code> table (see Section 7.8) that records the highest marginal prevalence ever achieved for each (bacteria, mechanism) pair — used by the dynamic ratchet floor to prevent reversion of low-fitness-cost mechanisms.</p>
 <p>The architecture is still primarily mechanism-by-mechanism for <strong>de novo</strong> emergence under active drug pressure. The new <em>S. aureus</em> enrichment step therefore sits specifically on the <strong>acquisition</strong> side of the model, after a profile has already been drawn from the human circulating reservoir and after <code>mecA</code> has already been observed in that sampled profile. This placement is deliberate. It separates two biological ideas that would otherwise be conflated: (1) a mechanism first emerging within a host under selection pressure, and (2) a newly infected person acquiring a strain that belongs to a wider successful MRSA lineage already circulating with a partially linked resistance package.</p>
 <h3 id="71-resistance-mechanisms">7.1 Resistance mechanisms</h3>
 <p>The model explicitly tracks <strong>46</strong> distinct resistance mechanisms. Each mechanism represents a specific biological pathway: an enzyme that destroys the drug, a mutation that changes the drug's target, a pump that ejects the drug from the cell, or a barrier that prevents the drug entering.</p>
@@ -4983,7 +5046,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td>De-novo emergence under treatment</td>
 <td><code>microbiome_de_novo_multiplier</code></td>
 <td>1.0</td>
-<td>When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the same emergence formula used for infections (Section 7.3), scaled by this multiplier. Emergence writes to both <code>mechanism_microbiome</code> and <code>mechanism_any</code>.</td>
+<td>When antibiotics exert selective pressure on carried bacteria, resistance mechanisms can emerge in the microbiome via the microbiome emergence pathway (Section 7.3), scaled by this multiplier. Emergence writes directly to <code>mechanism_microbiome</code>; transfer into infection occurs through the separate bridge pathways below.</td>
 </tr>
 <tr>
 <td>Carrier → infection bridge</td>
@@ -4992,10 +5055,10 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td>When a carrier develops an endogenous infection, each mechanism in <code>mechanism_microbiome</code> is independently considered for transfer to <code>mechanism_any</code> (see Section 3.3)</td>
 </tr>
 <tr>
-<td>Infection → microbiome transfer</td>
-<td>(automatic)</td>
-<td>—</td>
-<td>When an infected individual also carries the same bacterium, resistance mechanisms present in the infection but absent in the microbiome are copied to <code>mechanism_microbiome</code>, reflecting spillover from the active infection back into the commensal reservoir</td>
+<td>Infection ↔ microbiome transfer</td>
+<td><code>microbiome_resistance_transfer_probability_per_day</code></td>
+<td>0.0001</td>
+<td>When both compartments are present and their mechanism sets differ, a daily Bernoulli draw can trigger bidirectional union (mechanisms are copied into both <code>mechanism_any</code> and <code>mechanism_microbiome</code>), after which resistance scalars are re-derived.</td>
 </tr>
 <tr>
 <td>HGT into the microbiome</td>
@@ -5029,23 +5092,23 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tbody>
 <tr>
 <td>Same plasmid pool, same bacteria group</td>
-<td><code>1e-9</code></td>
+<td><code>1e-5</code></td>
 </tr>
 <tr>
 <td>Same plasmid pool, different bacteria group</td>
-<td><code>1e-10</code></td>
+<td><code>1e-6</code></td>
 </tr>
 <tr>
 <td>Enteric Gram-negative &lt;-&gt; respiratory Gram-negative</td>
-<td><code>3e-11</code></td>
+<td><code>3e-8</code></td>
 </tr>
 <tr>
 <td>Enteric Gram-negative &lt;-&gt; anaerobe</td>
-<td><code>3e-11</code></td>
+<td><code>3e-7</code></td>
 </tr>
 <tr>
 <td>Anaerobe &lt;-&gt; anaerobe</td>
-<td><code>1e-9</code></td>
+<td><code>1e-5</code></td>
 </tr>
 <tr>
 <td>All other cross-pool combinations</td>
@@ -5074,10 +5137,10 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <td>Calibration knob — scales all HGT rates up or down uniformly</td>
 </tr>
 <tr>
-<td>Base transfer rate</td>
-<td>microbiome_resistance_transfer_probability_per_day</td>
-<td>0.0001</td>
-<td>Background rate — equivalent to a conjugation event occurring every ~27 years per carrier, reflecting how rare HGT is without antibiotic pressure (San Millán A &amp; MacLean RC, 2017)</td>
+<td>Base pairwise transfer rate</td>
+<td><code>hgt_prob_{donor}_to_{recipient}</code> matrix (defaults from Section 9.1)</td>
+<td><code>0.0</code> to <code>1e-5</code></td>
+<td>Baseline compatibility hazard determined by plasmid-pool ecology and donor-recipient pairing before context multipliers are applied</td>
 </tr>
 <tr>
 <td>Amplification during antibiotic therapy</td>
@@ -5088,7 +5151,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tr>
 <td>Hospitalization boost</td>
 <td>hgt_hospital_multiplier</td>
-<td>3.0 (×3.0)</td>
+<td>4.0 (×4.0)</td>
 <td>Captures increased transmission risks in clinical environments where close physical proximity and shared infrastructure elevate exchange.</td>
 </tr>
 <tr>
@@ -5117,6 +5180,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 </tbody>
 </table>
+<p><code>microbiome_resistance_transfer_probability_per_day</code> is a separate parameter used for within-host infection↔microbiome mechanism exchange (Section 8.2), not for inter-species HGT.</p>
 <p>The absolute HGT probabilities are intentionally low and should be interpreted as effective daily hazards at the model scale, not bedside-measurable event rates. Their main purpose is to preserve plausible relative ordering between low-contact community settings, antibiotic-stressed microbiomes, and high-contact hospital environments.</p>
 <h2 id="10-mortality">10. Mortality</h2>
 <p>The model tracks mortality from three sources: background (non-infection) causes, <strong>sepsis</strong> (organ dysfunction from uncontrolled immune response to infection), and <strong>non-sepsis infection death</strong> (direct tissue damage, toxin production, or chronic complications of infection that do not involve the sepsis cascade). This dual-pathway architecture reflects the clinical reality that different pathogens kill through fundamentally different mechanisms (Rudd KE et al., 2017).</p>
@@ -6672,11 +6736,11 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 </tr>
 <tr>
 <td>community_profile_cache_retention</td>
-<td style="text-align: right;">0.99</td>
+<td style="text-align: right;">0.999</td>
 </tr>
 <tr>
 <td>hospital_profile_cache_retention</td>
-<td style="text-align: right;">0.995</td>
+<td style="text-align: right;">0.999</td>
 </tr>
 <tr>
 <td>hospital_resistance_concentration_factor</td>
@@ -6762,7 +6826,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tbody>
 <tr>
 <td>infection_de_novo_multiplier</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td>microbiome_de_novo_multiplier</td>
@@ -6785,7 +6849,7 @@ bacteria_{slug}_mechanism_{mechanism_key}_environmental_floor_before_{YYYY}
 <tbody>
 <tr>
 <td>hgt_hospital_multiplier</td>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
 </tr>
 <tr>
 <td>hgt_antibiotic_pressure_multiplier</td>
